@@ -49,6 +49,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
   String _searchQuery = '';
   // _showSearch removed — search bar is always visible in the top navbar
   int _selectedIndex = -1;
+  String? _pendingAutoplayGroup;
   db.Channel? _previewChannel;
   List<db.EpgProgramme> _nowPlaying = [];
 
@@ -535,6 +536,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
             _applyFilters();
           }
         });
+        _playFirstFilteredChannelForGroup(_selectedGroup);
       }
       _backgroundLoading = false;
 
@@ -565,6 +567,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
       _rebuildAutomaticChannelIndex();
       _applyFilters();
     });
+    _playFirstFilteredChannelForGroup(_selectedGroup);
   }
 
   /// Loads EPG sources, mappings, and now-playing data in the background.
@@ -810,7 +813,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
 
     _filteredChannels = _deduplicateChannels(channels);
     if (_selectedIndex >= _filteredChannels.length) {
-      _selectedIndex = _filteredChannels.isEmpty ? -1 : 0;
+      _selectedIndex = -1;
     }
   }
 
@@ -906,17 +909,42 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
     setState(() {
       _filteredChannels = _deduplicateChannels(channels);
       if (_selectedIndex >= _filteredChannels.length) {
-        _selectedIndex = _filteredChannels.isEmpty ? -1 : 0;
+        _selectedIndex = -1;
       }
     });
+    _playFirstFilteredChannelForGroup('fav:$listId');
     // Ensure EPG data is loaded for the favorite list channels
     _refreshNowPlaying();
+  }
+
+  void _selectGroupAndPlayFirst(String group) {
+    if (_selectedGroup == group) return;
+    setState(() {
+      _clearSearch();
+      _selectedGroup = group;
+      _selectedIndex = -1;
+      _pendingAutoplayGroup = group;
+      _applyFilters();
+    });
+    if (!group.startsWith('fav:')) {
+      _playFirstFilteredChannelForGroup(group);
+    }
+    _saveSession();
+  }
+
+  void _playFirstFilteredChannelForGroup(String group) {
+    if (!mounted || _selectedGroup != group) return;
+    if (_pendingAutoplayGroup != group) return;
+    if (_selectedIndex >= 0 || _filteredChannels.isEmpty) return;
+    _pendingAutoplayGroup = null;
+    _selectChannel(0);
   }
 
   void _selectChannel(int index) {
     if (index < 0 || index >= _filteredChannels.length) return;
     // Skip if already selected — don't reload the stream
     if (index == _selectedIndex) return;
+    _pendingAutoplayGroup = null;
     // Remember current as previous (for back/forth toggle)
     if (_selectedIndex >= 0 && _selectedIndex != index) {
       _previousIndex = _selectedIndex;
@@ -2356,20 +2384,10 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
       padding: const EdgeInsets.symmetric(vertical: 4),
       children: [
         _sidebarIcon(Icons.grid_view_rounded, 'All', isAll, () {
-          setState(() {
-            _clearSearch();
-            _selectedGroup = 'All';
-            _applyFilters();
-            _saveSession();
-          });
+          _selectGroupAndPlayFirst('All');
         }),
         _sidebarIcon(Icons.star_rounded, 'Favorites', isFav, () {
-          setState(() {
-            _clearSearch();
-            _selectedGroup = 'Favorites';
-            _applyFilters();
-            _saveSession();
-          });
+          _selectGroupAndPlayFirst('Favorites');
         }),
         const Divider(height: 1, color: Colors.white10),
         _sidebarIcon(Icons.folder_rounded, 'Groups', !isAll && !isFav, () {
@@ -2649,14 +2667,10 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
             }
             if (event.logicalKey == LogicalKeyboardKey.select ||
                 event.logicalKey == LogicalKeyboardKey.enter) {
+              if (filterKey != null && children.isEmpty) {
+                _selectGroupAndPlayFirst(filterKey);
+              }
               setState(() {
-                _clearSearch();
-                // Only change channel list if provider has no subcategories
-                if (filterKey != null && children.isEmpty) {
-                  _selectedGroup = filterKey;
-                  _applyFilters();
-                  _saveSession();
-                }
                 if (expanded) {
                   _expandedSections.remove(sectionKey);
                 } else {
@@ -2672,14 +2686,10 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
               final hasFocus = Focus.of(context).hasFocus;
               return InkWell(
                 onTap: () {
+                  if (filterKey != null && children.isEmpty) {
+                    _selectGroupAndPlayFirst(filterKey);
+                  }
                   setState(() {
-                    _clearSearch();
-                    // Only change channel list if provider has no subcategories
-                    if (filterKey != null && children.isEmpty) {
-                      _selectedGroup = filterKey;
-                      _applyFilters();
-                      _saveSession();
-                    }
                     if (expanded) {
                       _expandedSections.remove(sectionKey);
                     } else {
@@ -2930,12 +2940,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
               _handleQuickAction(filterKey.substring(7));
               return KeyEventResult.handled;
             }
-            setState(() {
-              _clearSearch();
-              _selectedGroup = filterKey;
-              _applyFilters();
-            });
-            _saveSession();
+            _selectGroupAndPlayFirst(filterKey);
             return KeyEventResult.handled;
           }
           return KeyEventResult.ignored;
@@ -2950,12 +2955,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                   _handleQuickAction(filterKey.substring(7));
                   return;
                 }
-                setState(() {
-                  _clearSearch();
-                  _selectedGroup = filterKey;
-                  _applyFilters();
-                });
-                _saveSession();
+                _selectGroupAndPlayFirst(filterKey);
               },
               child: Container(
                 height: 30,

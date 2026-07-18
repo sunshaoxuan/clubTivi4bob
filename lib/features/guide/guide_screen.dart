@@ -41,7 +41,10 @@ class _GuideScreenState extends ConsumerState<GuideScreen> {
     _loadMappings();
     // Pre-set offset to "now" so rows render correctly before jumpTo fires
     final nowMinutes = _focusTime.hour * 60 + _focusTime.minute;
-    final initialOffset = (nowMinutes * _pixelsPerMinute - 100).clamp(0.0, 24 * 60 * _pixelsPerMinute);
+    final initialOffset = (nowMinutes * _pixelsPerMinute - 100).clamp(
+      0.0,
+      24 * 60 * _pixelsPerMinute,
+    );
     _scrollOffset.value = initialOffset;
     // Sync scroll offset to ValueNotifier for all rows
     _scrollController.addListener(() {
@@ -115,7 +118,8 @@ class _GuideScreenState extends ConsumerState<GuideScreen> {
     if (event is! KeyDownEvent) return;
     // Don't intercept keys when a text field is focused
     final primaryFocus = FocusManager.instance.primaryFocus;
-    if (primaryFocus?.context?.findAncestorWidgetOfExactType<EditableText>() != null) {
+    if (primaryFocus?.context?.findAncestorWidgetOfExactType<EditableText>() !=
+        null) {
       if (event.logicalKey == LogicalKeyboardKey.escape) {
         primaryFocus!.unfocus();
       }
@@ -134,13 +138,19 @@ class _GuideScreenState extends ConsumerState<GuideScreen> {
     }
     if (event.logicalKey == LogicalKeyboardKey.arrowLeft) {
       _scrollController.animateTo(
-        (_scrollController.offset - 200).clamp(0.0, _scrollController.position.maxScrollExtent),
+        (_scrollController.offset - 200).clamp(
+          0.0,
+          _scrollController.position.maxScrollExtent,
+        ),
         duration: const Duration(milliseconds: 200),
         curve: Curves.easeOut,
       );
     } else if (event.logicalKey == LogicalKeyboardKey.arrowRight) {
       _scrollController.animateTo(
-        (_scrollController.offset + 200).clamp(0.0, _scrollController.position.maxScrollExtent),
+        (_scrollController.offset + 200).clamp(
+          0.0,
+          _scrollController.position.maxScrollExtent,
+        ),
         duration: const Duration(milliseconds: 200),
         curve: Curves.easeOut,
       );
@@ -156,137 +166,149 @@ class _GuideScreenState extends ConsumerState<GuideScreen> {
       autofocus: true,
       onKeyEvent: _handleKeyEvent,
       child: Scaffold(
-      appBar: AppBar(
-        title: const Text('Program Guide'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.arrow_back_ios_rounded, size: 18),
-            tooltip: 'Previous day',
-            onPressed: () => setState(() {
-              _focusTime = _focusTime.subtract(const Duration(days: 1));
-            }),
-          ),
-          TextButton(
-            onPressed: () => setState(() => _focusTime = DateTime.now()),
-            child: Text(
-              _formatDate(_focusTime),
-              style: const TextStyle(fontSize: 14),
+        appBar: AppBar(
+          title: const Text('节目表'),
+          actions: [
+            IconButton(
+              icon: const Icon(Icons.arrow_back_ios_rounded, size: 18),
+              tooltip: '前一天',
+              onPressed: () => setState(() {
+                _focusTime = _focusTime.subtract(const Duration(days: 1));
+              }),
             ),
-          ),
-          IconButton(
-            icon: const Icon(Icons.arrow_forward_ios_rounded, size: 18),
-            tooltip: 'Next day',
-            onPressed: () => setState(() {
-              _focusTime = _focusTime.add(const Duration(days: 1));
-            }),
-          ),
-        ],
-      ),
-      body: FutureBuilder<List<db.Provider>>(
-        future: database.getAllProviders(),
-        builder: (context, provSnap) {
-          if (!provSnap.hasData || provSnap.data!.isEmpty) {
-            return const _GuideEmptyState();
-          }
-          return Column(
-            children: [
-              // Time ruler — offset by 120px to align with programme columns
-              SizedBox(
-                height: 32,
-                child: Row(
-                  children: [
-                    const SizedBox(width: 120),
-                    Expanded(
-                      child: _TimeRuler(
-                        scrollController: _scrollController,
-                        focusDate: _focusTime,
-                      ),
-                    ),
-                  ],
-                ),
+            TextButton(
+              onPressed: () => setState(() => _focusTime = DateTime.now()),
+              child: Text(
+                _formatDate(_focusTime),
+                style: const TextStyle(fontSize: 14),
               ),
-              const Divider(height: 1),
-              // Search bar
-              Padding(
-                padding: const EdgeInsets.symmetric(
-                    horizontal: 12, vertical: 6),
-                child: TextField(
-                  controller: _searchController,
-                  style: const TextStyle(color: Colors.white),
-                  decoration: InputDecoration(
-                    hintText: 'Search channels...',
-                    hintStyle: const TextStyle(color: Colors.white38),
-                    prefixIcon:
-                        const Icon(Icons.search, color: Colors.white38),
-                    suffixIcon: _searchQuery.isNotEmpty
-                        ? IconButton(
-                            icon: const Icon(Icons.clear,
-                                color: Colors.white38),
-                            onPressed: () {
-                              _searchController.clear();
-                              setState(() => _searchQuery = '');
-                            },
-                          )
-                        : null,
-                    filled: true,
-                    fillColor: const Color(0xFF16213E),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8),
-                      borderSide: BorderSide.none,
-                    ),
-                    contentPadding:
-                        const EdgeInsets.symmetric(vertical: 10),
-                  ),
-                  onChanged: (v) => setState(() => _searchQuery = v),
-                ),
-              ),
-              // Channel rows
-              Expanded(
-                child: FutureBuilder<List<db.Channel>>(
-                  future: database.getChannelsForProvider(
-                      provSnap.data!.first.id),
-                  builder: (context, chanSnap) {
-                    if (!chanSnap.hasData) {
-                      return const Center(child: CircularProgressIndicator());
-                    }
-                    var channels = chanSnap.data!;
-                    if (_searchQuery.isNotEmpty) {
-                      channels = channels
-                          .where((c) => fuzzyMatchPasses(
-                              _searchQuery, [c.name, c.groupTitle]))
-                          .toList();
-                    }
-                    return ListView.builder(
-                      itemCount: channels.length,
-                      itemBuilder: (context, index) {
-                        final channel = channels[index];
-                        final epgId = _mappingsLoaded ? _resolveEpgId(channel) : null;
-                        return _ChannelGuideRow(
-                          channelName: channel.name,
-                          channelLogo: channel.tvgLogo,
-                          scrollOffset: _scrollOffset,
-                          database: database,
-                          epgChannelId: epgId,
+            ),
+            IconButton(
+              icon: const Icon(Icons.arrow_forward_ios_rounded, size: 18),
+              tooltip: '后一天',
+              onPressed: () => setState(() {
+                _focusTime = _focusTime.add(const Duration(days: 1));
+              }),
+            ),
+          ],
+        ),
+        body: FutureBuilder<List<db.Provider>>(
+          future: database.getAllProviders(),
+          builder: (context, provSnap) {
+            if (!provSnap.hasData || provSnap.data!.isEmpty) {
+              return const _GuideEmptyState();
+            }
+            return Column(
+              children: [
+                // Time ruler — offset by 120px to align with programme columns
+                SizedBox(
+                  height: 32,
+                  child: Row(
+                    children: [
+                      const SizedBox(width: 120),
+                      Expanded(
+                        child: _TimeRuler(
+                          scrollController: _scrollController,
                           focusDate: _focusTime,
-                          pixelsPerMinute: _pixelsPerMinute,
-                        );
-                      },
-                    );
-                  },
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
-              ),
-            ],
-          );
-        },
+                const Divider(height: 1),
+                // Search bar
+                Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 6,
+                  ),
+                  child: TextField(
+                    controller: _searchController,
+                    style: const TextStyle(color: Colors.white),
+                    decoration: InputDecoration(
+                      hintText: '搜索频道…',
+                      hintStyle: const TextStyle(color: Colors.white38),
+                      prefixIcon: const Icon(
+                        Icons.search,
+                        color: Colors.white38,
+                      ),
+                      suffixIcon: _searchQuery.isNotEmpty
+                          ? IconButton(
+                              icon: const Icon(
+                                Icons.clear,
+                                color: Colors.white38,
+                              ),
+                              onPressed: () {
+                                _searchController.clear();
+                                setState(() => _searchQuery = '');
+                              },
+                            )
+                          : null,
+                      filled: true,
+                      fillColor: const Color(0xFF16213E),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        borderSide: BorderSide.none,
+                      ),
+                      contentPadding: const EdgeInsets.symmetric(vertical: 10),
+                    ),
+                    onChanged: (v) => setState(() => _searchQuery = v),
+                  ),
+                ),
+                // Channel rows
+                Expanded(
+                  child: FutureBuilder<List<db.Channel>>(
+                    future: database.getChannelsForProvider(
+                      provSnap.data!.first.id,
+                    ),
+                    builder: (context, chanSnap) {
+                      if (!chanSnap.hasData) {
+                        return const Center(child: CircularProgressIndicator());
+                      }
+                      var channels = chanSnap.data!;
+                      if (_searchQuery.isNotEmpty) {
+                        channels = channels
+                            .where(
+                              (c) => fuzzyMatchPasses(_searchQuery, [
+                                c.name,
+                                c.groupTitle,
+                              ]),
+                            )
+                            .toList();
+                      }
+                      return ListView.builder(
+                        itemCount: channels.length,
+                        itemBuilder: (context, index) {
+                          final channel = channels[index];
+                          final epgId = _mappingsLoaded
+                              ? _resolveEpgId(channel)
+                              : null;
+                          return _ChannelGuideRow(
+                            channelName: channel.name,
+                            channelLogo: channel.tvgLogo,
+                            scrollOffset: _scrollOffset,
+                            database: database,
+                            epgChannelId: epgId,
+                            focusDate: _focusTime,
+                            pixelsPerMinute: _pixelsPerMinute,
+                          );
+                        },
+                      );
+                    },
+                  ),
+                ),
+              ],
+            );
+          },
+        ),
       ),
-    ),
     );
   }
 
   String _formatDate(DateTime dt) {
     final now = DateTime.now();
     if (dt.year == now.year && dt.month == now.month && dt.day == now.day) {
-      return 'Today';
+      return '今天';
     }
     return '${dt.month}/${dt.day}';
   }
@@ -375,7 +397,10 @@ class _ChannelGuideRowState extends State<_ChannelGuideRow> {
     }
     setState(() => _loading = true);
     final dayStart = DateTime(
-        widget.focusDate.year, widget.focusDate.month, widget.focusDate.day);
+      widget.focusDate.year,
+      widget.focusDate.month,
+      widget.focusDate.day,
+    );
     final dayEnd = dayStart.add(const Duration(hours: 24));
     try {
       final progs = await widget.database.getProgrammes(
@@ -398,9 +423,17 @@ class _ChannelGuideRowState extends State<_ChannelGuideRow> {
         });
         if (!dominated) unique.add(p);
       }
-      if (mounted) setState(() { _programmes = unique; _loading = false; });
+      if (mounted)
+        setState(() {
+          _programmes = unique;
+          _loading = false;
+        });
     } catch (_) {
-      if (mounted) setState(() { _programmes = []; _loading = false; });
+      if (mounted)
+        setState(() {
+          _programmes = [];
+          _loading = false;
+        });
     }
   }
 
@@ -408,7 +441,10 @@ class _ChannelGuideRowState extends State<_ChannelGuideRow> {
   Widget build(BuildContext context) {
     final ppm = widget.pixelsPerMinute;
     final dayStart = DateTime(
-        widget.focusDate.year, widget.focusDate.month, widget.focusDate.day);
+      widget.focusDate.year,
+      widget.focusDate.month,
+      widget.focusDate.day,
+    );
     final now = DateTime.now();
 
     return ClipRect(
@@ -423,16 +459,28 @@ class _ChannelGuideRowState extends State<_ChannelGuideRow> {
                 padding: const EdgeInsets.symmetric(horizontal: 8),
                 child: Row(
                   children: [
-                    if (widget.channelLogo != null && widget.channelLogo!.isNotEmpty)
+                    if (widget.channelLogo != null &&
+                        widget.channelLogo!.isNotEmpty)
                       Padding(
                         padding: const EdgeInsets.only(right: 6),
-                        child: Image.network(widget.channelLogo!, width: 24, height: 24,
-                          errorBuilder: (_, __, ___) => const Icon(Icons.tv, size: 18, color: Colors.white24)),
+                        child: Image.network(
+                          widget.channelLogo!,
+                          width: 24,
+                          height: 24,
+                          errorBuilder: (_, __, ___) => const Icon(
+                            Icons.tv,
+                            size: 18,
+                            color: Colors.white24,
+                          ),
+                        ),
                       ),
                     Expanded(
-                      child: Text(widget.channelName,
+                      child: Text(
+                        widget.channelName,
                         style: const TextStyle(fontSize: 11),
-                        maxLines: 2, overflow: TextOverflow.ellipsis),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
                     ),
                   ],
                 ),
@@ -448,33 +496,39 @@ class _ChannelGuideRowState extends State<_ChannelGuideRow> {
                   child: _loading
                       ? const SizedBox.shrink()
                       : (_programmes == null || _programmes!.isEmpty)
-                          ? Container(
-                              margin: const EdgeInsets.symmetric(vertical: 2),
-                              decoration: BoxDecoration(
-                                color: Colors.white.withValues(alpha: 0.03),
-                                borderRadius: BorderRadius.circular(4),
+                      ? Container(
+                          margin: const EdgeInsets.symmetric(vertical: 2),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: 0.03),
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: const Center(
+                            child: Text(
+                              '暂无节目单',
+                              style: TextStyle(
+                                fontSize: 10,
+                                color: Colors.white24,
                               ),
-                              child: const Center(
-                                child: Text('No EPG data',
-                                  style: TextStyle(fontSize: 10, color: Colors.white24)),
-                              ),
-                            )
-                          : Stack(
-                              clipBehavior: Clip.hardEdge,
-                              children: [
-                                for (final prog in _programmes!)
-                                  _buildProgrammeBlock(prog, dayStart, now, ppm),
-                                // Now indicator line
-                                if (now.year == dayStart.year &&
-                                    now.month == dayStart.month &&
-                                    now.day == dayStart.day)
-                                  Positioned(
-                                    left: now.difference(dayStart).inMinutes * ppm,
-                                    top: 0, bottom: 0,
-                                    child: Container(width: 2, color: Colors.red),
-                                  ),
-                              ],
                             ),
+                          ),
+                        )
+                      : Stack(
+                          clipBehavior: Clip.hardEdge,
+                          children: [
+                            for (final prog in _programmes!)
+                              _buildProgrammeBlock(prog, dayStart, now, ppm),
+                            // Now indicator line
+                            if (now.year == dayStart.year &&
+                                now.month == dayStart.month &&
+                                now.day == dayStart.day)
+                              Positioned(
+                                left: now.difference(dayStart).inMinutes * ppm,
+                                top: 0,
+                                bottom: 0,
+                                child: Container(width: 2, color: Colors.red),
+                              ),
+                          ],
+                        ),
                 ),
               ),
             ),
@@ -485,16 +539,29 @@ class _ChannelGuideRowState extends State<_ChannelGuideRow> {
   }
 
   Widget _buildProgrammeBlock(
-      db.EpgProgramme prog, DateTime dayStart, DateTime now, double ppm) {
-    final startMin = prog.start.difference(dayStart).inMinutes.toDouble().clamp(0, 24 * 60);
-    final endMin = prog.stop.difference(dayStart).inMinutes.toDouble().clamp(0, 24 * 60);
+    db.EpgProgramme prog,
+    DateTime dayStart,
+    DateTime now,
+    double ppm,
+  ) {
+    final startMin = prog.start
+        .difference(dayStart)
+        .inMinutes
+        .toDouble()
+        .clamp(0, 24 * 60);
+    final endMin = prog.stop
+        .difference(dayStart)
+        .inMinutes
+        .toDouble()
+        .clamp(0, 24 * 60);
     final width = (endMin - startMin) * ppm;
     if (width <= 0) return const SizedBox.shrink();
     final isNow = now.isAfter(prog.start) && now.isBefore(prog.stop);
 
     return Positioned(
       left: startMin * ppm,
-      top: 2, bottom: 2,
+      top: 2,
+      bottom: 2,
       width: width,
       child: Tooltip(
         richMessage: _buildProgrammeTooltip(prog),
@@ -509,27 +576,30 @@ class _ChannelGuideRowState extends State<_ChannelGuideRow> {
         child: MouseRegion(
           cursor: SystemMouseCursors.click,
           child: Container(
-          margin: const EdgeInsets.only(right: 1),
-          padding: const EdgeInsets.symmetric(horizontal: 4),
-          decoration: BoxDecoration(
-            color: isNow
-                ? const Color(0xFF1A237E).withValues(alpha: 0.9)
-                : const Color(0xFF16213E).withValues(alpha: 0.7),
-            borderRadius: BorderRadius.circular(3),
-            border: isNow ? Border.all(color: Colors.blueAccent, width: 1) : null,
-          ),
-          clipBehavior: Clip.hardEdge,
-          alignment: Alignment.centerLeft,
-          child: Text(
-            prog.title,
-            style: TextStyle(
-              fontSize: 10,
-              color: isNow ? Colors.white : Colors.white70,
-              fontWeight: isNow ? FontWeight.bold : FontWeight.normal,
+            margin: const EdgeInsets.only(right: 1),
+            padding: const EdgeInsets.symmetric(horizontal: 4),
+            decoration: BoxDecoration(
+              color: isNow
+                  ? const Color(0xFF1A237E).withValues(alpha: 0.9)
+                  : const Color(0xFF16213E).withValues(alpha: 0.7),
+              borderRadius: BorderRadius.circular(3),
+              border: isNow
+                  ? Border.all(color: Colors.blueAccent, width: 1)
+                  : null,
             ),
-            maxLines: 1, overflow: TextOverflow.ellipsis,
+            clipBehavior: Clip.hardEdge,
+            alignment: Alignment.centerLeft,
+            child: Text(
+              prog.title,
+              style: TextStyle(
+                fontSize: 10,
+                color: isNow ? Colors.white : Colors.white70,
+                fontWeight: isNow ? FontWeight.bold : FontWeight.normal,
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
           ),
-        ),
         ),
       ),
     );
@@ -547,7 +617,7 @@ class _ChannelGuideRowState extends State<_ChannelGuideRow> {
       if (ep.isNotEmpty) buf.writeln(ep);
     }
     if (prog.category != null && prog.category!.isNotEmpty) {
-      buf.writeln('Category: ${prog.category}');
+      buf.writeln('分类：${prog.category}');
     }
     if (prog.description != null && prog.description!.isNotEmpty) {
       var desc = prog.description!;
@@ -575,7 +645,7 @@ class _ChannelGuideRowState extends State<_ChannelGuideRow> {
       }
     }
     // Fallback: show raw
-    return 'Episode: $raw';
+    return '集数：$raw';
   }
 
   String _fmtTime(DateTime dt) {
@@ -594,14 +664,18 @@ class _GuideEmptyState extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(Icons.calendar_view_week_rounded,
-              size: 64, color: Colors.white24),
+          Icon(
+            Icons.calendar_view_week_rounded,
+            size: 64,
+            color: Colors.white24,
+          ),
           SizedBox(height: 16),
-          Text('EPG Guide',
-              style: TextStyle(fontSize: 20, color: Colors.white54)),
+          Text('节目表', style: TextStyle(fontSize: 20, color: Colors.white54)),
           SizedBox(height: 8),
-          Text('Add an EPG source to see program listings',
-              style: TextStyle(fontSize: 14, color: Colors.white38)),
+          Text(
+            '添加节目单来源后即可查看节目安排',
+            style: TextStyle(fontSize: 14, color: Colors.white38),
+          ),
         ],
       ),
     );
@@ -634,7 +708,8 @@ class _SyncedScrollRowState extends State<_SyncedScrollRow> {
   void _sync() {
     if (!_controller.hasClients) return;
     final target = widget.scrollOffset.value.clamp(
-      0.0, _controller.position.maxScrollExtent,
+      0.0,
+      _controller.position.maxScrollExtent,
     );
     if ((_controller.offset - target).abs() > 0.5) {
       _controller.jumpTo(target);

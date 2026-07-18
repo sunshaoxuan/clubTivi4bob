@@ -6,6 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../datasources/local/database.dart' as db;
 import '../models/channel.dart' hide Provider;
+import 'channel_name_normalizer.dart';
 import 'stream_health_tracker.dart';
 import '../../features/providers/provider_manager.dart';
 
@@ -416,17 +417,7 @@ class StreamAlternativesService {
   }
 
   static String _normalizeName(String name) {
-    return name
-        .toLowerCase()
-        .replaceAll(
-            RegExp(r'\b(hd|fhd|shd|sd|4k|uhd|hevc|h\.?265)\b',
-                caseSensitive: false),
-            '')
-        .replaceAll(
-            RegExp(r'\b(us|uk|ca|mx|au|nz)-?\b', caseSensitive: false), '')
-        .replaceAll(RegExp(r'[^\w\s]'), '')
-        .replaceAll(RegExp(r'\s+'), ' ')
-        .trim();
+    return ChannelNameNormalizer.normalize(name);
   }
 
   Channel _dbToChannel(db.Channel c) => Channel(

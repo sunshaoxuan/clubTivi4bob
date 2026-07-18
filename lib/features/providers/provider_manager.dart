@@ -89,6 +89,8 @@ class ProviderManager {
       streamType: Value(c.streamType.name),
     )).toList());
 
+    await _db.markProviderRefreshed(providerId, DateTime.now());
+
     // Resolve missing logos in background
     _resolveChannelLogos(channels).catchError((_) {});
 

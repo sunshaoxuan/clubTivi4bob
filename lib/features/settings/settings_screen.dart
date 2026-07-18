@@ -10,10 +10,8 @@ import 'package:share_plus/share_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-import '../../core/countdown_snackbar.dart';
 import '../../core/weather_service.dart';
 import '../../data/datasources/local/database.dart' as db;
-import '../../data/services/app_update_service.dart';
 import '../../data/services/backup_service.dart';
 import '../../data/services/epg_refresh_service.dart';
 import '../providers/provider_manager.dart';
@@ -37,21 +35,21 @@ Future<void> _exportBackup(BuildContext context) async {
       final action = await showDialog<String>(
         context: context,
         builder: (ctx) => AlertDialog(
-          title: const Text('Backup Created'),
-          content: Text('Saved to:\n$path'),
+          title: const Text('备份已创建'),
+          content: Text('已保存到：\n$path'),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(ctx, 'close'),
-              child: const Text('Done'),
+              child: const Text('完成'),
             ),
             TextButton(
               onPressed: () => Navigator.pop(ctx, 'save'),
-              child: const Text('Save As…'),
+              child: const Text('另存为…'),
             ),
             FilledButton.icon(
               onPressed: () => Navigator.pop(ctx, 'share'),
               icon: const Icon(Icons.share_rounded, size: 18),
-              label: const Text('Share'),
+              label: const Text('分享'),
             ),
           ],
         ),
@@ -67,18 +65,23 @@ Future<void> _exportBackup(BuildContext context) async {
         if (savePath != null) {
           await File(path).copy(savePath);
           if (context.mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text('Saved to $savePath')),
-            );
+            ScaffoldMessenger.of(
+              context,
+            ).showSnackBar(SnackBar(content: Text('Saved to $savePath')));
           }
         }
       }
     }
   } catch (e) {
     if (context.mounted) {
-      try { Navigator.of(context).pop(); } catch (_) {}
+      try {
+        Navigator.of(context).pop();
+      } catch (_) {}
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Backup failed: $e'), backgroundColor: Colors.red),
+        SnackBar(
+          content: Text('Backup failed: $e'),
+          backgroundColor: Colors.red,
+        ),
       );
     }
   }
@@ -95,17 +98,20 @@ Future<void> _importBackup(BuildContext context) async {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Restore Backup?'),
+        title: const Text('恢复备份？'),
         content: const Text(
           'This will replace all current data with the backup.\n\n'
           'The app will need to restart after restoring.',
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('取消'),
+          ),
           FilledButton(
             onPressed: () => Navigator.pop(ctx, true),
             style: FilledButton.styleFrom(backgroundColor: Colors.amber),
-            child: const Text('Restore'),
+            child: const Text('恢复'),
           ),
         ],
       ),
@@ -123,138 +129,32 @@ Future<void> _importBackup(BuildContext context) async {
       await showDialog(
         context: context,
         builder: (ctx) => AlertDialog(
-          title: const Text('Backup Restored'),
-          content: Text('$summary\n\nPlease restart the app for changes to take effect.'),
+          title: const Text('备份已恢复'),
+          content: Text(
+            '$summary\n\nPlease restart the app for changes to take effect.',
+          ),
           actions: [
-            FilledButton(onPressed: () => Navigator.pop(ctx), child: const Text('OK')),
+            FilledButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('OK'),
+            ),
           ],
         ),
       );
     }
   } catch (e) {
     if (context.mounted) {
-      try { Navigator.of(context).pop(); } catch (_) {}
+      try {
+        Navigator.of(context).pop();
+      } catch (_) {}
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Restore failed: $e'), backgroundColor: Colors.red),
+        SnackBar(
+          content: Text('Restore failed: $e'),
+          backgroundColor: Colors.red,
+        ),
       );
     }
   }
-}
-
-Future<void> _checkForUpdates(BuildContext context) async {
-  showDialog(
-    context: context,
-    barrierDismissible: false,
-    builder: (_) => const Center(child: CircularProgressIndicator()),
-  );
-
-  final release = await AppUpdateService.checkForUpdate();
-
-  if (!context.mounted) return;
-  Navigator.of(context).pop(); // dismiss spinner
-
-  if (release == null) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      countdownSnackBar('Could not check for updates', seconds: 5),
-    );
-    return;
-  }
-
-  if (!release.isNewer) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      countdownSnackBar(
-        'You\'re up to date! (v${AppUpdateService.currentVersion})',
-        seconds: 5,
-      ),
-    );
-    return;
-  }
-
-  // New version available
-  final action = await showDialog<String>(
-    context: context,
-    builder: (ctx) => AlertDialog(
-      backgroundColor: const Color(0xFF1A1A2E),
-      title: Text('Update Available — v${release.version}'),
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Current: v${AppUpdateService.currentVersion}\n'
-            'Latest: v${release.version}\n',
-          ),
-          if (release.body.isNotEmpty)
-            Text(
-              release.body.length > 300
-                  ? '${release.body.substring(0, 300)}…'
-                  : release.body,
-              style: const TextStyle(fontSize: 13, color: Colors.white70),
-            ),
-        ],
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(ctx, 'later'),
-          child: const Text('Later'),
-        ),
-        if (release.apkDownloadUrl != null)
-          FilledButton.icon(
-            onPressed: () => Navigator.pop(ctx, 'install'),
-            icon: const Icon(Icons.download, size: 18),
-            label: const Text('Download & Install'),
-          ),
-      ],
-    ),
-  );
-
-  if (action == 'install' && release.apkDownloadUrl != null && context.mounted) {
-    _downloadUpdate(context, release.apkDownloadUrl!);
-  }
-}
-
-Future<void> _downloadUpdate(BuildContext context, String apkUrl) async {
-  double progress = 0;
-  late StateSetter dialogSetState;
-
-  showDialog(
-    context: context,
-    barrierDismissible: false,
-    builder: (ctx) => StatefulBuilder(
-      builder: (ctx, setState) {
-        dialogSetState = setState;
-        return AlertDialog(
-          backgroundColor: const Color(0xFF1A1A2E),
-          title: const Text('Downloading Update…'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              LinearProgressIndicator(value: progress),
-              const SizedBox(height: 12),
-              Text('${(progress * 100).toStringAsFixed(0)}%'),
-            ],
-          ),
-        );
-      },
-    ),
-  );
-
-  await AppUpdateService.downloadAndInstall(
-    apkUrl,
-    onProgress: (p) {
-      try { dialogSetState(() => progress = p); } catch (_) {}
-    },
-    onError: (error) {
-      if (context.mounted) {
-        Navigator.of(context).pop();
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(error), backgroundColor: Colors.red),
-        );
-      }
-    },
-  );
-  // Dismiss dialog after install intent launches
-  if (context.mounted) Navigator.of(context).pop();
 }
 
 class SettingsScreen extends ConsumerStatefulWidget {
@@ -297,7 +197,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       bindings: {
         const SingleActivator(LogicalKeyboardKey.escape): () {
           final pf = FocusManager.instance.primaryFocus;
-          if (pf?.context?.findAncestorWidgetOfExactType<EditableText>() != null) {
+          if (pf?.context?.findAncestorWidgetOfExactType<EditableText>() !=
+              null) {
             pf!.unfocus();
             return;
           }
@@ -313,173 +214,171 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       child: Focus(
         autofocus: !Platform.isAndroid,
         child: Scaffold(
-      appBar: AppBar(
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          onPressed: () {
-            if (Navigator.of(context).canPop()) {
-              Navigator.of(context).pop();
-            } else {
-              context.go('/');
-            }
-          },
+          appBar: AppBar(
+            leading: IconButton(
+              icon: const Icon(Icons.arrow_back),
+              onPressed: () {
+                if (Navigator.of(context).canPop()) {
+                  Navigator.of(context).pop();
+                } else {
+                  context.go('/');
+                }
+              },
+            ),
+            title: const Text('设置'),
+          ),
+          body: FocusTraversalGroup(
+            child: ListView(
+              children: [
+                _SettingsSection(
+                  title: '电视源',
+                  children: [
+                    ListTile(
+                      autofocus: true,
+                      leading: const Icon(Icons.dns_rounded),
+                      title: const Text('管理电视源'),
+                      subtitle: const Text('管理 M3U、Xtream 与免费电视源'),
+                      trailing: const Icon(Icons.chevron_right),
+                      onTap: () => context.push('/providers'),
+                    ),
+                  ],
+                ),
+                _SettingsSection(
+                  title: 'EPG',
+                  children: [
+                    ListTile(
+                      leading: const Icon(Icons.source_rounded),
+                      title: const Text('节目单来源'),
+                      subtitle: const Text('管理 XMLTV 节目单'),
+                      trailing: const Icon(Icons.chevron_right),
+                      onTap: () => _openEpgSourcesScreen(context, ref),
+                    ),
+                    ListTile(
+                      leading: const Icon(Icons.link_rounded),
+                      title: const Text('节目单映射'),
+                      subtitle: const Text('管理频道与节目单的对应关系'),
+                      trailing: const Icon(Icons.chevron_right),
+                      onTap: () => context.push('/epg-mapping'),
+                    ),
+                    _AutoRefreshTile(),
+                  ],
+                ),
+                _SettingsSection(
+                  title: '播放',
+                  children: [
+                    _UserAgentTile(),
+                    _BufferSizeTile(),
+                    _FailoverModeTile(),
+                  ],
+                ),
+                _SettingsSection(
+                  title: '显示',
+                  children: [_LocationTile(), _TimeFormatTile()],
+                ),
+                _SettingsSection(
+                  title: '遥控',
+                  children: [
+                    SwitchListTile(
+                      secondary: const Icon(Icons.web_rounded),
+                      title: const Text('网页遥控器'),
+                      subtitle: Text(
+                        webRemote.isRunning
+                            ? '运行中，请在手机打开 http://${_localIp.isNotEmpty ? _localIp : '<检测中…>'}:${webRemote.port}'
+                            : '允许通过手机浏览器遥控',
+                      ),
+                      value: webRemote.isRunning,
+                      onChanged: (value) async {
+                        if (value) {
+                          await webRemote.start();
+                        } else {
+                          await webRemote.stop();
+                        }
+                        setState(() {});
+                      },
+                    ),
+                    ListTile(
+                      leading: const Icon(Icons.gamepad_rounded),
+                      title: const Text('按键映射'),
+                      subtitle: const Text('自定义遥控器按键'),
+                      trailing: const Icon(Icons.chevron_right),
+                      onTap: () => _showButtonMappingInfo(context),
+                    ),
+                  ],
+                ),
+                _SettingsSection(
+                  title: '录像',
+                  children: [
+                    _RecordingsFolderTile(),
+                    ListTile(
+                      leading: const Icon(Icons.info_outline_rounded),
+                      title: const Text('使用说明'),
+                      subtitle: const Text('查看录像设置说明'),
+                      trailing: const Icon(Icons.chevron_right),
+                      onTap: () => _showRecordingHelp(context),
+                    ),
+                  ],
+                ),
+                _SettingsSection(
+                  title: '备份与恢复',
+                  children: [
+                    ListTile(
+                      leading: const Icon(Icons.upload_rounded),
+                      title: const Text('导出备份'),
+                      subtitle: const Text('保存电视源、节目单、收藏与密钥'),
+                      trailing: const Icon(Icons.chevron_right),
+                      onTap: () => _exportBackup(context),
+                    ),
+                    ListTile(
+                      leading: const Icon(Icons.download_rounded),
+                      title: const Text('导入备份'),
+                      subtitle: const Text('从 .clubtivi 文件恢复'),
+                      trailing: const Icon(Icons.chevron_right),
+                      onTap: () => _importBackup(context),
+                    ),
+                  ],
+                ),
+                _SettingsSection(
+                  title: '关于',
+                  children: [
+                    ListTile(
+                      leading: const Icon(Icons.info_outline_rounded),
+                      title: const Text('酒店电视'),
+                      subtitle: const Text('v0.4.0+5 • 开源软件 • Apache 2.0'),
+                    ),
+                    ListTile(
+                      leading: const Icon(Icons.code_rounded),
+                      title: const Text('源代码'),
+                      subtitle: const Text(
+                        'github.com/sunshaoxuan/clubTivi4bob',
+                      ),
+                      onTap: () => launchUrl(
+                        Uri.parse(
+                          'https://github.com/sunshaoxuan/clubTivi4bob',
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                _ShowsApiKeysSection(),
+              ],
+            ),
+          ),
         ),
-        title: const Text('Settings'),
-      ),
-      body: FocusTraversalGroup(
-        child: ListView(
-          children: [
-          _SettingsSection(
-            title: 'Providers',
-            children: [
-              ListTile(
-                autofocus: true,
-                leading: const Icon(Icons.dns_rounded),
-                title: const Text('Manage Providers'),
-                subtitle: const Text('M3U, Xtream Codes, free TV sources'),
-                trailing: const Icon(Icons.chevron_right),
-                onTap: () => context.push('/providers'),
-              ),
-            ],
-          ),
-          _SettingsSection(
-            title: 'EPG',
-            children: [
-              ListTile(
-                leading: const Icon(Icons.source_rounded),
-                title: const Text('EPG Sources'),
-                subtitle: const Text('Manage XMLTV feeds (epg.best, etc.)'),
-                trailing: const Icon(Icons.chevron_right),
-                onTap: () => _openEpgSourcesScreen(context, ref),
-              ),
-              ListTile(
-                leading: const Icon(Icons.link_rounded),
-                title: const Text('EPG Mappings'),
-                subtitle: const Text('Channel ↔ EPG mapping manager'),
-                trailing: const Icon(Icons.chevron_right),
-                onTap: () => context.push('/epg-mapping'),
-              ),
-              _AutoRefreshTile(),
-            ],
-          ),
-          _SettingsSection(
-            title: 'Playback',
-            children: [
-              _UserAgentTile(),
-              _BufferSizeTile(),
-              _FailoverModeTile(),
-            ],
-          ),
-          _SettingsSection(
-            title: 'Display',
-            children: [
-              _LocationTile(),
-              _TimeFormatTile(),
-            ],
-          ),
-          _SettingsSection(
-            title: 'Remote Control',
-            children: [
-              SwitchListTile(
-                secondary: const Icon(Icons.web_rounded),
-                title: const Text('Web Remote'),
-                subtitle: Text(webRemote.isRunning
-                    ? 'Running — open http://${_localIp.isNotEmpty ? _localIp : '<detecting...>'}:${webRemote.port} on your phone'
-                    : 'Allow control from phone browser'),
-                value: webRemote.isRunning,
-                onChanged: (value) async {
-                  if (value) {
-                    await webRemote.start();
-                  } else {
-                    await webRemote.stop();
-                  }
-                  setState(() {});
-                },
-              ),
-              ListTile(
-                leading: const Icon(Icons.gamepad_rounded),
-                title: const Text('Button Mapping'),
-                subtitle: const Text('Customize remote buttons'),
-                trailing: const Icon(Icons.chevron_right),
-                onTap: () => _showButtonMappingInfo(context),
-              ),
-            ],
-          ),
-          _SettingsSection(
-            title: 'Recordings',
-            children: [
-              _RecordingsFolderTile(),
-              ListTile(
-                leading: const Icon(Icons.info_outline_rounded),
-                title: const Text('How it works'),
-                subtitle: const Text('Tap to learn about recording setup'),
-                trailing: const Icon(Icons.chevron_right),
-                onTap: () => _showRecordingHelp(context),
-              ),
-            ],
-          ),
-          _SettingsSection(
-            title: 'Backup & Restore',
-            children: [
-              ListTile(
-                leading: const Icon(Icons.upload_rounded),
-                title: const Text('Export Backup'),
-                subtitle: const Text('Save providers, EPG, favorites, API keys'),
-                trailing: const Icon(Icons.chevron_right),
-                onTap: () => _exportBackup(context),
-              ),
-              ListTile(
-                leading: const Icon(Icons.download_rounded),
-                title: const Text('Import Backup'),
-                subtitle: const Text('Restore from a .clubtivi file'),
-                trailing: const Icon(Icons.chevron_right),
-                onTap: () => _importBackup(context),
-              ),
-            ],
-          ),
-          _SettingsSection(
-            title: 'About',
-            children: [
-              ListTile(
-                leading: const Icon(Icons.info_outline_rounded),
-                title: const Text('clubTivi'),
-                subtitle: Text('v${AppUpdateService.currentVersion} • Open Source • Apache-2.0'),
-              ),
-              ListTile(
-                leading: const Icon(Icons.system_update_rounded),
-                title: const Text('Check for Updates'),
-                subtitle: const Text('Download latest version from GitHub'),
-                trailing: const Icon(Icons.chevron_right),
-                onTap: () => _checkForUpdates(context),
-              ),
-              ListTile(
-                leading: const Icon(Icons.code_rounded),
-                title: const Text('Source Code'),
-                subtitle: const Text('github.com/clubanderson/clubTivi'),
-                onTap: () => launchUrl(Uri.parse('https://github.com/clubanderson/clubTivi')),
-              ),
-            ],
-          ),
-          _ShowsApiKeysSection(),
-        ],
-        ),
-      ),
-    ),
       ),
     );
   }
 
   void _openEpgSourcesScreen(BuildContext context, WidgetRef ref) {
-    Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => const _EpgSourcesScreen()),
-    );
+    Navigator.of(
+      context,
+    ).push(MaterialPageRoute(builder: (_) => const _EpgSourcesScreen()));
   }
 
   void _showRecordingHelp(BuildContext context) {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Recording Setup'),
+        title: const Text('录像设置'),
         content: const SingleChildScrollView(
           child: Text(
             '1. Choose a folder\n'
@@ -502,7 +401,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           ),
         ),
         actions: [
-          FilledButton(onPressed: () => Navigator.pop(ctx), child: const Text('Got it')),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('知道了'),
+          ),
         ],
       ),
     );
@@ -512,7 +414,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Button Mapping'),
+        title: const Text('按键映射'),
         content: const Text(
           'clubTivi supports the following remote controls:\n\n'
           '• IR remotes (via Android TV / Fire TV)\n'
@@ -530,7 +432,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           'Custom mapping editor coming soon.',
         ),
         actions: [
-          FilledButton(onPressed: () => Navigator.pop(ctx), child: const Text('OK')),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('确定'),
+          ),
         ],
       ),
     );
@@ -580,15 +485,15 @@ class _EpgSourcesScreenState extends ConsumerState<_EpgSourcesScreen> {
       await ref.read(epgRefreshServiceProvider).refreshSource(id);
       await _loadSources();
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Refresh complete')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Refresh complete')));
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Error: $e')));
       }
     } finally {
       if (mounted) setState(() => _refreshing.remove(id));
@@ -602,9 +507,9 @@ class _EpgSourcesScreenState extends ConsumerState<_EpgSourcesScreen> {
       await _loadSources();
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Delete failed: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Delete failed: $e')));
     }
   }
 
@@ -614,7 +519,7 @@ class _EpgSourcesScreenState extends ConsumerState<_EpgSourcesScreen> {
     final result = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Edit EPG Source'),
+        title: const Text('编辑节目单来源'),
         content: SizedBox(
           width: 400,
           child: Column(
@@ -634,7 +539,10 @@ class _EpgSourcesScreenState extends ConsumerState<_EpgSourcesScreen> {
           ),
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
+          ),
           FilledButton(
             onPressed: () => Navigator.pop(ctx, true),
             child: const Text('Save'),
@@ -644,12 +552,14 @@ class _EpgSourcesScreenState extends ConsumerState<_EpgSourcesScreen> {
     );
     if (result == true && mounted) {
       final database = ref.read(databaseProvider);
-      await database.upsertEpgSource(db.EpgSourcesCompanion(
-        id: Value(source.id),
-        name: Value(nameCtrl.text.trim()),
-        url: Value(urlCtrl.text.trim()),
-        enabled: Value(source.enabled),
-      ));
+      await database.upsertEpgSource(
+        db.EpgSourcesCompanion(
+          id: Value(source.id),
+          name: Value(nameCtrl.text.trim()),
+          url: Value(urlCtrl.text.trim()),
+          enabled: Value(source.enabled),
+        ),
+      );
       await _loadSources();
     }
     nameCtrl.dispose();
@@ -676,9 +586,9 @@ class _EpgSourcesScreenState extends ConsumerState<_EpgSourcesScreen> {
       );
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Reset failed: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Reset failed: $e')));
     }
   }
 
@@ -688,7 +598,8 @@ class _EpgSourcesScreenState extends ConsumerState<_EpgSourcesScreen> {
       bindings: {
         const SingleActivator(LogicalKeyboardKey.escape): () {
           final pf = FocusManager.instance.primaryFocus;
-          if (pf?.context?.findAncestorWidgetOfExactType<EditableText>() != null) {
+          if (pf?.context?.findAncestorWidgetOfExactType<EditableText>() !=
+              null) {
             pf!.unfocus();
             return;
           }
@@ -700,23 +611,23 @@ class _EpgSourcesScreenState extends ConsumerState<_EpgSourcesScreen> {
       child: FocusScope(
         autofocus: true,
         child: Scaffold(
-      appBar: AppBar(
-        title: const Text('EPG Sources'),
-        actions: [
-          TextButton.icon(
-            onPressed: _resetToDefaults,
-            icon: const Icon(Icons.restart_alt, size: 18),
-            label: const Text('Reset to Defaults'),
+          appBar: AppBar(
+            title: const Text('节目单来源'),
+            actions: [
+              TextButton.icon(
+                onPressed: _resetToDefaults,
+                icon: const Icon(Icons.restart_alt, size: 18),
+                label: const Text('恢复默认'),
+              ),
+            ],
           ),
-        ],
-      ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: _showAddDialog,
-        child: const Icon(Icons.add),
-      ),
-      body: _loading
-          ? const Center(child: CircularProgressIndicator())
-          : _error != null
+          floatingActionButton: FloatingActionButton(
+            onPressed: _showAddDialog,
+            child: const Icon(Icons.add),
+          ),
+          body: _loading
+              ? const Center(child: CircularProgressIndicator())
+              : _error != null
               ? Center(
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
@@ -725,7 +636,10 @@ class _EpgSourcesScreenState extends ConsumerState<_EpgSourcesScreen> {
                       const SizedBox(height: 16),
                       FilledButton.icon(
                         onPressed: () {
-                          setState(() { _loading = true; _error = null; });
+                          setState(() {
+                            _loading = true;
+                            _error = null;
+                          });
                           _loadSources();
                         },
                         icon: const Icon(Icons.refresh),
@@ -735,81 +649,83 @@ class _EpgSourcesScreenState extends ConsumerState<_EpgSourcesScreen> {
                   ),
                 )
               : _sources.isEmpty
-          ? Center(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Text('No EPG sources configured'),
-                  const SizedBox(height: 16),
-                  FilledButton.icon(
-                    onPressed: _showAddDialog,
-                    icon: const Icon(Icons.add),
-                    label: const Text('Add Source'),
-                  ),
-                ],
-              ),
-            )
-          : ListView.builder(
-              itemCount: _sources.length,
-              itemBuilder: (context, index) {
-                final source = _sources[index];
-                final isRefreshing = _refreshing.contains(source.id);
-                final lastRefresh = source.lastRefresh;
-                return ListTile(
-                  leading: Switch(
-                    value: source.enabled,
-                    onChanged: (val) async {
-                      final database = ref.read(databaseProvider);
-                      await database.upsertEpgSource(db.EpgSourcesCompanion(
-                        id: Value(source.id),
-                        name: Value(source.name),
-                        url: Value(source.url),
-                        enabled: Value(val),
-                      ));
-                      await _loadSources();
-                    },
-                  ),
-                  title: Text(
-                    source.name,
-                    style: TextStyle(
-                      color: source.enabled ? null : Colors.white38,
-                    ),
-                  ),
-                  subtitle: Text(
-                    '${source.url}\n'
-                    'Last refresh: ${lastRefresh != null ? _formatTime(lastRefresh) : 'Never'}',
-                  ),
-                  isThreeLine: true,
-                  trailing: Row(
+              ? Center(
+                  child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      IconButton(
-                        icon: const Icon(Icons.edit_outlined),
-                        tooltip: 'Edit source',
-                        onPressed: () => _editSource(source),
-                      ),
-                      if (isRefreshing)
-                        const SizedBox(
-                          width: 24,
-                          height: 24,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      else
-                        IconButton(
-                          icon: const Icon(Icons.refresh),
-                          onPressed: () => _refreshSource(source.id),
-                        ),
-                      IconButton(
-                        icon: const Icon(Icons.delete_outline),
-                        onPressed: () => _deleteSource(source.id),
+                      const Text('尚未配置节目单来源'),
+                      const SizedBox(height: 16),
+                      FilledButton.icon(
+                        onPressed: _showAddDialog,
+                        icon: const Icon(Icons.add),
+                        label: const Text('添加来源'),
                       ),
                     ],
                   ),
-                );
-              },
-            ),
-    ),
-    ),
+                )
+              : ListView.builder(
+                  itemCount: _sources.length,
+                  itemBuilder: (context, index) {
+                    final source = _sources[index];
+                    final isRefreshing = _refreshing.contains(source.id);
+                    final lastRefresh = source.lastRefresh;
+                    return ListTile(
+                      leading: Switch(
+                        value: source.enabled,
+                        onChanged: (val) async {
+                          final database = ref.read(databaseProvider);
+                          await database.upsertEpgSource(
+                            db.EpgSourcesCompanion(
+                              id: Value(source.id),
+                              name: Value(source.name),
+                              url: Value(source.url),
+                              enabled: Value(val),
+                            ),
+                          );
+                          await _loadSources();
+                        },
+                      ),
+                      title: Text(
+                        source.name,
+                        style: TextStyle(
+                          color: source.enabled ? null : Colors.white38,
+                        ),
+                      ),
+                      subtitle: Text(
+                        '${source.url}\n'
+                        'Last refresh: ${lastRefresh != null ? _formatTime(lastRefresh) : 'Never'}',
+                      ),
+                      isThreeLine: true,
+                      trailing: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          IconButton(
+                            icon: const Icon(Icons.edit_outlined),
+                            tooltip: '编辑来源',
+                            onPressed: () => _editSource(source),
+                          ),
+                          if (isRefreshing)
+                            const SizedBox(
+                              width: 24,
+                              height: 24,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          else
+                            IconButton(
+                              icon: const Icon(Icons.refresh),
+                              onPressed: () => _refreshSource(source.id),
+                            ),
+                          IconButton(
+                            icon: const Icon(Icons.delete_outline),
+                            onPressed: () => _deleteSource(source.id),
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                ),
+        ),
+      ),
     );
   }
 
@@ -824,7 +740,8 @@ class _EpgSourcesScreenState extends ConsumerState<_EpgSourcesScreen> {
 
 class _ShowsApiKeysSection extends ConsumerStatefulWidget {
   @override
-  ConsumerState<_ShowsApiKeysSection> createState() => _ShowsApiKeysSectionState();
+  ConsumerState<_ShowsApiKeysSection> createState() =>
+      _ShowsApiKeysSectionState();
 }
 
 class _ShowsApiKeysSectionState extends ConsumerState<_ShowsApiKeysSection> {
@@ -846,7 +763,8 @@ class _ShowsApiKeysSectionState extends ConsumerState<_ShowsApiKeysSection> {
   @override
   Widget build(BuildContext context) {
     final keys = ref.watch(showsApiKeysProvider);
-    if (!_loaded && (keys.traktClientId.isNotEmpty || keys.tmdbApiKey.isNotEmpty)) {
+    if (!_loaded &&
+        (keys.traktClientId.isNotEmpty || keys.tmdbApiKey.isNotEmpty)) {
       _traktCtrl.text = keys.traktClientId;
       _tmdbCtrl.text = keys.tmdbApiKey;
       _loaded = true;
@@ -914,40 +832,47 @@ class _ShowsApiKeysSectionState extends ConsumerState<_ShowsApiKeysSection> {
 
   Future<void> _saveTrakt() async {
     final keys = ref.read(showsApiKeysProvider);
-    await ref.read(showsApiKeysProvider.notifier).save(
-      traktClientId: _traktCtrl.text.trim(),
-      tmdbApiKey: keys.tmdbApiKey,
-      debridTokens: keys.debridTokens,
-    );
+    await ref
+        .read(showsApiKeysProvider.notifier)
+        .save(
+          traktClientId: _traktCtrl.text.trim(),
+          tmdbApiKey: keys.tmdbApiKey,
+          debridTokens: keys.debridTokens,
+        );
     ref.invalidate(showsRepositoryProvider);
     if (mounted) {
       setState(() => _traktVerified = null);
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Trakt key saved')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Trakt key saved')));
     }
   }
 
   Future<void> _saveTmdb() async {
     final keys = ref.read(showsApiKeysProvider);
-    await ref.read(showsApiKeysProvider.notifier).save(
-      traktClientId: keys.traktClientId,
-      tmdbApiKey: _tmdbCtrl.text.trim(),
-      debridTokens: keys.debridTokens,
-    );
+    await ref
+        .read(showsApiKeysProvider.notifier)
+        .save(
+          traktClientId: keys.traktClientId,
+          tmdbApiKey: _tmdbCtrl.text.trim(),
+          debridTokens: keys.debridTokens,
+        );
     ref.invalidate(showsRepositoryProvider);
     if (mounted) {
       setState(() => _tmdbVerified = null);
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('TMDB key saved')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('TMDB key saved')));
     }
   }
 
   Future<void> _verifyTrakt() async {
     final token = _traktCtrl.text.trim();
     if (token.isEmpty) return;
-    setState(() { _traktVerifying = true; _traktVerified = null; });
+    setState(() {
+      _traktVerifying = true;
+      _traktVerified = null;
+    });
     try {
       final client = TraktClient(clientId: token);
       final results = await client.getTrendingShows(limit: 1);
@@ -962,7 +887,10 @@ class _ShowsApiKeysSectionState extends ConsumerState<_ShowsApiKeysSection> {
   Future<void> _verifyTmdb() async {
     final token = _tmdbCtrl.text.trim();
     if (token.isEmpty) return;
-    setState(() { _tmdbVerifying = true; _tmdbVerified = null; });
+    setState(() {
+      _tmdbVerifying = true;
+      _tmdbVerified = null;
+    });
     try {
       final client = TmdbClient(apiKey: token);
       final results = await client.getTrendingTv();
@@ -973,7 +901,6 @@ class _ShowsApiKeysSectionState extends ConsumerState<_ShowsApiKeysSection> {
       if (mounted) setState(() => _tmdbVerifying = false);
     }
   }
-
 }
 
 /// Reusable card for API key configuration (matches debrid card style).
@@ -1057,8 +984,11 @@ class _ApiKeyCardState extends State<_ApiKeyCard> {
               children: [
                 if (widget.isConfigured)
                   IconButton(
-                    icon: const Icon(Icons.delete_outline, size: 20,
-                        color: Colors.redAccent),
+                    icon: const Icon(
+                      Icons.delete_outline,
+                      size: 20,
+                      color: Colors.redAccent,
+                    ),
                     tooltip: 'Remove',
                     onPressed: widget.onClear,
                   ),
@@ -1114,8 +1044,11 @@ class _ApiKeyCardState extends State<_ApiKeyCard> {
                               : null,
                           icon: widget.isVerifying
                               ? const SizedBox(
-                                  width: 16, height: 16,
-                                  child: CircularProgressIndicator(strokeWidth: 2),
+                                  width: 16,
+                                  height: 16,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                  ),
                                 )
                               : const Icon(Icons.verified_outlined, size: 18),
                           label: const Text('Verify'),
@@ -1124,7 +1057,10 @@ class _ApiKeyCardState extends State<_ApiKeyCard> {
                         OutlinedButton.icon(
                           onPressed: () {
                             final url = Uri.parse(widget.tokenUrl);
-                            launchUrl(url, mode: LaunchMode.externalApplication);
+                            launchUrl(
+                              url,
+                              mode: LaunchMode.externalApplication,
+                            );
                           },
                           icon: const Icon(Icons.open_in_new, size: 16),
                           label: const Text('Get Key'),
@@ -1145,7 +1081,8 @@ class _ApiKeyCardState extends State<_ApiKeyCard> {
       return const Padding(
         padding: EdgeInsets.all(12),
         child: SizedBox(
-          width: 18, height: 18,
+          width: 18,
+          height: 18,
           child: CircularProgressIndicator(strokeWidth: 2),
         ),
       );
@@ -1213,7 +1150,8 @@ class _UserAgentTileState extends State<_UserAgentTile> {
   void initState() {
     super.initState();
     SharedPreferences.getInstance().then((prefs) {
-      if (mounted) setState(() => _userAgent = prefs.getString(_key) ?? 'Default');
+      if (mounted)
+        setState(() => _userAgent = prefs.getString(_key) ?? 'Default');
     });
   }
 
@@ -1221,8 +1159,11 @@ class _UserAgentTileState extends State<_UserAgentTile> {
   Widget build(BuildContext context) {
     return ListTile(
       leading: const Icon(Icons.badge_rounded),
-      title: const Text('User Agent'),
-      subtitle: Text(_userAgent, style: const TextStyle(color: Colors.purpleAccent)),
+      title: const Text('用户代理'),
+      subtitle: Text(
+        _userAgent,
+        style: const TextStyle(color: Colors.purpleAccent),
+      ),
       trailing: const Icon(Icons.chevron_right),
       onTap: () async {
         final controller = TextEditingController(
@@ -1231,7 +1172,7 @@ class _UserAgentTileState extends State<_UserAgentTile> {
         final picked = await showDialog<String>(
           context: context,
           builder: (ctx) => AlertDialog(
-            title: const Text('User Agent'),
+            title: const Text('用户代理'),
             content: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
@@ -1245,19 +1186,28 @@ class _UserAgentTileState extends State<_UserAgentTile> {
                 const SizedBox(height: 16),
                 const Align(
                   alignment: Alignment.centerLeft,
-                  child: Text('Presets', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
+                  child: Text(
+                    'Presets',
+                    style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+                  ),
                 ),
                 const SizedBox(height: 8),
-                ...List.generate(_presets.length, (i) => ListTile(
-                  dense: true,
-                  title: Text(_presets[i]),
-                  selected: _userAgent == _presets[i],
-                  onTap: () => Navigator.pop(ctx, _presets[i]),
-                )),
+                ...List.generate(
+                  _presets.length,
+                  (i) => ListTile(
+                    dense: true,
+                    title: Text(_presets[i]),
+                    selected: _userAgent == _presets[i],
+                    onTap: () => Navigator.pop(ctx, _presets[i]),
+                  ),
+                ),
               ],
             ),
             actions: [
-              TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text('Cancel'),
+              ),
               FilledButton(
                 onPressed: () {
                   final custom = controller.text.trim();
@@ -1307,7 +1257,7 @@ class _LocationTileState extends ConsumerState<_LocationTile> {
         : 'Auto-detected from IP';
     return ListTile(
       leading: const Icon(Icons.location_on_rounded),
-      title: const Text('Weather Location'),
+      title: const Text('天气位置'),
       subtitle: Text(subtitle),
       trailing: const Icon(Icons.chevron_right),
       onTap: () => _showLocationDialog(),
@@ -1323,7 +1273,7 @@ class _LocationTileState extends ConsumerState<_LocationTile> {
         bool loading = false;
         return StatefulBuilder(
           builder: (ctx, setDialogState) => AlertDialog(
-            title: const Text('Weather Location'),
+            title: const Text('天气位置'),
             content: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -1337,7 +1287,7 @@ class _LocationTileState extends ConsumerState<_LocationTile> {
                   controller: controller,
                   autofocus: true,
                   decoration: InputDecoration(
-                    labelText: 'Zip code or city',
+                    labelText: '邮政编码或城市',
                     hintText: 'e.g. 48103 or Ann Arbor',
                     prefixIcon: const Icon(Icons.search_rounded),
                     errorText: error,
@@ -1350,48 +1300,71 @@ class _LocationTileState extends ConsumerState<_LocationTile> {
                       Navigator.pop(ctx, '');
                       return;
                     }
-                    setDialogState(() { loading = true; error = null; });
+                    setDialogState(() {
+                      loading = true;
+                      error = null;
+                    });
                     final geo = await geocodeZipcode(val);
                     if (geo != null) {
                       Navigator.pop(ctx, val);
                     } else {
-                      setDialogState(() { loading = false; error = 'Could not find location'; });
+                      setDialogState(() {
+                        loading = false;
+                        error = 'Could not find location';
+                      });
                     }
                   },
                 ),
                 if (loading) ...[
                   const SizedBox(height: 12),
-                  const Center(child: SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))),
+                  const Center(
+                    child: SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    ),
+                  ),
                 ],
               ],
             ),
             actions: [
               TextButton(
                 onPressed: () => Navigator.pop(ctx, ''),
-                child: const Text('Auto-detect'),
+                child: const Text('自动检测'),
               ),
               TextButton(
                 onPressed: () => Navigator.pop(ctx),
                 child: const Text('Cancel'),
               ),
               FilledButton(
-                onPressed: loading ? null : () async {
-                  final val = controller.text.trim();
-                  if (val.isEmpty) {
-                    Navigator.pop(ctx, '');
-                    return;
-                  }
-                  setDialogState(() { loading = true; error = null; });
-                  final geo = await geocodeZipcode(val);
-                  if (geo != null) {
-                    // Save the resolved city name
-                    final prefs = await SharedPreferences.getInstance();
-                    await prefs.setString(weatherCityKey, geo['city'] as String);
-                    if (ctx.mounted) Navigator.pop(ctx, val);
-                  } else {
-                    setDialogState(() { loading = false; error = 'Could not find location'; });
-                  }
-                },
+                onPressed: loading
+                    ? null
+                    : () async {
+                        final val = controller.text.trim();
+                        if (val.isEmpty) {
+                          Navigator.pop(ctx, '');
+                          return;
+                        }
+                        setDialogState(() {
+                          loading = true;
+                          error = null;
+                        });
+                        final geo = await geocodeZipcode(val);
+                        if (geo != null) {
+                          // Save the resolved city name
+                          final prefs = await SharedPreferences.getInstance();
+                          await prefs.setString(
+                            weatherCityKey,
+                            geo['city'] as String,
+                          );
+                          if (ctx.mounted) Navigator.pop(ctx, val);
+                        } else {
+                          setDialogState(() {
+                            loading = false;
+                            error = 'Could not find location';
+                          });
+                        }
+                      },
                 child: const Text('Save'),
               ),
             ],
@@ -1407,11 +1380,17 @@ class _LocationTileState extends ConsumerState<_LocationTile> {
       // Clear saved location → auto-detect
       await prefs.remove(weatherZipKey);
       await prefs.remove(weatherCityKey);
-      setState(() { _zipcode = ''; _cityName = ''; });
+      setState(() {
+        _zipcode = '';
+        _cityName = '';
+      });
     } else {
       await prefs.setString(weatherZipKey, result);
       final city = prefs.getString(weatherCityKey) ?? '';
-      setState(() { _zipcode = result; _cityName = city; });
+      setState(() {
+        _zipcode = result;
+        _cityName = city;
+      });
     }
     // Trigger weather refresh
     ref.read(weatherProvider.notifier).refresh();
@@ -1440,7 +1419,7 @@ class _TimeFormatTileState extends State<_TimeFormatTile> {
   Widget build(BuildContext context) {
     return SwitchListTile(
       secondary: const Icon(Icons.schedule_rounded),
-      title: const Text('24-Hour Time'),
+      title: const Text('24 小时制'),
       subtitle: Text(_use24Hour ? '14:30' : '2:30 PM'),
       value: _use24Hour,
       onChanged: (value) async {
@@ -1474,14 +1453,14 @@ class _AutoRefreshTileState extends State<_AutoRefreshTile> {
   Widget build(BuildContext context) {
     return ListTile(
       leading: const Icon(Icons.refresh_rounded),
-      title: const Text('Auto-Refresh'),
+      title: const Text('自动刷新'),
       subtitle: Text('Every $_hours hours'),
       trailing: const Icon(Icons.chevron_right),
       onTap: () async {
         final picked = await showDialog<int>(
           context: context,
           builder: (ctx) => SimpleDialog(
-            title: const Text('Auto-Refresh Interval'),
+            title: const Text('自动刷新间隔'),
             children: [
               for (final h in _options)
                 RadioListTile<int>(
@@ -1533,14 +1512,14 @@ class _BufferSizeTileState extends State<_BufferSizeTile> {
   Widget build(BuildContext context) {
     return ListTile(
       leading: const Icon(Icons.speed_rounded),
-      title: const Text('Buffer Size'),
+      title: const Text('缓冲大小'),
       subtitle: Text(_buffer),
       trailing: const Icon(Icons.chevron_right),
       onTap: () async {
         final picked = await showDialog<String>(
           context: context,
           builder: (ctx) => SimpleDialog(
-            title: const Text('Buffer Size'),
+            title: const Text('缓冲大小'),
             children: [
               for (final entry in _options.entries)
                 RadioListTile<String>(
@@ -1588,23 +1567,29 @@ class _FailoverModeTileState extends State<_FailoverModeTile> {
   Widget build(BuildContext context) {
     return ListTile(
       leading: const Icon(Icons.swap_horizontal_circle_rounded),
-      title: const Text('Failover Mode'),
+      title: const Text('故障转移模式'),
       subtitle: Text(_options[_mode] ?? _mode),
       trailing: const Icon(Icons.chevron_right),
       onTap: () async {
         final picked = await showDialog<String>(
           context: context,
           builder: (ctx) => SimpleDialog(
-            title: const Text('Failover Mode'),
+            title: const Text('故障转移模式'),
             children: [
               for (final entry in _options.entries)
                 RadioListTile<String>(
                   title: Text(entry.value),
                   subtitle: entry.key == 'warm'
-                      ? const Text('Monitors alternate streams in background', style: TextStyle(fontSize: 12))
+                      ? const Text(
+                          'Monitors alternate streams in background',
+                          style: TextStyle(fontSize: 12),
+                        )
                       : entry.key == 'cold'
-                          ? const Text('Switches only when buffering detected', style: TextStyle(fontSize: 12))
-                          : null,
+                      ? const Text(
+                          'Switches only when buffering detected',
+                          style: TextStyle(fontSize: 12),
+                        )
+                      : null,
                   value: entry.key,
                   groupValue: _mode,
                   onChanged: (v) => Navigator.pop(ctx, v),
@@ -1652,12 +1637,14 @@ class _RecordingsFolderTileState extends State<_RecordingsFolderTile> {
 
   Future<void> _enterNetworkPath(BuildContext context) async {
     final controller = TextEditingController(
-      text: _folder != null && _folder!.startsWith('smb://') || 
-            _folder != null && _folder!.startsWith('nfs://') ||
-            _folder != null && _folder!.startsWith('afp://') ||
-            _folder != null && _folder!.startsWith('ftp://') ||
-            _folder != null && _folder!.startsWith('webdav://')
-          ? _folder : '',
+      text:
+          _folder != null && _folder!.startsWith('smb://') ||
+              _folder != null && _folder!.startsWith('nfs://') ||
+              _folder != null && _folder!.startsWith('afp://') ||
+              _folder != null && _folder!.startsWith('ftp://') ||
+              _folder != null && _folder!.startsWith('webdav://')
+          ? _folder
+          : '',
     );
     final path = await showDialog<String>(
       context: context,
@@ -1682,17 +1669,38 @@ class _RecordingsFolderTileState extends State<_RecordingsFolderTile> {
               onSubmitted: (v) => Navigator.pop(ctx, v.trim()),
             ),
             const SizedBox(height: 16),
-            const Text('Supported protocols:', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+            const Text(
+              'Supported protocols:',
+              style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+            ),
             const SizedBox(height: 4),
-            const Text('• SMB — smb://server/share  (Windows/NAS)', style: TextStyle(fontSize: 11, color: Colors.white54)),
-            const Text('• NFS — nfs://server/path  (Linux/NAS)', style: TextStyle(fontSize: 11, color: Colors.white54)),
-            const Text('• AFP — afp://server/share  (Apple)', style: TextStyle(fontSize: 11, color: Colors.white54)),
-            const Text('• FTP — ftp://user:pass@server/path', style: TextStyle(fontSize: 11, color: Colors.white54)),
-            const Text('• WebDAV — webdav://server/path', style: TextStyle(fontSize: 11, color: Colors.white54)),
+            const Text(
+              '• SMB — smb://server/share  (Windows/NAS)',
+              style: TextStyle(fontSize: 11, color: Colors.white54),
+            ),
+            const Text(
+              '• NFS — nfs://server/path  (Linux/NAS)',
+              style: TextStyle(fontSize: 11, color: Colors.white54),
+            ),
+            const Text(
+              '• AFP — afp://server/share  (Apple)',
+              style: TextStyle(fontSize: 11, color: Colors.white54),
+            ),
+            const Text(
+              '• FTP — ftp://user:pass@server/path',
+              style: TextStyle(fontSize: 11, color: Colors.white54),
+            ),
+            const Text(
+              '• WebDAV — webdav://server/path',
+              style: TextStyle(fontSize: 11, color: Colors.white54),
+            ),
           ],
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
+          ),
           FilledButton(
             onPressed: () => Navigator.pop(ctx, controller.text.trim()),
             child: const Text('Save'),
@@ -1744,19 +1752,23 @@ class _RecordingsFolderTileState extends State<_RecordingsFolderTile> {
             children: [
               SimpleDialogOption(
                 onPressed: () => Navigator.pop(ctx, 'local'),
-                child: const Row(children: [
-                  Icon(Icons.folder_rounded, size: 20),
-                  SizedBox(width: 12),
-                  Text('Local Folder'),
-                ]),
+                child: const Row(
+                  children: [
+                    Icon(Icons.folder_rounded, size: 20),
+                    SizedBox(width: 12),
+                    Text('Local Folder'),
+                  ],
+                ),
               ),
               SimpleDialogOption(
                 onPressed: () => Navigator.pop(ctx, 'network'),
-                child: const Row(children: [
-                  Icon(Icons.lan_rounded, size: 20),
-                  SizedBox(width: 12),
-                  Text('Network Share (SMB/NFS/AFP/FTP)'),
-                ]),
+                child: const Row(
+                  children: [
+                    Icon(Icons.lan_rounded, size: 20),
+                    SizedBox(width: 12),
+                    Text('Network Share (SMB/NFS/AFP/FTP)'),
+                  ],
+                ),
               ),
             ],
           ),

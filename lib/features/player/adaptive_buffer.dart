@@ -27,33 +27,33 @@ class AdaptiveBufferManager {
   static const _tierConfig = <String, Map<String, String>>{
     'fast': {
       'cache': 'yes',
-      'cache-secs': '180',
+      'cache-secs': '30',
       'cache-pause': 'no',
       'cache-pause-initial': 'no',
       'cache-pause-wait': '0',
-      'demuxer-max-bytes': '800M',
-      'demuxer-max-back-bytes': '200M',
-      'demuxer-readahead-secs': '60',
+      'demuxer-max-bytes': '48M',
+      'demuxer-max-back-bytes': '8M',
+      'demuxer-readahead-secs': '10',
     },
     'normal': {
       'cache': 'yes',
-      'cache-secs': '180',
+      'cache-secs': '60',
       'cache-pause': 'no',
       'cache-pause-initial': 'no',
       'cache-pause-wait': '0',
-      'demuxer-max-bytes': '800M',
-      'demuxer-max-back-bytes': '200M',
-      'demuxer-readahead-secs': '120',
+      'demuxer-max-bytes': '96M',
+      'demuxer-max-back-bytes': '16M',
+      'demuxer-readahead-secs': '30',
     },
     'aggressive': {
       'cache': 'yes',
-      'cache-secs': '180',
+      'cache-secs': '90',
       'cache-pause': 'no',
       'cache-pause-initial': 'no',
       'cache-pause-wait': '0',
-      'demuxer-max-bytes': '800M',
-      'demuxer-max-back-bytes': '200M',
-      'demuxer-readahead-secs': '180',
+      'demuxer-max-bytes': '192M',
+      'demuxer-max-back-bytes': '32M',
+      'demuxer-readahead-secs': '60',
     },
   };
 
@@ -174,7 +174,11 @@ class AdaptiveBufferManager {
     }
   }
 
-  Future<void> _setMpvProperty(PlayerService ps, String key, String value) async {
+  Future<void> _setMpvProperty(
+    PlayerService ps,
+    String key,
+    String value,
+  ) async {
     try {
       final np = ps.player.platform;
       if (np is native_player.NativePlayer) {

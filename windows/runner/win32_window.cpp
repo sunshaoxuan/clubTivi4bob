@@ -150,7 +150,37 @@ bool Win32Window::Create(const std::wstring& title,
 }
 
 bool Win32Window::Show() {
-  return ShowWindow(window_handle_, SW_SHOWNORMAL);
+  if (!window_handle_) {
+    return false;
+  }
+
+  // Hotel TV runs as a television appliance. Remove every non-client window
+  // decoration at the Win32 layer so Flutter fills the physical display even
+  // when a desktop fullscreen plugin only resizes the client area.
+  LONG_PTR style = GetWindowLongPtr(window_handle_, GWL_STYLE);
+  style &= ~static_cast<LONG_PTR>(WS_OVERLAPPEDWINDOW);
+  style |= WS_POPUP;
+  SetWindowLongPtr(window_handle_, GWL_STYLE, style);
+
+  LONG_PTR ex_style = GetWindowLongPtr(window_handle_, GWL_EXSTYLE);
+  ex_style &= ~static_cast<LONG_PTR>(WS_EX_CLIENTEDGE | WS_EX_WINDOWEDGE |
+                                    WS_EX_DLGMODALFRAME);
+  SetWindowLongPtr(window_handle_, GWL_EXSTYLE, ex_style);
+
+  const HMONITOR monitor =
+      MonitorFromWindow(window_handle_, MONITOR_DEFAULTTONEAREST);
+  MONITORINFO monitor_info{};
+  monitor_info.cbSize = sizeof(MONITORINFO);
+  if (!GetMonitorInfo(monitor, &monitor_info)) {
+    return false;
+  }
+
+  const RECT bounds = monitor_info.rcMonitor;
+  SetWindowPos(window_handle_, HWND_TOP, bounds.left, bounds.top,
+               bounds.right - bounds.left, bounds.bottom - bounds.top,
+               SWP_FRAMECHANGED | SWP_SHOWWINDOW);
+  UpdateWindow(window_handle_);
+  return true;
 }
 
 // static

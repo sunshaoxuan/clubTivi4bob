@@ -11,8 +11,7 @@ class AddEpgSourceDialog extends ConsumerStatefulWidget {
   const AddEpgSourceDialog({super.key});
 
   @override
-  ConsumerState<AddEpgSourceDialog> createState() =>
-      _AddEpgSourceDialogState();
+  ConsumerState<AddEpgSourceDialog> createState() => _AddEpgSourceDialogState();
 }
 
 class _AddEpgSourceDialogState extends ConsumerState<AddEpgSourceDialog> {
@@ -37,11 +36,13 @@ class _AddEpgSourceDialogState extends ConsumerState<AddEpgSourceDialog> {
       final service = ref.read(epgRefreshServiceProvider);
       final id = const Uuid().v4();
 
-      await database.upsertEpgSource(db.EpgSourcesCompanion.insert(
-        id: id,
-        name: _nameController.text.trim(),
-        url: _urlController.text.trim(),
-      ));
+      await database.upsertEpgSource(
+        db.EpgSourcesCompanion.insert(
+          id: id,
+          name: _nameController.text.trim(),
+          url: _urlController.text.trim(),
+        ),
+      );
 
       // Trigger refresh in background
       service.refreshSource(id).catchError((_) {});
@@ -49,9 +50,9 @@ class _AddEpgSourceDialogState extends ConsumerState<AddEpgSourceDialog> {
       if (mounted) Navigator.of(context).pop(true);
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('错误：$e')));
       }
     } finally {
       if (mounted) setState(() => _loading = false);
@@ -77,7 +78,7 @@ class _AddEpgSourceDialogState extends ConsumerState<AddEpgSourceDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: const Text('Add EPG Source'),
+      title: const Text('添加节目单来源'),
       content: Form(
         key: _formKey,
         child: SingleChildScrollView(
@@ -87,8 +88,8 @@ class _AddEpgSourceDialogState extends ConsumerState<AddEpgSourceDialog> {
               TextFormField(
                 controller: _nameController,
                 decoration: const InputDecoration(
-                  labelText: 'Name',
-                  hintText: 'e.g. IPTV-Org EPG',
+                  labelText: '名称',
+                  hintText: '例如：酒店节目单',
                 ),
                 validator: (v) =>
                     (v == null || v.trim().isEmpty) ? 'Required' : null,
@@ -112,7 +113,7 @@ class _AddEpgSourceDialogState extends ConsumerState<AddEpgSourceDialog> {
               OutlinedButton.icon(
                 onPressed: _loading ? null : _addDefaults,
                 icon: const Icon(Icons.auto_fix_high),
-                label: const Text('Add Default Sources'),
+                label: const Text('添加默认来源'),
               ),
             ],
           ),
@@ -121,7 +122,7 @@ class _AddEpgSourceDialogState extends ConsumerState<AddEpgSourceDialog> {
       actions: [
         TextButton(
           onPressed: _loading ? null : () => Navigator.of(context).pop(),
-          child: const Text('Cancel'),
+          child: const Text('取消'),
         ),
         FilledButton(
           onPressed: _loading ? null : _submit,
@@ -131,7 +132,7 @@ class _AddEpgSourceDialogState extends ConsumerState<AddEpgSourceDialog> {
                   height: 16,
                   child: CircularProgressIndicator(strokeWidth: 2),
                 )
-              : const Text('Add'),
+              : const Text('添加'),
         ),
       ],
     );

@@ -67,6 +67,11 @@ class AppDatabase extends _$AppDatabase {
   Future<void> deleteProvider(String id) =>
       (delete(providers)..where((t) => t.id.equals(id))).go();
 
+  Future<void> markProviderRefreshed(String id, DateTime refreshedAt) =>
+      (update(providers)..where((t) => t.id.equals(id))).write(
+        ProvidersCompanion(lastRefresh: Value(refreshedAt)),
+      );
+
   // --- Channel queries ---
 
   Future<List<Channel>> getChannelsForProvider(String providerId) =>

@@ -5,7 +5,6 @@ import 'package:drift/drift.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:uuid/uuid.dart';
 
 import '../datasources/local/database.dart' as db;
 import '../datasources/parsers/xmltv_parser.dart';
@@ -25,7 +24,17 @@ class _ParseArgs {
 
 class EpgRefreshService {
   final db.AppDatabase _db;
-  final _uuid = const Uuid();
+
+  static const chinaSourceId = 'hotel-cn-epg';
+  static const chinaSourceName = '中国电视节目表';
+  static const chinaSourceUrl = 'https://epg.zsdc.eu.org/t.xml.gz';
+  static const extendedChinaSourceId = 'hotel-cn-epg-extended';
+  static const extendedChinaSourceName = '中国扩展节目表';
+  static const extendedChinaSourceUrl = 'https://epg.112114.xyz/pp.xml';
+  static const _legacyDefaultUrls = {
+    'http://epg.best/16b5b-ypkixv.xml.gz',
+    'https://raw.githubusercontent.com/usa-local-epg/usa-locals/main/usalocals.xml.gz',
+  };
 
   EpgRefreshService(this._db);
 
@@ -36,11 +45,13 @@ class EpgRefreshService {
     debugPrint('[EPG] Refreshing source: ${source.name} (${source.url})');
 
     // Download XMLTV data
-    final dio = Dio(BaseOptions(
-      headers: {
-        'User-Agent': 'clubTivi/1.0 IPTV Player (compatible; XMLTV fetcher)',
-      },
-    ));
+    final dio = Dio(
+      BaseOptions(
+        headers: {
+          'User-Agent': 'clubTivi/1.0 IPTV Player (compatible; XMLTV fetcher)',
+        },
+      ),
+    );
     try {
       final response = await dio.get<List<int>>(
         source.url,
@@ -51,8 +62,13 @@ class EpgRefreshService {
       debugPrint('[EPG] Downloaded ${bytes.length} bytes');
 
       // Decompress + parse in background isolate to avoid ANR
-      final result = await compute(_decompressAndParse, _DecompressParseArgs(bytes, sourceId));
-      debugPrint('[EPG] Parsed ${result.channels.length} channels, ${result.programmes.length} programmes');
+      final result = await compute(
+        _decompressAndParse,
+        _DecompressParseArgs(bytes, sourceId),
+      );
+      debugPrint(
+        '[EPG] Parsed ${result.channels.length} channels, ${result.programmes.length} programmes',
+      );
 
       // Store channels
       final channelCompanions = result.channels.map((c) {
@@ -103,9 +119,12 @@ class EpgRefreshService {
     final sources = await _db.getAllEpgSources();
     final now = DateTime.now();
     for (final source in sources.where((s) => s.enabled)) {
-      if (!force && source.lastRefresh != null &&
+      if (!force &&
+          source.lastRefresh != null &&
           now.difference(source.lastRefresh!).inHours < 4) {
-        debugPrint('[EPG] Skipping ${source.name} — refreshed ${now.difference(source.lastRefresh!).inMinutes}m ago');
+        debugPrint(
+          '[EPG] Skipping ${source.name} — refreshed ${now.difference(source.lastRefresh!).inMinutes}m ago',
+        );
         continue;
       }
       try {
@@ -116,11 +135,34 @@ class EpgRefreshService {
     }
   }
 
-  /// Add default free EPG sources if none exist.
+  /// Ensure the hotel TV build has a Chinese XMLTV source.
   Future<void> addDefaultSources() async {
-    final existing = await _db.getAllEpgSources();
-    if (existing.isNotEmpty) return;
-    await _insertDefaults();
+    var existing = await _db.getAllEpgSources();
+
+    // Remove the two upstream defaults installed by older builds. They do not
+    // contain the Chinese channels used by this hotel TV configuration.
+    for (final source in existing.where(
+      (source) => _legacyDefaultUrls.contains(source.url),
+    )) {
+      await _db.deleteEpgSource(source.id);
+    }
+
+    existing = await _db.getAllEpgSources();
+    final existingUrls = existing.map((source) => source.url).toSet();
+    if (!existingUrls.contains(chinaSourceUrl)) {
+      await _insertSource(
+        id: chinaSourceId,
+        name: chinaSourceName,
+        url: chinaSourceUrl,
+      );
+    }
+    if (!existingUrls.contains(extendedChinaSourceUrl)) {
+      await _insertSource(
+        id: extendedChinaSourceId,
+        name: extendedChinaSourceName,
+        url: extendedChinaSourceUrl,
+      );
+    }
   }
 
   /// Delete all existing sources and re-add defaults.
@@ -133,27 +175,32 @@ class EpgRefreshService {
   }
 
   Future<void> _insertDefaults() async {
-    final defaults = [
-      (
-        name: 'EPG.best',
-        url: 'http://epg.best/16b5b-ypkixv.xml.gz',
-        enabled: true,
-      ),
-      (
-        name: 'USA Locals (ABC, CBS, Fox, NBC)',
-        url: 'https://raw.githubusercontent.com/usa-local-epg/usa-locals/main/usalocals.xml.gz',
-        enabled: true,
-      ),
-    ];
+    await _insertSource(
+      id: chinaSourceId,
+      name: chinaSourceName,
+      url: chinaSourceUrl,
+    );
+    await _insertSource(
+      id: extendedChinaSourceId,
+      name: extendedChinaSourceName,
+      url: extendedChinaSourceUrl,
+    );
+  }
 
-    for (final d in defaults) {
-      await _db.upsertEpgSource(db.EpgSourcesCompanion.insert(
-        id: _uuid.v4(),
-        name: d.name,
-        url: d.url,
-        enabled: Value(d.enabled),
-      ));
-    }
+  Future<void> _insertSource({
+    required String id,
+    required String name,
+    required String url,
+  }) async {
+    await _db.upsertEpgSource(
+      db.EpgSourcesCompanion.insert(
+        id: id,
+        name: name,
+        url: url,
+        enabled: const Value(true),
+        refreshIntervalHours: const Value(4),
+      ),
+    );
   }
 }
 

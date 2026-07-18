@@ -1,5 +1,5 @@
 import 'dart:async';
-import 'dart:io' show Platform;
+import 'dart:io' show HttpClient, Platform;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -53,6 +53,10 @@ class PlayerService {
   bool _warmReady = false;
   StreamSubscription<bool>? _warmBufferSub;
   Timer? _warmTimeoutTimer;
+  Future<void>? _warmSetupFuture;
+  int _warmGeneration = 0;
+  bool _autoFailoverInProgress = false;
+  int _playGeneration = 0;
 
   /// Broadcast current stream URL changes (for UI like failover dialog).
   final _currentUrlController = StreamController<String?>.broadcast();
@@ -74,6 +78,7 @@ class PlayerService {
     if (_player == null) {
       _player = Player(
         configuration: const PlayerConfiguration(
+          bufferSize: 96 * 1024 * 1024,
           logLevel: MPVLogLevel.warn,
         ),
       );
@@ -123,7 +128,10 @@ class PlayerService {
   }
 
   /// Inject services for auto-failover (call once at startup).
-  void configureFailover(StreamAlternativesService alternatives, StreamHealthTracker health) {
+  void configureFailover(
+    StreamAlternativesService alternatives,
+    StreamHealthTracker health,
+  ) {
     _alternatives = alternatives;
     _healthTracker = health;
   }
@@ -132,7 +140,8 @@ class PlayerService {
   List<String>? _failoverGroupUrls;
 
   /// Start playing a stream URL with optional channel metadata for failover.
-  Future<void> play(String url, {
+  Future<void> play(
+    String url, {
     String? channelId,
     String? epgChannelId,
     String? tvgId,
@@ -141,6 +150,7 @@ class PlayerService {
     String? originalName,
     List<String>? failoverGroupUrls,
   }) async {
+    final playGeneration = ++_playGeneration;
     _isBuffering = false;
     _bufferStartTime = null;
     _consecutiveLowBuffer = 0;
@@ -152,19 +162,23 @@ class PlayerService {
     _currentVanityName = vanityName;
     _currentOriginalName = originalName;
     _failoverGroupUrls = failoverGroupUrls;
-    _tracksSub?.cancel();
+    await _tracksSub?.cancel();
     _failoverCheckTimer?.cancel();
-    _disposeWarmPlayer();
+    await _disposeWarmPlayer();
     _proxyActive = false;
     await _streamProxy.stop();
     await _ensureReady();
-    await player.open(Media(url));
-    await _bufferManager.applyForStream(url, this);
+
+    final selectedUrl = await _selectFastestStream(url);
+    if (playGeneration != _playGeneration) return;
+    _currentUrl = selectedUrl;
+    await player.open(Media(selectedUrl));
+    await _bufferManager.applyForStream(selectedUrl, this);
     await player.setVolume(100.0);
 
     // Check for missing audio after a brief delay and retry through
     // ffmpeg proxy if needed (fixes EAC-3 with non-standard codec tags)
-    _scheduleAudioCheck(url);
+    _scheduleAudioCheck(selectedUrl);
 
     // Reset and start buffer tracking for the new stream
     bufferHistory.fillRange(0, 60, false);
@@ -174,27 +188,127 @@ class PlayerService {
     _startFailoverMonitor();
   }
 
+  /// Tests a small, bounded set of equivalent streams in parallel and returns
+  /// the quickest usable route. The original URL remains the fallback.
+  Future<String> _selectFastestStream(String originalUrl) async {
+    final candidates = <String>[originalUrl];
+    for (final url in _getFailoverAlternatives()) {
+      if (!candidates.contains(url)) candidates.add(url);
+      if (candidates.length >= 8) break;
+    }
+    if (candidates.length < 2) return originalUrl;
+
+    final probes = candidates
+        .map(
+          (url) => _probeStream(url).timeout(
+            const Duration(milliseconds: 2800),
+            onTimeout: () => _StreamProbe.unusable(url),
+          ),
+        )
+        .toList();
+    List<_StreamProbe> results;
+    try {
+      results = await Future.wait(probes).timeout(
+        const Duration(milliseconds: 3200),
+        onTimeout: () => const <_StreamProbe>[],
+      );
+    } catch (_) {
+      return originalUrl;
+    }
+
+    final usable = results.where((probe) => probe.usable).toList();
+    if (usable.isEmpty) return originalUrl;
+    usable.sort((a, b) => b.score.compareTo(a.score));
+    final best = usable.first;
+    _healthTracker?.recordTTFF(best.url, best.firstByteMs);
+    debugPrint(
+      '[Failover] Preflight selected ${best.url} '
+      '(${best.firstByteMs}ms, ${best.bytesPerSecond.round()} B/s)',
+    );
+    return best.url;
+  }
+
+  Future<_StreamProbe> _probeStream(String url) async {
+    final cleanUrl = url.split('|').first.trim();
+    final uri = Uri.tryParse(cleanUrl);
+    if (uri == null || (uri.scheme != 'http' && uri.scheme != 'https')) {
+      return _StreamProbe.unusable(url);
+    }
+
+    final client = HttpClient()..connectionTimeout = const Duration(seconds: 1);
+    final stopwatch = Stopwatch()..start();
+    var firstByteMs = 3200;
+    var bytes = 0;
+    var statusOk = false;
+    try {
+      final request = await client
+          .getUrl(uri)
+          .timeout(const Duration(milliseconds: 1400));
+      request.followRedirects = true;
+      request.maxRedirects = 4;
+      request.headers.set('Range', 'bytes=0-65535');
+      request.headers.set('User-Agent', 'HotelTV/0.4');
+      final response = await request.close().timeout(
+        const Duration(milliseconds: 1600),
+      );
+      statusOk = response.statusCode >= 200 && response.statusCode < 400;
+      if (!statusOk) return _StreamProbe.unusable(url);
+
+      await for (final chunk in response.timeout(
+        const Duration(milliseconds: 1700),
+      )) {
+        if (bytes == 0) firstByteMs = stopwatch.elapsedMilliseconds;
+        bytes += chunk.length;
+        if (bytes >= 64 * 1024) break;
+      }
+    } catch (_) {
+      if (bytes == 0) return _StreamProbe.unusable(url);
+    } finally {
+      stopwatch.stop();
+      client.close(force: true);
+    }
+
+    final elapsedMs = stopwatch.elapsedMilliseconds.clamp(1, 3200);
+    final bytesPerSecond = bytes * 1000.0 / elapsedMs;
+    final health = _healthTracker?.getScore(url) ?? 0.5;
+    final responseScore = 1000.0 / (firstByteMs + 100.0);
+    final throughputScore = (bytesPerSecond / 1000000.0).clamp(0.0, 20.0);
+    final score = throughputScore * 0.65 + responseScore * 0.25 + health * 0.1;
+    return _StreamProbe(
+      url: url,
+      usable: statusOk && bytes > 0,
+      firstByteMs: firstByteMs,
+      bytesPerSecond: bytesPerSecond,
+      score: score,
+    );
+  }
+
   /// Check audio tracks after playback starts; retry through ffmpeg proxy
   /// if no real audio tracks are detected.
   void _scheduleAudioCheck(String originalUrl) {
     _tracksSub?.cancel();
     // Give mpv 3 seconds to detect audio tracks before checking
-    _tracksSub = Stream<void>.fromFuture(
-      Future<void>.delayed(const Duration(seconds: 3)),
-    ).asyncMap((_) => player.state.tracks).listen((tracks) {
-      _tracksSub?.cancel();
-      if (_proxyActive || _currentUrl != originalUrl) return;
+    _tracksSub =
+        Stream<void>.fromFuture(
+          Future<void>.delayed(const Duration(seconds: 3)),
+        ).asyncMap((_) => player.state.tracks).listen((tracks) {
+          _tracksSub?.cancel();
+          if (_proxyActive || _currentUrl != originalUrl) return;
 
-      final realAudio = tracks.audio.where((a) => a.id != 'auto' && a.id != 'no').length;
-      if (realAudio > 0) {
-        debugPrint('[Player] Audio OK: $realAudio tracks detected');
-        return;
-      }
+          final realAudio = tracks.audio
+              .where((a) => a.id != 'auto' && a.id != 'no')
+              .length;
+          if (realAudio > 0) {
+            debugPrint('[Player] Audio OK: $realAudio tracks detected');
+            return;
+          }
 
-      // No real audio detected — try ffmpeg proxy
-      debugPrint('[Player] No audio tracks after 3s, trying ffmpeg proxy for $originalUrl');
-      _retryWithProxy(originalUrl);
-    });
+          // No real audio detected — try ffmpeg proxy
+          debugPrint(
+            '[Player] No audio tracks after 3s, trying ffmpeg proxy for $originalUrl',
+          );
+          _retryWithProxy(originalUrl);
+        });
   }
 
   /// Re-open the stream through the local ffmpeg proxy.
@@ -331,7 +445,9 @@ class PlayerService {
     _failoverCheckTimer?.cancel();
     _failoverCheckTimer = Timer.periodic(const Duration(seconds: 2), (_) async {
       if (_currentUrl == null) return;
-      if (_alternatives == null && (_failoverGroupUrls == null || _failoverGroupUrls!.isEmpty)) return;
+      if (_alternatives == null &&
+          (_failoverGroupUrls == null || _failoverGroupUrls!.isEmpty))
+        return;
 
       final raw = await getMpvProperty('demuxer-cache-duration');
       final cacheSecs = double.tryParse(raw ?? '');
@@ -344,7 +460,7 @@ class PlayerService {
         _consecutiveLowBuffer++;
         if (_consecutiveLowBuffer >= 2 && !_warmReady && _warmPlayer == null) {
           // 4+ seconds of low buffer → start pre-buffering alternative (warm)
-          _startWarmPreload();
+          await _startWarmPreload();
         }
         if (_consecutiveLowBuffer >= 3) {
           // 6+ seconds of critically low buffer → failover
@@ -355,7 +471,7 @@ class PlayerService {
         _consecutiveLowBuffer = 0;
         // Buffer recovered — dispose warm player if not yet used
         if (_warmPlayer != null && !_warmReady) {
-          _disposeWarmPlayer();
+          await _disposeWarmPlayer();
         }
       }
     });
@@ -367,9 +483,7 @@ class PlayerService {
 
     // Prefer manually-defined failover group URLs
     if (_failoverGroupUrls != null && _failoverGroupUrls!.isNotEmpty) {
-      return _failoverGroupUrls!
-          .where((u) => u != _currentUrl)
-          .toList();
+      return _failoverGroupUrls!.where((u) => u != _currentUrl).toList();
     }
 
     // Fall back to auto-detected alternatives
@@ -386,8 +500,9 @@ class PlayerService {
   }
 
   /// Start pre-buffering the best alternative stream in a hidden player.
-  void _startWarmPreload() {
+  Future<void> _startWarmPreload() async {
     if (_currentUrl == null) return;
+    if (_warmPlayer != null || _warmSetupFuture != null) return;
 
     final alts = _getFailoverAlternatives();
     if (alts.isEmpty) return;
@@ -397,24 +512,21 @@ class PlayerService {
     _warmUrl = warmUrl;
     _warmReady = false;
 
-    _warmPlayer = Player(
-      configuration: const PlayerConfiguration(logLevel: MPVLogLevel.warn),
+    final generation = ++_warmGeneration;
+    final warmPlayer = Player(
+      configuration: const PlayerConfiguration(
+        bufferSize: 32 * 1024 * 1024,
+        logLevel: MPVLogLevel.warn,
+      ),
     );
+    _warmPlayer = warmPlayer;
 
     // Configure warm player: muted, with loudnorm, no video output
-    final np = _warmPlayer!.platform;
-    if (np is native_player.NativePlayer) {
-      np.setProperty('vid', 'no'); // disable video decoding
-      np.setProperty('audio-channels', 'stereo');
-      np.setProperty('audio-normalize-downmix', 'yes');
-      np.setProperty('af', 'loudnorm=I=-14:TP=-1:LRA=13');
-      np.setProperty('volume', '0'); // silent
-    }
-
     // Listen for buffering state — when it stops buffering, stream is ready
-    _warmBufferSub?.cancel();
+    await _warmBufferSub?.cancel();
     bool initialBuffering = true;
-    _warmBufferSub = _warmPlayer!.stream.buffering.listen((buffering) {
+    _warmBufferSub = warmPlayer.stream.buffering.listen((buffering) {
+      if (_warmGeneration != generation || _warmPlayer != warmPlayer) return;
       if (initialBuffering && buffering) return; // still loading
       if (initialBuffering && !buffering) {
         initialBuffering = false;
@@ -424,45 +536,117 @@ class PlayerService {
       }
     });
 
-    _warmPlayer!.open(Media(warmUrl));
+    Future<void> configureAndOpen() async {
+      final np = warmPlayer.platform;
+      if (np is native_player.NativePlayer) {
+        await np.setProperty('vid', 'no'); // disable video decoding
+        if (_warmGeneration != generation) return;
+        await np.setProperty('audio-channels', 'stereo');
+        if (_warmGeneration != generation) return;
+        await np.setProperty('audio-normalize-downmix', 'yes');
+        if (_warmGeneration != generation) return;
+        await np.setProperty('af', 'loudnorm=I=-14:TP=-1:LRA=13');
+        if (_warmGeneration != generation) return;
+        await np.setProperty('volume', '0'); // silent
+      }
+      if (_warmGeneration != generation || _warmPlayer != warmPlayer) return;
+      await warmPlayer.open(Media(warmUrl));
+    }
+
+    var setupFailed = false;
+    final setup = configureAndOpen();
+    _warmSetupFuture = setup;
+    try {
+      await setup;
+    } catch (error) {
+      setupFailed = true;
+      debugPrint('[Failover] Warm player setup failed: $error');
+    } finally {
+      if (_warmSetupFuture == setup) _warmSetupFuture = null;
+    }
+
+    if (_warmGeneration != generation || _warmPlayer != warmPlayer) return;
+    if (setupFailed) {
+      await _disposeWarmPlayer();
+      return;
+    }
 
     // Timeout: if warm player doesn't become ready in 10s, dispose it
     _warmTimeoutTimer?.cancel();
-    _warmTimeoutTimer = Timer(const Duration(seconds: 10), () {
+    _warmTimeoutTimer = Timer(const Duration(seconds: 10), () async {
       if (!_warmReady) {
         debugPrint('[Failover] Warm pre-buffer timed out');
-        _disposeWarmPlayer();
+        await _disposeWarmPlayer();
       }
     });
   }
 
   /// Dispose the warm pre-buffer player and clean up.
-  void _disposeWarmPlayer() {
-    _warmBufferSub?.cancel();
+  Future<void> _disposeWarmPlayer() async {
+    ++_warmGeneration;
+    final playerToDispose = _warmPlayer;
+    final setupToFinish = _warmSetupFuture;
+    final bufferSubToCancel = _warmBufferSub;
+
+    _warmPlayer = null;
+    _warmSetupFuture = null;
     _warmBufferSub = null;
     _warmTimeoutTimer?.cancel();
     _warmTimeoutTimer = null;
-    _warmPlayer?.dispose();
-    _warmPlayer = null;
     _warmUrl = null;
     _warmReady = false;
+
+    await bufferSubToCancel?.cancel();
+    try {
+      await setupToFinish;
+    } catch (_) {}
+    await playerToDispose?.dispose();
   }
 
   Future<void> _autoFailover() async {
+    if (_autoFailoverInProgress) return;
     if (_currentUrl == null) return;
-    if (_alternatives == null && (_failoverGroupUrls == null || _failoverGroupUrls!.isEmpty)) return;
+    if (_alternatives == null &&
+        (_failoverGroupUrls == null || _failoverGroupUrls!.isEmpty))
+      return;
 
-    // If warm player is ready, do an instant switch
-    if (_warmReady && _warmPlayer != null && _warmUrl != null) {
-      debugPrint('[Failover] Instant switch to warm-buffered: $_warmUrl');
-      final newUrl = _warmUrl!;
+    _autoFailoverInProgress = true;
+    try {
+      // If warm player is ready, do an instant switch
+      if (_warmReady && _warmPlayer != null && _warmUrl != null) {
+        debugPrint('[Failover] Instant switch to warm-buffered: $_warmUrl');
+        final newUrl = _warmUrl!;
+        _consecutiveLowBuffer = 0;
+        _failoverCheckTimer?.cancel();
+
+        // Dispose warm player (we'll re-open on main player)
+        await _disposeWarmPlayer();
+
+        // Switch main player to the pre-buffered URL
+        _currentUrl = newUrl;
+        _proxyActive = false;
+        await _streamProxy.stop();
+        await player.open(Media(newUrl));
+        await _bufferManager.applyForStream(newUrl, this);
+        _startFailoverMonitor();
+
+        _currentUrlController.add(newUrl);
+        lastFailoverChannelId = _alternatives?.channelIdForUrl(newUrl);
+        onFailover?.call('已自动切换到更稳定线路');
+        return;
+      }
+
+      // Cold failover: find best alternative and switch directly
+      final alts = _getFailoverAlternatives();
+
+      if (alts.isEmpty) return;
+
+      final newUrl = alts.first;
       _consecutiveLowBuffer = 0;
+
+      // Switch stream (keep channel metadata — it's the same content)
       _failoverCheckTimer?.cancel();
-
-      // Dispose warm player (we'll re-open on main player)
-      _disposeWarmPlayer();
-
-      // Switch main player to the pre-buffered URL
+      await _disposeWarmPlayer();
       _currentUrl = newUrl;
       _proxyActive = false;
       await _streamProxy.stop();
@@ -472,44 +656,46 @@ class PlayerService {
 
       _currentUrlController.add(newUrl);
       lastFailoverChannelId = _alternatives?.channelIdForUrl(newUrl);
-      onFailover?.call('⚡ Switched stream (warm)');
-      return;
+      onFailover?.call('已自动切换到更稳定线路');
+    } finally {
+      _autoFailoverInProgress = false;
     }
-
-    // Cold failover: find best alternative and switch directly
-    final alts = _getFailoverAlternatives();
-
-    if (alts.isEmpty) return;
-
-    final newUrl = alts.first;
-    _consecutiveLowBuffer = 0;
-
-    // Switch stream (keep channel metadata — it's the same content)
-    _failoverCheckTimer?.cancel();
-    _disposeWarmPlayer();
-    _currentUrl = newUrl;
-    _proxyActive = false;
-    await _streamProxy.stop();
-    await player.open(Media(newUrl));
-    await _bufferManager.applyForStream(newUrl, this);
-    _startFailoverMonitor();
-
-    _currentUrlController.add(newUrl);
-    lastFailoverChannelId = _alternatives?.channelIdForUrl(newUrl);
-    onFailover?.call('⚡ Switched stream');
   }
 
-  void dispose() {
+  Future<void> dispose() async {
     _bufferManager.stop();
-    _tracksSub?.cancel();
-    _bufferTrackSub?.cancel();
+    await _tracksSub?.cancel();
+    await _bufferTrackSub?.cancel();
     _bufferTrackTimer?.cancel();
     _failoverCheckTimer?.cancel();
-    _disposeWarmPlayer();
-    _healthTracker?.save();
-    _streamProxy.stop();
-    _player?.dispose();
+    await _disposeWarmPlayer();
+    await _healthTracker?.save();
+    await _streamProxy.stop();
+    await _player?.dispose();
+    await _currentUrlController.close();
   }
+}
+
+class _StreamProbe {
+  final String url;
+  final bool usable;
+  final int firstByteMs;
+  final double bytesPerSecond;
+  final double score;
+
+  const _StreamProbe({
+    required this.url,
+    required this.usable,
+    required this.firstByteMs,
+    required this.bytesPerSecond,
+    required this.score,
+  });
+
+  const _StreamProbe.unusable(this.url)
+    : usable = false,
+      firstByteMs = 3200,
+      bytesPerSecond = 0,
+      score = 0;
 }
 
 /// Riverpod provider for the player service (singleton).
@@ -523,6 +709,6 @@ final playerServiceProvider = Provider<PlayerService>((ref) {
   } catch (_) {
     // Services may not be available yet — failover will be disabled
   }
-  ref.onDispose(() => service.dispose());
+  ref.onDispose(() => unawaited(service.dispose()));
   return service;
 });

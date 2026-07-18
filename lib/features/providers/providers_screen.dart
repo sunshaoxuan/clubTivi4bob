@@ -34,51 +34,56 @@ class ProvidersScreen extends ConsumerWidget {
       child: Focus(
         autofocus: true,
         child: Scaffold(
-      appBar: AppBar(
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          onPressed: () {
-            if (context.canPop()) {
-              context.pop();
-            } else {
-              context.go('/');
-            }
-          },
-        ),
-        title: const Text('IPTV Providers'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.add, size: 28),
-            tooltip: 'Add Provider',
-            onPressed: () => showAddProviderDialog(context),
-          ),
-          const SizedBox(width: 8),
-        ],
-      ),
-      body: providersAsync.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, _) => Center(child: Text('Error: $e')),
-        data: (providers) => FocusTraversalGroup(
-          child: ListView(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            children: [
-              if (providers.isNotEmpty) ...[
-                const _SectionHeader(title: 'Your Providers'),
-                ...providers.map((p) => _ProviderCard(provider: p)),
-                const SizedBox(height: 24),
-              ],
-              const _SectionHeader(title: 'Free TV Providers'),
-              const SizedBox(height: 4),
-              ...FreeTvProvider.all.map((fp) => _FreeTvProviderTile(
-                    freeProvider: fp,
-                    isAdded: providers.any((p) => p.id == fp.id),
-                  )),
+          appBar: AppBar(
+            leading: IconButton(
+              icon: const Icon(Icons.arrow_back),
+              onPressed: () {
+                if (context.canPop()) {
+                  context.pop();
+                } else {
+                  context.go('/');
+                }
+              },
+            ),
+            title: const Text('电视源管理'),
+            actions: [
+              IconButton(
+                icon: const Icon(Icons.add, size: 28),
+                tooltip: '添加电视源',
+                onPressed: () => showAddProviderDialog(context),
+              ),
+              const SizedBox(width: 8),
             ],
           ),
+          body: providersAsync.when(
+            loading: () => const Center(child: CircularProgressIndicator()),
+            error: (e, _) => Center(child: Text('错误：$e')),
+            data: (providers) => FocusTraversalGroup(
+              child: ListView(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 12,
+                ),
+                children: [
+                  if (providers.isNotEmpty) ...[
+                    const _SectionHeader(title: '已添加的电视源'),
+                    ...providers.map((p) => _ProviderCard(provider: p)),
+                    const SizedBox(height: 24),
+                  ],
+                  const _SectionHeader(title: '免费电视源'),
+                  const SizedBox(height: 4),
+                  ...FreeTvProvider.all.map(
+                    (fp) => _FreeTvProviderTile(
+                      freeProvider: fp,
+                      isAdded: providers.any((p) => p.id == fp.id),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
         ),
       ),
-    ),
-    ),
     );
   }
 }
@@ -127,119 +132,138 @@ class _ProviderCard extends ConsumerWidget {
         builder: (context) {
           final hasFocus = Focus.of(context).hasFocus;
           return Card(
-      margin: const EdgeInsets.only(bottom: 12),
-      shape: hasFocus
-          ? RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
-              side: const BorderSide(color: accent, width: 2),
-            )
-          : null,
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Row(
-          children: [
-            Icon(
-              isXtream ? Icons.api_rounded : Icons.playlist_play_rounded,
-              color: accent,
-              size: 36,
-            ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+            margin: const EdgeInsets.only(bottom: 12),
+            shape: hasFocus
+                ? RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    side: const BorderSide(color: accent, width: 2),
+                  )
+                : null,
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Row(
                 children: [
-                  Text(
-                    provider.name,
-                    style: const TextStyle(
-                        fontSize: 16, fontWeight: FontWeight.w600),
+                  Icon(
+                    isXtream ? Icons.api_rounded : Icons.playlist_play_rounded,
+                    color: accent,
+                    size: 36,
                   ),
-                  const SizedBox(height: 4),
-                  Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 8, vertical: 2),
-                        decoration: BoxDecoration(
-                          color: accent.withValues(alpha: 0.2),
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                        child: Text(
-                          isXtream ? 'Xtream' : 'M3U',
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          provider.name,
                           style: const TextStyle(
-                              fontSize: 11, color: accent),
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                          ),
                         ),
-                      ),
-                      const SizedBox(width: 8),
-                      Text(
-                        '— channels',
-                        style: TextStyle(
-                            fontSize: 12, color: Colors.white.withValues(alpha: 0.4)),
-                      ),
-                    ],
+                        const SizedBox(height: 4),
+                        Row(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                                vertical: 2,
+                              ),
+                              decoration: BoxDecoration(
+                                color: accent.withValues(alpha: 0.2),
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                              child: Text(
+                                isXtream ? 'Xtream' : 'M3U',
+                                style: const TextStyle(
+                                  fontSize: 11,
+                                  color: accent,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Text(
+                              '频道数读取中',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Colors.white.withValues(alpha: 0.4),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.refresh_rounded, size: 20),
+                    tooltip: '刷新',
+                    onPressed: () async {
+                      final manager = ref.read(providerManagerProvider);
+                      try {
+                        final count = await manager.refreshProvider(
+                          provider.id,
+                        );
+                        if (!context.mounted) return;
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text('已载入 $count 个频道')),
+                        );
+                      } catch (e) {
+                        if (!context.mounted) return;
+                        ScaffoldMessenger.of(
+                          context,
+                        ).showSnackBar(SnackBar(content: Text('刷新失败：$e')));
+                      }
+                    },
+                  ),
+                  IconButton(
+                    icon: const Icon(
+                      Icons.delete_outline_rounded,
+                      size: 20,
+                      color: Colors.redAccent,
+                    ),
+                    tooltip: '删除',
+                    onPressed: () async {
+                      final confirmed = await showDialog<bool>(
+                        context: context,
+                        builder: (_) => AlertDialog(
+                          backgroundColor: const Color(0xFF1A1A2E),
+                          title: Row(
+                            children: [
+                              const Icon(
+                                Icons.delete_outline_rounded,
+                                color: Colors.redAccent,
+                              ),
+                              const SizedBox(width: 8),
+                              Text(provider.name),
+                            ],
+                          ),
+                          actions: [
+                            IconButton(
+                              icon: const Icon(Icons.close),
+                              onPressed: () => Navigator.pop(context, false),
+                            ),
+                            IconButton(
+                              icon: const Icon(
+                                Icons.delete_forever,
+                                color: Colors.redAccent,
+                              ),
+                              onPressed: () => Navigator.pop(context, true),
+                            ),
+                          ],
+                        ),
+                      );
+                      if (confirmed == true) {
+                        final manager = ref.read(providerManagerProvider);
+                        await manager.deleteProvider(provider.id);
+                      }
+                    },
                   ),
                 ],
               ),
             ),
-            IconButton(
-              icon: const Icon(Icons.refresh_rounded, size: 20),
-              tooltip: 'Refresh',
-              onPressed: () async {
-                final manager = ref.read(providerManagerProvider);
-                try {
-                  final count = await manager.refreshProvider(provider.id);
-                  if (!context.mounted) return;
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Loaded $count channels')),
-                  );
-                } catch (e) {
-                  if (!context.mounted) return;
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Refresh failed: $e')),
-                  );
-                }
-              },
-            ),
-            IconButton(
-              icon: const Icon(Icons.delete_outline_rounded,
-                  size: 20, color: Colors.redAccent),
-              tooltip: 'Delete',
-              onPressed: () async {
-                final confirmed = await showDialog<bool>(
-                  context: context,
-                  builder: (_) => AlertDialog(
-                    backgroundColor: const Color(0xFF1A1A2E),
-                    title: Row(
-                      children: [
-                        const Icon(Icons.delete_outline_rounded, color: Colors.redAccent),
-                        const SizedBox(width: 8),
-                        Text(provider.name),
-                      ],
-                    ),
-                    actions: [
-                      IconButton(
-                        icon: const Icon(Icons.close),
-                        onPressed: () => Navigator.pop(context, false),
-                      ),
-                      IconButton(
-                        icon: const Icon(Icons.delete_forever, color: Colors.redAccent),
-                        onPressed: () => Navigator.pop(context, true),
-                      ),
-                    ],
-                  ),
-                );
-                if (confirmed == true) {
-                  final manager = ref.read(providerManagerProvider);
-                  await manager.deleteProvider(provider.id);
-                }
-              },
-            ),
-          ],
-        ),
-      ),
-    );
-        },  // Builder builder
-      ),  // Builder
-    );  // Focus
+          );
+        }, // Builder builder
+      ), // Builder
+    ); // Focus
   }
 
   void _refreshProvider(BuildContext context, WidgetRef ref) async {
@@ -247,14 +271,14 @@ class _ProviderCard extends ConsumerWidget {
     try {
       final count = await manager.refreshProvider(provider.id);
       if (!context.mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Loaded $count channels')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('已载入 $count 个频道')));
     } catch (e) {
       if (!context.mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Refresh failed: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('刷新失败：$e')));
     }
   }
 }
@@ -281,42 +305,48 @@ class FreeTvProvider {
     FreeTvProvider(
       id: 'pluto-tv',
       name: 'Pluto TV',
-      url: 'https://raw.githubusercontent.com/iptv-org/iptv/master/streams/us_pluto.m3u',
+      url:
+          'https://raw.githubusercontent.com/iptv-org/iptv/master/streams/us_pluto.m3u',
       description: '400+ free channels — news, movies, sports, comedy',
       icon: Icons.live_tv_rounded,
     ),
     FreeTvProvider(
       id: 'samsung-tv-plus',
       name: 'Samsung TV Plus',
-      url: 'https://raw.githubusercontent.com/iptv-org/iptv/master/streams/us_samsung.m3u',
+      url:
+          'https://raw.githubusercontent.com/iptv-org/iptv/master/streams/us_samsung.m3u',
       description: 'Free channels from Samsung — entertainment, news, sports',
       icon: Icons.tv_rounded,
     ),
     FreeTvProvider(
       id: 'plex-tv',
       name: 'Plex FAST',
-      url: 'https://raw.githubusercontent.com/iptv-org/iptv/master/streams/us_plex.m3u',
+      url:
+          'https://raw.githubusercontent.com/iptv-org/iptv/master/streams/us_plex.m3u',
       description: 'Free live TV from Plex — movies, shows, news',
       icon: Icons.play_circle_outline_rounded,
     ),
     FreeTvProvider(
       id: 'stirr-tv',
       name: 'Stirr',
-      url: 'https://raw.githubusercontent.com/iptv-org/iptv/master/streams/us_stirr.m3u',
+      url:
+          'https://raw.githubusercontent.com/iptv-org/iptv/master/streams/us_stirr.m3u',
       description: 'Free local & national channels from Sinclair',
       icon: Icons.cell_tower_rounded,
     ),
     FreeTvProvider(
       id: 'xumo-tv',
       name: 'Xumo',
-      url: 'https://raw.githubusercontent.com/iptv-org/iptv/master/streams/us_xumo.m3u',
+      url:
+          'https://raw.githubusercontent.com/iptv-org/iptv/master/streams/us_xumo.m3u',
       description: 'Free streaming — news, sports, movies, kids',
       icon: Icons.stream_rounded,
     ),
     FreeTvProvider(
       id: 'tubi-tv',
       name: 'Tubi',
-      url: 'https://raw.githubusercontent.com/iptv-org/iptv/master/streams/us_tubi.m3u',
+      url:
+          'https://raw.githubusercontent.com/iptv-org/iptv/master/streams/us_tubi.m3u',
       description: 'Free movies and TV shows, ad-supported',
       icon: Icons.movie_filter_rounded,
     ),
@@ -390,16 +420,28 @@ class _FreeTvProviderTile extends ConsumerWidget {
                       ? Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            const Icon(Icons.check_circle, color: Colors.greenAccent, size: 22),
+                            const Icon(
+                              Icons.check_circle,
+                              color: Colors.greenAccent,
+                              size: 22,
+                            ),
                             const SizedBox(width: 4),
                             IconButton(
-                              icon: const Icon(Icons.refresh_rounded, color: Colors.white38, size: 20),
-                              tooltip: 'Re-sync',
+                              icon: const Icon(
+                                Icons.refresh_rounded,
+                                color: Colors.white38,
+                                size: 20,
+                              ),
+                              tooltip: '重新同步',
                               onPressed: () => _addProvider(context, ref),
                             ),
                           ],
                         )
-                      : const Icon(Icons.add_circle_outline, color: accent, size: 28),
+                      : const Icon(
+                          Icons.add_circle_outline,
+                          color: accent,
+                          size: 28,
+                        ),
                 ),
               ),
             );
@@ -419,18 +461,22 @@ class _FreeTvProviderTile extends ConsumerWidget {
       );
       if (!context.mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('${freeProvider.name} ${isAdded ? "refreshed" : "added"} — loading channels...')),
+        SnackBar(
+          content: Text(
+            '${freeProvider.name} ${isAdded ? "已刷新" : "已添加"}，正在载入频道…',
+          ),
+        ),
       );
     } on ProviderLimitException catch (e) {
       if (!context.mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(e.toString())),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(e.toString())));
     } catch (e) {
       if (!context.mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to add: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('添加失败：$e')));
     }
   }
 }

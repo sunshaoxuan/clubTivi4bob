@@ -1,194 +1,189 @@
-# ⚡ clubTivi
+# Hotel TV for Windows
 
-**The open-source IPTV player that never buffers.** Combine all your sources — free TV, paid services, debrids — into one unified interface with Smart Channels, intelligent EPG matching, and automatic stream failover.
+Hotel TV is a Windows focused IPTV player built from the open source [clubTivi](https://github.com/clubanderson/clubTivi) project. This fork turns a Windows 11 computer connected to a television into a remote friendly live TV appliance with a Chinese interface, automatic stream selection, silent failover, programme guide support, and native borderless fullscreen output.
 
-Built with [Flutter](https://flutter.dev) for Android, macOS, Linux, and Windows.
+The application is built with Flutter and uses `media_kit`, libmpv, FFmpeg, Riverpod, Drift, and SQLite.
 
 <p align="center">
-  <img src="docs/images/clubtivi-screenshot.png" alt="clubTivi — Smart Channels, EPG Guide, Multi-Provider" width="900">
+  <img src="docs/images/clubtivi-screenshot.png" alt="Hotel TV channel guide and player" width="900">
 </p>
 
----
+## Highlights
 
-## Why clubTivi?
+### One channel, multiple hidden routes
 
-Most IPTV players let you watch one provider at a time. When a stream buffers, you're stuck. And your free channels, paid services, and debrids are all in separate apps. clubTivi changes that — it **brings everything into one interface** and **automatically switches streams** when problems are detected. No more buffering. No more app-hopping. No more manually hunting for a working channel.
+Equivalent channel entries from different M3U providers are normalized and shown as one channel. Quality labels, common route labels, full width characters, and Chinese CCTV aliases are handled by a CJK safe name normalizer.
 
----
+The route list remains hidden from the normal channel browser. Users select a channel, while the player manages its available streams in the background.
 
-## ✨ Features
+### Fast route selection
 
-### ⚡ Smart Channels
-The headline feature that sets clubTivi apart. Group the same channel from multiple sources — free TV, paid services, debrids — into a single **Smart Channel**:
+Before playback, the player can test up to eight equivalent HTTP or HTTPS streams in parallel. Selection uses:
 
-- **One-click creation** — multi-select matching channels, hit "New Smart Channel"
-- **Automatic failover** — when buffering is detected, instantly switches to the next healthy stream
-- **Mix any source** — combine free, paid, and debrid streams for the same channel in one group
-- **Priority ordering** — arrange streams in your preferred order; the best source plays first
-- **Full EPG integration** — Smart Channels show the same guide data as regular channels
-- **Visual indicators** — amber ⚡ bolt icon, playing-stream highlight, expand to see all members
-- **Right-click management** — rename, delete, remove members, add channels to existing groups
+* Time to first byte
+* Short transfer throughput
+* Persisted stream health history
+* Previous buffering and stall observations
 
-### 📺 EPG (Electronic Program Guide)
-- **4-tier intelligent auto-matching** — explicit mapping → tvgId lookup → normalized name match → call-sign extraction (WABC, WCBS, etc.)
-- **Full timeline guide view** — horizontally scrollable multi-day programme grid with now-playing highlight
-- **EPG for Smart Channels** — guide data pulls from the best-matched member automatically
-- **XMLTV support** — load EPG from any URL or local file
-- **Compatible with EPG providers** like epg.best and others
-- **Now-playing text** on every channel row — see what's on without opening the guide
+The probe has a bounded timeout. If probing cannot produce a usable result, playback falls back to the original route.
 
-### 🔄 Multi-Provider Management
-- **Unlimited providers** — add free TV (Pluto TV, etc.), paid IPTV services, debrids, and more
-- **One unified interface** — all sources merge into one searchable, filterable channel list
-- **Provider badges** — see which provider each stream comes from at a glance
-- **324K+ channels tested** — handles massive playlists with instant startup via phased loading
+### Silent automatic failover
 
-### ⭐ Favorites & Organization
-- **Multiple favorite lists** — create custom lists (Sports, News, Movies, etc.)
-- **Sidebar navigation** — browse by provider group, favorite list, or "All Channels"
-- **Smart search** — real-time filtering with debounced search across all channels
-- **Vanity names** — rename any channel without affecting the underlying data
-- **Channel history** — backspace to toggle between current and previous channel
+The player monitors the libmpv demuxer cache during playback. When the active route remains unhealthy, it prepares another route and switches automatically. Manual buffering confirmation dialogs have been removed. A short Chinese notification is shown after a successful switch.
 
-### 🎮 Keyboard & Remote Control
-- **Full keyboard navigation** — arrow keys, Enter for fullscreen, number keys for direct channel entry
-- **Volume control** — left/right arrow keys adjust volume with visual overlay
-- **D-pad optimized** — Android TV remote and gamepad support with focus-based navigation
-- **Multi-select** — Shift+click or Cmd+click to select multiple channels for batch operations
-- **Debug dialog** — press `D` to see stream details, EPG mapping, provider info, and failover alternatives
+### Chinese programme guide
 
-### 🖥️ Player & Playback
-- **media_kit** powered — libmpv/FFmpeg backend for broad codec support
-- **Fullscreen mode** — double-click or press Enter to toggle
-- **Preview row** — see a live preview of the selected channel before committing
-- **Info overlay** — channel name, EPG now-playing, and provider shown on channel switch
-- **Multi-audio track support** — handles streams with multiple audio tracks (EAC-3, AAC, etc.)
+The fork includes bootstrap configuration for Chinese XMLTV sources and supports:
 
-### 🚀 Performance
-- **Instant startup** — favorites and providers load first (Phase 0), everything else loads in background
-- **Phased loading** — splash screen → favorites → sidebar groups → EPG → full channel list
-- **Lazy EPG loading** — guide data fetched only for visible/favorite channels first
-- **Efficient logo caching** — channel logos load once and persist across sessions
-- **Session persistence** — remembers your last channel, scroll position, and sidebar state
+* CCTV and CCTV Plus schedules
+* Chinese satellite and regional channels
+* Fixed sports channels available in the configured XMLTV data
+* CJK channel name matching
+* `tvg-id`, explicit mapping, normalized name, and call sign matching
+* Per channel EPG time shift
 
-### 🌐 Cross-Platform
-| Platform | Status |
-|----------|--------|
-| **macOS** | ✅ Full support |
-| **Android** (Phone/Tablet/TV) | ✅ Full support |
-| **Linux** | ✅ Full support |
-| **Windows** | ✅ Full support |
+Generic event slots such as numbered temporary sports feeds need a reliable external mapping before they can receive accurate event names.
 
----
+### Windows television mode
 
-## 🚀 Getting Started
+The Windows runner uses a native Win32 borderless display mode that covers the current monitor. The title bar, resizable frame, and work area margins are removed at the native window layer.
 
-### Prerequisites
-- [Flutter SDK](https://docs.flutter.dev/get-started/install) (3.29+)
-- For Android: Android Studio + Android SDK
-- For macOS: Xcode 15+
-- For Linux: `clang`, `cmake`, `ninja-build`, `pkg-config`, `libgtk-3-dev`, `libmpv-dev`
-- For Windows: Visual Studio 2022 with C++ desktop development workload
+Additional Windows behavior includes:
 
-### Build & Run
+* Double click a channel to open the player
+* Double click video or press `F11` to toggle the player fullscreen state
+* Accidental window close prevention
+* Scheduled task friendly startup
+* Crash dump support when configured during deployment
+* Chinese application title without encoding corruption
 
-```bash
-git clone https://github.com/clubanderson/clubTivi.git
-cd clubTivi
+### Stability and memory controls
+
+This fork includes several changes for long running playback:
+
+* Bounded media buffers for the main and warm players
+* Serialized player and warm player lifecycle operations
+* Generation guards for rapid channel changes
+* Serialized channel database reloads
+* Cached channel normalization and route indexes
+* Bounded parallel network probes
+* Persisted health scores with time decay
+
+## Included source bootstrap
+
+The application can bootstrap several public M3U playlists and Chinese XMLTV endpoints on first launch. These endpoints are stored in the source code so they can be reviewed, changed, disabled, or removed.
+
+Public stream availability changes frequently and may depend on network location, IPv4 or IPv6 access, provider policy, and regional restrictions. The player does not operate or control any external playlist, stream, or EPG service.
+
+## Main technologies
+
+| Area | Technology |
+| --- | --- |
+| User interface | Flutter and Dart |
+| State management | Riverpod |
+| Playback | media_kit, libmpv, and FFmpeg |
+| Database | Drift and SQLite |
+| Playlist parsing | M3U, M3U Plus, and Xtream Codes |
+| Programme guide | XMLTV |
+| Windows integration | Win32 Runner and window_manager |
+
+## Requirements
+
+For the Windows build:
+
+* Windows 11
+* Flutter SDK with Windows desktop support
+* Visual Studio 2022 with the Desktop development with C++ workload
+* Git
+
+This fork has been built and tested with Flutter 3.44.6.
+
+## Build on Windows
+
+```powershell
+git clone https://github.com/sunshaoxuan/clubTivi4bob.git
+cd clubTivi4bob
 flutter pub get
-flutter run -d macos       # or linux, windows, <android-id>
+flutter test
+flutter build windows --release
 ```
 
-### First Launch
-1. Go to **Settings** (gear icon) and add your IPTV provider (M3U URL or Xtream Codes credentials)
-2. Add an EPG source URL for programme guide data
-3. Channels load automatically — star your favorites ⭐
-4. Multi-select channels → create **Smart Channels** ⚡ for automatic failover
+The release directory is:
 
----
-
-## 🛠️ Tech Stack
-
-| Layer | Technology |
-|-------|-----------|
-| UI Framework | Flutter 3.29+ / Dart 3.11+ |
-| State Management | Riverpod |
-| Video Playback | media_kit (libmpv/FFmpeg) |
-| Local Database | Drift (SQLite) |
-| EPG Parsing | Custom XMLTV parser |
-| Playlist Parsing | Custom M3U/M3U+ & Xtream Codes parser |
-
----
-
-## 🏗️ Architecture
-
+```text
+build\windows\x64\runner\Release
 ```
+
+Copy the complete `Release` directory when installing the application. The executable requires the DLLs and data files generated beside it.
+
+## Run during development
+
+```powershell
+flutter run -d windows
+```
+
+Other Flutter targets remain in the repository, although this fork is maintained primarily for the Windows 11 television host.
+
+## Basic controls
+
+| Input | Action |
+| --- | --- |
+| Single click a channel | Select and preview |
+| Double click a channel | Open the full player |
+| Double click video | Toggle player fullscreen state |
+| `F11` or `F` | Toggle player fullscreen state |
+| `Escape` | Close an overlay or leave the player |
+| Arrow keys | Navigate channels or adjust volume according to the active view |
+| Channel Up or Channel Down | Change channel in the player |
+| `D` | Open channel diagnostics from the channel view |
+
+## Project layout
+
+```text
 lib/
-├── main.dart                      # App entry point
-├── data/
-│   ├── datasources/local/         # Drift database, queries, migrations
-│   ├── models/                    # Channel, EPG, Provider models
-│   └── services/                  # Stream alternatives, failover engine
-├── features/
-│   ├── channels/                  # Channel list, guide view, Smart Channels, sidebar
-│   ├── player/                    # Video player, failover, playback controls
-│   ├── providers/                 # Provider management (add/edit/delete)
-│   ├── settings/                  # App settings, EPG config
-│   └── shows/                     # VOD / series browser
-└── platform/                      # Platform-specific adaptations
+  app/                       Application shell, routing, and theme
+  data/datasources/         Drift database, M3U, and XMLTV parsing
+  data/services/            EPG refresh, name normalization, and health data
+  features/channels/        Channel browser, search, guide, and aggregation
+  features/player/          Playback, probing, buffering, and failover
+  features/providers/       Provider bootstrap and management
+  features/settings/        Application and EPG settings
+windows/runner/             Native Windows title and borderless TV window
+test/                       Parser, mapping, bootstrap, and widget tests
 ```
 
-**Key design decisions:**
-- **Single-screen architecture** — channels, guide, search, and Smart Channels all live in `channels_screen.dart` for instant navigation
-- **Phased startup** — favorites render in <1s, full channel list loads incrementally in background
-- **Smart Channel groups** stored in SQLite (`failover_groups` + `failover_group_channels` tables) with in-memory index for O(1) lookups
-- **EPG matching** runs 4 tiers of heuristics so channels match guide data without manual configuration
+## Validation
 
----
+Run the automated test suite with:
 
-## 📋 Roadmap
+```powershell
+flutter test
+```
 
-### ✅ Shipped
-- [x] Multi-platform Flutter app (macOS, Android, Linux, Windows)
-- [x] M3U / M3U Plus / Xtream Codes parser
-- [x] Video player with media_kit
-- [x] Channel list with favorites, search, groups
-- [x] XMLTV EPG parser with 4-tier auto-matching
-- [x] Full timeline guide view
-- [x] Multi-provider management
-- [x] Smart Channels with automatic failover
-- [x] Keyboard, gamepad, and remote control navigation
-- [x] Instant startup with phased loading
-- [x] Session persistence
+Run static analysis with:
 
-### 🔜 Coming Next
-- [ ] Warm failover (background stream health monitoring)
-- [ ] Catch-up / timeshift (provider-dependent)
-- [ ] Recording (local DVR)
-- [ ] Theming and customization
-- [ ] Backup/restore settings and Smart Channel configs
-- [ ] Multi-language support
-- [ ] Web companion remote control
+```powershell
+flutter analyze
+```
 
----
+Windows release builds should also be tested on the target display because GPU drivers, codecs, monitor topology, and stream reachability vary by host.
 
-## 🤝 Contributing
+## Privacy and updates
 
-Contributions are welcome! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
+This fork does not perform the original application update check and does not display upstream release notifications. Playlist and EPG refreshes remain available because they are part of live TV data maintenance.
 
-1. Fork the repo
-2. Create a feature branch (`git checkout -b feat/amazing-feature`)
-3. Commit with DCO sign-off (`git commit -s -m 'feat: add amazing feature'`)
-4. Push and open a PR
+Stream health metrics and application configuration are stored locally by the application. Review the configured provider URLs before distributing a customized build.
 
----
+## Legal notice
 
-## 📄 License
+Hotel TV is a media player. It does not host, retransmit, sell, or guarantee access to television content. Repository maintainers do not control third party playlists, streams, logos, metadata, or programme guides.
 
-This project is licensed under the Apache License 2.0 — see the [LICENSE](LICENSE) file for details.
+Users and deployers are responsible for verifying that they have permission to access and display every configured source and for complying with applicable copyright, contract, network, and broadcasting rules.
 
----
+## Upstream and license
 
-## ⚠️ Disclaimer
+This project is derived from [clubTivi](https://github.com/clubanderson/clubTivi). Upstream authors and contributors retain credit for their work.
 
-clubTivi is a media player application. It does not provide any content, streams, or IPTV subscriptions. Users are responsible for ensuring they have the legal right to access any content they configure in the application.
+The repository is licensed under the Apache License 2.0. See [LICENSE](LICENSE) for the complete license text.
+
+Contributions are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) for the upstream contribution guidelines.

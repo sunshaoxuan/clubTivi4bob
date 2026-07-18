@@ -65,13 +65,13 @@ class _AddProviderPageState extends ConsumerState<_AddProviderPage> {
   }
 
   String? _validateRequired(String? value) {
-    if (value == null || value.trim().isEmpty) return 'Required';
+    if (value == null || value.trim().isEmpty) return '必填';
     return null;
   }
 
   String? _validateUrl(String? value) {
-    if (value == null || value.trim().isEmpty) return 'Required';
-    if (!value.trim().startsWith('http')) return 'URL must start with http';
+    if (value == null || value.trim().isEmpty) return '必填';
+    if (!value.trim().startsWith('http')) return '网址必须以 http 开头';
     return null;
   }
 
@@ -106,21 +106,21 @@ class _AddProviderPageState extends ConsumerState<_AddProviderPage> {
       await action();
       if (!mounted) return;
       Navigator.of(context).pop(true);
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Provider added successfully')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('电视源添加成功')));
     } on ProviderLimitException catch (e) {
       if (!mounted) return;
       showDialog(
         context: context,
         builder: (_) => AlertDialog(
           backgroundColor: const Color(0xFF1A1A2E),
-          title: const Text('Provider Limit Reached'),
+          title: const Text('电视源数量已达上限'),
           content: Text(e.toString()),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context),
-              child: const Text('OK'),
+              child: const Text('确定'),
             ),
           ],
         ),
@@ -131,12 +131,12 @@ class _AddProviderPageState extends ConsumerState<_AddProviderPage> {
         context: context,
         builder: (_) => AlertDialog(
           backgroundColor: const Color(0xFF1A1A2E),
-          title: const Text('Error'),
-          content: Text('Failed to add provider:\n$e'),
+          title: const Text('错误'),
+          content: Text('电视源添加失败：\n$e'),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context),
-              child: const Text('OK'),
+              child: const Text('确定'),
             ),
           ],
         ),
@@ -159,7 +159,8 @@ class _AddProviderPageState extends ConsumerState<_AddProviderPage> {
       bindings: {
         const SingleActivator(LogicalKeyboardKey.escape): () {
           final pf = FocusManager.instance.primaryFocus;
-          if (pf?.context?.findAncestorWidgetOfExactType<EditableText>() != null) {
+          if (pf?.context?.findAncestorWidgetOfExactType<EditableText>() !=
+              null) {
             pf!.unfocus();
             return;
           }
@@ -171,53 +172,53 @@ class _AddProviderPageState extends ConsumerState<_AddProviderPage> {
       child: Focus(
         autofocus: true,
         child: Scaffold(
-      backgroundColor: const Color(0xFF0A0A0F),
-      appBar: AppBar(
-        leading: IconButton(
-          icon: const Icon(Icons.close),
-          onPressed: () => Navigator.of(context).pop(),
-        ),
-        title: const Text('Add Provider'),
-      ),
-      body: Form(
-        key: _formKey,
-        child: ListView(
-          padding: const EdgeInsets.all(20),
-          children: [
-            // Provider type dropdown — D-pad navigable as a form field
-            DropdownButtonFormField<_ProviderType>(
-              value: _type,
-              autofocus: true,
-              decoration: const InputDecoration(
-                labelText: 'Provider Type',
-                prefixIcon: Icon(Icons.live_tv),
-              ),
-              dropdownColor: const Color(0xFF1A1A2E),
-              items: const [
-                DropdownMenuItem(
-                  value: _ProviderType.m3u,
-                  child: Text('M3U Playlist'),
-                ),
-                DropdownMenuItem(
-                  value: _ProviderType.xtream,
-                  child: Text('Xtream Codes'),
-                ),
-              ],
-              onChanged: (v) {
-                if (v != null) setState(() => _type = v);
-              },
+          backgroundColor: const Color(0xFF0A0A0F),
+          appBar: AppBar(
+            leading: IconButton(
+              icon: const Icon(Icons.close),
+              onPressed: () => Navigator.of(context).pop(),
             ),
-            const SizedBox(height: 24),
-            // Fields change based on type
-            if (_type == _ProviderType.m3u) ..._buildM3uFields(),
-            if (_type == _ProviderType.xtream) ..._buildXtreamFields(),
-            const SizedBox(height: 24),
-            _buildSubmitButton(),
-          ],
+            title: const Text('添加电视源'),
+          ),
+          body: Form(
+            key: _formKey,
+            child: ListView(
+              padding: const EdgeInsets.all(20),
+              children: [
+                // Provider type dropdown — D-pad navigable as a form field
+                DropdownButtonFormField<_ProviderType>(
+                  value: _type,
+                  autofocus: true,
+                  decoration: const InputDecoration(
+                    labelText: '电视源类型',
+                    prefixIcon: Icon(Icons.live_tv),
+                  ),
+                  dropdownColor: const Color(0xFF1A1A2E),
+                  items: const [
+                    DropdownMenuItem(
+                      value: _ProviderType.m3u,
+                      child: Text('M3U 播放列表'),
+                    ),
+                    DropdownMenuItem(
+                      value: _ProviderType.xtream,
+                      child: Text('Xtream Codes'),
+                    ),
+                  ],
+                  onChanged: (v) {
+                    if (v != null) setState(() => _type = v);
+                  },
+                ),
+                const SizedBox(height: 24),
+                // Fields change based on type
+                if (_type == _ProviderType.m3u) ..._buildM3uFields(),
+                if (_type == _ProviderType.xtream) ..._buildXtreamFields(),
+                const SizedBox(height: 24),
+                _buildSubmitButton(),
+              ],
+            ),
+          ),
         ),
       ),
-    ),
-    ),
     );
   }
 
@@ -226,8 +227,8 @@ class _AddProviderPageState extends ConsumerState<_AddProviderPage> {
       TextFormField(
         controller: _m3uName,
         decoration: const InputDecoration(
-          labelText: 'Provider Name',
-          hintText: 'e.g. My IPTV',
+          labelText: '电视源名称',
+          hintText: '例如：酒店电视源',
         ),
         validator: _validateRequired,
         textInputAction: TextInputAction.next,
@@ -250,7 +251,7 @@ class _AddProviderPageState extends ConsumerState<_AddProviderPage> {
         child: TextButton.icon(
           onPressed: () => _pasteUrl(_m3uUrl),
           icon: const Icon(Icons.paste, size: 18),
-          label: const Text('Paste URL'),
+          label: const Text('粘贴网址'),
         ),
       ),
     ];
@@ -261,8 +262,8 @@ class _AddProviderPageState extends ConsumerState<_AddProviderPage> {
       TextFormField(
         controller: _xtreamName,
         decoration: const InputDecoration(
-          labelText: 'Provider Name',
-          hintText: 'e.g. My Xtream',
+          labelText: '电视源名称',
+          hintText: '例如：我的 Xtream',
         ),
         validator: _validateRequired,
         textInputAction: TextInputAction.next,
@@ -271,7 +272,7 @@ class _AddProviderPageState extends ConsumerState<_AddProviderPage> {
       TextFormField(
         controller: _xtreamUrl,
         decoration: const InputDecoration(
-          labelText: 'Server URL',
+          labelText: '服务器网址',
           hintText: 'http://...',
         ),
         validator: _validateUrl,
@@ -281,18 +282,14 @@ class _AddProviderPageState extends ConsumerState<_AddProviderPage> {
       const SizedBox(height: 16),
       TextFormField(
         controller: _xtreamUser,
-        decoration: const InputDecoration(
-          labelText: 'Username',
-        ),
+        decoration: const InputDecoration(labelText: '用户名'),
         validator: _validateRequired,
         textInputAction: TextInputAction.next,
       ),
       const SizedBox(height: 16),
       TextFormField(
         controller: _xtreamPass,
-        decoration: const InputDecoration(
-          labelText: 'Password',
-        ),
+        decoration: const InputDecoration(labelText: '密码'),
         obscureText: true,
         validator: _validateRequired,
         textInputAction: TextInputAction.done,
@@ -317,7 +314,7 @@ class _AddProviderPageState extends ConsumerState<_AddProviderPage> {
                   color: Colors.white,
                 ),
               )
-            : const Text('Add Provider', style: TextStyle(fontSize: 16)),
+            : const Text('添加电视源', style: TextStyle(fontSize: 16)),
       ),
     );
   }

@@ -22,6 +22,19 @@ void main() {
     test('keeps CCTV5 Plus separate from CCTV5', () {
       expect(ChannelNameNormalizer.normalize('CCTV5 体育'), 'cctv5');
       expect(ChannelNameNormalizer.normalize('CCTV5+ 体育赛事'), 'cctv5plus');
+      expect(ChannelNameNormalizer.cctvSportsServiceKey('CCTV-5'), 'cctv5');
+      expect(
+        ChannelNameNormalizer.cctvSportsServiceKey('CCTV5PLUS'),
+        'cctv5plus',
+      );
+      expect(
+        ChannelNameNormalizer.cctvSportsServiceKey('CCTV5+-体育赛事'),
+        'cctv5plus',
+      );
+      expect(
+        ChannelNameNormalizer.cctvSportsServiceKey('hotel-cn-epg_CCTV5+'),
+        'cctv5plus',
+      );
     });
 
     test('keeps CCTV4 regional variants separate', () {

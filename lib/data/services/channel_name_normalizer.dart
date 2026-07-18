@@ -72,10 +72,7 @@ class ChannelNameNormalizer {
       ),
       ' ',
     );
-    value = value.replaceAll(
-      RegExp(r'(超高清|全高清|高清|标清|蓝光|流畅|原画|高码率|低码率)'),
-      ' ',
-    );
+    value = value.replaceAll(RegExp(r'(超高清|全高清|高清|标清|蓝光|流畅|原画|高码率|低码率)'), ' ');
 
     // Provider and route labels are frequently appended to otherwise equal
     // channel names in public and private M3U playlists.
@@ -98,13 +95,7 @@ class ChannelNameNormalizer {
     // Keep letters, digits and CJK scripts. Convert punctuation to spaces so
     // English word matching remains useful.
     value = value
-        .replaceAll(
-          RegExp(
-            r'[^a-z0-9㐀-䶿一-鿿぀-ヿ가-힯]+',
-            unicode: true,
-          ),
-          ' ',
-        )
+        .replaceAll(RegExp(r'[^a-z0-9㐀-䶿一-鿿぀-ヿ가-힯]+', unicode: true), ' ')
         .replaceAll(RegExp(r'\s+'), ' ')
         .trim();
 
@@ -121,6 +112,25 @@ class ChannelNameNormalizer {
     }
 
     return compact;
+  }
+
+  /// Returns a strict service key for the two separate CCTV sports channels.
+  /// This is also used as a guard when accepting EPG IDs supplied by playlists.
+  static String? cctvSportsServiceKey(String name) {
+    final normalized = normalize(name);
+    if (normalized == 'cctv5plus') return 'cctv5plus';
+    if (normalized == 'cctv5') return 'cctv5';
+
+    final raw = _toHalfWidth(name).toLowerCase();
+    if (RegExp(r'cctv\s*[-_]?\s*5\s*(\+|plus)').hasMatch(raw) ||
+        raw.contains('体育赛事')) {
+      return 'cctv5plus';
+    }
+    if (RegExp(r'cctv\s*[-_]?\s*5(?!\s*(\+|plus))').hasMatch(raw) ||
+        raw.contains('cctv体育')) {
+      return 'cctv5';
+    }
+    return null;
   }
 
   static String _toHalfWidth(String input) {

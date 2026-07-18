@@ -19,7 +19,7 @@ class DefaultM3uSource {
 /// Adds the curated hotel-TV sources once, then refreshes sources that remain
 /// installed. A source removed by the user is not restored on later launches.
 class DefaultProviderBootstrap {
-  static const _installedKey = 'hotel_tv_default_sources_installed_v3';
+  static const _installedKey = 'hotel_tv_default_sources_installed_v4';
   static const refreshInterval = Duration(hours: 6);
 
   static const sources = <DefaultM3uSource>[
@@ -80,6 +80,12 @@ class DefaultProviderBootstrap {
       id: 'hotel-iptv-org-cn',
       name: 'IPTV.org 中国频道',
       url: 'https://iptv-org.github.io/iptv/countries/cn.m3u',
+    ),
+    DefaultM3uSource(
+      id: 'hotel-best-fan-status',
+      name: 'best-fan 每日检测线路',
+      url:
+          'https://raw.githubusercontent.com/best-fan/iptv-sources/master/cn_all_status.m3u8',
     ),
   ];
 

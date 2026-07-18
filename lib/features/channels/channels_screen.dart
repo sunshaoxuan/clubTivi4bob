@@ -62,6 +62,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
   Map<String, String> _rawToPrefixedEpg = {}; // XMLTV channelId → prefixed id
   Map<String, String> _epgNameToId =
       {}; // normalized EPG displayName → prefixed id
+  Map<String, String> _epgSportsServiceById = {};
   Map<String, String> _epgCallSignToId =
       {}; // call sign (e.g. WABC) → prefixed id
   bool _showGuideView = true;
@@ -539,6 +540,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
         _playFirstFilteredChannelForGroup(_selectedGroup);
       }
       _backgroundLoading = false;
+      await ref.read(streamAlternativesProvider).rebuild();
 
       // Re-index EPG with full channel set
       if (mounted) _loadEpgData(database, _allChannels, favChannelIds);
@@ -577,19 +579,37 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
     List<db.Channel> allChannels,
     Set<String> favChannelIds,
   ) async {
-    final epgSources = await database.getAllEpgSources();
+    final epgSources = [...await database.getAllEpgSources()];
+    epgSources.sort((a, b) {
+      int priority(String id) {
+        if (id == 'hotel-cn-epg') return 0;
+        if (id == 'hotel-cn-epg-extended') return 1;
+        return 2;
+      }
+
+      return priority(a.id).compareTo(priority(b.id));
+    });
     final currentSourceIds = epgSources.map((s) => s.id).toSet();
     final validIds = <String>{};
     final rawToPrefixed = <String, String>{};
     final epgNameToId = <String, String>{};
+    final epgSportsServiceById = <String, String>{};
     final epgCallSignToId = <String, String>{}; // WABC → prefixed id
     for (final src in epgSources) {
       final chs = await database.getEpgChannelsForSource(src.id);
       for (final ch in chs) {
         validIds.add(ch.id);
-        rawToPrefixed[ch.channelId.toLowerCase()] = ch.id;
+        rawToPrefixed.putIfAbsent(ch.channelId.toLowerCase(), () => ch.id);
         final normName = _normalizeForEpgMatch(ch.displayName);
-        if (normName.isNotEmpty) epgNameToId[normName] = ch.id;
+        if (normName.isNotEmpty) {
+          epgNameToId.putIfAbsent(normName, () => ch.id);
+        }
+        final sportsService =
+            ChannelNameNormalizer.cctvSportsServiceKey(ch.displayName) ??
+            ChannelNameNormalizer.cctvSportsServiceKey(ch.channelId);
+        if (sportsService != null) {
+          epgSportsServiceById[ch.id] = sportsService;
+        }
         // Index by call sign extracted from channelId (e.g. WABC.us → WABC)
         final rawUpper = ch.channelId.toUpperCase();
         final csMatch = RegExp(r'^([WK][A-Z]{2,3})\.').firstMatch(rawUpper);
@@ -640,16 +660,28 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
 
     // Collect EPG channel IDs for now-playing lookup
     final epgChannelIds = <String>{};
+    bool acceptsEpg(db.Channel channel, String epgId) {
+      final channelService =
+          ChannelNameNormalizer.cctvSportsServiceKey(channel.name) ??
+          ChannelNameNormalizer.cctvSportsServiceKey(channel.tvgName ?? '') ??
+          ChannelNameNormalizer.cctvSportsServiceKey(channel.tvgId ?? '');
+      if (channelService == null) return true;
+      final epgService =
+          epgSportsServiceById[epgId] ??
+          ChannelNameNormalizer.cctvSportsServiceKey(epgId);
+      return channelService == epgService;
+    }
+
     for (final c in allChannels) {
       if (!epgScopeIds.contains(c.id)) continue;
       final mapped = epgMap[c.id];
-      if (mapped != null && mapped.isNotEmpty) {
+      if (mapped != null && mapped.isNotEmpty && acceptsEpg(c, mapped)) {
         epgChannelIds.add(mapped);
         continue;
       }
       if (c.tvgId != null && c.tvgId!.isNotEmpty) {
         final prefixed = rawToPrefixed[c.tvgId!.toLowerCase()];
-        if (prefixed != null) {
+        if (prefixed != null && acceptsEpg(c, prefixed)) {
           epgChannelIds.add(prefixed);
           continue;
         }
@@ -658,7 +690,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
       final normName = _normalizeForEpgMatch(c.name);
       if (normName.isNotEmpty) {
         final byName = epgNameToId[normName];
-        if (byName != null) {
+        if (byName != null && acceptsEpg(c, byName)) {
           epgChannelIds.add(byName);
           continue;
         }
@@ -682,6 +714,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
       _validEpgChannelIds = validIds;
       _rawToPrefixedEpg = rawToPrefixed;
       _epgNameToId = epgNameToId;
+      _epgSportsServiceById = epgSportsServiceById;
       _epgCallSignToId = epgCallSignToId;
     });
   }
@@ -1067,16 +1100,24 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
   /// Get the effective EPG channel ID: mapped ID takes priority, then tvgId, then name match.
   String? _getEpgId(db.Channel channel) {
     final mapped = _epgMappings[channel.id];
-    if (mapped != null && mapped.isNotEmpty) return mapped;
+    if (mapped != null &&
+        mapped.isNotEmpty &&
+        _acceptsEpgForChannel(channel, mapped)) {
+      return mapped;
+    }
     if (channel.tvgId != null && channel.tvgId!.isNotEmpty) {
       final prefixed = _rawToPrefixedEpg[channel.tvgId!.toLowerCase()];
-      if (prefixed != null) return prefixed;
+      if (prefixed != null && _acceptsEpgForChannel(channel, prefixed)) {
+        return prefixed;
+      }
     }
     // Fallback: match by normalized channel name against EPG display names
     final normName = _normalizeForEpgMatch(channel.name);
     if (normName.isNotEmpty) {
       final byName = _epgNameToId[normName];
-      if (byName != null) return byName;
+      if (byName != null && _acceptsEpgForChannel(channel, byName)) {
+        return byName;
+      }
     }
     // Fallback: match by broadcast call sign (WABC, WCBS, etc.)
     final callSign = _extractCallSign(channel.name, channel.tvgId);
@@ -1085,6 +1126,18 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
       if (byCs != null) return byCs;
     }
     return null;
+  }
+
+  bool _acceptsEpgForChannel(db.Channel channel, String epgId) {
+    final channelService =
+        ChannelNameNormalizer.cctvSportsServiceKey(channel.name) ??
+        ChannelNameNormalizer.cctvSportsServiceKey(channel.tvgName ?? '') ??
+        ChannelNameNormalizer.cctvSportsServiceKey(channel.tvgId ?? '');
+    if (channelService == null) return true;
+    final epgService =
+        _epgSportsServiceById[epgId] ??
+        ChannelNameNormalizer.cctvSportsServiceKey(epgId);
+    return channelService == epgService;
   }
 
   String _getProviderName(String providerId) {

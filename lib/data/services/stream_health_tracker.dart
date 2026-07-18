@@ -33,6 +33,28 @@ class StreamHealthTracker {
   void recordStall(String url) {
     final m = _getOrCreate(url);
     m.stallCount++;
+    m.failureCount += 2;
+    m.currentWindow.recordFailure(weight: 2);
+    m.lastUpdated = DateTime.now();
+    _scheduleSave();
+  }
+
+  /// Reward a route that returned data during the current channel probe.
+  void recordProbeSuccess(String url, int firstByteMs, double bytesPerSecond) {
+    final m = _getOrCreate(url);
+    m.successCount++;
+    m.ttffMs = _ewma(m.ttffMs.toDouble(), firstByteMs.toDouble()).round();
+    m.bytesPerSecond = _ewma(m.bytesPerSecond, bytesPerSecond);
+    m.currentWindow.recordSuccess(firstByteMs, bytesPerSecond);
+    m.lastUpdated = DateTime.now();
+    _scheduleSave();
+  }
+
+  /// Penalize a route that could not return any media data.
+  void recordProbeFailure(String url) {
+    final m = _getOrCreate(url);
+    m.failureCount++;
+    m.currentWindow.recordFailure();
     m.lastUpdated = DateTime.now();
     _scheduleSave();
   }
@@ -61,22 +83,61 @@ class StreamHealthTracker {
     final m = _metrics[key];
     if (m == null) return 0.5;
 
-    // Apply time decay — halve weight after _decayDays
+    // Old observations fade toward neutral so a recovered route can be tried
+    // again after enough time has passed.
     final age = DateTime.now().difference(m.lastUpdated).inHours;
     final decay = 1.0 / (1.0 + age / (_decayDays * 24));
+    final overall = _scoreMetrics(
+      successes: m.successCount,
+      failures: m.failureCount,
+      firstByteMs: m.ttffMs.toDouble(),
+      bytesPerSecond: m.bytesPerSecond,
+      bufferSeconds: m.bufferSamples > 0 ? m.bufferSum / m.bufferSamples : null,
+    );
 
-    // Score components (0-1 each)
-    final stallScore = 1.0 / (1.0 + m.stallCount * 0.3);
-    final bufferScore = m.bufferSamples > 0
-        ? ((m.bufferSum / m.bufferSamples) / 10.0).clamp(0.0, 1.0)
-        : 0.5;
-    final ttffScore = m.ttffMs > 0
-        ? (1.0 - (m.ttffMs / 10000.0)).clamp(0.0, 1.0)
-        : 0.5;
+    // A six-hour time bucket learns that a route may be good in the morning
+    // and congested in the evening. New bucket observations gain influence
+    // gradually and never erase the all-day history immediately.
+    final window = m.currentWindow;
+    final windowSamples = window.successCount + window.failureCount;
+    final windowConfidence = (windowSamples / 6.0).clamp(0.0, 1.0);
+    final windowScore = _scoreMetrics(
+      successes: window.successCount,
+      failures: window.failureCount,
+      firstByteMs: window.ttffMs,
+      bytesPerSecond: window.bytesPerSecond,
+      bufferSeconds: null,
+    );
+    final learned =
+        overall * (1.0 - windowConfidence) + windowScore * windowConfidence;
+    return (0.5 + (learned - 0.5) * decay).clamp(0.0, 1.0);
+  }
 
-    // Weighted average with decay
-    return ((stallScore * 0.5 + bufferScore * 0.3 + ttffScore * 0.2) * decay)
+  double _scoreMetrics({
+    required int successes,
+    required int failures,
+    required double firstByteMs,
+    required double bytesPerSecond,
+    required double? bufferSeconds,
+  }) {
+    final reliability = (successes + 1.0) / (successes + failures + 2.0);
+    final latency = firstByteMs > 0 ? 1.0 / (1.0 + firstByteMs / 1200.0) : 0.5;
+    final throughput = bytesPerSecond > 0
+        ? bytesPerSecond / (bytesPerSecond + 750000.0)
+        : 0.5;
+    final buffer = bufferSeconds != null
+        ? (bufferSeconds / 8.0).clamp(0.0, 1.0)
+        : 0.5;
+    return (reliability * 0.40 +
+            latency * 0.20 +
+            throughput * 0.25 +
+            buffer * 0.15)
         .clamp(0.0, 1.0);
+  }
+
+  double _ewma(double previous, double current) {
+    if (previous <= 0) return current;
+    return previous * 0.65 + current * 0.35;
   }
 
   /// Get scores for multiple URLs, sorted best-first.
@@ -130,6 +191,10 @@ class _StreamMetrics {
   double bufferSum;
   int bufferSamples;
   int ttffMs;
+  int successCount;
+  int failureCount;
+  double bytesPerSecond;
+  Map<String, _ProbeWindow> windows;
   DateTime lastUpdated;
 
   _StreamMetrics({
@@ -138,24 +203,81 @@ class _StreamMetrics {
     this.bufferSum = 0,
     this.bufferSamples = 0,
     this.ttffMs = 0,
+    this.successCount = 0,
+    this.failureCount = 0,
+    this.bytesPerSecond = 0,
+    Map<String, _ProbeWindow>? windows,
     DateTime? lastUpdated,
-  }) : lastUpdated = lastUpdated ?? DateTime.now();
+  }) : windows = windows ?? {},
+       lastUpdated = lastUpdated ?? DateTime.now();
+
+  _ProbeWindow get currentWindow {
+    final key = (DateTime.now().hour ~/ 6).toString();
+    return windows.putIfAbsent(key, () => _ProbeWindow());
+  }
 
   Map<String, dynamic> toJson() => {
-        'url': url,
-        'stalls': stallCount,
-        'bufSum': bufferSum,
-        'bufN': bufferSamples,
-        'ttff': ttffMs,
-        'ts': lastUpdated.millisecondsSinceEpoch,
-      };
+    'url': url,
+    'stalls': stallCount,
+    'bufSum': bufferSum,
+    'bufN': bufferSamples,
+    'ttff': ttffMs,
+    'ok': successCount,
+    'fail': failureCount,
+    'bps': bytesPerSecond,
+    'windows': windows.map((key, value) => MapEntry(key, value.toJson())),
+    'ts': lastUpdated.millisecondsSinceEpoch,
+  };
 
   factory _StreamMetrics.fromJson(Map<String, dynamic> j) => _StreamMetrics(
-        url: j['url'] ?? '',
-        stallCount: j['stalls'] ?? 0,
-        bufferSum: (j['bufSum'] ?? 0).toDouble(),
-        bufferSamples: j['bufN'] ?? 0,
-        ttffMs: j['ttff'] ?? 0,
-        lastUpdated: DateTime.fromMillisecondsSinceEpoch(j['ts'] ?? 0),
-      );
+    url: j['url'] ?? '',
+    stallCount: j['stalls'] ?? 0,
+    bufferSum: (j['bufSum'] ?? 0).toDouble(),
+    bufferSamples: j['bufN'] ?? 0,
+    ttffMs: j['ttff'] ?? 0,
+    successCount: j['ok'] ?? 0,
+    failureCount: j['fail'] ?? 0,
+    bytesPerSecond: (j['bps'] ?? 0).toDouble(),
+    windows: ((j['windows'] as Map<String, dynamic>?) ?? {}).map(
+      (key, value) => MapEntry(key, _ProbeWindow.fromJson(value)),
+    ),
+    lastUpdated: DateTime.fromMillisecondsSinceEpoch(j['ts'] ?? 0),
+  );
+}
+
+class _ProbeWindow {
+  int successCount = 0;
+  int failureCount = 0;
+  double ttffMs = 0;
+  double bytesPerSecond = 0;
+
+  _ProbeWindow();
+
+  void recordSuccess(int firstByteMs, double throughput) {
+    successCount++;
+    ttffMs = _ewma(ttffMs, firstByteMs.toDouble());
+    bytesPerSecond = _ewma(bytesPerSecond, throughput);
+  }
+
+  void recordFailure({int weight = 1}) {
+    failureCount += weight;
+  }
+
+  double _ewma(double previous, double current) {
+    if (previous <= 0) return current;
+    return previous * 0.65 + current * 0.35;
+  }
+
+  Map<String, dynamic> toJson() => {
+    'ok': successCount,
+    'fail': failureCount,
+    'ttff': ttffMs,
+    'bps': bytesPerSecond,
+  };
+
+  factory _ProbeWindow.fromJson(Map<String, dynamic> json) => _ProbeWindow()
+    ..successCount = json['ok'] ?? 0
+    ..failureCount = json['fail'] ?? 0
+    ..ttffMs = (json['ttff'] ?? 0).toDouble()
+    ..bytesPerSecond = (json['bps'] ?? 0).toDouble();
 }

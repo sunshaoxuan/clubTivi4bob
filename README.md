@@ -18,24 +18,26 @@ The route list remains hidden from the normal channel browser. Users select a ch
 
 ### Fast route selection
 
-Before playback, the player can test up to eight equivalent HTTP or HTTPS streams in parallel. Selection uses:
+Before playback, the player can test up to 24 equivalent HTTP or HTTPS streams in parallel. Selection uses:
 
 * Time to first byte
 * Short transfer throughput
 * Persisted stream health history
 * Previous buffering and stall observations
+* Six hour time windows that learn recurring changes in route quality
 
-The probe has a bounded timeout. If probing cannot produce a usable result, playback falls back to the original route.
+Successful probes increase route weight according to latency and throughput. Connection failures and playback stalls reduce route weight. Old observations decay toward a neutral score so recovered routes can be tried again. The probe has a bounded timeout. If probing cannot produce a usable result, playback falls back to the original route.
 
 ### Silent automatic failover
 
-The player monitors the libmpv demuxer cache during playback. When the active route remains unhealthy, it prepares another route and verifies that real audio or video playback has started before keeping the switch. Failed candidates are excluded for the current channel session and the previous route is restored automatically. Manual buffering confirmation dialogs have been removed. A short Chinese notification is shown only after a successful switch.
+The player monitors the libmpv demuxer cache, buffering state, and playback position during playback. Missing cache telemetry and a frozen playback position can trigger failover, which covers streams that stop without reporting a normal buffering event. When the active route remains unhealthy, the player prepares another route and verifies that real audio or video playback has started before keeping the switch. Failed candidates are excluded for the current channel session and the previous route is restored automatically. Manual buffering confirmation dialogs have been removed. A short Chinese notification is shown only after a successful switch.
 
 ### Chinese programme guide
 
 The fork includes bootstrap configuration for Chinese XMLTV sources and supports:
 
 * CCTV and CCTV Plus schedules
+* Strict separation of CCTV5 and CCTV5 Plus during EPG matching
 * Chinese satellite and regional channels
 * Fixed sports channels available in the configured XMLTV data
 * CJK channel name matching
@@ -68,6 +70,7 @@ This fork includes several changes for long running playback:
 * Cached channel normalization and route indexes
 * Bounded parallel network probes
 * Persisted health scores with time decay
+* Time window route scoring for recurring peak hour congestion
 
 ## Included source bootstrap
 

@@ -8,6 +8,7 @@ import 'package:media_kit/src/player/native/player/real.dart' as native_player;
 import 'package:media_kit_video/media_kit_video.dart';
 
 import 'adaptive_buffer.dart';
+import 'playback_stall_detector.dart';
 import 'stream_proxy.dart';
 import '../../data/services/stream_alternatives_service.dart';
 import '../../data/services/stream_health_tracker.dart';
@@ -43,7 +44,8 @@ class PlayerService {
   StreamAlternativesService? _alternatives;
   StreamHealthTracker? _healthTracker;
   Timer? _failoverCheckTimer;
-  int _consecutiveLowBuffer = 0;
+  final PlaybackStallDetector _stallDetector = PlaybackStallDetector();
+  bool _failoverMonitorBusy = false;
   final StreamProxy _streamProxy = StreamProxy();
   bool _proxyActive = false;
 
@@ -154,7 +156,7 @@ class PlayerService {
     final playGeneration = ++_playGeneration;
     _isBuffering = false;
     _bufferStartTime = null;
-    _consecutiveLowBuffer = 0;
+    _stallDetector.reset();
     _failedFailoverUrls.clear();
     _currentUrl = url;
     _currentChannelId = channelId;
@@ -214,6 +216,8 @@ class PlayerService {
   }) async {
     final stopwatch = Stopwatch()..start();
     var sawBuffering = false;
+    var observedPosition = player.state.position;
+    var positionAdvanced = false;
     while (stopwatch.elapsed < timeout) {
       if (_currentUrl != expectedUrl) return false;
       final buffering = player.state.buffering;
@@ -228,13 +232,18 @@ class PlayerService {
       );
       final rawCache = await getMpvProperty('demuxer-cache-duration');
       final cacheSeconds = double.tryParse(rawCache ?? '') ?? 0.0;
+      final currentPosition = player.state.position;
+      if (currentPosition < observedPosition) {
+        observedPosition = currentPosition;
+      } else if (currentPosition - observedPosition >=
+          const Duration(milliseconds: 250)) {
+        positionAdvanced = true;
+      }
       final settled = sawBuffering || stopwatch.elapsedMilliseconds >= 900;
       if (settled &&
           !buffering &&
           (hasVideo || hasAudio) &&
-          (cacheSeconds >= 0.15 ||
-              (player.state.playing &&
-                  stopwatch.elapsedMilliseconds >= 1500))) {
+          (cacheSeconds >= 0.15 || positionAdvanced)) {
         return true;
       }
       await Future<void>.delayed(const Duration(milliseconds: 250));
@@ -249,7 +258,7 @@ class PlayerService {
     for (final url in _getFailoverAlternatives()) {
       if (_failedFailoverUrls.contains(url)) continue;
       if (!candidates.contains(url)) candidates.add(url);
-      if (candidates.length >= 8) break;
+      if (candidates.length >= 24) break;
     }
     if (candidates.length < 2) return originalUrl;
 
@@ -287,6 +296,7 @@ class PlayerService {
     final cleanUrl = url.split('|').first.trim();
     final uri = Uri.tryParse(cleanUrl);
     if (uri == null || (uri.scheme != 'http' && uri.scheme != 'https')) {
+      _healthTracker?.recordProbeFailure(url);
       return _StreamProbe.unusable(url);
     }
 
@@ -307,7 +317,10 @@ class PlayerService {
         const Duration(milliseconds: 1600),
       );
       statusOk = response.statusCode >= 200 && response.statusCode < 400;
-      if (!statusOk) return _StreamProbe.unusable(url);
+      if (!statusOk) {
+        _healthTracker?.recordProbeFailure(url);
+        return _StreamProbe.unusable(url);
+      }
 
       await for (final chunk in response.timeout(
         const Duration(milliseconds: 1700),
@@ -317,7 +330,10 @@ class PlayerService {
         if (bytes >= 64 * 1024) break;
       }
     } catch (_) {
-      if (bytes == 0) return _StreamProbe.unusable(url);
+      if (bytes == 0) {
+        _healthTracker?.recordProbeFailure(url);
+        return _StreamProbe.unusable(url);
+      }
     } finally {
       stopwatch.stop();
       client.close(force: true);
@@ -325,10 +341,15 @@ class PlayerService {
 
     final elapsedMs = stopwatch.elapsedMilliseconds.clamp(1, 3200);
     final bytesPerSecond = bytes * 1000.0 / elapsedMs;
+    if (!statusOk || bytes == 0) {
+      _healthTracker?.recordProbeFailure(url);
+      return _StreamProbe.unusable(url);
+    }
+    _healthTracker?.recordProbeSuccess(url, firstByteMs, bytesPerSecond);
     final health = _healthTracker?.getScore(url) ?? 0.5;
-    final responseScore = 1000.0 / (firstByteMs + 100.0);
-    final throughputScore = (bytesPerSecond / 1000000.0).clamp(0.0, 20.0);
-    final score = throughputScore * 0.65 + responseScore * 0.25 + health * 0.1;
+    final responseScore = 1.0 / (1.0 + firstByteMs / 1000.0);
+    final throughputScore = bytesPerSecond / (bytesPerSecond + 750000.0);
+    final score = throughputScore * 0.45 + responseScore * 0.25 + health * 0.30;
     return _StreamProbe(
       url: url,
       usable: statusOk && bytes > 0,
@@ -498,37 +519,44 @@ class PlayerService {
 
   void _startFailoverMonitor() {
     _failoverCheckTimer?.cancel();
+    _stallDetector.reset();
+    _failoverMonitorBusy = false;
     _failoverCheckTimer = Timer.periodic(const Duration(seconds: 2), (_) async {
+      if (_failoverMonitorBusy) return;
       if (_currentUrl == null) return;
       if (_alternatives == null &&
           (_failoverGroupUrls == null || _failoverGroupUrls!.isEmpty)) {
         return;
       }
 
-      final raw = await getMpvProperty('demuxer-cache-duration');
-      final cacheSecs = double.tryParse(raw ?? '');
-      if (cacheSecs == null) return;
+      _failoverMonitorBusy = true;
+      try {
+        final raw = await getMpvProperty('demuxer-cache-duration');
+        final cacheSecs = double.tryParse(raw ?? '');
+        if (cacheSecs != null) {
+          _healthTracker?.recordBufferSample(_currentUrl!, cacheSecs);
+        }
 
-      // Record health sample
-      _healthTracker?.recordBufferSample(_currentUrl!, cacheSecs);
+        final state = _stallDetector.add(
+          PlaybackHealthSample(
+            position: player.state.position,
+            cacheSeconds: cacheSecs,
+            buffering: player.state.buffering,
+            playing: player.state.playing,
+          ),
+        );
 
-      if (cacheSecs < 1.0) {
-        _consecutiveLowBuffer++;
-        if (_consecutiveLowBuffer >= 2 && !_warmReady && _warmPlayer == null) {
-          // 4+ seconds of low buffer → start pre-buffering alternative (warm)
+        if (state.shouldWarmAlternative && !_warmReady && _warmPlayer == null) {
           await _startWarmPreload();
         }
-        if (_consecutiveLowBuffer >= 3) {
-          // 6+ seconds of critically low buffer → failover
+        if (state.shouldFailover) {
           _healthTracker?.recordStall(_currentUrl!);
           await _autoFailover();
-        }
-      } else {
-        _consecutiveLowBuffer = 0;
-        // Buffer recovered — dispose warm player if not yet used
-        if (_warmPlayer != null && !_warmReady) {
+        } else if (state.healthy && _warmPlayer != null && !_warmReady) {
           await _disposeWarmPlayer();
         }
+      } finally {
+        _failoverMonitorBusy = false;
       }
     });
   }
@@ -537,19 +565,24 @@ class PlayerService {
   List<String> _getFailoverAlternatives() {
     if (_currentUrl == null) return [];
 
-    // Prefer manually-defined failover group URLs
-    if (_failoverGroupUrls != null && _failoverGroupUrls!.isNotEmpty) {
-      return _failoverGroupUrls!
-          .where(
-            (url) => url != _currentUrl && !_failedFailoverUrls.contains(url),
-          )
-          .toList();
+    final results = <String>[];
+    final seen = <String>{_currentUrl!, ..._failedFailoverUrls};
+
+    void addUrls(Iterable<String> urls) {
+      for (final url in urls) {
+        if (url.isNotEmpty && seen.add(url)) results.add(url);
+      }
     }
 
-    // Fall back to auto-detected alternatives
-    if (_alternatives == null) return [];
-    return _alternatives!
-        .getAlternatives(
+    // Keep manually supplied and screen-discovered alternatives first.
+    if (_failoverGroupUrls != null && _failoverGroupUrls!.isNotEmpty) {
+      addUrls(_failoverGroupUrls!);
+    }
+
+    // Merge the complete database index instead of replacing it.
+    if (_alternatives != null) {
+      addUrls(
+        _alternatives!.getAlternatives(
           channelId: _currentChannelId ?? '',
           epgChannelId: _currentEpgChannelId,
           tvgId: _currentTvgId,
@@ -557,9 +590,10 @@ class PlayerService {
           vanityName: _currentVanityName,
           originalName: _currentOriginalName,
           excludeUrl: _currentUrl!,
-        )
-        .where((url) => !_failedFailoverUrls.contains(url))
-        .toList();
+        ),
+      );
+    }
+    return results;
   }
 
   /// Start pre-buffering the best alternative stream in a hidden player.
@@ -696,7 +730,7 @@ class PlayerService {
 
       _failoverCheckTimer?.cancel();
       await _disposeWarmPlayer();
-      _consecutiveLowBuffer = 0;
+      _stallDetector.reset();
       final switched = await _switchWithVerification(
         newUrl,
         previousUrl,

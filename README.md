@@ -46,13 +46,12 @@ Generic event slots such as numbered temporary sports feeds need a reliable exte
 
 ### Windows television mode
 
-The Windows runner uses a native Win32 borderless display mode that covers the current monitor. The title bar, resizable frame, and work area margins are removed at the native window layer.
+The channel browser remains a normal maximized Windows window with its title bar, minimize control, and close control. The player switches the window into a borderless fullscreen state that covers the current monitor, then restores the normal frame when playback is left.
 
 Additional Windows behavior includes:
 
 * Double click a channel to open the player
 * Double click video or press `F11` to toggle the player fullscreen state
-* Accidental window close prevention
 * Scheduled task friendly startup
 * Crash dump support when configured during deployment
 * Chinese application title without encoding corruption

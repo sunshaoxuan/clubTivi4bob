@@ -465,7 +465,14 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
 
   Future<void> _setNativeFullscreen(bool value) async {
     if (!_supportsNativeFullscreen) return;
-    await windowManager.setFullScreen(value);
+    if (value) {
+      await windowManager.setTitleBarStyle(TitleBarStyle.hidden);
+      await windowManager.setFullScreen(true);
+    } else {
+      await windowManager.setFullScreen(false);
+      await windowManager.setTitleBarStyle(TitleBarStyle.normal);
+      if (Platform.isWindows) await windowManager.maximize();
+    }
     if (mounted) setState(() => _nativeFullscreen = value);
   }
 
@@ -602,7 +609,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     _tracksSubscription?.cancel();
     _bufferingSubscription?.cancel();
     if (_nativeFullscreen && _supportsNativeFullscreen) {
-      unawaited(windowManager.setFullScreen(false));
+      unawaited(_setNativeFullscreen(false));
     }
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
     super.dispose();

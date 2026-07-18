@@ -12,9 +12,6 @@ Future<void> main() async {
   MediaKit.ensureInitialized();
   if (Platform.isWindows || Platform.isLinux || Platform.isMacOS) {
     await windowManager.ensureInitialized();
-    if (Platform.isWindows) {
-      await windowManager.setPreventClose(true);
-    }
   }
   runApp(const ProviderScope(child: ClubTiviApp()));
 }

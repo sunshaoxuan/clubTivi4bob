@@ -29,7 +29,7 @@ The probe has a bounded timeout. If probing cannot produce a usable result, play
 
 ### Silent automatic failover
 
-The player monitors the libmpv demuxer cache during playback. When the active route remains unhealthy, it prepares another route and switches automatically. Manual buffering confirmation dialogs have been removed. A short Chinese notification is shown after a successful switch.
+The player monitors the libmpv demuxer cache during playback. When the active route remains unhealthy, it prepares another route and verifies that real audio or video playback has started before keeping the switch. Failed candidates are excluded for the current channel session and the previous route is restored automatically. Manual buffering confirmation dialogs have been removed. A short Chinese notification is shown only after a successful switch.
 
 ### Chinese programme guide
 
@@ -52,6 +52,7 @@ Additional Windows behavior includes:
 
 * Double click a channel to open the player
 * Double click video or press `F11` to toggle the player fullscreen state
+* Use the on screen `退出全屏` and `返回频道` buttons with a mouse
 * Scheduled task friendly startup
 * Crash dump support when configured during deployment
 * Chinese application title without encoding corruption
@@ -130,6 +131,8 @@ Other Flutter targets remain in the repository, although this fork is maintained
 | Single click a channel | Select and preview |
 | Double click a channel | Open the full player |
 | Double click video | Toggle player fullscreen state |
+| On screen `退出全屏` | Restore the normal Windows frame |
+| On screen `返回频道` | Leave playback and return to the channel browser |
 | `F11` or `F` | Toggle player fullscreen state |
 | `Escape` | Close an overlay or leave the player |
 | Arrow keys | Navigate channels or adjust volume according to the active view |

@@ -602,6 +602,27 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     });
   }
 
+  Widget _mouseActionButton({
+    required IconData icon,
+    required String label,
+    required VoidCallback onPressed,
+  }) {
+    return TextButton.icon(
+      onPressed: onPressed,
+      icon: Icon(icon, size: 16),
+      label: Text(label),
+      style: TextButton.styleFrom(
+        foregroundColor: Colors.white,
+        backgroundColor: Colors.black.withValues(alpha: 0.55),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        minimumSize: const Size(0, 36),
+        textStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+        side: const BorderSide(color: Colors.white24),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+      ),
+    );
+  }
+
   @override
   void dispose() {
     _overlayTimer?.cancel();
@@ -851,6 +872,25 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                                   color: Colors.white38,
                                   fontSize: 11,
                                 ),
+                              ),
+                              const SizedBox(height: 8),
+                              Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  _mouseActionButton(
+                                    icon: _nativeFullscreen
+                                        ? Icons.fullscreen_exit
+                                        : Icons.fullscreen,
+                                    label: _nativeFullscreen ? '退出全屏' : '全屏',
+                                    onPressed: _toggleNativeFullscreen,
+                                  ),
+                                  const SizedBox(width: 8),
+                                  _mouseActionButton(
+                                    icon: Icons.arrow_back,
+                                    label: '返回频道',
+                                    onPressed: _leavePlayer,
+                                  ),
+                                ],
                               ),
                             ],
                           ),

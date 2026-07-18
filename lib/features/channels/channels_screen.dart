@@ -854,6 +854,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
     final representatives = <String, db.Channel>{};
     final scores = <String, int>{};
     for (final channel in channels) {
+      if (_hasInvalidStreamMetadata(channel)) continue;
       final key = _automaticChannelKey(channel);
       if (key.isEmpty) {
         representatives[channel.id] = channel;
@@ -888,13 +889,41 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
   }
 
   bool _hasCompatibleQuality(db.Channel first, db.Channel second) {
-    return _isUltraHdChannel(first) == _isUltraHdChannel(second);
+    if (_hasInvalidStreamMetadata(second)) return false;
+    if (_isUltraHdChannel(first) != _isUltraHdChannel(second)) return false;
+    final firstSportsService = _sportsServiceForChannel(first);
+    final secondSportsService = _sportsServiceForChannel(second);
+    return firstSportsService == null ||
+        secondSportsService == null ||
+        firstSportsService == secondSportsService;
+  }
+
+  String? _sportsServiceForChannel(db.Channel channel) {
+    return ChannelNameNormalizer.cctvSportsServiceKeyFromStreamUrl(
+          channel.streamUrl,
+        ) ??
+        ChannelNameNormalizer.cctvSportsServiceKey(channel.name) ??
+        ChannelNameNormalizer.cctvSportsServiceKey(channel.tvgName ?? '') ??
+        ChannelNameNormalizer.cctvSportsServiceKey(channel.tvgId ?? '');
+  }
+
+  bool _hasInvalidStreamMetadata(db.Channel channel) {
+    final names = [channel.name, channel.tvgName ?? '', channel.tvgId ?? ''];
+    return ChannelNameNormalizer.hasCctvSportsMetadataConflict(
+          names: names,
+          streamUrl: channel.streamUrl,
+        ) ||
+        ChannelNameNormalizer.hasUltraHdMetadataConflict(
+          names: names,
+          streamUrl: channel.streamUrl,
+        );
   }
 
   void _rebuildAutomaticChannelIndex() {
     _automaticKeyByChannelId.clear();
     _automaticUrlsByKey.clear();
     for (final channel in _allChannels) {
+      if (_hasInvalidStreamMetadata(channel)) continue;
       final key = _automaticChannelKey(channel);
       if (key.isEmpty || channel.streamUrl.isEmpty) continue;
       final urls = _automaticUrlsByKey.putIfAbsent(key, () => <String>[]);

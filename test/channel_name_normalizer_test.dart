@@ -57,5 +57,51 @@ void main() {
       expect(ChannelNameNormalizer.isUltraHd('央视 UHD 2160p'), isTrue);
       expect(ChannelNameNormalizer.isUltraHd('CCTV5 HD'), isFalse);
     });
+
+    test('detects CCTV5 Plus hidden behind a CCTV5 route label', () {
+      expect(
+        ChannelNameNormalizer.cctvSportsServiceKeyFromStreamUrl(
+          'http://example.test/live/cctv5p.m3u8',
+        ),
+        'cctv5plus',
+      );
+      expect(
+        ChannelNameNormalizer.cctvSportsServiceKeyFromStreamUrl(
+          'https://example.test/?id=CCTV5&type=live',
+        ),
+        'cctv5',
+      );
+      expect(
+        ChannelNameNormalizer.hasCctvSportsMetadataConflict(
+          names: const ['CCTV-5', 'CCTV5'],
+          streamUrl: 'http://example.test/live/cctv5p.m3u8',
+        ),
+        isTrue,
+      );
+    });
+
+    test('detects contradictory Ultra HD metadata', () {
+      expect(
+        ChannelNameNormalizer.hasUltraHdMetadataConflict(
+          names: const ['CCTV-4K (1080p)'],
+          streamUrl: 'http://example.test/live.m3u8',
+        ),
+        isTrue,
+      );
+      expect(
+        ChannelNameNormalizer.hasUltraHdMetadataConflict(
+          names: const ['2025 春晚 4K'],
+          streamUrl: 'https://example.test/2000k/hls/mixed.m3u8',
+        ),
+        isTrue,
+      );
+      expect(
+        ChannelNameNormalizer.hasUltraHdMetadataConflict(
+          names: const ['CCTV-4K'],
+          streamUrl: 'https://example.test/12000k/live.m3u8',
+        ),
+        isFalse,
+      );
+    });
   });
 }

@@ -107,6 +107,7 @@ class StreamAlternativesService {
 
     for (final ch in _allChannels) {
       if (ch.streamUrl.isEmpty) continue;
+      if (_hasInvalidStreamMetadata(ch)) continue;
 
       // 1. Vanity name index (user-confirmed grouping — highest trust)
       final vanity = vanityNames[ch.id];
@@ -195,6 +196,7 @@ class StreamAlternativesService {
         ChannelNameNormalizer.isUltraHd(tvgId ?? '');
 
     bool isCompatible(Channel channel) {
+      if (_hasInvalidStreamMetadata(channel)) return false;
       if (_isUltraHdChannel(channel) != requestedUltraHd) return false;
       if (requestedSportsService == null) return true;
       return _sportsServiceForChannel(channel) == requestedSportsService;
@@ -310,6 +312,7 @@ class StreamAlternativesService {
       return channels
           .where(
             (channel) =>
+                !_hasInvalidStreamMetadata(channel) &&
                 _isUltraHdChannel(channel) == requestedUltraHd &&
                 (requestedSportsService == null ||
                     _sportsServiceForChannel(channel) ==
@@ -362,6 +365,7 @@ class StreamAlternativesService {
         ChannelNameNormalizer.isUltraHd(tvgId ?? '');
 
     bool isCompatible(Channel channel) {
+      if (_hasInvalidStreamMetadata(channel)) return false;
       if (_isUltraHdChannel(channel) != requestedUltraHd) return false;
       if (requestedSportsService == null) return true;
       return _sportsServiceForChannel(channel) == requestedSportsService;
@@ -494,7 +498,10 @@ class StreamAlternativesService {
   }
 
   static String? _sportsServiceForChannel(Channel channel) {
-    return ChannelNameNormalizer.cctvSportsServiceKey(channel.name) ??
+    return ChannelNameNormalizer.cctvSportsServiceKeyFromStreamUrl(
+          channel.streamUrl,
+        ) ??
+        ChannelNameNormalizer.cctvSportsServiceKey(channel.name) ??
         ChannelNameNormalizer.cctvSportsServiceKey(channel.tvgName ?? '') ??
         ChannelNameNormalizer.cctvSportsServiceKey(channel.tvgId ?? '');
   }
@@ -503,6 +510,18 @@ class StreamAlternativesService {
     return ChannelNameNormalizer.isUltraHd(channel.name) ||
         ChannelNameNormalizer.isUltraHd(channel.tvgName ?? '') ||
         ChannelNameNormalizer.isUltraHd(channel.tvgId ?? '');
+  }
+
+  static bool _hasInvalidStreamMetadata(Channel channel) {
+    final names = [channel.name, channel.tvgName ?? '', channel.tvgId ?? ''];
+    return ChannelNameNormalizer.hasCctvSportsMetadataConflict(
+          names: names,
+          streamUrl: channel.streamUrl,
+        ) ||
+        ChannelNameNormalizer.hasUltraHdMetadataConflict(
+          names: names,
+          streamUrl: channel.streamUrl,
+        );
   }
 
   Channel _dbToChannel(db.Channel c) => Channel(

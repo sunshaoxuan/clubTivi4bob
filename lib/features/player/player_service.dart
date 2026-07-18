@@ -16,6 +16,8 @@ import '../../data/services/stream_health_tracker.dart';
 
 /// Manages video playback with stream failover support.
 class PlayerService {
+  static const minimumUltraHdVideoBitrate = 8000000.0;
+
   Player? _player;
   VideoController? _videoController;
   final AdaptiveBufferManager _bufferManager = AdaptiveBufferManager();
@@ -271,7 +273,38 @@ class PlayerService {
     final width = player.state.width ?? 0;
     final height = player.state.height ?? 0;
     if (width <= 0 && height <= 0) return false;
-    return width < 3200 && height < 1800;
+    return !isAcceptableUltraHdMedia(width: width, height: height);
+  }
+
+  @visibleForTesting
+  static bool isAcceptableUltraHdMedia({
+    required int width,
+    required int height,
+    double? videoBitrate,
+  }) {
+    if (width > 0 || height > 0) {
+      if (width < 3200 && height < 1800) return false;
+    }
+    if (videoBitrate != null &&
+        videoBitrate > 0 &&
+        videoBitrate < minimumUltraHdVideoBitrate) {
+      return false;
+    }
+    return true;
+  }
+
+  Future<double?> _currentVideoBitrate() async {
+    final values = await Future.wait([
+      getMpvProperty('video-bitrate'),
+      getMpvProperty('demuxer-bitrate'),
+    ]);
+    final bitrates = values
+        .map((value) => double.tryParse(value ?? ''))
+        .whereType<double>()
+        .where((value) => value > 0)
+        .toList();
+    if (bitrates.isEmpty) return null;
+    return bitrates.reduce((first, second) => first > second ? first : second);
   }
 
   void _scheduleQualityCheck(
@@ -297,15 +330,25 @@ class PlayerService {
         }
         return;
       }
-      if (!_hasKnownSubUltraHdResolution()) return;
+      final videoBitrate = await _currentVideoBitrate();
+      if (playGeneration != _playGeneration || _currentUrl != expectedUrl) {
+        return;
+      }
+      if (isAcceptableUltraHdMedia(
+        width: width,
+        height: height,
+        videoBitrate: videoBitrate,
+      )) {
+        return;
+      }
 
       debugPrint(
         '[Failover] $expectedUrl advertised Ultra HD but decoded at '
-        '${width}x$height',
+        '${width}x$height and ${videoBitrate ?? 0} bit/s',
       );
       _failedFailoverUrls.add(expectedUrl);
       _healthTracker?.recordProbeFailure(expectedUrl);
-      onFailover?.call('检测到伪4K线路，正在寻找真正的4K线路');
+      onFailover?.call('检测到低清或低码率4K线路，正在寻找高清晰度线路');
       await _autoFailover();
     });
   }

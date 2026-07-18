@@ -50,6 +50,13 @@ void main() {
           streamUrl: 'https://example.com/cctv5plus.m3u8',
         ),
         db.ChannelsCompanion.insert(
+          id: 'cctv5-bad-route',
+          providerId: 'source',
+          name: 'CCTV-5',
+          tvgName: const Value('CCTV5'),
+          streamUrl: 'https://example.com/live/cctv5p.m3u8',
+        ),
+        db.ChannelsCompanion.insert(
           id: 'cctv5-4k-main',
           providerId: 'source',
           name: 'CCTV5 4K',
@@ -86,6 +93,10 @@ void main() {
       expect(
         alternatives,
         isNot(contains('https://example.com/cctv5plus.m3u8')),
+      );
+      expect(
+        alternatives,
+        isNot(contains('https://example.com/live/cctv5p.m3u8')),
       );
       expect(
         details.map((detail) => detail.channel.streamUrl),

@@ -146,6 +146,70 @@ class ChannelNameNormalizer {
         value.contains('超高画质');
   }
 
+  /// Infers the CCTV sports service from common stream URL route names.
+  /// Several public playlists contain correct-looking channel metadata while
+  /// the route itself points at `cctv5p`, the usual CCTV5 Plus identifier.
+  static String? cctvSportsServiceKeyFromStreamUrl(String url) {
+    var value = _toHalfWidth(url).toLowerCase();
+    try {
+      value = Uri.decodeComponent(value);
+    } catch (_) {}
+    final boundary = r'(^|[/?&=._-])';
+    final ending = r'(?=$|[/?&=._-])';
+    if (RegExp(
+      '$boundary'
+      r'cctv[-_]?5(?:plus|p)'
+      '$ending',
+    ).hasMatch(value)) {
+      return 'cctv5plus';
+    }
+    if (RegExp(
+      '$boundary'
+      r'cctv[-_]?5(?:hd)?'
+      '$ending',
+    ).hasMatch(value)) {
+      return 'cctv5';
+    }
+    return null;
+  }
+
+  static bool hasCctvSportsMetadataConflict({
+    required Iterable<String> names,
+    required String streamUrl,
+  }) {
+    String? metadataService;
+    for (final name in names) {
+      metadataService ??= cctvSportsServiceKey(name);
+    }
+    final routeService = cctvSportsServiceKeyFromStreamUrl(streamUrl);
+    return metadataService != null &&
+        routeService != null &&
+        metadataService != routeService;
+  }
+
+  /// Rejects labels that claim UHD while also declaring a lower resolution or
+  /// a clearly sub-UHD bitrate in the route path.
+  static bool hasUltraHdMetadataConflict({
+    required Iterable<String> names,
+    required String streamUrl,
+  }) {
+    if (!names.any(isUltraHd)) return false;
+    final joined = names
+        .map((name) => _toHalfWidth(name).toLowerCase())
+        .join(' ');
+    if (RegExp(
+      r'(^|[^0-9])(480|576|720|1080)[pi]?([^0-9]|$)',
+    ).hasMatch(joined)) {
+      return true;
+    }
+    final bitrateMatch = RegExp(
+      r'(^|[/_.-])(\d{3,5})k(?=$|[/_.-])',
+      caseSensitive: false,
+    ).firstMatch(streamUrl);
+    final bitrateKbps = int.tryParse(bitrateMatch?.group(2) ?? '');
+    return bitrateKbps != null && bitrateKbps < 8000;
+  }
+
   static String _toHalfWidth(String input) {
     final output = StringBuffer();
     for (final rune in input.runes) {

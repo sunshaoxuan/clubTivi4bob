@@ -51,5 +51,11 @@ void main() {
       expect(ChannelNameNormalizer.normalize('魅力足球 HD'), '魅力足球');
       expect(ChannelNameNormalizer.normalize('咪咕赛事播01'), '咪咕赛事播01');
     });
+
+    test('detects explicit Ultra HD labels', () {
+      expect(ChannelNameNormalizer.isUltraHd('CCTV-4K 超高清'), isTrue);
+      expect(ChannelNameNormalizer.isUltraHd('央视 UHD 2160p'), isTrue);
+      expect(ChannelNameNormalizer.isUltraHd('CCTV5 HD'), isFalse);
+    });
   });
 }

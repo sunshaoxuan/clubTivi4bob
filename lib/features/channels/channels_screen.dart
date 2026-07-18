@@ -875,8 +875,20 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
     final key = ChannelNameNormalizer.normalize(
       vanity != null && vanity.isNotEmpty ? vanity : channel.name,
     );
-    _automaticKeyByChannelId[channel.id] = key;
-    return key;
+    final qualityKey = _isUltraHdChannel(channel) ? 'uhd' : 'standard';
+    final qualifiedKey = '$key|$qualityKey';
+    _automaticKeyByChannelId[channel.id] = qualifiedKey;
+    return qualifiedKey;
+  }
+
+  bool _isUltraHdChannel(db.Channel channel) {
+    return ChannelNameNormalizer.isUltraHd(channel.name) ||
+        ChannelNameNormalizer.isUltraHd(channel.tvgName ?? '') ||
+        ChannelNameNormalizer.isUltraHd(channel.tvgId ?? '');
+  }
+
+  bool _hasCompatibleQuality(db.Channel first, db.Channel second) {
+    return _isUltraHdChannel(first) == _isUltraHdChannel(second);
   }
 
   void _rebuildAutomaticChannelIndex() {
@@ -996,8 +1008,10 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
         channelById[c.id] = c;
       }
       final manualUrls = memberIds
-          .map((id) => channelById[id]?.streamUrl)
-          .whereType<String>()
+          .map((id) => channelById[id])
+          .whereType<db.Channel>()
+          .where((candidate) => _hasCompatibleQuality(channel, candidate))
+          .map((candidate) => candidate.streamUrl)
           .where((url) => url != channel.streamUrl)
           .toList();
       for (final url in manualUrls) {
@@ -4576,7 +4590,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
     final playerService = ref.read(playerServiceProvider);
     // Other members are failover alternatives
     final altUrls = members
-        .where((c) => c.id != target.id)
+        .where((c) => c.id != target.id && _hasCompatibleQuality(target, c))
         .map((c) => c.streamUrl)
         .toList();
 

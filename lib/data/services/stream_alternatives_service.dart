@@ -133,7 +133,19 @@ class StreamAlternativesService {
       }
       if (ch.tvgName != null && ch.tvgName!.isNotEmpty) {
         final normTvg = _normalizeName(ch.tvgName!);
-        if (normTvg.isNotEmpty && normTvg != normName) {
+        final nameSportsService = ChannelNameNormalizer.cctvSportsServiceKey(
+          ch.name,
+        );
+        final tvgSportsService = ChannelNameNormalizer.cctvSportsServiceKey(
+          ch.tvgName!,
+        );
+        final sportsMetadataConflict =
+            nameSportsService != null &&
+            tvgSportsService != null &&
+            nameSportsService != tvgSportsService;
+        if (!sportsMetadataConflict &&
+            normTvg.isNotEmpty &&
+            normTvg != normName) {
           _nameIndex.putIfAbsent(normTvg, () => []).add(ch);
         }
       }
@@ -173,12 +185,27 @@ class StreamAlternativesService {
   }) {
     final seen = <String>{excludeUrl};
     final results = <String>[];
+    final requestedSportsService =
+        ChannelNameNormalizer.cctvSportsServiceKey(channelName ?? '') ??
+        ChannelNameNormalizer.cctvSportsServiceKey(originalName ?? '') ??
+        ChannelNameNormalizer.cctvSportsServiceKey(tvgId ?? '');
+    final requestedUltraHd =
+        ChannelNameNormalizer.isUltraHd(channelName ?? '') ||
+        ChannelNameNormalizer.isUltraHd(originalName ?? '') ||
+        ChannelNameNormalizer.isUltraHd(tvgId ?? '');
+
+    bool isCompatible(Channel channel) {
+      if (_isUltraHdChannel(channel) != requestedUltraHd) return false;
+      if (requestedSportsService == null) return true;
+      return _sportsServiceForChannel(channel) == requestedSportsService;
+    }
 
     void addCandidates(List<Channel>? channels) {
       if (channels == null) return;
       for (final ch in channels) {
         if (ch.id != channelId &&
             ch.streamUrl.isNotEmpty &&
+            isCompatible(ch) &&
             seen.add(ch.streamUrl)) {
           results.add(ch.streamUrl);
         }
@@ -212,7 +239,8 @@ class StreamAlternativesService {
     }
 
     // Priority 4: Call sign match across all channels
-    final callSign = _extractCallSign(channelName ?? '') ??
+    final callSign =
+        _extractCallSign(channelName ?? '') ??
         _extractCallSign(originalName ?? '');
     if (callSign != null) {
       addCandidates(_callSignIndex[callSign]);
@@ -235,14 +263,14 @@ class StreamAlternativesService {
         if (originalName != null && originalName != channelName) originalName,
       ];
       for (final name in searchNames) {
-        final words = _normalizeName(name)
-            .split(RegExp(r'\s+'))
-            .where((w) => w.length > 2)
-            .toList();
+        final words = _normalizeName(
+          name,
+        ).split(RegExp(r'\s+')).where((w) => w.length > 2).toList();
         if (words.isNotEmpty) {
           for (final ch in _allChannels) {
             if (ch.id != channelId &&
                 ch.streamUrl.isNotEmpty &&
+                isCompatible(ch) &&
                 seen.add(ch.streamUrl)) {
               final lower = ch.name.toLowerCase();
               if (words.every((w) => lower.contains(w))) {
@@ -270,24 +298,44 @@ class StreamAlternativesService {
     String? channelName,
     String? vanityName,
   }) {
+    final requestedSportsService =
+        ChannelNameNormalizer.cctvSportsServiceKey(channelName ?? '') ??
+        ChannelNameNormalizer.cctvSportsServiceKey(tvgId ?? '');
+    final requestedUltraHd =
+        ChannelNameNormalizer.isUltraHd(channelName ?? '') ||
+        ChannelNameNormalizer.isUltraHd(tvgId ?? '');
+
+    int compatibleCount(List<Channel>? channels) {
+      if (channels == null) return 0;
+      return channels
+          .where(
+            (channel) =>
+                _isUltraHdChannel(channel) == requestedUltraHd &&
+                (requestedSportsService == null ||
+                    _sportsServiceForChannel(channel) ==
+                        requestedSportsService),
+          )
+          .length;
+    }
+
     if (vanityName != null && vanityName.isNotEmpty) {
       final key = vanityName.toLowerCase().trim();
-      final count = (_vanityIndex[key]?.length ?? 1) - 1;
+      final count = compatibleCount(_vanityIndex[key]) - 1;
       if (count > 0) return count;
     }
     int count = 0;
     if (tvgId != null && _tvgIdIndex.containsKey(tvgId)) {
-      count = _tvgIdIndex[tvgId]!.length - 1;
+      count = compatibleCount(_tvgIdIndex[tvgId]) - 1;
     }
     if (count > 0) return count;
     if (epgChannelId != null && _epgIndex.containsKey(epgChannelId)) {
-      count = _epgIndex[epgChannelId]!.length - 1;
+      count = compatibleCount(_epgIndex[epgChannelId]) - 1;
     }
     if (count > 0) return count;
     if (channelName != null) {
       final norm = _normalizeName(channelName);
       if (_nameIndex.containsKey(norm)) {
-        count = _nameIndex[norm]!.length - 1;
+        count = compatibleCount(_nameIndex[norm]) - 1;
       }
     }
     return count.clamp(0, 999);
@@ -304,6 +352,20 @@ class StreamAlternativesService {
     required String excludeUrl,
   }) {
     final seen = <String>{excludeUrl};
+    final requestedSportsService =
+        ChannelNameNormalizer.cctvSportsServiceKey(channelName ?? '') ??
+        ChannelNameNormalizer.cctvSportsServiceKey(originalName ?? '') ??
+        ChannelNameNormalizer.cctvSportsServiceKey(tvgId ?? '');
+    final requestedUltraHd =
+        ChannelNameNormalizer.isUltraHd(channelName ?? '') ||
+        ChannelNameNormalizer.isUltraHd(originalName ?? '') ||
+        ChannelNameNormalizer.isUltraHd(tvgId ?? '');
+
+    bool isCompatible(Channel channel) {
+      if (_isUltraHdChannel(channel) != requestedUltraHd) return false;
+      if (requestedSportsService == null) return true;
+      return _sportsServiceForChannel(channel) == requestedSportsService;
+    }
 
     // Match confidence by reason (how sure we are it's the same channel)
     const _matchConfidence = <String, double>{
@@ -324,7 +386,7 @@ class StreamAlternativesService {
       final confidence = _matchConfidence[reason] ?? 0.3;
       final epgMatch = reason == 'EPG+call sign' || reason == 'EPG';
       for (final ch in channels) {
-        if (ch.id != channelId && ch.streamUrl.isNotEmpty) {
+        if (ch.id != channelId && ch.streamUrl.isNotEmpty && isCompatible(ch)) {
           final existing = resultsByUrl[ch.streamUrl];
           if (existing != null) {
             // Add this reason to existing entry
@@ -338,7 +400,12 @@ class StreamAlternativesService {
               matchReasons: {reason},
               healthScore: composite,
               providerName: _providerNames[ch.providerId] ?? ch.providerId,
-              hasEpgMatch: epgMatch || (epgChannelId != null && epgChannelId!.isNotEmpty && ch.tvgId != null && ch.tvgId == epgChannelId),
+              hasEpgMatch:
+                  epgMatch ||
+                  (epgChannelId != null &&
+                      epgChannelId!.isNotEmpty &&
+                      ch.tvgId != null &&
+                      ch.tvgId == epgChannelId),
             );
             resultsByUrl[ch.streamUrl] = detail;
           }
@@ -359,13 +426,14 @@ class StreamAlternativesService {
 
     // Priority 3: Same EPG + call sign
     if (epgChannelId != null && epgChannelId.isNotEmpty) {
-      final callSign = _extractCallSign(channelName ?? '') ??
+      final callSign =
+          _extractCallSign(channelName ?? '') ??
           _extractCallSign(originalName ?? '');
       final epgGroup = _epgIndex[epgChannelId];
       if (epgGroup != null && callSign != null) {
         final sameCall = epgGroup.where((ch) {
-          final other = _extractCallSign(ch.name) ??
-              _extractCallSign(ch.tvgName ?? '');
+          final other =
+              _extractCallSign(ch.name) ?? _extractCallSign(ch.tvgName ?? '');
           return other != null && other == callSign;
         }).toList();
         addTagged(sameCall, 'EPG+call sign');
@@ -375,7 +443,8 @@ class StreamAlternativesService {
     }
 
     // Priority 4: Call sign match across all channels
-    final callSign = _extractCallSign(channelName ?? '') ??
+    final callSign =
+        _extractCallSign(channelName ?? '') ??
         _extractCallSign(originalName ?? '');
     if (callSign != null) {
       addTagged(_callSignIndex[callSign], 'call sign');
@@ -404,13 +473,17 @@ class StreamAlternativesService {
   /// Examples: "ABC 7 (WABC) NEW YORK" → "WABC", "CBS 2 WCBS" → "WCBS"
   static String? _extractCallSign(String name) {
     // Match parenthesized call signs: (WABC), (WCBS), etc.
-    final parenMatch = RegExp(r'\(([WKOC][A-Z]{2,4})\)', caseSensitive: false)
-        .firstMatch(name);
+    final parenMatch = RegExp(
+      r'\(([WKOC][A-Z]{2,4})\)',
+      caseSensitive: false,
+    ).firstMatch(name);
     if (parenMatch != null) return parenMatch.group(1)!.toUpperCase();
 
     // Match standalone call signs: WABC, WCBS, KABC, etc.
     // US broadcast call signs start with W (east) or K (west), 3-4 letters
-    final standaloneMatch = RegExp(r'\b([WK][A-Z]{2,4})\b').firstMatch(name.toUpperCase());
+    final standaloneMatch = RegExp(
+      r'\b([WK][A-Z]{2,4})\b',
+    ).firstMatch(name.toUpperCase());
     if (standaloneMatch != null) return standaloneMatch.group(1)!;
 
     return null;
@@ -420,21 +493,33 @@ class StreamAlternativesService {
     return ChannelNameNormalizer.normalize(name);
   }
 
+  static String? _sportsServiceForChannel(Channel channel) {
+    return ChannelNameNormalizer.cctvSportsServiceKey(channel.name) ??
+        ChannelNameNormalizer.cctvSportsServiceKey(channel.tvgName ?? '') ??
+        ChannelNameNormalizer.cctvSportsServiceKey(channel.tvgId ?? '');
+  }
+
+  static bool _isUltraHdChannel(Channel channel) {
+    return ChannelNameNormalizer.isUltraHd(channel.name) ||
+        ChannelNameNormalizer.isUltraHd(channel.tvgName ?? '') ||
+        ChannelNameNormalizer.isUltraHd(channel.tvgId ?? '');
+  }
+
   Channel _dbToChannel(db.Channel c) => Channel(
-        id: c.id,
-        providerId: c.providerId,
-        name: c.name,
-        tvgId: c.tvgId,
-        tvgName: c.tvgName,
-        tvgLogo: c.tvgLogo,
-        groupTitle: c.groupTitle,
-        streamUrl: c.streamUrl,
-        streamType: c.streamType == 'vod'
-            ? StreamType.vod
-            : c.streamType == 'series'
-                ? StreamType.series
-                : StreamType.live,
-      );
+    id: c.id,
+    providerId: c.providerId,
+    name: c.name,
+    tvgId: c.tvgId,
+    tvgName: c.tvgName,
+    tvgLogo: c.tvgLogo,
+    groupTitle: c.groupTitle,
+    streamUrl: c.streamUrl,
+    streamType: c.streamType == 'vod'
+        ? StreamType.vod
+        : c.streamType == 'series'
+        ? StreamType.series
+        : StreamType.live,
+  );
 }
 
 // ---------------------------------------------------------------------------

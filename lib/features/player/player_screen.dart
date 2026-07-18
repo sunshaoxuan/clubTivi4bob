@@ -209,7 +209,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
             ? widget.channels[_channelIndex]['vanityName'] as String?
             : null,
         originalName: widget.channels.isNotEmpty
-            ? widget.channels[_channelIndex]['tvgName'] as String?
+            ? widget.channels[_channelIndex]['originalName'] as String? ??
+                  widget.channels[_channelIndex]['tvgName'] as String?
             : null,
         failoverGroupUrls: widget.alternativeUrls,
       );
@@ -579,7 +580,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
             tvgId: ch['tvgId'] as String?,
             channelName: ch['name'] as String?,
             vanityName: ch['vanityName'] as String?,
-            originalName: ch['tvgName'] as String?,
+            originalName:
+                ch['originalName'] as String? ?? ch['tvgName'] as String?,
             failoverGroupUrls: (ch['alternativeUrls'] as List?)?.cast<String>(),
           );
       _autoHideOverlay();

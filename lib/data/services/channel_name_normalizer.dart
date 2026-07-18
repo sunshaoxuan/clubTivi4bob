@@ -133,6 +133,19 @@ class ChannelNameNormalizer {
     return null;
   }
 
+  /// Whether playlist metadata explicitly advertises an Ultra HD stream.
+  /// Kept separate from [normalize] because quality is ignored for channel
+  /// identity but must be retained when choosing interchangeable routes.
+  static bool isUltraHd(String name) {
+    final value = _toHalfWidth(name).toLowerCase();
+    return RegExp(
+          r'(^|[^a-z0-9])(4k|uhd|2160p?)([^a-z0-9]|$)',
+        ).hasMatch(value) ||
+        value.contains('超高清') ||
+        value.contains('超高畫質') ||
+        value.contains('超高画质');
+  }
+
   static String _toHalfWidth(String input) {
     final output = StringBuffer();
     for (final rune in input.runes) {

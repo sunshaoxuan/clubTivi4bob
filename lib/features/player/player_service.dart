@@ -10,6 +10,7 @@ import 'package:media_kit_video/media_kit_video.dart';
 import 'adaptive_buffer.dart';
 import 'playback_stall_detector.dart';
 import 'stream_proxy.dart';
+import '../../data/services/channel_name_normalizer.dart';
 import '../../data/services/stream_alternatives_service.dart';
 import '../../data/services/stream_health_tracker.dart';
 
@@ -60,6 +61,8 @@ class PlayerService {
   bool _autoFailoverInProgress = false;
   int _playGeneration = 0;
   final Set<String> _failedFailoverUrls = {};
+  bool _requiresUltraHd = false;
+  Timer? _qualityCheckTimer;
 
   /// Broadcast current stream URL changes (for UI like failover dialog).
   final _currentUrlController = StreamController<String?>.broadcast();
@@ -165,7 +168,12 @@ class PlayerService {
     _currentChannelName = channelName;
     _currentVanityName = vanityName;
     _currentOriginalName = originalName;
+    _requiresUltraHd =
+        ChannelNameNormalizer.isUltraHd(channelName ?? '') ||
+        ChannelNameNormalizer.isUltraHd(originalName ?? '') ||
+        ChannelNameNormalizer.isUltraHd(tvgId ?? '');
     _failoverGroupUrls = failoverGroupUrls;
+    _qualityCheckTimer?.cancel();
     await _tracksSub?.cancel();
     _failoverCheckTimer?.cancel();
     await _disposeWarmPlayer();
@@ -208,6 +216,7 @@ class PlayerService {
     bufferingSeconds = 0;
     startBufferTracking();
     _startFailoverMonitor();
+    _scheduleQualityCheck(activeUrl, playGeneration);
   }
 
   Future<bool> _waitForPlayable(
@@ -244,11 +253,61 @@ class PlayerService {
           !buffering &&
           (hasVideo || hasAudio) &&
           (cacheSeconds >= 0.15 || positionAdvanced)) {
+        if (_requiresUltraHd && hasVideo && _hasKnownSubUltraHdResolution()) {
+          debugPrint(
+            '[Failover] Rejected a mislabeled Ultra HD route at '
+            '${player.state.width}x${player.state.height}',
+          );
+          return false;
+        }
         return true;
       }
       await Future<void>.delayed(const Duration(milliseconds: 250));
     }
     return false;
+  }
+
+  bool _hasKnownSubUltraHdResolution() {
+    final width = player.state.width ?? 0;
+    final height = player.state.height ?? 0;
+    if (width <= 0 && height <= 0) return false;
+    return width < 3200 && height < 1800;
+  }
+
+  void _scheduleQualityCheck(
+    String expectedUrl,
+    int playGeneration, {
+    int attempt = 0,
+  }) {
+    _qualityCheckTimer?.cancel();
+    if (!_requiresUltraHd) return;
+    _qualityCheckTimer = Timer(const Duration(seconds: 3), () async {
+      if (playGeneration != _playGeneration || _currentUrl != expectedUrl) {
+        return;
+      }
+      final width = player.state.width ?? 0;
+      final height = player.state.height ?? 0;
+      if (width <= 0 && height <= 0) {
+        if (attempt < 2) {
+          _scheduleQualityCheck(
+            expectedUrl,
+            playGeneration,
+            attempt: attempt + 1,
+          );
+        }
+        return;
+      }
+      if (!_hasKnownSubUltraHdResolution()) return;
+
+      debugPrint(
+        '[Failover] $expectedUrl advertised Ultra HD but decoded at '
+        '${width}x$height',
+      );
+      _failedFailoverUrls.add(expectedUrl);
+      _healthTracker?.recordProbeFailure(expectedUrl);
+      onFailover?.call('检测到伪4K线路，正在寻找真正的4K线路');
+      await _autoFailover();
+    });
   }
 
   /// Tests a small, bounded set of equivalent streams in parallel and returns
@@ -418,6 +477,7 @@ class PlayerService {
   /// Stop playback.
   Future<void> stop() async {
     _bufferManager.stop();
+    _qualityCheckTimer?.cancel();
     await player.stop();
   }
 
@@ -717,30 +777,36 @@ class PlayerService {
     try {
       final playGeneration = _playGeneration;
       final previousUrl = _currentUrl!;
-      String? newUrl;
+      final candidates = <String>[];
       if (_warmReady && _warmPlayer != null && _warmUrl != null) {
-        newUrl = _warmUrl!;
-        debugPrint('[Failover] Warm candidate verified: $newUrl');
+        candidates.add(_warmUrl!);
+        debugPrint('[Failover] Warm candidate verified: ${_warmUrl!}');
       }
-      if (newUrl == null) {
-        final alternatives = _getFailoverAlternatives();
-        if (alternatives.isNotEmpty) newUrl = alternatives.first;
+      for (final url in _getFailoverAlternatives()) {
+        if (!candidates.contains(url)) candidates.add(url);
       }
-      if (newUrl == null) return;
+      if (candidates.isEmpty) return;
 
       _failoverCheckTimer?.cancel();
       await _disposeWarmPlayer();
       _stallDetector.reset();
-      final switched = await _switchWithVerification(
-        newUrl,
-        previousUrl,
-        playGeneration,
-      );
-      if (playGeneration != _playGeneration) return;
+      String? switchedUrl;
+      for (final candidateUrl in candidates) {
+        final switched = await _switchWithVerification(
+          candidateUrl,
+          previousUrl,
+          playGeneration,
+        );
+        if (playGeneration != _playGeneration) return;
+        if (switched) {
+          switchedUrl = candidateUrl;
+          break;
+        }
+      }
       _startFailoverMonitor();
-      if (switched) {
-        _currentUrlController.add(newUrl);
-        lastFailoverChannelId = _alternatives?.channelIdForUrl(newUrl);
+      if (switchedUrl != null) {
+        _currentUrlController.add(switchedUrl);
+        lastFailoverChannelId = _alternatives?.channelIdForUrl(switchedUrl);
         onFailover?.call('已自动切换到更稳定线路');
       }
     } finally {
@@ -766,6 +832,7 @@ class PlayerService {
       if (playGeneration != _playGeneration) return false;
       if (ready) {
         _scheduleAudioCheck(candidateUrl);
+        _scheduleQualityCheck(candidateUrl, playGeneration);
         return true;
       }
     } catch (error) {
@@ -790,6 +857,7 @@ class PlayerService {
 
   Future<void> dispose() async {
     _bufferManager.stop();
+    _qualityCheckTimer?.cancel();
     await _tracksSub?.cancel();
     await _bufferTrackSub?.cancel();
     _bufferTrackTimer?.cancel();

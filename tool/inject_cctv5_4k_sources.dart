@@ -2,8 +2,8 @@ import 'dart:convert';
 import 'dart:io';
 
 const _assetPath = 'assets/data/github_ai_snapshot.json.gz';
-const _generatedAt = '2026-07-19T15:24:55Z';
-const _snapshotId = 'hotel-tv-20260719T152455Z';
+const _generatedAt = '2026-07-19T15:33:27Z';
+const _snapshotId = 'hotel-tv-20260719T153327Z';
 
 const _sources = <Map<String, Object?>>[
   {
@@ -110,30 +110,42 @@ void main() {
   }
 
   final channels = (decoded['channels'] as List).cast<Map<String, dynamic>>();
-  final existingUrls = channels
-      .map((channel) => _normalizeUrl(channel['streamUrl']?.toString() ?? ''))
-      .where((url) => url.isNotEmpty)
-      .toSet();
+  final existingByUrl = <String, Map<String, dynamic>>{
+    for (final channel in channels)
+      if (_normalizeUrl(channel['streamUrl']?.toString() ?? '').isNotEmpty)
+        _normalizeUrl(channel['streamUrl']?.toString() ?? ''): channel,
+  };
   var added = 0;
+  var updated = 0;
 
   for (final source in _sources) {
     final url = source['streamUrl']! as String;
-    if (!existingUrls.add(_normalizeUrl(url))) continue;
     final owner = source['githubOwner']! as String;
     final repo = source['githubRepo']! as String;
     final path = source['githubPath']! as String;
     final name = source['name']! as String;
-    channels.add({
+    final channel = {
       'id': _discoveredChannelId(owner, repo, path, name, url),
       ...source,
       'tvgId': 'CCTV5',
       'tvgName': name,
       'tvgLogo': 'https://live.fanmingming.com/tv/CCTV5.png',
-      'groupTitle': '央视 4K 候选',
+      'groupTitle': 'CCTV5 4K',
       'channelNumber': null,
       'confidence': 0.25,
-    });
-    added++;
+    };
+    final normalizedUrl = _normalizeUrl(url);
+    final existing = existingByUrl[normalizedUrl];
+    if (existing == null) {
+      channels.add(channel);
+      existingByUrl[normalizedUrl] = channel;
+      added++;
+    } else {
+      existing
+        ..clear()
+        ..addAll(channel);
+      updated++;
+    }
   }
 
   decoded['snapshotId'] = _snapshotId;
@@ -141,7 +153,7 @@ void main() {
   decoded['count'] = channels.length;
   file.writeAsBytesSync(gzip.encode(utf8.encode(jsonEncode(decoded))));
   stdout.writeln(
-    'Added $added unique CCTV5 4K routes; total ${channels.length}.',
+    'Added $added and updated $updated unique CCTV5 4K routes; total ${channels.length}.',
   );
 }
 

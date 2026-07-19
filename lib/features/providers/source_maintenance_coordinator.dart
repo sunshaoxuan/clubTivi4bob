@@ -42,13 +42,6 @@ class SourceMaintenanceCoordinator {
     _running = true;
     final database = manager.database;
     try {
-      final providers = await database.getAllProviders();
-      await githubMonitor.syncOrigins(providers);
-      await githubMonitor.scanForUpdates(manager);
-      await DefaultProviderBootstrap(
-        database: database,
-        manager: manager,
-      ).run();
       try {
         await bundledSourceSnapshot.run();
       } catch (error, stackTrace) {
@@ -58,6 +51,13 @@ class SourceMaintenanceCoordinator {
           stackTrace,
         );
       }
+      final providers = await database.getAllProviders();
+      await githubMonitor.syncOrigins(providers);
+      await githubMonitor.scanForUpdates(manager);
+      await DefaultProviderBootstrap(
+        database: database,
+        manager: manager,
+      ).run();
       await maintenanceService.run();
       await githubAiCrawler.run();
     } catch (error, stackTrace) {

@@ -673,6 +673,49 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                   controls: NoVideoControls,
                 ),
 
+                StreamBuilder<bool>(
+                  stream: playerService.failoverSwitchingStream,
+                  initialData: playerService.failoverSwitching,
+                  builder: (context, snapshot) {
+                    if (snapshot.data != true) return const SizedBox.shrink();
+                    return IgnorePointer(
+                      child: ColoredBox(
+                        color: Colors.black54,
+                        child: Center(
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 18,
+                              vertical: 12,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.black87,
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: const Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                SizedBox(
+                                  width: 18,
+                                  height: 18,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: Colors.white70,
+                                  ),
+                                ),
+                                SizedBox(width: 10),
+                                Text(
+                                  '正在切换线路，可继续选择其他频道',
+                                  style: TextStyle(color: Colors.white70),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    );
+                  },
+                ),
+
                 // TiviMate-style control bar overlay
                 PlayerControlBar(
                   isCasting: ref.read(castServiceProvider).isCasting,

@@ -1,8 +1,16 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:clubtivi/data/services/failover_engine.dart';
 import 'package:clubtivi/data/models/channel.dart';
+import 'package:clubtivi/features/player/player_service.dart';
 
 void main() {
+  test('automatic failover bounds each attempt to two candidates', () {
+    expect(PlayerService.boundedFailoverCandidates(['a', 'b', 'c', 'd']), [
+      'a',
+      'b',
+    ]);
+  });
+
   group('ColdFailoverEngine', () {
     late ColdFailoverEngine engine;
 
@@ -106,9 +114,5 @@ void main() {
   });
 }
 
-Channel _ch(String id, String providerId, String url) => Channel(
-      id: id,
-      providerId: providerId,
-      name: id,
-      streamUrl: url,
-    );
+Channel _ch(String id, String providerId, String url) =>
+    Channel(id: id, providerId: providerId, name: id, streamUrl: url);

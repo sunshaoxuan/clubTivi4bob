@@ -216,12 +216,41 @@ class PlayerService {
       'requiresUltraHd': _requiresUltraHd,
     });
     _qualityCheckTimer?.cancel();
-    await _tracksSub?.cancel();
+    final tracksSub = _tracksSub;
+    _tracksSub = null;
+    await _runPlayStep(
+      tracksSub?.cancel() ?? Future<void>.value(),
+      generation: playGeneration,
+      step: 'cancel_tracks',
+      timeout: const Duration(seconds: 1),
+      continueOnError: true,
+    );
+    if (playGeneration != _playGeneration) return;
     _failoverCheckTimer?.cancel();
-    await _disposeWarmPlayer();
+    await _runPlayStep(
+      _disposeWarmPlayer(),
+      generation: playGeneration,
+      step: 'dispose_warm_player',
+      timeout: const Duration(seconds: 3),
+      continueOnError: true,
+    );
+    if (playGeneration != _playGeneration) return;
     _proxyActive = false;
-    await _streamProxy.stop();
-    await _ensureReady();
+    await _runPlayStep(
+      _streamProxy.stop(),
+      generation: playGeneration,
+      step: 'stop_stream_proxy',
+      timeout: const Duration(seconds: 2),
+      continueOnError: true,
+    );
+    if (playGeneration != _playGeneration) return;
+    final ready = await _runPlayStep(
+      _ensureReady(),
+      generation: playGeneration,
+      step: 'ensure_player_ready',
+      timeout: const Duration(seconds: 4),
+    );
+    if (!ready) return;
 
     final selectedUrl = await _selectFastestStream(url);
     if (playGeneration != _playGeneration) return;
@@ -236,9 +265,29 @@ class PlayerService {
       'stream': AppDiagnostics.summarizeStreamUrl(activeUrl),
       'changedFromRequested': selectedUrl != url,
     });
-    await player.open(Media(activeUrl));
-    await _bufferManager.applyForStream(activeUrl, this);
-    await player.setVolume(100.0);
+    final opened = await _runPlayStep(
+      player.open(Media(activeUrl)),
+      generation: playGeneration,
+      step: 'open_media',
+      timeout: const Duration(seconds: 5),
+    );
+    if (!opened) return;
+    await _runPlayStep(
+      _bufferManager.applyForStream(activeUrl, this),
+      generation: playGeneration,
+      step: 'apply_buffer',
+      timeout: const Duration(seconds: 2),
+      continueOnError: true,
+    );
+    if (playGeneration != _playGeneration) return;
+    await _runPlayStep(
+      player.setVolume(100.0),
+      generation: playGeneration,
+      step: 'set_volume',
+      timeout: const Duration(seconds: 2),
+      continueOnError: true,
+    );
+    if (playGeneration != _playGeneration) return;
 
     if (selectedUrl != url) {
       final ready = await _waitForPlayable(
@@ -260,9 +309,29 @@ class PlayerService {
           'rejectedStream': AppDiagnostics.summarizeStreamUrl(selectedUrl),
           'restoredStream': AppDiagnostics.summarizeStreamUrl(activeUrl),
         });
-        await player.open(Media(activeUrl));
-        await _bufferManager.applyForStream(activeUrl, this);
-        await player.setVolume(100.0);
+        final restored = await _runPlayStep(
+          player.open(Media(activeUrl)),
+          generation: playGeneration,
+          step: 'restore_requested_media',
+          timeout: const Duration(seconds: 5),
+        );
+        if (!restored) return;
+        await _runPlayStep(
+          _bufferManager.applyForStream(activeUrl, this),
+          generation: playGeneration,
+          step: 'restore_requested_buffer',
+          timeout: const Duration(seconds: 2),
+          continueOnError: true,
+        );
+        if (playGeneration != _playGeneration) return;
+        await _runPlayStep(
+          player.setVolume(100.0),
+          generation: playGeneration,
+          step: 'restore_requested_volume',
+          timeout: const Duration(seconds: 2),
+          continueOnError: true,
+        );
+        if (playGeneration != _playGeneration) return;
       }
     }
 
@@ -277,6 +346,33 @@ class PlayerService {
     startBufferTracking();
     _startFailoverMonitor();
     _scheduleQualityCheck(activeUrl, playGeneration);
+  }
+
+  Future<bool> _runPlayStep(
+    Future<void> operation, {
+    required int generation,
+    required String step,
+    required Duration timeout,
+    bool continueOnError = false,
+  }) async {
+    try {
+      await operation.timeout(timeout);
+    } catch (error, stackTrace) {
+      AppDiagnostics.instance.log('play_step_failed', {
+        'step': step,
+        'timeout': error is TimeoutException,
+        'channel': _currentChannelName,
+        'stream': _currentUrl == null
+            ? null
+            : AppDiagnostics.summarizeStreamUrl(_currentUrl!),
+        'error': error.toString(),
+      });
+      if (!continueOnError) {
+        AppDiagnostics.instance.recordError('player_$step', error, stackTrace);
+      }
+      return continueOnError && generation == _playGeneration;
+    }
+    return generation == _playGeneration;
   }
 
   Future<bool> _waitForPlayable(
@@ -837,7 +933,7 @@ class PlayerService {
     }
 
     var setupFailed = false;
-    final setup = configureAndOpen();
+    final setup = configureAndOpen().timeout(const Duration(seconds: 5));
     _warmSetupFuture = setup;
     try {
       await setup;
@@ -879,11 +975,17 @@ class PlayerService {
     _warmUrl = null;
     _warmReady = false;
 
-    await bufferSubToCancel?.cancel();
     try {
-      await setupToFinish;
+      await bufferSubToCancel?.cancel().timeout(
+        const Duration(milliseconds: 750),
+      );
     } catch (_) {}
-    await playerToDispose?.dispose();
+    try {
+      await setupToFinish?.timeout(const Duration(seconds: 1));
+    } catch (_) {}
+    try {
+      await playerToDispose?.dispose().timeout(const Duration(seconds: 2));
+    } catch (_) {}
   }
 
   Future<void> _autoFailover() async {

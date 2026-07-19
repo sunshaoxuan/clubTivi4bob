@@ -12,6 +12,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:window_manager/window_manager.dart';
 
+import '../../core/app_diagnostics.dart';
 import '../../data/datasources/local/database.dart' as db;
 import '../../data/services/stream_alternatives_service.dart';
 import '../../features/providers/provider_manager.dart' show databaseProvider;
@@ -50,7 +51,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   int _currentUrlIndex = 0;
   bool _showChannelList = false;
   bool _isFavorite = false;
-  bool _channelSwitchInProgress = false;
+  int _channelSwitchGeneration = 0;
   bool _nativeFullscreen = false;
   StreamSubscription<Tracks>? _tracksSubscription;
   StreamSubscription<bool>? _bufferingSubscription;
@@ -554,8 +555,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   }
 
   Future<void> _switchChannel(int delta) async {
-    if (widget.channels.isEmpty || _channelSwitchInProgress) return;
-    _channelSwitchInProgress = true;
+    if (widget.channels.isEmpty) return;
+    final switchGeneration = ++_channelSwitchGeneration;
     setState(() {
       _channelIndex = (_channelIndex + delta) % widget.channels.length;
       if (_channelIndex < 0) _channelIndex += widget.channels.length;
@@ -583,12 +584,20 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
             originalName:
                 ch['originalName'] as String? ?? ch['tvgName'] as String?,
             failoverGroupUrls: (ch['alternativeUrls'] as List?)?.cast<String>(),
-          );
+          )
+          .timeout(const Duration(seconds: 12));
+      if (switchGeneration != _channelSwitchGeneration) return;
       _autoHideOverlay();
       _loadEpgInfo();
       _loadFavoriteState();
-    } finally {
-      _channelSwitchInProgress = false;
+    } on TimeoutException catch (error, stackTrace) {
+      AppDiagnostics.instance.recordError(
+        'channel_switch_timeout',
+        error,
+        stackTrace,
+      );
+    } catch (error, stackTrace) {
+      AppDiagnostics.instance.recordError('channel_switch', error, stackTrace);
     }
   }
 

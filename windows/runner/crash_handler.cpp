@@ -1,7 +1,7 @@
 #include "crash_handler.h"
 
-#include <DbgHelp.h>
 #include <windows.h>
+#include <DbgHelp.h>
 
 #include <string>
 

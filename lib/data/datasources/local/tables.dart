@@ -13,8 +13,7 @@ class Providers extends Table {
   IntColumn get sortOrder => integer().withDefault(const Constant(0))();
   BoolColumn get enabled => boolean().withDefault(const Constant(true))();
   DateTimeColumn get lastRefresh => dateTime().nullable()();
-  DateTimeColumn get createdAt =>
-      dateTime().withDefault(currentDateAndTime)();
+  DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
 
   @override
   Set<Column> get primaryKey => {id};
@@ -40,6 +39,39 @@ class Channels extends Table {
   Set<Column> get primaryKey => {id};
 }
 
+/// Durable availability history for individual stream routes.
+class StreamChecks extends Table {
+  TextColumn get streamUrl => text()();
+  TextColumn get providerId => text()();
+  TextColumn get channelId => text()();
+  IntColumn get consecutiveFailures =>
+      integer().withDefault(const Constant(0))();
+  DateTimeColumn get firstFailureAt => dateTime().nullable()();
+  DateTimeColumn get lastCheckedAt => dateTime().nullable()();
+  DateTimeColumn get lastSuccessAt => dateTime().nullable()();
+  BoolColumn get retired => boolean().withDefault(const Constant(false))();
+
+  @override
+  Set<Column> get primaryKey => {providerId, streamUrl};
+}
+
+/// Maps an imported provider URL to its GitHub repository origin and version.
+class ProviderOrigins extends Table {
+  TextColumn get providerId => text()();
+  TextColumn get sourceUrl => text()();
+  TextColumn get githubOwner => text().nullable()();
+  TextColumn get githubRepo => text().nullable()();
+  TextColumn get githubRef => text().nullable()();
+  TextColumn get githubPath => text().nullable()();
+  TextColumn get lastVersion => text().nullable()();
+  TextColumn get etag => text().nullable()();
+  DateTimeColumn get lastCheckedAt => dateTime().nullable()();
+  DateTimeColumn get lastChangedAt => dateTime().nullable()();
+
+  @override
+  Set<Column> get primaryKey => {providerId};
+}
+
 /// EPG data sources (XMLTV feeds).
 class EpgSources extends Table {
   TextColumn get id => text()();
@@ -49,8 +81,7 @@ class EpgSources extends Table {
   IntColumn get refreshIntervalHours =>
       integer().withDefault(const Constant(12))();
   DateTimeColumn get lastRefresh => dateTime().nullable()();
-  DateTimeColumn get createdAt =>
-      dateTime().withDefault(currentDateAndTime)();
+  DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
 
   @override
   Set<Column> get primaryKey => {id};
@@ -92,8 +123,7 @@ class EpgMappings extends Table {
   TextColumn get source =>
       text().withDefault(const Constant('auto'))(); // auto, manual, suggested
   BoolColumn get locked => boolean().withDefault(const Constant(false))();
-  DateTimeColumn get updatedAt =>
-      dateTime().withDefault(currentDateAndTime)();
+  DateTimeColumn get updatedAt => dateTime().withDefault(currentDateAndTime)();
 
   @override
   Set<Column> get primaryKey => {channelId, providerId};
@@ -174,7 +204,9 @@ class ScheduledRecordings extends Table {
   TextColumn get programmeTitle => text()();
   DateTimeColumn get programmeStart => dateTime()();
   DateTimeColumn get programmeStop => dateTime()();
-  TextColumn get status => text().withDefault(const Constant('scheduled'))(); // scheduled, recording, completed, failed
+  TextColumn get status => text().withDefault(
+    const Constant('scheduled'),
+  )(); // scheduled, recording, completed, failed
   TextColumn get outputPath => text().nullable()();
   DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
 

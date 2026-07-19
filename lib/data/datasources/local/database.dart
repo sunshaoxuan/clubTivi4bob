@@ -11,51 +11,59 @@ part 'database.g.dart';
 
 const _uuid = Uuid();
 
-@DriftDatabase(tables: [
-  Providers,
-  Channels,
-  EpgSources,
-  EpgChannels,
-  EpgProgrammes,
-  EpgMappings,
-  ChannelGroups,
-  FavoriteLists,
-  FavoriteListChannels,
-  EpgReminders,
-  ScheduledRecordings,
-  FailoverGroups,
-  FailoverGroupChannels,
-])
+@DriftDatabase(
+  tables: [
+    Providers,
+    Channels,
+    StreamChecks,
+    ProviderOrigins,
+    EpgSources,
+    EpgChannels,
+    EpgProgrammes,
+    EpgMappings,
+    ChannelGroups,
+    FavoriteLists,
+    FavoriteListChannels,
+    EpgReminders,
+    ScheduledRecordings,
+    FailoverGroups,
+    FailoverGroupChannels,
+  ],
+)
 class AppDatabase extends _$AppDatabase {
   AppDatabase() : super(_openConnection());
 
   AppDatabase.forTesting(super.e);
 
   @override
-  int get schemaVersion => 5;
+  int get schemaVersion => 6;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
-        onCreate: (m) => m.createAll(),
-        onUpgrade: (m, from, to) async {
-          if (from < 2) {
-            await m.createTable(favoriteLists);
-            await m.createTable(favoriteListChannels);
-          }
-          if (from < 3) {
-            await m.createTable(epgReminders);
-            await m.createTable(scheduledRecordings);
-          }
-          if (from < 4) {
-            await m.addColumn(epgProgrammes, epgProgrammes.subtitle);
-            await m.addColumn(epgProgrammes, epgProgrammes.episodeNum);
-          }
-          if (from < 5) {
-            await m.createTable(failoverGroups);
-            await m.createTable(failoverGroupChannels);
-          }
-        },
-      );
+    onCreate: (m) => m.createAll(),
+    onUpgrade: (m, from, to) async {
+      if (from < 2) {
+        await m.createTable(favoriteLists);
+        await m.createTable(favoriteListChannels);
+      }
+      if (from < 3) {
+        await m.createTable(epgReminders);
+        await m.createTable(scheduledRecordings);
+      }
+      if (from < 4) {
+        await m.addColumn(epgProgrammes, epgProgrammes.subtitle);
+        await m.addColumn(epgProgrammes, epgProgrammes.episodeNum);
+      }
+      if (from < 5) {
+        await m.createTable(failoverGroups);
+        await m.createTable(failoverGroupChannels);
+      }
+      if (from < 6) {
+        await m.createTable(streamChecks);
+        await m.createTable(providerOrigins);
+      }
+    },
+  );
 
   // --- Provider queries ---
 
@@ -71,6 +79,10 @@ class AppDatabase extends _$AppDatabase {
       (update(providers)..where((t) => t.id.equals(id))).write(
         ProvidersCompanion(lastRefresh: Value(refreshedAt)),
       );
+
+  Future<void> updateProviderUrl(String id, String url) => (update(
+    providers,
+  )..where((t) => t.id.equals(id))).write(ProvidersCompanion(url: Value(url)));
 
   // --- Channel queries ---
 
@@ -97,9 +109,16 @@ class AppDatabase extends _$AppDatabase {
   }
 
   /// Get channels for a specific provider and group.
-  Future<List<Channel>> getChannelsForProviderGroup(String providerId, String groupTitle) =>
-      (select(channels)..where((t) =>
-          t.providerId.equals(providerId) & t.groupTitle.equals(groupTitle))).get();
+  Future<List<Channel>> getChannelsForProviderGroup(
+    String providerId,
+    String groupTitle,
+  ) =>
+      (select(channels)..where(
+            (t) =>
+                t.providerId.equals(providerId) &
+                t.groupTitle.equals(groupTitle),
+          ))
+          .get();
 
   Future<List<Channel>> getFavoriteChannels() =>
       (select(channels)..where((t) => t.favorite.equals(true))).get();
@@ -110,30 +129,113 @@ class AppDatabase extends _$AppDatabase {
     });
   }
 
+  Future<int> deleteChannelsByIds(Iterable<String> channelIds) async {
+    final ids = channelIds.toSet().toList();
+    if (ids.isEmpty) return 0;
+    var deleted = 0;
+    await transaction(() async {
+      for (var offset = 0; offset < ids.length; offset += 400) {
+        final end = (offset + 400).clamp(0, ids.length);
+        final batchIds = ids.sublist(offset, end);
+        await (delete(
+          favoriteListChannels,
+        )..where((t) => t.channelId.isIn(batchIds))).go();
+        await (delete(
+          failoverGroupChannels,
+        )..where((t) => t.channelId.isIn(batchIds))).go();
+        await (delete(
+          epgMappings,
+        )..where((t) => t.channelId.isIn(batchIds))).go();
+        deleted += await (delete(
+          channels,
+        )..where((t) => t.id.isIn(batchIds))).go();
+      }
+    });
+    return deleted;
+  }
+
+  Future<int> deleteChannelsMissingFromProvider(
+    String providerId,
+    Set<String> currentIds,
+  ) async {
+    final existing = await getChannelsForProvider(providerId);
+    final staleIds = existing
+        .where((channel) => !currentIds.contains(channel.id))
+        .map((channel) => channel.id);
+    return deleteChannelsByIds(staleIds);
+  }
+
+  Future<List<StreamCheck>> getAllStreamChecks() => select(streamChecks).get();
+
+  Future<void> upsertStreamChecks(List<StreamChecksCompanion> entries) async {
+    if (entries.isEmpty) return;
+    await batch((batch) {
+      batch.insertAllOnConflictUpdate(streamChecks, entries);
+    });
+  }
+
+  Future<Set<String>> getRetiredStreamUrls(String providerId) async {
+    final rows =
+        await (select(streamChecks)..where(
+              (table) =>
+                  table.providerId.equals(providerId) &
+                  table.retired.equals(true),
+            ))
+            .get();
+    return rows.map((row) => row.streamUrl).toSet();
+  }
+
+  Future<void> resetRetiredStreamChecks(String providerId) =>
+      (update(
+        streamChecks,
+      )..where((t) => t.providerId.equals(providerId))).write(
+        const StreamChecksCompanion(
+          consecutiveFailures: Value(0),
+          firstFailureAt: Value(null),
+          lastCheckedAt: Value(null),
+          retired: Value(false),
+        ),
+      );
+
+  Future<List<ProviderOrigin>> getAllProviderOrigins() =>
+      select(providerOrigins).get();
+
+  Future<void> upsertProviderOrigin(ProviderOriginsCompanion entry) =>
+      into(providerOrigins).insertOnConflictUpdate(entry);
+
   Future<void> updateChannelLogo(String channelId, String logoUrl) =>
-      (update(channels)..where((t) => t.id.equals(channelId)))
-          .write(ChannelsCompanion(tvgLogo: Value(logoUrl)));
+      (update(channels)..where((t) => t.id.equals(channelId))).write(
+        ChannelsCompanion(tvgLogo: Value(logoUrl)),
+      );
 
   /// Batch-update logos for multiple channels in a single transaction.
   Future<void> updateChannelLogos(Map<String, String> idToLogoUrl) async {
     await batch((b) {
       for (final entry in idToLogoUrl.entries) {
-        b.update(channels, ChannelsCompanion(tvgLogo: Value(entry.value)),
-            where: (t) => t.id.equals(entry.key));
+        b.update(
+          channels,
+          ChannelsCompanion(tvgLogo: Value(entry.value)),
+          where: (t) => t.id.equals(entry.key),
+        );
       }
     });
   }
 
-  Future<void> renameChannel(String channelId, String providerId, String newName) =>
-      (update(channels)..where((t) => t.id.equals(channelId)))
-          .write(ChannelsCompanion(name: Value(newName)));
+  Future<void> renameChannel(
+    String channelId,
+    String providerId,
+    String newName,
+  ) => (update(channels)..where((t) => t.id.equals(channelId))).write(
+    ChannelsCompanion(name: Value(newName)),
+  );
 
   Future<void> toggleFavorite(String channelId) async {
-    final channel =
-        await (select(channels)..where((t) => t.id.equals(channelId)))
-            .getSingle();
-    await (update(channels)..where((t) => t.id.equals(channelId)))
-        .write(ChannelsCompanion(favorite: Value(!channel.favorite)));
+    final channel = await (select(
+      channels,
+    )..where((t) => t.id.equals(channelId))).getSingle();
+    await (update(channels)..where((t) => t.id.equals(channelId))).write(
+      ChannelsCompanion(favorite: Value(!channel.favorite)),
+    );
   }
 
   // --- EPG Source queries ---
@@ -162,32 +264,38 @@ class AppDatabase extends _$AppDatabase {
     required DateTime end,
   }) =>
       (select(epgProgrammes)
-            ..where((t) =>
-                t.epgChannelId.equals(epgChannelId) &
-                t.start.isBiggerOrEqualValue(start) &
-                t.stop.isSmallerOrEqualValue(end))
+            ..where(
+              (t) =>
+                  t.epgChannelId.equals(epgChannelId) &
+                  t.start.isBiggerOrEqualValue(start) &
+                  t.stop.isSmallerOrEqualValue(end),
+            )
             ..orderBy([(t) => OrderingTerm.asc(t.start)]))
           .get();
 
   /// Get what's on now for a list of EPG channel IDs.
   Future<List<EpgProgramme>> getNowPlaying(List<String> epgChannelIds) {
     final now = DateTime.now();
-    return (select(epgProgrammes)
-          ..where((t) =>
+    return (select(epgProgrammes)..where(
+          (t) =>
               t.epgChannelId.isIn(epgChannelIds) &
               t.start.isSmallerOrEqualValue(now) &
-              t.stop.isBiggerOrEqualValue(now)))
+              t.stop.isBiggerOrEqualValue(now),
+        ))
         .get();
   }
 
   Future<List<EpgProgramme>> getNowPlayingWindow(
-    List<String> epgChannelIds, DateTime from, DateTime to,
+    List<String> epgChannelIds,
+    DateTime from,
+    DateTime to,
   ) {
-    return (select(epgProgrammes)
-          ..where((t) =>
+    return (select(epgProgrammes)..where(
+          (t) =>
               t.epgChannelId.isIn(epgChannelIds) &
               t.start.isSmallerOrEqualValue(to) &
-              t.stop.isBiggerOrEqualValue(from)))
+              t.stop.isBiggerOrEqualValue(from),
+        ))
         .get();
   }
 
@@ -207,8 +315,9 @@ class AppDatabase extends _$AppDatabase {
   }
 
   Future<void> updateEpgSourceRefreshTime(String id) =>
-      (update(epgSources)..where((t) => t.id.equals(id)))
-          .write(EpgSourcesCompanion(lastRefresh: Value(DateTime.now())));
+      (update(epgSources)..where((t) => t.id.equals(id))).write(
+        EpgSourcesCompanion(lastRefresh: Value(DateTime.now())),
+      );
 
   Future<void> deleteEpgSource(String id) async {
     await deleteEpgProgrammesForSource(id);
@@ -221,9 +330,9 @@ class AppDatabase extends _$AppDatabase {
   /// Delete old programmes to keep DB size manageable.
   Future<void> pruneOldProgrammes({Duration maxAge = const Duration(days: 7)}) {
     final cutoff = DateTime.now().subtract(maxAge);
-    return (delete(epgProgrammes)
-          ..where((t) => t.stop.isSmallerThanValue(cutoff)))
-        .go();
+    return (delete(
+      epgProgrammes,
+    )..where((t) => t.stop.isSmallerThanValue(cutoff))).go();
   }
 
   // --- EPG Mapping queries ---
@@ -240,10 +349,10 @@ class AppDatabase extends _$AppDatabase {
   }
 
   Future<void> deleteMapping(String channelId, String providerId) =>
-      (delete(epgMappings)
-            ..where((t) =>
-                t.channelId.equals(channelId) &
-                t.providerId.equals(providerId)))
+      (delete(epgMappings)..where(
+            (t) =>
+                t.channelId.equals(channelId) & t.providerId.equals(providerId),
+          ))
           .go();
 
   Future<void> deleteAllMappings() => delete(epgMappings).go();
@@ -264,17 +373,20 @@ class AppDatabase extends _$AppDatabase {
 
   // --- Favorite List queries ---
 
-  Future<List<FavoriteList>> getAllFavoriteLists() =>
-      (select(favoriteLists)..orderBy([(t) => OrderingTerm.asc(t.sortOrder)]))
-          .get();
+  Future<List<FavoriteList>> getAllFavoriteLists() => (select(
+    favoriteLists,
+  )..orderBy([(t) => OrderingTerm.asc(t.sortOrder)])).get();
 
   Future<List<Channel>> getChannelsInList(String listId) async {
-    final query = select(channels).join([
-      innerJoin(favoriteListChannels,
-          favoriteListChannels.channelId.equalsExp(channels.id)),
-    ])
-      ..where(favoriteListChannels.listId.equals(listId))
-      ..orderBy([OrderingTerm.asc(favoriteListChannels.sortOrder)]);
+    final query =
+        select(channels).join([
+            innerJoin(
+              favoriteListChannels,
+              favoriteListChannels.channelId.equalsExp(channels.id),
+            ),
+          ])
+          ..where(favoriteListChannels.listId.equals(listId))
+          ..orderBy([OrderingTerm.asc(favoriteListChannels.sortOrder)]);
     final rows = await query.get();
     return rows.map((row) => row.readTable(channels)).toList();
   }
@@ -288,9 +400,9 @@ class AppDatabase extends _$AppDatabase {
       );
 
   Future<void> removeChannelFromList(String listId, String channelId) =>
-      (delete(favoriteListChannels)
-            ..where(
-                (t) => t.listId.equals(listId) & t.channelId.equals(channelId)))
+      (delete(favoriteListChannels)..where(
+            (t) => t.listId.equals(listId) & t.channelId.equals(channelId),
+          ))
           .go();
 
   Future<FavoriteList> createFavoriteList(String name) async {
@@ -306,29 +418,33 @@ class AppDatabase extends _$AppDatabase {
   }
 
   Future<void> renameFavoriteList(String id, String name) =>
-      (update(favoriteLists)..where((t) => t.id.equals(id)))
-          .write(FavoriteListsCompanion(name: Value(name)));
+      (update(favoriteLists)..where((t) => t.id.equals(id))).write(
+        FavoriteListsCompanion(name: Value(name)),
+      );
 
   Future<void> deleteFavoriteList(String id) async {
-    await (delete(favoriteListChannels)..where((t) => t.listId.equals(id)))
-        .go();
+    await (delete(
+      favoriteListChannels,
+    )..where((t) => t.listId.equals(id))).go();
     await (delete(favoriteLists)..where((t) => t.id.equals(id))).go();
   }
 
   Future<bool> isChannelInList(String listId, String channelId) async {
-    final row = await (select(favoriteListChannels)
-          ..where(
-              (t) => t.listId.equals(listId) & t.channelId.equals(channelId)))
-        .getSingleOrNull();
+    final row =
+        await (select(favoriteListChannels)..where(
+              (t) => t.listId.equals(listId) & t.channelId.equals(channelId),
+            ))
+            .getSingleOrNull();
     return row != null;
   }
 
   Future<List<FavoriteList>> getListsForChannel(String channelId) async {
     final query = select(favoriteLists).join([
-      innerJoin(favoriteListChannels,
-          favoriteListChannels.listId.equalsExp(favoriteLists.id)),
-    ])
-      ..where(favoriteListChannels.channelId.equals(channelId));
+      innerJoin(
+        favoriteListChannels,
+        favoriteListChannels.listId.equalsExp(favoriteLists.id),
+      ),
+    ])..where(favoriteListChannels.channelId.equals(channelId));
     final rows = await query.get();
     return rows.map((row) => row.readTable(favoriteLists)).toList();
   }
@@ -350,15 +466,21 @@ class AppDatabase extends _$AppDatabase {
   Future<List<EpgReminder>> getActiveReminders() =>
       (select(epgReminders)..where((t) => t.fired.equals(false))).get();
 
-  Future<List<EpgReminder>> getRemindersForTimeRange(DateTime start, DateTime end) =>
-      (select(epgReminders)
-            ..where((t) => t.programmeStart.isBiggerOrEqualValue(start) &
-                t.programmeStart.isSmallerOrEqualValue(end)))
+  Future<List<EpgReminder>> getRemindersForTimeRange(
+    DateTime start,
+    DateTime end,
+  ) =>
+      (select(epgReminders)..where(
+            (t) =>
+                t.programmeStart.isBiggerOrEqualValue(start) &
+                t.programmeStart.isSmallerOrEqualValue(end),
+          ))
           .get();
 
   Future<void> markReminderFired(String id) =>
-      (update(epgReminders)..where((t) => t.id.equals(id)))
-          .write(const EpgRemindersCompanion(fired: Value(true)));
+      (update(epgReminders)..where((t) => t.id.equals(id))).write(
+        const EpgRemindersCompanion(fired: Value(true)),
+      );
 
   // --- Scheduled Recording queries ---
 
@@ -372,29 +494,38 @@ class AppDatabase extends _$AppDatabase {
       select(scheduledRecordings).get();
 
   Future<List<ScheduledRecording>> getScheduledRecordingsForTimeRange(
-          DateTime start, DateTime end) =>
-      (select(scheduledRecordings)
-            ..where((t) => t.programmeStart.isBiggerOrEqualValue(start) &
-                t.programmeStart.isSmallerOrEqualValue(end)))
+    DateTime start,
+    DateTime end,
+  ) =>
+      (select(scheduledRecordings)..where(
+            (t) =>
+                t.programmeStart.isBiggerOrEqualValue(start) &
+                t.programmeStart.isSmallerOrEqualValue(end),
+          ))
           .get();
 
   Future<void> updateRecordingStatus(String id, String status) =>
-      (update(scheduledRecordings)..where((t) => t.id.equals(id)))
-          .write(ScheduledRecordingsCompanion(status: Value(status)));
+      (update(scheduledRecordings)..where((t) => t.id.equals(id))).write(
+        ScheduledRecordingsCompanion(status: Value(status)),
+      );
 
   // --- Failover Group queries ---
 
-  Future<List<FailoverGroup>> getAllFailoverGroups() =>
-      (select(failoverGroups)..orderBy([(t) => OrderingTerm.asc(t.name)])).get();
+  Future<List<FailoverGroup>> getAllFailoverGroups() => (select(
+    failoverGroups,
+  )..orderBy([(t) => OrderingTerm.asc(t.name)])).get();
 
   Future<FailoverGroup> createFailoverGroup(String name) async {
-    final id = await into(failoverGroups).insert(
-      FailoverGroupsCompanion.insert(name: name),
-    );
+    final id = await into(
+      failoverGroups,
+    ).insert(FailoverGroupsCompanion.insert(name: name));
     return (select(failoverGroups)..where((t) => t.id.equals(id))).getSingle();
   }
 
-  Future<void> addChannelsToFailoverGroup(int groupId, List<String> channelIds) async {
+  Future<void> addChannelsToFailoverGroup(
+    int groupId,
+    List<String> channelIds,
+  ) async {
     await batch((b) {
       for (var i = 0; i < channelIds.length; i++) {
         b.insert(
@@ -417,7 +548,8 @@ class AppDatabase extends _$AppDatabase {
           .get();
 
   /// Get all failover group memberships keyed by channel ID for fast lookup.
-  Future<Map<String, List<FailoverGroupMembership>>> getFailoverGroupIndex() async {
+  Future<Map<String, List<FailoverGroupMembership>>>
+  getFailoverGroupIndex() async {
     final groups = await getAllFailoverGroups();
     final members = await select(failoverGroupChannels).get();
     final groupMap = {for (final g in groups) g.id: g};
@@ -425,25 +557,29 @@ class AppDatabase extends _$AppDatabase {
     for (final m in members) {
       final group = groupMap[m.groupId];
       if (group == null) continue;
-      index.putIfAbsent(m.channelId, () => []).add(
-        FailoverGroupMembership(group: group, priority: m.priority),
-      );
+      index
+          .putIfAbsent(m.channelId, () => [])
+          .add(FailoverGroupMembership(group: group, priority: m.priority));
     }
     return index;
   }
 
   Future<void> deleteFailoverGroup(int groupId) async {
-    await (delete(failoverGroupChannels)..where((t) => t.groupId.equals(groupId))).go();
+    await (delete(
+      failoverGroupChannels,
+    )..where((t) => t.groupId.equals(groupId))).go();
     await (delete(failoverGroups)..where((t) => t.id.equals(groupId))).go();
   }
 
   Future<void> renameFailoverGroup(int groupId, String name) =>
-      (update(failoverGroups)..where((t) => t.id.equals(groupId)))
-          .write(FailoverGroupsCompanion(name: Value(name)));
+      (update(failoverGroups)..where((t) => t.id.equals(groupId))).write(
+        FailoverGroupsCompanion(name: Value(name)),
+      );
 
   Future<void> removeChannelFromFailoverGroup(int groupId, String channelId) =>
-      (delete(failoverGroupChannels)
-            ..where((t) => t.groupId.equals(groupId) & t.channelId.equals(channelId)))
+      (delete(failoverGroupChannels)..where(
+            (t) => t.groupId.equals(groupId) & t.channelId.equals(channelId),
+          ))
           .go();
 }
 

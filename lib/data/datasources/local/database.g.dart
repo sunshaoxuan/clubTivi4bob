@@ -1373,6 +1373,1207 @@ class ChannelsCompanion extends UpdateCompanion<Channel> {
   }
 }
 
+class $StreamChecksTable extends StreamChecks
+    with TableInfo<$StreamChecksTable, StreamCheck> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $StreamChecksTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _streamUrlMeta = const VerificationMeta(
+    'streamUrl',
+  );
+  @override
+  late final GeneratedColumn<String> streamUrl = GeneratedColumn<String>(
+    'stream_url',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _providerIdMeta = const VerificationMeta(
+    'providerId',
+  );
+  @override
+  late final GeneratedColumn<String> providerId = GeneratedColumn<String>(
+    'provider_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _channelIdMeta = const VerificationMeta(
+    'channelId',
+  );
+  @override
+  late final GeneratedColumn<String> channelId = GeneratedColumn<String>(
+    'channel_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _consecutiveFailuresMeta =
+      const VerificationMeta('consecutiveFailures');
+  @override
+  late final GeneratedColumn<int> consecutiveFailures = GeneratedColumn<int>(
+    'consecutive_failures',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _firstFailureAtMeta = const VerificationMeta(
+    'firstFailureAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> firstFailureAt =
+      GeneratedColumn<DateTime>(
+        'first_failure_at',
+        aliasedName,
+        true,
+        type: DriftSqlType.dateTime,
+        requiredDuringInsert: false,
+      );
+  static const VerificationMeta _lastCheckedAtMeta = const VerificationMeta(
+    'lastCheckedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> lastCheckedAt =
+      GeneratedColumn<DateTime>(
+        'last_checked_at',
+        aliasedName,
+        true,
+        type: DriftSqlType.dateTime,
+        requiredDuringInsert: false,
+      );
+  static const VerificationMeta _lastSuccessAtMeta = const VerificationMeta(
+    'lastSuccessAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> lastSuccessAt =
+      GeneratedColumn<DateTime>(
+        'last_success_at',
+        aliasedName,
+        true,
+        type: DriftSqlType.dateTime,
+        requiredDuringInsert: false,
+      );
+  static const VerificationMeta _retiredMeta = const VerificationMeta(
+    'retired',
+  );
+  @override
+  late final GeneratedColumn<bool> retired = GeneratedColumn<bool>(
+    'retired',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("retired" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    streamUrl,
+    providerId,
+    channelId,
+    consecutiveFailures,
+    firstFailureAt,
+    lastCheckedAt,
+    lastSuccessAt,
+    retired,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'stream_checks';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<StreamCheck> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('stream_url')) {
+      context.handle(
+        _streamUrlMeta,
+        streamUrl.isAcceptableOrUnknown(data['stream_url']!, _streamUrlMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_streamUrlMeta);
+    }
+    if (data.containsKey('provider_id')) {
+      context.handle(
+        _providerIdMeta,
+        providerId.isAcceptableOrUnknown(data['provider_id']!, _providerIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_providerIdMeta);
+    }
+    if (data.containsKey('channel_id')) {
+      context.handle(
+        _channelIdMeta,
+        channelId.isAcceptableOrUnknown(data['channel_id']!, _channelIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_channelIdMeta);
+    }
+    if (data.containsKey('consecutive_failures')) {
+      context.handle(
+        _consecutiveFailuresMeta,
+        consecutiveFailures.isAcceptableOrUnknown(
+          data['consecutive_failures']!,
+          _consecutiveFailuresMeta,
+        ),
+      );
+    }
+    if (data.containsKey('first_failure_at')) {
+      context.handle(
+        _firstFailureAtMeta,
+        firstFailureAt.isAcceptableOrUnknown(
+          data['first_failure_at']!,
+          _firstFailureAtMeta,
+        ),
+      );
+    }
+    if (data.containsKey('last_checked_at')) {
+      context.handle(
+        _lastCheckedAtMeta,
+        lastCheckedAt.isAcceptableOrUnknown(
+          data['last_checked_at']!,
+          _lastCheckedAtMeta,
+        ),
+      );
+    }
+    if (data.containsKey('last_success_at')) {
+      context.handle(
+        _lastSuccessAtMeta,
+        lastSuccessAt.isAcceptableOrUnknown(
+          data['last_success_at']!,
+          _lastSuccessAtMeta,
+        ),
+      );
+    }
+    if (data.containsKey('retired')) {
+      context.handle(
+        _retiredMeta,
+        retired.isAcceptableOrUnknown(data['retired']!, _retiredMeta),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {providerId, streamUrl};
+  @override
+  StreamCheck map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return StreamCheck(
+      streamUrl: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}stream_url'],
+      )!,
+      providerId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}provider_id'],
+      )!,
+      channelId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}channel_id'],
+      )!,
+      consecutiveFailures: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}consecutive_failures'],
+      )!,
+      firstFailureAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}first_failure_at'],
+      ),
+      lastCheckedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}last_checked_at'],
+      ),
+      lastSuccessAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}last_success_at'],
+      ),
+      retired: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}retired'],
+      )!,
+    );
+  }
+
+  @override
+  $StreamChecksTable createAlias(String alias) {
+    return $StreamChecksTable(attachedDatabase, alias);
+  }
+}
+
+class StreamCheck extends DataClass implements Insertable<StreamCheck> {
+  final String streamUrl;
+  final String providerId;
+  final String channelId;
+  final int consecutiveFailures;
+  final DateTime? firstFailureAt;
+  final DateTime? lastCheckedAt;
+  final DateTime? lastSuccessAt;
+  final bool retired;
+  const StreamCheck({
+    required this.streamUrl,
+    required this.providerId,
+    required this.channelId,
+    required this.consecutiveFailures,
+    this.firstFailureAt,
+    this.lastCheckedAt,
+    this.lastSuccessAt,
+    required this.retired,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['stream_url'] = Variable<String>(streamUrl);
+    map['provider_id'] = Variable<String>(providerId);
+    map['channel_id'] = Variable<String>(channelId);
+    map['consecutive_failures'] = Variable<int>(consecutiveFailures);
+    if (!nullToAbsent || firstFailureAt != null) {
+      map['first_failure_at'] = Variable<DateTime>(firstFailureAt);
+    }
+    if (!nullToAbsent || lastCheckedAt != null) {
+      map['last_checked_at'] = Variable<DateTime>(lastCheckedAt);
+    }
+    if (!nullToAbsent || lastSuccessAt != null) {
+      map['last_success_at'] = Variable<DateTime>(lastSuccessAt);
+    }
+    map['retired'] = Variable<bool>(retired);
+    return map;
+  }
+
+  StreamChecksCompanion toCompanion(bool nullToAbsent) {
+    return StreamChecksCompanion(
+      streamUrl: Value(streamUrl),
+      providerId: Value(providerId),
+      channelId: Value(channelId),
+      consecutiveFailures: Value(consecutiveFailures),
+      firstFailureAt: firstFailureAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(firstFailureAt),
+      lastCheckedAt: lastCheckedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(lastCheckedAt),
+      lastSuccessAt: lastSuccessAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(lastSuccessAt),
+      retired: Value(retired),
+    );
+  }
+
+  factory StreamCheck.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return StreamCheck(
+      streamUrl: serializer.fromJson<String>(json['streamUrl']),
+      providerId: serializer.fromJson<String>(json['providerId']),
+      channelId: serializer.fromJson<String>(json['channelId']),
+      consecutiveFailures: serializer.fromJson<int>(
+        json['consecutiveFailures'],
+      ),
+      firstFailureAt: serializer.fromJson<DateTime?>(json['firstFailureAt']),
+      lastCheckedAt: serializer.fromJson<DateTime?>(json['lastCheckedAt']),
+      lastSuccessAt: serializer.fromJson<DateTime?>(json['lastSuccessAt']),
+      retired: serializer.fromJson<bool>(json['retired']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'streamUrl': serializer.toJson<String>(streamUrl),
+      'providerId': serializer.toJson<String>(providerId),
+      'channelId': serializer.toJson<String>(channelId),
+      'consecutiveFailures': serializer.toJson<int>(consecutiveFailures),
+      'firstFailureAt': serializer.toJson<DateTime?>(firstFailureAt),
+      'lastCheckedAt': serializer.toJson<DateTime?>(lastCheckedAt),
+      'lastSuccessAt': serializer.toJson<DateTime?>(lastSuccessAt),
+      'retired': serializer.toJson<bool>(retired),
+    };
+  }
+
+  StreamCheck copyWith({
+    String? streamUrl,
+    String? providerId,
+    String? channelId,
+    int? consecutiveFailures,
+    Value<DateTime?> firstFailureAt = const Value.absent(),
+    Value<DateTime?> lastCheckedAt = const Value.absent(),
+    Value<DateTime?> lastSuccessAt = const Value.absent(),
+    bool? retired,
+  }) => StreamCheck(
+    streamUrl: streamUrl ?? this.streamUrl,
+    providerId: providerId ?? this.providerId,
+    channelId: channelId ?? this.channelId,
+    consecutiveFailures: consecutiveFailures ?? this.consecutiveFailures,
+    firstFailureAt: firstFailureAt.present
+        ? firstFailureAt.value
+        : this.firstFailureAt,
+    lastCheckedAt: lastCheckedAt.present
+        ? lastCheckedAt.value
+        : this.lastCheckedAt,
+    lastSuccessAt: lastSuccessAt.present
+        ? lastSuccessAt.value
+        : this.lastSuccessAt,
+    retired: retired ?? this.retired,
+  );
+  StreamCheck copyWithCompanion(StreamChecksCompanion data) {
+    return StreamCheck(
+      streamUrl: data.streamUrl.present ? data.streamUrl.value : this.streamUrl,
+      providerId: data.providerId.present
+          ? data.providerId.value
+          : this.providerId,
+      channelId: data.channelId.present ? data.channelId.value : this.channelId,
+      consecutiveFailures: data.consecutiveFailures.present
+          ? data.consecutiveFailures.value
+          : this.consecutiveFailures,
+      firstFailureAt: data.firstFailureAt.present
+          ? data.firstFailureAt.value
+          : this.firstFailureAt,
+      lastCheckedAt: data.lastCheckedAt.present
+          ? data.lastCheckedAt.value
+          : this.lastCheckedAt,
+      lastSuccessAt: data.lastSuccessAt.present
+          ? data.lastSuccessAt.value
+          : this.lastSuccessAt,
+      retired: data.retired.present ? data.retired.value : this.retired,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('StreamCheck(')
+          ..write('streamUrl: $streamUrl, ')
+          ..write('providerId: $providerId, ')
+          ..write('channelId: $channelId, ')
+          ..write('consecutiveFailures: $consecutiveFailures, ')
+          ..write('firstFailureAt: $firstFailureAt, ')
+          ..write('lastCheckedAt: $lastCheckedAt, ')
+          ..write('lastSuccessAt: $lastSuccessAt, ')
+          ..write('retired: $retired')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    streamUrl,
+    providerId,
+    channelId,
+    consecutiveFailures,
+    firstFailureAt,
+    lastCheckedAt,
+    lastSuccessAt,
+    retired,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is StreamCheck &&
+          other.streamUrl == this.streamUrl &&
+          other.providerId == this.providerId &&
+          other.channelId == this.channelId &&
+          other.consecutiveFailures == this.consecutiveFailures &&
+          other.firstFailureAt == this.firstFailureAt &&
+          other.lastCheckedAt == this.lastCheckedAt &&
+          other.lastSuccessAt == this.lastSuccessAt &&
+          other.retired == this.retired);
+}
+
+class StreamChecksCompanion extends UpdateCompanion<StreamCheck> {
+  final Value<String> streamUrl;
+  final Value<String> providerId;
+  final Value<String> channelId;
+  final Value<int> consecutiveFailures;
+  final Value<DateTime?> firstFailureAt;
+  final Value<DateTime?> lastCheckedAt;
+  final Value<DateTime?> lastSuccessAt;
+  final Value<bool> retired;
+  final Value<int> rowid;
+  const StreamChecksCompanion({
+    this.streamUrl = const Value.absent(),
+    this.providerId = const Value.absent(),
+    this.channelId = const Value.absent(),
+    this.consecutiveFailures = const Value.absent(),
+    this.firstFailureAt = const Value.absent(),
+    this.lastCheckedAt = const Value.absent(),
+    this.lastSuccessAt = const Value.absent(),
+    this.retired = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  StreamChecksCompanion.insert({
+    required String streamUrl,
+    required String providerId,
+    required String channelId,
+    this.consecutiveFailures = const Value.absent(),
+    this.firstFailureAt = const Value.absent(),
+    this.lastCheckedAt = const Value.absent(),
+    this.lastSuccessAt = const Value.absent(),
+    this.retired = const Value.absent(),
+    this.rowid = const Value.absent(),
+  }) : streamUrl = Value(streamUrl),
+       providerId = Value(providerId),
+       channelId = Value(channelId);
+  static Insertable<StreamCheck> custom({
+    Expression<String>? streamUrl,
+    Expression<String>? providerId,
+    Expression<String>? channelId,
+    Expression<int>? consecutiveFailures,
+    Expression<DateTime>? firstFailureAt,
+    Expression<DateTime>? lastCheckedAt,
+    Expression<DateTime>? lastSuccessAt,
+    Expression<bool>? retired,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (streamUrl != null) 'stream_url': streamUrl,
+      if (providerId != null) 'provider_id': providerId,
+      if (channelId != null) 'channel_id': channelId,
+      if (consecutiveFailures != null)
+        'consecutive_failures': consecutiveFailures,
+      if (firstFailureAt != null) 'first_failure_at': firstFailureAt,
+      if (lastCheckedAt != null) 'last_checked_at': lastCheckedAt,
+      if (lastSuccessAt != null) 'last_success_at': lastSuccessAt,
+      if (retired != null) 'retired': retired,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  StreamChecksCompanion copyWith({
+    Value<String>? streamUrl,
+    Value<String>? providerId,
+    Value<String>? channelId,
+    Value<int>? consecutiveFailures,
+    Value<DateTime?>? firstFailureAt,
+    Value<DateTime?>? lastCheckedAt,
+    Value<DateTime?>? lastSuccessAt,
+    Value<bool>? retired,
+    Value<int>? rowid,
+  }) {
+    return StreamChecksCompanion(
+      streamUrl: streamUrl ?? this.streamUrl,
+      providerId: providerId ?? this.providerId,
+      channelId: channelId ?? this.channelId,
+      consecutiveFailures: consecutiveFailures ?? this.consecutiveFailures,
+      firstFailureAt: firstFailureAt ?? this.firstFailureAt,
+      lastCheckedAt: lastCheckedAt ?? this.lastCheckedAt,
+      lastSuccessAt: lastSuccessAt ?? this.lastSuccessAt,
+      retired: retired ?? this.retired,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (streamUrl.present) {
+      map['stream_url'] = Variable<String>(streamUrl.value);
+    }
+    if (providerId.present) {
+      map['provider_id'] = Variable<String>(providerId.value);
+    }
+    if (channelId.present) {
+      map['channel_id'] = Variable<String>(channelId.value);
+    }
+    if (consecutiveFailures.present) {
+      map['consecutive_failures'] = Variable<int>(consecutiveFailures.value);
+    }
+    if (firstFailureAt.present) {
+      map['first_failure_at'] = Variable<DateTime>(firstFailureAt.value);
+    }
+    if (lastCheckedAt.present) {
+      map['last_checked_at'] = Variable<DateTime>(lastCheckedAt.value);
+    }
+    if (lastSuccessAt.present) {
+      map['last_success_at'] = Variable<DateTime>(lastSuccessAt.value);
+    }
+    if (retired.present) {
+      map['retired'] = Variable<bool>(retired.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('StreamChecksCompanion(')
+          ..write('streamUrl: $streamUrl, ')
+          ..write('providerId: $providerId, ')
+          ..write('channelId: $channelId, ')
+          ..write('consecutiveFailures: $consecutiveFailures, ')
+          ..write('firstFailureAt: $firstFailureAt, ')
+          ..write('lastCheckedAt: $lastCheckedAt, ')
+          ..write('lastSuccessAt: $lastSuccessAt, ')
+          ..write('retired: $retired, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $ProviderOriginsTable extends ProviderOrigins
+    with TableInfo<$ProviderOriginsTable, ProviderOrigin> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $ProviderOriginsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _providerIdMeta = const VerificationMeta(
+    'providerId',
+  );
+  @override
+  late final GeneratedColumn<String> providerId = GeneratedColumn<String>(
+    'provider_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _sourceUrlMeta = const VerificationMeta(
+    'sourceUrl',
+  );
+  @override
+  late final GeneratedColumn<String> sourceUrl = GeneratedColumn<String>(
+    'source_url',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _githubOwnerMeta = const VerificationMeta(
+    'githubOwner',
+  );
+  @override
+  late final GeneratedColumn<String> githubOwner = GeneratedColumn<String>(
+    'github_owner',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _githubRepoMeta = const VerificationMeta(
+    'githubRepo',
+  );
+  @override
+  late final GeneratedColumn<String> githubRepo = GeneratedColumn<String>(
+    'github_repo',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _githubRefMeta = const VerificationMeta(
+    'githubRef',
+  );
+  @override
+  late final GeneratedColumn<String> githubRef = GeneratedColumn<String>(
+    'github_ref',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _githubPathMeta = const VerificationMeta(
+    'githubPath',
+  );
+  @override
+  late final GeneratedColumn<String> githubPath = GeneratedColumn<String>(
+    'github_path',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _lastVersionMeta = const VerificationMeta(
+    'lastVersion',
+  );
+  @override
+  late final GeneratedColumn<String> lastVersion = GeneratedColumn<String>(
+    'last_version',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _etagMeta = const VerificationMeta('etag');
+  @override
+  late final GeneratedColumn<String> etag = GeneratedColumn<String>(
+    'etag',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _lastCheckedAtMeta = const VerificationMeta(
+    'lastCheckedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> lastCheckedAt =
+      GeneratedColumn<DateTime>(
+        'last_checked_at',
+        aliasedName,
+        true,
+        type: DriftSqlType.dateTime,
+        requiredDuringInsert: false,
+      );
+  static const VerificationMeta _lastChangedAtMeta = const VerificationMeta(
+    'lastChangedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> lastChangedAt =
+      GeneratedColumn<DateTime>(
+        'last_changed_at',
+        aliasedName,
+        true,
+        type: DriftSqlType.dateTime,
+        requiredDuringInsert: false,
+      );
+  @override
+  List<GeneratedColumn> get $columns => [
+    providerId,
+    sourceUrl,
+    githubOwner,
+    githubRepo,
+    githubRef,
+    githubPath,
+    lastVersion,
+    etag,
+    lastCheckedAt,
+    lastChangedAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'provider_origins';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<ProviderOrigin> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('provider_id')) {
+      context.handle(
+        _providerIdMeta,
+        providerId.isAcceptableOrUnknown(data['provider_id']!, _providerIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_providerIdMeta);
+    }
+    if (data.containsKey('source_url')) {
+      context.handle(
+        _sourceUrlMeta,
+        sourceUrl.isAcceptableOrUnknown(data['source_url']!, _sourceUrlMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_sourceUrlMeta);
+    }
+    if (data.containsKey('github_owner')) {
+      context.handle(
+        _githubOwnerMeta,
+        githubOwner.isAcceptableOrUnknown(
+          data['github_owner']!,
+          _githubOwnerMeta,
+        ),
+      );
+    }
+    if (data.containsKey('github_repo')) {
+      context.handle(
+        _githubRepoMeta,
+        githubRepo.isAcceptableOrUnknown(data['github_repo']!, _githubRepoMeta),
+      );
+    }
+    if (data.containsKey('github_ref')) {
+      context.handle(
+        _githubRefMeta,
+        githubRef.isAcceptableOrUnknown(data['github_ref']!, _githubRefMeta),
+      );
+    }
+    if (data.containsKey('github_path')) {
+      context.handle(
+        _githubPathMeta,
+        githubPath.isAcceptableOrUnknown(data['github_path']!, _githubPathMeta),
+      );
+    }
+    if (data.containsKey('last_version')) {
+      context.handle(
+        _lastVersionMeta,
+        lastVersion.isAcceptableOrUnknown(
+          data['last_version']!,
+          _lastVersionMeta,
+        ),
+      );
+    }
+    if (data.containsKey('etag')) {
+      context.handle(
+        _etagMeta,
+        etag.isAcceptableOrUnknown(data['etag']!, _etagMeta),
+      );
+    }
+    if (data.containsKey('last_checked_at')) {
+      context.handle(
+        _lastCheckedAtMeta,
+        lastCheckedAt.isAcceptableOrUnknown(
+          data['last_checked_at']!,
+          _lastCheckedAtMeta,
+        ),
+      );
+    }
+    if (data.containsKey('last_changed_at')) {
+      context.handle(
+        _lastChangedAtMeta,
+        lastChangedAt.isAcceptableOrUnknown(
+          data['last_changed_at']!,
+          _lastChangedAtMeta,
+        ),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {providerId};
+  @override
+  ProviderOrigin map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return ProviderOrigin(
+      providerId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}provider_id'],
+      )!,
+      sourceUrl: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}source_url'],
+      )!,
+      githubOwner: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}github_owner'],
+      ),
+      githubRepo: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}github_repo'],
+      ),
+      githubRef: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}github_ref'],
+      ),
+      githubPath: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}github_path'],
+      ),
+      lastVersion: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}last_version'],
+      ),
+      etag: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}etag'],
+      ),
+      lastCheckedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}last_checked_at'],
+      ),
+      lastChangedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}last_changed_at'],
+      ),
+    );
+  }
+
+  @override
+  $ProviderOriginsTable createAlias(String alias) {
+    return $ProviderOriginsTable(attachedDatabase, alias);
+  }
+}
+
+class ProviderOrigin extends DataClass implements Insertable<ProviderOrigin> {
+  final String providerId;
+  final String sourceUrl;
+  final String? githubOwner;
+  final String? githubRepo;
+  final String? githubRef;
+  final String? githubPath;
+  final String? lastVersion;
+  final String? etag;
+  final DateTime? lastCheckedAt;
+  final DateTime? lastChangedAt;
+  const ProviderOrigin({
+    required this.providerId,
+    required this.sourceUrl,
+    this.githubOwner,
+    this.githubRepo,
+    this.githubRef,
+    this.githubPath,
+    this.lastVersion,
+    this.etag,
+    this.lastCheckedAt,
+    this.lastChangedAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['provider_id'] = Variable<String>(providerId);
+    map['source_url'] = Variable<String>(sourceUrl);
+    if (!nullToAbsent || githubOwner != null) {
+      map['github_owner'] = Variable<String>(githubOwner);
+    }
+    if (!nullToAbsent || githubRepo != null) {
+      map['github_repo'] = Variable<String>(githubRepo);
+    }
+    if (!nullToAbsent || githubRef != null) {
+      map['github_ref'] = Variable<String>(githubRef);
+    }
+    if (!nullToAbsent || githubPath != null) {
+      map['github_path'] = Variable<String>(githubPath);
+    }
+    if (!nullToAbsent || lastVersion != null) {
+      map['last_version'] = Variable<String>(lastVersion);
+    }
+    if (!nullToAbsent || etag != null) {
+      map['etag'] = Variable<String>(etag);
+    }
+    if (!nullToAbsent || lastCheckedAt != null) {
+      map['last_checked_at'] = Variable<DateTime>(lastCheckedAt);
+    }
+    if (!nullToAbsent || lastChangedAt != null) {
+      map['last_changed_at'] = Variable<DateTime>(lastChangedAt);
+    }
+    return map;
+  }
+
+  ProviderOriginsCompanion toCompanion(bool nullToAbsent) {
+    return ProviderOriginsCompanion(
+      providerId: Value(providerId),
+      sourceUrl: Value(sourceUrl),
+      githubOwner: githubOwner == null && nullToAbsent
+          ? const Value.absent()
+          : Value(githubOwner),
+      githubRepo: githubRepo == null && nullToAbsent
+          ? const Value.absent()
+          : Value(githubRepo),
+      githubRef: githubRef == null && nullToAbsent
+          ? const Value.absent()
+          : Value(githubRef),
+      githubPath: githubPath == null && nullToAbsent
+          ? const Value.absent()
+          : Value(githubPath),
+      lastVersion: lastVersion == null && nullToAbsent
+          ? const Value.absent()
+          : Value(lastVersion),
+      etag: etag == null && nullToAbsent ? const Value.absent() : Value(etag),
+      lastCheckedAt: lastCheckedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(lastCheckedAt),
+      lastChangedAt: lastChangedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(lastChangedAt),
+    );
+  }
+
+  factory ProviderOrigin.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return ProviderOrigin(
+      providerId: serializer.fromJson<String>(json['providerId']),
+      sourceUrl: serializer.fromJson<String>(json['sourceUrl']),
+      githubOwner: serializer.fromJson<String?>(json['githubOwner']),
+      githubRepo: serializer.fromJson<String?>(json['githubRepo']),
+      githubRef: serializer.fromJson<String?>(json['githubRef']),
+      githubPath: serializer.fromJson<String?>(json['githubPath']),
+      lastVersion: serializer.fromJson<String?>(json['lastVersion']),
+      etag: serializer.fromJson<String?>(json['etag']),
+      lastCheckedAt: serializer.fromJson<DateTime?>(json['lastCheckedAt']),
+      lastChangedAt: serializer.fromJson<DateTime?>(json['lastChangedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'providerId': serializer.toJson<String>(providerId),
+      'sourceUrl': serializer.toJson<String>(sourceUrl),
+      'githubOwner': serializer.toJson<String?>(githubOwner),
+      'githubRepo': serializer.toJson<String?>(githubRepo),
+      'githubRef': serializer.toJson<String?>(githubRef),
+      'githubPath': serializer.toJson<String?>(githubPath),
+      'lastVersion': serializer.toJson<String?>(lastVersion),
+      'etag': serializer.toJson<String?>(etag),
+      'lastCheckedAt': serializer.toJson<DateTime?>(lastCheckedAt),
+      'lastChangedAt': serializer.toJson<DateTime?>(lastChangedAt),
+    };
+  }
+
+  ProviderOrigin copyWith({
+    String? providerId,
+    String? sourceUrl,
+    Value<String?> githubOwner = const Value.absent(),
+    Value<String?> githubRepo = const Value.absent(),
+    Value<String?> githubRef = const Value.absent(),
+    Value<String?> githubPath = const Value.absent(),
+    Value<String?> lastVersion = const Value.absent(),
+    Value<String?> etag = const Value.absent(),
+    Value<DateTime?> lastCheckedAt = const Value.absent(),
+    Value<DateTime?> lastChangedAt = const Value.absent(),
+  }) => ProviderOrigin(
+    providerId: providerId ?? this.providerId,
+    sourceUrl: sourceUrl ?? this.sourceUrl,
+    githubOwner: githubOwner.present ? githubOwner.value : this.githubOwner,
+    githubRepo: githubRepo.present ? githubRepo.value : this.githubRepo,
+    githubRef: githubRef.present ? githubRef.value : this.githubRef,
+    githubPath: githubPath.present ? githubPath.value : this.githubPath,
+    lastVersion: lastVersion.present ? lastVersion.value : this.lastVersion,
+    etag: etag.present ? etag.value : this.etag,
+    lastCheckedAt: lastCheckedAt.present
+        ? lastCheckedAt.value
+        : this.lastCheckedAt,
+    lastChangedAt: lastChangedAt.present
+        ? lastChangedAt.value
+        : this.lastChangedAt,
+  );
+  ProviderOrigin copyWithCompanion(ProviderOriginsCompanion data) {
+    return ProviderOrigin(
+      providerId: data.providerId.present
+          ? data.providerId.value
+          : this.providerId,
+      sourceUrl: data.sourceUrl.present ? data.sourceUrl.value : this.sourceUrl,
+      githubOwner: data.githubOwner.present
+          ? data.githubOwner.value
+          : this.githubOwner,
+      githubRepo: data.githubRepo.present
+          ? data.githubRepo.value
+          : this.githubRepo,
+      githubRef: data.githubRef.present ? data.githubRef.value : this.githubRef,
+      githubPath: data.githubPath.present
+          ? data.githubPath.value
+          : this.githubPath,
+      lastVersion: data.lastVersion.present
+          ? data.lastVersion.value
+          : this.lastVersion,
+      etag: data.etag.present ? data.etag.value : this.etag,
+      lastCheckedAt: data.lastCheckedAt.present
+          ? data.lastCheckedAt.value
+          : this.lastCheckedAt,
+      lastChangedAt: data.lastChangedAt.present
+          ? data.lastChangedAt.value
+          : this.lastChangedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ProviderOrigin(')
+          ..write('providerId: $providerId, ')
+          ..write('sourceUrl: $sourceUrl, ')
+          ..write('githubOwner: $githubOwner, ')
+          ..write('githubRepo: $githubRepo, ')
+          ..write('githubRef: $githubRef, ')
+          ..write('githubPath: $githubPath, ')
+          ..write('lastVersion: $lastVersion, ')
+          ..write('etag: $etag, ')
+          ..write('lastCheckedAt: $lastCheckedAt, ')
+          ..write('lastChangedAt: $lastChangedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    providerId,
+    sourceUrl,
+    githubOwner,
+    githubRepo,
+    githubRef,
+    githubPath,
+    lastVersion,
+    etag,
+    lastCheckedAt,
+    lastChangedAt,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is ProviderOrigin &&
+          other.providerId == this.providerId &&
+          other.sourceUrl == this.sourceUrl &&
+          other.githubOwner == this.githubOwner &&
+          other.githubRepo == this.githubRepo &&
+          other.githubRef == this.githubRef &&
+          other.githubPath == this.githubPath &&
+          other.lastVersion == this.lastVersion &&
+          other.etag == this.etag &&
+          other.lastCheckedAt == this.lastCheckedAt &&
+          other.lastChangedAt == this.lastChangedAt);
+}
+
+class ProviderOriginsCompanion extends UpdateCompanion<ProviderOrigin> {
+  final Value<String> providerId;
+  final Value<String> sourceUrl;
+  final Value<String?> githubOwner;
+  final Value<String?> githubRepo;
+  final Value<String?> githubRef;
+  final Value<String?> githubPath;
+  final Value<String?> lastVersion;
+  final Value<String?> etag;
+  final Value<DateTime?> lastCheckedAt;
+  final Value<DateTime?> lastChangedAt;
+  final Value<int> rowid;
+  const ProviderOriginsCompanion({
+    this.providerId = const Value.absent(),
+    this.sourceUrl = const Value.absent(),
+    this.githubOwner = const Value.absent(),
+    this.githubRepo = const Value.absent(),
+    this.githubRef = const Value.absent(),
+    this.githubPath = const Value.absent(),
+    this.lastVersion = const Value.absent(),
+    this.etag = const Value.absent(),
+    this.lastCheckedAt = const Value.absent(),
+    this.lastChangedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  ProviderOriginsCompanion.insert({
+    required String providerId,
+    required String sourceUrl,
+    this.githubOwner = const Value.absent(),
+    this.githubRepo = const Value.absent(),
+    this.githubRef = const Value.absent(),
+    this.githubPath = const Value.absent(),
+    this.lastVersion = const Value.absent(),
+    this.etag = const Value.absent(),
+    this.lastCheckedAt = const Value.absent(),
+    this.lastChangedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  }) : providerId = Value(providerId),
+       sourceUrl = Value(sourceUrl);
+  static Insertable<ProviderOrigin> custom({
+    Expression<String>? providerId,
+    Expression<String>? sourceUrl,
+    Expression<String>? githubOwner,
+    Expression<String>? githubRepo,
+    Expression<String>? githubRef,
+    Expression<String>? githubPath,
+    Expression<String>? lastVersion,
+    Expression<String>? etag,
+    Expression<DateTime>? lastCheckedAt,
+    Expression<DateTime>? lastChangedAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (providerId != null) 'provider_id': providerId,
+      if (sourceUrl != null) 'source_url': sourceUrl,
+      if (githubOwner != null) 'github_owner': githubOwner,
+      if (githubRepo != null) 'github_repo': githubRepo,
+      if (githubRef != null) 'github_ref': githubRef,
+      if (githubPath != null) 'github_path': githubPath,
+      if (lastVersion != null) 'last_version': lastVersion,
+      if (etag != null) 'etag': etag,
+      if (lastCheckedAt != null) 'last_checked_at': lastCheckedAt,
+      if (lastChangedAt != null) 'last_changed_at': lastChangedAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  ProviderOriginsCompanion copyWith({
+    Value<String>? providerId,
+    Value<String>? sourceUrl,
+    Value<String?>? githubOwner,
+    Value<String?>? githubRepo,
+    Value<String?>? githubRef,
+    Value<String?>? githubPath,
+    Value<String?>? lastVersion,
+    Value<String?>? etag,
+    Value<DateTime?>? lastCheckedAt,
+    Value<DateTime?>? lastChangedAt,
+    Value<int>? rowid,
+  }) {
+    return ProviderOriginsCompanion(
+      providerId: providerId ?? this.providerId,
+      sourceUrl: sourceUrl ?? this.sourceUrl,
+      githubOwner: githubOwner ?? this.githubOwner,
+      githubRepo: githubRepo ?? this.githubRepo,
+      githubRef: githubRef ?? this.githubRef,
+      githubPath: githubPath ?? this.githubPath,
+      lastVersion: lastVersion ?? this.lastVersion,
+      etag: etag ?? this.etag,
+      lastCheckedAt: lastCheckedAt ?? this.lastCheckedAt,
+      lastChangedAt: lastChangedAt ?? this.lastChangedAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (providerId.present) {
+      map['provider_id'] = Variable<String>(providerId.value);
+    }
+    if (sourceUrl.present) {
+      map['source_url'] = Variable<String>(sourceUrl.value);
+    }
+    if (githubOwner.present) {
+      map['github_owner'] = Variable<String>(githubOwner.value);
+    }
+    if (githubRepo.present) {
+      map['github_repo'] = Variable<String>(githubRepo.value);
+    }
+    if (githubRef.present) {
+      map['github_ref'] = Variable<String>(githubRef.value);
+    }
+    if (githubPath.present) {
+      map['github_path'] = Variable<String>(githubPath.value);
+    }
+    if (lastVersion.present) {
+      map['last_version'] = Variable<String>(lastVersion.value);
+    }
+    if (etag.present) {
+      map['etag'] = Variable<String>(etag.value);
+    }
+    if (lastCheckedAt.present) {
+      map['last_checked_at'] = Variable<DateTime>(lastCheckedAt.value);
+    }
+    if (lastChangedAt.present) {
+      map['last_changed_at'] = Variable<DateTime>(lastChangedAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ProviderOriginsCompanion(')
+          ..write('providerId: $providerId, ')
+          ..write('sourceUrl: $sourceUrl, ')
+          ..write('githubOwner: $githubOwner, ')
+          ..write('githubRepo: $githubRepo, ')
+          ..write('githubRef: $githubRef, ')
+          ..write('githubPath: $githubPath, ')
+          ..write('lastVersion: $lastVersion, ')
+          ..write('etag: $etag, ')
+          ..write('lastCheckedAt: $lastCheckedAt, ')
+          ..write('lastChangedAt: $lastChangedAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 class $EpgSourcesTable extends EpgSources
     with TableInfo<$EpgSourcesTable, EpgSource> {
   @override
@@ -6013,6 +7214,10 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
   late final $ProvidersTable providers = $ProvidersTable(this);
   late final $ChannelsTable channels = $ChannelsTable(this);
+  late final $StreamChecksTable streamChecks = $StreamChecksTable(this);
+  late final $ProviderOriginsTable providerOrigins = $ProviderOriginsTable(
+    this,
+  );
   late final $EpgSourcesTable epgSources = $EpgSourcesTable(this);
   late final $EpgChannelsTable epgChannels = $EpgChannelsTable(this);
   late final $EpgProgrammesTable epgProgrammes = $EpgProgrammesTable(this);
@@ -6034,6 +7239,8 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   List<DatabaseSchemaEntity> get allSchemaEntities => [
     providers,
     channels,
+    streamChecks,
+    providerOrigins,
     epgSources,
     epgChannels,
     epgProgrammes,
@@ -7234,6 +8441,588 @@ typedef $$ChannelsTableProcessedTableManager =
         bool favoriteListChannelsRefs,
         bool failoverGroupChannelsRefs,
       })
+    >;
+typedef $$StreamChecksTableCreateCompanionBuilder =
+    StreamChecksCompanion Function({
+      required String streamUrl,
+      required String providerId,
+      required String channelId,
+      Value<int> consecutiveFailures,
+      Value<DateTime?> firstFailureAt,
+      Value<DateTime?> lastCheckedAt,
+      Value<DateTime?> lastSuccessAt,
+      Value<bool> retired,
+      Value<int> rowid,
+    });
+typedef $$StreamChecksTableUpdateCompanionBuilder =
+    StreamChecksCompanion Function({
+      Value<String> streamUrl,
+      Value<String> providerId,
+      Value<String> channelId,
+      Value<int> consecutiveFailures,
+      Value<DateTime?> firstFailureAt,
+      Value<DateTime?> lastCheckedAt,
+      Value<DateTime?> lastSuccessAt,
+      Value<bool> retired,
+      Value<int> rowid,
+    });
+
+class $$StreamChecksTableFilterComposer
+    extends Composer<_$AppDatabase, $StreamChecksTable> {
+  $$StreamChecksTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get streamUrl => $composableBuilder(
+    column: $table.streamUrl,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get providerId => $composableBuilder(
+    column: $table.providerId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get channelId => $composableBuilder(
+    column: $table.channelId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get consecutiveFailures => $composableBuilder(
+    column: $table.consecutiveFailures,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get firstFailureAt => $composableBuilder(
+    column: $table.firstFailureAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get lastCheckedAt => $composableBuilder(
+    column: $table.lastCheckedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get lastSuccessAt => $composableBuilder(
+    column: $table.lastSuccessAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get retired => $composableBuilder(
+    column: $table.retired,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$StreamChecksTableOrderingComposer
+    extends Composer<_$AppDatabase, $StreamChecksTable> {
+  $$StreamChecksTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get streamUrl => $composableBuilder(
+    column: $table.streamUrl,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get providerId => $composableBuilder(
+    column: $table.providerId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get channelId => $composableBuilder(
+    column: $table.channelId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get consecutiveFailures => $composableBuilder(
+    column: $table.consecutiveFailures,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get firstFailureAt => $composableBuilder(
+    column: $table.firstFailureAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get lastCheckedAt => $composableBuilder(
+    column: $table.lastCheckedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get lastSuccessAt => $composableBuilder(
+    column: $table.lastSuccessAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get retired => $composableBuilder(
+    column: $table.retired,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$StreamChecksTableAnnotationComposer
+    extends Composer<_$AppDatabase, $StreamChecksTable> {
+  $$StreamChecksTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get streamUrl =>
+      $composableBuilder(column: $table.streamUrl, builder: (column) => column);
+
+  GeneratedColumn<String> get providerId => $composableBuilder(
+    column: $table.providerId,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get channelId =>
+      $composableBuilder(column: $table.channelId, builder: (column) => column);
+
+  GeneratedColumn<int> get consecutiveFailures => $composableBuilder(
+    column: $table.consecutiveFailures,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<DateTime> get firstFailureAt => $composableBuilder(
+    column: $table.firstFailureAt,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<DateTime> get lastCheckedAt => $composableBuilder(
+    column: $table.lastCheckedAt,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<DateTime> get lastSuccessAt => $composableBuilder(
+    column: $table.lastSuccessAt,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<bool> get retired =>
+      $composableBuilder(column: $table.retired, builder: (column) => column);
+}
+
+class $$StreamChecksTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $StreamChecksTable,
+          StreamCheck,
+          $$StreamChecksTableFilterComposer,
+          $$StreamChecksTableOrderingComposer,
+          $$StreamChecksTableAnnotationComposer,
+          $$StreamChecksTableCreateCompanionBuilder,
+          $$StreamChecksTableUpdateCompanionBuilder,
+          (
+            StreamCheck,
+            BaseReferences<_$AppDatabase, $StreamChecksTable, StreamCheck>,
+          ),
+          StreamCheck,
+          PrefetchHooks Function()
+        > {
+  $$StreamChecksTableTableManager(_$AppDatabase db, $StreamChecksTable table)
+    : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$StreamChecksTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$StreamChecksTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$StreamChecksTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<String> streamUrl = const Value.absent(),
+                Value<String> providerId = const Value.absent(),
+                Value<String> channelId = const Value.absent(),
+                Value<int> consecutiveFailures = const Value.absent(),
+                Value<DateTime?> firstFailureAt = const Value.absent(),
+                Value<DateTime?> lastCheckedAt = const Value.absent(),
+                Value<DateTime?> lastSuccessAt = const Value.absent(),
+                Value<bool> retired = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => StreamChecksCompanion(
+                streamUrl: streamUrl,
+                providerId: providerId,
+                channelId: channelId,
+                consecutiveFailures: consecutiveFailures,
+                firstFailureAt: firstFailureAt,
+                lastCheckedAt: lastCheckedAt,
+                lastSuccessAt: lastSuccessAt,
+                retired: retired,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String streamUrl,
+                required String providerId,
+                required String channelId,
+                Value<int> consecutiveFailures = const Value.absent(),
+                Value<DateTime?> firstFailureAt = const Value.absent(),
+                Value<DateTime?> lastCheckedAt = const Value.absent(),
+                Value<DateTime?> lastSuccessAt = const Value.absent(),
+                Value<bool> retired = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => StreamChecksCompanion.insert(
+                streamUrl: streamUrl,
+                providerId: providerId,
+                channelId: channelId,
+                consecutiveFailures: consecutiveFailures,
+                firstFailureAt: firstFailureAt,
+                lastCheckedAt: lastCheckedAt,
+                lastSuccessAt: lastSuccessAt,
+                retired: retired,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$StreamChecksTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $StreamChecksTable,
+      StreamCheck,
+      $$StreamChecksTableFilterComposer,
+      $$StreamChecksTableOrderingComposer,
+      $$StreamChecksTableAnnotationComposer,
+      $$StreamChecksTableCreateCompanionBuilder,
+      $$StreamChecksTableUpdateCompanionBuilder,
+      (
+        StreamCheck,
+        BaseReferences<_$AppDatabase, $StreamChecksTable, StreamCheck>,
+      ),
+      StreamCheck,
+      PrefetchHooks Function()
+    >;
+typedef $$ProviderOriginsTableCreateCompanionBuilder =
+    ProviderOriginsCompanion Function({
+      required String providerId,
+      required String sourceUrl,
+      Value<String?> githubOwner,
+      Value<String?> githubRepo,
+      Value<String?> githubRef,
+      Value<String?> githubPath,
+      Value<String?> lastVersion,
+      Value<String?> etag,
+      Value<DateTime?> lastCheckedAt,
+      Value<DateTime?> lastChangedAt,
+      Value<int> rowid,
+    });
+typedef $$ProviderOriginsTableUpdateCompanionBuilder =
+    ProviderOriginsCompanion Function({
+      Value<String> providerId,
+      Value<String> sourceUrl,
+      Value<String?> githubOwner,
+      Value<String?> githubRepo,
+      Value<String?> githubRef,
+      Value<String?> githubPath,
+      Value<String?> lastVersion,
+      Value<String?> etag,
+      Value<DateTime?> lastCheckedAt,
+      Value<DateTime?> lastChangedAt,
+      Value<int> rowid,
+    });
+
+class $$ProviderOriginsTableFilterComposer
+    extends Composer<_$AppDatabase, $ProviderOriginsTable> {
+  $$ProviderOriginsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get providerId => $composableBuilder(
+    column: $table.providerId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get sourceUrl => $composableBuilder(
+    column: $table.sourceUrl,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get githubOwner => $composableBuilder(
+    column: $table.githubOwner,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get githubRepo => $composableBuilder(
+    column: $table.githubRepo,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get githubRef => $composableBuilder(
+    column: $table.githubRef,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get githubPath => $composableBuilder(
+    column: $table.githubPath,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get lastVersion => $composableBuilder(
+    column: $table.lastVersion,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get etag => $composableBuilder(
+    column: $table.etag,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get lastCheckedAt => $composableBuilder(
+    column: $table.lastCheckedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get lastChangedAt => $composableBuilder(
+    column: $table.lastChangedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$ProviderOriginsTableOrderingComposer
+    extends Composer<_$AppDatabase, $ProviderOriginsTable> {
+  $$ProviderOriginsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get providerId => $composableBuilder(
+    column: $table.providerId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get sourceUrl => $composableBuilder(
+    column: $table.sourceUrl,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get githubOwner => $composableBuilder(
+    column: $table.githubOwner,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get githubRepo => $composableBuilder(
+    column: $table.githubRepo,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get githubRef => $composableBuilder(
+    column: $table.githubRef,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get githubPath => $composableBuilder(
+    column: $table.githubPath,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get lastVersion => $composableBuilder(
+    column: $table.lastVersion,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get etag => $composableBuilder(
+    column: $table.etag,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get lastCheckedAt => $composableBuilder(
+    column: $table.lastCheckedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get lastChangedAt => $composableBuilder(
+    column: $table.lastChangedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$ProviderOriginsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $ProviderOriginsTable> {
+  $$ProviderOriginsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get providerId => $composableBuilder(
+    column: $table.providerId,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get sourceUrl =>
+      $composableBuilder(column: $table.sourceUrl, builder: (column) => column);
+
+  GeneratedColumn<String> get githubOwner => $composableBuilder(
+    column: $table.githubOwner,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get githubRepo => $composableBuilder(
+    column: $table.githubRepo,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get githubRef =>
+      $composableBuilder(column: $table.githubRef, builder: (column) => column);
+
+  GeneratedColumn<String> get githubPath => $composableBuilder(
+    column: $table.githubPath,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get lastVersion => $composableBuilder(
+    column: $table.lastVersion,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get etag =>
+      $composableBuilder(column: $table.etag, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get lastCheckedAt => $composableBuilder(
+    column: $table.lastCheckedAt,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<DateTime> get lastChangedAt => $composableBuilder(
+    column: $table.lastChangedAt,
+    builder: (column) => column,
+  );
+}
+
+class $$ProviderOriginsTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $ProviderOriginsTable,
+          ProviderOrigin,
+          $$ProviderOriginsTableFilterComposer,
+          $$ProviderOriginsTableOrderingComposer,
+          $$ProviderOriginsTableAnnotationComposer,
+          $$ProviderOriginsTableCreateCompanionBuilder,
+          $$ProviderOriginsTableUpdateCompanionBuilder,
+          (
+            ProviderOrigin,
+            BaseReferences<
+              _$AppDatabase,
+              $ProviderOriginsTable,
+              ProviderOrigin
+            >,
+          ),
+          ProviderOrigin,
+          PrefetchHooks Function()
+        > {
+  $$ProviderOriginsTableTableManager(
+    _$AppDatabase db,
+    $ProviderOriginsTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$ProviderOriginsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$ProviderOriginsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$ProviderOriginsTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<String> providerId = const Value.absent(),
+                Value<String> sourceUrl = const Value.absent(),
+                Value<String?> githubOwner = const Value.absent(),
+                Value<String?> githubRepo = const Value.absent(),
+                Value<String?> githubRef = const Value.absent(),
+                Value<String?> githubPath = const Value.absent(),
+                Value<String?> lastVersion = const Value.absent(),
+                Value<String?> etag = const Value.absent(),
+                Value<DateTime?> lastCheckedAt = const Value.absent(),
+                Value<DateTime?> lastChangedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => ProviderOriginsCompanion(
+                providerId: providerId,
+                sourceUrl: sourceUrl,
+                githubOwner: githubOwner,
+                githubRepo: githubRepo,
+                githubRef: githubRef,
+                githubPath: githubPath,
+                lastVersion: lastVersion,
+                etag: etag,
+                lastCheckedAt: lastCheckedAt,
+                lastChangedAt: lastChangedAt,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String providerId,
+                required String sourceUrl,
+                Value<String?> githubOwner = const Value.absent(),
+                Value<String?> githubRepo = const Value.absent(),
+                Value<String?> githubRef = const Value.absent(),
+                Value<String?> githubPath = const Value.absent(),
+                Value<String?> lastVersion = const Value.absent(),
+                Value<String?> etag = const Value.absent(),
+                Value<DateTime?> lastCheckedAt = const Value.absent(),
+                Value<DateTime?> lastChangedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => ProviderOriginsCompanion.insert(
+                providerId: providerId,
+                sourceUrl: sourceUrl,
+                githubOwner: githubOwner,
+                githubRepo: githubRepo,
+                githubRef: githubRef,
+                githubPath: githubPath,
+                lastVersion: lastVersion,
+                etag: etag,
+                lastCheckedAt: lastCheckedAt,
+                lastChangedAt: lastChangedAt,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$ProviderOriginsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $ProviderOriginsTable,
+      ProviderOrigin,
+      $$ProviderOriginsTableFilterComposer,
+      $$ProviderOriginsTableOrderingComposer,
+      $$ProviderOriginsTableAnnotationComposer,
+      $$ProviderOriginsTableCreateCompanionBuilder,
+      $$ProviderOriginsTableUpdateCompanionBuilder,
+      (
+        ProviderOrigin,
+        BaseReferences<_$AppDatabase, $ProviderOriginsTable, ProviderOrigin>,
+      ),
+      ProviderOrigin,
+      PrefetchHooks Function()
     >;
 typedef $$EpgSourcesTableCreateCompanionBuilder =
     EpgSourcesCompanion Function({
@@ -11173,6 +12962,10 @@ class $AppDatabaseManager {
       $$ProvidersTableTableManager(_db, _db.providers);
   $$ChannelsTableTableManager get channels =>
       $$ChannelsTableTableManager(_db, _db.channels);
+  $$StreamChecksTableTableManager get streamChecks =>
+      $$StreamChecksTableTableManager(_db, _db.streamChecks);
+  $$ProviderOriginsTableTableManager get providerOrigins =>
+      $$ProviderOriginsTableTableManager(_db, _db.providerOrigins);
   $$EpgSourcesTableTableManager get epgSources =>
       $$EpgSourcesTableTableManager(_db, _db.epgSources);
   $$EpgChannelsTableTableManager get epgChannels =>

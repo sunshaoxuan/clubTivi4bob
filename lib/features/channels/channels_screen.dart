@@ -26,7 +26,7 @@ import '../../data/services/source_visibility.dart';
 import '../player/player_service.dart';
 import '../player/stream_info_badges.dart';
 import '../providers/provider_manager.dart';
-import '../providers/default_provider_bootstrap.dart';
+import '../providers/source_maintenance_coordinator.dart';
 import '../shows/shows_providers.dart';
 import 'channel_debug_dialog.dart';
 
@@ -203,12 +203,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
         .select(database.channels)
         .watch()
         .listen((_) => debouncedReload());
-    unawaited(
-      DefaultProviderBootstrap(
-        database: database,
-        manager: ref.read(providerManagerProvider),
-      ).run(),
-    );
+    ref.read(sourceMaintenanceCoordinatorProvider);
     // Refresh now-playing every 60 seconds so the info panel stays current
     _nowPlayingTimer = Timer.periodic(
       const Duration(seconds: 60),

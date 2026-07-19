@@ -22,6 +22,7 @@ import '../../data/datasources/remote/tmdb_client.dart';
 import '../../data/services/epg_refresh_service.dart';
 import '../../data/services/stream_alternatives_service.dart';
 import '../../data/services/channel_name_normalizer.dart';
+import '../../data/services/source_visibility.dart';
 import '../player/player_service.dart';
 import '../player/stream_info_badges.dart';
 import '../providers/provider_manager.dart';
@@ -155,6 +156,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
   // Persistence keys
   static const _kLastChannelId = 'last_channel_id';
   static const _kLastGroup = 'last_group';
+  bool _hideIpv6Sources = false;
 
   @override
   void initState() {
@@ -447,6 +449,8 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
       final favLists = results[1] as List<db.FavoriteList>;
       final favChannelIds = results[2] as Set<String>;
       final prefs = results[3] as SharedPreferences;
+      _hideIpv6Sources =
+          prefs.getBool(SourceVisibility.hideIpv6PreferenceKey) ?? false;
 
       // Vanity names (sync parse from already-loaded prefs)
       final vanityJson = prefs.getString('channel_vanity_names');
@@ -844,6 +848,10 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
       }
     }
 
+    if (_hideIpv6Sources) {
+      channels = channels.where((channel) => !_isIpv6Channel(channel)).toList();
+    }
+
     _filteredChannels = _deduplicateChannels(channels);
     if (_selectedIndex >= _filteredChannels.length) {
       _selectedIndex = -1;
@@ -854,6 +862,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
     final representatives = <String, db.Channel>{};
     final scores = <String, int>{};
     for (final channel in channels) {
+      if (_hideIpv6Sources && _isIpv6Channel(channel)) continue;
       if (_hasInvalidStreamMetadata(channel)) continue;
       final key = _automaticChannelKey(channel);
       if (key.isEmpty) {
@@ -889,6 +898,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
   }
 
   bool _hasCompatibleQuality(db.Channel first, db.Channel second) {
+    if (_hideIpv6Sources && _isIpv6Channel(second)) return false;
     if (_hasInvalidStreamMetadata(second)) return false;
     if (_isUltraHdChannel(first) != _isUltraHdChannel(second)) return false;
     final firstSportsService = _sportsServiceForChannel(first);
@@ -919,10 +929,79 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
         );
   }
 
+  bool _isIpv6Provider(db.Provider provider) {
+    return SourceVisibility.isIpv6Provider(
+      id: provider.id,
+      name: provider.name,
+      url: provider.url,
+    );
+  }
+
+  bool _isIpv6Channel(db.Channel channel) {
+    if (SourceVisibility.isIpv6StreamUrl(channel.streamUrl)) return true;
+    for (final provider in _providers) {
+      if (provider.id == channel.providerId) return _isIpv6Provider(provider);
+    }
+    return channel.providerId.toLowerCase().contains('ipv6');
+  }
+
+  Future<void> _setHideIpv6Sources(bool value) async {
+    if (_hideIpv6Sources == value) return;
+    final previewWasHidden =
+        value && _previewChannel != null && _isIpv6Channel(_previewChannel!);
+    var selectedProviderWasHidden = false;
+    if (value) {
+      for (final provider in _providers) {
+        if (!_isIpv6Provider(provider)) continue;
+        if (_selectedGroup == 'provider:${provider.id}' ||
+            _selectedGroup.startsWith('provgroup:${provider.id}:')) {
+          selectedProviderWasHidden = true;
+          break;
+        }
+      }
+    }
+
+    setState(() {
+      _hideIpv6Sources = value;
+      if (selectedProviderWasHidden) _selectedGroup = 'All';
+      if (previewWasHidden) {
+        _previewChannel = null;
+        _selectedIndex = -1;
+        _previousIndex = -1;
+      }
+      _rebuildAutomaticChannelIndex();
+      _applyFilters();
+    });
+    final playerService = ref.read(playerServiceProvider);
+    if (previewWasHidden) {
+      await playerService.stop();
+    } else {
+      await playerService.updateFailoverAlternatives(
+        _previewChannel == null
+            ? null
+            : _automaticAlternativeUrls(_previewChannel!),
+      );
+    }
+
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(SourceVisibility.hideIpv6PreferenceKey, value);
+    await ref.read(streamAlternativesProvider).rebuild();
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(value ? '已隐藏 IPv6 源' : '已显示 IPv6 源'),
+        duration: const Duration(seconds: 2),
+        behavior: SnackBarBehavior.floating,
+        width: 220,
+      ),
+    );
+  }
+
   void _rebuildAutomaticChannelIndex() {
     _automaticKeyByChannelId.clear();
     _automaticUrlsByKey.clear();
     for (final channel in _allChannels) {
+      if (_hideIpv6Sources && _isIpv6Channel(channel)) continue;
       if (_hasInvalidStreamMetadata(channel)) continue;
       final key = _automaticChannelKey(channel);
       if (key.isEmpty || channel.streamUrl.isEmpty) continue;
@@ -1813,6 +1892,8 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
+                  _buildIpv6SourceToggle(),
+                  const SizedBox(width: 6),
                   // Previous channel toggle button
                   if (_previousIndex >= 0)
                     IconButton(
@@ -1839,6 +1920,70 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
           const Spacer(),
           const WeatherClockWidget(),
         ],
+      ),
+    );
+  }
+
+  Widget _buildIpv6SourceToggle() {
+    final active = _hideIpv6Sources;
+    return Tooltip(
+      message: active ? '点击显示 IPv6 源' : '点击隐藏 IPv6 源',
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(8),
+          onTap: () => unawaited(_setHideIpv6Sources(!active)),
+          child: Container(
+            height: 32,
+            padding: const EdgeInsets.only(left: 9, right: 2),
+            decoration: BoxDecoration(
+              color: active
+                  ? const Color(0xFF6C5CE7).withValues(alpha: 0.24)
+                  : Colors.white.withValues(alpha: 0.07),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(
+                color: active
+                    ? const Color(0xFFA29BFE).withValues(alpha: 0.7)
+                    : Colors.white12,
+              ),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  Icons.language_rounded,
+                  size: 15,
+                  color: active ? const Color(0xFFA29BFE) : Colors.white54,
+                ),
+                const SizedBox(width: 5),
+                Text(
+                  '隐藏 IPv6',
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w500,
+                    color: active ? Colors.white : Colors.white60,
+                  ),
+                ),
+                SizedBox(
+                  width: 38,
+                  child: IgnorePointer(
+                    child: Transform.scale(
+                      scale: 0.65,
+                      child: Switch(
+                        value: active,
+                        onChanged: (_) {},
+                        activeThumbColor: const Color(0xFFA29BFE),
+                        activeTrackColor: const Color(
+                          0xFF6C5CE7,
+                        ).withValues(alpha: 0.75),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }
@@ -2594,6 +2739,9 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
 
   Widget _buildSidebarTree() {
     final q = _sidebarSearchQuery;
+    final visibleProviders = _hideIpv6Sources
+        ? _providers.where((provider) => !_isIpv6Provider(provider)).toList()
+        : _providers;
     final filteredGroups = q.isEmpty
         ? _groups
         : _groups.where((g) => g.toLowerCase().contains(q)).toList();
@@ -2603,8 +2751,10 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
               .where((l) => l.name.toLowerCase().contains(q))
               .toList();
     final filteredProviders = q.isEmpty
-        ? _providers
-        : _providers.where((p) => p.name.toLowerCase().contains(q)).toList();
+        ? visibleProviders
+        : visibleProviders
+              .where((p) => p.name.toLowerCase().contains(q))
+              .toList();
     final showAll = q.isEmpty || 'all'.contains(q);
     final showFavSection =
         q.isEmpty || filteredFavs.isNotEmpty || 'favorites'.contains(q);
@@ -2616,7 +2766,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
       children: [
         if (showAll)
           _buildTreeItem(
-            'All (${_allChannels.length})',
+            'All (${_hideIpv6Sources ? _allChannels.where((channel) => !_isIpv6Channel(channel)).length : _allChannels.length})',
             'All',
             Icons.grid_view_rounded,
             indent: 0,

@@ -7,6 +7,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../datasources/local/database.dart' as db;
 import '../models/channel.dart' hide Provider;
 import 'channel_name_normalizer.dart';
+import 'source_visibility.dart';
 import 'stream_health_tracker.dart';
 import '../../features/providers/provider_manager.dart';
 
@@ -48,6 +49,8 @@ class StreamAlternativesService {
 
   /// All channels cached for fuzzy fallback.
   List<Channel> _allChannels = [];
+  final Set<String> _hiddenProviderIds = {};
+  bool _hideIpv6Sources = false;
 
   StreamAlternativesService(this._db, this._health);
 
@@ -75,16 +78,25 @@ class StreamAlternativesService {
     _nameIndex.clear();
     _callSignIndex.clear();
     _providerNames.clear();
+    _hiddenProviderIds.clear();
 
     final channels = await _db.getAllChannels();
     final mappings = await _db.getAllMappings();
     _allChannels = channels.map(_dbToChannel).toList();
 
-    // Build provider name cache
+    // Build provider name cache and identify IPv6 playlist providers.
+    final ipv6ProviderIds = <String>{};
     try {
       final providers = await _db.getAllProviders();
       for (final p in providers) {
         _providerNames[p.id] = p.name;
+        if (SourceVisibility.isIpv6Provider(
+          id: p.id,
+          name: p.name,
+          url: p.url,
+        )) {
+          ipv6ProviderIds.add(p.id);
+        }
       }
     } catch (_) {}
 
@@ -92,6 +104,9 @@ class StreamAlternativesService {
     Map<String, String> vanityNames = {};
     try {
       final prefs = await SharedPreferences.getInstance();
+      _hideIpv6Sources =
+          prefs.getBool(SourceVisibility.hideIpv6PreferenceKey) ?? false;
+      if (_hideIpv6Sources) _hiddenProviderIds.addAll(ipv6ProviderIds);
       final vanityJson = prefs.getString('channel_vanity_names');
       if (vanityJson != null) {
         final decoded = jsonDecode(vanityJson) as Map<String, dynamic>;
@@ -107,6 +122,7 @@ class StreamAlternativesService {
 
     for (final ch in _allChannels) {
       if (ch.streamUrl.isEmpty) continue;
+      if (_shouldHideChannel(ch)) continue;
       if (_hasInvalidStreamMetadata(ch)) continue;
 
       // 1. Vanity name index (user-confirmed grouping — highest trust)
@@ -196,6 +212,7 @@ class StreamAlternativesService {
         ChannelNameNormalizer.isUltraHd(tvgId ?? '');
 
     bool isCompatible(Channel channel) {
+      if (_shouldHideChannel(channel)) return false;
       if (_hasInvalidStreamMetadata(channel)) return false;
       if (_isUltraHdChannel(channel) != requestedUltraHd) return false;
       if (requestedSportsService == null) return true;
@@ -312,6 +329,7 @@ class StreamAlternativesService {
       return channels
           .where(
             (channel) =>
+                !_shouldHideChannel(channel) &&
                 !_hasInvalidStreamMetadata(channel) &&
                 _isUltraHdChannel(channel) == requestedUltraHd &&
                 (requestedSportsService == null ||
@@ -365,6 +383,7 @@ class StreamAlternativesService {
         ChannelNameNormalizer.isUltraHd(tvgId ?? '');
 
     bool isCompatible(Channel channel) {
+      if (_shouldHideChannel(channel)) return false;
       if (_hasInvalidStreamMetadata(channel)) return false;
       if (_isUltraHdChannel(channel) != requestedUltraHd) return false;
       if (requestedSportsService == null) return true;
@@ -522,6 +541,12 @@ class StreamAlternativesService {
           names: names,
           streamUrl: channel.streamUrl,
         );
+  }
+
+  bool _shouldHideChannel(Channel channel) {
+    if (!_hideIpv6Sources) return false;
+    return _hiddenProviderIds.contains(channel.providerId) ||
+        SourceVisibility.isIpv6StreamUrl(channel.streamUrl);
   }
 
   Channel _dbToChannel(db.Channel c) => Channel(

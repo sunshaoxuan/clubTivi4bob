@@ -144,6 +144,13 @@ class PlayerService {
     _healthTracker = health;
   }
 
+  /// Replaces screen-supplied alternatives after a source visibility filter
+  /// changes and drops any route that was already warming in the background.
+  Future<void> updateFailoverAlternatives(List<String>? urls) async {
+    _failoverGroupUrls = urls;
+    await _disposeWarmPlayer();
+  }
+
   // Failover group override: manual alternatives from user-created groups
   List<String>? _failoverGroupUrls;
 

@@ -1,6 +1,7 @@
 import 'package:clubtivi/data/datasources/local/database.dart' as db;
 import 'package:clubtivi/data/services/stream_alternatives_service.dart';
 import 'package:clubtivi/data/services/stream_health_tracker.dart';
+import 'package:clubtivi/data/services/source_visibility.dart';
 import 'package:drift/drift.dart';
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -116,6 +117,66 @@ void main() {
       expect(
         ultraHdAlternatives,
         isNot(contains('https://example.com/cctv5-alt.m3u8')),
+      );
+    },
+  );
+
+  test(
+    'removes IPv6 providers from automatic alternatives when hidden',
+    () async {
+      await database.upsertProvider(
+        db.ProvidersCompanion.insert(
+          id: 'source-ipv4',
+          name: 'IPv4 source',
+          type: 'm3u',
+        ),
+      );
+      await database.upsertProvider(
+        db.ProvidersCompanion.insert(
+          id: 'source-ipv6',
+          name: '混合线路',
+          type: 'm3u',
+        ),
+      );
+      await database.upsertChannels([
+        db.ChannelsCompanion.insert(
+          id: 'main',
+          providerId: 'source-ipv4',
+          name: '湖南卫视',
+          streamUrl: 'https://example.com/ipv4.m3u8',
+        ),
+        db.ChannelsCompanion.insert(
+          id: 'ipv6-alt',
+          providerId: 'source-ipv6',
+          name: '湖南卫视',
+          streamUrl: 'https://example.com/ipv6.m3u8',
+        ),
+      ]);
+
+      final service = StreamAlternativesService(
+        database,
+        StreamHealthTracker(),
+      );
+      await service.rebuild();
+      expect(
+        service.getAlternatives(
+          channelId: 'main',
+          channelName: '湖南卫视',
+          excludeUrl: 'https://example.com/ipv4.m3u8',
+        ),
+        contains('https://example.com/ipv6.m3u8'),
+      );
+
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool(SourceVisibility.hideIpv6PreferenceKey, true);
+      await service.rebuild();
+      expect(
+        service.getAlternatives(
+          channelId: 'main',
+          channelName: '湖南卫视',
+          excludeUrl: 'https://example.com/ipv4.m3u8',
+        ),
+        isNot(contains('https://example.com/ipv6.m3u8')),
       );
     },
   );

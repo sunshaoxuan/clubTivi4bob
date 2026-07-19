@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/app_diagnostics.dart';
+import '../../data/services/bundled_source_snapshot_service.dart';
 import '../../data/services/github_source_monitor.dart';
 import '../../data/services/github_ai_crawler_service.dart';
 import '../../data/services/source_maintenance_service.dart';
@@ -14,6 +15,7 @@ class SourceMaintenanceCoordinator {
   final GitHubSourceMonitor githubMonitor;
   final SourceMaintenanceService maintenanceService;
   final GitHubAiCrawlerService githubAiCrawler;
+  final BundledSourceSnapshotService bundledSourceSnapshot;
 
   Timer? _timer;
   bool _running = false;
@@ -23,6 +25,7 @@ class SourceMaintenanceCoordinator {
     required this.githubMonitor,
     required this.maintenanceService,
     required this.githubAiCrawler,
+    required this.bundledSourceSnapshot,
   });
 
   void start() {
@@ -46,6 +49,15 @@ class SourceMaintenanceCoordinator {
         database: database,
         manager: manager,
       ).run();
+      try {
+        await bundledSourceSnapshot.run();
+      } catch (error, stackTrace) {
+        AppDiagnostics.instance.recordError(
+          'bundled_source_snapshot',
+          error,
+          stackTrace,
+        );
+      }
       await maintenanceService.run();
       await githubAiCrawler.run();
     } catch (error, stackTrace) {
@@ -75,6 +87,7 @@ final sourceMaintenanceCoordinatorProvider =
         githubMonitor: GitHubSourceMonitor(database: database),
         maintenanceService: SourceMaintenanceService(database: database),
         githubAiCrawler: GitHubAiCrawlerService(database: database),
+        bundledSourceSnapshot: BundledSourceSnapshotService(database: database),
       );
       coordinator.start();
       ref.onDispose(coordinator.dispose);

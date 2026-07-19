@@ -12,6 +12,42 @@ import 'package:shared_preferences/shared_preferences.dart';
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
+  test('bundled snapshot contains unique CCTV5 4K discovery routes', () {
+    const expectedUrls = <String>{
+      'http://[2409:8087:2001:20:2800:0:df6e:eb22]/ott.mobaibox.com/PLTV/4/224/3221228502/index.m3u8',
+      'http://ott.mobaibox.com/PLTV/4/224/3221228502/index.m3u8',
+      'http://148.135.93.213:81/live.php?id=CCTV5-4K',
+      'http://119.98.177.131:4000/rtp/239.69.1.12:9712',
+      'http://171.80.228.240:4000/rtp/239.69.1.12:9712',
+      'http://27.19.213.7:4022/rtp/239.69.1.12:9712',
+      'http://27.25.77.223:4000/rtp/239.69.1.12:9712',
+      'http://59.173.122.26:10001/rtp/239.69.1.12:9712',
+      'http://59.173.123.163:19999/rtp/239.69.1.12:9712',
+      'http://cqshushu.us.kg:2086/公众号【医工学习日志】/jiangsu.php?id=cctv5avs',
+    };
+    final decoded =
+        jsonDecode(
+              utf8.decode(
+                gzip.decode(
+                  File(
+                    BundledSourceSnapshotService.assetPath,
+                  ).readAsBytesSync(),
+                ),
+              ),
+            )
+            as Map<String, dynamic>;
+    final channels = (decoded['channels'] as List).cast<Map>();
+    final found = channels
+        .where((channel) => expectedUrls.contains(channel['streamUrl']))
+        .toList();
+
+    expect(found, hasLength(expectedUrls.length));
+    expect(found.map((channel) => channel['streamUrl']).toSet(), expectedUrls);
+    expect(found.map((channel) => channel['name']).toSet(), {'CCTV5 4K'});
+    expect(found.map((channel) => channel['tvgId']).toSet(), {'CCTV5'});
+    expect(found.map((channel) => channel['confidence']).toSet(), {0.25});
+  });
+
   test('bundled source snapshot imports once with public provenance', () async {
     SharedPreferences.setMockInitialValues({});
     final database = db.AppDatabase.forTesting(NativeDatabase.memory());

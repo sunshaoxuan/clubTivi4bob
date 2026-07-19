@@ -2,8 +2,8 @@ import 'dart:convert';
 import 'dart:io';
 
 const _assetPath = 'assets/data/github_ai_snapshot.json.gz';
-const _generatedAt = '2026-07-19T15:33:27Z';
-const _snapshotId = 'hotel-tv-20260719T153327Z';
+const _generatedAt = '2026-07-19T15:38:33Z';
+const _snapshotId = 'hotel-tv-20260719T153833Z';
 
 const _sources = <Map<String, Object?>>[
   {
@@ -130,7 +130,7 @@ void main() {
       'tvgId': 'CCTV5',
       'tvgName': name,
       'tvgLogo': 'https://live.fanmingming.com/tv/CCTV5.png',
-      'groupTitle': 'CCTV5 4K',
+      'groupTitle': '央视频道',
       'channelNumber': null,
       'confidence': 0.25,
     };

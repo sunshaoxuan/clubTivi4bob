@@ -45,7 +45,7 @@ void main() {
     expect(found.map((channel) => channel['streamUrl']).toSet(), expectedUrls);
     expect(found.map((channel) => channel['name']).toSet(), {'CCTV5 4K'});
     expect(found.map((channel) => channel['tvgId']).toSet(), {'CCTV5'});
-    expect(found.map((channel) => channel['groupTitle']).toSet(), {'CCTV5 4K'});
+    expect(found.map((channel) => channel['groupTitle']).toSet(), {'央视频道'});
     expect(found.map((channel) => channel['confidence']).toSet(), {0.25});
   });
 

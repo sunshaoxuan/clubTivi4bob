@@ -19,6 +19,7 @@ import '../../core/platform_info.dart';
 import '../../core/weather_clock_widget.dart';
 import '../../data/datasources/local/database.dart' as db;
 import '../../data/datasources/remote/tmdb_client.dart';
+import '../../data/services/channel_category_classifier.dart';
 import '../../data/services/epg_refresh_service.dart';
 import '../../data/services/stream_alternatives_service.dart';
 import '../../data/services/channel_name_normalizer.dart';
@@ -45,7 +46,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
   List<db.Channel> _filteredChannels = [];
   final Map<String, String> _automaticKeyByChannelId = {};
   final Map<String, List<String>> _automaticUrlsByKey = {};
-  List<String> _groups = [];
+  List<String> _groups = List.of(ChannelCategoryClassifier.categories);
   String _selectedGroup = 'All';
   String _searchQuery = '';
   // _showSearch removed — search bar is always visible in the top navbar
@@ -491,9 +492,6 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
       ]);
       final pGroups = bgResults[0] as Map<String, List<String>>;
       final foGroups = bgResults[1] as List<db.FailoverGroup>;
-      final allGroupNames = <String>{};
-      for (final gl in pGroups.values) allGroupNames.addAll(gl);
-
       final foGroupMembers = <int, List<String>>{};
       for (final g in foGroups) {
         final members = await database.getFailoverGroupMembers(g.id);
@@ -504,7 +502,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
       if (!mounted) return;
       setState(() {
         _providerGroups = pGroups;
-        _groups = allGroupNames.toList()..sort();
+        _groups = List.of(ChannelCategoryClassifier.categories);
         _failoverGroups = foGroups;
         _failoverGroupMembers = foGroupMembers;
         _failoverGroupIndex = foGroupIndex;
@@ -820,7 +818,15 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
         }
       } else if (_selectedGroup != 'All') {
         channels = channels
-            .where((c) => c.groupTitle == _selectedGroup)
+            .where(
+              (c) =>
+                  ChannelCategoryClassifier.classify(
+                    name: c.name,
+                    groupTitle: c.groupTitle,
+                    tvgId: c.tvgId,
+                  ) ==
+                  _selectedGroup,
+            )
             .toList();
       }
     }
@@ -2619,14 +2625,14 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
     return ListView(
       padding: const EdgeInsets.symmetric(vertical: 4),
       children: [
-        _sidebarIcon(Icons.grid_view_rounded, 'All', isAll, () {
+        _sidebarIcon(Icons.grid_view_rounded, '全部频道', isAll, () {
           _selectGroupAndPlayFirst('All');
         }),
-        _sidebarIcon(Icons.star_rounded, 'Favorites', isFav, () {
+        _sidebarIcon(Icons.star_rounded, '收藏', isFav, () {
           _selectGroupAndPlayFirst('Favorites');
         }),
         const Divider(height: 1, color: Colors.white10),
-        _sidebarIcon(Icons.folder_rounded, 'Groups', !isAll && !isFav, () {
+        _sidebarIcon(Icons.folder_rounded, '分类', !isAll && !isFav, () {
           setState(() => _sidebarExpanded = true);
         }),
       ],
@@ -2732,6 +2738,18 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
     );
   }
 
+  Widget _buildSidebarSectionLabel(String label) => Padding(
+    padding: const EdgeInsets.fromLTRB(12, 10, 12, 4),
+    child: Text(
+      label,
+      style: const TextStyle(
+        color: Colors.white38,
+        fontSize: 11,
+        fontWeight: FontWeight.w600,
+      ),
+    ),
+  );
+
   Widget _buildSidebarTree() {
     final q = _sidebarSearchQuery;
     final visibleProviders = _hideIpv6Sources
@@ -2750,28 +2768,28 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
         : visibleProviders
               .where((p) => p.name.toLowerCase().contains(q))
               .toList();
-    final showAll = q.isEmpty || 'all'.contains(q);
+    final showAll = q.isEmpty || 'all 全部频道'.contains(q);
     final showFavSection =
-        q.isEmpty || filteredFavs.isNotEmpty || 'favorites'.contains(q);
+        q.isEmpty || filteredFavs.isNotEmpty || 'favorites 收藏'.contains(q);
     final showProvSection =
-        q.isEmpty || filteredProviders.isNotEmpty || 'providers'.contains(q);
+        q.isEmpty || filteredProviders.isNotEmpty || 'providers 来源'.contains(q);
 
     return ListView(
       padding: const EdgeInsets.symmetric(vertical: 4),
       children: [
         if (showAll)
           _buildTreeItem(
-            'All (${_hideIpv6Sources ? _allChannels.where((channel) => !_isIpv6Channel(channel)).length : _allChannels.length})',
+            '全部频道 (${_hideIpv6Sources ? _allChannels.where((channel) => !_isIpv6Channel(channel)).length : _allChannels.length})',
             'All',
             Icons.grid_view_rounded,
             indent: 0,
             focusNode: _sidebarAllItemFocusNode,
           ),
         if (showFavSection)
-          _buildTreeSection('favorites', Icons.star_rounded, 'Favorites', [
-            if (q.isEmpty || 'favorites'.contains(q))
+          _buildTreeSection('favorites', Icons.star_rounded, '收藏', [
+            if (q.isEmpty || 'favorites 收藏'.contains(q))
               _buildTreeItem(
-                'All Favorites',
+                '全部收藏',
                 'Favorites',
                 Icons.star_rounded,
                 indent: 1,
@@ -2786,7 +2804,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
               ),
             if (q.isEmpty)
               _buildTreeAction(
-                'New List…',
+                '新建收藏夹…',
                 Icons.add_rounded,
                 () => _showManageFavoritesDialog(),
                 indent: 1,
@@ -2794,14 +2812,16 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
           ]),
         if (showFavSection || showProvSection)
           const Divider(height: 1, color: Colors.white10),
+        if (showProvSection) _buildSidebarSectionLabel('按来源'),
         if (showProvSection) ..._buildProviderTrees(filteredProviders, q),
         if (showProvSection || filteredGroups.isNotEmpty)
           const Divider(height: 1, color: Colors.white10),
+        if (filteredGroups.isNotEmpty) _buildSidebarSectionLabel('按内容分类'),
         if (filteredGroups.isNotEmpty)
           _buildTreeSection(
             'groups',
             Icons.folder_rounded,
-            'Groups (${filteredGroups.length})',
+            '频道分类 (${filteredGroups.length})',
             [
               for (final group in filteredGroups)
                 _buildTreeItem(group, group, null, indent: 1),
@@ -2809,28 +2829,23 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
           ),
         // Shows & Movies
         const Divider(height: 1, color: Colors.white10),
-        _buildTreeItem(
-          'Shows & Movies',
-          'action:shows',
-          Icons.movie_rounded,
-          indent: 0,
-        ),
+        _buildTreeItem('影视资料', 'action:shows', Icons.movie_rounded, indent: 0),
         // Quick actions
         const Divider(height: 1, color: Colors.white10),
         _buildTreeItem(
-          'Recordings',
+          '录像',
           'action:recordings',
           Icons.videocam_rounded,
           indent: 0,
         ),
         _buildTreeItem(
-          'Play File',
+          '打开文件',
           'action:play_file',
           Icons.play_circle_outline_rounded,
           indent: 0,
         ),
         _buildTreeItem(
-          'Play URL',
+          '播放网址',
           'action:play_url',
           Icons.link_rounded,
           indent: 0,

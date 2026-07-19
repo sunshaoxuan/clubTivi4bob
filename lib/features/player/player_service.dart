@@ -7,6 +7,7 @@ import 'package:media_kit/media_kit.dart';
 import 'package:media_kit/src/player/native/player/real.dart' as native_player;
 import 'package:media_kit_video/media_kit_video.dart';
 
+import '../../core/app_diagnostics.dart';
 import 'adaptive_buffer.dart';
 import 'playback_stall_detector.dart';
 import 'stream_proxy.dart';
@@ -24,6 +25,9 @@ class PlayerService {
   bool _isBuffering = false;
   DateTime? _bufferStartTime;
   StreamSubscription<Tracks>? _tracksSub;
+  StreamSubscription<String>? _playbackErrorLogSub;
+  StreamSubscription<bool>? _playingLogSub;
+  DateTime? _bufferLogStart;
 
   // Buffer health tracking (persists across info dialog opens)
   final List<bool> bufferHistory = List.filled(60, false, growable: true);
@@ -91,6 +95,24 @@ class PlayerService {
         ),
       );
       _initPlayer(_player!);
+      _playbackErrorLogSub = _player!.stream.error.listen((message) {
+        AppDiagnostics.instance.log('player_error', {
+          'message': message,
+          'channel': _currentChannelName,
+          'stream': _currentUrl == null
+              ? null
+              : AppDiagnostics.summarizeStreamUrl(_currentUrl!),
+        });
+      });
+      _playingLogSub = _player!.stream.playing.distinct().listen((playing) {
+        AppDiagnostics.instance.log('playing_changed', {
+          'playing': playing,
+          'channel': _currentChannelName,
+        });
+      });
+      AppDiagnostics.instance.log('player_created', {
+        'bufferSizeBytes': 96 * 1024 * 1024,
+      });
     }
     return _player!;
   }
@@ -119,6 +141,7 @@ class PlayerService {
     await p.setVolume(100);
     _playerReady = true;
     _playerReadyCompleter.complete();
+    AppDiagnostics.instance.log('player_ready');
   }
 
   /// Wait for player properties to be applied before playback.
@@ -182,6 +205,16 @@ class PlayerService {
         ChannelNameNormalizer.isUltraHd(originalName ?? '') ||
         ChannelNameNormalizer.isUltraHd(tvgId ?? '');
     _failoverGroupUrls = failoverGroupUrls;
+    AppDiagnostics.instance.updatePlaybackContext(
+      channelName: channelName,
+      streamUrl: url,
+    );
+    AppDiagnostics.instance.log('play_requested', {
+      'channel': channelName,
+      'stream': AppDiagnostics.summarizeStreamUrl(url),
+      'alternativeCount': failoverGroupUrls?.length ?? 0,
+      'requiresUltraHd': _requiresUltraHd,
+    });
     _qualityCheckTimer?.cancel();
     await _tracksSub?.cancel();
     _failoverCheckTimer?.cancel();
@@ -194,6 +227,15 @@ class PlayerService {
     if (playGeneration != _playGeneration) return;
     var activeUrl = selectedUrl;
     _currentUrl = activeUrl;
+    AppDiagnostics.instance.updatePlaybackContext(
+      channelName: channelName,
+      streamUrl: activeUrl,
+    );
+    AppDiagnostics.instance.log('stream_selected', {
+      'channel': channelName,
+      'stream': AppDiagnostics.summarizeStreamUrl(activeUrl),
+      'changedFromRequested': selectedUrl != url,
+    });
     await player.open(Media(activeUrl));
     await _bufferManager.applyForStream(activeUrl, this);
     await player.setVolume(100.0);
@@ -209,6 +251,15 @@ class PlayerService {
         _healthTracker?.recordStall(selectedUrl);
         activeUrl = url;
         _currentUrl = activeUrl;
+        AppDiagnostics.instance.updatePlaybackContext(
+          channelName: channelName,
+          streamUrl: activeUrl,
+        );
+        AppDiagnostics.instance.log('selected_stream_rejected', {
+          'channel': channelName,
+          'rejectedStream': AppDiagnostics.summarizeStreamUrl(selectedUrl),
+          'restoredStream': AppDiagnostics.summarizeStreamUrl(activeUrl),
+        });
         await player.open(Media(activeUrl));
         await _bufferManager.applyForStream(activeUrl, this);
         await player.setVolume(100.0);
@@ -529,6 +580,10 @@ class PlayerService {
     _bufferManager.stop();
     _qualityCheckTimer?.cancel();
     await player.stop();
+    AppDiagnostics.instance.log('playback_stopped', {
+      'channel': _currentChannelName,
+    });
+    AppDiagnostics.instance.updatePlaybackContext();
   }
 
   /// Pause playback.
@@ -569,9 +624,25 @@ class PlayerService {
     if (buffering && !_isBuffering) {
       _isBuffering = true;
       _bufferStartTime = DateTime.now();
+      _bufferLogStart = _bufferStartTime;
+      AppDiagnostics.instance.log('buffering_started', {
+        'channel': _currentChannelName,
+        'stream': _currentUrl == null
+            ? null
+            : AppDiagnostics.summarizeStreamUrl(_currentUrl!),
+      });
     } else if (!buffering) {
+      if (_isBuffering) {
+        AppDiagnostics.instance.log('buffering_ended', {
+          'channel': _currentChannelName,
+          'durationMs': _bufferLogStart == null
+              ? null
+              : DateTime.now().difference(_bufferLogStart!).inMilliseconds,
+        });
+      }
       _isBuffering = false;
       _bufferStartTime = null;
+      _bufferLogStart = null;
     }
   }
 
@@ -824,6 +895,10 @@ class PlayerService {
     }
 
     _autoFailoverInProgress = true;
+    AppDiagnostics.instance.log('failover_started', {
+      'channel': _currentChannelName,
+      'stream': AppDiagnostics.summarizeStreamUrl(_currentUrl!),
+    });
     try {
       final playGeneration = _playGeneration;
       final previousUrl = _currentUrl!;
@@ -858,6 +933,19 @@ class PlayerService {
         _currentUrlController.add(switchedUrl);
         lastFailoverChannelId = _alternatives?.channelIdForUrl(switchedUrl);
         onFailover?.call('已自动切换到更稳定线路');
+        AppDiagnostics.instance.updatePlaybackContext(
+          channelName: _currentChannelName,
+          streamUrl: switchedUrl,
+        );
+        AppDiagnostics.instance.log('failover_succeeded', {
+          'channel': _currentChannelName,
+          'stream': AppDiagnostics.summarizeStreamUrl(switchedUrl),
+        });
+      } else {
+        AppDiagnostics.instance.log('failover_exhausted', {
+          'channel': _currentChannelName,
+          'candidateCount': candidates.length,
+        });
       }
     } finally {
       _autoFailoverInProgress = false;
@@ -887,6 +975,11 @@ class PlayerService {
       }
     } catch (error) {
       debugPrint('[Failover] Candidate failed: $error');
+      AppDiagnostics.instance.log('failover_candidate_error', {
+        'channel': _currentChannelName,
+        'stream': AppDiagnostics.summarizeStreamUrl(candidateUrl),
+        'error': error.toString(),
+      });
     }
 
     if (playGeneration != _playGeneration) return false;
@@ -901,14 +994,24 @@ class PlayerService {
       _scheduleAudioCheck(previousUrl);
     } catch (error) {
       debugPrint('[Failover] Previous stream restore failed: $error');
+      AppDiagnostics.instance.log('failover_restore_error', {
+        'channel': _currentChannelName,
+        'stream': AppDiagnostics.summarizeStreamUrl(previousUrl),
+        'error': error.toString(),
+      });
     }
     return false;
   }
 
   Future<void> dispose() async {
+    AppDiagnostics.instance.log('player_disposing', {
+      'channel': _currentChannelName,
+    });
     _bufferManager.stop();
     _qualityCheckTimer?.cancel();
     await _tracksSub?.cancel();
+    await _playbackErrorLogSub?.cancel();
+    await _playingLogSub?.cancel();
     await _bufferTrackSub?.cancel();
     _bufferTrackTimer?.cancel();
     _failoverCheckTimer?.cancel();

@@ -1,8 +1,32 @@
 #include "flutter_window.h"
 
+#include <commctrl.h>
+
 #include <optional>
 
 #include "flutter/generated_plugin_registrant.h"
+
+namespace {
+
+constexpr UINT_PTR kFlutterViewSubclassId = 1;
+
+LRESULT CALLBACK FlutterViewSubclassProc(HWND hwnd,
+                                         UINT message,
+                                         WPARAM wparam,
+                                         LPARAM lparam,
+                                         UINT_PTR subclass_id,
+                                         DWORD_PTR reference_data) {
+  // This application is a mouse-operated television endpoint. Windows UI
+  // Automation activates Flutter's semantics bridge, whose node-reparenting
+  // path can dereference a missing parent and terminate the process. Returning
+  // no accessibility object keeps the unstable bridge disabled on this kiosk.
+  if (message == WM_GETOBJECT) {
+    return 0;
+  }
+  return DefSubclassProc(hwnd, message, wparam, lparam);
+}
+
+}  // namespace
 
 FlutterWindow::FlutterWindow(const flutter::DartProject& project)
     : project_(project) {}
@@ -25,7 +49,10 @@ bool FlutterWindow::OnCreate() {
     return false;
   }
   RegisterPlugins(flutter_controller_->engine());
-  SetChildContent(flutter_controller_->view()->GetNativeWindow());
+  HWND flutter_view = flutter_controller_->view()->GetNativeWindow();
+  SetWindowSubclass(flutter_view, FlutterViewSubclassProc,
+                    kFlutterViewSubclassId, 0);
+  SetChildContent(flutter_view);
 
   flutter_controller_->engine()->SetNextFrameCallback([&]() {
     this->Show();
@@ -41,6 +68,8 @@ bool FlutterWindow::OnCreate() {
 
 void FlutterWindow::OnDestroy() {
   if (flutter_controller_) {
+    RemoveWindowSubclass(flutter_controller_->view()->GetNativeWindow(),
+                         FlutterViewSubclassProc, kFlutterViewSubclassId);
     flutter_controller_ = nullptr;
   }
 

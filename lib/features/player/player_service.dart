@@ -69,6 +69,7 @@ class PlayerService {
   final Set<String> _failedFailoverUrls = {};
   bool _requiresUltraHd = false;
   Timer? _qualityCheckTimer;
+  Timer? _videoCheckTimer;
 
   /// Broadcast current stream URL changes (for UI like failover dialog).
   final _currentUrlController = StreamController<String?>.broadcast();
@@ -216,6 +217,7 @@ class PlayerService {
       'requiresUltraHd': _requiresUltraHd,
     });
     _qualityCheckTimer?.cancel();
+    _videoCheckTimer?.cancel();
     final tracksSub = _tracksSub;
     _tracksSub = null;
     await _runPlayStep(
@@ -251,6 +253,14 @@ class PlayerService {
       timeout: const Duration(seconds: 4),
     );
     if (!ready) return;
+    await _runPlayStep(
+      _enableVideoOutput(),
+      generation: playGeneration,
+      step: 'enable_video_output',
+      timeout: const Duration(seconds: 1),
+      continueOnError: true,
+    );
+    if (playGeneration != _playGeneration) return;
 
     final selectedUrl = await _selectFastestStream(url);
     if (playGeneration != _playGeneration) return;
@@ -338,6 +348,7 @@ class PlayerService {
     // Check for missing audio after a brief delay and retry through
     // ffmpeg proxy if needed (fixes EAC-3 with non-standard codec tags)
     _scheduleAudioCheck(activeUrl);
+    _scheduleVideoCheck(activeUrl, playGeneration);
 
     // Reset and start buffer tracking for the new stream
     bufferHistory.fillRange(0, 60, false);
@@ -392,8 +403,12 @@ class PlayerService {
       final hasVideo = tracks.video.any(
         (track) => track.id != 'auto' && track.id != 'no',
       );
-      final hasAudio = tracks.audio.any(
-        (track) => track.id != 'auto' && track.id != 'no',
+      final width = player.state.width ?? 0;
+      final height = player.state.height ?? 0;
+      final hasUsableVideo = isUsableTelevisionVideo(
+        hasVideoTrack: hasVideo,
+        width: width,
+        height: height,
       );
       final rawCache = await getMpvProperty('demuxer-cache-duration');
       final cacheSeconds = double.tryParse(rawCache ?? '') ?? 0.0;
@@ -407,7 +422,7 @@ class PlayerService {
       final settled = sawBuffering || stopwatch.elapsedMilliseconds >= 900;
       if (settled &&
           !buffering &&
-          (hasVideo || hasAudio) &&
+          hasUsableVideo &&
           (cacheSeconds >= 0.15 || positionAdvanced)) {
         if (_requiresUltraHd && hasVideo && _hasKnownSubUltraHdResolution()) {
           debugPrint(
@@ -421,6 +436,90 @@ class PlayerService {
       await Future<void>.delayed(const Duration(milliseconds: 250));
     }
     return false;
+  }
+
+  @visibleForTesting
+  static bool isUsableTelevisionVideo({
+    required bool hasVideoTrack,
+    required int width,
+    required int height,
+  }) {
+    return hasVideoTrack && width > 0 && height > 0;
+  }
+
+  Future<void> _enableVideoOutput({bool reload = false}) async {
+    final np = player.platform;
+    if (np is! native_player.NativePlayer) return;
+    await np.setProperty('vid', 'auto');
+    if (reload) {
+      try {
+        await np.command(['video-reload']);
+      } catch (_) {}
+    }
+  }
+
+  void _scheduleVideoCheck(
+    String expectedUrl,
+    int playGeneration, {
+    int attempt = 0,
+  }) {
+    _videoCheckTimer?.cancel();
+    _videoCheckTimer = Timer(Duration(seconds: attempt == 0 ? 4 : 2), () async {
+      if (playGeneration != _playGeneration || _currentUrl != expectedUrl) {
+        return;
+      }
+      final tracks = player.state.tracks;
+      final hasVideoTrack = tracks.video.any(
+        (track) => track.id != 'auto' && track.id != 'no',
+      );
+      final width = player.state.width ?? 0;
+      final height = player.state.height ?? 0;
+      if (isUsableTelevisionVideo(
+        hasVideoTrack: hasVideoTrack,
+        width: width,
+        height: height,
+      )) {
+        AppDiagnostics.instance.log('video_ready', {
+          'channel': _currentChannelName,
+          'width': width,
+          'height': height,
+        });
+        return;
+      }
+
+      if (attempt == 0) {
+        try {
+          await _enableVideoOutput(
+            reload: true,
+          ).timeout(const Duration(seconds: 1), onTimeout: () {});
+        } catch (error) {
+          AppDiagnostics.instance.log('video_reload_failed', {
+            'channel': _currentChannelName,
+            'error': error.toString(),
+          });
+        }
+      }
+      if (attempt < 2) {
+        _scheduleVideoCheck(expectedUrl, playGeneration, attempt: attempt + 1);
+        return;
+      }
+
+      final hasAudioTrack = tracks.audio.any(
+        (track) => track.id != 'auto' && track.id != 'no',
+      );
+      AppDiagnostics.instance.log('video_missing', {
+        'channel': _currentChannelName,
+        'stream': AppDiagnostics.summarizeStreamUrl(expectedUrl),
+        'hasVideoTrack': hasVideoTrack,
+        'hasAudioTrack': hasAudioTrack,
+        'width': width,
+        'height': height,
+      });
+      _failedFailoverUrls.add(expectedUrl);
+      _healthTracker?.recordProbeFailure(expectedUrl);
+      onFailover?.call('当前线路只有声音，正在切换有画面的线路');
+      await _autoFailover();
+    });
   }
 
   bool _hasKnownSubUltraHdResolution() {
@@ -658,6 +757,7 @@ class PlayerService {
     }
     _proxyActive = true;
     debugPrint('[Player] Switching to proxied stream: $proxyUrl');
+    await _enableVideoOutput();
     await player.open(Media(proxyUrl));
     await _bufferManager.applyForStream(originalUrl, this);
     await player.setVolume(100.0);
@@ -675,6 +775,7 @@ class PlayerService {
   Future<void> stop() async {
     _bufferManager.stop();
     _qualityCheckTimer?.cancel();
+    _videoCheckTimer?.cancel();
     await player.stop();
     AppDiagnostics.instance.log('playback_stopped', {
       'channel': _currentChannelName,
@@ -1064,6 +1165,7 @@ class PlayerService {
       _currentUrl = candidateUrl;
       _proxyActive = false;
       await _streamProxy.stop();
+      await _enableVideoOutput();
       await player.open(Media(candidateUrl));
       await _bufferManager.applyForStream(candidateUrl, this);
       await player.setVolume(100.0);
@@ -1072,6 +1174,7 @@ class PlayerService {
       if (playGeneration != _playGeneration) return false;
       if (ready) {
         _scheduleAudioCheck(candidateUrl);
+        _scheduleVideoCheck(candidateUrl, playGeneration);
         _scheduleQualityCheck(candidateUrl, playGeneration);
         return true;
       }
@@ -1090,10 +1193,12 @@ class PlayerService {
     debugPrint('[Failover] Restoring previous stream: $previousUrl');
     _currentUrl = previousUrl;
     try {
+      await _enableVideoOutput();
       await player.open(Media(previousUrl));
       await _bufferManager.applyForStream(previousUrl, this);
       await player.setVolume(100.0);
       _scheduleAudioCheck(previousUrl);
+      _scheduleVideoCheck(previousUrl, playGeneration);
     } catch (error) {
       debugPrint('[Failover] Previous stream restore failed: $error');
       AppDiagnostics.instance.log('failover_restore_error', {
@@ -1111,6 +1216,7 @@ class PlayerService {
     });
     _bufferManager.stop();
     _qualityCheckTimer?.cancel();
+    _videoCheckTimer?.cancel();
     await _tracksSub?.cancel();
     await _playbackErrorLogSub?.cancel();
     await _playingLogSub?.cancel();

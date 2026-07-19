@@ -2574,6 +2574,1194 @@ class ProviderOriginsCompanion extends UpdateCompanion<ProviderOrigin> {
   }
 }
 
+class $GitHubCrawlRepositoriesTable extends GitHubCrawlRepositories
+    with TableInfo<$GitHubCrawlRepositoriesTable, GitHubCrawlRepository> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $GitHubCrawlRepositoriesTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _repositoryKeyMeta = const VerificationMeta(
+    'repositoryKey',
+  );
+  @override
+  late final GeneratedColumn<String> repositoryKey = GeneratedColumn<String>(
+    'repository_key',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _ownerMeta = const VerificationMeta('owner');
+  @override
+  late final GeneratedColumn<String> owner = GeneratedColumn<String>(
+    'owner',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _repoMeta = const VerificationMeta('repo');
+  @override
+  late final GeneratedColumn<String> repo = GeneratedColumn<String>(
+    'repo',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _defaultRefMeta = const VerificationMeta(
+    'defaultRef',
+  );
+  @override
+  late final GeneratedColumn<String> defaultRef = GeneratedColumn<String>(
+    'default_ref',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _lastCommitMeta = const VerificationMeta(
+    'lastCommit',
+  );
+  @override
+  late final GeneratedColumn<String> lastCommit = GeneratedColumn<String>(
+    'last_commit',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _lastCrawledAtMeta = const VerificationMeta(
+    'lastCrawledAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> lastCrawledAt =
+      GeneratedColumn<DateTime>(
+        'last_crawled_at',
+        aliasedName,
+        true,
+        type: DriftSqlType.dateTime,
+        requiredDuringInsert: false,
+      );
+  static const VerificationMeta _lastSuccessAtMeta = const VerificationMeta(
+    'lastSuccessAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> lastSuccessAt =
+      GeneratedColumn<DateTime>(
+        'last_success_at',
+        aliasedName,
+        true,
+        type: DriftSqlType.dateTime,
+        requiredDuringInsert: false,
+      );
+  static const VerificationMeta _lastErrorMeta = const VerificationMeta(
+    'lastError',
+  );
+  @override
+  late final GeneratedColumn<String> lastError = GeneratedColumn<String>(
+    'last_error',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    repositoryKey,
+    owner,
+    repo,
+    defaultRef,
+    lastCommit,
+    lastCrawledAt,
+    lastSuccessAt,
+    lastError,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'git_hub_crawl_repositories';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<GitHubCrawlRepository> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('repository_key')) {
+      context.handle(
+        _repositoryKeyMeta,
+        repositoryKey.isAcceptableOrUnknown(
+          data['repository_key']!,
+          _repositoryKeyMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_repositoryKeyMeta);
+    }
+    if (data.containsKey('owner')) {
+      context.handle(
+        _ownerMeta,
+        owner.isAcceptableOrUnknown(data['owner']!, _ownerMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_ownerMeta);
+    }
+    if (data.containsKey('repo')) {
+      context.handle(
+        _repoMeta,
+        repo.isAcceptableOrUnknown(data['repo']!, _repoMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_repoMeta);
+    }
+    if (data.containsKey('default_ref')) {
+      context.handle(
+        _defaultRefMeta,
+        defaultRef.isAcceptableOrUnknown(data['default_ref']!, _defaultRefMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_defaultRefMeta);
+    }
+    if (data.containsKey('last_commit')) {
+      context.handle(
+        _lastCommitMeta,
+        lastCommit.isAcceptableOrUnknown(data['last_commit']!, _lastCommitMeta),
+      );
+    }
+    if (data.containsKey('last_crawled_at')) {
+      context.handle(
+        _lastCrawledAtMeta,
+        lastCrawledAt.isAcceptableOrUnknown(
+          data['last_crawled_at']!,
+          _lastCrawledAtMeta,
+        ),
+      );
+    }
+    if (data.containsKey('last_success_at')) {
+      context.handle(
+        _lastSuccessAtMeta,
+        lastSuccessAt.isAcceptableOrUnknown(
+          data['last_success_at']!,
+          _lastSuccessAtMeta,
+        ),
+      );
+    }
+    if (data.containsKey('last_error')) {
+      context.handle(
+        _lastErrorMeta,
+        lastError.isAcceptableOrUnknown(data['last_error']!, _lastErrorMeta),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {repositoryKey};
+  @override
+  GitHubCrawlRepository map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return GitHubCrawlRepository(
+      repositoryKey: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}repository_key'],
+      )!,
+      owner: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}owner'],
+      )!,
+      repo: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}repo'],
+      )!,
+      defaultRef: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}default_ref'],
+      )!,
+      lastCommit: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}last_commit'],
+      ),
+      lastCrawledAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}last_crawled_at'],
+      ),
+      lastSuccessAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}last_success_at'],
+      ),
+      lastError: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}last_error'],
+      ),
+    );
+  }
+
+  @override
+  $GitHubCrawlRepositoriesTable createAlias(String alias) {
+    return $GitHubCrawlRepositoriesTable(attachedDatabase, alias);
+  }
+}
+
+class GitHubCrawlRepository extends DataClass
+    implements Insertable<GitHubCrawlRepository> {
+  final String repositoryKey;
+  final String owner;
+  final String repo;
+  final String defaultRef;
+  final String? lastCommit;
+  final DateTime? lastCrawledAt;
+  final DateTime? lastSuccessAt;
+  final String? lastError;
+  const GitHubCrawlRepository({
+    required this.repositoryKey,
+    required this.owner,
+    required this.repo,
+    required this.defaultRef,
+    this.lastCommit,
+    this.lastCrawledAt,
+    this.lastSuccessAt,
+    this.lastError,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['repository_key'] = Variable<String>(repositoryKey);
+    map['owner'] = Variable<String>(owner);
+    map['repo'] = Variable<String>(repo);
+    map['default_ref'] = Variable<String>(defaultRef);
+    if (!nullToAbsent || lastCommit != null) {
+      map['last_commit'] = Variable<String>(lastCommit);
+    }
+    if (!nullToAbsent || lastCrawledAt != null) {
+      map['last_crawled_at'] = Variable<DateTime>(lastCrawledAt);
+    }
+    if (!nullToAbsent || lastSuccessAt != null) {
+      map['last_success_at'] = Variable<DateTime>(lastSuccessAt);
+    }
+    if (!nullToAbsent || lastError != null) {
+      map['last_error'] = Variable<String>(lastError);
+    }
+    return map;
+  }
+
+  GitHubCrawlRepositoriesCompanion toCompanion(bool nullToAbsent) {
+    return GitHubCrawlRepositoriesCompanion(
+      repositoryKey: Value(repositoryKey),
+      owner: Value(owner),
+      repo: Value(repo),
+      defaultRef: Value(defaultRef),
+      lastCommit: lastCommit == null && nullToAbsent
+          ? const Value.absent()
+          : Value(lastCommit),
+      lastCrawledAt: lastCrawledAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(lastCrawledAt),
+      lastSuccessAt: lastSuccessAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(lastSuccessAt),
+      lastError: lastError == null && nullToAbsent
+          ? const Value.absent()
+          : Value(lastError),
+    );
+  }
+
+  factory GitHubCrawlRepository.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return GitHubCrawlRepository(
+      repositoryKey: serializer.fromJson<String>(json['repositoryKey']),
+      owner: serializer.fromJson<String>(json['owner']),
+      repo: serializer.fromJson<String>(json['repo']),
+      defaultRef: serializer.fromJson<String>(json['defaultRef']),
+      lastCommit: serializer.fromJson<String?>(json['lastCommit']),
+      lastCrawledAt: serializer.fromJson<DateTime?>(json['lastCrawledAt']),
+      lastSuccessAt: serializer.fromJson<DateTime?>(json['lastSuccessAt']),
+      lastError: serializer.fromJson<String?>(json['lastError']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'repositoryKey': serializer.toJson<String>(repositoryKey),
+      'owner': serializer.toJson<String>(owner),
+      'repo': serializer.toJson<String>(repo),
+      'defaultRef': serializer.toJson<String>(defaultRef),
+      'lastCommit': serializer.toJson<String?>(lastCommit),
+      'lastCrawledAt': serializer.toJson<DateTime?>(lastCrawledAt),
+      'lastSuccessAt': serializer.toJson<DateTime?>(lastSuccessAt),
+      'lastError': serializer.toJson<String?>(lastError),
+    };
+  }
+
+  GitHubCrawlRepository copyWith({
+    String? repositoryKey,
+    String? owner,
+    String? repo,
+    String? defaultRef,
+    Value<String?> lastCommit = const Value.absent(),
+    Value<DateTime?> lastCrawledAt = const Value.absent(),
+    Value<DateTime?> lastSuccessAt = const Value.absent(),
+    Value<String?> lastError = const Value.absent(),
+  }) => GitHubCrawlRepository(
+    repositoryKey: repositoryKey ?? this.repositoryKey,
+    owner: owner ?? this.owner,
+    repo: repo ?? this.repo,
+    defaultRef: defaultRef ?? this.defaultRef,
+    lastCommit: lastCommit.present ? lastCommit.value : this.lastCommit,
+    lastCrawledAt: lastCrawledAt.present
+        ? lastCrawledAt.value
+        : this.lastCrawledAt,
+    lastSuccessAt: lastSuccessAt.present
+        ? lastSuccessAt.value
+        : this.lastSuccessAt,
+    lastError: lastError.present ? lastError.value : this.lastError,
+  );
+  GitHubCrawlRepository copyWithCompanion(
+    GitHubCrawlRepositoriesCompanion data,
+  ) {
+    return GitHubCrawlRepository(
+      repositoryKey: data.repositoryKey.present
+          ? data.repositoryKey.value
+          : this.repositoryKey,
+      owner: data.owner.present ? data.owner.value : this.owner,
+      repo: data.repo.present ? data.repo.value : this.repo,
+      defaultRef: data.defaultRef.present
+          ? data.defaultRef.value
+          : this.defaultRef,
+      lastCommit: data.lastCommit.present
+          ? data.lastCommit.value
+          : this.lastCommit,
+      lastCrawledAt: data.lastCrawledAt.present
+          ? data.lastCrawledAt.value
+          : this.lastCrawledAt,
+      lastSuccessAt: data.lastSuccessAt.present
+          ? data.lastSuccessAt.value
+          : this.lastSuccessAt,
+      lastError: data.lastError.present ? data.lastError.value : this.lastError,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('GitHubCrawlRepository(')
+          ..write('repositoryKey: $repositoryKey, ')
+          ..write('owner: $owner, ')
+          ..write('repo: $repo, ')
+          ..write('defaultRef: $defaultRef, ')
+          ..write('lastCommit: $lastCommit, ')
+          ..write('lastCrawledAt: $lastCrawledAt, ')
+          ..write('lastSuccessAt: $lastSuccessAt, ')
+          ..write('lastError: $lastError')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    repositoryKey,
+    owner,
+    repo,
+    defaultRef,
+    lastCommit,
+    lastCrawledAt,
+    lastSuccessAt,
+    lastError,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is GitHubCrawlRepository &&
+          other.repositoryKey == this.repositoryKey &&
+          other.owner == this.owner &&
+          other.repo == this.repo &&
+          other.defaultRef == this.defaultRef &&
+          other.lastCommit == this.lastCommit &&
+          other.lastCrawledAt == this.lastCrawledAt &&
+          other.lastSuccessAt == this.lastSuccessAt &&
+          other.lastError == this.lastError);
+}
+
+class GitHubCrawlRepositoriesCompanion
+    extends UpdateCompanion<GitHubCrawlRepository> {
+  final Value<String> repositoryKey;
+  final Value<String> owner;
+  final Value<String> repo;
+  final Value<String> defaultRef;
+  final Value<String?> lastCommit;
+  final Value<DateTime?> lastCrawledAt;
+  final Value<DateTime?> lastSuccessAt;
+  final Value<String?> lastError;
+  final Value<int> rowid;
+  const GitHubCrawlRepositoriesCompanion({
+    this.repositoryKey = const Value.absent(),
+    this.owner = const Value.absent(),
+    this.repo = const Value.absent(),
+    this.defaultRef = const Value.absent(),
+    this.lastCommit = const Value.absent(),
+    this.lastCrawledAt = const Value.absent(),
+    this.lastSuccessAt = const Value.absent(),
+    this.lastError = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  GitHubCrawlRepositoriesCompanion.insert({
+    required String repositoryKey,
+    required String owner,
+    required String repo,
+    required String defaultRef,
+    this.lastCommit = const Value.absent(),
+    this.lastCrawledAt = const Value.absent(),
+    this.lastSuccessAt = const Value.absent(),
+    this.lastError = const Value.absent(),
+    this.rowid = const Value.absent(),
+  }) : repositoryKey = Value(repositoryKey),
+       owner = Value(owner),
+       repo = Value(repo),
+       defaultRef = Value(defaultRef);
+  static Insertable<GitHubCrawlRepository> custom({
+    Expression<String>? repositoryKey,
+    Expression<String>? owner,
+    Expression<String>? repo,
+    Expression<String>? defaultRef,
+    Expression<String>? lastCommit,
+    Expression<DateTime>? lastCrawledAt,
+    Expression<DateTime>? lastSuccessAt,
+    Expression<String>? lastError,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (repositoryKey != null) 'repository_key': repositoryKey,
+      if (owner != null) 'owner': owner,
+      if (repo != null) 'repo': repo,
+      if (defaultRef != null) 'default_ref': defaultRef,
+      if (lastCommit != null) 'last_commit': lastCommit,
+      if (lastCrawledAt != null) 'last_crawled_at': lastCrawledAt,
+      if (lastSuccessAt != null) 'last_success_at': lastSuccessAt,
+      if (lastError != null) 'last_error': lastError,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  GitHubCrawlRepositoriesCompanion copyWith({
+    Value<String>? repositoryKey,
+    Value<String>? owner,
+    Value<String>? repo,
+    Value<String>? defaultRef,
+    Value<String?>? lastCommit,
+    Value<DateTime?>? lastCrawledAt,
+    Value<DateTime?>? lastSuccessAt,
+    Value<String?>? lastError,
+    Value<int>? rowid,
+  }) {
+    return GitHubCrawlRepositoriesCompanion(
+      repositoryKey: repositoryKey ?? this.repositoryKey,
+      owner: owner ?? this.owner,
+      repo: repo ?? this.repo,
+      defaultRef: defaultRef ?? this.defaultRef,
+      lastCommit: lastCommit ?? this.lastCommit,
+      lastCrawledAt: lastCrawledAt ?? this.lastCrawledAt,
+      lastSuccessAt: lastSuccessAt ?? this.lastSuccessAt,
+      lastError: lastError ?? this.lastError,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (repositoryKey.present) {
+      map['repository_key'] = Variable<String>(repositoryKey.value);
+    }
+    if (owner.present) {
+      map['owner'] = Variable<String>(owner.value);
+    }
+    if (repo.present) {
+      map['repo'] = Variable<String>(repo.value);
+    }
+    if (defaultRef.present) {
+      map['default_ref'] = Variable<String>(defaultRef.value);
+    }
+    if (lastCommit.present) {
+      map['last_commit'] = Variable<String>(lastCommit.value);
+    }
+    if (lastCrawledAt.present) {
+      map['last_crawled_at'] = Variable<DateTime>(lastCrawledAt.value);
+    }
+    if (lastSuccessAt.present) {
+      map['last_success_at'] = Variable<DateTime>(lastSuccessAt.value);
+    }
+    if (lastError.present) {
+      map['last_error'] = Variable<String>(lastError.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('GitHubCrawlRepositoriesCompanion(')
+          ..write('repositoryKey: $repositoryKey, ')
+          ..write('owner: $owner, ')
+          ..write('repo: $repo, ')
+          ..write('defaultRef: $defaultRef, ')
+          ..write('lastCommit: $lastCommit, ')
+          ..write('lastCrawledAt: $lastCrawledAt, ')
+          ..write('lastSuccessAt: $lastSuccessAt, ')
+          ..write('lastError: $lastError, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $DiscoveredStreamSourcesTable extends DiscoveredStreamSources
+    with TableInfo<$DiscoveredStreamSourcesTable, DiscoveredStreamSource> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $DiscoveredStreamSourcesTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _channelIdMeta = const VerificationMeta(
+    'channelId',
+  );
+  @override
+  late final GeneratedColumn<String> channelId = GeneratedColumn<String>(
+    'channel_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _streamUrlMeta = const VerificationMeta(
+    'streamUrl',
+  );
+  @override
+  late final GeneratedColumn<String> streamUrl = GeneratedColumn<String>(
+    'stream_url',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _githubOwnerMeta = const VerificationMeta(
+    'githubOwner',
+  );
+  @override
+  late final GeneratedColumn<String> githubOwner = GeneratedColumn<String>(
+    'github_owner',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _githubRepoMeta = const VerificationMeta(
+    'githubRepo',
+  );
+  @override
+  late final GeneratedColumn<String> githubRepo = GeneratedColumn<String>(
+    'github_repo',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _githubRefMeta = const VerificationMeta(
+    'githubRef',
+  );
+  @override
+  late final GeneratedColumn<String> githubRef = GeneratedColumn<String>(
+    'github_ref',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _githubPathMeta = const VerificationMeta(
+    'githubPath',
+  );
+  @override
+  late final GeneratedColumn<String> githubPath = GeneratedColumn<String>(
+    'github_path',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _sourceDocumentUrlMeta = const VerificationMeta(
+    'sourceDocumentUrl',
+  );
+  @override
+  late final GeneratedColumn<String> sourceDocumentUrl =
+      GeneratedColumn<String>(
+        'source_document_url',
+        aliasedName,
+        false,
+        type: DriftSqlType.string,
+        requiredDuringInsert: true,
+      );
+  static const VerificationMeta _confidenceMeta = const VerificationMeta(
+    'confidence',
+  );
+  @override
+  late final GeneratedColumn<double> confidence = GeneratedColumn<double>(
+    'confidence',
+    aliasedName,
+    false,
+    type: DriftSqlType.double,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0.0),
+  );
+  static const VerificationMeta _firstSeenAtMeta = const VerificationMeta(
+    'firstSeenAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> firstSeenAt = GeneratedColumn<DateTime>(
+    'first_seen_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _lastSeenAtMeta = const VerificationMeta(
+    'lastSeenAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> lastSeenAt = GeneratedColumn<DateTime>(
+    'last_seen_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    channelId,
+    streamUrl,
+    githubOwner,
+    githubRepo,
+    githubRef,
+    githubPath,
+    sourceDocumentUrl,
+    confidence,
+    firstSeenAt,
+    lastSeenAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'discovered_stream_sources';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<DiscoveredStreamSource> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('channel_id')) {
+      context.handle(
+        _channelIdMeta,
+        channelId.isAcceptableOrUnknown(data['channel_id']!, _channelIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_channelIdMeta);
+    }
+    if (data.containsKey('stream_url')) {
+      context.handle(
+        _streamUrlMeta,
+        streamUrl.isAcceptableOrUnknown(data['stream_url']!, _streamUrlMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_streamUrlMeta);
+    }
+    if (data.containsKey('github_owner')) {
+      context.handle(
+        _githubOwnerMeta,
+        githubOwner.isAcceptableOrUnknown(
+          data['github_owner']!,
+          _githubOwnerMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_githubOwnerMeta);
+    }
+    if (data.containsKey('github_repo')) {
+      context.handle(
+        _githubRepoMeta,
+        githubRepo.isAcceptableOrUnknown(data['github_repo']!, _githubRepoMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_githubRepoMeta);
+    }
+    if (data.containsKey('github_ref')) {
+      context.handle(
+        _githubRefMeta,
+        githubRef.isAcceptableOrUnknown(data['github_ref']!, _githubRefMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_githubRefMeta);
+    }
+    if (data.containsKey('github_path')) {
+      context.handle(
+        _githubPathMeta,
+        githubPath.isAcceptableOrUnknown(data['github_path']!, _githubPathMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_githubPathMeta);
+    }
+    if (data.containsKey('source_document_url')) {
+      context.handle(
+        _sourceDocumentUrlMeta,
+        sourceDocumentUrl.isAcceptableOrUnknown(
+          data['source_document_url']!,
+          _sourceDocumentUrlMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_sourceDocumentUrlMeta);
+    }
+    if (data.containsKey('confidence')) {
+      context.handle(
+        _confidenceMeta,
+        confidence.isAcceptableOrUnknown(data['confidence']!, _confidenceMeta),
+      );
+    }
+    if (data.containsKey('first_seen_at')) {
+      context.handle(
+        _firstSeenAtMeta,
+        firstSeenAt.isAcceptableOrUnknown(
+          data['first_seen_at']!,
+          _firstSeenAtMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_firstSeenAtMeta);
+    }
+    if (data.containsKey('last_seen_at')) {
+      context.handle(
+        _lastSeenAtMeta,
+        lastSeenAt.isAcceptableOrUnknown(
+          data['last_seen_at']!,
+          _lastSeenAtMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_lastSeenAtMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {channelId};
+  @override
+  DiscoveredStreamSource map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return DiscoveredStreamSource(
+      channelId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}channel_id'],
+      )!,
+      streamUrl: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}stream_url'],
+      )!,
+      githubOwner: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}github_owner'],
+      )!,
+      githubRepo: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}github_repo'],
+      )!,
+      githubRef: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}github_ref'],
+      )!,
+      githubPath: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}github_path'],
+      )!,
+      sourceDocumentUrl: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}source_document_url'],
+      )!,
+      confidence: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}confidence'],
+      )!,
+      firstSeenAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}first_seen_at'],
+      )!,
+      lastSeenAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}last_seen_at'],
+      )!,
+    );
+  }
+
+  @override
+  $DiscoveredStreamSourcesTable createAlias(String alias) {
+    return $DiscoveredStreamSourcesTable(attachedDatabase, alias);
+  }
+}
+
+class DiscoveredStreamSource extends DataClass
+    implements Insertable<DiscoveredStreamSource> {
+  final String channelId;
+  final String streamUrl;
+  final String githubOwner;
+  final String githubRepo;
+  final String githubRef;
+  final String githubPath;
+  final String sourceDocumentUrl;
+  final double confidence;
+  final DateTime firstSeenAt;
+  final DateTime lastSeenAt;
+  const DiscoveredStreamSource({
+    required this.channelId,
+    required this.streamUrl,
+    required this.githubOwner,
+    required this.githubRepo,
+    required this.githubRef,
+    required this.githubPath,
+    required this.sourceDocumentUrl,
+    required this.confidence,
+    required this.firstSeenAt,
+    required this.lastSeenAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['channel_id'] = Variable<String>(channelId);
+    map['stream_url'] = Variable<String>(streamUrl);
+    map['github_owner'] = Variable<String>(githubOwner);
+    map['github_repo'] = Variable<String>(githubRepo);
+    map['github_ref'] = Variable<String>(githubRef);
+    map['github_path'] = Variable<String>(githubPath);
+    map['source_document_url'] = Variable<String>(sourceDocumentUrl);
+    map['confidence'] = Variable<double>(confidence);
+    map['first_seen_at'] = Variable<DateTime>(firstSeenAt);
+    map['last_seen_at'] = Variable<DateTime>(lastSeenAt);
+    return map;
+  }
+
+  DiscoveredStreamSourcesCompanion toCompanion(bool nullToAbsent) {
+    return DiscoveredStreamSourcesCompanion(
+      channelId: Value(channelId),
+      streamUrl: Value(streamUrl),
+      githubOwner: Value(githubOwner),
+      githubRepo: Value(githubRepo),
+      githubRef: Value(githubRef),
+      githubPath: Value(githubPath),
+      sourceDocumentUrl: Value(sourceDocumentUrl),
+      confidence: Value(confidence),
+      firstSeenAt: Value(firstSeenAt),
+      lastSeenAt: Value(lastSeenAt),
+    );
+  }
+
+  factory DiscoveredStreamSource.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return DiscoveredStreamSource(
+      channelId: serializer.fromJson<String>(json['channelId']),
+      streamUrl: serializer.fromJson<String>(json['streamUrl']),
+      githubOwner: serializer.fromJson<String>(json['githubOwner']),
+      githubRepo: serializer.fromJson<String>(json['githubRepo']),
+      githubRef: serializer.fromJson<String>(json['githubRef']),
+      githubPath: serializer.fromJson<String>(json['githubPath']),
+      sourceDocumentUrl: serializer.fromJson<String>(json['sourceDocumentUrl']),
+      confidence: serializer.fromJson<double>(json['confidence']),
+      firstSeenAt: serializer.fromJson<DateTime>(json['firstSeenAt']),
+      lastSeenAt: serializer.fromJson<DateTime>(json['lastSeenAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'channelId': serializer.toJson<String>(channelId),
+      'streamUrl': serializer.toJson<String>(streamUrl),
+      'githubOwner': serializer.toJson<String>(githubOwner),
+      'githubRepo': serializer.toJson<String>(githubRepo),
+      'githubRef': serializer.toJson<String>(githubRef),
+      'githubPath': serializer.toJson<String>(githubPath),
+      'sourceDocumentUrl': serializer.toJson<String>(sourceDocumentUrl),
+      'confidence': serializer.toJson<double>(confidence),
+      'firstSeenAt': serializer.toJson<DateTime>(firstSeenAt),
+      'lastSeenAt': serializer.toJson<DateTime>(lastSeenAt),
+    };
+  }
+
+  DiscoveredStreamSource copyWith({
+    String? channelId,
+    String? streamUrl,
+    String? githubOwner,
+    String? githubRepo,
+    String? githubRef,
+    String? githubPath,
+    String? sourceDocumentUrl,
+    double? confidence,
+    DateTime? firstSeenAt,
+    DateTime? lastSeenAt,
+  }) => DiscoveredStreamSource(
+    channelId: channelId ?? this.channelId,
+    streamUrl: streamUrl ?? this.streamUrl,
+    githubOwner: githubOwner ?? this.githubOwner,
+    githubRepo: githubRepo ?? this.githubRepo,
+    githubRef: githubRef ?? this.githubRef,
+    githubPath: githubPath ?? this.githubPath,
+    sourceDocumentUrl: sourceDocumentUrl ?? this.sourceDocumentUrl,
+    confidence: confidence ?? this.confidence,
+    firstSeenAt: firstSeenAt ?? this.firstSeenAt,
+    lastSeenAt: lastSeenAt ?? this.lastSeenAt,
+  );
+  DiscoveredStreamSource copyWithCompanion(
+    DiscoveredStreamSourcesCompanion data,
+  ) {
+    return DiscoveredStreamSource(
+      channelId: data.channelId.present ? data.channelId.value : this.channelId,
+      streamUrl: data.streamUrl.present ? data.streamUrl.value : this.streamUrl,
+      githubOwner: data.githubOwner.present
+          ? data.githubOwner.value
+          : this.githubOwner,
+      githubRepo: data.githubRepo.present
+          ? data.githubRepo.value
+          : this.githubRepo,
+      githubRef: data.githubRef.present ? data.githubRef.value : this.githubRef,
+      githubPath: data.githubPath.present
+          ? data.githubPath.value
+          : this.githubPath,
+      sourceDocumentUrl: data.sourceDocumentUrl.present
+          ? data.sourceDocumentUrl.value
+          : this.sourceDocumentUrl,
+      confidence: data.confidence.present
+          ? data.confidence.value
+          : this.confidence,
+      firstSeenAt: data.firstSeenAt.present
+          ? data.firstSeenAt.value
+          : this.firstSeenAt,
+      lastSeenAt: data.lastSeenAt.present
+          ? data.lastSeenAt.value
+          : this.lastSeenAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('DiscoveredStreamSource(')
+          ..write('channelId: $channelId, ')
+          ..write('streamUrl: $streamUrl, ')
+          ..write('githubOwner: $githubOwner, ')
+          ..write('githubRepo: $githubRepo, ')
+          ..write('githubRef: $githubRef, ')
+          ..write('githubPath: $githubPath, ')
+          ..write('sourceDocumentUrl: $sourceDocumentUrl, ')
+          ..write('confidence: $confidence, ')
+          ..write('firstSeenAt: $firstSeenAt, ')
+          ..write('lastSeenAt: $lastSeenAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    channelId,
+    streamUrl,
+    githubOwner,
+    githubRepo,
+    githubRef,
+    githubPath,
+    sourceDocumentUrl,
+    confidence,
+    firstSeenAt,
+    lastSeenAt,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is DiscoveredStreamSource &&
+          other.channelId == this.channelId &&
+          other.streamUrl == this.streamUrl &&
+          other.githubOwner == this.githubOwner &&
+          other.githubRepo == this.githubRepo &&
+          other.githubRef == this.githubRef &&
+          other.githubPath == this.githubPath &&
+          other.sourceDocumentUrl == this.sourceDocumentUrl &&
+          other.confidence == this.confidence &&
+          other.firstSeenAt == this.firstSeenAt &&
+          other.lastSeenAt == this.lastSeenAt);
+}
+
+class DiscoveredStreamSourcesCompanion
+    extends UpdateCompanion<DiscoveredStreamSource> {
+  final Value<String> channelId;
+  final Value<String> streamUrl;
+  final Value<String> githubOwner;
+  final Value<String> githubRepo;
+  final Value<String> githubRef;
+  final Value<String> githubPath;
+  final Value<String> sourceDocumentUrl;
+  final Value<double> confidence;
+  final Value<DateTime> firstSeenAt;
+  final Value<DateTime> lastSeenAt;
+  final Value<int> rowid;
+  const DiscoveredStreamSourcesCompanion({
+    this.channelId = const Value.absent(),
+    this.streamUrl = const Value.absent(),
+    this.githubOwner = const Value.absent(),
+    this.githubRepo = const Value.absent(),
+    this.githubRef = const Value.absent(),
+    this.githubPath = const Value.absent(),
+    this.sourceDocumentUrl = const Value.absent(),
+    this.confidence = const Value.absent(),
+    this.firstSeenAt = const Value.absent(),
+    this.lastSeenAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  DiscoveredStreamSourcesCompanion.insert({
+    required String channelId,
+    required String streamUrl,
+    required String githubOwner,
+    required String githubRepo,
+    required String githubRef,
+    required String githubPath,
+    required String sourceDocumentUrl,
+    this.confidence = const Value.absent(),
+    required DateTime firstSeenAt,
+    required DateTime lastSeenAt,
+    this.rowid = const Value.absent(),
+  }) : channelId = Value(channelId),
+       streamUrl = Value(streamUrl),
+       githubOwner = Value(githubOwner),
+       githubRepo = Value(githubRepo),
+       githubRef = Value(githubRef),
+       githubPath = Value(githubPath),
+       sourceDocumentUrl = Value(sourceDocumentUrl),
+       firstSeenAt = Value(firstSeenAt),
+       lastSeenAt = Value(lastSeenAt);
+  static Insertable<DiscoveredStreamSource> custom({
+    Expression<String>? channelId,
+    Expression<String>? streamUrl,
+    Expression<String>? githubOwner,
+    Expression<String>? githubRepo,
+    Expression<String>? githubRef,
+    Expression<String>? githubPath,
+    Expression<String>? sourceDocumentUrl,
+    Expression<double>? confidence,
+    Expression<DateTime>? firstSeenAt,
+    Expression<DateTime>? lastSeenAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (channelId != null) 'channel_id': channelId,
+      if (streamUrl != null) 'stream_url': streamUrl,
+      if (githubOwner != null) 'github_owner': githubOwner,
+      if (githubRepo != null) 'github_repo': githubRepo,
+      if (githubRef != null) 'github_ref': githubRef,
+      if (githubPath != null) 'github_path': githubPath,
+      if (sourceDocumentUrl != null) 'source_document_url': sourceDocumentUrl,
+      if (confidence != null) 'confidence': confidence,
+      if (firstSeenAt != null) 'first_seen_at': firstSeenAt,
+      if (lastSeenAt != null) 'last_seen_at': lastSeenAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  DiscoveredStreamSourcesCompanion copyWith({
+    Value<String>? channelId,
+    Value<String>? streamUrl,
+    Value<String>? githubOwner,
+    Value<String>? githubRepo,
+    Value<String>? githubRef,
+    Value<String>? githubPath,
+    Value<String>? sourceDocumentUrl,
+    Value<double>? confidence,
+    Value<DateTime>? firstSeenAt,
+    Value<DateTime>? lastSeenAt,
+    Value<int>? rowid,
+  }) {
+    return DiscoveredStreamSourcesCompanion(
+      channelId: channelId ?? this.channelId,
+      streamUrl: streamUrl ?? this.streamUrl,
+      githubOwner: githubOwner ?? this.githubOwner,
+      githubRepo: githubRepo ?? this.githubRepo,
+      githubRef: githubRef ?? this.githubRef,
+      githubPath: githubPath ?? this.githubPath,
+      sourceDocumentUrl: sourceDocumentUrl ?? this.sourceDocumentUrl,
+      confidence: confidence ?? this.confidence,
+      firstSeenAt: firstSeenAt ?? this.firstSeenAt,
+      lastSeenAt: lastSeenAt ?? this.lastSeenAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (channelId.present) {
+      map['channel_id'] = Variable<String>(channelId.value);
+    }
+    if (streamUrl.present) {
+      map['stream_url'] = Variable<String>(streamUrl.value);
+    }
+    if (githubOwner.present) {
+      map['github_owner'] = Variable<String>(githubOwner.value);
+    }
+    if (githubRepo.present) {
+      map['github_repo'] = Variable<String>(githubRepo.value);
+    }
+    if (githubRef.present) {
+      map['github_ref'] = Variable<String>(githubRef.value);
+    }
+    if (githubPath.present) {
+      map['github_path'] = Variable<String>(githubPath.value);
+    }
+    if (sourceDocumentUrl.present) {
+      map['source_document_url'] = Variable<String>(sourceDocumentUrl.value);
+    }
+    if (confidence.present) {
+      map['confidence'] = Variable<double>(confidence.value);
+    }
+    if (firstSeenAt.present) {
+      map['first_seen_at'] = Variable<DateTime>(firstSeenAt.value);
+    }
+    if (lastSeenAt.present) {
+      map['last_seen_at'] = Variable<DateTime>(lastSeenAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('DiscoveredStreamSourcesCompanion(')
+          ..write('channelId: $channelId, ')
+          ..write('streamUrl: $streamUrl, ')
+          ..write('githubOwner: $githubOwner, ')
+          ..write('githubRepo: $githubRepo, ')
+          ..write('githubRef: $githubRef, ')
+          ..write('githubPath: $githubPath, ')
+          ..write('sourceDocumentUrl: $sourceDocumentUrl, ')
+          ..write('confidence: $confidence, ')
+          ..write('firstSeenAt: $firstSeenAt, ')
+          ..write('lastSeenAt: $lastSeenAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 class $EpgSourcesTable extends EpgSources
     with TableInfo<$EpgSourcesTable, EpgSource> {
   @override
@@ -7218,6 +8406,10 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   late final $ProviderOriginsTable providerOrigins = $ProviderOriginsTable(
     this,
   );
+  late final $GitHubCrawlRepositoriesTable gitHubCrawlRepositories =
+      $GitHubCrawlRepositoriesTable(this);
+  late final $DiscoveredStreamSourcesTable discoveredStreamSources =
+      $DiscoveredStreamSourcesTable(this);
   late final $EpgSourcesTable epgSources = $EpgSourcesTable(this);
   late final $EpgChannelsTable epgChannels = $EpgChannelsTable(this);
   late final $EpgProgrammesTable epgProgrammes = $EpgProgrammesTable(this);
@@ -7241,6 +8433,8 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     channels,
     streamChecks,
     providerOrigins,
+    gitHubCrawlRepositories,
+    discoveredStreamSources,
     epgSources,
     epgChannels,
     epgProgrammes,
@@ -9022,6 +10216,620 @@ typedef $$ProviderOriginsTableProcessedTableManager =
         BaseReferences<_$AppDatabase, $ProviderOriginsTable, ProviderOrigin>,
       ),
       ProviderOrigin,
+      PrefetchHooks Function()
+    >;
+typedef $$GitHubCrawlRepositoriesTableCreateCompanionBuilder =
+    GitHubCrawlRepositoriesCompanion Function({
+      required String repositoryKey,
+      required String owner,
+      required String repo,
+      required String defaultRef,
+      Value<String?> lastCommit,
+      Value<DateTime?> lastCrawledAt,
+      Value<DateTime?> lastSuccessAt,
+      Value<String?> lastError,
+      Value<int> rowid,
+    });
+typedef $$GitHubCrawlRepositoriesTableUpdateCompanionBuilder =
+    GitHubCrawlRepositoriesCompanion Function({
+      Value<String> repositoryKey,
+      Value<String> owner,
+      Value<String> repo,
+      Value<String> defaultRef,
+      Value<String?> lastCommit,
+      Value<DateTime?> lastCrawledAt,
+      Value<DateTime?> lastSuccessAt,
+      Value<String?> lastError,
+      Value<int> rowid,
+    });
+
+class $$GitHubCrawlRepositoriesTableFilterComposer
+    extends Composer<_$AppDatabase, $GitHubCrawlRepositoriesTable> {
+  $$GitHubCrawlRepositoriesTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get repositoryKey => $composableBuilder(
+    column: $table.repositoryKey,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get owner => $composableBuilder(
+    column: $table.owner,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get repo => $composableBuilder(
+    column: $table.repo,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get defaultRef => $composableBuilder(
+    column: $table.defaultRef,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get lastCommit => $composableBuilder(
+    column: $table.lastCommit,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get lastCrawledAt => $composableBuilder(
+    column: $table.lastCrawledAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get lastSuccessAt => $composableBuilder(
+    column: $table.lastSuccessAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get lastError => $composableBuilder(
+    column: $table.lastError,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$GitHubCrawlRepositoriesTableOrderingComposer
+    extends Composer<_$AppDatabase, $GitHubCrawlRepositoriesTable> {
+  $$GitHubCrawlRepositoriesTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get repositoryKey => $composableBuilder(
+    column: $table.repositoryKey,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get owner => $composableBuilder(
+    column: $table.owner,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get repo => $composableBuilder(
+    column: $table.repo,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get defaultRef => $composableBuilder(
+    column: $table.defaultRef,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get lastCommit => $composableBuilder(
+    column: $table.lastCommit,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get lastCrawledAt => $composableBuilder(
+    column: $table.lastCrawledAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get lastSuccessAt => $composableBuilder(
+    column: $table.lastSuccessAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get lastError => $composableBuilder(
+    column: $table.lastError,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$GitHubCrawlRepositoriesTableAnnotationComposer
+    extends Composer<_$AppDatabase, $GitHubCrawlRepositoriesTable> {
+  $$GitHubCrawlRepositoriesTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get repositoryKey => $composableBuilder(
+    column: $table.repositoryKey,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get owner =>
+      $composableBuilder(column: $table.owner, builder: (column) => column);
+
+  GeneratedColumn<String> get repo =>
+      $composableBuilder(column: $table.repo, builder: (column) => column);
+
+  GeneratedColumn<String> get defaultRef => $composableBuilder(
+    column: $table.defaultRef,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get lastCommit => $composableBuilder(
+    column: $table.lastCommit,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<DateTime> get lastCrawledAt => $composableBuilder(
+    column: $table.lastCrawledAt,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<DateTime> get lastSuccessAt => $composableBuilder(
+    column: $table.lastSuccessAt,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get lastError =>
+      $composableBuilder(column: $table.lastError, builder: (column) => column);
+}
+
+class $$GitHubCrawlRepositoriesTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $GitHubCrawlRepositoriesTable,
+          GitHubCrawlRepository,
+          $$GitHubCrawlRepositoriesTableFilterComposer,
+          $$GitHubCrawlRepositoriesTableOrderingComposer,
+          $$GitHubCrawlRepositoriesTableAnnotationComposer,
+          $$GitHubCrawlRepositoriesTableCreateCompanionBuilder,
+          $$GitHubCrawlRepositoriesTableUpdateCompanionBuilder,
+          (
+            GitHubCrawlRepository,
+            BaseReferences<
+              _$AppDatabase,
+              $GitHubCrawlRepositoriesTable,
+              GitHubCrawlRepository
+            >,
+          ),
+          GitHubCrawlRepository,
+          PrefetchHooks Function()
+        > {
+  $$GitHubCrawlRepositoriesTableTableManager(
+    _$AppDatabase db,
+    $GitHubCrawlRepositoriesTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$GitHubCrawlRepositoriesTableFilterComposer(
+                $db: db,
+                $table: table,
+              ),
+          createOrderingComposer: () =>
+              $$GitHubCrawlRepositoriesTableOrderingComposer(
+                $db: db,
+                $table: table,
+              ),
+          createComputedFieldComposer: () =>
+              $$GitHubCrawlRepositoriesTableAnnotationComposer(
+                $db: db,
+                $table: table,
+              ),
+          updateCompanionCallback:
+              ({
+                Value<String> repositoryKey = const Value.absent(),
+                Value<String> owner = const Value.absent(),
+                Value<String> repo = const Value.absent(),
+                Value<String> defaultRef = const Value.absent(),
+                Value<String?> lastCommit = const Value.absent(),
+                Value<DateTime?> lastCrawledAt = const Value.absent(),
+                Value<DateTime?> lastSuccessAt = const Value.absent(),
+                Value<String?> lastError = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => GitHubCrawlRepositoriesCompanion(
+                repositoryKey: repositoryKey,
+                owner: owner,
+                repo: repo,
+                defaultRef: defaultRef,
+                lastCommit: lastCommit,
+                lastCrawledAt: lastCrawledAt,
+                lastSuccessAt: lastSuccessAt,
+                lastError: lastError,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String repositoryKey,
+                required String owner,
+                required String repo,
+                required String defaultRef,
+                Value<String?> lastCommit = const Value.absent(),
+                Value<DateTime?> lastCrawledAt = const Value.absent(),
+                Value<DateTime?> lastSuccessAt = const Value.absent(),
+                Value<String?> lastError = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => GitHubCrawlRepositoriesCompanion.insert(
+                repositoryKey: repositoryKey,
+                owner: owner,
+                repo: repo,
+                defaultRef: defaultRef,
+                lastCommit: lastCommit,
+                lastCrawledAt: lastCrawledAt,
+                lastSuccessAt: lastSuccessAt,
+                lastError: lastError,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$GitHubCrawlRepositoriesTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $GitHubCrawlRepositoriesTable,
+      GitHubCrawlRepository,
+      $$GitHubCrawlRepositoriesTableFilterComposer,
+      $$GitHubCrawlRepositoriesTableOrderingComposer,
+      $$GitHubCrawlRepositoriesTableAnnotationComposer,
+      $$GitHubCrawlRepositoriesTableCreateCompanionBuilder,
+      $$GitHubCrawlRepositoriesTableUpdateCompanionBuilder,
+      (
+        GitHubCrawlRepository,
+        BaseReferences<
+          _$AppDatabase,
+          $GitHubCrawlRepositoriesTable,
+          GitHubCrawlRepository
+        >,
+      ),
+      GitHubCrawlRepository,
+      PrefetchHooks Function()
+    >;
+typedef $$DiscoveredStreamSourcesTableCreateCompanionBuilder =
+    DiscoveredStreamSourcesCompanion Function({
+      required String channelId,
+      required String streamUrl,
+      required String githubOwner,
+      required String githubRepo,
+      required String githubRef,
+      required String githubPath,
+      required String sourceDocumentUrl,
+      Value<double> confidence,
+      required DateTime firstSeenAt,
+      required DateTime lastSeenAt,
+      Value<int> rowid,
+    });
+typedef $$DiscoveredStreamSourcesTableUpdateCompanionBuilder =
+    DiscoveredStreamSourcesCompanion Function({
+      Value<String> channelId,
+      Value<String> streamUrl,
+      Value<String> githubOwner,
+      Value<String> githubRepo,
+      Value<String> githubRef,
+      Value<String> githubPath,
+      Value<String> sourceDocumentUrl,
+      Value<double> confidence,
+      Value<DateTime> firstSeenAt,
+      Value<DateTime> lastSeenAt,
+      Value<int> rowid,
+    });
+
+class $$DiscoveredStreamSourcesTableFilterComposer
+    extends Composer<_$AppDatabase, $DiscoveredStreamSourcesTable> {
+  $$DiscoveredStreamSourcesTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get channelId => $composableBuilder(
+    column: $table.channelId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get streamUrl => $composableBuilder(
+    column: $table.streamUrl,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get githubOwner => $composableBuilder(
+    column: $table.githubOwner,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get githubRepo => $composableBuilder(
+    column: $table.githubRepo,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get githubRef => $composableBuilder(
+    column: $table.githubRef,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get githubPath => $composableBuilder(
+    column: $table.githubPath,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get sourceDocumentUrl => $composableBuilder(
+    column: $table.sourceDocumentUrl,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get confidence => $composableBuilder(
+    column: $table.confidence,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get firstSeenAt => $composableBuilder(
+    column: $table.firstSeenAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get lastSeenAt => $composableBuilder(
+    column: $table.lastSeenAt,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$DiscoveredStreamSourcesTableOrderingComposer
+    extends Composer<_$AppDatabase, $DiscoveredStreamSourcesTable> {
+  $$DiscoveredStreamSourcesTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get channelId => $composableBuilder(
+    column: $table.channelId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get streamUrl => $composableBuilder(
+    column: $table.streamUrl,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get githubOwner => $composableBuilder(
+    column: $table.githubOwner,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get githubRepo => $composableBuilder(
+    column: $table.githubRepo,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get githubRef => $composableBuilder(
+    column: $table.githubRef,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get githubPath => $composableBuilder(
+    column: $table.githubPath,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get sourceDocumentUrl => $composableBuilder(
+    column: $table.sourceDocumentUrl,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get confidence => $composableBuilder(
+    column: $table.confidence,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get firstSeenAt => $composableBuilder(
+    column: $table.firstSeenAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get lastSeenAt => $composableBuilder(
+    column: $table.lastSeenAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$DiscoveredStreamSourcesTableAnnotationComposer
+    extends Composer<_$AppDatabase, $DiscoveredStreamSourcesTable> {
+  $$DiscoveredStreamSourcesTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get channelId =>
+      $composableBuilder(column: $table.channelId, builder: (column) => column);
+
+  GeneratedColumn<String> get streamUrl =>
+      $composableBuilder(column: $table.streamUrl, builder: (column) => column);
+
+  GeneratedColumn<String> get githubOwner => $composableBuilder(
+    column: $table.githubOwner,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get githubRepo => $composableBuilder(
+    column: $table.githubRepo,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get githubRef =>
+      $composableBuilder(column: $table.githubRef, builder: (column) => column);
+
+  GeneratedColumn<String> get githubPath => $composableBuilder(
+    column: $table.githubPath,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get sourceDocumentUrl => $composableBuilder(
+    column: $table.sourceDocumentUrl,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<double> get confidence => $composableBuilder(
+    column: $table.confidence,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<DateTime> get firstSeenAt => $composableBuilder(
+    column: $table.firstSeenAt,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<DateTime> get lastSeenAt => $composableBuilder(
+    column: $table.lastSeenAt,
+    builder: (column) => column,
+  );
+}
+
+class $$DiscoveredStreamSourcesTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $DiscoveredStreamSourcesTable,
+          DiscoveredStreamSource,
+          $$DiscoveredStreamSourcesTableFilterComposer,
+          $$DiscoveredStreamSourcesTableOrderingComposer,
+          $$DiscoveredStreamSourcesTableAnnotationComposer,
+          $$DiscoveredStreamSourcesTableCreateCompanionBuilder,
+          $$DiscoveredStreamSourcesTableUpdateCompanionBuilder,
+          (
+            DiscoveredStreamSource,
+            BaseReferences<
+              _$AppDatabase,
+              $DiscoveredStreamSourcesTable,
+              DiscoveredStreamSource
+            >,
+          ),
+          DiscoveredStreamSource,
+          PrefetchHooks Function()
+        > {
+  $$DiscoveredStreamSourcesTableTableManager(
+    _$AppDatabase db,
+    $DiscoveredStreamSourcesTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$DiscoveredStreamSourcesTableFilterComposer(
+                $db: db,
+                $table: table,
+              ),
+          createOrderingComposer: () =>
+              $$DiscoveredStreamSourcesTableOrderingComposer(
+                $db: db,
+                $table: table,
+              ),
+          createComputedFieldComposer: () =>
+              $$DiscoveredStreamSourcesTableAnnotationComposer(
+                $db: db,
+                $table: table,
+              ),
+          updateCompanionCallback:
+              ({
+                Value<String> channelId = const Value.absent(),
+                Value<String> streamUrl = const Value.absent(),
+                Value<String> githubOwner = const Value.absent(),
+                Value<String> githubRepo = const Value.absent(),
+                Value<String> githubRef = const Value.absent(),
+                Value<String> githubPath = const Value.absent(),
+                Value<String> sourceDocumentUrl = const Value.absent(),
+                Value<double> confidence = const Value.absent(),
+                Value<DateTime> firstSeenAt = const Value.absent(),
+                Value<DateTime> lastSeenAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => DiscoveredStreamSourcesCompanion(
+                channelId: channelId,
+                streamUrl: streamUrl,
+                githubOwner: githubOwner,
+                githubRepo: githubRepo,
+                githubRef: githubRef,
+                githubPath: githubPath,
+                sourceDocumentUrl: sourceDocumentUrl,
+                confidence: confidence,
+                firstSeenAt: firstSeenAt,
+                lastSeenAt: lastSeenAt,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String channelId,
+                required String streamUrl,
+                required String githubOwner,
+                required String githubRepo,
+                required String githubRef,
+                required String githubPath,
+                required String sourceDocumentUrl,
+                Value<double> confidence = const Value.absent(),
+                required DateTime firstSeenAt,
+                required DateTime lastSeenAt,
+                Value<int> rowid = const Value.absent(),
+              }) => DiscoveredStreamSourcesCompanion.insert(
+                channelId: channelId,
+                streamUrl: streamUrl,
+                githubOwner: githubOwner,
+                githubRepo: githubRepo,
+                githubRef: githubRef,
+                githubPath: githubPath,
+                sourceDocumentUrl: sourceDocumentUrl,
+                confidence: confidence,
+                firstSeenAt: firstSeenAt,
+                lastSeenAt: lastSeenAt,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$DiscoveredStreamSourcesTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $DiscoveredStreamSourcesTable,
+      DiscoveredStreamSource,
+      $$DiscoveredStreamSourcesTableFilterComposer,
+      $$DiscoveredStreamSourcesTableOrderingComposer,
+      $$DiscoveredStreamSourcesTableAnnotationComposer,
+      $$DiscoveredStreamSourcesTableCreateCompanionBuilder,
+      $$DiscoveredStreamSourcesTableUpdateCompanionBuilder,
+      (
+        DiscoveredStreamSource,
+        BaseReferences<
+          _$AppDatabase,
+          $DiscoveredStreamSourcesTable,
+          DiscoveredStreamSource
+        >,
+      ),
+      DiscoveredStreamSource,
       PrefetchHooks Function()
     >;
 typedef $$EpgSourcesTableCreateCompanionBuilder =
@@ -12966,6 +14774,16 @@ class $AppDatabaseManager {
       $$StreamChecksTableTableManager(_db, _db.streamChecks);
   $$ProviderOriginsTableTableManager get providerOrigins =>
       $$ProviderOriginsTableTableManager(_db, _db.providerOrigins);
+  $$GitHubCrawlRepositoriesTableTableManager get gitHubCrawlRepositories =>
+      $$GitHubCrawlRepositoriesTableTableManager(
+        _db,
+        _db.gitHubCrawlRepositories,
+      );
+  $$DiscoveredStreamSourcesTableTableManager get discoveredStreamSources =>
+      $$DiscoveredStreamSourcesTableTableManager(
+        _db,
+        _db.discoveredStreamSources,
+      );
   $$EpgSourcesTableTableManager get epgSources =>
       $$EpgSourcesTableTableManager(_db, _db.epgSources);
   $$EpgChannelsTableTableManager get epgChannels =>

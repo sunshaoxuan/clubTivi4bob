@@ -72,6 +72,38 @@ class ProviderOrigins extends Table {
   Set<Column> get primaryKey => {providerId};
 }
 
+/// Repository scan state for the AI-assisted GitHub crawler.
+class GitHubCrawlRepositories extends Table {
+  TextColumn get repositoryKey => text()();
+  TextColumn get owner => text()();
+  TextColumn get repo => text()();
+  TextColumn get defaultRef => text()();
+  TextColumn get lastCommit => text().nullable()();
+  DateTimeColumn get lastCrawledAt => dateTime().nullable()();
+  DateTimeColumn get lastSuccessAt => dateTime().nullable()();
+  TextColumn get lastError => text().nullable()();
+
+  @override
+  Set<Column> get primaryKey => {repositoryKey};
+}
+
+/// Provenance for stream routes discovered from GitHub documents.
+class DiscoveredStreamSources extends Table {
+  TextColumn get channelId => text()();
+  TextColumn get streamUrl => text()();
+  TextColumn get githubOwner => text()();
+  TextColumn get githubRepo => text()();
+  TextColumn get githubRef => text()();
+  TextColumn get githubPath => text()();
+  TextColumn get sourceDocumentUrl => text()();
+  RealColumn get confidence => real().withDefault(const Constant(0.0))();
+  DateTimeColumn get firstSeenAt => dateTime()();
+  DateTimeColumn get lastSeenAt => dateTime()();
+
+  @override
+  Set<Column> get primaryKey => {channelId};
+}
+
 /// EPG data sources (XMLTV feeds).
 class EpgSources extends Table {
   TextColumn get id => text()();

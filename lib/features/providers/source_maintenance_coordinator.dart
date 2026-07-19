@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/app_diagnostics.dart';
 import '../../data/services/github_source_monitor.dart';
+import '../../data/services/github_ai_crawler_service.dart';
 import '../../data/services/source_maintenance_service.dart';
 import 'default_provider_bootstrap.dart';
 import 'provider_manager.dart';
@@ -12,6 +13,7 @@ class SourceMaintenanceCoordinator {
   final ProviderManager manager;
   final GitHubSourceMonitor githubMonitor;
   final SourceMaintenanceService maintenanceService;
+  final GitHubAiCrawlerService githubAiCrawler;
 
   Timer? _timer;
   bool _running = false;
@@ -20,6 +22,7 @@ class SourceMaintenanceCoordinator {
     required this.manager,
     required this.githubMonitor,
     required this.maintenanceService,
+    required this.githubAiCrawler,
   });
 
   void start() {
@@ -44,6 +47,7 @@ class SourceMaintenanceCoordinator {
         manager: manager,
       ).run();
       await maintenanceService.run();
+      await githubAiCrawler.run();
     } catch (error, stackTrace) {
       AppDiagnostics.instance.recordError(
         'source_maintenance_coordinator',
@@ -59,6 +63,7 @@ class SourceMaintenanceCoordinator {
     _timer?.cancel();
     githubMonitor.dispose();
     maintenanceService.dispose();
+    githubAiCrawler.dispose();
   }
 }
 
@@ -69,6 +74,7 @@ final sourceMaintenanceCoordinatorProvider =
         manager: ref.watch(providerManagerProvider),
         githubMonitor: GitHubSourceMonitor(database: database),
         maintenanceService: SourceMaintenanceService(database: database),
+        githubAiCrawler: GitHubAiCrawlerService(database: database),
       );
       coordinator.start();
       ref.onDispose(coordinator.dispose);

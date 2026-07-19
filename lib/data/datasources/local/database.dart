@@ -17,6 +17,8 @@ const _uuid = Uuid();
     Channels,
     StreamChecks,
     ProviderOrigins,
+    GitHubCrawlRepositories,
+    DiscoveredStreamSources,
     EpgSources,
     EpgChannels,
     EpgProgrammes,
@@ -36,7 +38,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.e);
 
   @override
-  int get schemaVersion => 6;
+  int get schemaVersion => 7;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -61,6 +63,10 @@ class AppDatabase extends _$AppDatabase {
       if (from < 6) {
         await m.createTable(streamChecks);
         await m.createTable(providerOrigins);
+      }
+      if (from < 7) {
+        await m.createTable(gitHubCrawlRepositories);
+        await m.createTable(discoveredStreamSources);
       }
     },
   );
@@ -202,6 +208,73 @@ class AppDatabase extends _$AppDatabase {
 
   Future<void> upsertProviderOrigin(ProviderOriginsCompanion entry) =>
       into(providerOrigins).insertOnConflictUpdate(entry);
+
+  Future<List<GitHubCrawlRepository>> getGitHubCrawlRepositories() =>
+      select(gitHubCrawlRepositories).get();
+
+  Future<void> upsertGitHubCrawlRepository(
+    GitHubCrawlRepositoriesCompanion entry,
+  ) => into(gitHubCrawlRepositories).insertOnConflictUpdate(entry);
+
+  Future<List<DiscoveredStreamSource>> getDiscoveredStreamSources() =>
+      select(discoveredStreamSources).get();
+
+  Future<void> upsertDiscoveredStreamSources(
+    List<DiscoveredStreamSourcesCompanion> entries,
+  ) async {
+    if (entries.isEmpty) return;
+    await batch((batch) {
+      batch.insertAllOnConflictUpdate(discoveredStreamSources, entries);
+    });
+  }
+
+  Future<int> deleteDiscoveredMissingFromDocument({
+    required String owner,
+    required String repo,
+    required String path,
+    required Set<String> currentChannelIds,
+  }) async {
+    final existing =
+        await (select(discoveredStreamSources)..where(
+              (table) =>
+                  table.githubOwner.equals(owner) &
+                  table.githubRepo.equals(repo) &
+                  table.githubPath.equals(path),
+            ))
+            .get();
+    final staleIds = existing
+        .where((item) => !currentChannelIds.contains(item.channelId))
+        .map((item) => item.channelId)
+        .toSet();
+    if (staleIds.isEmpty) return 0;
+    await (delete(
+      discoveredStreamSources,
+    )..where((table) => table.channelId.isIn(staleIds))).go();
+    return deleteChannelsByIds(staleIds);
+  }
+
+  Future<void> resetRetiredStreamUrls(
+    String providerId,
+    Set<String> urls,
+  ) async {
+    if (urls.isEmpty) return;
+    for (var offset = 0; offset < urls.length; offset += 400) {
+      final values = urls.skip(offset).take(400).toList();
+      await (update(streamChecks)..where(
+            (table) =>
+                table.providerId.equals(providerId) &
+                table.streamUrl.isIn(values),
+          ))
+          .write(
+            const StreamChecksCompanion(
+              consecutiveFailures: Value(0),
+              firstFailureAt: Value(null),
+              lastCheckedAt: Value(null),
+              retired: Value(false),
+            ),
+          );
+    }
+  }
 
   Future<void> updateChannelLogo(String channelId, String logoUrl) =>
       (update(channels)..where((t) => t.id.equals(channelId))).write(

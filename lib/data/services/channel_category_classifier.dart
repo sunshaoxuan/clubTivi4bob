@@ -97,6 +97,7 @@ class ChannelCategoryClassifier {
     String? streamUrl,
   }) {
     final text = '$name ${groupTitle ?? ''} ${tvgId ?? ''}'.toLowerCase();
+    final identity = '$name ${tvgId ?? ''}'.toLowerCase();
     final group = (groupTitle ?? '').toLowerCase();
 
     if (isPlatformLivestream(
@@ -107,10 +108,19 @@ class ChannelCategoryClassifier {
       return '网络直播';
     }
 
-    if (RegExp(r'cctv\s*[-_]?\s*\d').hasMatch(text) ||
-        text.contains('央视') ||
-        text.contains('中央电视') ||
-        text.contains('cgtn')) {
+    if (isRadioChannel(
+      name: name,
+      groupTitle: groupTitle,
+      tvgId: tvgId,
+      streamUrl: streamUrl,
+    )) {
+      return '广播电台';
+    }
+
+    if (RegExp(r'cctv\s*[-_]?\s*\d').hasMatch(identity) ||
+        identity.contains('央视') ||
+        identity.contains('中央电视') ||
+        identity.contains('cgtn')) {
       return '央视频道';
     }
     if (text.contains('卫视') || text.contains('satellite')) {
@@ -177,10 +187,26 @@ class ChannelCategoryClassifier {
     if (_containsAny(text, const ['纪录', '纪实', 'documentary', 'discovery'])) {
       return '纪录频道';
     }
-    if (_containsAny(text, const ['广播', '电台', 'radio', 'fm ', 'am '])) {
-      return '广播电台';
-    }
     return '其他频道';
+  }
+
+  static bool isRadioChannel({
+    required String name,
+    String? groupTitle,
+    String? tvgId,
+    String? streamUrl,
+  }) {
+    final identity = '$name ${tvgId ?? ''}'.toLowerCase();
+    final group = (groupTitle ?? '').toLowerCase();
+    if (_containsAny(identity, const ['广播', '电台', 'radio'])) return true;
+    if (RegExp(r'(^|\s|[-_])(?:fm|am)(?:\s|$|[-_0-9])').hasMatch(identity)) {
+      return true;
+    }
+    final path = Uri.tryParse(streamUrl ?? '')?.path.toLowerCase() ?? '';
+    if (_containsAny(path, const ['.aac', '.mp3', '.m4a', '.ogg', '.opus'])) {
+      return true;
+    }
+    return _containsAny(group, const ['广播', '电台', 'radio']);
   }
 
   static bool isPlatformLivestream({

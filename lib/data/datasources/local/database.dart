@@ -247,16 +247,44 @@ class AppDatabase extends _$AppDatabase {
     final conditions = <String>[];
     final variables = <Variable<String>>[];
     for (final term in terms) {
-      conditions.add(
-        '(lower(name) LIKE ? OR lower(COALESCE(group_title, \'\')) LIKE ? '
-        'OR lower(COALESCE(tvg_id, \'\')) LIKE ?)',
-      );
       final pattern = '%${term.toLowerCase()}%';
-      variables.addAll([
-        Variable.withString(pattern),
-        Variable.withString(pattern),
-        Variable.withString(pattern),
-      ]);
+      if (category == '央视频道') {
+        conditions.add(
+          '(lower(name) LIKE ? OR lower(COALESCE(tvg_id, \'\')) LIKE ?)',
+        );
+        variables.addAll([
+          Variable.withString(pattern),
+          Variable.withString(pattern),
+        ]);
+      } else if (category == '广播电台') {
+        conditions.add(
+          '(lower(name) LIKE ? OR lower(COALESCE(group_title, \'\')) LIKE ? '
+          'OR lower(COALESCE(tvg_id, \'\')) LIKE ? '
+          'OR lower(stream_url) LIKE ?)',
+        );
+        variables.addAll([
+          Variable.withString(pattern),
+          Variable.withString(pattern),
+          Variable.withString(pattern),
+          Variable.withString(pattern),
+        ]);
+      } else {
+        conditions.add(
+          '(lower(name) LIKE ? OR lower(COALESCE(group_title, \'\')) LIKE ? '
+          'OR lower(COALESCE(tvg_id, \'\')) LIKE ?)',
+        );
+        variables.addAll([
+          Variable.withString(pattern),
+          Variable.withString(pattern),
+          Variable.withString(pattern),
+        ]);
+      }
+    }
+    if (category == '广播电台') {
+      for (final extension in const ['.aac', '.mp3', '.m4a', '.ogg', '.opus']) {
+        conditions.add('lower(stream_url) LIKE ?');
+        variables.add(Variable.withString('%$extension%'));
+      }
     }
     if (category == '网络直播') {
       conditions.add(

@@ -14,6 +14,7 @@ import 'package:window_manager/window_manager.dart';
 
 import '../../core/app_diagnostics.dart';
 import '../../data/datasources/local/database.dart' as db;
+import '../../data/services/channel_category_classifier.dart';
 import '../../data/services/stream_alternatives_service.dart';
 import '../../features/providers/provider_manager.dart' show databaseProvider;
 import '../casting/cast_service.dart';
@@ -77,6 +78,14 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   String? _nextTime;
   String? _groupTitle;
   String? _providerName;
+
+  bool _allowsAudioOnly(Map<String, dynamic> channel) =>
+      ChannelCategoryClassifier.isRadioChannel(
+        name: channel['name']?.toString() ?? '',
+        groupTitle: channel['groupTitle']?.toString(),
+        tvgId: channel['tvgId']?.toString(),
+        streamUrl: channel['streamUrl']?.toString(),
+      );
 
   // Favorite lists
   List<db.FavoriteList> _favoriteLists = [];
@@ -214,6 +223,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                   widget.channels[_channelIndex]['tvgName'] as String?
             : null,
         failoverGroupUrls: widget.alternativeUrls,
+        allowAudioOnly: widget.channels.isNotEmpty
+            ? _allowsAudioOnly(widget.channels[_channelIndex])
+            : false,
       );
     }
 
@@ -587,6 +599,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
             originalName:
                 ch['originalName'] as String? ?? ch['tvgName'] as String?,
             failoverGroupUrls: (ch['alternativeUrls'] as List?)?.cast<String>(),
+            allowAudioOnly: _allowsAudioOnly(ch),
           )
           .timeout(const Duration(seconds: 12));
       if (switchGeneration != _channelSwitchGeneration) return;

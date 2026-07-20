@@ -39,6 +39,36 @@ void main() {
     );
   });
 
+  test('does not infer a central channel from an upstream group name', () {
+    expect(
+      ChannelCategoryClassifier.classify(name: '东方卫视', groupTitle: '咪咕央视'),
+      '卫视频道',
+    );
+    expect(
+      ChannelCategoryClassifier.classify(name: '上海新闻综合', groupTitle: '央视频道'),
+      '地方频道',
+    );
+    expect(
+      ChannelCategoryClassifier.classify(name: 'CETV-1', groupTitle: '央视频道'),
+      isNot('央视频道'),
+    );
+  });
+
+  test('recognizes audio-only radio channel metadata and URLs', () {
+    expect(
+      ChannelCategoryClassifier.isRadioChannel(name: 'BBC Radio 2'),
+      isTrue,
+    );
+    expect(ChannelCategoryClassifier.classify(name: '北京人民广播电台'), '广播电台');
+    expect(
+      ChannelCategoryClassifier.isRadioChannel(
+        name: 'Music Service',
+        streamUrl: 'https://example.com/live/channel.aac?token=abc',
+      ),
+      isTrue,
+    );
+  });
+
   test(
     'database materializes only candidates for the selected category',
     () async {
@@ -66,12 +96,27 @@ void main() {
           name: '经典电影',
           streamUrl: 'https://example.com/movie.m3u8',
         ),
+        db.ChannelsCompanion.insert(
+          id: 'mixed-group',
+          providerId: 'test',
+          name: '上海新闻综合',
+          groupTitle: const Value('央视频道'),
+          streamUrl: 'https://example.com/shanghai.m3u8',
+        ),
+        db.ChannelsCompanion.insert(
+          id: 'audio-url',
+          providerId: 'test',
+          name: 'Music Service',
+          streamUrl: 'https://example.com/live/music.aac',
+        ),
       ]);
 
       final central = await database.getChannelCategoryCandidates('央视频道');
       expect(central.map((channel) => channel.id), ['central']);
       final movies = await database.getChannelCategoryCandidates('电影剧集');
       expect(movies.map((channel) => channel.id), ['movie']);
+      final radio = await database.getChannelCategoryCandidates('广播电台');
+      expect(radio.map((channel) => channel.id), ['audio-url']);
     },
   );
 

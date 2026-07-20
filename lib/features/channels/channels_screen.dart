@@ -1156,6 +1156,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
       vanityName: _vanityNames[channel.id],
       originalName: channel.tvgName,
       failoverGroupUrls: failoverUrls,
+      allowAudioOnly: _allowsAudioOnly(channel),
     );
     setState(() {
       _selectedIndex = index;
@@ -1182,6 +1183,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
       vanityName: _vanityNames[channel.id],
       originalName: channel.tvgName,
       failoverGroupUrls: _automaticAlternativeUrls(channel),
+      allowAudioOnly: _allowsAudioOnly(channel),
     );
     setState(() {
       _selectedIndex = swapTo;
@@ -1299,6 +1301,14 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
   /// Display name for a channel — vanity name if set, otherwise original name.
   String _channelDisplayName(db.Channel channel) =>
       _vanityNames[channel.id] ?? channel.name;
+
+  bool _allowsAudioOnly(db.Channel channel) =>
+      ChannelCategoryClassifier.isRadioChannel(
+        name: channel.name,
+        groupTitle: channel.groupTitle,
+        tvgId: channel.tvgId,
+        streamUrl: channel.streamUrl,
+      );
 
   /// Get failover alternative details for a channel (for debug dialog).
   List<AlternativeDetail> _getFailoverAlts(db.Channel channel) {
@@ -2655,7 +2665,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
             Padding(
               padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 8),
               child: Text(
-                _sidebarExpanded ? 'BobTV v0.8.2+21' : 'v0.8.2+21',
+                _sidebarExpanded ? 'BobTV v0.8.3+22' : 'v0.8.3+22',
                 style: const TextStyle(
                   fontSize: 10,
                   color: Colors.white24,
@@ -4778,6 +4788,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
       vanityName: _vanityNames[target.id],
       originalName: target.tvgName,
       failoverGroupUrls: altUrls,
+      allowAudioOnly: _allowsAudioOnly(target),
     );
 
     // Always update preview — grouped channels are filtered out of

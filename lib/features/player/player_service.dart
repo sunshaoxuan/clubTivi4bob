@@ -70,6 +70,7 @@ class PlayerService {
   int _playGeneration = 0;
   final Set<String> _failedFailoverUrls = {};
   bool _requiresUltraHd = false;
+  bool _allowsAudioOnly = false;
   Timer? _qualityCheckTimer;
   Timer? _videoCheckTimer;
   Timer? _staticFrameTimer;
@@ -212,6 +213,7 @@ class PlayerService {
     String? vanityName,
     String? originalName,
     List<String>? failoverGroupUrls,
+    bool allowAudioOnly = false,
   }) async {
     final playGeneration = ++_playGeneration;
     _failoverRetryNotBefore = null;
@@ -227,6 +229,7 @@ class PlayerService {
     _currentChannelName = channelName;
     _currentVanityName = vanityName;
     _currentOriginalName = originalName;
+    _allowsAudioOnly = allowAudioOnly;
     _requiresUltraHd =
         ChannelNameNormalizer.isUltraHd(channelName ?? '') ||
         ChannelNameNormalizer.isUltraHd(originalName ?? '') ||
@@ -241,6 +244,7 @@ class PlayerService {
       'stream': AppDiagnostics.summarizeStreamUrl(url),
       'alternativeCount': failoverGroupUrls?.length ?? 0,
       'requiresUltraHd': _requiresUltraHd,
+      'allowsAudioOnly': _allowsAudioOnly,
     });
     _qualityCheckTimer?.cancel();
     _videoCheckTimer?.cancel();
@@ -431,12 +435,17 @@ class PlayerService {
       final hasVideo = tracks.video.any(
         (track) => track.id != 'auto' && track.id != 'no',
       );
+      final hasAudio = tracks.audio.any(
+        (track) => track.id != 'auto' && track.id != 'no',
+      );
       final width = player.state.width ?? 0;
       final height = player.state.height ?? 0;
-      final hasUsableVideo = isUsableTelevisionVideo(
+      final hasUsableMedia = isUsablePlaybackMedia(
         hasVideoTrack: hasVideo,
+        hasAudioTrack: hasAudio,
         width: width,
         height: height,
+        allowAudioOnly: _allowsAudioOnly,
       );
       final rawCache = await getMpvProperty('demuxer-cache-duration');
       final cacheSeconds = double.tryParse(rawCache ?? '') ?? 0.0;
@@ -450,7 +459,7 @@ class PlayerService {
       final settled = sawBuffering || stopwatch.elapsedMilliseconds >= 900;
       if (settled &&
           !buffering &&
-          hasUsableVideo &&
+          hasUsableMedia &&
           (cacheSeconds >= 0.15 || positionAdvanced)) {
         if (_requiresUltraHd && hasVideo && _hasKnownSubUltraHdResolution()) {
           debugPrint(
@@ -473,6 +482,22 @@ class PlayerService {
     required int height,
   }) {
     return hasVideoTrack && width > 0 && height > 0;
+  }
+
+  @visibleForTesting
+  static bool isUsablePlaybackMedia({
+    required bool hasVideoTrack,
+    required bool hasAudioTrack,
+    required int width,
+    required int height,
+    required bool allowAudioOnly,
+  }) {
+    return isUsableTelevisionVideo(
+          hasVideoTrack: hasVideoTrack,
+          width: width,
+          height: height,
+        ) ||
+        (allowAudioOnly && hasAudioTrack);
   }
 
   Future<void> _enableVideoOutput({bool reload = false}) async {
@@ -500,18 +525,22 @@ class PlayerService {
       final hasVideoTrack = tracks.video.any(
         (track) => track.id != 'auto' && track.id != 'no',
       );
+      final hasAudioTrack = tracks.audio.any(
+        (track) => track.id != 'auto' && track.id != 'no',
+      );
       final width = player.state.width ?? 0;
       final height = player.state.height ?? 0;
-      if (isUsableTelevisionVideo(
+      if (isUsablePlaybackMedia(
         hasVideoTrack: hasVideoTrack,
+        hasAudioTrack: hasAudioTrack,
         width: width,
         height: height,
+        allowAudioOnly: _allowsAudioOnly,
       )) {
-        AppDiagnostics.instance.log('video_ready', {
-          'channel': _currentChannelName,
-          'width': width,
-          'height': height,
-        });
+        AppDiagnostics.instance.log(
+          hasVideoTrack ? 'video_ready' : 'audio_ready',
+          {'channel': _currentChannelName, 'width': width, 'height': height},
+        );
         return;
       }
 
@@ -532,9 +561,6 @@ class PlayerService {
         return;
       }
 
-      final hasAudioTrack = tracks.audio.any(
-        (track) => track.id != 'auto' && track.id != 'no',
-      );
       AppDiagnostics.instance.log('video_missing', {
         'channel': _currentChannelName,
         'stream': AppDiagnostics.summarizeStreamUrl(expectedUrl),
@@ -545,7 +571,9 @@ class PlayerService {
       });
       _failedFailoverUrls.add(expectedUrl);
       _healthTracker?.recordProbeFailure(expectedUrl);
-      onFailover?.call('当前线路只有声音，正在切换有画面的线路');
+      onFailover?.call(
+        _allowsAudioOnly ? '当前音频线路无法播放，正在切换其他线路' : '当前线路只有声音，正在切换有画面的线路',
+      );
       await _autoFailover();
     });
   }

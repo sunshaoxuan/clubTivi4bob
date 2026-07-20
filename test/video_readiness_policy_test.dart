@@ -35,5 +35,31 @@ void main() {
         isTrue,
       );
     });
+
+    test('accepts an audio track for a radio channel', () {
+      expect(
+        PlayerService.isUsablePlaybackMedia(
+          hasVideoTrack: false,
+          hasAudioTrack: true,
+          width: 0,
+          height: 0,
+          allowAudioOnly: true,
+        ),
+        isTrue,
+      );
+    });
+
+    test('keeps rejecting audio-only media for a television channel', () {
+      expect(
+        PlayerService.isUsablePlaybackMedia(
+          hasVideoTrack: false,
+          hasAudioTrack: true,
+          width: 0,
+          height: 0,
+          allowAudioOnly: false,
+        ),
+        isFalse,
+      );
+    });
   });
 }

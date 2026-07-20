@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:isolate';
 
 import 'package:drift/drift.dart';
 import 'package:flutter/services.dart';
@@ -35,7 +36,9 @@ class BundledSourceSnapshotService {
 
   Future<int> run() async {
     final bytes = await _loadBytes();
-    final decoded = jsonDecode(utf8.decode(gzip.decode(bytes)));
+    final decoded = await Isolate.run(
+      () => jsonDecode(utf8.decode(gzip.decode(bytes))),
+    );
     if (decoded is! Map<String, dynamic> || decoded['schemaVersion'] != 1) {
       throw const FormatException('Unsupported bundled source snapshot');
     }

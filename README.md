@@ -1,11 +1,11 @@
-# Hotel TV for Windows
+# BobTV for Windows
 
-Hotel TV is a Windows focused IPTV player built from the open source [clubTivi](https://github.com/clubanderson/clubTivi) project. This fork turns a Windows 11 computer connected to a television into a remote friendly live TV appliance with a Chinese interface, automatic stream selection, silent failover, programme guide support, and native borderless fullscreen output.
+BobTV is a Windows focused IPTV player built from the open source [clubTivi](https://github.com/clubanderson/clubTivi) project. This fork turns a Windows 11 computer connected to a television into a remote friendly live TV appliance with a Chinese interface, automatic stream selection, silent failover, programme guide support, and native borderless fullscreen output.
 
 The application is built with Flutter and uses `media_kit`, libmpv, FFmpeg, Riverpod, Drift, and SQLite.
 
 <p align="center">
-  <img src="docs/images/clubtivi-screenshot.png" alt="Hotel TV channel guide and player" width="900">
+  <img src="docs/images/clubtivi-screenshot.png" alt="BobTV channel guide and player" width="900">
 </p>
 
 ## Highlights
@@ -205,7 +205,7 @@ Stream health metrics and application configuration are stored locally by the ap
 
 ## Legal notice
 
-Hotel TV is a media player. It does not host, retransmit, sell, or guarantee access to television content. Repository maintainers do not control third party playlists, streams, logos, metadata, or programme guides.
+BobTV is a media player. It does not host, retransmit, sell, or guarantee access to television content. Repository maintainers do not control third party playlists, streams, logos, metadata, or programme guides.
 
 Users and deployers are responsible for verifying that they have permission to access and display every configured source and for complying with applicable copyright, contract, network, and broadcasting rules.
 

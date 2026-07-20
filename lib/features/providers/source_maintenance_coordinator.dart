@@ -18,6 +18,8 @@ class SourceMaintenanceCoordinator {
   final BundledSourceSnapshotService bundledSourceSnapshot;
 
   Timer? _timer;
+  Timer? _startupTimer;
+  Timer? _snapshotTimer;
   bool _running = false;
 
   SourceMaintenanceCoordinator({
@@ -30,11 +32,28 @@ class SourceMaintenanceCoordinator {
 
   void start() {
     if (_timer != null) return;
-    unawaited(_run());
+    _snapshotTimer = Timer(
+      const Duration(seconds: 2),
+      () => unawaited(_importBundledSnapshot()),
+    );
+    // Large source refreshes stay away from the first interactive frame.
+    _startupTimer = Timer(const Duration(minutes: 1), () => unawaited(_run()));
     _timer = Timer.periodic(
       DefaultProviderBootstrap.refreshInterval,
       (_) => unawaited(_run()),
     );
+  }
+
+  Future<void> _importBundledSnapshot() async {
+    try {
+      await bundledSourceSnapshot.run();
+    } catch (error, stackTrace) {
+      AppDiagnostics.instance.recordError(
+        'bundled_source_snapshot',
+        error,
+        stackTrace,
+      );
+    }
   }
 
   Future<void> _run() async {
@@ -72,6 +91,8 @@ class SourceMaintenanceCoordinator {
   }
 
   void dispose() {
+    _snapshotTimer?.cancel();
+    _startupTimer?.cancel();
     _timer?.cancel();
     githubMonitor.dispose();
     maintenanceService.dispose();

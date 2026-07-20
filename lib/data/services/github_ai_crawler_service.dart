@@ -249,8 +249,7 @@ class GitHubAiCrawlerService {
 
   Future<List<GitHubRepositoryCandidate>> _discoverRepositories() async {
     final repositories = <String, GitHubRepositoryCandidate>{};
-    final channels = await database.getAllChannels();
-    final names = channels.map((item) => item.name).toSet().take(80).toList();
+    final names = await database.getChannelNameSample();
     final queryResult = await _chatJson(
       name: 'github_iptv_search_queries',
       system: _safeSystemPrompt(

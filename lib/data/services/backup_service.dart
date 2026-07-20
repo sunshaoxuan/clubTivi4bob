@@ -21,10 +21,7 @@ const _backupPrefKeys = [
 ];
 
 /// Prefix patterns for dynamic keys to back up.
-const _backupPrefPrefixes = [
-  'lg_webos_key_',
-  'show_last_season_',
-];
+const _backupPrefPrefixes = ['lg_webos_key_', 'show_last_season_'];
 
 /// Creates and restores `.clubtivi` backup files (ZIP archive) containing
 /// the SQLite database and SharedPreferences snapshot.
@@ -60,19 +57,25 @@ class BackupService {
     archive.addFile(ArchiveFile('preferences.json', prefJson.length, prefJson));
 
     // 3. Metadata
-    final meta = utf8.encode(jsonEncode({
-      'version': 1,
-      'app': 'clubTivi',
-      'created': DateTime.now().toIso8601String(),
-      'platform': Platform.operatingSystem,
-    }));
+    final meta = utf8.encode(
+      jsonEncode({
+        'version': 1,
+        'app': 'BobTV',
+        'created': DateTime.now().toIso8601String(),
+        'platform': Platform.operatingSystem,
+      }),
+    );
     archive.addFile(ArchiveFile('meta.json', meta.length, meta));
 
     // 4. Write ZIP
     final zipBytes = ZipEncoder().encode(archive);
     if (zipBytes == null) throw Exception('Failed to create backup archive');
 
-    final ts = DateTime.now().toIso8601String().replaceAll(':', '-').split('.').first;
+    final ts = DateTime.now()
+        .toIso8601String()
+        .replaceAll(':', '-')
+        .split('.')
+        .first;
     final outDir = await getApplicationDocumentsDirectory();
     final outPath = p.join(outDir.path, 'clubtivi-backup-$ts.clubtivi');
     await File(outPath).writeAsBytes(zipBytes);
@@ -113,15 +116,25 @@ class BackupService {
     final prefFile = archive.findFile('preferences.json');
     if (prefFile != null) {
       final prefs = await SharedPreferences.getInstance();
-      final data = jsonDecode(utf8.decode(prefFile.content as List<int>))
-          as Map<String, dynamic>;
+      final data =
+          jsonDecode(utf8.decode(prefFile.content as List<int>))
+              as Map<String, dynamic>;
       int count = 0;
       for (final entry in data.entries) {
         final v = entry.value;
-        if (v is String) { await prefs.setString(entry.key, v); count++; }
-        else if (v is int) { await prefs.setInt(entry.key, v); count++; }
-        else if (v is double) { await prefs.setDouble(entry.key, v); count++; }
-        else if (v is bool) { await prefs.setBool(entry.key, v); count++; }
+        if (v is String) {
+          await prefs.setString(entry.key, v);
+          count++;
+        } else if (v is int) {
+          await prefs.setInt(entry.key, v);
+          count++;
+        } else if (v is double) {
+          await prefs.setDouble(entry.key, v);
+          count++;
+        } else if (v is bool) {
+          await prefs.setBool(entry.key, v);
+          count++;
+        }
       }
       summary += '$count preferences restored\n';
     }

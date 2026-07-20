@@ -79,55 +79,23 @@ class SourceMaintenanceService {
   Future<void> run() async {
     final now = DateTime.now();
     final checkBefore = now.subtract(checkInterval);
-    final channels = await database.getAllChannels();
-    final checks = await database.getAllStreamChecks();
-    final checksByKey = {
-      for (final check in checks)
-        '${check.providerId}\u0000${check.streamUrl}': check,
-    };
-    final channelsByKey = <String, List<db.Channel>>{};
-    for (final channel in channels) {
-      final uri = Uri.tryParse(channel.streamUrl);
-      if (uri == null || (uri.scheme != 'http' && uri.scheme != 'https')) {
-        continue;
-      }
-      final key = '${channel.providerId}\u0000${channel.streamUrl}';
-      (channelsByKey[key] ??= []).add(channel);
-    }
-
-    final previouslyRetiredIds = <String>{};
-    for (final check in checks.where((item) => item.retired)) {
-      final key = '${check.providerId}\u0000${check.streamUrl}';
-      previouslyRetiredIds.addAll(
-        channelsByKey[key]?.map((channel) => channel.id) ??
-            const Iterable.empty(),
-      );
-    }
+    final previouslyRetiredIds = await database.getRetiredChannelIds();
     final previouslyDeleted = await database.deleteChannelsByIds(
       previouslyRetiredIds,
     );
-
-    final candidates =
-        channelsByKey.entries.where((entry) {
-          final saved = checksByKey[entry.key];
-          return !(saved?.retired ?? false) &&
-              !(saved?.lastCheckedAt?.isAfter(checkBefore) ?? false);
-        }).toList()..sort((left, right) {
-          final leftFailures = checksByKey[left.key]?.consecutiveFailures ?? 0;
-          final rightFailures =
-              checksByKey[right.key]?.consecutiveFailures ?? 0;
-          if ((leftFailures > 0) != (rightFailures > 0)) {
-            return leftFailures > 0 ? -1 : 1;
-          }
-          final a = checksByKey[left.key]?.lastCheckedAt;
-          final b = checksByKey[right.key]?.lastCheckedAt;
-          if (a == null && b == null) return 0;
-          if (a == null) return -1;
-          if (b == null) return 1;
-          return a.compareTo(b);
-        });
-
-    final selected = candidates.take(_maximumChecksPerPass).toList();
+    final candidateRows = await database.getMaintenanceCandidates(
+      checkBefore: checkBefore,
+      limit: _maximumChecksPerPass,
+    );
+    final checksByKey = <String, db.StreamCheck>{};
+    final channelsByKey = <String, List<db.Channel>>{};
+    for (final row in candidateRows) {
+      final channel = row.channel;
+      final key = '${channel.providerId}\u0000${channel.streamUrl}';
+      (channelsByKey[key] ??= []).add(channel);
+      if (row.check != null) checksByKey[key] = row.check!;
+    }
+    final selected = channelsByKey.entries.take(_maximumChecksPerPass).toList();
     final results = <String, bool>{};
     for (var offset = 0; offset < selected.length; offset += _parallelChecks) {
       final end = (offset + _parallelChecks).clamp(0, selected.length);
@@ -193,7 +161,9 @@ class SourceMaintenanceService {
       'failures': results.length - successes,
       'retiredRoutes': retiredRoutes,
       'deletedChannels': deletedChannels + previouslyDeleted,
-      'remainingCandidates': candidates.length - selected.length,
+      'remainingCandidates': candidateRows.length >= _maximumChecksPerPass
+          ? 'more'
+          : 0,
     });
   }
 

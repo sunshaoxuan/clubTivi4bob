@@ -70,8 +70,16 @@ class StreamAlternativesService {
     return null;
   }
 
-  /// Rebuild the index. Call on init, after EPG refresh, or provider changes.
+  /// Rebuild the index for every stored channel.
+  ///
+  /// Kept for maintenance tools and tests. The interactive channel screen uses
+  /// [rebuildForChannels] so startup never materializes the complete database.
   Future<void> rebuild() async {
+    await rebuildForChannels(await _db.getAllChannels());
+  }
+
+  /// Rebuild the failover index for the currently loaded content category.
+  Future<void> rebuildForChannels(List<db.Channel> channels) async {
     _vanityIndex.clear();
     _epgIndex.clear();
     _tvgIdIndex.clear();
@@ -80,8 +88,9 @@ class StreamAlternativesService {
     _providerNames.clear();
     _hiddenProviderIds.clear();
 
-    final channels = await _db.getAllChannels();
-    final mappings = await _db.getAllMappings();
+    final mappings = await _db.getMappingsForChannelIds(
+      channels.map((channel) => channel.id).toSet(),
+    );
     _allChannels = channels.map(_dbToChannel).toList();
 
     // Build provider name cache and identify IPv6 playlist providers.
@@ -580,7 +589,6 @@ final streamAlternativesProvider = Provider<StreamAlternativesService>((ref) {
   final db = ref.read(databaseProvider);
   final health = ref.read(streamHealthTrackerProvider);
   final service = StreamAlternativesService(db, health);
-  service.rebuild(); // initial build
   return service;
 });
 

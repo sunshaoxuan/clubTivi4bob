@@ -98,6 +98,72 @@ class AppDatabase extends _$AppDatabase {
   Future<List<Channel>> getChannelsByIds(Set<String> ids) =>
       (select(channels)..where((t) => t.id.isIn(ids))).get();
 
+  /// Returns a small candidate set for one content category.
+  ///
+  /// Classification is finalized by [ChannelCategoryClassifier] in the UI.
+  /// Keeping the broad text match in SQLite prevents tens of thousands of
+  /// channel rows from being materialized on the Flutter isolate at startup.
+  Future<List<Channel>> getChannelCategoryCandidates(String category) async {
+    const termsByCategory = <String, List<String>>{
+      '央视频道': ['cctv', '央视', '中央电视', 'cgtn'],
+      '卫视频道': ['卫视', 'satellite'],
+      '地方频道': ['地方', '本地', '省市', '城市', 'local', 'city'],
+      '体育频道': ['体育', '赛事', '足球', '篮球', '网球', '高尔夫', 'sports', 'sport'],
+      '新闻频道': ['新闻', '资讯', 'news'],
+      '电影剧集': ['电影', '影院', '影视', '剧场', '电视剧', 'movie', 'cinema'],
+      '少儿频道': ['少儿', '卡通', '动漫', '动画', '儿童', 'kids', 'cartoon'],
+      '纪录频道': ['纪录', '纪实', 'documentary', 'discovery'],
+    };
+
+    final terms = termsByCategory[category];
+    if (terms == null) {
+      // "Other" is evaluated only when selected. SQL removes every row that
+      // is an obvious member of another category before Dart sees the result.
+      final allTerms = termsByCategory.values.expand((e) => e).toSet();
+      final conditions = <String>[];
+      final variables = <Variable<String>>[];
+      for (final term in allTerms) {
+        conditions.add(
+          '(lower(name) LIKE ? OR lower(COALESCE(group_title, \'\')) LIKE ? '
+          'OR lower(COALESCE(tvg_id, \'\')) LIKE ?)',
+        );
+        final pattern = '%${term.toLowerCase()}%';
+        variables.addAll([
+          Variable.withString(pattern),
+          Variable.withString(pattern),
+          Variable.withString(pattern),
+        ]);
+      }
+      final rows = await customSelect(
+        'SELECT * FROM channels WHERE NOT (${conditions.join(' OR ')})',
+        variables: variables,
+        readsFrom: {channels},
+      ).get();
+      return rows.map((row) => channels.map(row.data)).toList();
+    }
+
+    final conditions = <String>[];
+    final variables = <Variable<String>>[];
+    for (final term in terms) {
+      conditions.add(
+        '(lower(name) LIKE ? OR lower(COALESCE(group_title, \'\')) LIKE ? '
+        'OR lower(COALESCE(tvg_id, \'\')) LIKE ?)',
+      );
+      final pattern = '%${term.toLowerCase()}%';
+      variables.addAll([
+        Variable.withString(pattern),
+        Variable.withString(pattern),
+        Variable.withString(pattern),
+      ]);
+    }
+    final rows = await customSelect(
+      'SELECT * FROM channels WHERE ${conditions.join(' OR ')}',
+      variables: variables,
+      readsFrom: {channels},
+    ).get();
+    return rows.map((row) => channels.map(row.data)).toList();
+  }
+
   /// Get distinct group names per provider without loading channel objects.
   Future<Map<String, List<String>>> getProviderGroups() async {
     final rows = await customSelect(
@@ -172,6 +238,55 @@ class AppDatabase extends _$AppDatabase {
   }
 
   Future<List<StreamCheck>> getAllStreamChecks() => select(streamChecks).get();
+
+  Future<Set<String>> getRetiredChannelIds() async {
+    final query = select(channels).join([
+      innerJoin(
+        streamChecks,
+        streamChecks.providerId.equalsExp(channels.providerId) &
+            streamChecks.streamUrl.equalsExp(channels.streamUrl),
+      ),
+    ])..where(streamChecks.retired.equals(true));
+    final rows = await query.get();
+    return rows.map((row) => row.readTable(channels).id).toSet();
+  }
+
+  Future<List<({Channel channel, StreamCheck? check})>>
+  getMaintenanceCandidates({
+    required DateTime checkBefore,
+    required int limit,
+  }) async {
+    final query = select(channels).join([
+      leftOuterJoin(
+        streamChecks,
+        streamChecks.providerId.equalsExp(channels.providerId) &
+            streamChecks.streamUrl.equalsExp(channels.streamUrl),
+      ),
+    ]);
+    query
+      ..where(
+        (channels.streamUrl.like('http://%') |
+                channels.streamUrl.like('https://%')) &
+            (streamChecks.retired.isNull() |
+                streamChecks.retired.equals(false)) &
+            (streamChecks.lastCheckedAt.isNull() |
+                streamChecks.lastCheckedAt.isSmallerThanValue(checkBefore)),
+      )
+      ..orderBy([
+        OrderingTerm.desc(streamChecks.consecutiveFailures),
+        OrderingTerm.asc(streamChecks.lastCheckedAt),
+      ])
+      ..limit(limit * 2);
+    final rows = await query.get();
+    return rows
+        .map(
+          (row) => (
+            channel: row.readTable(channels),
+            check: row.readTableOrNull(streamChecks),
+          ),
+        )
+        .toList();
+  }
 
   Future<void> upsertStreamChecks(List<StreamChecksCompanion> entries) async {
     if (entries.isEmpty) return;
@@ -400,6 +515,14 @@ class AppDatabase extends _$AppDatabase {
 
   Future<List<Channel>> getAllChannels() => select(channels).get();
 
+  Future<List<String>> getChannelNameSample({int limit = 80}) async {
+    final query = selectOnly(channels, distinct: true)
+      ..addColumns([channels.name])
+      ..limit(limit);
+    final rows = await query.get();
+    return rows.map((row) => row.read(channels.name)!).toList();
+  }
+
   /// Delete old programmes to keep DB size manageable.
   Future<void> pruneOldProgrammes({Duration maxAge = const Duration(days: 7)}) {
     final cutoff = DateTime.now().subtract(maxAge);
@@ -411,6 +534,23 @@ class AppDatabase extends _$AppDatabase {
   // --- EPG Mapping queries ---
 
   Future<List<EpgMapping>> getAllMappings() => select(epgMappings).get();
+
+  Future<List<EpgMapping>> getMappingsForChannelIds(Set<String> ids) async {
+    if (ids.isEmpty) return const [];
+    final result = <EpgMapping>[];
+    final values = ids.toList(growable: false);
+    // Stay below SQLite's parameter limit on every supported platform.
+    for (var start = 0; start < values.length; start += 800) {
+      final end = (start + 800).clamp(0, values.length);
+      final chunk = values.sublist(start, end);
+      result.addAll(
+        await (select(
+          epgMappings,
+        )..where((t) => t.channelId.isIn(chunk))).get(),
+      );
+    }
+    return result;
+  }
 
   Future<void> upsertMapping(EpgMappingsCompanion entry) =>
       into(epgMappings).insertOnConflictUpdate(entry);

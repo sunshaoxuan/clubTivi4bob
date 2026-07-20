@@ -228,7 +228,7 @@ class _AddProviderPageState extends ConsumerState<_AddProviderPage> {
         controller: _m3uName,
         decoration: const InputDecoration(
           labelText: '电视源名称',
-          hintText: '例如：酒店电视源',
+          hintText: '例如：BobTV 电视源',
         ),
         validator: _validateRequired,
         textInputAction: TextInputAction.next,

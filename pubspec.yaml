@@ -1,7 +1,7 @@
 name: clubtivi
 description: "Open-source cross-platform IPTV player with intelligent EPG mapping, multi-provider stream failover, and remote control support."
 publish_to: 'none'
-version: 0.4.2+7
+version: 0.8.4+23
 
 environment:
   sdk: ^3.11.0
@@ -85,19 +85,20 @@ flutter:
     - assets/icons/
     - assets/icon/
     - assets/fonts/
+    - assets/data/
 
 flutter_launcher_icons:
   android: true
   ios: false
   macos:
     generate: true
-    image_path: "assets/icon/clubtivi-icon.png"
+    image_path: "assets/icon/bobtv-icon.png"
   windows:
     generate: true
-    image_path: "assets/icon/clubtivi-icon.png"
+    image_path: "assets/icon/bobtv-icon.png"
   linux:
     generate: true
-    image_path: "assets/icon/clubtivi-icon.png"
-  image_path: "assets/icon/clubtivi-icon.png"
+    image_path: "assets/icon/bobtv-icon.png"
+  image_path: "assets/icon/bobtv-icon.png"
   adaptive_icon_background: "#0F0E1A"
-  adaptive_icon_foreground: "assets/icon/clubtivi-icon.png"
+  adaptive_icon_foreground: "assets/icon/bobtv-icon.png"

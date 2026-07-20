@@ -19,6 +19,7 @@ import '../../core/platform_info.dart';
 import '../../core/weather_clock_widget.dart';
 import '../../data/datasources/local/database.dart' as db;
 import '../../data/datasources/remote/tmdb_client.dart';
+import '../../data/services/channel_category_classifier.dart';
 import '../../data/services/epg_refresh_service.dart';
 import '../../data/services/stream_alternatives_service.dart';
 import '../../data/services/channel_name_normalizer.dart';
@@ -26,7 +27,7 @@ import '../../data/services/source_visibility.dart';
 import '../player/player_service.dart';
 import '../player/stream_info_badges.dart';
 import '../providers/provider_manager.dart';
-import '../providers/default_provider_bootstrap.dart';
+import '../providers/source_maintenance_coordinator.dart';
 import '../shows/shows_providers.dart';
 import 'channel_debug_dialog.dart';
 
@@ -45,8 +46,8 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
   List<db.Channel> _filteredChannels = [];
   final Map<String, String> _automaticKeyByChannelId = {};
   final Map<String, List<String>> _automaticUrlsByKey = {};
-  List<String> _groups = [];
-  String _selectedGroup = 'All';
+  List<String> _groups = List.of(ChannelCategoryClassifier.categories);
+  String _selectedGroup = '央视';
   String _searchQuery = '';
   // _showSearch removed — search bar is always visible in the top navbar
   int _selectedIndex = -1;
@@ -74,6 +75,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
   static const _kMaxSearchHistory = 20;
   final _channelListController = ScrollController();
   late final ScrollController _guideScrollController;
+  final _guideVerticalController = ScrollController();
   Timer? _guideIdleTimer;
   DateTime? _guideDayStart; // stored for snap-back calculation
   Timer? _searchDebounce;
@@ -95,7 +97,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
 
   // Sidebar state
   bool _sidebarExpanded = true;
-  Set<String> _expandedSections = {'favorites'};
+  Set<String> _expandedSections = {'groups', 'regions'};
   final _sidebarSearchController = TextEditingController();
   final _sidebarFocusNode = FocusScopeNode(debugLabel: 'sidebar');
   final _sidebarAllItemFocusNode = FocusNode(debugLabel: 'sidebar-all');
@@ -112,14 +114,10 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
 
   // Provider list for sidebar
   List<db.Provider> _providers = [];
-  // Pre-computed: provider ID → sorted group names
-  Map<String, List<String>> _providerGroups = {};
-  // Track which providers' channels have been loaded into _allChannels
-  final Set<String> _loadedProviders = {};
-  // True while background is still loading all channels
-  bool _backgroundLoading = false;
   bool _channelLoadInProgress = false;
   bool _channelReloadQueued = false;
+  bool _categoryLoading = false;
+  int _categoryLoadGeneration = 0;
   // Favorite lists state
   List<db.FavoriteList> _favoriteLists = [];
   Set<String> _favoritedChannelIds = {};
@@ -166,11 +164,6 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
     _ensureEpgSources();
     _startTopBarFade();
     _loadSearchHistory();
-    // Resolve missing logos on startup (in background)
-    ref
-        .read(providerManagerProvider)
-        .resolveAllMissingLogos()
-        .catchError((_) {});
     // Auto-failover toast
     final ps = ref.read(playerServiceProvider);
     ps.onFailover = (message) {
@@ -203,12 +196,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
         .select(database.channels)
         .watch()
         .listen((_) => debouncedReload());
-    unawaited(
-      DefaultProviderBootstrap(
-        database: database,
-        manager: ref.read(providerManagerProvider),
-      ).run(),
-    );
+    ref.read(sourceMaintenanceCoordinatorProvider);
     // Refresh now-playing every 60 seconds so the info panel stays current
     _nowPlayingTimer = Timer.periodic(
       const Duration(seconds: 60),
@@ -414,6 +402,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
     _firstChannelFocusNode.dispose();
     _channelListController.dispose();
     _guideScrollController.dispose();
+    _guideVerticalController.dispose();
     _guideIdleTimer?.cancel();
     _searchDebounce?.cancel();
     _overlayTimer?.cancel();
@@ -435,7 +424,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
     _channelLoadInProgress = true;
     try {
       final database = ref.read(databaseProvider);
-      final isFirstLoad = _allChannels.isEmpty;
+      final isFirstLoad = !_initialLoadDone;
 
       // ── Micro-phase 1: providers + favIds (tiny queries) ──
       if (mounted) setState(() => _loadStatus = '正在载入电视源…');
@@ -461,44 +450,36 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
         } catch (_) {}
       }
 
-      // ── Micro-phase 2: favorite channels (direct ID query, ~18 rows) ──
-      if (mounted)
-        setState(() => _loadStatus = '正在载入 ${favChannelIds.length} 个收藏频道…');
-      List<db.Channel> favChannels = [];
-      if (favChannelIds.isNotEmpty) {
-        favChannels = await database.getChannelsByIds(favChannelIds);
+      var selectedGroup = _selectedGroup;
+      if (isFirstLoad) {
+        final savedGroup = prefs.getString(_kLastGroup);
+        if (savedGroup == 'Favorites' ||
+            (savedGroup?.startsWith('fav:') ?? false) ||
+            ChannelCategoryClassifier.categories.contains(savedGroup)) {
+          selectedGroup = savedGroup!;
+        } else {
+          selectedGroup = ChannelCategoryClassifier.categories.first;
+        }
       }
 
       if (!mounted) return;
-      if (mounted)
-        setState(
-          () => _loadStatus =
-              '找到 ${providers.length} 个电视源，${favChannels.length} 个收藏频道',
-        );
-      // FIRST RENDER — user sees Favorites immediately
       setState(() {
-        _initialLoadDone = true;
-        _allChannels = favChannels;
-        _rebuildAutomaticChannelIndex();
         _providers = providers;
         _favoriteLists = favLists;
         _favoritedChannelIds = favChannelIds;
-        _selectedGroup = 'Favorites';
-        _applyFilters();
+        _groups = List.of(ChannelCategoryClassifier.categories);
+        _selectedGroup = selectedGroup;
       });
-      if (isFirstLoad) _restoreSession();
 
-      // ── Background: sidebar groups + failover groups (non-blocking) ──
-      if (mounted) setState(() => _loadStatus = '正在载入智能频道分组…');
-      final bgResults = await Future.wait([
-        database.getProviderGroups(),
-        database.getAllFailoverGroups(),
-      ]);
-      final pGroups = bgResults[0] as Map<String, List<String>>;
-      final foGroups = bgResults[1] as List<db.FailoverGroup>;
-      final allGroupNames = <String>{};
-      for (final gl in pGroups.values) allGroupNames.addAll(gl);
+      await _loadGroupChannels(selectedGroup, preserveScroll: !isFirstLoad);
+      if (!mounted) return;
+      if (isFirstLoad) {
+        setState(() => _initialLoadDone = true);
+        await _restoreSession();
+      }
 
+      // Manual failover groups are small and can finish after the first frame.
+      final foGroups = await database.getAllFailoverGroups();
       final foGroupMembers = <int, List<String>>{};
       for (final g in foGroups) {
         final members = await database.getFailoverGroupMembers(g.id);
@@ -508,46 +489,16 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
 
       if (!mounted) return;
       setState(() {
-        _providerGroups = pGroups;
-        _groups = allGroupNames.toList()..sort();
         _failoverGroups = foGroups;
         _failoverGroupMembers = foGroupMembers;
         _failoverGroupIndex = foGroupIndex;
         _applyFilters(); // Re-filter to hide grouped channels
       });
 
-      // ── Background: EPG for favorites ──
+      // Load EPG only for the active content category.
       setState(() => _epgLoading = true);
-      await _loadEpgData(database, favChannels, favChannelIds);
+      await _loadEpgData(database, _allChannels, favChannelIds);
       if (mounted) setState(() => _epgLoading = false);
-
-      // ── Background: load all provider channels incrementally ──
-      _backgroundLoading = true;
-      for (final provider in providers) {
-        if (!mounted) return;
-        final channels = await database.getChannelsForProvider(provider.id);
-        if (!mounted) return;
-        final existingIds = _allChannels.map((c) => c.id).toSet();
-        final newChannels = channels
-            .where((c) => !existingIds.contains(c.id))
-            .toList();
-        _loadedProviders.add(provider.id);
-        setState(() {
-          _allChannels = [..._allChannels, ...newChannels];
-          _rebuildAutomaticChannelIndex();
-          if (_selectedGroup == 'All' ||
-              _selectedGroup == 'provider:${provider.id}' ||
-              _selectedGroup.startsWith('provgroup:${provider.id}:')) {
-            _applyFilters();
-          }
-        });
-        _playFirstFilteredChannelForGroup(_selectedGroup);
-      }
-      _backgroundLoading = false;
-      await ref.read(streamAlternativesProvider).rebuild();
-
-      // Re-index EPG with full channel set
-      if (mounted) _loadEpgData(database, _allChannels, favChannelIds);
     } finally {
       _channelLoadInProgress = false;
       if (_channelReloadQueued && mounted) {
@@ -557,23 +508,65 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
     }
   }
 
-  /// On-demand: load a single provider's channels into _allChannels.
-  Future<void> _loadProviderChannels(String providerId) async {
-    if (_loadedProviders.contains(providerId)) return;
+  Future<void> _loadGroupChannels(
+    String group, {
+    bool preserveScroll = false,
+  }) async {
+    final generation = ++_categoryLoadGeneration;
     final database = ref.read(databaseProvider);
-    final channels = await database.getChannelsForProvider(providerId);
-    if (!mounted) return;
-    _loadedProviders.add(providerId);
-    final existingIds = _allChannels.map((c) => c.id).toSet();
-    final newChannels = channels
-        .where((c) => !existingIds.contains(c.id))
-        .toList();
+    final scrollAnchor = preserveScroll ? _captureScrollAnchor() : null;
+    if (mounted) {
+      setState(() {
+        _loadStatus = '正在载入$group…';
+        _categoryLoading = true;
+        if (!preserveScroll) {
+          _allChannels = [];
+          _filteredChannels = [];
+        }
+      });
+    }
+
+    List<db.Channel> loaded;
+    if (group == 'Favorites') {
+      loaded = _favoritedChannelIds.isEmpty
+          ? const []
+          : await database.getChannelsByIds(_favoritedChannelIds);
+    } else if (group.startsWith('fav:')) {
+      loaded = await database.getChannelsInList(group.substring(4));
+    } else {
+      final candidates = await database.getChannelCategoryCandidates(group);
+      loaded = candidates
+          .where(
+            (channel) =>
+                ChannelCategoryClassifier.classify(
+                  name: channel.name,
+                  groupTitle: channel.groupTitle,
+                  tvgId: channel.tvgId,
+                  streamUrl: channel.streamUrl,
+                ) ==
+                group,
+          )
+          .toList();
+    }
+
+    if (!mounted || generation != _categoryLoadGeneration) return;
+    final unchanged = _sameChannelSnapshot(_allChannels, loaded);
     setState(() {
-      _allChannels = [..._allChannels, ...newChannels];
-      _rebuildAutomaticChannelIndex();
-      _applyFilters();
+      if (!unchanged) {
+        _allChannels = loaded;
+        _rebuildAutomaticChannelIndex();
+        _applyFilters();
+      }
+      _loadStatus =
+          '$group：载入 ${loaded.length} 条线路，合并为 ${_filteredChannels.length} 个频道';
+      _categoryLoading = false;
     });
-    _playFirstFilteredChannelForGroup(_selectedGroup);
+    if (!unchanged && scrollAnchor != null) {
+      _restoreScrollAnchor(scrollAnchor);
+    }
+    await ref.read(streamAlternativesProvider).rebuildForChannels(loaded);
+    if (!mounted || generation != _categoryLoadGeneration) return;
+    _playFirstFilteredChannelForGroup(group);
   }
 
   /// Loads EPG sources, mappings, and now-playing data in the background.
@@ -631,7 +624,10 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
       }
     }
 
-    final mappings = await database.getAllMappings();
+    final mappings = await database.getMappingsForChannelIds({
+      ...allChannels.map((channel) => channel.id),
+      ...favChannelIds,
+    });
     final epgMap = <String, String>{};
     for (final m in mappings) {
       final directKey = '${m.epgSourceId}_${m.epgChannelId}';
@@ -736,15 +732,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
         decoded.forEach((k, v) => _epgTimeshifts[k] = v as int);
       } catch (_) {}
     }
-    final lastGroup = prefs.getString(_kLastGroup);
     final lastChannelId = prefs.getString(_kLastChannelId);
-
-    if (lastGroup != null && lastGroup != _selectedGroup) {
-      setState(() {
-        _selectedGroup = lastGroup;
-        _applyFilters();
-      });
-    }
 
     if (lastChannelId != null && _filteredChannels.isNotEmpty) {
       final idx = _filteredChannels.indexWhere((c) => c.id == lastChannelId);
@@ -797,41 +785,23 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
         final listId = _selectedGroup.substring(4);
         _applyFavoriteListFilter(listId);
         return;
-      } else if (_selectedGroup.startsWith('provider:')) {
-        final providerId = _selectedGroup.substring(9);
-        if (!_loadedProviders.contains(providerId)) {
-          _loadProviderChannels(providerId);
-          _filteredChannels = [];
-          return;
-        }
-        channels = channels.where((c) => c.providerId == providerId).toList();
-      } else if (_selectedGroup.startsWith('provgroup:')) {
-        // Format: provgroup:{providerId}:{groupTitle}
-        final parts = _selectedGroup.substring(10);
-        final sepIdx = parts.indexOf(':');
-        if (sepIdx > 0) {
-          final providerId = parts.substring(0, sepIdx);
-          final groupTitle = parts.substring(sepIdx + 1);
-          if (!_loadedProviders.contains(providerId)) {
-            _loadProviderChannels(providerId);
-            _filteredChannels = [];
-            return;
-          }
-          channels = channels
-              .where(
-                (c) => c.providerId == providerId && c.groupTitle == groupTitle,
-              )
-              .toList();
-        }
-      } else if (_selectedGroup != 'All') {
+      } else {
         channels = channels
-            .where((c) => c.groupTitle == _selectedGroup)
+            .where(
+              (c) =>
+                  ChannelCategoryClassifier.classify(
+                    name: c.name,
+                    groupTitle: c.groupTitle,
+                    tvgId: c.tvgId,
+                    streamUrl: c.streamUrl,
+                  ) ==
+                  _selectedGroup,
+            )
             .toList();
       }
     }
 
-    // Top-bar search: when active, search ALL channels across ALL providers
-    // regardless of group selection. Single-pass haystack for speed.
+    // Search the currently loaded category. Other categories remain lazy.
     if (_searchQuery.isNotEmpty) {
       final tokens = _searchQuery
           .toLowerCase()
@@ -853,6 +823,23 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
     }
 
     _filteredChannels = _deduplicateChannels(channels);
+    if (ChannelCategoryClassifier.categories.contains(_selectedGroup)) {
+      _filteredChannels.sort((a, b) {
+        final aKey = ChannelCategoryClassifier.sortKeyForCategory(
+          category: _selectedGroup,
+          name: _channelDisplayName(a),
+          tvgId: a.tvgId,
+          groupTitle: a.groupTitle,
+        );
+        final bKey = ChannelCategoryClassifier.sortKeyForCategory(
+          category: _selectedGroup,
+          name: _channelDisplayName(b),
+          tvgId: b.tvgId,
+          groupTitle: b.groupTitle,
+        );
+        return aKey.compareTo(bKey);
+      });
+    }
     if (_selectedIndex >= _filteredChannels.length) {
       _selectedIndex = -1;
     }
@@ -876,6 +863,61 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
       }
     }
     return representatives.values.toList();
+  }
+
+  bool _sameChannelSnapshot(List<db.Channel> previous, List<db.Channel> next) {
+    if (previous.length != next.length) return false;
+    for (var index = 0; index < previous.length; index++) {
+      final left = previous[index];
+      final right = next[index];
+      if (left.id != right.id ||
+          left.name != right.name ||
+          left.streamUrl != right.streamUrl ||
+          left.groupTitle != right.groupTitle ||
+          left.tvgLogo != right.tvgLogo) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  ({String channelId, double intraRowOffset, bool guide})?
+  _captureScrollAnchor() {
+    final guide = _showGuideView;
+    final controller = guide
+        ? _guideVerticalController
+        : _channelListController;
+    if (!controller.hasClients || _filteredChannels.isEmpty) return null;
+    final rowHeight = guide ? 48.0 : 52.0;
+    final rawIndex = (controller.offset / rowHeight).floor();
+    final index = rawIndex.clamp(0, _filteredChannels.length - 1);
+    return (
+      channelId: _filteredChannels[index].id,
+      intraRowOffset: controller.offset - index * rowHeight,
+      guide: guide,
+    );
+  }
+
+  void _restoreScrollAnchor(
+    ({String channelId, double intraRowOffset, bool guide}) anchor,
+  ) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final index = _filteredChannels.indexWhere(
+        (channel) => channel.id == anchor.channelId,
+      );
+      if (index < 0) return;
+      final controller = anchor.guide
+          ? _guideVerticalController
+          : _channelListController;
+      if (!controller.hasClients) return;
+      final rowHeight = anchor.guide ? 48.0 : 52.0;
+      final target = (index * rowHeight + anchor.intraRowOffset).clamp(
+        0.0,
+        controller.position.maxScrollExtent,
+      );
+      controller.jumpTo(target);
+    });
   }
 
   String _automaticChannelKey(db.Channel channel) {
@@ -949,21 +991,8 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
     if (_hideIpv6Sources == value) return;
     final previewWasHidden =
         value && _previewChannel != null && _isIpv6Channel(_previewChannel!);
-    var selectedProviderWasHidden = false;
-    if (value) {
-      for (final provider in _providers) {
-        if (!_isIpv6Provider(provider)) continue;
-        if (_selectedGroup == 'provider:${provider.id}' ||
-            _selectedGroup.startsWith('provgroup:${provider.id}:')) {
-          selectedProviderWasHidden = true;
-          break;
-        }
-      }
-    }
-
     setState(() {
       _hideIpv6Sources = value;
-      if (selectedProviderWasHidden) _selectedGroup = 'All';
       if (previewWasHidden) {
         _previewChannel = null;
         _selectedIndex = -1;
@@ -985,7 +1014,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
 
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(SourceVisibility.hideIpv6PreferenceKey, value);
-    await ref.read(streamAlternativesProvider).rebuild();
+    await ref.read(streamAlternativesProvider).rebuildForChannels(_allChannels);
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -1070,19 +1099,27 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
     _refreshNowPlaying();
   }
 
-  void _selectGroupAndPlayFirst(String group) {
+  Future<void> _selectGroupAndPlayFirst(String group) async {
     if (_selectedGroup == group) return;
     setState(() {
       _clearSearch();
       _selectedGroup = group;
       _selectedIndex = -1;
       _pendingAutoplayGroup = group;
-      _applyFilters();
+      _filteredChannels = [];
     });
-    if (!group.startsWith('fav:')) {
-      _playFirstFilteredChannelForGroup(group);
-    }
     _saveSession();
+    await _loadGroupChannels(group);
+    if (!mounted || _selectedGroup != group) return;
+    setState(() => _epgLoading = true);
+    await _loadEpgData(
+      ref.read(databaseProvider),
+      _allChannels,
+      _favoritedChannelIds,
+    );
+    if (mounted && _selectedGroup == group) {
+      setState(() => _epgLoading = false);
+    }
   }
 
   void _playFirstFilteredChannelForGroup(String group) {
@@ -1136,6 +1173,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
       vanityName: _vanityNames[channel.id],
       originalName: channel.tvgName,
       failoverGroupUrls: failoverUrls,
+      allowAudioOnly: _allowsAudioOnly(channel),
     );
     setState(() {
       _selectedIndex = index;
@@ -1162,6 +1200,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
       vanityName: _vanityNames[channel.id],
       originalName: channel.tvgName,
       failoverGroupUrls: _automaticAlternativeUrls(channel),
+      allowAudioOnly: _allowsAudioOnly(channel),
     );
     setState(() {
       _selectedIndex = swapTo;
@@ -1279,6 +1318,14 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
   /// Display name for a channel — vanity name if set, otherwise original name.
   String _channelDisplayName(db.Channel channel) =>
       _vanityNames[channel.id] ?? channel.name;
+
+  bool _allowsAudioOnly(db.Channel channel) =>
+      ChannelCategoryClassifier.isRadioChannel(
+        name: channel.name,
+        groupTitle: channel.groupTitle,
+        tvgId: channel.tvgId,
+        streamUrl: channel.streamUrl,
+      );
 
   /// Get failover alternative details for a channel (for debug dialog).
   List<AlternativeDetail> _getFailoverAlts(db.Channel channel) {
@@ -1554,7 +1601,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
             mainAxisSize: MainAxisSize.min,
             children: [
               Image.asset(
-                'assets/icon/clubtivi-icon.png',
+                'assets/icon/bobtv-icon.png',
                 width: 80,
                 height: 80,
                 errorBuilder: (_, __, ___) =>
@@ -1562,7 +1609,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
               ),
               const SizedBox(height: 12),
               const Text(
-                '酒店电视',
+                'BobTV',
                 style: TextStyle(
                   color: Colors.white,
                   fontSize: 22,
@@ -1588,7 +1635,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
         ),
       );
     }
-    if (_allChannels.isEmpty && _providers.isEmpty) {
+    if (_allChannels.isEmpty) {
       return _buildEmptyState(context);
     }
 
@@ -1681,41 +1728,66 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
   }
 
   Widget _buildEmptyState(BuildContext context) {
+    final waitingForBundledSources = _providers.isEmpty;
+    final title = _categoryLoading
+        ? '正在载入$_selectedGroup'
+        : waitingForBundledSources
+        ? '正在整理内置电视源'
+        : '当前分类暂无频道';
+    final message = _categoryLoading
+        ? '频道和备用线路会在载入完成后自动显示'
+        : waitingForBundledSources
+        ? 'BobTV 正在后台导入并整理内置来源，完成后会自动显示'
+        : '可以选择其他内容分类，或手动添加新的电视源';
     return Scaffold(
       body: SafeArea(
         child: Column(
           children: [
             if (!Platform.isAndroid) _buildTopBar(context),
-            const Expanded(
+            Expanded(
               child: Center(
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Icon(
-                      Icons.live_tv_rounded,
-                      size: 64,
-                      color: Colors.white24,
-                    ),
-                    SizedBox(height: 16),
+                    if (_categoryLoading || waitingForBundledSources)
+                      const SizedBox(
+                        width: 44,
+                        height: 44,
+                        child: CircularProgressIndicator(strokeWidth: 3),
+                      )
+                    else
+                      const Icon(
+                        Icons.live_tv_rounded,
+                        size: 64,
+                        color: Colors.white24,
+                      ),
+                    const SizedBox(height: 16),
                     Text(
-                      '暂无频道',
-                      style: TextStyle(fontSize: 20, color: Colors.white54),
+                      title,
+                      style: const TextStyle(
+                        fontSize: 20,
+                        color: Colors.white70,
+                      ),
                     ),
-                    SizedBox(height: 8),
+                    const SizedBox(height: 8),
                     Text(
-                      '添加电视源后即可开始观看',
-                      style: TextStyle(fontSize: 14, color: Colors.white38),
+                      message,
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                        fontSize: 14,
+                        color: Colors.white38,
+                      ),
                     ),
                   ],
                 ),
               ),
             ),
             const SizedBox(height: 24),
-            FilledButton.icon(
+            OutlinedButton.icon(
               autofocus: true,
               onPressed: () => context.push('/providers'),
               icon: const Icon(Icons.add),
-              label: const Text('添加电视源'),
+              label: const Text('手动添加电视源'),
             ),
             const Spacer(),
           ],
@@ -1730,11 +1802,21 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
       child: Row(
         children: [
           Text(
-            '酒店电视',
+            'BobTV',
             style: TextStyle(
               fontSize: 14,
               fontWeight: FontWeight.w500,
               color: Colors.white.withValues(alpha: 0.4),
+            ),
+          ),
+          const SizedBox(width: 10),
+          ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 300),
+            child: Text(
+              _loadStatus,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(fontSize: 11, color: Colors.white30),
             ),
           ),
           const SizedBox(width: 16),
@@ -2600,7 +2682,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
             Padding(
               padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 8),
               child: Text(
-                _sidebarExpanded ? '酒店电视 v0.4.0+5' : 'v0.4.0+5',
+                _sidebarExpanded ? 'BobTV v0.8.4+23' : 'v0.8.4+23',
                 style: const TextStyle(
                   fontSize: 10,
                   color: Colors.white24,
@@ -2617,21 +2699,16 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
   }
 
   Widget _buildCollapsedSidebar() {
-    // Icons-only when collapsed
-    final isAll = _selectedGroup == 'All';
     final isFav =
         _selectedGroup == 'Favorites' || _selectedGroup.startsWith('fav:');
     return ListView(
       padding: const EdgeInsets.symmetric(vertical: 4),
       children: [
-        _sidebarIcon(Icons.grid_view_rounded, 'All', isAll, () {
-          _selectGroupAndPlayFirst('All');
-        }),
-        _sidebarIcon(Icons.star_rounded, 'Favorites', isFav, () {
+        _sidebarIcon(Icons.star_rounded, '收藏', isFav, () {
           _selectGroupAndPlayFirst('Favorites');
         }),
         const Divider(height: 1, color: Colors.white10),
-        _sidebarIcon(Icons.folder_rounded, 'Groups', !isAll && !isFav, () {
+        _sidebarIcon(Icons.folder_rounded, '内容分类', !isFav, () {
           setState(() => _sidebarExpanded = true);
         }),
       ],
@@ -2737,46 +2814,48 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
     );
   }
 
+  Widget _buildSidebarSectionLabel(String label) => Padding(
+    padding: const EdgeInsets.fromLTRB(12, 10, 12, 4),
+    child: Text(
+      label,
+      style: const TextStyle(
+        color: Colors.white38,
+        fontSize: 11,
+        fontWeight: FontWeight.w600,
+      ),
+    ),
+  );
+
   Widget _buildSidebarTree() {
     final q = _sidebarSearchQuery;
-    final visibleProviders = _hideIpv6Sources
-        ? _providers.where((provider) => !_isIpv6Provider(provider)).toList()
-        : _providers;
     final filteredGroups = q.isEmpty
         ? _groups
         : _groups.where((g) => g.toLowerCase().contains(q)).toList();
+    final filteredProvinceGroups = filteredGroups
+        .where(ChannelCategoryClassifier.provinceCategories.contains)
+        .toList();
+    final filteredMainGroups = filteredGroups
+        .where(
+          (group) =>
+              !ChannelCategoryClassifier.provinceCategories.contains(group),
+        )
+        .toList();
     final filteredFavs = q.isEmpty
         ? _favoriteLists
         : _favoriteLists
               .where((l) => l.name.toLowerCase().contains(q))
               .toList();
-    final filteredProviders = q.isEmpty
-        ? visibleProviders
-        : visibleProviders
-              .where((p) => p.name.toLowerCase().contains(q))
-              .toList();
-    final showAll = q.isEmpty || 'all'.contains(q);
     final showFavSection =
-        q.isEmpty || filteredFavs.isNotEmpty || 'favorites'.contains(q);
-    final showProvSection =
-        q.isEmpty || filteredProviders.isNotEmpty || 'providers'.contains(q);
+        q.isEmpty || filteredFavs.isNotEmpty || 'favorites 收藏'.contains(q);
 
     return ListView(
       padding: const EdgeInsets.symmetric(vertical: 4),
       children: [
-        if (showAll)
-          _buildTreeItem(
-            'All (${_hideIpv6Sources ? _allChannels.where((channel) => !_isIpv6Channel(channel)).length : _allChannels.length})',
-            'All',
-            Icons.grid_view_rounded,
-            indent: 0,
-            focusNode: _sidebarAllItemFocusNode,
-          ),
         if (showFavSection)
-          _buildTreeSection('favorites', Icons.star_rounded, 'Favorites', [
-            if (q.isEmpty || 'favorites'.contains(q))
+          _buildTreeSection('favorites', Icons.star_rounded, '收藏', [
+            if (q.isEmpty || 'favorites 收藏'.contains(q))
               _buildTreeItem(
-                'All Favorites',
+                '全部收藏',
                 'Favorites',
                 Icons.star_rounded,
                 indent: 1,
@@ -2791,105 +2870,72 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
               ),
             if (q.isEmpty)
               _buildTreeAction(
-                'New List…',
+                '新建收藏夹…',
                 Icons.add_rounded,
                 () => _showManageFavoritesDialog(),
                 indent: 1,
               ),
           ]),
-        if (showFavSection || showProvSection)
+        if (showFavSection && filteredGroups.isNotEmpty)
           const Divider(height: 1, color: Colors.white10),
-        if (showProvSection) ..._buildProviderTrees(filteredProviders, q),
-        if (showProvSection || filteredGroups.isNotEmpty)
-          const Divider(height: 1, color: Colors.white10),
+        if (filteredGroups.isNotEmpty) _buildSidebarSectionLabel('按地区分类'),
         if (filteredGroups.isNotEmpty)
           _buildTreeSection(
             'groups',
             Icons.folder_rounded,
-            'Groups (${filteredGroups.length})',
+            '频道分类 (${filteredGroups.length})',
             [
-              for (final group in filteredGroups)
+              for (final group in filteredMainGroups.where(
+                (group) => group == '央视',
+              ))
+                _buildTreeItem(
+                  group,
+                  group,
+                  null,
+                  indent: 1,
+                  focusNode: _sidebarAllItemFocusNode,
+                ),
+              if (filteredProvinceGroups.isNotEmpty)
+                _buildTreeSection(
+                  'regions',
+                  Icons.map_rounded,
+                  '地区（省份） (${filteredProvinceGroups.length})',
+                  [
+                    for (final group in filteredProvinceGroups)
+                      _buildTreeItem(group, group, null, indent: 2),
+                  ],
+                ),
+              for (final group in filteredMainGroups.where(
+                (group) => group != '央视',
+              ))
                 _buildTreeItem(group, group, null, indent: 1),
             ],
           ),
         // Shows & Movies
         const Divider(height: 1, color: Colors.white10),
-        _buildTreeItem(
-          'Shows & Movies',
-          'action:shows',
-          Icons.movie_rounded,
-          indent: 0,
-        ),
+        _buildTreeItem('影视资料', 'action:shows', Icons.movie_rounded, indent: 0),
         // Quick actions
         const Divider(height: 1, color: Colors.white10),
         _buildTreeItem(
-          'Recordings',
+          '录像',
           'action:recordings',
           Icons.videocam_rounded,
           indent: 0,
         ),
         _buildTreeItem(
-          'Play File',
+          '打开文件',
           'action:play_file',
           Icons.play_circle_outline_rounded,
           indent: 0,
         ),
         _buildTreeItem(
-          'Play URL',
+          '播放网址',
           'action:play_url',
           Icons.link_rounded,
           indent: 0,
         ),
       ],
     );
-  }
-
-  /// Build provider tree nodes: each provider is a collapsible section
-  /// containing its category groups as sub-items.
-  List<Widget> _buildProviderTrees(List<db.Provider> providers, String query) {
-    final widgets = <Widget>[];
-    for (final prov in providers) {
-      final sortedGroups = _providerGroups[prov.id] ?? [];
-      final filteredGroups = query.isEmpty
-          ? sortedGroups
-          : sortedGroups.where((g) => g.toLowerCase().contains(query)).toList();
-
-      // No subcategories — show as a flat link
-      if (filteredGroups.isEmpty) {
-        widgets.add(
-          _buildTreeItem(
-            prov.name,
-            'provider:${prov.id}',
-            prov.type == 'xtream'
-                ? Icons.bolt_rounded
-                : Icons.playlist_play_rounded,
-            indent: 0,
-          ),
-        );
-      } else {
-        // Has subcategories — show as expandable tree
-        widgets.add(
-          _buildTreeSection(
-            'prov_${prov.id}',
-            prov.type == 'xtream'
-                ? Icons.bolt_rounded
-                : Icons.playlist_play_rounded,
-            prov.name,
-            [
-              for (final group in filteredGroups)
-                _buildTreeItem(
-                  group,
-                  'provgroup:${prov.id}:$group',
-                  Icons.folder_open_rounded,
-                  indent: 1,
-                ),
-            ],
-            filterKey: 'provider:${prov.id}',
-          ),
-        );
-      }
-    }
-    return widgets;
   }
 
   Widget _buildTreeSection(
@@ -4782,6 +4828,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
       vanityName: _vanityNames[target.id],
       originalName: target.tvgName,
       failoverGroupUrls: altUrls,
+      allowAudioOnly: _allowsAudioOnly(target),
     );
 
     // Always update preview — grouped channels are filtered out of
@@ -5819,6 +5866,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                 return Stack(
                   children: [
                     ListView.builder(
+                      controller: _guideVerticalController,
                       itemCount:
                           _filteredChannels.length + _guideFailoverGroupCount,
                       itemBuilder: (context, index) {

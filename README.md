@@ -1,11 +1,11 @@
-# Hotel TV for Windows
+# BobTV for Windows
 
-Hotel TV is a Windows focused IPTV player built from the open source [clubTivi](https://github.com/clubanderson/clubTivi) project. This fork turns a Windows 11 computer connected to a television into a remote friendly live TV appliance with a Chinese interface, automatic stream selection, silent failover, programme guide support, and native borderless fullscreen output.
+BobTV is a Windows focused IPTV player built from the open source [clubTivi](https://github.com/clubanderson/clubTivi) project. This fork turns a Windows 11 computer connected to a television into a remote friendly live TV appliance with a Chinese interface, automatic stream selection, silent failover, programme guide support, and native borderless fullscreen output.
 
 The application is built with Flutter and uses `media_kit`, libmpv, FFmpeg, Riverpod, Drift, and SQLite.
 
 <p align="center">
-  <img src="docs/images/clubtivi-screenshot.png" alt="Hotel TV channel guide and player" width="900">
+  <img src="docs/images/clubtivi-screenshot.png" alt="BobTV channel guide and player" width="900">
 </p>
 
 ## Highlights
@@ -71,6 +71,30 @@ This fork includes several changes for long running playback:
 * Bounded parallel network probes
 * Persisted health scores with time decay
 * Time window route scoring for recurring peak hour congestion
+
+### Self-maintaining playlist catalogue
+
+The application checks HTTP and HTTPS routes in small background batches every six hours. A route is retired only after five consecutive failures spanning at least 24 hours. Previously failing routes are checked first, and a batch with no successful connections is discarded when it indicates a wider network outage. Retired routes stay excluded from later playlist imports. Channels with no remaining routes disappear automatically, along with categories that become empty.
+
+For configured GitHub backed playlists, the local database records the source URL, repository owner, repository name, branch, file path, and last observed Git object version. Repository versions are checked every six hours through the public GitHub API. A changed playlist resets its retired route records, refreshes the provider, and submits the new routes to health checks again. No GitHub credential is embedded in the application.
+
+### AI assisted GitHub crawler
+
+An optional crawler can supplement the configured playlists with newly discovered GitHub sources. It asks an OpenAI compatible Chat Completions endpoint to generate repository searches, inspect complete repository tree metadata, select arbitrary candidate documents, classify their storage format, extract stream records, and identify child documents for recursive traversal. Repository trees that exceed the recursive Git API response are traversed directory by directory. Selection does not depend on a fixed playlist path or filename extension.
+
+M3U documents are expanded by the strict local parser after AI file selection. JSON, YAML, text, generated data, and other layouts are analyzed in bounded chunks with structured JSON Schema output. Repository content is treated as untrusted data and cannot supply instructions to the model. Only same repository GitHub document links are eligible for recursive fetching.
+
+Discovered routes are placed in the existing channel aggregation and failover system. Each route retains its repository, commit, file path, source document URL, confidence, and first and last discovery times. The crawler runs at most once per day, processes five repositories per pass, and prefers three configured repositories plus two newly discovered repositories.
+
+The crawler requires all of these process environment variables:
+
+* `OPENAI_BASE_URL`
+* `OPENAI_API_KEY`
+* `OPENAI_MODEL`, optional and defaulting to `gpt-5.6-luna`
+
+If either required value is absent, only the AI crawler is disabled. Playback, the programme guide, normal provider refreshes, route health checks, and GitHub version monitoring continue to operate. Credentials are never written to the repository or application logs.
+
+Release builds include a sanitized bundled snapshot of the latest discovered routes. A new installation imports the snapshot automatically, so customers receive the release time channel candidates even when the optional AI endpoint is unavailable. The snapshot contains public stream metadata and GitHub provenance only. It excludes favorites, playback history, route health history, diagnostics, crash dumps, and API configuration. Later crawler passes update these candidates when runtime AI configuration is available.
 
 ## Included source bootstrap
 
@@ -181,7 +205,7 @@ Stream health metrics and application configuration are stored locally by the ap
 
 ## Legal notice
 
-Hotel TV is a media player. It does not host, retransmit, sell, or guarantee access to television content. Repository maintainers do not control third party playlists, streams, logos, metadata, or programme guides.
+BobTV is a media player. It does not host, retransmit, sell, or guarantee access to television content. Repository maintainers do not control third party playlists, streams, logos, metadata, or programme guides.
 
 Users and deployers are responsible for verifying that they have permission to access and display every configured source and for complying with applicable copyright, contract, network, and broadcasting rules.
 

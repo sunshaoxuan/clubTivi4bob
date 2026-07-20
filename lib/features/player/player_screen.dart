@@ -470,7 +470,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     if (value) {
       await windowManager.setTitleBarStyle(TitleBarStyle.hidden);
       await windowManager.setFullScreen(true);
+      await windowManager.setAlwaysOnTop(true);
+      await windowManager.focus();
     } else {
+      await windowManager.setAlwaysOnTop(false);
       await windowManager.setFullScreen(false);
       await windowManager.setTitleBarStyle(TitleBarStyle.normal);
       if (Platform.isWindows) await windowManager.maximize();
@@ -483,7 +486,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   }
 
   Future<void> _leavePlayer() async {
-    if (_nativeFullscreen) await _setNativeFullscreen(false);
+    if (_supportsNativeFullscreen) await _setNativeFullscreen(false);
     if (!mounted) return;
     GoRouter.of(context).canPop()
         ? GoRouter.of(context).pop()
@@ -640,7 +643,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     _volumeTimer?.cancel();
     _tracksSubscription?.cancel();
     _bufferingSubscription?.cancel();
-    if (_nativeFullscreen && _supportsNativeFullscreen) {
+    if (_supportsNativeFullscreen) {
       unawaited(_setNativeFullscreen(false));
     }
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);

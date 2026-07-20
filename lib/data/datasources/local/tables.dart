@@ -55,6 +55,17 @@ class StreamChecks extends Table {
   Set<Column> get primaryKey => {providerId, streamUrl};
 }
 
+/// Routes permanently blocked after active playback identifies harmful or
+/// non-television content such as long-running static advertising images.
+class BlockedStreamRoutes extends Table {
+  TextColumn get streamUrl => text()();
+  TextColumn get reason => text()();
+  DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
+
+  @override
+  Set<Column> get primaryKey => {streamUrl};
+}
+
 /// Maps an imported provider URL to its GitHub repository origin and version.
 class ProviderOrigins extends Table {
   TextColumn get providerId => text()();

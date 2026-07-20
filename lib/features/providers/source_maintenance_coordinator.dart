@@ -20,7 +20,9 @@ class SourceMaintenanceCoordinator {
   Timer? _timer;
   Timer? _startupTimer;
   Timer? _snapshotTimer;
+  Timer? _healthTimer;
   bool _running = false;
+  bool _healthRunning = false;
 
   SourceMaintenanceCoordinator({
     required this.manager,
@@ -42,10 +44,20 @@ class SourceMaintenanceCoordinator {
       DefaultProviderBootstrap.refreshInterval,
       (_) => unawaited(_run()),
     );
+    _healthTimer = Timer.periodic(
+      const Duration(hours: 1),
+      (_) => unawaited(_runHealthMaintenance()),
+    );
   }
 
   Future<void> _importBundledSnapshot() async {
     try {
+      final purged = await manager.database.purgePlatformLivestreamChannels();
+      if (purged > 0) {
+        AppDiagnostics.instance.log('platform_livestreams_purged', {
+          'deletedChannels': purged,
+        });
+      }
       await bundledSourceSnapshot.run();
     } catch (error, stackTrace) {
       AppDiagnostics.instance.recordError(
@@ -56,12 +68,34 @@ class SourceMaintenanceCoordinator {
     }
   }
 
+  Future<void> _runHealthMaintenance() async {
+    if (_running || _healthRunning) return;
+    _healthRunning = true;
+    try {
+      await maintenanceService.run();
+    } catch (error, stackTrace) {
+      AppDiagnostics.instance.recordError(
+        'source_health_maintenance',
+        error,
+        stackTrace,
+      );
+    } finally {
+      _healthRunning = false;
+    }
+  }
+
   Future<void> _run() async {
     if (_running) return;
     _running = true;
     final database = manager.database;
     try {
       try {
+        final purged = await database.purgePlatformLivestreamChannels();
+        if (purged > 0) {
+          AppDiagnostics.instance.log('platform_livestreams_purged', {
+            'deletedChannels': purged,
+          });
+        }
         await bundledSourceSnapshot.run();
       } catch (error, stackTrace) {
         AppDiagnostics.instance.recordError(
@@ -93,6 +127,7 @@ class SourceMaintenanceCoordinator {
   void dispose() {
     _snapshotTimer?.cancel();
     _startupTimer?.cancel();
+    _healthTimer?.cancel();
     _timer?.cancel();
     githubMonitor.dispose();
     maintenanceService.dispose();

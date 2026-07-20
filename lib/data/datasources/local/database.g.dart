@@ -1925,6 +1925,272 @@ class StreamChecksCompanion extends UpdateCompanion<StreamCheck> {
   }
 }
 
+class $BlockedStreamRoutesTable extends BlockedStreamRoutes
+    with TableInfo<$BlockedStreamRoutesTable, BlockedStreamRoute> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $BlockedStreamRoutesTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _streamUrlMeta = const VerificationMeta(
+    'streamUrl',
+  );
+  @override
+  late final GeneratedColumn<String> streamUrl = GeneratedColumn<String>(
+    'stream_url',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _reasonMeta = const VerificationMeta('reason');
+  @override
+  late final GeneratedColumn<String> reason = GeneratedColumn<String>(
+    'reason',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _createdAtMeta = const VerificationMeta(
+    'createdAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> createdAt = GeneratedColumn<DateTime>(
+    'created_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+    defaultValue: currentDateAndTime,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [streamUrl, reason, createdAt];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'blocked_stream_routes';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<BlockedStreamRoute> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('stream_url')) {
+      context.handle(
+        _streamUrlMeta,
+        streamUrl.isAcceptableOrUnknown(data['stream_url']!, _streamUrlMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_streamUrlMeta);
+    }
+    if (data.containsKey('reason')) {
+      context.handle(
+        _reasonMeta,
+        reason.isAcceptableOrUnknown(data['reason']!, _reasonMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_reasonMeta);
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(
+        _createdAtMeta,
+        createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {streamUrl};
+  @override
+  BlockedStreamRoute map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return BlockedStreamRoute(
+      streamUrl: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}stream_url'],
+      )!,
+      reason: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}reason'],
+      )!,
+      createdAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}created_at'],
+      )!,
+    );
+  }
+
+  @override
+  $BlockedStreamRoutesTable createAlias(String alias) {
+    return $BlockedStreamRoutesTable(attachedDatabase, alias);
+  }
+}
+
+class BlockedStreamRoute extends DataClass
+    implements Insertable<BlockedStreamRoute> {
+  final String streamUrl;
+  final String reason;
+  final DateTime createdAt;
+  const BlockedStreamRoute({
+    required this.streamUrl,
+    required this.reason,
+    required this.createdAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['stream_url'] = Variable<String>(streamUrl);
+    map['reason'] = Variable<String>(reason);
+    map['created_at'] = Variable<DateTime>(createdAt);
+    return map;
+  }
+
+  BlockedStreamRoutesCompanion toCompanion(bool nullToAbsent) {
+    return BlockedStreamRoutesCompanion(
+      streamUrl: Value(streamUrl),
+      reason: Value(reason),
+      createdAt: Value(createdAt),
+    );
+  }
+
+  factory BlockedStreamRoute.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return BlockedStreamRoute(
+      streamUrl: serializer.fromJson<String>(json['streamUrl']),
+      reason: serializer.fromJson<String>(json['reason']),
+      createdAt: serializer.fromJson<DateTime>(json['createdAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'streamUrl': serializer.toJson<String>(streamUrl),
+      'reason': serializer.toJson<String>(reason),
+      'createdAt': serializer.toJson<DateTime>(createdAt),
+    };
+  }
+
+  BlockedStreamRoute copyWith({
+    String? streamUrl,
+    String? reason,
+    DateTime? createdAt,
+  }) => BlockedStreamRoute(
+    streamUrl: streamUrl ?? this.streamUrl,
+    reason: reason ?? this.reason,
+    createdAt: createdAt ?? this.createdAt,
+  );
+  BlockedStreamRoute copyWithCompanion(BlockedStreamRoutesCompanion data) {
+    return BlockedStreamRoute(
+      streamUrl: data.streamUrl.present ? data.streamUrl.value : this.streamUrl,
+      reason: data.reason.present ? data.reason.value : this.reason,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('BlockedStreamRoute(')
+          ..write('streamUrl: $streamUrl, ')
+          ..write('reason: $reason, ')
+          ..write('createdAt: $createdAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(streamUrl, reason, createdAt);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is BlockedStreamRoute &&
+          other.streamUrl == this.streamUrl &&
+          other.reason == this.reason &&
+          other.createdAt == this.createdAt);
+}
+
+class BlockedStreamRoutesCompanion extends UpdateCompanion<BlockedStreamRoute> {
+  final Value<String> streamUrl;
+  final Value<String> reason;
+  final Value<DateTime> createdAt;
+  final Value<int> rowid;
+  const BlockedStreamRoutesCompanion({
+    this.streamUrl = const Value.absent(),
+    this.reason = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  BlockedStreamRoutesCompanion.insert({
+    required String streamUrl,
+    required String reason,
+    this.createdAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  }) : streamUrl = Value(streamUrl),
+       reason = Value(reason);
+  static Insertable<BlockedStreamRoute> custom({
+    Expression<String>? streamUrl,
+    Expression<String>? reason,
+    Expression<DateTime>? createdAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (streamUrl != null) 'stream_url': streamUrl,
+      if (reason != null) 'reason': reason,
+      if (createdAt != null) 'created_at': createdAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  BlockedStreamRoutesCompanion copyWith({
+    Value<String>? streamUrl,
+    Value<String>? reason,
+    Value<DateTime>? createdAt,
+    Value<int>? rowid,
+  }) {
+    return BlockedStreamRoutesCompanion(
+      streamUrl: streamUrl ?? this.streamUrl,
+      reason: reason ?? this.reason,
+      createdAt: createdAt ?? this.createdAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (streamUrl.present) {
+      map['stream_url'] = Variable<String>(streamUrl.value);
+    }
+    if (reason.present) {
+      map['reason'] = Variable<String>(reason.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<DateTime>(createdAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('BlockedStreamRoutesCompanion(')
+          ..write('streamUrl: $streamUrl, ')
+          ..write('reason: $reason, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 class $ProviderOriginsTable extends ProviderOrigins
     with TableInfo<$ProviderOriginsTable, ProviderOrigin> {
   @override
@@ -8403,6 +8669,8 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   late final $ProvidersTable providers = $ProvidersTable(this);
   late final $ChannelsTable channels = $ChannelsTable(this);
   late final $StreamChecksTable streamChecks = $StreamChecksTable(this);
+  late final $BlockedStreamRoutesTable blockedStreamRoutes =
+      $BlockedStreamRoutesTable(this);
   late final $ProviderOriginsTable providerOrigins = $ProviderOriginsTable(
     this,
   );
@@ -8432,6 +8700,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     providers,
     channels,
     streamChecks,
+    blockedStreamRoutes,
     providerOrigins,
     gitHubCrawlRepositories,
     discoveredStreamSources,
@@ -9901,6 +10170,184 @@ typedef $$StreamChecksTableProcessedTableManager =
         BaseReferences<_$AppDatabase, $StreamChecksTable, StreamCheck>,
       ),
       StreamCheck,
+      PrefetchHooks Function()
+    >;
+typedef $$BlockedStreamRoutesTableCreateCompanionBuilder =
+    BlockedStreamRoutesCompanion Function({
+      required String streamUrl,
+      required String reason,
+      Value<DateTime> createdAt,
+      Value<int> rowid,
+    });
+typedef $$BlockedStreamRoutesTableUpdateCompanionBuilder =
+    BlockedStreamRoutesCompanion Function({
+      Value<String> streamUrl,
+      Value<String> reason,
+      Value<DateTime> createdAt,
+      Value<int> rowid,
+    });
+
+class $$BlockedStreamRoutesTableFilterComposer
+    extends Composer<_$AppDatabase, $BlockedStreamRoutesTable> {
+  $$BlockedStreamRoutesTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get streamUrl => $composableBuilder(
+    column: $table.streamUrl,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get reason => $composableBuilder(
+    column: $table.reason,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$BlockedStreamRoutesTableOrderingComposer
+    extends Composer<_$AppDatabase, $BlockedStreamRoutesTable> {
+  $$BlockedStreamRoutesTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get streamUrl => $composableBuilder(
+    column: $table.streamUrl,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get reason => $composableBuilder(
+    column: $table.reason,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$BlockedStreamRoutesTableAnnotationComposer
+    extends Composer<_$AppDatabase, $BlockedStreamRoutesTable> {
+  $$BlockedStreamRoutesTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get streamUrl =>
+      $composableBuilder(column: $table.streamUrl, builder: (column) => column);
+
+  GeneratedColumn<String> get reason =>
+      $composableBuilder(column: $table.reason, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+}
+
+class $$BlockedStreamRoutesTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $BlockedStreamRoutesTable,
+          BlockedStreamRoute,
+          $$BlockedStreamRoutesTableFilterComposer,
+          $$BlockedStreamRoutesTableOrderingComposer,
+          $$BlockedStreamRoutesTableAnnotationComposer,
+          $$BlockedStreamRoutesTableCreateCompanionBuilder,
+          $$BlockedStreamRoutesTableUpdateCompanionBuilder,
+          (
+            BlockedStreamRoute,
+            BaseReferences<
+              _$AppDatabase,
+              $BlockedStreamRoutesTable,
+              BlockedStreamRoute
+            >,
+          ),
+          BlockedStreamRoute,
+          PrefetchHooks Function()
+        > {
+  $$BlockedStreamRoutesTableTableManager(
+    _$AppDatabase db,
+    $BlockedStreamRoutesTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$BlockedStreamRoutesTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$BlockedStreamRoutesTableOrderingComposer(
+                $db: db,
+                $table: table,
+              ),
+          createComputedFieldComposer: () =>
+              $$BlockedStreamRoutesTableAnnotationComposer(
+                $db: db,
+                $table: table,
+              ),
+          updateCompanionCallback:
+              ({
+                Value<String> streamUrl = const Value.absent(),
+                Value<String> reason = const Value.absent(),
+                Value<DateTime> createdAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => BlockedStreamRoutesCompanion(
+                streamUrl: streamUrl,
+                reason: reason,
+                createdAt: createdAt,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String streamUrl,
+                required String reason,
+                Value<DateTime> createdAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => BlockedStreamRoutesCompanion.insert(
+                streamUrl: streamUrl,
+                reason: reason,
+                createdAt: createdAt,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$BlockedStreamRoutesTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $BlockedStreamRoutesTable,
+      BlockedStreamRoute,
+      $$BlockedStreamRoutesTableFilterComposer,
+      $$BlockedStreamRoutesTableOrderingComposer,
+      $$BlockedStreamRoutesTableAnnotationComposer,
+      $$BlockedStreamRoutesTableCreateCompanionBuilder,
+      $$BlockedStreamRoutesTableUpdateCompanionBuilder,
+      (
+        BlockedStreamRoute,
+        BaseReferences<
+          _$AppDatabase,
+          $BlockedStreamRoutesTable,
+          BlockedStreamRoute
+        >,
+      ),
+      BlockedStreamRoute,
       PrefetchHooks Function()
     >;
 typedef $$ProviderOriginsTableCreateCompanionBuilder =
@@ -14772,6 +15219,8 @@ class $AppDatabaseManager {
       $$ChannelsTableTableManager(_db, _db.channels);
   $$StreamChecksTableTableManager get streamChecks =>
       $$StreamChecksTableTableManager(_db, _db.streamChecks);
+  $$BlockedStreamRoutesTableTableManager get blockedStreamRoutes =>
+      $$BlockedStreamRoutesTableTableManager(_db, _db.blockedStreamRoutes);
   $$ProviderOriginsTableTableManager get providerOrigins =>
       $$ProviderOriginsTableTableManager(_db, _db.providerOrigins);
   $$GitHubCrawlRepositoriesTableTableManager get gitHubCrawlRepositories =>

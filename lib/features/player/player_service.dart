@@ -14,6 +14,7 @@ import 'stream_proxy.dart';
 import '../../data/services/channel_name_normalizer.dart';
 import '../../data/services/stream_alternatives_service.dart';
 import '../../data/services/stream_health_tracker.dart';
+import '../providers/provider_manager.dart';
 
 /// Manages video playback with stream failover support.
 class PlayerService {
@@ -71,6 +72,10 @@ class PlayerService {
   bool _requiresUltraHd = false;
   Timer? _qualityCheckTimer;
   Timer? _videoCheckTimer;
+  Timer? _staticFrameTimer;
+  List<int>? _lastFrameFingerprint;
+  int _staticFrameMatches = 0;
+  bool _staticFrameSampleBusy = false;
 
   /// Broadcast current stream URL changes (for UI like failover dialog).
   final _currentUrlController = StreamController<String?>.broadcast();
@@ -94,6 +99,11 @@ class PlayerService {
   /// Callback invoked when auto-failover switches streams.
   /// Provides the provider name or URL fragment for UI toast.
   void Function(String message)? onFailover;
+
+  /// Called after four matching frame samples show a route has displayed the
+  /// same picture for roughly one minute.
+  Future<int> Function(String channelId, String streamUrl)?
+  onStaticStreamDetected;
 
   /// The channel ID that failover most recently switched to, if available.
   String? lastFailoverChannelId;
@@ -234,6 +244,7 @@ class PlayerService {
     });
     _qualityCheckTimer?.cancel();
     _videoCheckTimer?.cancel();
+    _resetStaticFrameMonitor();
     final tracksSub = _tracksSub;
     _tracksSub = null;
     await _runPlayStep(
@@ -365,6 +376,7 @@ class PlayerService {
     // ffmpeg proxy if needed (fixes EAC-3 with non-standard codec tags)
     _scheduleAudioCheck(activeUrl);
     _scheduleVideoCheck(activeUrl, playGeneration);
+    _startStaticFrameMonitor(activeUrl, playGeneration);
 
     // Reset and start buffer tracking for the new stream
     bufferHistory.fillRange(0, 60, false);
@@ -888,6 +900,113 @@ class PlayerService {
     return null;
   }
 
+  void _resetStaticFrameMonitor() {
+    _staticFrameTimer?.cancel();
+    _staticFrameTimer = null;
+    _lastFrameFingerprint = null;
+    _staticFrameMatches = 0;
+    _staticFrameSampleBusy = false;
+  }
+
+  void _startStaticFrameMonitor(String expectedUrl, int playGeneration) {
+    _resetStaticFrameMonitor();
+    _staticFrameTimer = Timer.periodic(const Duration(seconds: 15), (_) async {
+      if (_staticFrameSampleBusy) return;
+      if (playGeneration != _playGeneration || _currentUrl != expectedUrl) {
+        _resetStaticFrameMonitor();
+        return;
+      }
+      if (!player.state.playing || player.state.buffering) return;
+      final width = player.state.width ?? 0;
+      final height = player.state.height ?? 0;
+      if (width <= 0 || height <= 0) return;
+      _staticFrameSampleBusy = true;
+      try {
+        final pixels = await player.screenshot(format: null);
+        if (pixels == null || pixels.isEmpty) return;
+        final fingerprint = frameFingerprint(pixels, width, height);
+        if (fingerprint.isEmpty) return;
+        final previous = _lastFrameFingerprint;
+        _lastFrameFingerprint = fingerprint;
+        if (previous != null &&
+            framesAreNearlyIdentical(previous, fingerprint)) {
+          _staticFrameMatches++;
+        } else {
+          _staticFrameMatches = 0;
+        }
+        if (_staticFrameMatches < 3) return;
+
+        _staticFrameTimer?.cancel();
+        _staticFrameTimer = null;
+        for (var i = 0; i < 4; i++) {
+          _healthTracker?.recordStall(expectedUrl);
+        }
+        AppDiagnostics.instance.log('static_stream_detected', {
+          'channel': _currentChannelName,
+          'stream': AppDiagnostics.summarizeStreamUrl(expectedUrl),
+          'sampleSeconds': 60,
+        });
+        final channelId = _currentChannelId;
+        if (channelId != null && onStaticStreamDetected != null) {
+          final deleted = await onStaticStreamDetected!(channelId, expectedUrl);
+          AppDiagnostics.instance.log('static_stream_removed', {
+            'channel': _currentChannelName,
+            'deletedRoutes': deleted,
+          });
+        }
+        onFailover?.call('检测到长期静止画面，已移除该线路');
+        await _autoFailover();
+      } catch (error, stackTrace) {
+        AppDiagnostics.instance.recordError(
+          'static_frame_monitor',
+          error,
+          stackTrace,
+        );
+      } finally {
+        _staticFrameSampleBusy = false;
+      }
+    });
+  }
+
+  @visibleForTesting
+  static List<int> frameFingerprint(Uint8List bgra, int width, int height) {
+    if (width <= 0 || height <= 0 || bgra.length < height * 4) return const [];
+    final stride = bgra.length ~/ height;
+    if (stride < width * 4) return const [];
+    const columns = 16;
+    const rows = 10;
+    final result = <int>[];
+    for (var row = 0; row < rows; row++) {
+      final y = ((row + 0.5) * height / rows).floor().clamp(0, height - 1);
+      for (var column = 0; column < columns; column++) {
+        final x = ((column + 0.5) * width / columns).floor().clamp(
+          0,
+          width - 1,
+        );
+        final offset = y * stride + x * 4;
+        final blue = bgra[offset];
+        final green = bgra[offset + 1];
+        final red = bgra[offset + 2];
+        result.add((red * 30 + green * 59 + blue * 11) ~/ 100);
+      }
+    }
+    return result;
+  }
+
+  @visibleForTesting
+  static bool framesAreNearlyIdentical(List<int> first, List<int> second) {
+    if (first.isEmpty || first.length != second.length) return false;
+    var totalDifference = 0;
+    var changedCells = 0;
+    for (var index = 0; index < first.length; index++) {
+      final difference = (first[index] - second[index]).abs();
+      totalDifference += difference;
+      if (difference > 6) changedCells++;
+    }
+    final meanDifference = totalDifference / first.length;
+    return meanDifference <= 2.5 && changedCells <= first.length * 0.08;
+  }
+
   /// Current adaptive buffer manager for UI access.
   AdaptiveBufferManager get bufferManager => _bufferManager;
 
@@ -1196,6 +1315,7 @@ class PlayerService {
           'channel': _currentChannelName,
           'stream': AppDiagnostics.summarizeStreamUrl(switchedUrl),
         });
+        _startStaticFrameMonitor(switchedUrl, playGeneration);
       } else {
         _failoverRetryNotBefore = DateTime.now().add(
           const Duration(seconds: 15),
@@ -1333,6 +1453,7 @@ class PlayerService {
     _bufferManager.stop();
     _qualityCheckTimer?.cancel();
     _videoCheckTimer?.cancel();
+    _resetStaticFrameMonitor();
     await _tracksSub?.cancel();
     await _playbackErrorLogSub?.cancel();
     await _playingLogSub?.cancel();
@@ -1378,6 +1499,8 @@ final playerServiceProvider = Provider<PlayerService>((ref) {
     final alternatives = ref.read(streamAlternativesProvider);
     final health = ref.read(streamHealthTrackerProvider);
     service.configureFailover(alternatives, health);
+    final database = ref.read(databaseProvider);
+    service.onStaticStreamDetected = database.blockAndDeleteChannelRoute;
   } catch (_) {
     // Services may not be available yet — failover will be disabled
   }

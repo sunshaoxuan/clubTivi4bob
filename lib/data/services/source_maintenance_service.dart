@@ -21,8 +21,8 @@ class StreamCheckDecision {
 }
 
 class SourceMaintenancePolicy {
-  static const failureThreshold = 5;
-  static const minimumFailureAge = Duration(hours: 24);
+  static const failureThreshold = 3;
+  static const minimumFailureAge = Duration(hours: 6);
 
   static StreamCheckDecision evaluate({
     required bool success,
@@ -53,9 +53,9 @@ class SourceMaintenancePolicy {
 }
 
 class SourceMaintenanceService {
-  static const checkInterval = Duration(hours: 6);
-  static const _maximumChecksPerPass = 240;
-  static const _parallelChecks = 8;
+  static const checkInterval = Duration(hours: 2);
+  static const _maximumChecksPerPass = 600;
+  static const _parallelChecks = 16;
 
   final db.AppDatabase database;
   final Dio _dio;
@@ -168,6 +168,13 @@ class SourceMaintenanceService {
   }
 
   Future<bool> _probe(String url) async {
+    final uri = Uri.tryParse(url);
+    if (uri == null || !uri.hasScheme || uri.host.isEmpty) return false;
+    if ((uri.path.isEmpty || uri.path == '/') &&
+        uri.query.isEmpty &&
+        uri.fragment.isNotEmpty) {
+      return false;
+    }
     try {
       final response = await _dio.get<ResponseBody>(
         url,
@@ -175,10 +182,13 @@ class SourceMaintenanceService {
       );
       final status = response.statusCode ?? 0;
       if (status < 200 || status >= 400) return false;
+      if (_isWebDocument(response.headers.value(Headers.contentTypeHeader))) {
+        return false;
+      }
       final body = response.data;
       if (body == null) return false;
       final first = await body.stream.first.timeout(const Duration(seconds: 6));
-      return first.isNotEmpty;
+      return first.isNotEmpty && !_looksLikeWebDocument(first);
     } on DioException catch (error) {
       if (error.response?.statusCode == 416) {
         try {
@@ -186,10 +196,15 @@ class SourceMaintenanceService {
           final status = response.statusCode ?? 0;
           final body = response.data;
           if (status < 200 || status >= 400 || body == null) return false;
+          if (_isWebDocument(
+            response.headers.value(Headers.contentTypeHeader),
+          )) {
+            return false;
+          }
           final first = await body.stream.first.timeout(
             const Duration(seconds: 6),
           );
-          return first.isNotEmpty;
+          return first.isNotEmpty && !_looksLikeWebDocument(first);
         } catch (_) {
           return false;
         }
@@ -198,6 +213,24 @@ class SourceMaintenanceService {
     } catch (_) {
       return false;
     }
+  }
+
+  static bool _isWebDocument(String? contentType) {
+    final value = contentType?.toLowerCase() ?? '';
+    return value.contains('text/html') ||
+        value.contains('application/xhtml') ||
+        value.contains('application/json');
+  }
+
+  static bool _looksLikeWebDocument(List<int> bytes) {
+    final prefixLength = bytes.length.clamp(0, 256);
+    final prefix = String.fromCharCodes(
+      bytes.take(prefixLength),
+    ).trimLeft().toLowerCase();
+    return prefix.startsWith('<!doctype html') ||
+        prefix.startsWith('<html') ||
+        prefix.startsWith('{"error"') ||
+        prefix.startsWith('{"code"');
   }
 
   void dispose() {

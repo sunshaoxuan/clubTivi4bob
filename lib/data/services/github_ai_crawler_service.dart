@@ -8,6 +8,7 @@ import 'package:drift/drift.dart';
 import '../../core/app_diagnostics.dart';
 import '../datasources/local/database.dart' as db;
 import '../datasources/parsers/m3u_parser.dart';
+import 'channel_category_classifier.dart';
 
 class OpenAiRuntimeConfig {
   final String baseUrl;
@@ -643,6 +644,13 @@ class GitHubAiCrawlerService {
     final provenanceEntries = <db.DiscoveredStreamSourcesCompanion>[];
     final channelIds = <String>{};
     for (final item in unique) {
+      if (ChannelCategoryClassifier.isClearlyNonTelevisionRoute(
+        name: item.name,
+        groupTitle: item.group,
+        streamUrl: item.url,
+      )) {
+        continue;
+      }
       final id = discoveredChannelId(
         owner: repository.owner,
         repo: repository.repo,

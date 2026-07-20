@@ -8,6 +8,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../core/app_diagnostics.dart';
 import '../datasources/local/database.dart' as db;
+import 'channel_category_classifier.dart';
 import 'github_ai_crawler_service.dart';
 
 typedef SnapshotBytesLoader = Future<Uint8List> Function();
@@ -102,6 +103,14 @@ class BundledSourceSnapshotService {
             !isSupportedStreamUrl(streamUrl)) {
           continue;
         }
+        final groupTitle = _nullableText(raw['groupTitle']);
+        if (ChannelCategoryClassifier.isClearlyNonTelevisionRoute(
+          name: name,
+          groupTitle: groupTitle,
+          streamUrl: streamUrl,
+        )) {
+          continue;
+        }
         final saved = existingChannels[id];
         final provenance = existingProvenance[id];
         channelEntries.add(
@@ -112,9 +121,7 @@ class BundledSourceSnapshotService {
             tvgId: Value(_nullableText(raw['tvgId'])),
             tvgName: Value(_nullableText(raw['tvgName']) ?? name),
             tvgLogo: Value(_nullableText(raw['tvgLogo'])),
-            groupTitle: Value(
-              _nullableText(raw['groupTitle']) ?? 'GitHub 智慧发现',
-            ),
+            groupTitle: Value(groupTitle ?? 'GitHub 智慧发现'),
             channelNumber: Value(_integer(raw['channelNumber'])),
             streamUrl: streamUrl,
             streamType: const Value('live'),

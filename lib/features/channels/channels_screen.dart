@@ -75,6 +75,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
   static const _kMaxSearchHistory = 20;
   final _channelListController = ScrollController();
   late final ScrollController _guideScrollController;
+  final _guideVerticalController = ScrollController();
   Timer? _guideIdleTimer;
   DateTime? _guideDayStart; // stored for snap-back calculation
   Timer? _searchDebounce;
@@ -401,6 +402,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
     _firstChannelFocusNode.dispose();
     _channelListController.dispose();
     _guideScrollController.dispose();
+    _guideVerticalController.dispose();
     _guideIdleTimer?.cancel();
     _searchDebounce?.cancel();
     _overlayTimer?.cancel();
@@ -469,7 +471,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
         _selectedGroup = selectedGroup;
       });
 
-      await _loadGroupChannels(selectedGroup);
+      await _loadGroupChannels(selectedGroup, preserveScroll: !isFirstLoad);
       if (!mounted) return;
       if (isFirstLoad) {
         setState(() => _initialLoadDone = true);
@@ -506,15 +508,21 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
     }
   }
 
-  Future<void> _loadGroupChannels(String group) async {
+  Future<void> _loadGroupChannels(
+    String group, {
+    bool preserveScroll = false,
+  }) async {
     final generation = ++_categoryLoadGeneration;
     final database = ref.read(databaseProvider);
+    final scrollAnchor = preserveScroll ? _captureScrollAnchor() : null;
     if (mounted) {
       setState(() {
         _loadStatus = '正在载入$group…';
         _categoryLoading = true;
-        _allChannels = [];
-        _filteredChannels = [];
+        if (!preserveScroll) {
+          _allChannels = [];
+          _filteredChannels = [];
+        }
       });
     }
 
@@ -534,6 +542,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                   name: channel.name,
                   groupTitle: channel.groupTitle,
                   tvgId: channel.tvgId,
+                  streamUrl: channel.streamUrl,
                 ) ==
                 group,
           )
@@ -541,14 +550,20 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
     }
 
     if (!mounted || generation != _categoryLoadGeneration) return;
+    final unchanged = _sameChannelSnapshot(_allChannels, loaded);
     setState(() {
-      _allChannels = loaded;
-      _rebuildAutomaticChannelIndex();
-      _applyFilters();
+      if (!unchanged) {
+        _allChannels = loaded;
+        _rebuildAutomaticChannelIndex();
+        _applyFilters();
+      }
       _loadStatus =
           '$group：载入 ${loaded.length} 条线路，合并为 ${_filteredChannels.length} 个频道';
       _categoryLoading = false;
     });
+    if (!unchanged && scrollAnchor != null) {
+      _restoreScrollAnchor(scrollAnchor);
+    }
     await ref.read(streamAlternativesProvider).rebuildForChannels(loaded);
     if (!mounted || generation != _categoryLoadGeneration) return;
     _playFirstFilteredChannelForGroup(group);
@@ -778,6 +793,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                     name: c.name,
                     groupTitle: c.groupTitle,
                     tvgId: c.tvgId,
+                    streamUrl: c.streamUrl,
                   ) ==
                   _selectedGroup,
             )
@@ -830,6 +846,61 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
       }
     }
     return representatives.values.toList();
+  }
+
+  bool _sameChannelSnapshot(List<db.Channel> previous, List<db.Channel> next) {
+    if (previous.length != next.length) return false;
+    for (var index = 0; index < previous.length; index++) {
+      final left = previous[index];
+      final right = next[index];
+      if (left.id != right.id ||
+          left.name != right.name ||
+          left.streamUrl != right.streamUrl ||
+          left.groupTitle != right.groupTitle ||
+          left.tvgLogo != right.tvgLogo) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  ({String channelId, double intraRowOffset, bool guide})?
+  _captureScrollAnchor() {
+    final guide = _showGuideView;
+    final controller = guide
+        ? _guideVerticalController
+        : _channelListController;
+    if (!controller.hasClients || _filteredChannels.isEmpty) return null;
+    final rowHeight = guide ? 48.0 : 52.0;
+    final rawIndex = (controller.offset / rowHeight).floor();
+    final index = rawIndex.clamp(0, _filteredChannels.length - 1);
+    return (
+      channelId: _filteredChannels[index].id,
+      intraRowOffset: controller.offset - index * rowHeight,
+      guide: guide,
+    );
+  }
+
+  void _restoreScrollAnchor(
+    ({String channelId, double intraRowOffset, bool guide}) anchor,
+  ) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final index = _filteredChannels.indexWhere(
+        (channel) => channel.id == anchor.channelId,
+      );
+      if (index < 0) return;
+      final controller = anchor.guide
+          ? _guideVerticalController
+          : _channelListController;
+      if (!controller.hasClients) return;
+      final rowHeight = anchor.guide ? 48.0 : 52.0;
+      final target = (index * rowHeight + anchor.intraRowOffset).clamp(
+        0.0,
+        controller.position.maxScrollExtent,
+      );
+      controller.jumpTo(target);
+    });
   }
 
   String _automaticChannelKey(db.Channel channel) {
@@ -2584,7 +2655,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
             Padding(
               padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 8),
               child: Text(
-                _sidebarExpanded ? 'BobTV v0.7.1+18' : 'v0.7.1+18',
+                _sidebarExpanded ? 'BobTV v0.8.0+19' : 'v0.8.0+19',
                 style: const TextStyle(
                   fontSize: 10,
                   color: Colors.white24,
@@ -5744,6 +5815,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                 return Stack(
                   children: [
                     ListView.builder(
+                      controller: _guideVerticalController,
                       itemCount:
                           _filteredChannels.length + _guideFailoverGroupCount,
                       itemBuilder: (context, index) {

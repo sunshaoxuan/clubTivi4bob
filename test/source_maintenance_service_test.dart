@@ -5,35 +5,35 @@ void main() {
   group('SourceMaintenancePolicy', () {
     final now = DateTime.utc(2026, 7, 19, 12);
 
-    test('does not retire before five failures', () {
+    test('does not retire before three failures', () {
       final decision = SourceMaintenancePolicy.evaluate(
         success: false,
-        previousFailures: 3,
-        previousFirstFailureAt: now.subtract(const Duration(days: 2)),
+        previousFailures: 1,
+        previousFirstFailureAt: now.subtract(const Duration(hours: 8)),
         previousLastSuccessAt: null,
         now: now,
       );
-      expect(decision.consecutiveFailures, 4);
+      expect(decision.consecutiveFailures, 2);
       expect(decision.retired, isFalse);
     });
 
-    test('does not retire before the 24 hour safety window', () {
+    test('does not retire before the six hour safety window', () {
       final decision = SourceMaintenancePolicy.evaluate(
         success: false,
-        previousFailures: 4,
-        previousFirstFailureAt: now.subtract(const Duration(hours: 23)),
+        previousFailures: 2,
+        previousFirstFailureAt: now.subtract(const Duration(hours: 5)),
         previousLastSuccessAt: null,
         now: now,
       );
-      expect(decision.consecutiveFailures, 5);
+      expect(decision.consecutiveFailures, 3);
       expect(decision.retired, isFalse);
     });
 
-    test('retires after five failures across at least 24 hours', () {
+    test('retires after three failures across at least six hours', () {
       final decision = SourceMaintenancePolicy.evaluate(
         success: false,
-        previousFailures: 4,
-        previousFirstFailureAt: now.subtract(const Duration(hours: 24)),
+        previousFailures: 2,
+        previousFirstFailureAt: now.subtract(const Duration(hours: 6)),
         previousLastSuccessAt: null,
         now: now,
       );

@@ -5,6 +5,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as p;
 import 'package:uuid/uuid.dart';
 
+import '../../services/channel_category_classifier.dart';
 import 'tables.dart';
 
 part 'database.g.dart';
@@ -16,6 +17,7 @@ const _uuid = Uuid();
     Providers,
     Channels,
     StreamChecks,
+    BlockedStreamRoutes,
     ProviderOrigins,
     GitHubCrawlRepositories,
     DiscoveredStreamSources,
@@ -38,7 +40,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.e);
 
   @override
-  int get schemaVersion => 7;
+  int get schemaVersion => 8;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -67,6 +69,9 @@ class AppDatabase extends _$AppDatabase {
       if (from < 7) {
         await m.createTable(gitHubCrawlRepositories);
         await m.createTable(discoveredStreamSources);
+      }
+      if (from < 8) {
+        await m.createTable(blockedStreamRoutes);
       }
     },
   );
@@ -107,12 +112,100 @@ class AppDatabase extends _$AppDatabase {
     const termsByCategory = <String, List<String>>{
       '央视频道': ['cctv', '央视', '中央电视', 'cgtn'],
       '卫视频道': ['卫视', 'satellite'],
-      '地方频道': ['地方', '本地', '省市', '城市', 'local', 'city'],
+      '地方频道': [
+        '地方',
+        '本地',
+        '省市',
+        '省内',
+        '北京',
+        '天津',
+        '上海',
+        '重庆',
+        '河北',
+        '山西',
+        '辽宁',
+        '吉林',
+        '黑龙江',
+        '江苏',
+        '浙江',
+        '安徽',
+        '福建',
+        '江西',
+        '山东',
+        '河南',
+        '湖北',
+        '湖南',
+        '广东',
+        '海南',
+        '四川',
+        '贵州',
+        '云南',
+        '陕西',
+        '甘肃',
+        '青海',
+        '内蒙古',
+        '广西',
+        '西藏',
+        '宁夏',
+        '新疆',
+      ],
+      '港澳台频道': [
+        '港澳台',
+        '香港',
+        '澳门',
+        '澳門',
+        '台湾',
+        '台灣',
+        'tvb',
+        '翡翠台',
+        '明珠台',
+        'viutv',
+        'rthk',
+      ],
+      '国际频道': [
+        '国际频道',
+        'international',
+        'general',
+        'legislative',
+        'religious',
+        ' tv',
+        'rai ',
+        'rtl ',
+        'fox ',
+        'ion ',
+      ],
       '体育频道': ['体育', '赛事', '足球', '篮球', '网球', '高尔夫', 'sports', 'sport'],
       '新闻频道': ['新闻', '资讯', 'news'],
       '电影剧集': ['电影', '影院', '影视', '剧场', '电视剧', 'movie', 'cinema'],
       '少儿频道': ['少儿', '卡通', '动漫', '动画', '儿童', 'kids', 'cartoon'],
       '纪录频道': ['纪录', '纪实', 'documentary', 'discovery'],
+      '广播电台': ['广播', '电台', 'radio', 'fm ', 'am '],
+      '网络直播': [
+        '王者荣耀',
+        '交友',
+        '聊天电台',
+        '英雄联盟',
+        '星秀',
+        '颜值',
+        '派对',
+        '一起看',
+        '视频聊天',
+        '和平精英',
+        '聊天室',
+        '虚拟singer',
+        '虚拟日常',
+        '弹幕互动',
+        '社交互动游戏',
+        '热门游戏',
+        '原神',
+        '崩坏',
+        '穿越火线',
+        '永劫无间',
+        '怪物猎人',
+        'qq飞车',
+        'dota',
+        'apex',
+      ],
     };
 
     final terms = termsByCategory[category];
@@ -156,6 +249,20 @@ class AppDatabase extends _$AppDatabase {
         Variable.withString(pattern),
       ]);
     }
+    if (category == '网络直播') {
+      conditions.add(
+        '(stream_url LIKE ? OR stream_url LIKE ? OR stream_url LIKE ? '
+        'OR stream_url LIKE ? OR stream_url LIKE ? OR stream_url LIKE ?)',
+      );
+      variables.addAll([
+        Variable.withString('%107.173.156.246%'),
+        Variable.withString('%.huya.com%'),
+        Variable.withString('%.douyu.com%'),
+        Variable.withString('%.bilivideo.com%'),
+        Variable.withString('%.kwimgs.com%'),
+        Variable.withString('%#%'),
+      ]);
+    }
     final rows = await customSelect(
       'SELECT * FROM channels WHERE ${conditions.join(' OR ')}',
       variables: variables,
@@ -196,9 +303,65 @@ class AppDatabase extends _$AppDatabase {
       (select(channels)..where((t) => t.favorite.equals(true))).get();
 
   Future<void> upsertChannels(List<ChannelsCompanion> entries) async {
+    final blockedUrls = {
+      for (final route in await select(blockedStreamRoutes).get())
+        route.streamUrl,
+    };
+    entries = entries.where((entry) {
+      if (!entry.name.present || !entry.streamUrl.present) return true;
+      if (blockedUrls.contains(entry.streamUrl.value)) return false;
+      return !ChannelCategoryClassifier.isClearlyNonTelevisionRoute(
+        name: entry.name.value,
+        groupTitle: entry.groupTitle.present ? entry.groupTitle.value : null,
+        streamUrl: entry.streamUrl.value,
+      );
+    }).toList();
+    if (entries.isEmpty) return;
     await batch((b) {
       b.insertAllOnConflictUpdate(channels, entries);
     });
+  }
+
+  Future<int> purgePlatformLivestreamChannels() async {
+    final candidates = await getChannelCategoryCandidates('网络直播');
+    final ids = candidates
+        .where(
+          (channel) => ChannelCategoryClassifier.isClearlyNonTelevisionRoute(
+            name: channel.name,
+            groupTitle: channel.groupTitle,
+            streamUrl: channel.streamUrl,
+          ),
+        )
+        .map((channel) => channel.id);
+    return deleteChannelsByIds(ids);
+  }
+
+  Future<int> deleteChannelRoute(String channelId, String streamUrl) async {
+    final selected = await (select(
+      channels,
+    )..where((table) => table.id.equals(channelId))).getSingleOrNull();
+    if (selected == null) return 0;
+    final matches =
+        await (select(channels)..where(
+              (table) =>
+                  table.providerId.equals(selected.providerId) &
+                  table.streamUrl.equals(streamUrl),
+            ))
+            .get();
+    return deleteChannelsByIds(matches.map((channel) => channel.id));
+  }
+
+  Future<int> blockAndDeleteChannelRoute(
+    String channelId,
+    String streamUrl,
+  ) async {
+    await into(blockedStreamRoutes).insertOnConflictUpdate(
+      BlockedStreamRoutesCompanion.insert(
+        streamUrl: streamUrl,
+        reason: 'static_advertising_frame',
+      ),
+    );
+    return deleteChannelRoute(channelId, streamUrl);
   }
 
   Future<int> deleteChannelsByIds(Iterable<String> channelIds) async {
@@ -217,6 +380,9 @@ class AppDatabase extends _$AppDatabase {
         )..where((t) => t.channelId.isIn(batchIds))).go();
         await (delete(
           epgMappings,
+        )..where((t) => t.channelId.isIn(batchIds))).go();
+        await (delete(
+          discoveredStreamSources,
         )..where((t) => t.channelId.isIn(batchIds))).go();
         deleted += await (delete(
           channels,

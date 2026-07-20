@@ -7,6 +7,7 @@ import '../../data/datasources/parsers/m3u_parser.dart';
 import '../../data/datasources/remote/xtream_client.dart';
 import '../../data/models/channel.dart' hide Provider;
 import '../../data/services/logo_resolver_service.dart';
+import '../../data/services/channel_category_classifier.dart';
 import '../../core/feature_gate.dart';
 import 'package:dio/dio.dart';
 
@@ -88,7 +89,15 @@ class ProviderManager {
 
     final retiredUrls = await _db.getRetiredStreamUrls(providerId);
     channels = channels
-        .where((channel) => !retiredUrls.contains(channel.streamUrl))
+        .where(
+          (channel) =>
+              !retiredUrls.contains(channel.streamUrl) &&
+              !ChannelCategoryClassifier.isClearlyNonTelevisionRoute(
+                name: channel.name,
+                groupTitle: channel.groupTitle,
+                streamUrl: channel.streamUrl,
+              ),
+        )
         .toList();
 
     final existing = await _db.getChannelsForProvider(providerId);

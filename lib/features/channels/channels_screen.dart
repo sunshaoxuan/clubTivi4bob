@@ -2584,7 +2584,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
             Padding(
               padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 8),
               child: Text(
-                _sidebarExpanded ? 'BobTV v0.7.0+17' : 'v0.7.0+17',
+                _sidebarExpanded ? 'BobTV v0.7.1+18' : 'v0.7.1+18',
                 style: const TextStyle(
                   fontSize: 10,
                   color: Colors.white24,

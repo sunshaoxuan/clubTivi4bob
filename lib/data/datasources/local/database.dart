@@ -109,119 +109,12 @@ class AppDatabase extends _$AppDatabase {
   /// Keeping the broad text match in SQLite prevents tens of thousands of
   /// channel rows from being materialized on the Flutter isolate at startup.
   Future<List<Channel>> getChannelCategoryCandidates(String category) async {
-    const termsByCategory = <String, List<String>>{
-      '央视频道': ['cctv', '央视', '中央电视', 'cgtn'],
-      '卫视频道': ['卫视', 'satellite'],
-      '地方频道': [
-        '地方',
-        '本地',
-        '省市',
-        '省内',
-        '北京',
-        '天津',
-        '上海',
-        '重庆',
-        '河北',
-        '山西',
-        '辽宁',
-        '吉林',
-        '黑龙江',
-        '江苏',
-        '浙江',
-        '安徽',
-        '福建',
-        '江西',
-        '山东',
-        '河南',
-        '湖北',
-        '湖南',
-        '广东',
-        '海南',
-        '四川',
-        '贵州',
-        '云南',
-        '陕西',
-        '甘肃',
-        '青海',
-        '内蒙古',
-        '广西',
-        '西藏',
-        '宁夏',
-        '新疆',
-      ],
-      '港澳台频道': [
-        '港澳台',
-        '香港',
-        '澳门',
-        '澳門',
-        '台湾',
-        '台灣',
-        'tvb',
-        '翡翠台',
-        '明珠台',
-        'viutv',
-        'rthk',
-      ],
-      '国际频道': [
-        '国际频道',
-        'international',
-        'general',
-        'legislative',
-        'religious',
-        ' tv',
-        'rai ',
-        'rtl ',
-        'fox ',
-        'ion ',
-      ],
-      '体育频道': ['体育', '赛事', '足球', '篮球', '网球', '高尔夫', 'sports', 'sport'],
-      '新闻频道': ['新闻', '资讯', 'news'],
-      '电影剧集': ['电影', '影院', '影视', '剧场', '电视剧', 'movie', 'cinema'],
-      '少儿频道': ['少儿', '卡通', '动漫', '动画', '儿童', 'kids', 'cartoon'],
-      '纪录频道': ['纪录', '纪实', 'documentary', 'discovery'],
-      '广播电台': ['广播', '电台', 'radio', 'fm ', 'am '],
-      '网络直播': [
-        '王者荣耀',
-        '交友',
-        '聊天电台',
-        '英雄联盟',
-        '星秀',
-        '颜值',
-        '派对',
-        '一起看',
-        '视频聊天',
-        '和平精英',
-        '聊天室',
-        '虚拟singer',
-        '虚拟日常',
-        '弹幕互动',
-        '社交互动游戏',
-        '热门游戏',
-        '原神',
-        '崩坏',
-        '穿越火线',
-        '永劫无间',
-        '怪物猎人',
-        'qq飞车',
-        'dota',
-        'apex',
-        '咪咕直播',
-        '直播中国',
-        '熊猫直播',
-        '游戏风云',
-        '电竞',
-        '购物',
-        '商城',
-        'shop',
-        'shopping',
-      ],
-    };
-
-    final terms = termsByCategory[category];
+    final terms = ChannelCategoryClassifier.candidateTermsForCategory(category);
     if (terms == null) {
       // "Other" is evaluated only when selected. SQL removes every row that
       // is an obvious member of another category before Dart sees the result.
-      final allTerms = termsByCategory.values.expand((e) => e).toSet();
+      final allTerms = ChannelCategoryClassifier.allCategoryCandidateTerms
+          .toSet();
       final conditions = <String>[];
       final variables = <Variable<String>>[];
       for (final term in allTerms) {
@@ -248,7 +141,7 @@ class AppDatabase extends _$AppDatabase {
     final variables = <Variable<String>>[];
     for (final term in terms) {
       final pattern = '%${term.toLowerCase()}%';
-      if (category == '央视频道') {
+      if (category == '央视') {
         conditions.add(
           '(lower(name) LIKE ? OR lower(COALESCE(tvg_id, \'\')) LIKE ?)',
         );
@@ -256,7 +149,7 @@ class AppDatabase extends _$AppDatabase {
           Variable.withString(pattern),
           Variable.withString(pattern),
         ]);
-      } else if (category == '广播电台') {
+      } else if (category == '广播') {
         conditions.add(
           '(lower(name) LIKE ? OR lower(COALESCE(group_title, \'\')) LIKE ? '
           'OR lower(COALESCE(tvg_id, \'\')) LIKE ? '
@@ -280,7 +173,7 @@ class AppDatabase extends _$AppDatabase {
         ]);
       }
     }
-    if (category == '广播电台') {
+    if (category == '广播') {
       for (final extension in const ['.aac', '.mp3', '.m4a', '.ogg', '.opus']) {
         conditions.add('lower(stream_url) LIKE ?');
         variables.add(Variable.withString('%$extension%'));

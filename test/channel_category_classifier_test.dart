@@ -5,19 +5,19 @@ import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  test('uses one stable content dimension for global categories', () {
+  test('uses one stable geography-first category dimension', () {
     expect(
       ChannelCategoryClassifier.classify(
         name: 'CCTV5 4K',
         groupTitle: '4K频道',
         tvgId: 'CCTV5',
       ),
-      '央视频道',
+      '央视',
     );
-    expect(ChannelCategoryClassifier.classify(name: '湖南卫视 4K'), '卫视频道');
-    expect(ChannelCategoryClassifier.classify(name: '咪咕足球赛事'), '体育频道');
-    expect(ChannelCategoryClassifier.classify(name: '上海新闻综合'), '地方频道');
-    expect(ChannelCategoryClassifier.classify(name: '金鹰卡通'), '少儿频道');
+    expect(ChannelCategoryClassifier.classify(name: '湖南卫视 4K'), '湖南');
+    expect(ChannelCategoryClassifier.classify(name: '咪咕足球赛事'), '其他');
+    expect(ChannelCategoryClassifier.classify(name: '上海新闻综合'), '上海');
+    expect(ChannelCategoryClassifier.classify(name: '金鹰卡通'), '湖南');
     expect(
       ChannelCategoryClassifier.classify(
         name: '白白wuhu',
@@ -28,29 +28,37 @@ void main() {
     );
     expect(
       ChannelCategoryClassifier.classify(name: 'TVB星河', groupTitle: '港澳台频道'),
-      '港澳台频道',
+      '港澳台',
     );
     expect(
       ChannelCategoryClassifier.classify(
         name: 'Rai 2',
         groupTitle: 'International',
       ),
-      '国际频道',
+      '国际',
+    );
+    expect(
+      ChannelCategoryClassifier.classify(name: 'France 24', groupTitle: '国际'),
+      '国际',
+    );
+    expect(
+      ChannelCategoryClassifier.classify(name: '澳门资讯', groupTitle: '🌊港·澳·台'),
+      '港澳台',
     );
   });
 
   test('does not infer a central channel from an upstream group name', () {
     expect(
       ChannelCategoryClassifier.classify(name: '东方卫视', groupTitle: '咪咕央视'),
-      '卫视频道',
+      '上海',
     );
     expect(
       ChannelCategoryClassifier.classify(name: '上海新闻综合', groupTitle: '央视频道'),
-      '地方频道',
+      '上海',
     );
     expect(
       ChannelCategoryClassifier.classify(name: 'CETV-1', groupTitle: '央视频道'),
-      isNot('央视频道'),
+      '数字',
     );
   });
 
@@ -59,7 +67,7 @@ void main() {
       ChannelCategoryClassifier.isRadioChannel(name: 'BBC Radio 2'),
       isTrue,
     );
-    expect(ChannelCategoryClassifier.classify(name: '北京人民广播电台'), '广播电台');
+    expect(ChannelCategoryClassifier.classify(name: '北京人民广播电台'), '广播');
     expect(
       ChannelCategoryClassifier.isRadioChannel(
         name: 'Music Service',
@@ -67,6 +75,29 @@ void main() {
       ),
       isTrue,
     );
+  });
+
+  test('sorts central channels by service number and quality variant', () {
+    String key(String name) => ChannelCategoryClassifier.sortKeyForCategory(
+      category: '央视',
+      name: name,
+    );
+
+    expect(key('CCTV1').compareTo(key('CCTV2')), lessThan(0));
+    expect(key('CCTV5').compareTo(key('CCTV5 4K')), lessThan(0));
+    expect(key('CCTV5 4K').compareTo(key('CCTV5+')), lessThan(0));
+    expect(key('CCTV17').compareTo(key('CCTV 4K')), lessThan(0));
+    expect(key('CCTV 8K').compareTo(key('CGTN')), lessThan(0));
+  });
+
+  test('sorts a provincial satellite channel before local channels', () {
+    String key(String name) => ChannelCategoryClassifier.sortKeyForCategory(
+      category: '湖南',
+      name: name,
+    );
+
+    expect(key('湖南卫视').compareTo(key('湖南经视')), lessThan(0));
+    expect(key('湖南经视').compareTo(key('长沙新闻')), lessThan(0));
   });
 
   test(
@@ -109,14 +140,24 @@ void main() {
           name: 'Music Service',
           streamUrl: 'https://example.com/live/music.aac',
         ),
+        db.ChannelsCompanion.insert(
+          id: 'digital',
+          providerId: 'test',
+          name: 'CETV-1',
+          streamUrl: 'https://example.com/cetv.m3u8',
+        ),
       ]);
 
-      final central = await database.getChannelCategoryCandidates('央视频道');
+      final central = await database.getChannelCategoryCandidates('央视');
       expect(central.map((channel) => channel.id), ['central']);
-      final movies = await database.getChannelCategoryCandidates('电影剧集');
-      expect(movies.map((channel) => channel.id), ['movie']);
-      final radio = await database.getChannelCategoryCandidates('广播电台');
+      final hunan = await database.getChannelCategoryCandidates('湖南');
+      expect(hunan.map((channel) => channel.id), ['satellite']);
+      final others = await database.getChannelCategoryCandidates('其他');
+      expect(others.map((channel) => channel.id), contains('movie'));
+      final radio = await database.getChannelCategoryCandidates('广播');
       expect(radio.map((channel) => channel.id), ['audio-url']);
+      final digital = await database.getChannelCategoryCandidates('数字');
+      expect(digital.map((channel) => channel.id), ['digital']);
     },
   );
 

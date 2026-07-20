@@ -47,7 +47,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
   final Map<String, String> _automaticKeyByChannelId = {};
   final Map<String, List<String>> _automaticUrlsByKey = {};
   List<String> _groups = List.of(ChannelCategoryClassifier.categories);
-  String _selectedGroup = '央视频道';
+  String _selectedGroup = '央视';
   String _searchQuery = '';
   // _showSearch removed — search bar is always visible in the top navbar
   int _selectedIndex = -1;
@@ -97,7 +97,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
 
   // Sidebar state
   bool _sidebarExpanded = true;
-  Set<String> _expandedSections = {'groups'};
+  Set<String> _expandedSections = {'groups', 'regions'};
   final _sidebarSearchController = TextEditingController();
   final _sidebarFocusNode = FocusScopeNode(debugLabel: 'sidebar');
   final _sidebarAllItemFocusNode = FocusNode(debugLabel: 'sidebar-all');
@@ -823,6 +823,23 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
     }
 
     _filteredChannels = _deduplicateChannels(channels);
+    if (ChannelCategoryClassifier.categories.contains(_selectedGroup)) {
+      _filteredChannels.sort((a, b) {
+        final aKey = ChannelCategoryClassifier.sortKeyForCategory(
+          category: _selectedGroup,
+          name: _channelDisplayName(a),
+          tvgId: a.tvgId,
+          groupTitle: a.groupTitle,
+        );
+        final bKey = ChannelCategoryClassifier.sortKeyForCategory(
+          category: _selectedGroup,
+          name: _channelDisplayName(b),
+          tvgId: b.tvgId,
+          groupTitle: b.groupTitle,
+        );
+        return aKey.compareTo(bKey);
+      });
+    }
     if (_selectedIndex >= _filteredChannels.length) {
       _selectedIndex = -1;
     }
@@ -2665,7 +2682,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
             Padding(
               padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 8),
               child: Text(
-                _sidebarExpanded ? 'BobTV v0.8.3+22' : 'v0.8.3+22',
+                _sidebarExpanded ? 'BobTV v0.8.4+23' : 'v0.8.4+23',
                 style: const TextStyle(
                   fontSize: 10,
                   color: Colors.white24,
@@ -2814,6 +2831,15 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
     final filteredGroups = q.isEmpty
         ? _groups
         : _groups.where((g) => g.toLowerCase().contains(q)).toList();
+    final filteredProvinceGroups = filteredGroups
+        .where(ChannelCategoryClassifier.provinceCategories.contains)
+        .toList();
+    final filteredMainGroups = filteredGroups
+        .where(
+          (group) =>
+              !ChannelCategoryClassifier.provinceCategories.contains(group),
+        )
+        .toList();
     final filteredFavs = q.isEmpty
         ? _favoriteLists
         : _favoriteLists
@@ -2852,23 +2878,37 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
           ]),
         if (showFavSection && filteredGroups.isNotEmpty)
           const Divider(height: 1, color: Colors.white10),
-        if (filteredGroups.isNotEmpty) _buildSidebarSectionLabel('按内容分类'),
+        if (filteredGroups.isNotEmpty) _buildSidebarSectionLabel('按地区分类'),
         if (filteredGroups.isNotEmpty)
           _buildTreeSection(
             'groups',
             Icons.folder_rounded,
             '频道分类 (${filteredGroups.length})',
             [
-              for (final group in filteredGroups)
+              for (final group in filteredMainGroups.where(
+                (group) => group == '央视',
+              ))
                 _buildTreeItem(
                   group,
                   group,
                   null,
                   indent: 1,
-                  focusNode: group == filteredGroups.first
-                      ? _sidebarAllItemFocusNode
-                      : null,
+                  focusNode: _sidebarAllItemFocusNode,
                 ),
+              if (filteredProvinceGroups.isNotEmpty)
+                _buildTreeSection(
+                  'regions',
+                  Icons.map_rounded,
+                  '地区（省份） (${filteredProvinceGroups.length})',
+                  [
+                    for (final group in filteredProvinceGroups)
+                      _buildTreeItem(group, group, null, indent: 2),
+                  ],
+                ),
+              for (final group in filteredMainGroups.where(
+                (group) => group != '央视',
+              ))
+                _buildTreeItem(group, group, null, indent: 1),
             ],
           ),
         // Shows & Movies

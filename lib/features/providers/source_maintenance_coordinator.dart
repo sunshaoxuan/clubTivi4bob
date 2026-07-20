@@ -52,9 +52,10 @@ class SourceMaintenanceCoordinator {
 
   Future<void> _importBundledSnapshot() async {
     try {
-      final purged = await manager.database.purgePlatformLivestreamChannels();
+      final purged = await manager.database
+          .purgeRejectedNonTelevisionChannels();
       if (purged > 0) {
-        AppDiagnostics.instance.log('platform_livestreams_purged', {
+        AppDiagnostics.instance.log('non_television_sources_purged', {
           'deletedChannels': purged,
         });
       }
@@ -90,9 +91,9 @@ class SourceMaintenanceCoordinator {
     final database = manager.database;
     try {
       try {
-        final purged = await database.purgePlatformLivestreamChannels();
+        final purged = await database.purgeRejectedNonTelevisionChannels();
         if (purged > 0) {
-          AppDiagnostics.instance.log('platform_livestreams_purged', {
+          AppDiagnostics.instance.log('non_television_sources_purged', {
             'deletedChannels': purged,
           });
         }

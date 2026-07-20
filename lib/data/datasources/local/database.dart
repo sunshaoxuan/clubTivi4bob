@@ -205,6 +205,15 @@ class AppDatabase extends _$AppDatabase {
         'qq飞车',
         'dota',
         'apex',
+        '咪咕直播',
+        '直播中国',
+        '熊猫直播',
+        '游戏风云',
+        '电竞',
+        '购物',
+        '商城',
+        'shop',
+        'shopping',
       ],
     };
 
@@ -322,7 +331,7 @@ class AppDatabase extends _$AppDatabase {
     });
   }
 
-  Future<int> purgePlatformLivestreamChannels() async {
+  Future<int> purgeRejectedNonTelevisionChannels() async {
     final candidates = await getChannelCategoryCandidates('网络直播');
     final ids = candidates
         .where(

@@ -205,6 +205,7 @@ class ChannelCategoryClassifier {
     String? groupTitle,
     required String streamUrl,
   }) {
+    if (_isProtectedCatalogContent(groupTitle)) return false;
     if (isPlatformLivestream(
       name: name,
       groupTitle: groupTitle,
@@ -212,6 +213,7 @@ class ChannelCategoryClassifier {
     )) {
       return true;
     }
+    if (_isExplicitlyExcludedCatalogContent(name, groupTitle)) return true;
     final uri = Uri.tryParse(streamUrl);
     if (uri == null || !uri.hasScheme || uri.host.isEmpty) return true;
     if (uri.scheme != 'http' && uri.scheme != 'https') return false;
@@ -222,6 +224,38 @@ class ChannelCategoryClassifier {
     if (rootPageWithFragment) return true;
     final path = uri.path.toLowerCase();
     return path.endsWith('.html') || path.endsWith('.htm');
+  }
+
+  static bool _isExplicitlyExcludedCatalogContent(
+    String name,
+    String? groupTitle,
+  ) {
+    final normalizedName = name.trim().toLowerCase();
+    final group = (groupTitle ?? '').trim().toLowerCase();
+    if (group == '咪咕直播' || RegExp(r'^咪咕直播\d+$').hasMatch(normalizedName)) {
+      return true;
+    }
+    if (group == '直播中国' ||
+        normalizedName == '直播中国' ||
+        normalizedName == '熊猫直播') {
+      return true;
+    }
+    if (normalizedName.contains('游戏风云') || normalizedName.contains('电竞')) {
+      return true;
+    }
+    if (group == 'shop' ||
+        group == 'shopping' ||
+        group.contains('购物') ||
+        normalizedName.contains('购物') ||
+        normalizedName.contains('商城')) {
+      return true;
+    }
+    return false;
+  }
+
+  static bool _isProtectedCatalogContent(String? groupTitle) {
+    final group = (groupTitle ?? '').trim().toLowerCase();
+    return group == 'xxx' || group == 'github 智慧发现';
   }
 
   static bool _isInternationalTelevision(String name, String group) {

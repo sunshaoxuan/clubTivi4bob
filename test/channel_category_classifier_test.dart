@@ -94,7 +94,7 @@ void main() {
       expect(await database.getAllChannels(), isEmpty);
 
       await database.into(database.channels).insert(platform);
-      expect(await database.purgePlatformLivestreamChannels(), 1);
+      expect(await database.purgeRejectedNonTelevisionChannels(), 1);
       expect(await database.getAllChannels(), isEmpty);
     },
   );
@@ -118,6 +118,44 @@ void main() {
       ChannelCategoryClassifier.isClearlyNonTelevisionRoute(
         name: '地方电视',
         streamUrl: 'https://example.cn/live/channel.m3u8?token=abc',
+      ),
+      isFalse,
+    );
+  });
+
+  test('removes requested non-television catalog content', () {
+    for (final channel in <({String name, String group})>[
+      (name: '咪咕直播18', group: '咪咕直播'),
+      (name: '熊猫直播', group: '央视节目'),
+      (name: '游戏风云', group: '数字频道'),
+      (name: '哒啵电竞', group: 'NewTV频道'),
+      (name: '环球购物', group: '购物频道'),
+    ]) {
+      expect(
+        ChannelCategoryClassifier.isClearlyNonTelevisionRoute(
+          name: channel.name,
+          groupTitle: channel.group,
+          streamUrl: 'https://example.cn/live/channel.m3u8',
+        ),
+        isTrue,
+      );
+    }
+  });
+
+  test('keeps adult and GitHub discovery groups by request', () {
+    expect(
+      ChannelCategoryClassifier.isClearlyNonTelevisionRoute(
+        name: 'AdultIPTV.net Woman',
+        groupTitle: 'XXX',
+        streamUrl: 'http://107.173.156.246/live/adult.m3u8',
+      ),
+      isFalse,
+    );
+    expect(
+      ChannelCategoryClassifier.isClearlyNonTelevisionRoute(
+        name: '游戏风云',
+        groupTitle: 'GitHub 智慧发现',
+        streamUrl: 'http://107.173.156.246/live/discovered.m3u8',
       ),
       isFalse,
     );

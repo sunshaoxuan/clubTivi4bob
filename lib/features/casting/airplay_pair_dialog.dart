@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'cast_service.dart';
 
@@ -83,7 +84,9 @@ class _PairDialogState extends State<_PairDialog> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Text('請點選電視畫面上的四位驗證碼'),
+            Text(_busy ? '正在向接收設備請求配對…' : _ready
+                ? '如果接收設備顯示了四位驗證碼，請在下方輸入。沒有顯示請取消。'
+                : '接收設備未能進入配對流程。'),
             const SizedBox(height: 12),
             Text(
               _pin.padRight(4, '○'),
@@ -135,9 +138,9 @@ class _PairDialogState extends State<_PairDialog> {
       ),
       actions: [
         TextButton(
-          onPressed: () async {
-            await widget.service.cancelPairing();
-            if (context.mounted) Navigator.of(context).pop(false);
+          onPressed: () {
+            unawaited(widget.service.cancelPairing());
+            Navigator.of(context).pop(false);
           },
           child: const Text('取消'),
         ),

@@ -1,5 +1,12 @@
 # BobTV AirPlay helper
 
+macOS native AirPlay receivers are currently unsupported. Discovery keeps these
+devices visible with a compatibility explanation, but both the UI and helper
+reject pairing and playback before sending protocol requests. Model checks cover
+MacBookPro, MacBookAir, Macmini, iMac and modern Mac identifiers. Account-only
+access, disabled/unsupported pairing and fixed password receivers are also
+reported explicitly. Discovery alone is not a compatibility test.
+
 Windows BobTV uses a bundled, isolated pyatv process to discover AirPlay video
 receivers, pair using the television's four digit PIN and send HTTP(S) video URLs.
 The fullscreen cast picker includes a mouse operated numeric keypad and re-pair

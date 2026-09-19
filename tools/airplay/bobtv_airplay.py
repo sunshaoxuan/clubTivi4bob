@@ -4,6 +4,7 @@ import contextlib
 import json
 import logging
 import os
+import re
 from pathlib import Path
 import sys
 from urllib.parse import urlsplit
@@ -19,11 +20,30 @@ def emit(value):
     print(json.dumps(value, ensure_ascii=True), flush=True)
 
 
+class ReceiverUnsupportedError(Exception):
+    pass
+
+
+def receiver_limitation(service):
+    model = service.properties.get('model', '')
+    if re.match(r'^(?:MacBook(?:Pro|Air)?|Macmini|MacPro|MacStudio|iMac(?:Pro)?|Mac)\d+,\d+$', model, re.I):
+        return '目前的 AirPlay 引擎尚不支援此 Mac 原生接收端，無法完成配對與視頻投放。'
+    if service.properties.get('act') == '2':
+        return '接收端僅允許目前使用者的 Apple 帳號，BobTV 無法使用此驗證方式。'
+    if service.pairing in (PairingRequirement.Unsupported, PairingRequirement.Disabled):
+        return '接收設備的配對方式目前不受支援或已停用。'
+    if service.requires_password:
+        return '目前尚不支援需要固定 AirPlay 密碼的視頻接收端。'
+    return None
+
+
 def error_message(error):
     # Protocol exceptions can contain source URLs or credentials. Do not expose them.
     kind = type(error).__name__
+    if isinstance(error, ReceiverUnsupportedError):
+        return str(error)
     if 'Authentication' in kind or 'Credentials' in kind or 'Pairing' in kind:
-        return 'AirPlay 驗證失敗，請重新配對並確認電視上的驗證碼。'
+        return 'AirPlay 驗證失敗，接收端未完成配對。請取消後確認設備相容性。'
     if 'Timeout' in kind:
         return 'AirPlay 連接逾時，請確認電視已開啟投屏並在同一網路。'
     if 'NotSupported' in kind:
@@ -80,6 +100,7 @@ class Bridge:
             paired = bool(settings.protocols.airplay.credentials)
             devices.append({'id': key, 'name': config.name,
                             'address': str(config.address), 'paired': paired,
+                            'unavailableReason': receiver_limitation(service),
                             'requiresPairing': service.pairing == PairingRequirement.Mandatory,
                             'passwordRequired': service.requires_password})
         return {'devices': devices}
@@ -129,6 +150,9 @@ class Bridge:
         if action == 'pair_start':
             await self.cancel_pair()
             config = self.configs[command['device']]
+            reason = receiver_limitation(config.get_service(Protocol.AirPlay))
+            if reason:
+                raise ReceiverUnsupportedError(reason)
             self.pairing = await pyatv.pair(config, Protocol.AirPlay,
                                           asyncio.get_running_loop(), storage=self.storage,
                                           name='BobTV')
@@ -153,6 +177,9 @@ class Bridge:
             use_relay = command.get('relay', False)
             url = validate_url(command['url'], allow_loopback=use_relay)
             config = self.configs[command['device']]
+            reason = receiver_limitation(config.get_service(Protocol.AirPlay))
+            if reason:
+                raise ReceiverUnsupportedError(reason)
             if config.get_service(Protocol.AirPlay).requires_password:
                 raise pyatv.exceptions.NotSupportedError('Password protected receiver')
             await self.stop()

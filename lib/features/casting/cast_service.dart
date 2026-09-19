@@ -17,6 +17,7 @@ class CastDevice {
   final DLNADevice? dlnaDevice;
   final LgWebOsClient? webosClient;
   final bool requiresPairing;
+  final String? unavailableReason;
   bool paired;
 
   CastDevice({
@@ -26,6 +27,7 @@ class CastDevice {
     this.dlnaDevice,
     this.webosClient,
     this.requiresPairing = false,
+    this.unavailableReason,
     this.paired = false,
   });
 
@@ -74,6 +76,7 @@ class CastService {
           type: 'airplay',
           paired: item['paired'] == true,
           requiresPairing: item['requiresPairing'] == true,
+          unavailableReason: item['unavailableReason'] as String?,
         );
         _devices[device.id] = device;
       }
@@ -87,6 +90,7 @@ class CastService {
   }
 
   Future<void> beginPairing(CastDevice device) async {
+    if (device.unavailableReason != null) throw StateError(device.unavailableReason!);
     final result = await _airplay.request('pair_start', {
       'device': device.id.substring(8),
     });
@@ -212,6 +216,7 @@ class CastService {
   }) async {
     lastError = null;
     try {
+      if (device.unavailableReason != null) throw StateError(device.unavailableReason!);
       if (_activeDevice != null && _activeDevice!.id != device.id)
         await _stopActive();
       if (device.type == 'airplay') {

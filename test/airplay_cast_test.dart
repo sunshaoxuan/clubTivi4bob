@@ -31,6 +31,17 @@ class FakeAirPlay extends AirPlayBridge {
 }
 
 void main() {
+  test('unsupported receiver cannot send pairing or playback requests', () async {
+    final bridge = FakeAirPlay();
+    final service = CastService(airplay: bridge);
+    final mac = CastDevice(id: 'airplay_mac', name: 'Mac', type: 'airplay',
+      unavailableReason: 'Mac 原生接收端目前不受支援');
+    await expectLater(service.beginPairing(mac), throwsStateError);
+    expect(await service.castTo(mac, 'https://example.com/live'), false);
+    expect(bridge.calls, isEmpty);
+    expect(service.lastError, contains('Mac'));
+    service.dispose();
+  });
   final tv = CastDevice(id: 'airplay_test', name: 'TV', type: 'airplay');
   test('stop queued during connect cannot leave a cast active', () async {
     final bridge = FakeAirPlay();

@@ -6,13 +6,28 @@ from unittest.mock import AsyncMock, patch
 
 from aiohttp import web
 from pyatv.conf import AppleTV, ManualService
-from pyatv.const import Protocol
+from pyatv.const import Protocol, PairingRequirement
 from pyatv.storage.memory_storage import MemoryStorage
 
-from bobtv_airplay import Bridge, error_message, validate_url, video_capable
+from bobtv_airplay import Bridge, error_message, validate_url, video_capable, receiver_limitation, ReceiverUnsupportedError
 
 
 class BridgeTests(unittest.IsolatedAsyncioTestCase):
+    async def test_mac_receiver_never_starts_pin_exchange(self):
+        service = self.bridge.configs['test-tv'].get_service(Protocol.AirPlay)
+        service.properties['model'] = 'MacBookPro16,2'
+        with patch('bobtv_airplay.pyatv.pair', new_callable=AsyncMock) as pair:
+            with self.assertRaises(ReceiverUnsupportedError):
+                await self.bridge.command({'action': 'pair_start', 'device': 'test-tv'})
+            pair.assert_not_awaited()
+        with self.assertRaises(ReceiverUnsupportedError):
+            await self.bridge.command({'action': 'play', 'device': 'test-tv', 'url': 'https://example.com/live'})
+
+    def test_mac_model_families_and_apple_tv(self):
+        for model in ('MacBookPro16,2', 'Mac14,2', 'Macmini9,1', 'iMac20,1', 'MacBookAir10,1'):
+            service = ManualService('x', Protocol.AirPlay, 7000, {'model': model})
+            self.assertIn('Mac', receiver_limitation(service))
+        self.assertIsNone(receiver_limitation(ManualService('x', Protocol.AirPlay, 7000, {'model': 'AppleTV6,2'}, pairing_requirement=PairingRequirement.NotNeeded)))
     async def asyncSetUp(self):
         self.urls = []
         app = web.Application()
@@ -34,7 +49,7 @@ class BridgeTests(unittest.IsolatedAsyncioTestCase):
         port = site._server.sockets[0].getsockname()[1]
         config = AppleTV(IPv4Address('127.0.0.1'), 'Test television')
         config.add_service(ManualService('test-tv', Protocol.AirPlay, port,
-                                        {'features': '0x1', 'model': 'AppleTV2,1'}))
+                                        {'features': '0x1', 'model': 'AppleTV2,1'}, pairing_requirement=PairingRequirement.NotNeeded))
         self.bridge = Bridge(MemoryStorage())
         self.bridge.configs['test-tv'] = config
 

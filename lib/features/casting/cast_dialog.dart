@@ -181,7 +181,7 @@ class _CastDialogState extends State<_CastDialog> {
                             ),
                           ),
                           subtitle: Text(
-                            device.type.toUpperCase(),
+                            device.unavailableReason ?? device.type.toUpperCase(),
                             style: const TextStyle(
                               color: Colors.white38,
                               fontSize: 11,
@@ -191,7 +191,7 @@ class _CastDialogState extends State<_CastDialog> {
                               ? IconButton(
                                   tooltip: '配對或重新配對',
                                   icon: const Icon(Icons.password),
-                                  onPressed: () async {
+                                  onPressed: device.unavailableReason != null ? null : () async {
                                     await pairAirPlay(
                                       context,
                                       _castService,
@@ -263,6 +263,10 @@ class _CastDialogState extends State<_CastDialog> {
   }
 
   Future<void> _selectDevice(CastDevice device) async {
+    if (device.unavailableReason != null) {
+      setState(() => _error = device.unavailableReason);
+      return;
+    }
     if (device.type == 'airplay' && device.requiresPairing && !device.paired) {
       if (!await pairAirPlay(context, _castService, device)) return;
     }

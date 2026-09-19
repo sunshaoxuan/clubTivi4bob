@@ -10,6 +10,8 @@ The application is built with Flutter and uses `media_kit`, libmpv, FFmpeg, Rive
 
 ## Highlights
 
+* AirPlay video casting on Windows, with device discovery, a mouse operated pairing keypad, persistent pairing, a bounded local HLS relay and channel/source change synchronization. Open the fullscreen player's cast button. The receiver must support AirPlay video playback and decode the source video codec. Screen mirroring, password protected receivers and audio-only speakers are not supported. See [AirPlay build and compatibility notes](tools/airplay/README.md).
+
 ### One channel, multiple hidden routes
 
 Equivalent channel entries from different M3U providers are normalized and shown as one channel. Quality labels, common route labels, full width characters, and Chinese CCTV aliases are handled by a CJK safe name normalizer.

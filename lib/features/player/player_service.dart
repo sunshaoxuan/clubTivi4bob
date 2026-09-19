@@ -15,9 +15,11 @@ import '../../data/services/channel_name_normalizer.dart';
 import '../../data/services/stream_alternatives_service.dart';
 import '../../data/services/stream_health_tracker.dart';
 import '../providers/provider_manager.dart';
+import '../casting/cast_service.dart';
 
 /// Manages video playback with stream failover support.
 class PlayerService {
+  CastService? castService;
   static const minimumUltraHdVideoBitrate = 8000000.0;
 
   Player? _player;
@@ -87,6 +89,8 @@ class PlayerService {
       _failoverSwitchingController.stream;
   bool get failoverSwitching => _failoverSwitching;
   String? get currentUrl => _currentUrl;
+  String? get castUrl =>
+      _proxyActive ? (_streamProxy.localUrl ?? _currentUrl) : _currentUrl;
   String? get currentChannelId => _currentChannelId;
 
   void _setFailoverSwitching(bool value) {
@@ -389,6 +393,7 @@ class PlayerService {
     startBufferTracking();
     _startFailoverMonitor();
     _scheduleQualityCheck(activeUrl, playGeneration);
+    _currentUrlController.add(activeUrl);
   }
 
   Future<bool> _runPlayStep(
@@ -815,6 +820,7 @@ class PlayerService {
     debugPrint('[Player] Switching to proxied stream: $proxyUrl');
     await _enableVideoOutput();
     await player.open(Media(proxyUrl));
+    _currentUrlController.add(originalUrl);
     await _bufferManager.applyForStream(originalUrl, this);
     await player.setVolume(100.0);
   }
@@ -841,16 +847,20 @@ class PlayerService {
 
   /// Pause playback.
   Future<void> pause() async {
+    if (castService?.isCasting == true) unawaited(castService!.pause());
     await player.pause();
   }
 
   /// Resume playback.
   Future<void> resume() async {
+    if (castService?.isCasting == true) unawaited(castService!.resume());
     await player.play();
   }
 
   /// Set volume (0.0 - 100.0).
   Future<void> setVolume(double volume) async {
+    if (castService?.isCasting == true)
+      unawaited(castService!.setVolume(volume.round()));
     await player.setVolume(volume.clamp(0.0, 100.0));
   }
 
@@ -1522,6 +1532,19 @@ class _StreamProbe {
 /// Riverpod provider for the player service (singleton).
 final playerServiceProvider = Provider<PlayerService>((ref) {
   final service = PlayerService();
+  final casting = ref.read(castServiceProvider);
+  service.castService = casting;
+  final castSubscription = service.currentUrlStream.listen((url) {
+    if (url != null && casting.isCasting) {
+      unawaited(
+        casting.switchChannel(
+          casting.relayAirPlay ? (service.castUrl ?? url) : url,
+          title: service._currentChannelName ?? 'BobTV',
+        ),
+      );
+    }
+  });
+  ref.onDispose(() => castSubscription.cancel());
   // Inject failover services
   try {
     final alternatives = ref.read(streamAlternativesProvider);

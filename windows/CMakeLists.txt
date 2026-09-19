@@ -75,6 +75,14 @@ set(INSTALL_BUNDLE_LIB_DIR "${CMAKE_INSTALL_PREFIX}")
 install(TARGETS ${BINARY_NAME} RUNTIME DESTINATION "${CMAKE_INSTALL_PREFIX}"
   COMPONENT Runtime)
 
+# Build tools/airplay/build.ps1 before packaging a Windows release.
+if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/../build/airplay-dist/bobtv-airplay")
+  install(DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/../build/airplay-dist/bobtv-airplay/"
+    DESTINATION "${CMAKE_INSTALL_PREFIX}/AirPlay" COMPONENT Runtime)
+else()
+  message(WARNING "AirPlay helper missing. Run tools/airplay/build.ps1 for release builds.")
+endif()
+
 install(FILES "${FLUTTER_ICU_DATA_FILE}" DESTINATION "${INSTALL_BUNDLE_DATA_DIR}"
   COMPONENT Runtime)
 

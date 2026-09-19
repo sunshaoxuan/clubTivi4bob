@@ -56,6 +56,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   bool _nativeFullscreen = false;
   StreamSubscription<Tracks>? _tracksSubscription;
   StreamSubscription<bool>? _bufferingSubscription;
+  StreamSubscription<String?>? _castStatusSubscription;
+  bool _castBusy = false;
 
   // Channel switching state
   late int _channelIndex;
@@ -113,6 +115,18 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       _setNativeFullscreen(true);
     });
     _startPlayback();
+    _castStatusSubscription = ref.read(castServiceProvider).statusStream.listen(
+      (message) {
+        if (!mounted) return;
+        setState(() {});
+        if (message != null) {
+          ScaffoldMessenger.of(context).hideCurrentSnackBar();
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text(message)));
+        }
+      },
+    );
     _autoHideOverlay();
     _loadEpgInfo();
     _loadFavoriteState();
@@ -242,19 +256,41 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   }
 
   Future<void> _showCastPicker() async {
+    if (_castBusy) return;
     final device = await showCastDialog(context, ref);
     if (device != null && mounted) {
       final castService = ref.read(castServiceProvider);
-      final urls = [widget.streamUrl, ...widget.alternativeUrls];
+      final playerService = ref.read(playerServiceProvider);
+      final url = castService.relayAirPlay
+          ? playerService.castUrl
+          : playerService.currentUrl;
+      if (url == null) return;
+      setState(() => _castBusy = true);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('正在準備視頻並連接投屏設備…'),
+          duration: Duration(seconds: 30),
+        ),
+      );
       final success = await castService.castTo(
         device,
-        urls[_currentUrlIndex],
-        title: widget.channelName,
+        url,
+        title: _currentChannelName,
       );
+      if (mounted) setState(() => _castBusy = false);
       if (success && mounted) {
+        final latestUrl = castService.relayAirPlay
+            ? playerService.castUrl
+            : playerService.currentUrl;
+        if (latestUrl != null && latestUrl != url) {
+          unawaited(
+            castService.switchChannel(latestUrl, title: _currentChannelName),
+          );
+        }
+        ScaffoldMessenger.of(context).hideCurrentSnackBar();
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('正在投放到 ${device.name}'),
+            content: Text('已向 ${device.name} 發送播放請求，請確認電視畫面'),
             backgroundColor: Colors.green.shade800,
             duration: const Duration(seconds: 2),
           ),
@@ -652,6 +688,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
 
   @override
   void dispose() {
+    _castStatusSubscription?.cancel();
     _overlayTimer?.cancel();
     _volumeTimer?.cancel();
     _tracksSubscription?.cancel();

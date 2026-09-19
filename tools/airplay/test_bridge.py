@@ -13,6 +13,31 @@ from bobtv_airplay import Bridge, error_message, validate_url, video_capable, re
 
 
 class BridgeTests(unittest.IsolatedAsyncioTestCase):
+    async def test_native_mac_uses_frame_sender_without_pin_or_url_relay(self):
+        service = self.bridge.configs['test-tv'].get_service(Protocol.AirPlay)
+        service.properties['model'] = 'MacBookPro16,2'
+        async def active(*args):
+            await asyncio.Future()
+        with patch('bobtv_airplay.mac_sender.available', return_value=True), \
+             patch('bobtv_airplay.mac_sender.play', AsyncMock(side_effect=active)) as sender, \
+             patch('bobtv_airplay.pyatv.connect', AsyncMock()) as connect:
+            self.bridge.relay.start = AsyncMock()
+            result = await self.bridge.command({'action': 'play', 'device': 'test-tv',
+                                               'url': 'http://127.0.0.1/live', 'relay': True})
+            self.assertEqual(result['status'], 'sent')
+            sender.assert_awaited_once()
+            connect.assert_not_awaited()
+            self.bridge.relay.start.assert_not_awaited()
+            task = self.bridge.play_task
+            await self.bridge.stop()
+            self.assertTrue(task.done())
+            self.assertFalse(self.bridge.native_mac)
+
+    def test_account_access_explained_before_model_limitation(self):
+        service = ManualService('x', Protocol.AirPlay, 7000,
+                                {'model': 'MacBookPro16,2', 'act': '2'})
+        self.assertIn('Apple 帳號', receiver_limitation(service))
+
     async def test_mac_receiver_never_starts_pin_exchange(self):
         service = self.bridge.configs['test-tv'].get_service(Protocol.AirPlay)
         service.properties['model'] = 'MacBookPro16,2'

@@ -25,7 +25,8 @@ class VideoRelay:
     def ffmpeg_path():
         base = Path(sys.executable).parent
         for path in (base.parent / 'Tools' / 'ffmpeg.exe', base.parent / 'ffmpeg.exe',
-                     base / 'ffmpeg.exe', Path('C:/ProgramData/chocolatey/bin/ffmpeg.exe'),
+                     base / 'ffmpeg.exe', Path('C:/ProgramData/chocolatey/lib/ffmpeg/tools/ffmpeg/bin/ffmpeg.exe'),
+                     Path('C:/ProgramData/chocolatey/bin/ffmpeg.exe'),
                      Path(os.environ.get('LOCALAPPDATA', '.')) / 'Microsoft/WinGet/Links/ffmpeg.exe'):
             if path.is_file():
                 return str(path)

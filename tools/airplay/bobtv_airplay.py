@@ -14,6 +14,10 @@ from pyatv.const import PairingRequirement, Protocol
 from pyatv.protocols.airplay.utils import AirPlayFlags, parse_features
 from pyatv.storage.file_storage import FileStorage
 from video_relay import VideoRelay
+import mac_sender
+from transport_cleanup import install as install_transport_cleanup
+
+install_transport_cleanup()
 
 
 def emit(value):
@@ -24,16 +28,24 @@ class ReceiverUnsupportedError(Exception):
     pass
 
 
+def is_native_mac(service):
+    return bool(re.match(r'^(?:MacBook(?:Pro|Air)?|Macmini|MacPro|MacStudio|iMac(?:Pro)?|Mac)\d+,\d+$',
+                         service.properties.get('model', ''), re.I))
+
+
 def receiver_limitation(service):
-    model = service.properties.get('model', '')
-    if re.match(r'^(?:MacBook(?:Pro|Air)?|Macmini|MacPro|MacStudio|iMac(?:Pro)?|Mac)\d+,\d+$', model, re.I):
-        return '目前的 AirPlay 引擎尚不支援此 Mac 原生接收端，無法完成配對與視頻投放。'
     if service.properties.get('act') == '2':
-        return '接收端僅允許目前使用者的 Apple 帳號，BobTV 無法使用此驗證方式。'
-    if service.pairing in (PairingRequirement.Unsupported, PairingRequirement.Disabled):
-        return '接收設備的配對方式目前不受支援或已停用。'
+        return '接收端僅允許目前使用者的 Apple 帳號。請在 Mac 的 AirPlay 接收器設定確認允許範圍；BobTV 尚未支援 Apple 帳號驗證。'
     if service.requires_password:
         return '目前尚不支援需要固定 AirPlay 密碼的視頻接收端。'
+    if is_native_mac(service):
+        if not mac_sender.available():
+            return '此安裝缺少 Mac 視頻投放組件，請更新包含 Mac AirPlay 支援的版本。'
+        if service.pairing != PairingRequirement.NotNeeded:
+            return 'Mac 接收器需允許所有人並關閉「需要密碼」，此模式不使用四位驗證碼。'
+        return None
+    if service.pairing in (PairingRequirement.Unsupported, PairingRequirement.Disabled):
+        return '接收設備的配對方式目前不受支援或已停用。'
     return None
 
 
@@ -82,6 +94,7 @@ class Bridge:
         self.atv = None
         self.play_task = None
         self.generation = 0
+        self.native_mac = False
         self.relay = VideoRelay()
         self.relay.on_error = lambda message: emit({'event': 'error', 'message': message})
 
@@ -101,7 +114,7 @@ class Bridge:
             devices.append({'id': key, 'name': config.name,
                             'address': str(config.address), 'paired': paired,
                             'unavailableReason': receiver_limitation(service),
-                            'requiresPairing': service.pairing == PairingRequirement.Mandatory,
+                            'requiresPairing': not is_native_mac(service) and service.pairing == PairingRequirement.Mandatory,
                             'passwordRequired': service.requires_password})
         return {'devices': devices}
 
@@ -114,6 +127,7 @@ class Bridge:
         self.generation += 1
         task, self.play_task = self.play_task, None
         atv, self.atv = self.atv, None
+        native_mac, self.native_mac = self.native_mac, False
         if task:
             task.cancel()
         if atv:
@@ -121,13 +135,24 @@ class Bridge:
             if close_tasks:
                 await asyncio.wait(close_tasks, timeout=3)
         if task:
-            with contextlib.suppress(asyncio.CancelledError, Exception):
-                await asyncio.wait_for(task, 3)
+            try:
+                await asyncio.wait_for(asyncio.shield(task), 15 if native_mac else 3)
+            except asyncio.TimeoutError:
+                if native_mac and not task.done():
+                    self.play_task = task
+                    self.native_mac = True
+                    raise RuntimeError('Previous Mac sender is still closing') from None
+            except (asyncio.CancelledError, Exception):
+                pass
         await self.relay.stop()
 
-    async def playback(self, atv, url, generation):
+    async def playback(self, atv, url, generation, mac_config=None):
         try:
-            await atv.stream.play_url(url)
+            if mac_config:
+                service = mac_config.get_service(Protocol.AirPlay)
+                await mac_sender.play(str(mac_config.address), service.port, url)
+            else:
+                await atv.stream.play_url(url)
             if generation == self.generation:
                 emit({'event': 'ended'})
         except asyncio.CancelledError:
@@ -153,6 +178,8 @@ class Bridge:
             reason = receiver_limitation(config.get_service(Protocol.AirPlay))
             if reason:
                 raise ReceiverUnsupportedError(reason)
+            if is_native_mac(config.get_service(Protocol.AirPlay)):
+                raise ReceiverUnsupportedError('此 Mac 使用免驗證碼連線，請直接選擇投放。')
             self.pairing = await pyatv.pair(config, Protocol.AirPlay,
                                           asyncio.get_running_loop(), storage=self.storage,
                                           name='BobTV')
@@ -175,22 +202,26 @@ class Bridge:
             return {'paired': True}
         if action == 'play':
             use_relay = command.get('relay', False)
-            url = validate_url(command['url'], allow_loopback=use_relay)
             config = self.configs[command['device']]
+            native_mac = is_native_mac(config.get_service(Protocol.AirPlay))
+            url = validate_url(command['url'], allow_loopback=use_relay or native_mac)
             reason = receiver_limitation(config.get_service(Protocol.AirPlay))
             if reason:
                 raise ReceiverUnsupportedError(reason)
             if config.get_service(Protocol.AirPlay).requires_password:
                 raise pyatv.exceptions.NotSupportedError('Password protected receiver')
             await self.stop()
+            self.native_mac = native_mac
             try:
-                if use_relay:
+                if use_relay and not native_mac:
                     url = await self.relay.start(url, config.address)
-                self.atv = await pyatv.connect(config, asyncio.get_running_loop(), storage=self.storage)
+                if not native_mac:
+                    self.atv = await pyatv.connect(config, asyncio.get_running_loop(), storage=self.storage)
             except BaseException:
                 await self.stop()
                 raise
-            self.play_task = asyncio.create_task(self.playback(self.atv, url, self.generation))
+            self.play_task = asyncio.create_task(self.playback(self.atv, url, self.generation,
+                                                              config if native_mac else None))
             # play_url remains active for the entire stream. Only acknowledge dispatch.
             done, _ = await asyncio.wait([self.play_task], timeout=1)
             if done:
@@ -203,6 +234,8 @@ class Bridge:
             await self.stop()
             return {}
         if action in ('pause', 'resume', 'volume'):
+            if self.native_mac:
+                raise ReceiverUnsupportedError('Mac 投放的暫停與音量控制尚未啟用，請在 Mac 上調整音量；可隨時停止投放。')
             if not self.atv:
                 raise RuntimeError('No active receiver')
             if action == 'pause':

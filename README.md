@@ -10,7 +10,7 @@ The application is built with Flutter and uses `media_kit`, libmpv, FFmpeg, Rive
 
 ## Highlights
 
-* AirPlay video casting on Windows, with device discovery, a mouse operated pairing keypad, persistent pairing, a bounded local HLS relay and channel/source change synchronization. Open the fullscreen player's cast button. The receiver must support AirPlay video playback and decode the source video codec. Screen mirroring, password protected receivers and audio-only speakers are not supported. See [AirPlay build and compatibility notes](tools/airplay/README.md).
+* AirPlay video casting on Windows, including a native Mac receiver path with 720p H.264 video and stereo audio. On the receiving Mac, allow Everyone and disable Require Password; no PIN is requested. Other compatible receivers use a mouse operated pairing keypad and bounded HLS relay. Open the fullscreen player's cast button. Desktop mirroring, password protected receivers and audio-only speakers are not supported. Native-Mac pause/volume controls are not yet enabled. See [AirPlay build and compatibility notes](tools/airplay/README.md).
 
 ### One channel, multiple hidden routes
 

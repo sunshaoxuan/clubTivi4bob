@@ -113,6 +113,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
   final _sidebarFocusNode = FocusScopeNode(debugLabel: 'sidebar');
   final _sidebarAllItemFocusNode = FocusNode(debugLabel: 'sidebar-all');
   final _firstChannelFocusNode = FocusNode(debugLabel: 'channel-first');
+  final _provinceButtonKey = GlobalKey();
   String _sidebarSearchQuery = '';
 
   StreamSubscription<List<db.Provider>>? _providersSub;
@@ -1202,13 +1203,32 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
 
   Future<void> _selectChannel(int index, {bool force = false}) async {
     if (index < 0 || index >= _filteredChannels.length) return;
-    // Skip if already selected — don't reload the stream
-    if (!force && index == _selectedIndex && _pendingChannelIndex == null) return;
+    final channel = _filteredChannels[index];
+    final playerService = ref.read(playerServiceProvider);
+    final isPlayingChannel = playerService.currentUrl != null &&
+        (playerService.currentChannelId == channel.id ||
+            (playerService.currentChannelId == null &&
+                playerService.currentUrl == channel.streamUrl));
+    if (isPlayingChannel) {
+      ++_channelSelectionGeneration;
+      _pendingAutoplayGroup = null;
+      final hadPreview = _pendingChannelIndex != null ||
+          _preparedChannelIndex != null ||
+          playerService.preparedChannelId != null;
+      if (hadPreview || _selectedIndex != index) {
+        setState(() {
+          _pendingChannelIndex = null;
+          _preparedChannelIndex = null;
+          _selectedIndex = index;
+          _previewChannel = channel;
+        });
+      }
+      if (hadPreview) await playerService.discardPreparedChannel();
+      return;
+    }
     if (!force && index == _pendingChannelIndex) return;
     final selectionGeneration = ++_channelSelectionGeneration;
     _pendingAutoplayGroup = null;
-    final channel = _filteredChannels[index];
-    final playerService = ref.read(playerServiceProvider);
 
     // Merge legacy manual groups into the hidden automatic alternatives.
     final groupMemberships = _failoverGroupIndex[channel.id];
@@ -2015,20 +2035,33 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
   }
 
   Future<void> _showProvincePicker() async {
-    final selected = await showDialog<String>(
+    final buttonContext = _provinceButtonKey.currentContext;
+    final buttonBox = buttonContext?.findRenderObject();
+    if (buttonBox is! RenderBox) return;
+    final buttonPosition = buttonBox.localToGlobal(Offset.zero);
+    final screenSize = MediaQuery.sizeOf(context);
+    final width = (screenSize.width - 24).clamp(280.0, 700.0);
+    final top = buttonPosition.dy + buttonBox.size.height + 8;
+    final left = buttonPosition.dx.clamp(12.0, screenSize.width - width - 12);
+    final height = (screenSize.height - top - 12).clamp(180.0, 510.0);
+    final columns = ((width - 44) / 138).floor().clamp(2, 5);
+    final selected = await showGeneralDialog<String>(
       context: context,
-      builder: (dialogContext) {
-        final screenSize = MediaQuery.sizeOf(dialogContext);
-        final width = (screenSize.width - 32).clamp(280.0, 840.0);
-        final height = (screenSize.height - 40).clamp(300.0, 650.0);
-        final columns = ((width - 64) / 138).floor().clamp(2, 6);
-        return Dialog(
-          backgroundColor: Colors.transparent,
-          insetPadding: const EdgeInsets.all(16),
-          child: Container(
+      barrierDismissible: true,
+      barrierLabel: '關閉地區選單',
+      barrierColor: Colors.black26,
+      transitionDuration: const Duration(milliseconds: 160),
+      pageBuilder: (dialogContext, _, __) => Stack(
+        children: [
+          Positioned(
+            left: left,
+            top: top,
             width: width,
             height: height,
-            padding: const EdgeInsets.all(22),
+            child: Material(
+            color: Colors.transparent,
+            child: Container(
+            padding: const EdgeInsets.all(18),
             decoration: BoxDecoration(
               gradient: const LinearGradient(
                 begin: Alignment.topLeft,
@@ -2068,7 +2101,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                     icon: const Icon(Icons.close_rounded, color: Colors.white70),
                   ),
                 ]),
-                const SizedBox(height: 18),
+                const SizedBox(height: 14),
                 Expanded(
                   child: GridView.builder(
                     itemCount: ChannelCategoryClassifier.provinceCategories.length,
@@ -2093,8 +2126,10 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
               ],
             ),
           ),
-        );
-      },
+          ),
+          ),
+        ],
+      ),
     );
     if (!mounted || selected == null) return;
     await _selectGroupAndPlayFirst(selected);
@@ -2335,11 +2370,14 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                   selected: _selectedGroup == group,
                   onTap: () => _selectGroupAndPlayFirst(group),
                 ),
-              _buildSimpleCategoryTab(
-                selectedProvince ? _selectedGroup : '地方台',
-                selected: selectedProvince,
-                trailing: Icons.grid_view_rounded,
-                onTap: _showProvincePicker,
+              KeyedSubtree(
+                key: _provinceButtonKey,
+                child: _buildSimpleCategoryTab(
+                  selectedProvince ? _selectedGroup : '地方台',
+                  selected: selectedProvince,
+                  trailing: Icons.grid_view_rounded,
+                  onTap: _showProvincePicker,
+                ),
               ),
             ],
           ),

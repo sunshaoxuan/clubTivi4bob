@@ -114,11 +114,6 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
   final _firstChannelFocusNode = FocusNode(debugLabel: 'channel-first');
   String _sidebarSearchQuery = '';
 
-  // Top bar auto-hide
-  double _topBarOpacity = 1.0;
-  Timer? _topBarTimer;
-  bool _mouseInTopBar = false;
-
   StreamSubscription<List<db.Provider>>? _providersSub;
   StreamSubscription<List<db.Channel>>? _channelsSub;
 
@@ -172,7 +167,6 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
     _guideScrollController = ScrollController();
     _loadChannels();
     _ensureEpgSources();
-    _startTopBarFade();
     _loadSearchHistory();
     // Auto-failover toast
     final ps = ref.read(playerServiceProvider);
@@ -367,19 +361,6 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
     _searchHistory = prefs.getStringList(_kSearchHistory) ?? [];
   }
 
-  void _startTopBarFade() {
-    _topBarTimer?.cancel();
-    if (_mouseInTopBar || Platform.isAndroid) return;
-    _topBarTimer = Timer(const Duration(seconds: 3), () {
-      if (mounted && !_mouseInTopBar) setState(() => _topBarOpacity = 0.0);
-    });
-  }
-
-  void _showTopBar() {
-    setState(() => _topBarOpacity = 1.0);
-    _startTopBarFade();
-  }
-
   /// Add default EPG sources on first run and kick off a background refresh.
   Future<void> _ensureEpgSources() async {
     final epgService = ref.read(epgRefreshServiceProvider);
@@ -418,7 +399,6 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
     _overlayTimer?.cancel();
     _nowPlayingTimer?.cancel();
     _volumeOverlayTimer?.cancel();
-    _topBarTimer?.cancel();
     _providersSub?.cancel();
     _channelsSub?.cancel();
     _longPressTimer?.cancel();
@@ -1370,7 +1350,6 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
       if (_selectedGroup == 'Favorites' || _selectedGroup.startsWith('fav:')) {
         await _loadGroupChannels(_selectedGroup, preserveScroll: true);
       }
-      _showTopBar();
     }
   }
 
@@ -1796,22 +1775,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                 children: [
                   if (!Platform
                       .isAndroid) // TV: no top bar, use sidebar for nav
-                    MouseRegion(
-                      onEnter: (_) {
-                        _mouseInTopBar = true;
-                        _topBarTimer?.cancel();
-                        setState(() => _topBarOpacity = 1.0);
-                      },
-                      onExit: (_) {
-                        _mouseInTopBar = false;
-                        _startTopBarFade();
-                      },
-                      child: AnimatedOpacity(
-                        opacity: _topBarOpacity,
-                        duration: const Duration(milliseconds: 600),
-                        child: _buildTopBar(context),
-                      ),
-                    ),
+                    _buildTopBar(context),
                   Expanded(
                     child: Row(
                       children: [
@@ -2502,8 +2466,18 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
             ),
           ),
           const SizedBox(width: 10),
+          OutlinedButton.icon(
+            onPressed: () => _setSimpleMode(true),
+            icon: const Icon(Icons.dashboard_rounded, size: 18),
+            label: const Text('簡潔模式'),
+            style: OutlinedButton.styleFrom(
+              foregroundColor: Colors.white,
+              side: const BorderSide(color: Colors.white38),
+            ),
+          ),
+          const SizedBox(width: 10),
           ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 300),
+            constraints: const BoxConstraints(maxWidth: 180),
             child: Text(
               _loadStatus,
               maxLines: 1,
@@ -2671,12 +2645,6 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  TextButton.icon(
-                    onPressed: () => _setSimpleMode(true),
-                    icon: const Icon(Icons.dashboard_rounded, size: 18),
-                    label: const Text('简洁模式'),
-                    style: TextButton.styleFrom(foregroundColor: Colors.white70),
-                  ),
                   Tooltip(
                     message: '显示或隐藏没有近期验证可用线路的频道',
                     child: Row(

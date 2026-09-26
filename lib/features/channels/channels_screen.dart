@@ -46,8 +46,14 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
   List<db.Channel> _filteredChannels = [];
   final Map<String, String> _automaticKeyByChannelId = {};
   final Map<String, List<String>> _automaticUrlsByKey = {};
+  Map<String, int> _verifiedRouteCounts = {};
+  Set<String> _verifiedRouteUrls = {};
+  bool _routeAvailabilityLoading = false;
   List<String> _groups = List.of(ChannelCategoryClassifier.categories);
   String _selectedGroup = '央视';
+  bool _simpleMode = true;
+  bool _showUnavailableSources = true;
+  static const _simpleModePreferenceKey = 'bobtv_simple_mode';
   String _searchQuery = '';
   // _showSearch removed — search bar is always visible in the top navbar
   int _selectedIndex = -1;
@@ -438,6 +444,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
       final favLists = results[1] as List<db.FavoriteList>;
       final favChannelIds = results[2] as Set<String>;
       final prefs = results[3] as SharedPreferences;
+      _simpleMode = prefs.getBool(_simpleModePreferenceKey) ?? true;
       _hideIpv6Sources =
           prefs.getBool(SourceVisibility.hideIpv6PreferenceKey) ?? false;
 
@@ -519,6 +526,9 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
       setState(() {
         _loadStatus = '正在载入$group…';
         _categoryLoading = true;
+        _routeAvailabilityLoading = true;
+        _verifiedRouteCounts = {};
+        _verifiedRouteUrls = {};
         if (!preserveScroll) {
           _allChannels = [];
           _filteredChannels = [];
@@ -564,6 +574,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
     if (!unchanged && scrollAnchor != null) {
       _restoreScrollAnchor(scrollAnchor);
     }
+    unawaited(_refreshRouteAvailability(loaded, generation));
     await ref.read(streamAlternativesProvider).rebuildForChannels(loaded);
     if (!mounted || generation != _categoryLoadGeneration) return;
     _playFirstFilteredChannelForGroup(group);
@@ -756,6 +767,16 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
     }
   }
 
+  Future<void> _setSimpleMode(bool value) async {
+    if (_simpleMode == value) return;
+    setState(() {
+      _simpleMode = value;
+      _applyFilters();
+    });
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_simpleModePreferenceKey, value);
+  }
+
   void _applyFilters() {
     var channels = _allChannels;
 
@@ -820,6 +841,13 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
 
     if (_hideIpv6Sources) {
       channels = channels.where((channel) => !_isIpv6Channel(channel)).toList();
+    }
+
+    if (_simpleMode || !_showUnavailableSources) {
+      channels = channels.where((channel) {
+        final key = _automaticChannelKey(channel);
+        return (_verifiedRouteCounts[key.isEmpty ? channel.id : key] ?? 0) > 0;
+      }).toList();
     }
 
     _filteredChannels = _deduplicateChannels(channels);
@@ -1041,6 +1069,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
 
   int _representativeScore(db.Channel channel) {
     var score = 0;
+    if (_verifiedRouteUrls.contains(channel.streamUrl)) score += 100;
     if (_epgMappings.containsKey(channel.id)) score += 8;
     if (channel.tvgId?.isNotEmpty ?? false) score += 4;
     if (channel.tvgLogo?.isNotEmpty ?? false) score += 2;
@@ -1052,8 +1081,54 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
     final key = _automaticChannelKey(channel);
     if (key.isEmpty) return const [];
     return (_automaticUrlsByKey[key] ?? const <String>[])
-        .where((url) => url != channel.streamUrl)
+        .where((url) =>
+            url != channel.streamUrl &&
+            (!_simpleMode || _verifiedRouteUrls.contains(url)))
         .toList();
+  }
+
+  int _verifiedRouteCount(db.Channel channel) {
+    final key = _automaticChannelKey(channel);
+    return _verifiedRouteCounts[key.isEmpty ? channel.id : key] ?? 0;
+  }
+
+  int _verifiedAlternativeCount(db.Channel channel) {
+    final count = _verifiedRouteCount(channel);
+    return count - (_verifiedRouteUrls.contains(channel.streamUrl) ? 1 : 0);
+  }
+
+  Future<void> _refreshRouteAvailability(
+    List<db.Channel> channels,
+    int generation,
+  ) async {
+    final checks = await ref.read(databaseProvider).getStreamChecksForChannels(channels);
+    if (!mounted || generation != _categoryLoadGeneration) return;
+    final checkByRoute = <String, db.StreamCheck>{
+      for (final check in checks)
+        '${check.providerId}\u0000${check.streamUrl}': check,
+    };
+    final recent = DateTime.now().subtract(const Duration(days: 7));
+    final validByChannel = <String, Set<String>>{};
+    final verifiedUrls = <String>{};
+    for (final channel in channels) {
+      final check = checkByRoute['${channel.providerId}\u0000${channel.streamUrl}'];
+      if (check == null || check.retired || check.consecutiveFailures != 0 ||
+          check.lastSuccessAt == null || check.lastCheckedAt == null ||
+          check.lastCheckedAt!.isBefore(recent)) continue;
+      final key = _automaticChannelKey(channel);
+      (validByChannel[key.isEmpty ? channel.id : key] ??= <String>{})
+          .add(channel.streamUrl);
+      verifiedUrls.add(channel.streamUrl);
+    }
+    setState(() {
+      _verifiedRouteCounts = validByChannel.map(
+        (key, urls) => MapEntry(key, urls.length),
+      );
+      _verifiedRouteUrls = verifiedUrls;
+      _routeAvailabilityLoading = false;
+      _applyFilters();
+    });
+    _playFirstFilteredChannelForGroup(_selectedGroup);
   }
 
   Future<void> _applyFavoriteListFilter(String listId) async {
@@ -1157,7 +1232,9 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
           .whereType<db.Channel>()
           .where((candidate) => _hasCompatibleQuality(channel, candidate))
           .map((candidate) => candidate.streamUrl)
-          .where((url) => url != channel.streamUrl)
+          .where((url) =>
+              url != channel.streamUrl &&
+              (!_simpleMode || _verifiedRouteUrls.contains(url)))
           .toList();
       for (final url in manualUrls) {
         if (!failoverUrls.contains(url)) failoverUrls.add(url);
@@ -1655,6 +1732,9 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
         !_selectedGroup.startsWith('fav:')) {
       return _buildEmptyState(context);
     }
+    if (!Platform.isAndroid && _simpleMode) {
+      return _buildSimpleHome(context);
+    }
 
     return PopScope(
       canPop: false,
@@ -1740,6 +1820,369 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
             ),
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _buildSimpleHome(BuildContext context) {
+    const quickGroups = <String>[
+      'Favorites',
+      '央视',
+      '港澳台',
+      '国际',
+      '广播',
+      '数字',
+      '其他',
+    ];
+    final selectedProvince = ChannelCategoryClassifier.provinceCategories
+        .contains(_selectedGroup);
+    return PopScope(
+      canPop: false,
+      child: Scaffold(
+        backgroundColor: const Color(0xFF0C1020),
+        body: SafeArea(
+          child: Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(24, 18, 24, 12),
+                child: Row(
+                  children: [
+                    const Icon(Icons.live_tv_rounded,
+                        color: Color(0xFF8C9EFF), size: 30),
+                    const SizedBox(width: 12),
+                    const Text('BobTV',
+                        style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 25,
+                            fontWeight: FontWeight.bold)),
+                    const Spacer(),
+                    TextButton.icon(
+                      onPressed: () => _setSimpleMode(false),
+                      icon: const Icon(Icons.tune_rounded),
+                      label: const Text('进阶模式'),
+                      style: TextButton.styleFrom(
+                          foregroundColor: Colors.white70),
+                    ),
+                    IconButton(
+                      tooltip: '重新读取线路检查结果',
+                      onPressed: _routeAvailabilityLoading
+                          ? null
+                          : () {
+                              setState(() => _routeAvailabilityLoading = true);
+                              unawaited(_refreshRouteAvailability(
+                                _allChannels,
+                                _categoryLoadGeneration,
+                              ));
+                            },
+                      icon: const Icon(Icons.refresh_rounded,
+                          color: Colors.white70),
+                    ),
+                    IconButton(
+                      tooltip: '设置',
+                      onPressed: () => context.push('/settings'),
+                      icon: const Icon(Icons.settings_outlined,
+                          color: Colors.white70),
+                    ),
+                  ],
+                ),
+              ),
+              SizedBox(
+                height: 54,
+                child: ListView(
+                  scrollDirection: Axis.horizontal,
+                  padding: const EdgeInsets.symmetric(horizontal: 24),
+                  children: [
+                    for (final group in quickGroups)
+                      Padding(
+                        padding: const EdgeInsets.only(right: 10),
+                        child: ChoiceChip(
+                          label: Text(group == 'Favorites' ? '我的收藏' : group),
+                          selected: _selectedGroup == group,
+                          onSelected: (_) => _selectGroupAndPlayFirst(group),
+                          selectedColor: const Color(0xFF7176E8),
+                          backgroundColor: const Color(0xFF20263A),
+                          labelStyle: TextStyle(
+                            color: _selectedGroup == group
+                                ? Colors.white
+                                : Colors.white70,
+                          ),
+                          side: BorderSide.none,
+                        ),
+                      ),
+                    PopupMenuButton<String>(
+                      tooltip: '选择地区',
+                      onSelected: _selectGroupAndPlayFirst,
+                      itemBuilder: (_) => [
+                        for (final province
+                            in ChannelCategoryClassifier.provinceCategories)
+                          PopupMenuItem(value: province, child: Text(province)),
+                      ],
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        alignment: Alignment.center,
+                        decoration: BoxDecoration(
+                          color: selectedProvince
+                              ? const Color(0xFF7176E8)
+                              : const Color(0xFF20263A),
+                          borderRadius: BorderRadius.circular(18),
+                        ),
+                        child: Row(
+                          children: [
+                            Text(selectedProvince ? _selectedGroup : '地方台',
+                                style: const TextStyle(color: Colors.white70)),
+                            const SizedBox(width: 5),
+                            const Icon(Icons.expand_more,
+                                size: 18, color: Colors.white70),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Expanded(
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
+                    final wide = constraints.maxWidth >= 1050;
+                    final preview = _buildSimplePreview();
+                    final channels = _buildSimpleChannelPanel();
+                    if (wide) {
+                      return Padding(
+                        padding: const EdgeInsets.fromLTRB(24, 12, 24, 24),
+                        child: Row(
+                          children: [
+                            Expanded(flex: 6, child: preview),
+                            const SizedBox(width: 18),
+                            Expanded(flex: 4, child: channels),
+                          ],
+                        ),
+                      );
+                    }
+                    return Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+                      child: Column(
+                        children: [
+                          SizedBox(
+                            height: constraints.maxHeight >= 520
+                                ? 300
+                                : constraints.maxHeight * 0.45,
+                            child: preview,
+                          ),
+                          const SizedBox(height: 12),
+                          Expanded(child: channels),
+                        ],
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSimplePreview() {
+    final channel = _previewChannel;
+    final nowPlaying = channel == null ? null : _getChannelNowPlaying(channel);
+    return Container(
+      decoration: BoxDecoration(
+        color: const Color(0xFF171D30),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      padding: const EdgeInsets.all(14),
+      child: Column(
+        children: [
+          Expanded(
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(14),
+              child: ColoredBox(
+                color: Colors.black,
+                child: channel == null
+                    ? const Center(
+                        child: Text('选择一个频道开始播放',
+                            style: TextStyle(color: Colors.white54)))
+                    : GestureDetector(
+                        onDoubleTap: () => _goFullscreen(channel),
+                        child: Video(
+                          controller: ref.read(playerServiceProvider)
+                              .videoController,
+                          controls: NoVideoControls,
+                        ),
+                      ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 14),
+          Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(channel == null ? '欢迎使用 BobTV' :
+                        _channelDisplayName(channel),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(color: Colors.white,
+                            fontSize: 22, fontWeight: FontWeight.w600)),
+                    if (nowPlaying != null)
+                      Text(nowPlaying, maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(color: Colors.white60)),
+                  ],
+                ),
+              ),
+              if (channel != null) ...[
+                Text('备选 ${_verifiedAlternativeCount(channel)} 条',
+                    style: const TextStyle(color: Colors.white60)),
+                const SizedBox(width: 10),
+                IconButton(
+                  tooltip: '收藏频道',
+                  onPressed: () => _showFavoriteListSheet(channel),
+                  icon: Icon(
+                    _favoritedChannelIds.contains(channel.id)
+                        ? Icons.star_rounded : Icons.star_border_rounded,
+                    color: Colors.amber,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                FilledButton.icon(
+                  onPressed: () => _goFullscreen(channel),
+                  icon: const Icon(Icons.fullscreen_rounded),
+                  label: const Text('全屏播放'),
+                ),
+              ],
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSimpleChannelPanel() {
+    return Container(
+      decoration: BoxDecoration(
+        color: const Color(0xFF171D30),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      padding: const EdgeInsets.all(14),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Text('频道', style: TextStyle(color: Colors.white,
+                  fontSize: 20, fontWeight: FontWeight.w600)),
+              const SizedBox(width: 8),
+              Text(_routeAvailabilityLoading
+                  ? '正在核对线路…'
+                  : '${_filteredChannels.length} 个可用频道',
+                  style: const TextStyle(color: Colors.white54)),
+            ],
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: _searchController,
+            style: const TextStyle(color: Colors.white),
+            decoration: InputDecoration(
+              hintText: '搜索当前分类',
+              hintStyle: const TextStyle(color: Colors.white54),
+              prefixIcon: const Icon(Icons.search_rounded,
+                  color: Colors.white54),
+              filled: true,
+              fillColor: const Color(0xFF242B41),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide.none,
+              ),
+            ),
+            onChanged: (value) => setState(() {
+              _searchQuery = value;
+              _applyFilters();
+            }),
+          ),
+          const SizedBox(height: 12),
+          Expanded(
+            child: _filteredChannels.isEmpty
+                ? Center(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          _routeAvailabilityLoading
+                              ? '正在核对线路…'
+                              : '当前分类暂无近期通过检查的频道',
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(color: Colors.white54),
+                        ),
+                        if (!_routeAvailabilityLoading) ...[
+                          const SizedBox(height: 12),
+                          TextButton(
+                            onPressed: () => _setSimpleMode(false),
+                            child: const Text('前往进阶模式查看全部频道'),
+                          ),
+                        ],
+                      ],
+                    ),
+                  )
+                : LayoutBuilder(builder: (context, constraints) {
+                    final columns = constraints.maxWidth >= 520 ? 2 : 1;
+                    return GridView.builder(
+                      itemCount: _filteredChannels.length,
+                      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                        crossAxisCount: columns,
+                        childAspectRatio: columns == 2 ? 3.2 : 5.8,
+                        mainAxisSpacing: 8,
+                        crossAxisSpacing: 8,
+                      ),
+                      itemBuilder: (context, index) {
+                        final channel = _filteredChannels[index];
+                        final selected = index == _selectedIndex;
+                        return Material(
+                          color: selected
+                              ? const Color(0xFF3D4775)
+                              : const Color(0xFF252D43),
+                          borderRadius: BorderRadius.circular(12),
+                          child: InkWell(
+                            borderRadius: BorderRadius.circular(12),
+                            onTap: () => _selectChannel(index),
+                            onDoubleTap: () {
+                              _selectChannel(index);
+                              _goFullscreen(channel);
+                            },
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 12, vertical: 8),
+                              child: Row(
+                                children: [
+                                  Icon(selected ? Icons.play_circle_filled_rounded
+                                      : Icons.live_tv_rounded,
+                                      color: selected
+                                          ? Colors.white : Colors.white60),
+                                  const SizedBox(width: 10),
+                                  Expanded(child: Text(_channelDisplayName(channel),
+                                      maxLines: 2,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: const TextStyle(color: Colors.white,
+                                          fontSize: 15))),
+                                  Text('备选 ${_verifiedAlternativeCount(channel)} 条',
+                                      style: const TextStyle(
+                                          color: Colors.white60, fontSize: 11)),
+                                  if (_favoritedChannelIds.contains(channel.id))
+                                    const Icon(Icons.star_rounded,
+                                        color: Colors.amber, size: 18),
+                                ],
+                              ),
+                            ),
+                          ),
+                        );
+                      },
+                    );
+                  }),
+          ),
+        ],
       ),
     );
   }
@@ -1837,6 +2280,11 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
             ),
           ),
           const SizedBox(width: 16),
+          if (_previewChannel != null) ...[
+            Text('备选 ${_verifiedAlternativeCount(_previewChannel!)} 条',
+                style: const TextStyle(color: Colors.white70, fontSize: 12)),
+            const SizedBox(width: 12),
+          ],
           Expanded(
             child: SizedBox(
               height: 36,
@@ -1991,6 +2439,29 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
+                  TextButton.icon(
+                    onPressed: () => _setSimpleMode(true),
+                    icon: const Icon(Icons.dashboard_rounded, size: 18),
+                    label: const Text('简洁模式'),
+                    style: TextButton.styleFrom(foregroundColor: Colors.white70),
+                  ),
+                  Tooltip(
+                    message: '显示或隐藏没有近期验证可用线路的频道',
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Text('显示无可用线',
+                            style: TextStyle(color: Colors.white70, fontSize: 12)),
+                        Switch.adaptive(
+                          value: _showUnavailableSources,
+                          onChanged: (value) => setState(() {
+                            _showUnavailableSources = value;
+                            _applyFilters();
+                          }),
+                        ),
+                      ],
+                    ),
+                  ),
                   _buildIpv6SourceToggle(),
                   const SizedBox(width: 6),
                   // Previous channel toggle button

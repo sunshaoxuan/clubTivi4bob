@@ -167,7 +167,7 @@ class SourceMaintenanceService {
     });
   }
 
-  Future<bool> _probe(String url) async {
+  Future<bool> _probe(String url, {int playlistDepth = 0}) async {
     final uri = Uri.tryParse(url);
     if (uri == null || !uri.hasScheme || uri.host.isEmpty) return false;
     if ((uri.path.isEmpty || uri.path == '/') &&
@@ -187,8 +187,33 @@ class SourceMaintenanceService {
       }
       final body = response.data;
       if (body == null) return false;
-      final first = await body.stream.first.timeout(const Duration(seconds: 6));
-      return first.isNotEmpty && !_looksLikeWebDocument(first);
+      final contentType = response.headers.value(Headers.contentTypeHeader) ?? '';
+      var playlist = uri.path.toLowerCase().endsWith('.m3u8') ||
+          contentType.toLowerCase().contains('mpegurl');
+      final prefix = <int>[];
+      await for (final chunk in body.stream.timeout(const Duration(seconds: 6))) {
+        if (prefix.isEmpty) {
+          playlist = playlist || String.fromCharCodes(chunk.take(16)).startsWith('#EXTM3U');
+        }
+        prefix.addAll(chunk);
+        if (!playlist || prefix.length >= 65536) break;
+      }
+      if (playlist) {
+        if (playlistDepth >= 2) return false;
+        final lines = String.fromCharCodes(prefix).split(RegExp(r'\r?\n'));
+        String? mediaPath;
+        for (final line in lines) {
+          final path = line.trim();
+          if (path.isNotEmpty && !path.startsWith('#')) {
+            mediaPath = path;
+            break;
+          }
+        }
+        if (mediaPath == null) return false;
+        return _probe(uri.resolve(mediaPath).toString(),
+            playlistDepth: playlistDepth + 1);
+      }
+      return prefix.isNotEmpty && !_looksLikeWebDocument(prefix);
     } on DioException catch (error) {
       if (error.response?.statusCode == 416) {
         try {

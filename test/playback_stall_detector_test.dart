@@ -29,7 +29,7 @@ void main() {
         ),
       );
       PlaybackStallState? state;
-      for (var i = 0; i < 4; i++) {
+      for (var i = 0; i < 9; i++) {
         state = detector.add(
           const PlaybackHealthSample(
             position: Duration(seconds: 10),
@@ -45,7 +45,7 @@ void main() {
     test('fails over after sustained buffering', () {
       final detector = PlaybackStallDetector();
       PlaybackStallState? state;
-      for (var i = 0; i < 3; i++) {
+      for (var i = 0; i < 8; i++) {
         state = detector.add(
           const PlaybackHealthSample(
             position: Duration.zero,
@@ -78,6 +78,19 @@ void main() {
         ),
       );
       expect(recovered.healthy, isTrue);
+    });
+
+    test('does not switch a progressing stream just because cache is low', () {
+      final detector = PlaybackStallDetector();
+      for (var i = 0; i < 20; i++) {
+        final state = detector.add(PlaybackHealthSample(
+          position: Duration(seconds: i * 2),
+          cacheSeconds: 0.2,
+          buffering: false,
+          playing: true,
+        ));
+        expect(state.shouldFailover, isFalse);
+      }
     });
   });
 }

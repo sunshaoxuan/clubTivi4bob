@@ -522,7 +522,7 @@ class PlayerService {
     int attempt = 0,
   }) {
     _videoCheckTimer?.cancel();
-    _videoCheckTimer = Timer(Duration(seconds: attempt == 0 ? 4 : 2), () async {
+    _videoCheckTimer = Timer(Duration(seconds: attempt == 0 ? 8 : 4), () async {
       if (playGeneration != _playGeneration || _currentUrl != expectedUrl) {
         return;
       }
@@ -549,7 +549,7 @@ class PlayerService {
         return;
       }
 
-      if (attempt == 0) {
+      if (attempt == 0 && hasVideoTrack) {
         try {
           await _enableVideoOutput(
             reload: true,
@@ -779,13 +779,21 @@ class PlayerService {
   /// if no real audio tracks are detected.
   void _scheduleAudioCheck(String originalUrl) {
     _tracksSub?.cancel();
-    // Give mpv 3 seconds to detect audio tracks before checking
+    // Allow live streams time to establish video before considering a proxy.
     _tracksSub =
         Stream<void>.fromFuture(
-          Future<void>.delayed(const Duration(seconds: 3)),
+          Future<void>.delayed(const Duration(seconds: 8)),
         ).asyncMap((_) => player.state.tracks).listen((tracks) {
           _tracksSub?.cancel();
           if (_proxyActive || _currentUrl != originalUrl) return;
+
+          final hasVideo = tracks.video.any(
+            (track) => track.id != 'auto' && track.id != 'no',
+          );
+          if (!_allowsAudioOnly &&
+              (!hasVideo || player.state.buffering || !player.state.playing)) {
+            return;
+          }
 
           final realAudio = tracks.audio
               .where((a) => a.id != 'auto' && a.id != 'no')
@@ -797,7 +805,7 @@ class PlayerService {
 
           // No real audio detected — try ffmpeg proxy
           debugPrint(
-            '[Player] No audio tracks after 3s, trying ffmpeg proxy for $originalUrl',
+            '[Player] No audio tracks after video started, trying ffmpeg proxy for $originalUrl',
           );
           _retryWithProxy(originalUrl);
         });
@@ -1100,6 +1108,8 @@ class PlayerService {
             playing: player.state.playing,
           ),
         );
+
+        if (_getFailoverAlternatives().isEmpty) return;
 
         if (state.shouldWarmAlternative && !_warmReady && _warmPlayer == null) {
           await _startWarmPreload();

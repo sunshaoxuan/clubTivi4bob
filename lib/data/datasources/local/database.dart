@@ -335,6 +335,22 @@ class AppDatabase extends _$AppDatabase {
 
   Future<List<StreamCheck>> getAllStreamChecks() => select(streamChecks).get();
 
+  /// Fetch availability for the active category without loading the entire
+  /// maintenance history into the UI isolate.
+  Future<List<StreamCheck>> getStreamChecksForChannels(
+    List<Channel> activeChannels,
+  ) async {
+    final urls = activeChannels.map((channel) => channel.streamUrl).toSet().toList();
+    final checks = <StreamCheck>[];
+    for (var offset = 0; offset < urls.length; offset += 300) {
+      final end = (offset + 300).clamp(0, urls.length);
+      checks.addAll(await (select(streamChecks)
+            ..where((row) => row.streamUrl.isIn(urls.sublist(offset, end))))
+          .get());
+    }
+    return checks;
+  }
+
   Future<Set<String>> getRetiredChannelIds() async {
     final query = select(channels).join([
       innerJoin(

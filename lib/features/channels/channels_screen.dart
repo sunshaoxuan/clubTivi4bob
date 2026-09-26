@@ -2325,6 +2325,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
     return ValueListenableBuilder<VideoController?>(
       valueListenable: service.activeVideoController,
       builder: (context, controller, _) => Video(
+        key: ValueKey(controller ?? initialController),
         controller: controller ?? initialController,
         controls: NoVideoControls,
       ),

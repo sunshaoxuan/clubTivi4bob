@@ -739,6 +739,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                 ValueListenableBuilder<VideoController?>(
                   valueListenable: playerService.activeVideoController,
                   builder: (context, controller, _) => Video(
+                    key: ValueKey(controller ?? initialVideoController),
                     controller: controller ?? initialVideoController,
                     controls: NoVideoControls,
                   ),

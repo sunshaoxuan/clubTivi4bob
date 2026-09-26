@@ -56,6 +56,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   bool _nativeFullscreen = false;
   StreamSubscription<Tracks>? _tracksSubscription;
   StreamSubscription<bool>? _bufferingSubscription;
+  StreamSubscription<Player>? _activePlayerSubscription;
   StreamSubscription<String?>? _castStatusSubscription;
   bool _castBusy = false;
 
@@ -115,6 +116,14 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       _setNativeFullscreen(true);
     });
     _startPlayback();
+    _activePlayerSubscription = ref.read(playerServiceProvider)
+        .activePlayerStream.listen((_) {
+      _bindActivePlayerStreams();
+      if (mounted) {
+        _loadTrackInfo();
+        setState(() {});
+      }
+    });
     _castStatusSubscription = ref.read(castServiceProvider).statusStream.listen(
       (message) {
         if (!mounted) return;
@@ -243,6 +252,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       );
     }
 
+    _bindActivePlayerStreams();
+  }
+
+  void _bindActivePlayerStreams() {
+    final playerService = ref.read(playerServiceProvider);
     // Load track info once tracks become available
     _tracksSubscription?.cancel();
     _tracksSubscription = playerService.player.stream.tracks.listen((tracks) {
@@ -608,24 +622,14 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   Future<void> _switchChannel(int delta) async {
     if (widget.channels.isEmpty) return;
     final switchGeneration = ++_channelSwitchGeneration;
-    setState(() {
-      _channelIndex = (_channelIndex + delta) % widget.channels.length;
-      if (_channelIndex < 0) _channelIndex += widget.channels.length;
-      final ch = widget.channels[_channelIndex];
-      _currentChannelName = ch['name'] as String? ?? '';
-      _currentChannelLogo = ch['tvgLogo'] as String?;
-      _groupTitle = ch['groupTitle']?.toString();
-      _providerName = ref
-          .read(streamAlternativesProvider)
-          .providerName(ch['providerId']?.toString() ?? '');
-      _currentUrlIndex = 0;
-      _showOverlay = true;
-    });
-    final ch = widget.channels[_channelIndex];
+    var targetIndex = (_channelIndex + delta) % widget.channels.length;
+    if (targetIndex < 0) targetIndex += widget.channels.length;
+    final ch = widget.channels[targetIndex];
+    setState(() => _showOverlay = true);
     try {
-      await ref
+      final switched = await ref
           .read(playerServiceProvider)
-          .play(
+          .switchChannel(
             ch['streamUrl'] as String? ?? '',
             channelId: ch['id'] as String?,
             epgChannelId: ch['epgChannelId'] as String?,
@@ -636,18 +640,27 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                 ch['originalName'] as String? ?? ch['tvgName'] as String?,
             failoverGroupUrls: (ch['alternativeUrls'] as List?)?.cast<String>(),
             allowAudioOnly: _allowsAudioOnly(ch),
-          )
-          .timeout(const Duration(seconds: 12));
-      if (switchGeneration != _channelSwitchGeneration) return;
+          );
+      if (!mounted || switchGeneration != _channelSwitchGeneration) return;
+      if (!switched) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('新频道暂时无法播放，已保留原频道'),
+          duration: Duration(seconds: 3),
+        ));
+        return;
+      }
+      setState(() {
+        _channelIndex = targetIndex;
+        _currentChannelName = ch['name'] as String? ?? '';
+        _currentChannelLogo = ch['tvgLogo'] as String?;
+        _groupTitle = ch['groupTitle']?.toString();
+        _providerName = ref.read(streamAlternativesProvider)
+            .providerName(ch['providerId']?.toString() ?? '');
+        _currentUrlIndex = 0;
+      });
       _autoHideOverlay();
       _loadEpgInfo();
       _loadFavoriteState();
-    } on TimeoutException catch (error, stackTrace) {
-      AppDiagnostics.instance.recordError(
-        'channel_switch_timeout',
-        error,
-        stackTrace,
-      );
     } catch (error, stackTrace) {
       AppDiagnostics.instance.recordError('channel_switch', error, stackTrace);
     }
@@ -688,6 +701,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
 
   @override
   void dispose() {
+    _activePlayerSubscription?.cancel();
     _castStatusSubscription?.cancel();
     _overlayTimer?.cancel();
     _volumeTimer?.cancel();
@@ -703,6 +717,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   @override
   Widget build(BuildContext context) {
     final playerService = ref.watch(playerServiceProvider);
+    final initialVideoController = playerService.videoController;
 
     return Focus(
       autofocus: true,
@@ -721,9 +736,51 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
               fit: StackFit.expand,
               children: [
                 // Video — fill entire screen
-                Video(
-                  controller: playerService.videoController,
-                  controls: NoVideoControls,
+                ValueListenableBuilder<VideoController?>(
+                  valueListenable: playerService.activeVideoController,
+                  builder: (context, controller, _) => Video(
+                    controller: controller ?? initialVideoController,
+                    controls: NoVideoControls,
+                  ),
+                ),
+
+                ValueListenableBuilder<bool>(
+                  valueListenable: playerService.channelSwitching,
+                  builder: (context, preparing, _) {
+                    if (!preparing) return const SizedBox.shrink();
+                    return IgnorePointer(
+                      child: Align(
+                        alignment: Alignment.topCenter,
+                        child: SafeArea(
+                          child: Padding(
+                            padding: const EdgeInsets.only(top: 18),
+                            child: DecoratedBox(
+                              decoration: BoxDecoration(
+                                color: Colors.black87,
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: const Padding(
+                                padding: EdgeInsets.symmetric(
+                                    horizontal: 16, vertical: 10),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    SizedBox(width: 16, height: 16,
+                                        child: CircularProgressIndicator(
+                                            strokeWidth: 2,
+                                            color: Colors.white)),
+                                    SizedBox(width: 10),
+                                    Text('新频道正在后台载入，当前播放保持不变',
+                                        style: TextStyle(color: Colors.white)),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    );
+                  },
                 ),
 
                 StreamBuilder<bool>(

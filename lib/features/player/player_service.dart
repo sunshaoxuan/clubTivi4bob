@@ -24,6 +24,12 @@ class PlayerService {
 
   Player? _player;
   VideoController? _videoController;
+  final ValueNotifier<VideoController?> activeVideoController = ValueNotifier(null);
+  final _activePlayerController = StreamController<Player>.broadcast();
+  Stream<Player> get activePlayerStream => _activePlayerController.stream;
+  final ValueNotifier<bool> channelSwitching = ValueNotifier(false);
+  int _channelSwitchGeneration = 0;
+  bool _preparingChannelSwitch = false;
   final AdaptiveBufferManager _bufferManager = AdaptiveBufferManager();
   bool _isBuffering = false;
   DateTime? _bufferStartTime;
@@ -125,7 +131,18 @@ class PlayerService {
         ),
       );
       _initPlayer(_player!);
-      _playbackErrorLogSub = _player!.stream.error.listen((message) {
+      _bindPlayerLogs(_player!);
+      AppDiagnostics.instance.log('player_created', {
+        'bufferSizeBytes': 96 * 1024 * 1024,
+      });
+    }
+    return _player!;
+  }
+
+  void _bindPlayerLogs(Player active) {
+    unawaited(_playbackErrorLogSub?.cancel());
+    unawaited(_playingLogSub?.cancel());
+    _playbackErrorLogSub = active.stream.error.listen((message) {
         AppDiagnostics.instance.log('player_error', {
           'message': message,
           'channel': _currentChannelName,
@@ -134,17 +151,12 @@ class PlayerService {
               : AppDiagnostics.summarizeStreamUrl(_currentUrl!),
         });
       });
-      _playingLogSub = _player!.stream.playing.distinct().listen((playing) {
+      _playingLogSub = active.stream.playing.distinct().listen((playing) {
         AppDiagnostics.instance.log('playing_changed', {
           'playing': playing,
           'channel': _currentChannelName,
         });
       });
-      AppDiagnostics.instance.log('player_created', {
-        'bufferSizeBytes': 96 * 1024 * 1024,
-      });
-    }
-    return _player!;
   }
 
   Future<void> _initPlayer(Player p) async {
@@ -185,6 +197,9 @@ class PlayerService {
 
   VideoController get videoController {
     _videoController ??= VideoController(player);
+    if (activeVideoController.value == null) {
+      activeVideoController.value = _videoController;
+    }
     return _videoController!;
   }
 
@@ -207,6 +222,275 @@ class PlayerService {
   // Failover group override: manual alternatives from user-created groups
   List<String>? _failoverGroupUrls;
 
+  /// Keep the active programme running while a silent decoder prepares the
+  /// requested channel. Only one candidate is decoded at a time.
+  Future<bool> switchChannel(
+    String url, {
+    String? channelId,
+    String? epgChannelId,
+    String? tvgId,
+    String? channelName,
+    String? vanityName,
+    String? originalName,
+    List<String>? failoverGroupUrls,
+    bool allowAudioOnly = false,
+  }) async {
+    if (_currentUrl == null ||
+        !(player.state.playing || player.state.buffering)) {
+      await play(url,
+          channelId: channelId,
+          epgChannelId: epgChannelId,
+          tvgId: tvgId,
+          channelName: channelName,
+          vanityName: vanityName,
+          originalName: originalName,
+          failoverGroupUrls: failoverGroupUrls,
+          allowAudioOnly: allowAudioOnly);
+      return _currentUrl != null;
+    }
+    if (_currentChannelId == channelId && _currentUrl == url) return true;
+
+    final request = ++_channelSwitchGeneration;
+    _preparingChannelSwitch = true;
+    channelSwitching.value = true;
+    final candidates = <String>[
+      url,
+      ...?failoverGroupUrls,
+    ].where((route) => route.isNotEmpty).toSet().take(3).toList();
+    AppDiagnostics.instance.log('channel_preload_started', {
+      'channel': channelName,
+      'candidateCount': candidates.length,
+    });
+    await _disposeWarmPlayer();
+
+    try {
+      for (final candidateUrl in candidates) {
+        if (request != _channelSwitchGeneration) return false;
+        final candidate = Player(
+          configuration: const PlayerConfiguration(
+            bufferSize: 48 * 1024 * 1024,
+            logLevel: MPVLogLevel.warn,
+          ),
+        );
+        var promoted = false;
+        try {
+          final native = candidate.platform;
+          if (native is native_player.NativePlayer) {
+            await native.setProperty('mute', 'yes');
+            await native.setProperty('audio-channels', 'stereo');
+          }
+          await candidate.setVolume(0);
+          final controller = VideoController(candidate);
+          await candidate.open(Media(candidateUrl))
+              .timeout(const Duration(seconds: 6));
+          final ready = await _waitForPreparedChannel(
+            candidate,
+            request,
+            allowAudioOnly: allowAudioOnly,
+            requireUltraHd: ChannelNameNormalizer.isUltraHd(
+                    channelName ?? '') ||
+                ChannelNameNormalizer.isUltraHd(originalName ?? '') ||
+                ChannelNameNormalizer.isUltraHd(tvgId ?? ''),
+          );
+          if (ready && request == _channelSwitchGeneration) {
+            await candidate.setVolume(player.state.volume)
+                .timeout(const Duration(seconds: 2));
+            // Ownership passes to the service before any fallible handoff work.
+            promoted = true;
+            await _promotePreparedChannel(
+              candidate,
+              controller,
+              candidateUrl,
+              channelId: channelId,
+              epgChannelId: epgChannelId,
+              tvgId: tvgId,
+              channelName: channelName,
+              vanityName: vanityName,
+              originalName: originalName,
+              failoverGroupUrls: failoverGroupUrls,
+              allowAudioOnly: allowAudioOnly,
+            );
+            AppDiagnostics.instance.log('channel_preload_committed', {
+              'channel': channelName,
+              'stream': AppDiagnostics.summarizeStreamUrl(candidateUrl),
+            });
+            return true;
+          }
+        } catch (error) {
+          AppDiagnostics.instance.log('channel_preload_candidate_failed', {
+            'channel': channelName,
+            'error': error.toString(),
+          });
+        } finally {
+          if (!promoted) {
+            try {
+              await candidate.dispose().timeout(const Duration(seconds: 2));
+            } catch (_) {}
+          }
+        }
+        _healthTracker?.recordProbeFailure(candidateUrl);
+      }
+      if (request == _channelSwitchGeneration) {
+        AppDiagnostics.instance.log('channel_preload_failed', {
+          'channel': channelName,
+          'candidateCount': candidates.length,
+        });
+      }
+      return false;
+    } finally {
+      if (request == _channelSwitchGeneration) {
+        _preparingChannelSwitch = false;
+        channelSwitching.value = false;
+      }
+    }
+  }
+
+  Future<bool> _waitForPreparedChannel(
+    Player candidate,
+    int request, {
+    required bool allowAudioOnly,
+    required bool requireUltraHd,
+  }) async {
+    final deadline = DateTime.now().add(const Duration(seconds: 12));
+    var lastPosition = candidate.state.position;
+    var goodSamples = 0;
+    while (DateTime.now().isBefore(deadline)) {
+      if (request != _channelSwitchGeneration) return false;
+      final state = candidate.state;
+      final advanced = state.position - lastPosition >=
+          const Duration(milliseconds: 200);
+      if (advanced) lastPosition = state.position;
+      final hasVideo = state.tracks.video.any(
+        (track) => track.id != 'auto' && track.id != 'no',
+      );
+      final hasAudio = state.tracks.audio.any(
+        (track) => track.id != 'auto' && track.id != 'no',
+      );
+      final width = state.width ?? 0;
+      final height = state.height ?? 0;
+      final ready = preparedMediaReady(
+        playing: state.playing,
+        buffering: state.buffering,
+        hasVideoTrack: hasVideo,
+        hasAudioTrack: hasAudio,
+        width: width,
+        height: height,
+        advanced: advanced,
+        allowAudioOnly: allowAudioOnly,
+      );
+      if (requireUltraHd && width > 0 && height > 0 &&
+          width < 3000 && height < 1700) return false;
+      goodSamples = ready ? goodSamples + 1 : 0;
+      if (goodSamples >= 3) return true;
+      await Future<void>.delayed(const Duration(milliseconds: 300));
+    }
+    return false;
+  }
+
+  @visibleForTesting
+  static bool preparedMediaReady({
+    required bool playing,
+    required bool buffering,
+    required bool hasVideoTrack,
+    required bool hasAudioTrack,
+    required int width,
+    required int height,
+    required bool advanced,
+    required bool allowAudioOnly,
+  }) =>
+      playing && !buffering && advanced &&
+      (allowAudioOnly
+          ? hasAudioTrack
+          : hasVideoTrack && width > 0 && height > 0);
+
+  Future<void> _promotePreparedChannel(
+    Player candidate,
+    VideoController controller,
+    String url, {
+    String? channelId,
+    String? epgChannelId,
+    String? tvgId,
+    String? channelName,
+    String? vanityName,
+    String? originalName,
+    List<String>? failoverGroupUrls,
+    required bool allowAudioOnly,
+  }) async {
+    final previous = player;
+    final generation = ++_playGeneration;
+    _qualityCheckTimer?.cancel();
+    _videoCheckTimer?.cancel();
+    _failoverCheckTimer?.cancel();
+    _resetStaticFrameMonitor();
+    await _tracksSub?.cancel();
+    _tracksSub = null;
+    _bufferManager.stop();
+    await _bufferTrackSub?.cancel();
+    _bufferTrackSub = null;
+    _bufferTrackTimer?.cancel();
+    _trackingBuffering = false;
+    final native = candidate.platform;
+    try {
+      await previous.setVolume(0).timeout(const Duration(seconds: 2));
+    } catch (error) {
+      AppDiagnostics.instance.log('previous_player_mute_failed', {
+        'error': error.toString(),
+      });
+    }
+    _player = candidate;
+    _videoController = controller;
+    _currentUrl = url;
+    _currentChannelId = channelId;
+    _currentEpgChannelId = epgChannelId;
+    _currentTvgId = tvgId;
+    _currentChannelName = channelName;
+    _currentVanityName = vanityName;
+    _currentOriginalName = originalName;
+    _failoverGroupUrls = failoverGroupUrls;
+    _allowsAudioOnly = allowAudioOnly;
+    _requiresUltraHd = ChannelNameNormalizer.isUltraHd(channelName ?? '') ||
+        ChannelNameNormalizer.isUltraHd(originalName ?? '') ||
+        ChannelNameNormalizer.isUltraHd(tvgId ?? '');
+    _proxyActive = false;
+    _failedFailoverUrls.clear();
+    _stallDetector.reset();
+    _failoverRetryNotBefore = null;
+    _bindPlayerLogs(candidate);
+    activeVideoController.value = controller;
+    _activePlayerController.add(candidate);
+    if (native is native_player.NativePlayer) {
+      try {
+        await native.setProperty('mute', 'no');
+      } catch (error) {
+        AppDiagnostics.instance.log('prepared_player_unmute_failed', {
+          'error': error.toString(),
+        });
+      }
+    }
+    unawaited(_streamProxy.stop());
+    unawaited(previous.dispose().timeout(const Duration(seconds: 3))
+        .catchError((_) {}));
+    unawaited(_bufferManager.applyForStream(url, this).catchError((error) {
+      AppDiagnostics.instance.log('prepared_player_buffer_error', {
+        'error': error.toString(),
+      });
+    }));
+    AppDiagnostics.instance.updatePlaybackContext(
+      channelName: channelName,
+      streamUrl: url,
+    );
+    bufferHistory.fillRange(0, 60, false);
+    bufferEventCount = 0;
+    bufferingSeconds = 0;
+    startBufferTracking();
+    _startFailoverMonitor();
+    _scheduleAudioCheck(url);
+    _scheduleVideoCheck(url, generation);
+    _startStaticFrameMonitor(url, generation);
+    _scheduleQualityCheck(url, generation);
+    _currentUrlController.add(url);
+  }
+
   /// Start playing a stream URL with optional channel metadata for failover.
   Future<void> play(
     String url, {
@@ -219,6 +503,9 @@ class PlayerService {
     List<String>? failoverGroupUrls,
     bool allowAudioOnly = false,
   }) async {
+    ++_channelSwitchGeneration;
+    _preparingChannelSwitch = false;
+    channelSwitching.value = false;
     final playGeneration = ++_playGeneration;
     _failoverRetryNotBefore = null;
     _setFailoverSwitching(false);
@@ -843,6 +1130,9 @@ class PlayerService {
 
   /// Stop playback.
   Future<void> stop() async {
+    ++_channelSwitchGeneration;
+    _preparingChannelSwitch = false;
+    channelSwitching.value = false;
     _bufferManager.stop();
     _qualityCheckTimer?.cancel();
     _videoCheckTimer?.cancel();
@@ -1081,6 +1371,7 @@ class PlayerService {
     _stallDetector.reset();
     _failoverMonitorBusy = false;
     _failoverCheckTimer = Timer.periodic(const Duration(seconds: 2), (_) async {
+      if (_preparingChannelSwitch) return;
       if (_failoverMonitorBusy) return;
       if (_currentUrl == null) return;
       final retryNotBefore = _failoverRetryNotBefore;
@@ -1277,6 +1568,7 @@ class PlayerService {
   }
 
   Future<void> _autoFailover() async {
+    if (_preparingChannelSwitch) return;
     if (_autoFailoverInProgress) return;
     if (_currentUrl == null) return;
     if (_alternatives == null &&
@@ -1495,6 +1787,9 @@ class PlayerService {
   }
 
   Future<void> dispose() async {
+    ++_channelSwitchGeneration;
+    channelSwitching.dispose();
+    activeVideoController.dispose();
     AppDiagnostics.instance.log('player_disposing', {
       'channel': _currentChannelName,
     });
@@ -1514,6 +1809,7 @@ class PlayerService {
     await _player?.dispose();
     await _currentUrlController.close();
     await _failoverSwitchingController.close();
+    await _activePlayerController.close();
   }
 }
 

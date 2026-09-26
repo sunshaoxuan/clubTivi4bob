@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io' show Directory, File, FileMode, Platform;
+import 'dart:ui' as ui;
 
 import 'package:drift/drift.dart' show Value;
 import 'package:file_picker/file_picker.dart';
@@ -14,6 +15,7 @@ import 'package:media_kit_video/media_kit_video.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/countdown_snackbar.dart';
+import '../../core/app_diagnostics.dart';
 import '../../core/fuzzy_match.dart';
 import '../../core/platform_info.dart';
 import '../../core/weather_clock_widget.dart';
@@ -57,6 +59,8 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
   String _searchQuery = '';
   // _showSearch removed — search bar is always visible in the top navbar
   int _selectedIndex = -1;
+  int? _pendingChannelIndex;
+  int _channelSelectionGeneration = 0;
   String? _pendingAutoplayGroup;
   db.Channel? _previewChannel;
   List<db.EpgProgramme> _nowPlaying = [];
@@ -1205,15 +1209,13 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
     _selectChannel(0);
   }
 
-  void _selectChannel(int index) {
+  Future<void> _selectChannel(int index) async {
     if (index < 0 || index >= _filteredChannels.length) return;
     // Skip if already selected — don't reload the stream
-    if (index == _selectedIndex) return;
+    if (index == _selectedIndex && _pendingChannelIndex == null) return;
+    if (index == _pendingChannelIndex) return;
+    final selectionGeneration = ++_channelSelectionGeneration;
     _pendingAutoplayGroup = null;
-    // Remember current as previous (for back/forth toggle)
-    if (_selectedIndex >= 0 && _selectedIndex != index) {
-      _previousIndex = _selectedIndex;
-    }
     final channel = _filteredChannels[index];
     final playerService = ref.read(playerServiceProvider);
 
@@ -1241,22 +1243,68 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
       }
     }
 
-    playerService.play(
-      channel.streamUrl,
-      channelId: channel.id,
-      epgChannelId: _getEpgId(channel),
-      tvgId: channel.tvgId,
-      channelName: channel.name,
-      vanityName: _vanityNames[channel.id],
-      originalName: channel.tvgName,
-      failoverGroupUrls: failoverUrls,
-      allowAudioOnly: _allowsAudioOnly(channel),
-    );
+    final hasActivePlayback = playerService.currentUrl != null &&
+        (playerService.player.state.playing ||
+            playerService.player.state.buffering);
+    if (hasActivePlayback) {
+      setState(() => _pendingChannelIndex = index);
+    }
+    bool switched;
+    try {
+      switched = hasActivePlayback
+        ? await playerService.switchChannel(
+            channel.streamUrl,
+            channelId: channel.id,
+            epgChannelId: _getEpgId(channel),
+            tvgId: channel.tvgId,
+            channelName: channel.name,
+            vanityName: _vanityNames[channel.id],
+            originalName: channel.tvgName,
+            failoverGroupUrls: failoverUrls,
+            allowAudioOnly: _allowsAudioOnly(channel),
+          )
+        : true;
+    } catch (error, stackTrace) {
+      AppDiagnostics.instance.recordError(
+          'channel_preload', error, stackTrace);
+      switched = false;
+    }
+    if (!hasActivePlayback) {
+      unawaited(playerService.play(
+        channel.streamUrl,
+        channelId: channel.id,
+        epgChannelId: _getEpgId(channel),
+        tvgId: channel.tvgId,
+        channelName: channel.name,
+        vanityName: _vanityNames[channel.id],
+        originalName: channel.tvgName,
+        failoverGroupUrls: failoverUrls,
+        allowAudioOnly: _allowsAudioOnly(channel),
+      ));
+    }
+    if (!mounted || selectionGeneration != _channelSelectionGeneration) return;
+    final currentIndex = _filteredChannels.indexWhere((c) => c.id == channel.id);
+    if (currentIndex < 0) {
+      setState(() => _pendingChannelIndex = null);
+      return;
+    }
+    if (!switched) {
+      setState(() => _pendingChannelIndex = null);
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('新频道暂时无法播放，已保留原频道'),
+        duration: Duration(seconds: 3),
+      ));
+      return;
+    }
+    if (_selectedIndex >= 0 && _selectedIndex != currentIndex) {
+      _previousIndex = _selectedIndex;
+    }
     setState(() {
-      _selectedIndex = index;
+      _pendingChannelIndex = null;
+      _selectedIndex = currentIndex;
       _previewChannel = channel;
     });
-    _showInfoOverlay(channel, index);
+    _showInfoOverlay(channel, currentIndex);
     _saveSession();
   }
 
@@ -1264,26 +1312,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
   void _goBackChannel() {
     if (_previousIndex < 0 || _previousIndex >= _filteredChannels.length)
       return;
-    final swapTo = _previousIndex;
-    _previousIndex = _selectedIndex;
-    final channel = _filteredChannels[swapTo];
-    final playerService = ref.read(playerServiceProvider);
-    playerService.play(
-      channel.streamUrl,
-      channelId: channel.id,
-      epgChannelId: _getEpgId(channel),
-      tvgId: channel.tvgId,
-      channelName: channel.name,
-      vanityName: _vanityNames[channel.id],
-      originalName: channel.tvgName,
-      failoverGroupUrls: _automaticAlternativeUrls(channel),
-      allowAudioOnly: _allowsAudioOnly(channel),
-    );
-    setState(() {
-      _selectedIndex = swapTo;
-      _previewChannel = channel;
-    });
-    _showInfoOverlay(channel, swapTo);
+    unawaited(_selectChannel(_previousIndex));
   }
 
   void _showInfoOverlay(db.Channel channel, int index) {
@@ -1825,36 +1854,51 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
   }
 
   Widget _buildSimpleHome(BuildContext context) {
-    const quickGroups = <String>[
-      'Favorites',
-      '央视',
-      '港澳台',
-      '国际',
-      '广播',
-      '数字',
-      '其他',
-    ];
-    final selectedProvince = ChannelCategoryClassifier.provinceCategories
-        .contains(_selectedGroup);
     return PopScope(
       canPop: false,
       child: Scaffold(
-        backgroundColor: const Color(0xFF0C1020),
-        body: SafeArea(
+        backgroundColor: const Color(0xFF070B14),
+        body: DecoratedBox(
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [Color(0xFF1C2945), Color(0xFF101A2C), Color(0xFF070B14)],
+              stops: [0, 0.48, 1],
+            ),
+          ),
+          child: SafeArea(
           child: Column(
             children: [
               Padding(
-                padding: const EdgeInsets.fromLTRB(24, 18, 24, 12),
+                padding: const EdgeInsets.fromLTRB(30, 22, 30, 16),
                 child: Row(
                   children: [
-                    const Icon(Icons.live_tv_rounded,
-                        color: Color(0xFF8C9EFF), size: 30),
-                    const SizedBox(width: 12),
-                    const Text('BobTV',
-                        style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 25,
-                            fontWeight: FontWeight.bold)),
+                    Container(
+                      width: 34,
+                      height: 34,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF94A8FF),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: const Icon(Icons.play_arrow_rounded,
+                          color: Color(0xFF10182B), size: 27),
+                    ),
+                    const SizedBox(width: 11),
+                    const Text('BobTV', style: TextStyle(
+                        color: Colors.white, fontSize: 25,
+                        fontWeight: FontWeight.w700, letterSpacing: -0.7)),
+                    const SizedBox(width: 16),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.09),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: const Text('LIVE TV', style: TextStyle(
+                          color: Colors.white70, fontSize: 10,
+                          fontWeight: FontWeight.w700, letterSpacing: 1.5)),
+                    ),
                     const Spacer(),
                     TextButton.icon(
                       onPressed: () => _setSimpleMode(false),
@@ -1886,60 +1930,6 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                   ],
                 ),
               ),
-              SizedBox(
-                height: 54,
-                child: ListView(
-                  scrollDirection: Axis.horizontal,
-                  padding: const EdgeInsets.symmetric(horizontal: 24),
-                  children: [
-                    for (final group in quickGroups)
-                      Padding(
-                        padding: const EdgeInsets.only(right: 10),
-                        child: ChoiceChip(
-                          label: Text(group == 'Favorites' ? '我的收藏' : group),
-                          selected: _selectedGroup == group,
-                          onSelected: (_) => _selectGroupAndPlayFirst(group),
-                          selectedColor: const Color(0xFF7176E8),
-                          backgroundColor: const Color(0xFF20263A),
-                          labelStyle: TextStyle(
-                            color: _selectedGroup == group
-                                ? Colors.white
-                                : Colors.white70,
-                          ),
-                          side: BorderSide.none,
-                        ),
-                      ),
-                    PopupMenuButton<String>(
-                      tooltip: '选择地区',
-                      onSelected: _selectGroupAndPlayFirst,
-                      itemBuilder: (_) => [
-                        for (final province
-                            in ChannelCategoryClassifier.provinceCategories)
-                          PopupMenuItem(value: province, child: Text(province)),
-                      ],
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 16),
-                        alignment: Alignment.center,
-                        decoration: BoxDecoration(
-                          color: selectedProvince
-                              ? const Color(0xFF7176E8)
-                              : const Color(0xFF20263A),
-                          borderRadius: BorderRadius.circular(18),
-                        ),
-                        child: Row(
-                          children: [
-                            Text(selectedProvince ? _selectedGroup : '地方台',
-                                style: const TextStyle(color: Colors.white70)),
-                            const SizedBox(width: 5),
-                            const Icon(Icons.expand_more,
-                                size: 18, color: Colors.white70),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
               Expanded(
                 child: LayoutBuilder(
                   builder: (context, constraints) {
@@ -1948,18 +1938,18 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                     final channels = _buildSimpleChannelPanel();
                     if (wide) {
                       return Padding(
-                        padding: const EdgeInsets.fromLTRB(24, 12, 24, 24),
+                        padding: const EdgeInsets.fromLTRB(30, 18, 30, 30),
                         child: Row(
                           children: [
                             Expanded(flex: 6, child: preview),
-                            const SizedBox(width: 18),
+                            const SizedBox(width: 22),
                             Expanded(flex: 4, child: channels),
                           ],
                         ),
                       );
                     }
                     return Padding(
-                      padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+                      padding: const EdgeInsets.fromLTRB(20, 10, 20, 20),
                       child: Column(
                         children: [
                           SizedBox(
@@ -1968,7 +1958,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                                 : constraints.maxHeight * 0.45,
                             child: preview,
                           ),
-                          const SizedBox(height: 12),
+                          const SizedBox(height: 16),
                           Expanded(child: channels),
                         ],
                       ),
@@ -1976,6 +1966,46 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                   },
                 ),
               ),
+            ],
+          ),
+        ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSimpleCategoryTab(String label, {
+    required bool selected,
+    VoidCallback? onTap,
+    IconData? trailing,
+  }) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(12),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 180),
+          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+          decoration: BoxDecoration(
+            color: selected ? Colors.white : Colors.white.withValues(alpha: 0.08),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: selected ? Colors.white : Colors.white.withValues(alpha: 0.08),
+            ),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(label, style: TextStyle(
+                  color: selected ? const Color(0xFF131B2B) : Colors.white70,
+                  fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+                  fontSize: 14)),
+              if (trailing != null) ...[
+                const SizedBox(width: 5),
+                Icon(trailing, size: 17,
+                    color: selected ? const Color(0xFF131B2B) : Colors.white70),
+              ],
             ],
           ),
         ),
@@ -1988,45 +2018,74 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
     final nowPlaying = channel == null ? null : _getChannelNowPlaying(channel);
     return Container(
       decoration: BoxDecoration(
-        color: const Color(0xFF171D30),
-        borderRadius: BorderRadius.circular(20),
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Color(0xFF263A5E), Color(0xFF111A2C)],
+        ),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.12)),
+        boxShadow: [BoxShadow(
+          color: Colors.black.withValues(alpha: 0.26),
+          blurRadius: 30, offset: const Offset(0, 16),
+        )],
       ),
-      padding: const EdgeInsets.all(14),
+      padding: const EdgeInsets.all(16),
       child: Column(
         children: [
           Expanded(
             child: ClipRRect(
-              borderRadius: BorderRadius.circular(14),
-              child: ColoredBox(
-                color: Colors.black,
-                child: channel == null
-                    ? const Center(
-                        child: Text('选择一个频道开始播放',
-                            style: TextStyle(color: Colors.white54)))
-                    : GestureDetector(
-                        onDoubleTap: () => _goFullscreen(channel),
-                        child: Video(
-                          controller: ref.read(playerServiceProvider)
-                              .videoController,
-                          controls: NoVideoControls,
+              borderRadius: BorderRadius.circular(18),
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  ColoredBox(
+                    color: Colors.black,
+                    child: channel == null
+                        ? const Center(child: Icon(Icons.tv_rounded,
+                            color: Colors.white24, size: 76))
+                        : GestureDetector(
+                            onDoubleTap: () => _goFullscreen(channel),
+                            child: _buildActiveVideo(),
+                          ),
+                  ),
+                  if (channel != null)
+                    Positioned(
+                      top: 16, left: 16,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 11, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFE6485B),
+                          borderRadius: BorderRadius.circular(7),
                         ),
+                        child: const Text('● 直播', style: TextStyle(
+                            color: Colors.white, fontSize: 11,
+                            fontWeight: FontWeight.w700, letterSpacing: 1)),
                       ),
+                    ),
+                ],
               ),
             ),
           ),
-          const SizedBox(height: 14),
+          const SizedBox(height: 18),
           Row(
             children: [
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    const Text('正在播放', style: TextStyle(
+                        color: Color(0xFFACBDF1), fontSize: 11,
+                        fontWeight: FontWeight.w700, letterSpacing: 1.5)),
+                    const SizedBox(height: 4),
                     Text(channel == null ? '欢迎使用 BobTV' :
                         _channelDisplayName(channel),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: const TextStyle(color: Colors.white,
-                            fontSize: 22, fontWeight: FontWeight.w600)),
+                            fontSize: 26, fontWeight: FontWeight.w700,
+                            letterSpacing: -0.5)),
                     if (nowPlaying != null)
                       Text(nowPlaying, maxLines: 1,
                           overflow: TextOverflow.ellipsis,
@@ -2035,6 +2094,11 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                 ),
               ),
               if (channel != null) ...[
+                if (_pendingChannelIndex != null) ...[
+                  const Text('正在后台载入新频道',
+                      style: TextStyle(color: Color(0xFFB6C6F7), fontSize: 12)),
+                  const SizedBox(width: 10),
+                ],
                 Text('备选 ${_verifiedAlternativeCount(channel)} 条',
                     style: const TextStyle(color: Colors.white60)),
                 const SizedBox(width: 10),
@@ -2052,6 +2116,12 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                   onPressed: () => _goFullscreen(channel),
                   icon: const Icon(Icons.fullscreen_rounded),
                   label: const Text('全屏播放'),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: Colors.white,
+                    foregroundColor: const Color(0xFF111B2E),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 18, vertical: 13),
+                  ),
                 ),
               ],
             ],
@@ -2061,25 +2131,71 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
     );
   }
 
+  Widget _buildActiveVideo() {
+    final service = ref.read(playerServiceProvider);
+    final initialController = service.videoController;
+    return ValueListenableBuilder<VideoController?>(
+      valueListenable: service.activeVideoController,
+      builder: (context, controller, _) => Video(
+        controller: controller ?? initialController,
+        controls: NoVideoControls,
+      ),
+    );
+  }
+
   Widget _buildSimpleChannelPanel() {
+    const quickGroups = <String>[
+      'Favorites', '央视', '港澳台', '国际', '广播', '数字', '其他',
+    ];
+    final selectedProvince = ChannelCategoryClassifier.provinceCategories
+        .contains(_selectedGroup);
     return Container(
       decoration: BoxDecoration(
-        color: const Color(0xFF171D30),
-        borderRadius: BorderRadius.circular(20),
+        color: const Color(0xFF0B1220).withValues(alpha: 0.72),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.10)),
       ),
-      padding: const EdgeInsets.all(14),
+      padding: const EdgeInsets.all(18),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              const Text('频道', style: TextStyle(color: Colors.white,
-                  fontSize: 20, fontWeight: FontWeight.w600)),
-              const SizedBox(width: 8),
+              const Text('探索频道', style: TextStyle(color: Colors.white,
+                  fontSize: 22, fontWeight: FontWeight.w700,
+                  letterSpacing: -0.4)),
+              const Spacer(),
               Text(_routeAvailabilityLoading
                   ? '正在核对线路…'
-                  : '${_filteredChannels.length} 个可用频道',
+                  : '${_filteredChannels.length} 个频道',
                   style: const TextStyle(color: Colors.white54)),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Wrap(
+            spacing: 7,
+            runSpacing: 7,
+            children: [
+              for (final group in quickGroups)
+                _buildSimpleCategoryTab(
+                  group == 'Favorites' ? '我的收藏' : group,
+                  selected: _selectedGroup == group,
+                  onTap: () => _selectGroupAndPlayFirst(group),
+                ),
+              PopupMenuButton<String>(
+                tooltip: '选择地区',
+                onSelected: _selectGroupAndPlayFirst,
+                itemBuilder: (_) => [
+                  for (final province
+                      in ChannelCategoryClassifier.provinceCategories)
+                    PopupMenuItem(value: province, child: Text(province)),
+                ],
+                child: _buildSimpleCategoryTab(
+                  selectedProvince ? _selectedGroup : '地方台',
+                  selected: selectedProvince,
+                  trailing: Icons.keyboard_arrow_down_rounded,
+                ),
+              ),
             ],
           ),
           const SizedBox(height: 12),
@@ -2092,9 +2208,9 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
               prefixIcon: const Icon(Icons.search_rounded,
                   color: Colors.white54),
               filled: true,
-              fillColor: const Color(0xFF242B41),
+              fillColor: Colors.white.withValues(alpha: 0.08),
               border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
+                borderRadius: BorderRadius.circular(13),
                 borderSide: BorderSide.none,
               ),
             ),
@@ -2128,55 +2244,30 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                     ),
                   )
                 : LayoutBuilder(builder: (context, constraints) {
-                    final columns = constraints.maxWidth >= 520 ? 2 : 1;
+                    final columns = (constraints.maxWidth / 184)
+                        .floor().clamp(1, 10);
                     return GridView.builder(
                       itemCount: _filteredChannels.length,
                       gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                         crossAxisCount: columns,
-                        childAspectRatio: columns == 2 ? 3.2 : 5.8,
-                        mainAxisSpacing: 8,
-                        crossAxisSpacing: 8,
+                        mainAxisExtent: 146,
+                        mainAxisSpacing: 11,
+                        crossAxisSpacing: 11,
                       ),
                       itemBuilder: (context, index) {
                         final channel = _filteredChannels[index];
                         final selected = index == _selectedIndex;
-                        return Material(
-                          color: selected
-                              ? const Color(0xFF3D4775)
-                              : const Color(0xFF252D43),
-                          borderRadius: BorderRadius.circular(12),
-                          child: InkWell(
-                            borderRadius: BorderRadius.circular(12),
-                            onTap: () => _selectChannel(index),
-                            onDoubleTap: () {
-                              _selectChannel(index);
+                        return _buildSimpleChannelTile(
+                          channel,
+                          selected: selected,
+                          loading: index == _pendingChannelIndex,
+                          onTap: () => _selectChannel(index),
+                          onDoubleTap: () async {
+                            await _selectChannel(index);
+                            if (mounted && _previewChannel?.id == channel.id) {
                               _goFullscreen(channel);
-                            },
-                            child: Padding(
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 12, vertical: 8),
-                              child: Row(
-                                children: [
-                                  Icon(selected ? Icons.play_circle_filled_rounded
-                                      : Icons.live_tv_rounded,
-                                      color: selected
-                                          ? Colors.white : Colors.white60),
-                                  const SizedBox(width: 10),
-                                  Expanded(child: Text(_channelDisplayName(channel),
-                                      maxLines: 2,
-                                      overflow: TextOverflow.ellipsis,
-                                      style: const TextStyle(color: Colors.white,
-                                          fontSize: 15))),
-                                  Text('备选 ${_verifiedAlternativeCount(channel)} 条',
-                                      style: const TextStyle(
-                                          color: Colors.white60, fontSize: 11)),
-                                  if (_favoritedChannelIds.contains(channel.id))
-                                    const Icon(Icons.star_rounded,
-                                        color: Colors.amber, size: 18),
-                                ],
-                              ),
-                            ),
-                          ),
+                            }
+                          },
                         );
                       },
                     );
@@ -2185,6 +2276,147 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
         ],
       ),
     );
+  }
+
+  Widget _buildSimpleChannelTile(
+    db.Channel channel, {
+    required bool selected,
+    required bool loading,
+    required VoidCallback onTap,
+    required VoidCallback onDoubleTap,
+  }) {
+    const accents = <Color>[
+      Color(0xFF677FAE), Color(0xFF74669B), Color(0xFF467F85),
+      Color(0xFF9B725E), Color(0xFF737EA0),
+    ];
+    final accent = accents[channel.name.hashCode.abs() % accents.length];
+    final logoUrl = channel.tvgLogo;
+    final hasLogo = logoUrl != null &&
+        (logoUrl.startsWith('https://') || logoUrl.startsWith('http://'));
+    final name = _channelDisplayName(channel);
+    return AnimatedScale(
+      scale: selected ? 1.025 : 1,
+      duration: const Duration(milliseconds: 180),
+      curve: Curves.easeOutCubic,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [accent.withValues(alpha: selected ? 0.75 : 0.45),
+              const Color(0xFF192236)],
+          ),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: selected ? Colors.white : Colors.white.withValues(alpha: 0.10),
+            width: selected ? 2 : 1,
+          ),
+          boxShadow: selected ? [BoxShadow(
+            color: const Color(0xFF879FFF).withValues(alpha: 0.24),
+            blurRadius: 18, offset: const Offset(0, 6),
+          )] : null,
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(15),
+          child: Material(
+            color: Colors.transparent,
+            child: InkWell(
+              hoverColor: Colors.white.withValues(alpha: 0.12),
+              onTap: onTap,
+              onDoubleTap: onDoubleTap,
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  Positioned.fill(
+                    child: ImageFiltered(
+                      imageFilter: ui.ImageFilter.blur(sigmaX: 13, sigmaY: 13),
+                      child: Opacity(
+                        opacity: 0.42,
+                        child: Center(
+                          child: hasLogo
+                              ? Image.network(logoUrl!,
+                                  width: 185, height: 122,
+                                  fit: BoxFit.contain,
+                                  cacheWidth: 256,
+                                  errorBuilder: (_, __, ___) =>
+                                      _buildSimpleChannelMonogram(name))
+                              : _buildSimpleChannelMonogram(name),
+                        ),
+                      ),
+                    ),
+                  ),
+                  const DecoratedBox(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: [Color(0x25081220), Color(0xDD081220)],
+                        stops: [0.18, 1],
+                      ),
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(12, 10, 12, 11),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            const Text('● LIVE', style: TextStyle(
+                                color: Color(0xFFFFB8BD), fontSize: 10,
+                                fontWeight: FontWeight.w800,
+                                letterSpacing: 1)),
+                            const Spacer(),
+                            if (loading)
+                              const SizedBox(width: 17, height: 17,
+                                  child: CircularProgressIndicator(
+                                      strokeWidth: 2, color: Colors.white))
+                            else if (selected)
+                              const Icon(Icons.play_circle_fill_rounded,
+                                  color: Colors.white, size: 19),
+                          ],
+                        ),
+                        const Spacer(),
+                        Text(name, maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(color: Colors.white,
+                                fontWeight: FontWeight.w800,
+                                fontSize: 18, height: 1.08,
+                                shadows: [Shadow(color: Colors.black87,
+                                    blurRadius: 8)])),
+                        const SizedBox(height: 7),
+                        Row(
+                          children: [
+                            Text('备选 ${_verifiedAlternativeCount(channel)} 条',
+                                style: const TextStyle(
+                                    color: Colors.white70, fontSize: 11)),
+                            const Spacer(),
+                            if (_favoritedChannelIds.contains(channel.id))
+                              const Icon(Icons.star_rounded,
+                                  color: Color(0xFFFFD36B), size: 15),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSimpleChannelMonogram(String name) {
+    final compact = name.replaceAll(RegExp(r'\s+'), '');
+    final monogram = compact.length > 4 ? compact.substring(0, 4) : compact;
+    return Text(monogram.isEmpty ? 'TV' : monogram,
+        maxLines: 1,
+        style: const TextStyle(color: Colors.white,
+            fontSize: 58, fontWeight: FontWeight.w800,
+            letterSpacing: -1));
   }
 
   Widget _buildEmptyState(BuildContext context) {
@@ -2610,10 +2842,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                         child: Stack(
                           fit: StackFit.expand,
                           children: [
-                            Video(
-                              controller: playerService.videoController,
-                              controls: NoVideoControls,
-                            ),
+                            _buildActiveVideo(),
                             // Channel info overlay removed — info shown in panel to the right
                             if (_showVolumeOverlay)
                               Positioned(

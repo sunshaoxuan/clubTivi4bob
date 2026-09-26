@@ -2014,6 +2014,158 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
     );
   }
 
+  Future<void> _showProvincePicker() async {
+    final selected = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) {
+        final screenSize = MediaQuery.sizeOf(dialogContext);
+        final width = (screenSize.width - 32).clamp(280.0, 840.0);
+        final height = (screenSize.height - 40).clamp(300.0, 650.0);
+        final columns = ((width - 64) / 138).floor().clamp(2, 6);
+        return Dialog(
+          backgroundColor: Colors.transparent,
+          insetPadding: const EdgeInsets.all(16),
+          child: Container(
+            width: width,
+            height: height,
+            padding: const EdgeInsets.all(22),
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [Color(0xFF263451), Color(0xFF111A2B)],
+              ),
+              borderRadius: BorderRadius.circular(26),
+              border: Border.all(color: Colors.white24),
+              boxShadow: const [BoxShadow(
+                color: Colors.black54,
+                blurRadius: 36,
+                offset: Offset(0, 18),
+              )],
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(children: [
+                  const Expanded(child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('選擇地區', style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 25,
+                        fontWeight: FontWeight.w700,
+                      )),
+                      SizedBox(height: 4),
+                      Text('探索各地電視頻道', style: TextStyle(
+                        color: Colors.white60,
+                        fontSize: 13,
+                      )),
+                    ],
+                  )),
+                  IconButton(
+                    tooltip: '關閉',
+                    onPressed: () => Navigator.of(dialogContext).pop(),
+                    icon: const Icon(Icons.close_rounded, color: Colors.white70),
+                  ),
+                ]),
+                const SizedBox(height: 18),
+                Expanded(
+                  child: GridView.builder(
+                    itemCount: ChannelCategoryClassifier.provinceCategories.length,
+                    gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                      crossAxisCount: columns,
+                      mainAxisExtent: 94,
+                      mainAxisSpacing: 11,
+                      crossAxisSpacing: 11,
+                    ),
+                    itemBuilder: (context, index) {
+                      final province =
+                          ChannelCategoryClassifier.provinceCategories[index];
+                      return _buildProvinceCard(
+                        province,
+                        index,
+                        selected: province == _selectedGroup,
+                        onTap: () => Navigator.of(dialogContext).pop(province),
+                      );
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+    if (!mounted || selected == null) return;
+    await _selectGroupAndPlayFirst(selected);
+  }
+
+  Widget _buildProvinceCard(String province, int index, {
+    required bool selected,
+    required VoidCallback onTap,
+  }) {
+    const accents = <Color>[
+      Color(0xFF6A88BC), Color(0xFF8B75B1), Color(0xFF578D98),
+      Color(0xFFAE765F), Color(0xFF728FB1),
+    ];
+    final accent = accents[index % accents.length];
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(16),
+        child: Ink(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [accent.withValues(alpha: 0.55),
+                  accent.withValues(alpha: 0.15)],
+            ),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: selected ? Colors.white : Colors.white24,
+              width: selected ? 2 : 1,
+            ),
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(15),
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                Positioned(
+                  right: -5,
+                  bottom: -21,
+                  child: ImageFiltered(
+                    imageFilter: ui.ImageFilter.blur(sigmaX: 5, sigmaY: 5),
+                    child: Text(province.substring(0, 1), style: TextStyle(
+                      color: Colors.white.withValues(alpha: 0.27),
+                      fontSize: 92,
+                      fontWeight: FontWeight.w900,
+                    )),
+                  ),
+                ),
+                Center(child: Text(province, style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 21,
+                  fontWeight: FontWeight.w700,
+                  shadows: [Shadow(color: Colors.black38, blurRadius: 8)],
+                ))),
+                if (selected)
+                  const Positioned(
+                    top: 8,
+                    right: 8,
+                    child: Icon(Icons.check_circle_rounded,
+                        size: 17, color: Colors.white),
+                  ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _buildSimplePreview() {
     final channel = _previewChannel;
     final nowPlaying = channel == null ? null : _getChannelNowPlaying(channel);
@@ -2183,19 +2335,11 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                   selected: _selectedGroup == group,
                   onTap: () => _selectGroupAndPlayFirst(group),
                 ),
-              PopupMenuButton<String>(
-                tooltip: '选择地区',
-                onSelected: _selectGroupAndPlayFirst,
-                itemBuilder: (_) => [
-                  for (final province
-                      in ChannelCategoryClassifier.provinceCategories)
-                    PopupMenuItem(value: province, child: Text(province)),
-                ],
-                child: _buildSimpleCategoryTab(
-                  selectedProvince ? _selectedGroup : '地方台',
-                  selected: selectedProvince,
-                  trailing: Icons.keyboard_arrow_down_rounded,
-                ),
+              _buildSimpleCategoryTab(
+                selectedProvince ? _selectedGroup : '地方台',
+                selected: selectedProvince,
+                trailing: Icons.grid_view_rounded,
+                onTap: _showProvincePicker,
               ),
             ],
           ),

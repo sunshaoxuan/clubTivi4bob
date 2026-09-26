@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:media_kit/media_kit.dart';
 
 import 'player_service.dart';
 
@@ -76,6 +77,7 @@ class _PlayerControlBarState extends ConsumerState<PlayerControlBar> {
   // Mute toggle state
   double _preMuteVolume = 100.0;
   final List<StreamSubscription> _subs = [];
+  StreamSubscription<Player>? _activePlayerSubscription;
   Timer? _fpsTimer;
   String _fpsLabel = '—';
   String _codecLabel = '';
@@ -90,6 +92,14 @@ class _PlayerControlBarState extends ConsumerState<PlayerControlBar> {
     super.initState();
     _scheduleHide();
     _subscribeToPlayer();
+    _activePlayerSubscription = ref.read(playerServiceProvider)
+        .activePlayerStream.listen((_) {
+      for (final subscription in _subs) {
+        unawaited(subscription.cancel());
+      }
+      _subs.clear();
+      if (mounted) _subscribeToPlayer();
+    });
     _startInfoPolling();
   }
 
@@ -222,6 +232,7 @@ class _PlayerControlBarState extends ConsumerState<PlayerControlBar> {
 
   @override
   void dispose() {
+    unawaited(_activePlayerSubscription?.cancel());
     _hideTimer?.cancel();
     _fpsTimer?.cancel();
     for (final s in _subs) {

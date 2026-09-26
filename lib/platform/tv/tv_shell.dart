@@ -25,10 +25,18 @@ class _TvShellState extends State<TvShell> {
 
   static const _navItems = [
     _NavItem(icon: Icons.live_tv_rounded, label: 'Live TV', route: '/'),
-    _NavItem(icon: Icons.calendar_view_week_rounded, label: 'Guide', route: '/guide'),
+    _NavItem(
+      icon: Icons.calendar_view_week_rounded,
+      label: 'Guide',
+      route: '/guide',
+    ),
     _NavItem(icon: Icons.dns_rounded, label: 'Providers', route: '/providers'),
     _NavItem(icon: Icons.link_rounded, label: 'EPG Map', route: '/epg-mapping'),
-    _NavItem(icon: Icons.settings_rounded, label: 'Settings', route: '/settings'),
+    _NavItem(
+      icon: Icons.settings_rounded,
+      label: 'Settings',
+      route: '/settings',
+    ),
   ];
 
   void _navigateTo(int index) {
@@ -55,7 +63,7 @@ class _TvShellState extends State<TvShell> {
                   padding: const EdgeInsets.symmetric(horizontal: 12),
                   child: _sidebarFocused
                       ? const Text(
-                          'clubTivi',
+                          'BobTV',
                           style: TextStyle(
                             fontSize: 20,
                             fontWeight: FontWeight.bold,
@@ -170,9 +178,7 @@ class _TvNavButtonState extends State<_TvNavButton> {
                   : Colors.transparent,
               borderRadius: BorderRadius.circular(12),
               border: Border.all(
-                color: _focused
-                    ? const Color(0xFF6C5CE7)
-                    : Colors.transparent,
+                color: _focused ? const Color(0xFF6C5CE7) : Colors.transparent,
                 width: 2,
               ),
             ),
@@ -263,7 +269,9 @@ class _TvFocusCardState extends State<TvFocusCard> {
         width: widget.width,
         height: widget.height,
         transform: _focused
-            ? (Matrix4.identity()..setEntry(0, 0, 1.05)..setEntry(1, 1, 1.05))
+            ? (Matrix4.identity()
+                ..setEntry(0, 0, 1.05)
+                ..setEntry(1, 1, 1.05))
             : Matrix4.identity(),
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(12),

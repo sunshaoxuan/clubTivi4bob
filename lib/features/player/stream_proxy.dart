@@ -44,13 +44,20 @@ class StreamProxy {
       // Start ffmpeg: read remote stream, copy codecs, output mpegts to stdout
       _ffmpeg = await Process.start(ffmpegPath, [
         '-hide_banner',
-        '-loglevel', 'warning',
-        '-reconnect', '1',
-        '-reconnect_streamed', '1',
-        '-reconnect_delay_max', '5',
-        '-i', remoteUrl,
-        '-c', 'copy',
-        '-f', 'mpegts',
+        '-loglevel',
+        'warning',
+        '-reconnect',
+        '1',
+        '-reconnect_streamed',
+        '1',
+        '-reconnect_delay_max',
+        '5',
+        '-i',
+        remoteUrl,
+        '-c',
+        'copy',
+        '-f',
+        'mpegts',
         'pipe:1',
       ]);
 
@@ -116,13 +123,15 @@ class StreamProxy {
           cancelOnError: true,
         );
 
-        request.response.done.then((_) {
-          sub.cancel();
-          _clients.remove(request.response);
-        }).catchError((_) {
-          sub.cancel();
-          _clients.remove(request.response);
-        });
+        request.response.done
+            .then((_) {
+              sub.cancel();
+              _clients.remove(request.response);
+            })
+            .catchError((_) {
+              sub.cancel();
+              _clients.remove(request.response);
+            });
       });
 
       // Wait briefly for ffmpeg to start producing data
@@ -169,22 +178,35 @@ class StreamProxy {
 
   /// Find ffmpeg binary on the system.
   static Future<String?> _findFfmpeg() async {
-    // Check common locations
-    const paths = [
-      '/opt/homebrew/bin/ffmpeg',  // macOS Apple Silicon
-      '/usr/local/bin/ffmpeg',      // macOS Intel / Linux
-      '/usr/bin/ffmpeg',            // Linux system
+    final executableDirectory = File(Platform.resolvedExecutable).parent.path;
+    final localAppData = Platform.environment['LOCALAPPDATA'];
+    final paths = <String>[
+      '$executableDirectory${Platform.pathSeparator}Tools${Platform.pathSeparator}ffmpeg.exe',
+      '$executableDirectory${Platform.pathSeparator}ffmpeg.exe',
+      if (Platform.isWindows) r'C:\ProgramData\chocolatey\bin\ffmpeg.exe',
+      if (Platform.isWindows && localAppData != null)
+        '$localAppData\\Microsoft\\WinGet\\Links\\ffmpeg.exe',
+      '/opt/homebrew/bin/ffmpeg',
+      '/usr/local/bin/ffmpeg',
+      '/usr/bin/ffmpeg',
     ];
 
     for (final path in paths) {
       if (await File(path).exists()) return path;
     }
 
-    // Try PATH lookup
+    // Try the platform PATH lookup command.
     try {
-      final result = await Process.run('which', ['ffmpeg']);
+      final result = Platform.isWindows
+          ? await Process.run('where.exe', ['ffmpeg.exe'])
+          : await Process.run('which', ['ffmpeg']);
       if (result.exitCode == 0) {
-        return (result.stdout as String).trim();
+        for (final line in (result.stdout as String).split(
+          RegExp(r'[\r\n]+'),
+        )) {
+          final path = line.trim();
+          if (path.isNotEmpty && await File(path).exists()) return path;
+        }
       }
     } catch (_) {}
 

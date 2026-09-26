@@ -23,7 +23,12 @@ class StreamHealthTracker {
       final json = prefs.getString(_prefsKey);
       if (json != null) {
         final map = jsonDecode(json) as Map<String, dynamic>;
-        _metrics = map.map((k, v) => MapEntry(k, _StreamMetrics.fromJson(v)));
+        _metrics = {};
+        for (final value in map.values) {
+          if (value is! Map<String, dynamic>) continue;
+          final metrics = _StreamMetrics.fromJson(value);
+          if (metrics.url.isNotEmpty) _metrics[_urlKey(metrics.url)] = metrics;
+        }
       }
     } catch (_) {}
     _loaded = true;
@@ -55,6 +60,15 @@ class StreamHealthTracker {
     final m = _getOrCreate(url);
     m.failureCount++;
     m.currentWindow.recordFailure();
+    m.lastUpdated = DateTime.now();
+    _scheduleSave();
+  }
+
+  /// Reward a route only after the player has decoded moving media.
+  void recordPlaybackSuccess(String url) {
+    final m = _getOrCreate(url);
+    m.successCount += 2;
+    m.currentWindow.successCount += 2;
     m.lastUpdated = DateTime.now();
     _scheduleSave();
   }
@@ -152,7 +166,7 @@ class StreamHealthTracker {
     return _metrics.putIfAbsent(key, () => _StreamMetrics(url: url));
   }
 
-  String _urlKey(String url) => url.hashCode.toRadixString(36);
+  String _urlKey(String url) => url;
 
   bool _saveScheduled = false;
 

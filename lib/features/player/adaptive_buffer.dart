@@ -21,16 +21,15 @@ class AdaptiveBufferManager {
   static const _prefsKey = 'adaptive_buffer_profiles';
 
   // Buffer tier definitions (mpv properties)
-  // All tiers: never pause playback on empty buffer — keep playing and let
-  // the stream recover naturally or trigger auto-failover instead.
-  // Tiers differ only in readahead aggressiveness.
+  // Pause briefly on an empty buffer so a transient interruption can recover
+  // without reopening the stream. Keep the wait bounded for live TV.
   static const _tierConfig = <String, Map<String, String>>{
     'fast': {
       'cache': 'yes',
       'cache-secs': '30',
-      'cache-pause': 'no',
+      'cache-pause': 'yes',
       'cache-pause-initial': 'no',
-      'cache-pause-wait': '0',
+      'cache-pause-wait': '2',
       'demuxer-max-bytes': '48M',
       'demuxer-max-back-bytes': '8M',
       'demuxer-readahead-secs': '10',
@@ -38,9 +37,9 @@ class AdaptiveBufferManager {
     'normal': {
       'cache': 'yes',
       'cache-secs': '60',
-      'cache-pause': 'no',
+      'cache-pause': 'yes',
       'cache-pause-initial': 'no',
-      'cache-pause-wait': '0',
+      'cache-pause-wait': '4',
       'demuxer-max-bytes': '96M',
       'demuxer-max-back-bytes': '16M',
       'demuxer-readahead-secs': '30',
@@ -48,9 +47,9 @@ class AdaptiveBufferManager {
     'aggressive': {
       'cache': 'yes',
       'cache-secs': '90',
-      'cache-pause': 'no',
+      'cache-pause': 'yes',
       'cache-pause-initial': 'no',
-      'cache-pause-wait': '0',
+      'cache-pause-wait': '6',
       'demuxer-max-bytes': '192M',
       'demuxer-max-back-bytes': '32M',
       'demuxer-readahead-secs': '60',

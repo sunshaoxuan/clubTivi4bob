@@ -11,4 +11,11 @@ void main() {
       isTrue,
     );
   });
+
+  test('best-fan source follows the current default branch', () {
+    final source = DefaultProviderBootstrap.sources.firstWhere(
+      (item) => item.id == 'hotel-best-fan-status',
+    );
+    expect(source.url, contains('/main/cn_all_status.m3u8'));
+  });
 }

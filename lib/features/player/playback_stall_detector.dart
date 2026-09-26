@@ -22,7 +22,7 @@ class PlaybackStallState {
   });
 
   bool get shouldWarmAlternative => stressedSamples >= 2;
-  bool get shouldFailover => stressedSamples >= 3;
+  bool get shouldFailover => stressedSamples >= 8;
   bool get healthy => stressedSamples == 0;
 }
 
@@ -53,15 +53,12 @@ class PlaybackStallDetector {
       _noProgressSamples++;
     }
 
-    final cacheLow = sample.cacheSeconds != null && sample.cacheSeconds! < 1.0;
-    final cacheUnavailableAndFrozen =
-        sample.cacheSeconds == null && _noProgressSamples >= 2;
+    // A live stream can keep advancing with a short cache. That alone is not
+    // evidence that changing routes would improve playback.
     final playbackFrozen = _noProgressSamples >= 2;
     final stoppedUnexpectedly = !sample.playing && _noProgressSamples >= 2;
     final stressed =
         sample.buffering ||
-        cacheLow ||
-        cacheUnavailableAndFrozen ||
         playbackFrozen ||
         stoppedUnexpectedly;
 

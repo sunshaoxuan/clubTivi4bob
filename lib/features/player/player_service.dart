@@ -14,13 +14,28 @@ import 'stream_proxy.dart';
 import '../../data/services/channel_name_normalizer.dart';
 import '../../data/services/stream_alternatives_service.dart';
 import '../../data/services/stream_health_tracker.dart';
+import '../providers/provider_manager.dart';
+import '../casting/cast_service.dart';
 
 /// Manages video playback with stream failover support.
 class PlayerService {
+  CastService? castService;
   static const minimumUltraHdVideoBitrate = 8000000.0;
 
   Player? _player;
   VideoController? _videoController;
+  final ValueNotifier<VideoController?> activeVideoController = ValueNotifier(null);
+  final ValueNotifier<VideoController?> previewVideoController = ValueNotifier(null);
+  final ValueNotifier<String?> channelPreviewProgress = ValueNotifier(null);
+  _PreparedChannel? _preparedChannel;
+  Timer? _preparedChannelTimeout;
+  String? get preparedChannelId => _preparedChannel?.channelId;
+  String? get preparedChannelUrl => _preparedChannel?.url;
+  final _activePlayerController = StreamController<Player>.broadcast();
+  Stream<Player> get activePlayerStream => _activePlayerController.stream;
+  final ValueNotifier<bool> channelSwitching = ValueNotifier(false);
+  int _channelSwitchGeneration = 0;
+  bool _preparingChannelSwitch = false;
   final AdaptiveBufferManager _bufferManager = AdaptiveBufferManager();
   bool _isBuffering = false;
   DateTime? _bufferStartTime;
@@ -65,20 +80,78 @@ class PlayerService {
   Future<void>? _warmSetupFuture;
   int _warmGeneration = 0;
   bool _autoFailoverInProgress = false;
+  DateTime? _failoverRetryNotBefore;
   int _playGeneration = 0;
   final Set<String> _failedFailoverUrls = {};
+  final Set<String> _manuallyRejectedUrls = {};
   bool _requiresUltraHd = false;
+  bool _allowsAudioOnly = false;
   Timer? _qualityCheckTimer;
+  Timer? _videoCheckTimer;
+  Timer? _staticFrameTimer;
+  List<int>? _lastFrameFingerprint;
+  int _staticFrameMatches = 0;
+  bool _staticFrameSampleBusy = false;
 
   /// Broadcast current stream URL changes (for UI like failover dialog).
   final _currentUrlController = StreamController<String?>.broadcast();
+  final _failoverSwitchingController = StreamController<bool>.broadcast();
+  bool _failoverSwitching = false;
   Stream<String?> get currentUrlStream => _currentUrlController.stream;
+  Stream<bool> get failoverSwitchingStream =>
+      _failoverSwitchingController.stream;
+  bool get failoverSwitching => _failoverSwitching;
   String? get currentUrl => _currentUrl;
+  List<String> get currentAlternativeUrls => _getFailoverAlternatives();
+  String? get castUrl =>
+      _proxyActive ? (_streamProxy.localUrl ?? _currentUrl) : _currentUrl;
   String? get currentChannelId => _currentChannelId;
+
+  Future<bool> switchCurrentRoute(String url) async {
+    final current = _currentUrl;
+    if (current == null || url.isEmpty) return false;
+    if (current == url) return true;
+    return switchChannel(
+      url,
+      channelId: _currentChannelId,
+      epgChannelId: _currentEpgChannelId,
+      tvgId: _currentTvgId,
+      channelName: _currentChannelName,
+      vanityName: _currentVanityName,
+      originalName: _currentOriginalName,
+      failoverGroupUrls: _getFailoverAlternatives()
+          .where((candidate) => candidate != url)
+          .toList(),
+      allowAudioOnly: _allowsAudioOnly,
+      preferRequestedRoute: true,
+    );
+  }
+
+  void rejectCurrentRoute() {
+    final url = _currentUrl;
+    if (url == null) return;
+    _healthTracker?.recordStall(url);
+    _failedFailoverUrls.add(url);
+    _manuallyRejectedUrls.add(url);
+  }
+
+  void _setFailoverSwitching(bool value) {
+    if (_failoverSwitching == value) return;
+    _failoverSwitching = value;
+    if (!_failoverSwitchingController.isClosed) {
+      _failoverSwitchingController.add(value);
+    }
+  }
 
   /// Callback invoked when auto-failover switches streams.
   /// Provides the provider name or URL fragment for UI toast.
   void Function(String message)? onFailover;
+  void Function(String channelName)? onSourcesExhausted;
+
+  /// Called after four matching frame samples show a route has displayed the
+  /// same picture for roughly one minute.
+  Future<int> Function(String channelId, String streamUrl)?
+  onStaticStreamDetected;
 
   /// The channel ID that failover most recently switched to, if available.
   String? lastFailoverChannelId;
@@ -95,7 +168,18 @@ class PlayerService {
         ),
       );
       _initPlayer(_player!);
-      _playbackErrorLogSub = _player!.stream.error.listen((message) {
+      _bindPlayerLogs(_player!);
+      AppDiagnostics.instance.log('player_created', {
+        'bufferSizeBytes': 96 * 1024 * 1024,
+      });
+    }
+    return _player!;
+  }
+
+  void _bindPlayerLogs(Player active) {
+    unawaited(_playbackErrorLogSub?.cancel());
+    unawaited(_playingLogSub?.cancel());
+    _playbackErrorLogSub = active.stream.error.listen((message) {
         AppDiagnostics.instance.log('player_error', {
           'message': message,
           'channel': _currentChannelName,
@@ -104,17 +188,12 @@ class PlayerService {
               : AppDiagnostics.summarizeStreamUrl(_currentUrl!),
         });
       });
-      _playingLogSub = _player!.stream.playing.distinct().listen((playing) {
+      _playingLogSub = active.stream.playing.distinct().listen((playing) {
         AppDiagnostics.instance.log('playing_changed', {
           'playing': playing,
           'channel': _currentChannelName,
         });
       });
-      AppDiagnostics.instance.log('player_created', {
-        'bufferSizeBytes': 96 * 1024 * 1024,
-      });
-    }
-    return _player!;
   }
 
   Future<void> _initPlayer(Player p) async {
@@ -155,6 +234,9 @@ class PlayerService {
 
   VideoController get videoController {
     _videoController ??= VideoController(player);
+    if (activeVideoController.value == null) {
+      activeVideoController.value = _videoController;
+    }
     return _videoController!;
   }
 
@@ -177,6 +259,490 @@ class PlayerService {
   // Failover group override: manual alternatives from user-created groups
   List<String>? _failoverGroupUrls;
 
+  /// Keep the active programme running while a silent decoder prepares the
+  /// requested channel. Only one candidate is decoded at a time.
+  Future<bool> switchChannel(
+    String url, {
+    String? channelId,
+    String? epgChannelId,
+    String? tvgId,
+    String? channelName,
+    String? vanityName,
+    String? originalName,
+    List<String>? failoverGroupUrls,
+    bool allowAudioOnly = false,
+    bool previewOnly = false,
+    bool preferRequestedRoute = false,
+  }) async {
+    final request = ++_channelSwitchGeneration;
+    await discardPreparedChannel(invalidateRequest: false);
+    if (request != _channelSwitchGeneration) return false;
+    if (_currentUrl == null ||
+        !(player.state.playing || player.state.buffering)) {
+      await play(url,
+          channelId: channelId,
+          epgChannelId: epgChannelId,
+          tvgId: tvgId,
+          channelName: channelName,
+          vanityName: vanityName,
+          originalName: originalName,
+          failoverGroupUrls: failoverGroupUrls,
+          allowAudioOnly: allowAudioOnly);
+      return _currentUrl != null;
+    }
+    if (_currentChannelId == channelId && _currentUrl == url) return true;
+
+    _preparingChannelSwitch = true;
+    channelSwitching.value = true;
+    final candidateUrls = <String>[
+      url,
+      ...?failoverGroupUrls,
+    ];
+    if (_alternatives != null) {
+      candidateUrls.addAll(_alternatives!.getAlternatives(
+        channelId: channelId ?? '',
+        epgChannelId: epgChannelId,
+        tvgId: tvgId,
+        channelName: channelName,
+        vanityName: vanityName,
+        originalName: originalName,
+        excludeUrl: url,
+      ));
+    }
+    final candidates = _rankCandidateUrls(
+      candidateUrls.where((route) => route.isNotEmpty &&
+          (!preferRequestedRoute || route != _currentUrl)),
+      preferredUrl: preferRequestedRoute ? url : null,
+    ).take(8).toList();
+    AppDiagnostics.instance.log('channel_preload_started', {
+      'channel': channelName,
+      'candidateCount': candidates.length,
+    });
+    await _disposeWarmPlayer();
+
+    try {
+      for (var candidateIndex = 0;
+          candidateIndex < candidates.length;
+          candidateIndex++) {
+        if (request != _channelSwitchGeneration) return false;
+        final candidateUrl = candidates[candidateIndex];
+        AppDiagnostics.instance.log('channel_preload_candidate_started', {
+          'channel': channelName,
+          'index': candidateIndex + 1,
+          'stream': AppDiagnostics.summarizeStreamUrl(candidateUrl),
+        });
+        if (previewOnly) {
+          channelPreviewProgress.value =
+              '正在检查线路 ${candidateIndex + 1}/${candidates.length}';
+        }
+        final candidate = Player(
+          configuration: const PlayerConfiguration(
+            bufferSize: 48 * 1024 * 1024,
+            logLevel: MPVLogLevel.warn,
+          ),
+        );
+        var promoted = false;
+        try {
+          final native = candidate.platform;
+          if (native is native_player.NativePlayer) {
+            await native.setProperty('mute', 'yes');
+            await native.setProperty('audio-channels', 'stereo');
+          }
+          await candidate.setVolume(0);
+          final controller = VideoController(candidate);
+          await candidate.open(Media(candidateUrl))
+              .timeout(const Duration(seconds: 6));
+          final ready = await _waitForPreparedChannel(
+            candidate,
+            request,
+            allowAudioOnly: allowAudioOnly,
+            requireUltraHd: ChannelNameNormalizer.isUltraHd(
+                    channelName ?? '') ||
+                ChannelNameNormalizer.isUltraHd(originalName ?? '') ||
+                ChannelNameNormalizer.isUltraHd(tvgId ?? ''),
+          );
+          if (ready && request == _channelSwitchGeneration) {
+            _healthTracker?.recordPlaybackSuccess(candidateUrl);
+            if (previewOnly) {
+              // Ownership passes to the service while the preview is visible.
+              promoted = true;
+              _preparedChannel = _PreparedChannel(
+                player: candidate,
+                controller: controller,
+                url: candidateUrl,
+                channelId: channelId,
+                epgChannelId: epgChannelId,
+                tvgId: tvgId,
+                channelName: channelName,
+                vanityName: vanityName,
+                originalName: originalName,
+                failoverGroupUrls: failoverGroupUrls,
+                allowAudioOnly: allowAudioOnly,
+              );
+              previewVideoController.value = controller;
+              _preparedChannelTimeout = Timer(const Duration(minutes: 2), () {
+                unawaited(discardPreparedChannel());
+              });
+              AppDiagnostics.instance.log('channel_preview_ready', {
+                'channel': channelName,
+                'stream': AppDiagnostics.summarizeStreamUrl(candidateUrl),
+              });
+              return true;
+            }
+            await candidate.setVolume(player.state.volume)
+                .timeout(const Duration(seconds: 2));
+            promoted = true;
+            await _promotePreparedChannel(
+              candidate,
+              controller,
+              candidateUrl,
+              channelId: channelId,
+              epgChannelId: epgChannelId,
+              tvgId: tvgId,
+              channelName: channelName,
+              vanityName: vanityName,
+              originalName: originalName,
+              failoverGroupUrls: failoverGroupUrls,
+              allowAudioOnly: allowAudioOnly,
+            );
+            AppDiagnostics.instance.log('channel_preload_committed', {
+              'channel': channelName,
+              'stream': AppDiagnostics.summarizeStreamUrl(candidateUrl),
+            });
+            return true;
+          }
+        } catch (error) {
+          AppDiagnostics.instance.log('channel_preload_candidate_failed', {
+            'channel': channelName,
+            'error': error.toString(),
+          });
+        } finally {
+          if (!promoted) {
+            try {
+              await candidate.dispose().timeout(const Duration(seconds: 2));
+            } catch (_) {}
+          }
+        }
+        _healthTracker?.recordProbeFailure(candidateUrl);
+      }
+      if (request == _channelSwitchGeneration) {
+        AppDiagnostics.instance.log('channel_preload_failed', {
+          'channel': channelName,
+          'candidateCount': candidates.length,
+        });
+      }
+      return false;
+    } finally {
+      if (request == _channelSwitchGeneration) {
+        _preparingChannelSwitch = false;
+        channelSwitching.value = false;
+        channelPreviewProgress.value = null;
+      }
+    }
+  }
+
+  Future<void> discardPreparedChannel({bool invalidateRequest = true}) async {
+    if (invalidateRequest) ++_channelSwitchGeneration;
+    _preparingChannelSwitch = false;
+    channelSwitching.value = false;
+    _preparedChannelTimeout?.cancel();
+    _preparedChannelTimeout = null;
+    final prepared = _preparedChannel;
+    _preparedChannel = null;
+    previewVideoController.value = null;
+    channelPreviewProgress.value = null;
+    if (prepared != null) {
+      try {
+        await prepared.player.dispose().timeout(const Duration(seconds: 2));
+      } catch (error) {
+        AppDiagnostics.instance.log('channel_preview_dispose_failed', {
+          'error': error.toString(),
+        });
+      }
+    }
+  }
+
+  Future<bool> commitPreparedChannel(String? channelId) async {
+    final prepared = _preparedChannel;
+    if (prepared == null || prepared.channelId != channelId) return false;
+    final state = prepared.player.state;
+    final hasVideo = state.tracks.video.any(
+      (track) => track.id != 'auto' && track.id != 'no',
+    );
+    final hasAudio = state.tracks.audio.any(
+      (track) => track.id != 'auto' && track.id != 'no',
+    );
+    if (!state.playing || state.buffering ||
+        !(prepared.allowAudioOnly
+            ? hasAudio
+            : hasVideo && (state.width ?? 0) > 0 &&
+                (state.height ?? 0) > 0)) {
+      await discardPreparedChannel();
+      return false;
+    }
+    _preparedChannelTimeout?.cancel();
+    _preparedChannelTimeout = null;
+    _preparedChannel = null;
+    previewVideoController.value = null;
+    ++_channelSwitchGeneration;
+    _preparingChannelSwitch = true;
+    try {
+      await prepared.player.setVolume(player.state.volume)
+          .timeout(const Duration(seconds: 2));
+      await _promotePreparedChannel(
+        prepared.player,
+        prepared.controller,
+        prepared.url,
+        channelId: prepared.channelId,
+        epgChannelId: prepared.epgChannelId,
+        tvgId: prepared.tvgId,
+        channelName: prepared.channelName,
+        vanityName: prepared.vanityName,
+        originalName: prepared.originalName,
+        failoverGroupUrls: prepared.failoverGroupUrls,
+        allowAudioOnly: prepared.allowAudioOnly,
+      );
+      AppDiagnostics.instance.log('channel_preview_committed', {
+        'channel': prepared.channelName,
+      });
+      return true;
+    } catch (error) {
+      AppDiagnostics.instance.log('channel_preview_commit_failed', {
+        'error': error.toString(),
+      });
+      if (!identical(_player, prepared.player)) {
+        unawaited(prepared.player.dispose());
+      }
+      return false;
+    } finally {
+      _preparingChannelSwitch = false;
+    }
+  }
+
+  Future<bool> _waitForPreparedChannel(
+    Player candidate,
+    int? request, {
+    required bool allowAudioOnly,
+    required bool requireUltraHd,
+  }) async {
+    final deadline = DateTime.now().add(const Duration(seconds: 15));
+    final stopwatch = Stopwatch()..start();
+    var startingPosition = candidate.state.position;
+    var positionAdvanced = false;
+    DateTime? readySince;
+    while (DateTime.now().isBefore(deadline)) {
+      if (request != null && request != _channelSwitchGeneration) return false;
+      final state = candidate.state;
+      if (state.position < startingPosition) {
+        startingPosition = state.position;
+        positionAdvanced = false;
+      } else if (state.position - startingPosition >=
+          const Duration(milliseconds: 250)) {
+        positionAdvanced = true;
+      }
+      final hasVideo = state.tracks.video.any(
+        (track) => track.id != 'auto' && track.id != 'no',
+      );
+      final hasAudio = state.tracks.audio.any(
+        (track) => track.id != 'auto' && track.id != 'no',
+      );
+      final width = state.width ?? 0;
+      final height = state.height ?? 0;
+      final ready = preparedMediaReady(
+        playing: state.playing,
+        buffering: state.buffering,
+        hasVideoTrack: hasVideo,
+        hasAudioTrack: hasAudio,
+        width: width,
+        height: height,
+        advanced: positionAdvanced,
+        allowAudioOnly: allowAudioOnly,
+      );
+      if (requireUltraHd && width > 0 && height > 0 &&
+          width < 3000 && height < 1700) {
+        AppDiagnostics.instance.log('channel_preload_rejected_resolution', {
+          'width': width,
+          'height': height,
+        });
+        return false;
+      }
+      if (!allowAudioOnly && positionAdvanced && hasAudio && !hasVideo &&
+          stopwatch.elapsed >= const Duration(seconds: 5)) {
+        AppDiagnostics.instance.log('channel_preload_audio_only', {
+          'positionMs': state.position.inMilliseconds,
+          'width': width,
+          'height': height,
+          'videoTracks': state.tracks.video.map((track) => track.id).toList(),
+        });
+        return false;
+      }
+      if (state.buffering && !hasAudio && !hasVideo &&
+          state.position == Duration.zero &&
+          stopwatch.elapsed >= const Duration(seconds: 10)) {
+        AppDiagnostics.instance.log('channel_preload_no_signal');
+        return false;
+      }
+      readySince = ready ? (readySince ?? DateTime.now()) : null;
+      if (readySince != null &&
+          DateTime.now().difference(readySince) >=
+              const Duration(milliseconds: 700)) return true;
+      await Future<void>.delayed(const Duration(milliseconds: 300));
+    }
+    final state = candidate.state;
+    AppDiagnostics.instance.log('channel_preload_timeout_state', {
+      'playing': state.playing,
+      'buffering': state.buffering,
+      'positionMs': state.position.inMilliseconds,
+      'positionAdvanced': positionAdvanced,
+      'videoTracks': state.tracks.video.map((track) => track.id).toList(),
+      'audioTracks': state.tracks.audio.map((track) => track.id).toList(),
+      'width': state.width,
+      'height': state.height,
+    });
+    return false;
+  }
+
+  /// Decodes a discovered route in a separate muted player before import.
+  Future<bool> verifyDiscoveredVideoRoute(
+    String url, {
+    bool requireUltraHd = false,
+  }) async {
+    final candidate = Player(
+      configuration: const PlayerConfiguration(
+        bufferSize: 24 * 1024 * 1024,
+        logLevel: MPVLogLevel.warn,
+      ),
+    );
+    try {
+      final native = candidate.platform;
+      if (native is native_player.NativePlayer) {
+        await native.setProperty('mute', 'yes');
+      }
+      await candidate.setVolume(0);
+      VideoController(candidate);
+      await candidate.open(Media(url)).timeout(const Duration(seconds: 6));
+      return await _waitForPreparedChannel(
+        candidate,
+        null,
+        allowAudioOnly: false,
+        requireUltraHd: requireUltraHd,
+      );
+    } catch (error) {
+      AppDiagnostics.instance.log('discovered_video_probe_failed', {
+        'errorType': error.runtimeType.toString(),
+      });
+      return false;
+    } finally {
+      try {
+        await candidate.dispose().timeout(const Duration(seconds: 2));
+      } catch (_) {}
+    }
+  }
+
+  @visibleForTesting
+  static bool preparedMediaReady({
+    required bool playing,
+    required bool buffering,
+    required bool hasVideoTrack,
+    required bool hasAudioTrack,
+    required int width,
+    required int height,
+    required bool advanced,
+    required bool allowAudioOnly,
+  }) =>
+      playing && !buffering && advanced &&
+      (allowAudioOnly
+          ? hasAudioTrack
+          : hasVideoTrack && width > 0 && height > 0);
+
+  Future<void> _promotePreparedChannel(
+    Player candidate,
+    VideoController controller,
+    String url, {
+    String? channelId,
+    String? epgChannelId,
+    String? tvgId,
+    String? channelName,
+    String? vanityName,
+    String? originalName,
+    List<String>? failoverGroupUrls,
+    required bool allowAudioOnly,
+  }) async {
+    final previous = player;
+    final generation = ++_playGeneration;
+    _qualityCheckTimer?.cancel();
+    _videoCheckTimer?.cancel();
+    _failoverCheckTimer?.cancel();
+    _resetStaticFrameMonitor();
+    await _tracksSub?.cancel();
+    _tracksSub = null;
+    _bufferManager.stop();
+    await _bufferTrackSub?.cancel();
+    _bufferTrackSub = null;
+    _bufferTrackTimer?.cancel();
+    _trackingBuffering = false;
+    final native = candidate.platform;
+    try {
+      await previous.setVolume(0).timeout(const Duration(seconds: 2));
+    } catch (error) {
+      AppDiagnostics.instance.log('previous_player_mute_failed', {
+        'error': error.toString(),
+      });
+    }
+    _player = candidate;
+    _videoController = controller;
+    _currentUrl = url;
+    _currentChannelId = channelId;
+    _currentEpgChannelId = epgChannelId;
+    _currentTvgId = tvgId;
+    _currentChannelName = channelName;
+    _currentVanityName = vanityName;
+    _currentOriginalName = originalName;
+    _failoverGroupUrls = failoverGroupUrls;
+    _allowsAudioOnly = allowAudioOnly;
+    _requiresUltraHd = ChannelNameNormalizer.isUltraHd(channelName ?? '') ||
+        ChannelNameNormalizer.isUltraHd(originalName ?? '') ||
+        ChannelNameNormalizer.isUltraHd(tvgId ?? '');
+    _proxyActive = false;
+    _failedFailoverUrls.clear();
+    _stallDetector.reset();
+    _failoverRetryNotBefore = null;
+    _bindPlayerLogs(candidate);
+    activeVideoController.value = controller;
+    _activePlayerController.add(candidate);
+    if (native is native_player.NativePlayer) {
+      try {
+        await native.setProperty('mute', 'no');
+      } catch (error) {
+        AppDiagnostics.instance.log('prepared_player_unmute_failed', {
+          'error': error.toString(),
+        });
+      }
+    }
+    unawaited(_streamProxy.stop());
+    unawaited(previous.dispose().timeout(const Duration(seconds: 3))
+        .catchError((_) {}));
+    unawaited(_bufferManager.applyForStream(url, this).catchError((error) {
+      AppDiagnostics.instance.log('prepared_player_buffer_error', {
+        'error': error.toString(),
+      });
+    }));
+    AppDiagnostics.instance.updatePlaybackContext(
+      channelName: channelName,
+      streamUrl: url,
+    );
+    bufferHistory.fillRange(0, 60, false);
+    bufferEventCount = 0;
+    bufferingSeconds = 0;
+    startBufferTracking();
+    _startFailoverMonitor();
+    _scheduleAudioCheck(url);
+    _scheduleVideoCheck(url, generation);
+    _startStaticFrameMonitor(url, generation);
+    _scheduleQualityCheck(url, generation);
+    _currentUrlController.add(url);
+  }
+
   /// Start playing a stream URL with optional channel metadata for failover.
   Future<void> play(
     String url, {
@@ -187,8 +753,15 @@ class PlayerService {
     String? vanityName,
     String? originalName,
     List<String>? failoverGroupUrls,
+    bool allowAudioOnly = false,
   }) async {
+    ++_channelSwitchGeneration;
+    unawaited(discardPreparedChannel());
+    _preparingChannelSwitch = false;
+    channelSwitching.value = false;
     final playGeneration = ++_playGeneration;
+    _failoverRetryNotBefore = null;
+    _setFailoverSwitching(false);
     _isBuffering = false;
     _bufferStartTime = null;
     _stallDetector.reset();
@@ -200,6 +773,7 @@ class PlayerService {
     _currentChannelName = channelName;
     _currentVanityName = vanityName;
     _currentOriginalName = originalName;
+    _allowsAudioOnly = allowAudioOnly;
     _requiresUltraHd =
         ChannelNameNormalizer.isUltraHd(channelName ?? '') ||
         ChannelNameNormalizer.isUltraHd(originalName ?? '') ||
@@ -214,14 +788,54 @@ class PlayerService {
       'stream': AppDiagnostics.summarizeStreamUrl(url),
       'alternativeCount': failoverGroupUrls?.length ?? 0,
       'requiresUltraHd': _requiresUltraHd,
+      'allowsAudioOnly': _allowsAudioOnly,
     });
     _qualityCheckTimer?.cancel();
-    await _tracksSub?.cancel();
+    _videoCheckTimer?.cancel();
+    _resetStaticFrameMonitor();
+    final tracksSub = _tracksSub;
+    _tracksSub = null;
+    await _runPlayStep(
+      tracksSub?.cancel() ?? Future<void>.value(),
+      generation: playGeneration,
+      step: 'cancel_tracks',
+      timeout: const Duration(seconds: 1),
+      continueOnError: true,
+    );
+    if (playGeneration != _playGeneration) return;
     _failoverCheckTimer?.cancel();
-    await _disposeWarmPlayer();
+    await _runPlayStep(
+      _disposeWarmPlayer(),
+      generation: playGeneration,
+      step: 'dispose_warm_player',
+      timeout: const Duration(seconds: 3),
+      continueOnError: true,
+    );
+    if (playGeneration != _playGeneration) return;
     _proxyActive = false;
-    await _streamProxy.stop();
-    await _ensureReady();
+    await _runPlayStep(
+      _streamProxy.stop(),
+      generation: playGeneration,
+      step: 'stop_stream_proxy',
+      timeout: const Duration(seconds: 2),
+      continueOnError: true,
+    );
+    if (playGeneration != _playGeneration) return;
+    final ready = await _runPlayStep(
+      _ensureReady(),
+      generation: playGeneration,
+      step: 'ensure_player_ready',
+      timeout: const Duration(seconds: 4),
+    );
+    if (!ready) return;
+    await _runPlayStep(
+      _enableVideoOutput(),
+      generation: playGeneration,
+      step: 'enable_video_output',
+      timeout: const Duration(seconds: 1),
+      continueOnError: true,
+    );
+    if (playGeneration != _playGeneration) return;
 
     final selectedUrl = await _selectFastestStream(url);
     if (playGeneration != _playGeneration) return;
@@ -236,9 +850,29 @@ class PlayerService {
       'stream': AppDiagnostics.summarizeStreamUrl(activeUrl),
       'changedFromRequested': selectedUrl != url,
     });
-    await player.open(Media(activeUrl));
-    await _bufferManager.applyForStream(activeUrl, this);
-    await player.setVolume(100.0);
+    final opened = await _runPlayStep(
+      player.open(Media(activeUrl)),
+      generation: playGeneration,
+      step: 'open_media',
+      timeout: const Duration(seconds: 5),
+    );
+    if (!opened) return;
+    await _runPlayStep(
+      _bufferManager.applyForStream(activeUrl, this),
+      generation: playGeneration,
+      step: 'apply_buffer',
+      timeout: const Duration(seconds: 2),
+      continueOnError: true,
+    );
+    if (playGeneration != _playGeneration) return;
+    await _runPlayStep(
+      player.setVolume(100.0),
+      generation: playGeneration,
+      step: 'set_volume',
+      timeout: const Duration(seconds: 2),
+      continueOnError: true,
+    );
+    if (playGeneration != _playGeneration) return;
 
     if (selectedUrl != url) {
       final ready = await _waitForPlayable(
@@ -260,15 +894,37 @@ class PlayerService {
           'rejectedStream': AppDiagnostics.summarizeStreamUrl(selectedUrl),
           'restoredStream': AppDiagnostics.summarizeStreamUrl(activeUrl),
         });
-        await player.open(Media(activeUrl));
-        await _bufferManager.applyForStream(activeUrl, this);
-        await player.setVolume(100.0);
+        final restored = await _runPlayStep(
+          player.open(Media(activeUrl)),
+          generation: playGeneration,
+          step: 'restore_requested_media',
+          timeout: const Duration(seconds: 5),
+        );
+        if (!restored) return;
+        await _runPlayStep(
+          _bufferManager.applyForStream(activeUrl, this),
+          generation: playGeneration,
+          step: 'restore_requested_buffer',
+          timeout: const Duration(seconds: 2),
+          continueOnError: true,
+        );
+        if (playGeneration != _playGeneration) return;
+        await _runPlayStep(
+          player.setVolume(100.0),
+          generation: playGeneration,
+          step: 'restore_requested_volume',
+          timeout: const Duration(seconds: 2),
+          continueOnError: true,
+        );
+        if (playGeneration != _playGeneration) return;
       }
     }
 
     // Check for missing audio after a brief delay and retry through
     // ffmpeg proxy if needed (fixes EAC-3 with non-standard codec tags)
     _scheduleAudioCheck(activeUrl);
+    _scheduleVideoCheck(activeUrl, playGeneration);
+    _startStaticFrameMonitor(activeUrl, playGeneration);
 
     // Reset and start buffer tracking for the new stream
     bufferHistory.fillRange(0, 60, false);
@@ -277,6 +933,34 @@ class PlayerService {
     startBufferTracking();
     _startFailoverMonitor();
     _scheduleQualityCheck(activeUrl, playGeneration);
+    _currentUrlController.add(activeUrl);
+  }
+
+  Future<bool> _runPlayStep(
+    Future<void> operation, {
+    required int generation,
+    required String step,
+    required Duration timeout,
+    bool continueOnError = false,
+  }) async {
+    try {
+      await operation.timeout(timeout);
+    } catch (error, stackTrace) {
+      AppDiagnostics.instance.log('play_step_failed', {
+        'step': step,
+        'timeout': error is TimeoutException,
+        'channel': _currentChannelName,
+        'stream': _currentUrl == null
+            ? null
+            : AppDiagnostics.summarizeStreamUrl(_currentUrl!),
+        'error': error.toString(),
+      });
+      if (!continueOnError) {
+        AppDiagnostics.instance.recordError('player_$step', error, stackTrace);
+      }
+      return continueOnError && generation == _playGeneration;
+    }
+    return generation == _playGeneration;
   }
 
   Future<bool> _waitForPlayable(
@@ -299,6 +983,15 @@ class PlayerService {
       final hasAudio = tracks.audio.any(
         (track) => track.id != 'auto' && track.id != 'no',
       );
+      final width = player.state.width ?? 0;
+      final height = player.state.height ?? 0;
+      final hasUsableMedia = isUsablePlaybackMedia(
+        hasVideoTrack: hasVideo,
+        hasAudioTrack: hasAudio,
+        width: width,
+        height: height,
+        allowAudioOnly: _allowsAudioOnly,
+      );
       final rawCache = await getMpvProperty('demuxer-cache-duration');
       final cacheSeconds = double.tryParse(rawCache ?? '') ?? 0.0;
       final currentPosition = player.state.position;
@@ -311,7 +1004,7 @@ class PlayerService {
       final settled = sawBuffering || stopwatch.elapsedMilliseconds >= 900;
       if (settled &&
           !buffering &&
-          (hasVideo || hasAudio) &&
+          hasUsableMedia &&
           (cacheSeconds >= 0.15 || positionAdvanced)) {
         if (_requiresUltraHd && hasVideo && _hasKnownSubUltraHdResolution()) {
           debugPrint(
@@ -325,6 +1018,109 @@ class PlayerService {
       await Future<void>.delayed(const Duration(milliseconds: 250));
     }
     return false;
+  }
+
+  @visibleForTesting
+  static bool isUsableTelevisionVideo({
+    required bool hasVideoTrack,
+    required int width,
+    required int height,
+  }) {
+    return hasVideoTrack && width > 0 && height > 0;
+  }
+
+  @visibleForTesting
+  static bool isUsablePlaybackMedia({
+    required bool hasVideoTrack,
+    required bool hasAudioTrack,
+    required int width,
+    required int height,
+    required bool allowAudioOnly,
+  }) {
+    return isUsableTelevisionVideo(
+          hasVideoTrack: hasVideoTrack,
+          width: width,
+          height: height,
+        ) ||
+        (allowAudioOnly && hasAudioTrack);
+  }
+
+  Future<void> _enableVideoOutput({bool reload = false}) async {
+    final np = player.platform;
+    if (np is! native_player.NativePlayer) return;
+    await np.setProperty('vid', 'auto');
+    if (reload) {
+      try {
+        await np.command(['video-reload']);
+      } catch (_) {}
+    }
+  }
+
+  void _scheduleVideoCheck(
+    String expectedUrl,
+    int playGeneration, {
+    int attempt = 0,
+  }) {
+    _videoCheckTimer?.cancel();
+    _videoCheckTimer = Timer(Duration(seconds: attempt == 0 ? 8 : 4), () async {
+      if (playGeneration != _playGeneration || _currentUrl != expectedUrl) {
+        return;
+      }
+      final tracks = player.state.tracks;
+      final hasVideoTrack = tracks.video.any(
+        (track) => track.id != 'auto' && track.id != 'no',
+      );
+      final hasAudioTrack = tracks.audio.any(
+        (track) => track.id != 'auto' && track.id != 'no',
+      );
+      final width = player.state.width ?? 0;
+      final height = player.state.height ?? 0;
+      if (isUsablePlaybackMedia(
+        hasVideoTrack: hasVideoTrack,
+        hasAudioTrack: hasAudioTrack,
+        width: width,
+        height: height,
+        allowAudioOnly: _allowsAudioOnly,
+      )) {
+        AppDiagnostics.instance.log(
+          hasVideoTrack ? 'video_ready' : 'audio_ready',
+          {'channel': _currentChannelName, 'width': width, 'height': height},
+        );
+        return;
+      }
+
+      if (attempt == 0 && hasVideoTrack) {
+        try {
+          await _enableVideoOutput(
+            reload: true,
+          ).timeout(const Duration(seconds: 1), onTimeout: () {});
+        } catch (error) {
+          AppDiagnostics.instance.log('video_reload_failed', {
+            'channel': _currentChannelName,
+            'error': error.toString(),
+          });
+        }
+      }
+      if (attempt < 2) {
+        _scheduleVideoCheck(expectedUrl, playGeneration, attempt: attempt + 1);
+        return;
+      }
+
+      AppDiagnostics.instance.log('video_missing', {
+        'channel': _currentChannelName,
+        'stream': AppDiagnostics.summarizeStreamUrl(expectedUrl),
+        'hasVideoTrack': hasVideoTrack,
+        'hasAudioTrack': hasAudioTrack,
+        'width': width,
+        'height': height,
+      });
+      _failedFailoverUrls.add(expectedUrl);
+      _healthTracker?.recordProbeFailure(expectedUrl);
+      onFailover?.call(
+        _allowsAudioOnly ? '当前音频线路无法播放，正在切换其他线路' : '当前线路只有声音，正在切换有画面的线路',
+      );
+      await _autoFailover();
+    });
   }
 
   bool _hasKnownSubUltraHdResolution() {
@@ -523,13 +1319,21 @@ class PlayerService {
   /// if no real audio tracks are detected.
   void _scheduleAudioCheck(String originalUrl) {
     _tracksSub?.cancel();
-    // Give mpv 3 seconds to detect audio tracks before checking
+    // Allow live streams time to establish video before considering a proxy.
     _tracksSub =
         Stream<void>.fromFuture(
-          Future<void>.delayed(const Duration(seconds: 3)),
+          Future<void>.delayed(const Duration(seconds: 8)),
         ).asyncMap((_) => player.state.tracks).listen((tracks) {
           _tracksSub?.cancel();
           if (_proxyActive || _currentUrl != originalUrl) return;
+
+          final hasVideo = tracks.video.any(
+            (track) => track.id != 'auto' && track.id != 'no',
+          );
+          if (!_allowsAudioOnly &&
+              (!hasVideo || player.state.buffering || !player.state.playing)) {
+            return;
+          }
 
           final realAudio = tracks.audio
               .where((a) => a.id != 'auto' && a.id != 'no')
@@ -541,7 +1345,7 @@ class PlayerService {
 
           // No real audio detected — try ffmpeg proxy
           debugPrint(
-            '[Player] No audio tracks after 3s, trying ffmpeg proxy for $originalUrl',
+            '[Player] No audio tracks after video started, trying ffmpeg proxy for $originalUrl',
           );
           _retryWithProxy(originalUrl);
         });
@@ -562,7 +1366,9 @@ class PlayerService {
     }
     _proxyActive = true;
     debugPrint('[Player] Switching to proxied stream: $proxyUrl');
+    await _enableVideoOutput();
     await player.open(Media(proxyUrl));
+    _currentUrlController.add(originalUrl);
     await _bufferManager.applyForStream(originalUrl, this);
     await player.setVolume(100.0);
   }
@@ -577,8 +1383,13 @@ class PlayerService {
 
   /// Stop playback.
   Future<void> stop() async {
+    ++_channelSwitchGeneration;
+    await discardPreparedChannel();
+    _preparingChannelSwitch = false;
+    channelSwitching.value = false;
     _bufferManager.stop();
     _qualityCheckTimer?.cancel();
+    _videoCheckTimer?.cancel();
     await player.stop();
     AppDiagnostics.instance.log('playback_stopped', {
       'channel': _currentChannelName,
@@ -588,16 +1399,20 @@ class PlayerService {
 
   /// Pause playback.
   Future<void> pause() async {
+    if (castService?.isCasting == true) unawaited(castService!.pause());
     await player.pause();
   }
 
   /// Resume playback.
   Future<void> resume() async {
+    if (castService?.isCasting == true) unawaited(castService!.resume());
     await player.play();
   }
 
   /// Set volume (0.0 - 100.0).
   Future<void> setVolume(double volume) async {
+    if (castService?.isCasting == true)
+      unawaited(castService!.setVolume(volume.round()));
     await player.setVolume(volume.clamp(0.0, 100.0));
   }
 
@@ -675,6 +1490,113 @@ class PlayerService {
     return null;
   }
 
+  void _resetStaticFrameMonitor() {
+    _staticFrameTimer?.cancel();
+    _staticFrameTimer = null;
+    _lastFrameFingerprint = null;
+    _staticFrameMatches = 0;
+    _staticFrameSampleBusy = false;
+  }
+
+  void _startStaticFrameMonitor(String expectedUrl, int playGeneration) {
+    _resetStaticFrameMonitor();
+    _staticFrameTimer = Timer.periodic(const Duration(seconds: 15), (_) async {
+      if (_staticFrameSampleBusy) return;
+      if (playGeneration != _playGeneration || _currentUrl != expectedUrl) {
+        _resetStaticFrameMonitor();
+        return;
+      }
+      if (!player.state.playing || player.state.buffering) return;
+      final width = player.state.width ?? 0;
+      final height = player.state.height ?? 0;
+      if (width <= 0 || height <= 0) return;
+      _staticFrameSampleBusy = true;
+      try {
+        final pixels = await player.screenshot(format: null);
+        if (pixels == null || pixels.isEmpty) return;
+        final fingerprint = frameFingerprint(pixels, width, height);
+        if (fingerprint.isEmpty) return;
+        final previous = _lastFrameFingerprint;
+        _lastFrameFingerprint = fingerprint;
+        if (previous != null &&
+            framesAreNearlyIdentical(previous, fingerprint)) {
+          _staticFrameMatches++;
+        } else {
+          _staticFrameMatches = 0;
+        }
+        if (_staticFrameMatches < 3) return;
+
+        _staticFrameTimer?.cancel();
+        _staticFrameTimer = null;
+        for (var i = 0; i < 4; i++) {
+          _healthTracker?.recordStall(expectedUrl);
+        }
+        AppDiagnostics.instance.log('static_stream_detected', {
+          'channel': _currentChannelName,
+          'stream': AppDiagnostics.summarizeStreamUrl(expectedUrl),
+          'sampleSeconds': 60,
+        });
+        final channelId = _currentChannelId;
+        if (channelId != null && onStaticStreamDetected != null) {
+          final deleted = await onStaticStreamDetected!(channelId, expectedUrl);
+          AppDiagnostics.instance.log('static_stream_removed', {
+            'channel': _currentChannelName,
+            'deletedRoutes': deleted,
+          });
+        }
+        onFailover?.call('检测到长期静止画面，已移除该线路');
+        await _autoFailover();
+      } catch (error, stackTrace) {
+        AppDiagnostics.instance.recordError(
+          'static_frame_monitor',
+          error,
+          stackTrace,
+        );
+      } finally {
+        _staticFrameSampleBusy = false;
+      }
+    });
+  }
+
+  @visibleForTesting
+  static List<int> frameFingerprint(Uint8List bgra, int width, int height) {
+    if (width <= 0 || height <= 0 || bgra.length < height * 4) return const [];
+    final stride = bgra.length ~/ height;
+    if (stride < width * 4) return const [];
+    const columns = 16;
+    const rows = 10;
+    final result = <int>[];
+    for (var row = 0; row < rows; row++) {
+      final y = ((row + 0.5) * height / rows).floor().clamp(0, height - 1);
+      for (var column = 0; column < columns; column++) {
+        final x = ((column + 0.5) * width / columns).floor().clamp(
+          0,
+          width - 1,
+        );
+        final offset = y * stride + x * 4;
+        final blue = bgra[offset];
+        final green = bgra[offset + 1];
+        final red = bgra[offset + 2];
+        result.add((red * 30 + green * 59 + blue * 11) ~/ 100);
+      }
+    }
+    return result;
+  }
+
+  @visibleForTesting
+  static bool framesAreNearlyIdentical(List<int> first, List<int> second) {
+    if (first.isEmpty || first.length != second.length) return false;
+    var totalDifference = 0;
+    var changedCells = 0;
+    for (var index = 0; index < first.length; index++) {
+      final difference = (first[index] - second[index]).abs();
+      totalDifference += difference;
+      if (difference > 6) changedCells++;
+    }
+    final meanDifference = totalDifference / first.length;
+    return meanDifference <= 2.5 && changedCells <= first.length * 0.08;
+  }
+
   /// Current adaptive buffer manager for UI access.
   AdaptiveBufferManager get bufferManager => _bufferManager;
 
@@ -703,8 +1625,13 @@ class PlayerService {
     _stallDetector.reset();
     _failoverMonitorBusy = false;
     _failoverCheckTimer = Timer.periodic(const Duration(seconds: 2), (_) async {
+      if (_preparingChannelSwitch) return;
       if (_failoverMonitorBusy) return;
       if (_currentUrl == null) return;
+      final retryNotBefore = _failoverRetryNotBefore;
+      if (retryNotBefore != null && DateTime.now().isBefore(retryNotBefore)) {
+        return;
+      }
       if (_alternatives == null &&
           (_failoverGroupUrls == null || _failoverGroupUrls!.isEmpty)) {
         return;
@@ -726,6 +1653,8 @@ class PlayerService {
             playing: player.state.playing,
           ),
         );
+
+        if (_getFailoverAlternatives().isEmpty) return;
 
         if (state.shouldWarmAlternative && !_warmReady && _warmPlayer == null) {
           await _startWarmPreload();
@@ -751,7 +1680,11 @@ class PlayerService {
 
     void addUrls(Iterable<String> urls) {
       for (final url in urls) {
-        if (url.isNotEmpty && seen.add(url)) results.add(url);
+        if (url.isNotEmpty &&
+            !_manuallyRejectedUrls.contains(url) &&
+            seen.add(url)) {
+          results.add(url);
+        }
       }
     }
 
@@ -774,7 +1707,35 @@ class PlayerService {
         ),
       );
     }
-    return results;
+    return _rankCandidateUrls(results);
+  }
+
+  List<String> _rankCandidateUrls(
+    Iterable<String> urls, {
+    String? preferredUrl,
+  }) => prioritizeCandidateUrls(
+    urls,
+    (url) => _healthTracker?.getScore(url) ?? 0.5,
+    preferredUrl: preferredUrl,
+  );
+
+  @visibleForTesting
+  static List<String> prioritizeCandidateUrls(
+    Iterable<String> urls,
+    double Function(String url) score, {
+    String? preferredUrl,
+  }) {
+    final distinct = urls.where((url) => url.isNotEmpty).toSet().toList();
+    final order = {for (var i = 0; i < distinct.length; i++) distinct[i]: i};
+    distinct.sort((left, right) {
+      if (left == preferredUrl) return -1;
+      if (right == preferredUrl) return 1;
+      final byScore = score(right).compareTo(score(left));
+      return byScore != 0
+          ? byScore
+          : order[left]!.compareTo(order[right]!);
+    });
+    return distinct;
   }
 
   /// Start pre-buffering the best alternative stream in a hidden player.
@@ -837,7 +1798,7 @@ class PlayerService {
     }
 
     var setupFailed = false;
-    final setup = configureAndOpen();
+    final setup = configureAndOpen().timeout(const Duration(seconds: 5));
     _warmSetupFuture = setup;
     try {
       await setup;
@@ -879,14 +1840,21 @@ class PlayerService {
     _warmUrl = null;
     _warmReady = false;
 
-    await bufferSubToCancel?.cancel();
     try {
-      await setupToFinish;
+      await bufferSubToCancel?.cancel().timeout(
+        const Duration(milliseconds: 750),
+      );
     } catch (_) {}
-    await playerToDispose?.dispose();
+    try {
+      await setupToFinish?.timeout(const Duration(seconds: 1));
+    } catch (_) {}
+    try {
+      await playerToDispose?.dispose().timeout(const Duration(seconds: 2));
+    } catch (_) {}
   }
 
   Future<void> _autoFailover() async {
+    if (_preparingChannelSwitch) return;
     if (_autoFailoverInProgress) return;
     if (_currentUrl == null) return;
     if (_alternatives == null &&
@@ -894,32 +1862,67 @@ class PlayerService {
       return;
     }
 
+    final retryNotBefore = _failoverRetryNotBefore;
+    if (retryNotBefore != null && DateTime.now().isBefore(retryNotBefore)) {
+      return;
+    }
+
     _autoFailoverInProgress = true;
-    AppDiagnostics.instance.log('failover_started', {
-      'channel': _currentChannelName,
-      'stream': AppDiagnostics.summarizeStreamUrl(_currentUrl!),
-    });
     try {
       final playGeneration = _playGeneration;
       final previousUrl = _currentUrl!;
-      final candidates = <String>[];
+      final availableCandidates = <String>[];
       if (_warmReady && _warmPlayer != null && _warmUrl != null) {
-        candidates.add(_warmUrl!);
+        availableCandidates.add(_warmUrl!);
         debugPrint('[Failover] Warm candidate verified: ${_warmUrl!}');
       }
       for (final url in _getFailoverAlternatives()) {
-        if (!candidates.contains(url)) candidates.add(url);
+        if (!availableCandidates.contains(url)) availableCandidates.add(url);
       }
-      if (candidates.isEmpty) return;
+      final candidates = boundedFailoverCandidates(
+        _rankCandidateUrls(availableCandidates,
+            preferredUrl: _warmReady ? _warmUrl : null),
+        limit: 4,
+      );
+      if (candidates.isEmpty) {
+        _stallDetector.reset();
+        _failoverRetryNotBefore = DateTime.now().add(
+          const Duration(seconds: 30),
+        );
+        AppDiagnostics.instance.log('failover_exhausted', {
+          'channel': _currentChannelName,
+          'candidateCount': 0,
+          'retryAfterSeconds': 30,
+        });
+        if (_currentChannelName != null) {
+          onSourcesExhausted?.call(_currentChannelName!);
+        }
+        return;
+      }
+
+      AppDiagnostics.instance.log('failover_started', {
+        'channel': _currentChannelName,
+        'stream': AppDiagnostics.summarizeStreamUrl(previousUrl),
+        'candidateCount': candidates.length,
+      });
+      _setFailoverSwitching(true);
 
       _failoverCheckTimer?.cancel();
-      await _disposeWarmPlayer();
+      await _runPlayStep(
+        _disposeWarmPlayer(),
+        generation: playGeneration,
+        step: 'failover_dispose_warm_player',
+        timeout: const Duration(seconds: 3),
+        continueOnError: true,
+      );
+      if (playGeneration != _playGeneration) return;
       _stallDetector.reset();
       String? switchedUrl;
       for (final candidateUrl in candidates) {
+        await Future<void>.delayed(Duration.zero);
+        if (playGeneration != _playGeneration) return;
         final switched = await _switchWithVerification(
           candidateUrl,
-          previousUrl,
           playGeneration,
         );
         if (playGeneration != _playGeneration) return;
@@ -928,8 +1931,12 @@ class PlayerService {
           break;
         }
       }
+      if (switchedUrl == null && playGeneration == _playGeneration) {
+        await _restorePreviousStream(previousUrl, playGeneration);
+      }
       _startFailoverMonitor();
       if (switchedUrl != null) {
+        _failoverRetryNotBefore = null;
         _currentUrlController.add(switchedUrl);
         lastFailoverChannelId = _alternatives?.channelIdForUrl(switchedUrl);
         onFailover?.call('已自动切换到更稳定线路');
@@ -941,35 +1948,88 @@ class PlayerService {
           'channel': _currentChannelName,
           'stream': AppDiagnostics.summarizeStreamUrl(switchedUrl),
         });
+        _startStaticFrameMonitor(switchedUrl, playGeneration);
       } else {
+        _failoverRetryNotBefore = DateTime.now().add(
+          const Duration(seconds: 15),
+        );
         AppDiagnostics.instance.log('failover_exhausted', {
           'channel': _currentChannelName,
           'candidateCount': candidates.length,
+          'retryAfterSeconds': 15,
         });
+        if (_currentChannelName != null) {
+          onSourcesExhausted?.call(_currentChannelName!);
+        }
       }
     } finally {
+      _setFailoverSwitching(false);
       _autoFailoverInProgress = false;
     }
   }
 
+  @visibleForTesting
+  static List<String> boundedFailoverCandidates(
+    Iterable<String> candidates, {
+    int limit = 2,
+  }) {
+    if (limit <= 0) return const [];
+    return candidates.take(limit).toList(growable: false);
+  }
+
   Future<bool> _switchWithVerification(
     String candidateUrl,
-    String previousUrl,
     int playGeneration,
   ) async {
     if (playGeneration != _playGeneration) return false;
     try {
       _currentUrl = candidateUrl;
       _proxyActive = false;
-      await _streamProxy.stop();
-      await player.open(Media(candidateUrl));
-      await _bufferManager.applyForStream(candidateUrl, this);
-      await player.setVolume(100.0);
+      await _runPlayStep(
+        _streamProxy.stop(),
+        generation: playGeneration,
+        step: 'failover_stop_stream_proxy',
+        timeout: const Duration(seconds: 2),
+        continueOnError: true,
+      );
+      if (playGeneration != _playGeneration) return false;
+      await _runPlayStep(
+        _enableVideoOutput(),
+        generation: playGeneration,
+        step: 'failover_enable_video',
+        timeout: const Duration(seconds: 1),
+        continueOnError: true,
+      );
+      if (playGeneration != _playGeneration) return false;
+      final opened = await _runPlayStep(
+        player.open(Media(candidateUrl)),
+        generation: playGeneration,
+        step: 'failover_open_media',
+        timeout: const Duration(seconds: 5),
+      );
+      if (!opened) return false;
+      await _runPlayStep(
+        _bufferManager.applyForStream(candidateUrl, this),
+        generation: playGeneration,
+        step: 'failover_apply_buffer',
+        timeout: const Duration(seconds: 2),
+        continueOnError: true,
+      );
+      if (playGeneration != _playGeneration) return false;
+      await _runPlayStep(
+        player.setVolume(100.0),
+        generation: playGeneration,
+        step: 'failover_set_volume',
+        timeout: const Duration(seconds: 2),
+        continueOnError: true,
+      );
       if (playGeneration != _playGeneration) return false;
       final ready = await _waitForPlayable(candidateUrl);
       if (playGeneration != _playGeneration) return false;
       if (ready) {
+        _healthTracker?.recordPlaybackSuccess(candidateUrl);
         _scheduleAudioCheck(candidateUrl);
+        _scheduleVideoCheck(candidateUrl, playGeneration);
         _scheduleQualityCheck(candidateUrl, playGeneration);
         return true;
       }
@@ -985,30 +2045,58 @@ class PlayerService {
     if (playGeneration != _playGeneration) return false;
     _failedFailoverUrls.add(candidateUrl);
     _healthTracker?.recordStall(candidateUrl);
-    debugPrint('[Failover] Restoring previous stream: $previousUrl');
-    _currentUrl = previousUrl;
-    try {
-      await player.open(Media(previousUrl));
-      await _bufferManager.applyForStream(previousUrl, this);
-      await player.setVolume(100.0);
-      _scheduleAudioCheck(previousUrl);
-    } catch (error) {
-      debugPrint('[Failover] Previous stream restore failed: $error');
-      AppDiagnostics.instance.log('failover_restore_error', {
-        'channel': _currentChannelName,
-        'stream': AppDiagnostics.summarizeStreamUrl(previousUrl),
-        'error': error.toString(),
-      });
-    }
     return false;
   }
 
+  Future<void> _restorePreviousStream(
+    String previousUrl,
+    int playGeneration,
+  ) async {
+    if (playGeneration != _playGeneration) return;
+    debugPrint('[Failover] Restoring previous stream: $previousUrl');
+    _currentUrl = previousUrl;
+    await _runPlayStep(
+      _enableVideoOutput(),
+      generation: playGeneration,
+      step: 'failover_restore_video',
+      timeout: const Duration(seconds: 1),
+      continueOnError: true,
+    );
+    if (playGeneration != _playGeneration) return;
+    final restored = await _runPlayStep(
+      player.open(Media(previousUrl)),
+      generation: playGeneration,
+      step: 'failover_restore_media',
+      timeout: const Duration(seconds: 5),
+    );
+    if (restored) {
+      await _runPlayStep(
+        _bufferManager.applyForStream(previousUrl, this),
+        generation: playGeneration,
+        step: 'failover_restore_buffer',
+        timeout: const Duration(seconds: 2),
+        continueOnError: true,
+      );
+      if (playGeneration != _playGeneration) return;
+      _scheduleAudioCheck(previousUrl);
+      _scheduleVideoCheck(previousUrl, playGeneration);
+    }
+  }
+
   Future<void> dispose() async {
+    ++_channelSwitchGeneration;
+    await discardPreparedChannel();
+    channelSwitching.dispose();
+    activeVideoController.dispose();
+    previewVideoController.dispose();
+    channelPreviewProgress.dispose();
     AppDiagnostics.instance.log('player_disposing', {
       'channel': _currentChannelName,
     });
     _bufferManager.stop();
     _qualityCheckTimer?.cancel();
+    _videoCheckTimer?.cancel();
+    _resetStaticFrameMonitor();
     await _tracksSub?.cancel();
     await _playbackErrorLogSub?.cancel();
     await _playingLogSub?.cancel();
@@ -1020,6 +2108,8 @@ class PlayerService {
     await _streamProxy.stop();
     await _player?.dispose();
     await _currentUrlController.close();
+    await _failoverSwitchingController.close();
+    await _activePlayerController.close();
   }
 }
 
@@ -1045,14 +2135,57 @@ class _StreamProbe {
       score = 0;
 }
 
+class _PreparedChannel {
+  final Player player;
+  final VideoController controller;
+  final String url;
+  final String? channelId;
+  final String? epgChannelId;
+  final String? tvgId;
+  final String? channelName;
+  final String? vanityName;
+  final String? originalName;
+  final List<String>? failoverGroupUrls;
+  final bool allowAudioOnly;
+
+  const _PreparedChannel({
+    required this.player,
+    required this.controller,
+    required this.url,
+    required this.channelId,
+    required this.epgChannelId,
+    required this.tvgId,
+    required this.channelName,
+    required this.vanityName,
+    required this.originalName,
+    required this.failoverGroupUrls,
+    required this.allowAudioOnly,
+  });
+}
+
 /// Riverpod provider for the player service (singleton).
 final playerServiceProvider = Provider<PlayerService>((ref) {
   final service = PlayerService();
+  final casting = ref.read(castServiceProvider);
+  service.castService = casting;
+  final castSubscription = service.currentUrlStream.listen((url) {
+    if (url != null && casting.isCasting) {
+      unawaited(
+        casting.switchChannel(
+          casting.relayAirPlay ? (service.castUrl ?? url) : url,
+          title: service._currentChannelName ?? 'BobTV',
+        ),
+      );
+    }
+  });
+  ref.onDispose(() => castSubscription.cancel());
   // Inject failover services
   try {
     final alternatives = ref.read(streamAlternativesProvider);
     final health = ref.read(streamHealthTrackerProvider);
     service.configureFailover(alternatives, health);
+    final database = ref.read(databaseProvider);
+    service.onStaticStreamDetected = database.blockAndDeleteChannelRoute;
   } catch (_) {
     // Services may not be available yet — failover will be disabled
   }

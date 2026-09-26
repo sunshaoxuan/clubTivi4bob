@@ -9,6 +9,7 @@ import 'package:window_manager/window_manager.dart';
 
 import 'app/app.dart';
 import 'core/app_diagnostics.dart';
+import 'data/services/legacy_preferences_migration.dart';
 
 void main() {
   final diagnostics = AppDiagnostics.instance;
@@ -16,6 +17,7 @@ void main() {
     () async {
       WidgetsFlutterBinding.ensureInitialized();
       await diagnostics.initialize();
+      await LegacyPreferencesMigration.run();
 
       FlutterError.onError = (details) {
         diagnostics.recordError(

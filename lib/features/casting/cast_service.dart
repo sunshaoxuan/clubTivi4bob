@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:logger/logger.dart';
 
 import 'lg_webos_client.dart';
+import 'airplay_bridge.dart';
 
 final _log = Logger(printer: SimplePrinter());
 
@@ -15,6 +16,9 @@ class CastDevice {
   final String type; // 'dlna' or 'webos'
   final DLNADevice? dlnaDevice;
   final LgWebOsClient? webosClient;
+  final bool requiresPairing;
+  final String? unavailableReason;
+  bool paired;
 
   CastDevice({
     required this.id,
@@ -22,6 +26,9 @@ class CastDevice {
     required this.type,
     this.dlnaDevice,
     this.webosClient,
+    this.requiresPairing = false,
+    this.unavailableReason,
+    this.paired = false,
   });
 
   @override
@@ -30,6 +37,80 @@ class CastDevice {
 
 /// Manages device discovery and casting of IPTV streams via DLNA/UPnP.
 class CastService {
+  final AirPlayBridge _airplay;
+  final _status = StreamController<String?>.broadcast();
+  Stream<String?> get statusStream => _status.stream;
+  String? lastError;
+  bool relayAirPlay = true;
+  int _discoveryGeneration = 0;
+  Future<void> _queue = Future.value();
+  int _castGeneration = 0;
+  bool _disposed = false;
+
+  CastService({AirPlayBridge? airplay})
+    : _airplay = airplay ?? AirPlayBridge() {
+    _airplay.events.listen((event) {
+      if (_disposed) return;
+      if (event['event'] == 'error') {
+        lastError = event['message'] as String?;
+        if (_activeDevice?.type == 'airplay') _isCasting = false;
+        _status.add(lastError);
+      } else if (event['event'] == 'ended' &&
+          _activeDevice?.type == 'airplay') {
+        _isCasting = false;
+        _status.add('AirPlay 播放已結束或未能啟動，請確認電視畫面與視頻格式。');
+      }
+    });
+  }
+
+  Future<void> _scanAirPlay(int generation, {String? host}) async {
+    try {
+      final result = await _airplay.request('scan', {
+        if (host != null) 'host': host,
+      });
+      if (_disposed || generation != _discoveryGeneration) return;
+      for (final item in result['devices'] as List) {
+        final device = CastDevice(
+          id: 'airplay_${item['id']}',
+          name: item['name'] as String,
+          type: 'airplay',
+          paired: item['paired'] == true,
+          requiresPairing: item['requiresPairing'] == true,
+          unavailableReason: item['unavailableReason'] as String?,
+        );
+        _devices[device.id] = device;
+      }
+      _devicesController.add(devices);
+    } catch (error) {
+      if (!_disposed && generation == _discoveryGeneration) {
+        lastError = error.toString();
+        _status.add(lastError);
+      }
+    }
+  }
+
+  Future<void> beginPairing(CastDevice device) async {
+    if (device.unavailableReason != null) throw StateError(device.unavailableReason!);
+    final result = await _airplay.request('pair_start', {
+      'device': device.id.substring(8),
+    });
+    if (result['deviceProvidesPin'] != true) {
+      await cancelPairing();
+      throw StateError('此設備需要在接收端輸入驗證碼，目前請使用電視顯示驗證碼的配對模式。');
+    }
+  }
+
+  Future<void> finishPairing(CastDevice device, String pin) async {
+    await _airplay.request('pair_finish', {'pin': pin});
+    device.paired = true;
+  }
+
+  Future<void> cancelPairing() async {
+    try {
+      await _airplay.request('pair_cancel');
+    } catch (_) {}
+  }
+
   DLNAManager? _dlnaManager;
   DeviceManager? _deviceManager;
   StreamSubscription? _deviceSub;
@@ -58,6 +139,9 @@ class CastService {
   Future<void> startDiscovery() async {
     await stopDiscovery();
     _devices.clear();
+    lastError = null;
+    final generation = ++_discoveryGeneration;
+    unawaited(_scanAirPlay(generation));
     _dlnaManager = DLNAManager();
     try {
       _deviceManager = await _dlnaManager!.start(reusePort: false);
@@ -78,7 +162,7 @@ class CastService {
 
   void _listenToDevices() {
     _deviceSub = _deviceManager!.devices.stream.listen((deviceMap) {
-      _devices.clear();
+      _devices.removeWhere((key, value) => value.type == 'dlna');
       for (final entry in deviceMap.entries) {
         final dlna = entry.value;
         final name = dlna.info.friendlyName;
@@ -95,6 +179,7 @@ class CastService {
 
   /// Stop scanning.
   Future<void> stopDiscovery() async {
+    _discoveryGeneration++;
     _deviceSub?.cancel();
     _deviceSub = null;
     _dlnaManager?.stop();
@@ -103,14 +188,54 @@ class CastService {
   }
 
   /// Cast a stream URL to the given device.
-  Future<bool> castTo(CastDevice device, String url, {String title = ''}) async {
+  Future<bool> castTo(
+    CastDevice device,
+    String url, {
+    String title = '',
+  }) async {
+    final generation = ++_castGeneration;
+    final result = Completer<bool>();
+    _queue = _queue
+        .then((_) async {
+          if (_disposed || generation != _castGeneration) {
+            result.complete(false);
+            return;
+          }
+          result.complete(await _castTo(device, url, title: title));
+        })
+        .catchError((Object error) {
+          if (!result.isCompleted) result.complete(false);
+        });
+    return result.future;
+  }
+
+  Future<bool> _castTo(
+    CastDevice device,
+    String url, {
+    String title = '',
+  }) async {
+    lastError = null;
     try {
-      if (device.type == 'webos' && device.webosClient != null) {
+      if (device.unavailableReason != null) throw StateError(device.unavailableReason!);
+      if (_activeDevice != null && _activeDevice!.id != device.id)
+        await _stopActive();
+      if (device.type == 'airplay') {
+        await _airplay.request('play', {
+          'device': device.id.substring(8),
+          'url': url,
+          'relay': relayAirPlay,
+        });
+        _activeDevice = device;
+        _activeUrl = url;
+        _isCasting = true;
+        _status.add(null);
+        return true;
+      } else if (device.type == 'webos' && device.webosClient != null) {
         await device.webosClient!.playMedia(url, title: title);
         _activeDevice = device;
         _activeUrl = url;
         _isCasting = true;
-        _log.i('Casting to ${device.name} via WebOS: $url');
+        _log.i('Casting via WebOS');
         return true;
       } else if (device.dlnaDevice != null) {
         await device.dlnaDevice!.setUrl(url, title: title);
@@ -118,20 +243,30 @@ class CastService {
         _activeDevice = device;
         _activeUrl = url;
         _isCasting = true;
-        _log.i('Casting to ${device.name} via DLNA: $url');
+        _log.i('Casting via DLNA');
         return true;
       }
       return false;
     } catch (e) {
-      _log.e('Cast failed: $e');
+      _isCasting = false;
+      lastError = device.type == 'airplay' ? e.toString() : '投屏失敗，請確認電視與網路連接。';
+      _status.add(lastError);
       return false;
     }
   }
 
   /// Stop casting on the active device.
   Future<void> stopCasting() async {
+    ++_castGeneration;
+    _queue = _queue.then((_) => _stopActive());
+    await _queue;
+  }
+
+  Future<void> _stopActive() async {
     try {
-      if (_activeDevice?.type == 'webos') {
+      if (_activeDevice?.type == 'airplay') {
+        await _airplay.request('stop');
+      } else if (_activeDevice?.type == 'webos') {
         await _activeDevice?.webosClient?.stop();
       } else if (_activeDevice?.dlnaDevice != null) {
         await _activeDevice!.dlnaDevice!.stop();
@@ -142,56 +277,70 @@ class CastService {
     _activeDevice = null;
     _activeUrl = null;
     _isCasting = false;
+    if (!_disposed) _status.add(null);
   }
 
   /// Pause playback on the active device.
   Future<void> pause() async {
     try {
-      if (_activeDevice?.type == 'webos') {
+      if (_activeDevice?.type == 'airplay') {
+        await _airplay.request('pause');
+      } else if (_activeDevice?.type == 'webos') {
         await _activeDevice?.webosClient?.pause();
       } else {
         await _activeDevice?.dlnaDevice?.pause();
       }
     } catch (e) {
-      _log.e('Cast pause error: $e');
+      if (!_disposed) _status.add('此接收設備未能暫停播放，請使用電視遙控器。');
     }
   }
 
   /// Resume playback on the active device.
   Future<void> resume() async {
     try {
-      if (_activeDevice?.type == 'webos') {
+      if (_activeDevice?.type == 'airplay') {
+        await _airplay.request('resume');
+      } else if (_activeDevice?.type == 'webos') {
         await _activeDevice?.webosClient?.play();
       } else {
         await _activeDevice?.dlnaDevice?.play();
       }
     } catch (e) {
-      _log.e('Cast resume error: $e');
+      if (!_disposed) _status.add('此接收設備未能恢復播放，請使用電視遙控器。');
     }
   }
 
   /// Set volume (0-100) on the active device.
   Future<void> setVolume(int volume) async {
     try {
-      if (_activeDevice?.type == 'webos') {
+      if (_activeDevice?.type == 'airplay') {
+        await _airplay.request('volume', {'volume': volume});
+      } else if (_activeDevice?.type == 'webos') {
         await _activeDevice?.webosClient?.setVolume(volume.clamp(0, 100));
       } else {
         await _activeDevice?.dlnaDevice?.volume(volume.clamp(0, 100));
       }
     } catch (e) {
-      _log.e('Cast volume error: $e');
+      if (!_disposed) _status.add('此接收設備未能調整音量，請使用電視遙控器。');
     }
   }
 
   /// Switch channel: cast a new URL to the same device.
   Future<bool> switchChannel(String url, {String title = ''}) async {
-    if (_activeDevice == null) return false;
+    if (_activeDevice == null || !_isCasting) return false;
+    if (_activeUrl == url) return true;
     return castTo(_activeDevice!, url, title: title);
   }
 
   /// Add a device manually by IP address.
   /// Probes for LG WebOS (port 3000) first, then adds as generic DLNA.
   Future<CastDevice?> addManualDevice(String ip) async {
+    final previous = _devices.keys.toSet();
+    await _scanAirPlay(_discoveryGeneration, host: ip);
+    final added = _devices.values.where(
+      (d) => d.type == 'airplay' && !previous.contains(d.id),
+    );
+    if (added.isNotEmpty) return added.first;
     // Try LG WebOS first
     final isWebOs = await LgWebOsClient.probe(ip);
     if (isWebOs) {
@@ -219,8 +368,11 @@ class CastService {
   }
 
   void dispose() {
-    stopCasting();
+    _disposed = true;
+    ++_castGeneration;
+    _airplay.dispose();
     stopDiscovery();
+    _status.close();
     _devicesController.close();
   }
 }

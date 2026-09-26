@@ -2358,7 +2358,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                         color: Colors.white.withValues(alpha: 0.09),
                         borderRadius: BorderRadius.circular(6),
                       ),
-                      child: const Text('LIVE TV', style: TextStyle(
+                      child: const Text('直播', style: TextStyle(
                           color: Colors.white70, fontSize: 10,
                           fontWeight: FontWeight.w700, letterSpacing: 1.5)),
                     ),
@@ -2437,6 +2437,22 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
     );
   }
 
+  BoxDecoration _simpleSurfaceDecoration() => BoxDecoration(
+    gradient: const LinearGradient(
+      begin: Alignment.topLeft,
+      end: Alignment.bottomRight,
+      colors: [Color(0xFF1E2D45), Color(0xFF111B2C), Color(0xFF0C1523)],
+      stops: [0, 0.5, 1],
+    ),
+    borderRadius: BorderRadius.circular(28),
+    border: Border.all(color: const Color(0xFF50617E).withValues(alpha: 0.42)),
+    boxShadow: const [BoxShadow(
+      color: Color(0x50000000),
+      blurRadius: 30,
+      offset: Offset(0, 14),
+    )],
+  );
+
   Widget _buildSimpleCategoryTab(String label, {
     required bool selected,
     VoidCallback? onTap,
@@ -2449,25 +2465,28 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
         borderRadius: BorderRadius.circular(12),
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 180),
-          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
           decoration: BoxDecoration(
-            color: selected ? Colors.white : Colors.white.withValues(alpha: 0.08),
-            borderRadius: BorderRadius.circular(12),
+            gradient: selected ? const LinearGradient(
+              colors: [Color(0xFFBDD0FF), Color(0xFF8FAEFF)],
+            ) : null,
+            color: selected ? null : const Color(0xFF26354A),
+            borderRadius: BorderRadius.circular(22),
             border: Border.all(
-              color: selected ? Colors.white : Colors.white.withValues(alpha: 0.08),
+              color: selected ? const Color(0xFFDDE6FF) : Colors.white12,
             ),
           ),
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
               Text(label, style: TextStyle(
-                  color: selected ? const Color(0xFF131B2B) : Colors.white70,
+                  color: selected ? const Color(0xFF122039) : Colors.white70,
                   fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
                   fontSize: 14)),
               if (trailing != null) ...[
                 const SizedBox(width: 5),
                 Icon(trailing, size: 17,
-                    color: selected ? const Color(0xFF131B2B) : Colors.white70),
+                    color: selected ? const Color(0xFF122039) : Colors.white70),
               ],
             ],
           ),
@@ -2504,20 +2523,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
             color: Colors.transparent,
             child: Container(
             padding: const EdgeInsets.all(18),
-            decoration: BoxDecoration(
-              gradient: const LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [Color(0xFF263451), Color(0xFF111A2B)],
-              ),
-              borderRadius: BorderRadius.circular(26),
-              border: Border.all(color: Colors.white24),
-              boxShadow: const [BoxShadow(
-                color: Colors.black54,
-                blurRadius: 36,
-                offset: Offset(0, 18),
-              )],
-            ),
+            decoration: _simpleSurfaceDecoration(),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -2582,31 +2588,31 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
     required VoidCallback onTap,
   }) {
     const accents = <Color>[
-      Color(0xFF6A88BC), Color(0xFF8B75B1), Color(0xFF578D98),
-      Color(0xFFAE765F), Color(0xFF728FB1),
+      Color(0xFF6E9DDB), Color(0xFF987FCA), Color(0xFF5BAFA8),
+      Color(0xFFC39072), Color(0xFF819ACF),
     ];
     final accent = accents[index % accents.length];
     return Material(
       color: Colors.transparent,
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(18),
         child: Ink(
           decoration: BoxDecoration(
             gradient: LinearGradient(
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
-              colors: [accent.withValues(alpha: 0.55),
-                  accent.withValues(alpha: 0.15)],
+              colors: [accent.withValues(alpha: 0.35),
+                  const Color(0xFF142034)],
             ),
-            borderRadius: BorderRadius.circular(16),
+            borderRadius: BorderRadius.circular(18),
             border: Border.all(
-              color: selected ? Colors.white : Colors.white24,
-              width: selected ? 2 : 1,
+              color: selected ? const Color(0xFFB7CAFF) : Colors.white12,
+              width: selected ? 1.5 : 1,
             ),
           ),
           child: ClipRRect(
-            borderRadius: BorderRadius.circular(15),
+            borderRadius: BorderRadius.circular(17),
             child: Stack(
               fit: StackFit.expand,
               children: [
@@ -2647,25 +2653,13 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
     final channel = _previewChannel;
     final nowPlaying = channel == null ? null : _getChannelNowPlaying(channel);
     return Container(
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [Color(0xFF263A5E), Color(0xFF111A2C)],
-        ),
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.12)),
-        boxShadow: [BoxShadow(
-          color: Colors.black.withValues(alpha: 0.26),
-          blurRadius: 30, offset: const Offset(0, 16),
-        )],
-      ),
-      padding: const EdgeInsets.all(16),
+      decoration: _simpleSurfaceDecoration(),
+      padding: const EdgeInsets.all(14),
       child: Column(
         children: [
           Expanded(
             child: ClipRRect(
-              borderRadius: BorderRadius.circular(18),
+              borderRadius: BorderRadius.circular(20),
               child: Stack(
                 fit: StackFit.expand,
                 children: [
@@ -2706,7 +2700,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
               ),
             ),
           ),
-          const SizedBox(height: 18),
+          const SizedBox(height: 15),
           Row(
             children: [
               Expanded(
@@ -2714,8 +2708,8 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     const Text('正在播放', style: TextStyle(
-                        color: Color(0xFFACBDF1), fontSize: 11,
-                        fontWeight: FontWeight.w700, letterSpacing: 1.5)),
+                        color: Color(0xFFAFC4FF), fontSize: 12,
+                        fontWeight: FontWeight.w700, letterSpacing: 1.1)),
                     const SizedBox(height: 4),
                     Text(channel == null ? '欢迎使用 BobTV' :
                         _channelDisplayName(channel),
@@ -2737,8 +2731,17 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                       style: TextStyle(color: Color(0xFFB6C6F7), fontSize: 12)),
                   const SizedBox(width: 10),
                 ],
-                Text('备选 ${_verifiedAlternativeCount(channel)} 条',
-                    style: const TextStyle(color: Colors.white60)),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.07),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.white12),
+                  ),
+                  child: Text('备选 ${_verifiedAlternativeCount(channel)} 路',
+                      style: const TextStyle(color: Colors.white70,
+                          fontSize: 12)),
+                ),
                 const SizedBox(width: 10),
                 IconButton(
                   tooltip: '收藏频道',
@@ -2755,7 +2758,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                   icon: const Icon(Icons.fullscreen_rounded),
                   label: const Text('全屏播放'),
                   style: FilledButton.styleFrom(
-                    backgroundColor: Colors.white,
+                    backgroundColor: const Color(0xFFADC5FF),
                     foregroundColor: const Color(0xFF111B2E),
                     padding: const EdgeInsets.symmetric(
                         horizontal: 18, vertical: 13),
@@ -2789,31 +2792,36 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
     final selectedProvince = ChannelCategoryClassifier.provinceCategories
         .contains(_selectedGroup);
     return Container(
-      decoration: BoxDecoration(
-        color: const Color(0xFF0B1220).withValues(alpha: 0.72),
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.10)),
-      ),
-      padding: const EdgeInsets.all(18),
+      decoration: _simpleSurfaceDecoration(),
+      padding: const EdgeInsets.all(20),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              const Text('探索频道', style: TextStyle(color: Colors.white,
-                  fontSize: 22, fontWeight: FontWeight.w700,
+              Container(width: 4, height: 28,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFA8BFFF),
+                    borderRadius: BorderRadius.circular(3),
+                  )),
+              const SizedBox(width: 11),
+              const Text('选台', style: TextStyle(color: Colors.white,
+                  fontSize: 23, fontWeight: FontWeight.w800,
                   letterSpacing: -0.4)),
               const Spacer(),
-              Text(_regionTotalRoutes > 0
+              Flexible(child: Text(_regionTotalRoutes > 0
                   ? '${_filteredChannels.length} 个频道 · 正在核对线路 '
                       '$_regionCheckedRoutes/$_regionTotalRoutes'
                   : _routeAvailabilityLoading
                       ? '正在核对线路…'
                       : '${_filteredChannels.length} 个频道',
-                  style: const TextStyle(color: Colors.white54)),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(color: Colors.white60,
+                      fontSize: 12))),
             ],
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 18),
           Wrap(
             spacing: 7,
             runSpacing: 7,
@@ -2835,7 +2843,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
               ),
             ],
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 16),
           TextField(
             controller: _searchController,
             style: const TextStyle(color: Colors.white),
@@ -2845,10 +2853,14 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
               prefixIcon: const Icon(Icons.search_rounded,
                   color: Colors.white54),
               filled: true,
-              fillColor: Colors.white.withValues(alpha: 0.08),
+              fillColor: const Color(0xFF0D1728),
               border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(13),
-                borderSide: BorderSide.none,
+                borderRadius: BorderRadius.circular(16),
+                borderSide: const BorderSide(color: Colors.white12),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(16),
+                borderSide: const BorderSide(color: Colors.white12),
               ),
             ),
             onChanged: (value) => setState(() {
@@ -2883,15 +2895,15 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                     ),
                   )
                 : LayoutBuilder(builder: (context, constraints) {
-                    final columns = (constraints.maxWidth / 184)
-                        .floor().clamp(1, 10);
+                    final columns = (constraints.maxWidth / 250)
+                        .floor().clamp(1, 5);
                     return GridView.builder(
                       itemCount: _filteredChannels.length,
                       gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                         crossAxisCount: columns,
-                        mainAxisExtent: 146,
-                        mainAxisSpacing: 11,
-                        crossAxisSpacing: 11,
+                        mainAxisExtent: 172,
+                        mainAxisSpacing: 14,
+                        crossAxisSpacing: 14,
                       ),
                       itemBuilder: (context, index) {
                         final channel = _filteredChannels[index];
@@ -2947,8 +2959,8 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
     GestureTapUpCallback? onSecondaryTapUp,
   }) {
     const accents = <Color>[
-      Color(0xFF677FAE), Color(0xFF74669B), Color(0xFF467F85),
-      Color(0xFF9B725E), Color(0xFF737EA0),
+      Color(0xFF6E9DDB), Color(0xFF987FCA), Color(0xFF5BAFA8),
+      Color(0xFFC39072), Color(0xFF819ACF),
     ];
     final accent = accents[channel.name.hashCode.abs() % accents.length];
     final logoUrl = channel.tvgLogo;
@@ -2958,7 +2970,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
     return GestureDetector(
       onSecondaryTapUp: onSecondaryTapUp,
       child: AnimatedScale(
-      scale: selected ? 1.025 : 1,
+      scale: selected ? 1.008 : 1,
       duration: const Duration(milliseconds: 180),
       curve: Curves.easeOutCubic,
       child: AnimatedContainer(
@@ -2967,21 +2979,21 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
           gradient: LinearGradient(
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
-            colors: [accent.withValues(alpha: selected ? 0.75 : 0.45),
-              const Color(0xFF192236)],
+            colors: [accent.withValues(alpha: selected ? 0.42 : 0.23),
+              const Color(0xFF172339), const Color(0xFF101827)],
           ),
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(20),
           border: Border.all(
-            color: selected ? Colors.white : Colors.white.withValues(alpha: 0.10),
-            width: selected ? 2 : 1,
+            color: selected ? const Color(0xFFB7CAFF) : Colors.white12,
+            width: selected ? 1.5 : 1,
           ),
           boxShadow: selected ? [BoxShadow(
-            color: const Color(0xFF879FFF).withValues(alpha: 0.24),
-            blurRadius: 18, offset: const Offset(0, 6),
+            color: const Color(0xFF879FFF).withValues(alpha: 0.18),
+            blurRadius: 20, offset: const Offset(0, 8),
           )] : null,
         ),
         child: ClipRRect(
-          borderRadius: BorderRadius.circular(15),
+          borderRadius: BorderRadius.circular(19),
           child: Material(
             color: Colors.transparent,
             child: InkWell(
@@ -3003,15 +3015,15 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                     )
                   else Positioned.fill(
                     child: ImageFiltered(
-                      imageFilter: ui.ImageFilter.blur(sigmaX: 13, sigmaY: 13),
+                      imageFilter: ui.ImageFilter.blur(sigmaX: 7, sigmaY: 7),
                       child: Opacity(
-                        opacity: 0.42,
+                        opacity: 0.3,
                         child: Center(
                           child: hasLogo
                               ? Image.network(logoUrl!,
-                                  width: 185, height: 122,
+                                  width: 270, height: 160,
                                   fit: BoxFit.contain,
-                                  cacheWidth: 256,
+                                  cacheWidth: 320,
                                   errorBuilder: (_, __, ___) =>
                                       _buildSimpleChannelMonogram(name))
                               : _buildSimpleChannelMonogram(name),
@@ -3024,34 +3036,35 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                       gradient: LinearGradient(
                         begin: Alignment.topCenter,
                         end: Alignment.bottomCenter,
-                        colors: [Color(0x25081220), Color(0xDD081220)],
-                        stops: [0.18, 1],
+                        colors: [Color(0x15081220), Color(0xE6081220)],
+                        stops: [0.12, 1],
                       ),
                     ),
                   ),
                   Padding(
-                    padding: const EdgeInsets.fromLTRB(12, 10, 12, 11),
+                    padding: const EdgeInsets.fromLTRB(15, 13, 15, 14),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Row(
                           children: [
-                            Text(previewController == null
-                                ? '● LIVE' : '● 静音预览', style: const TextStyle(
-                                color: Color(0xFFFFB8BD), fontSize: 10,
-                                fontWeight: FontWeight.w800,
-                                letterSpacing: 1)),
+                            Text(selected
+                                ? '● 正在播放'
+                                : previewController != null
+                                    ? '● 静音预览'
+                                    : '● 直播',
+                                style: const TextStyle(
+                                    color: Color(0xFFCFD9FF), fontSize: 11,
+                                    fontWeight: FontWeight.w700)),
                             const Spacer(),
                             if (loading)
                               const SizedBox(width: 17, height: 17,
                                   child: CircularProgressIndicator(
                                       strokeWidth: 2, color: Colors.white))
-                            else if (previewController != null)
-                              const Icon(Icons.touch_app_rounded,
-                                  color: Colors.white, size: 19)
-                            else if (selected)
-                              const Icon(Icons.play_circle_fill_rounded,
-                                  color: Colors.white, size: 19),
+                            else
+                              Text('${_verifiedRouteCount(channel)} 路',
+                                  style: const TextStyle(
+                                      color: Colors.white70, fontSize: 11)),
                           ],
                         ),
                         const Spacer(),
@@ -3059,17 +3072,17 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                             overflow: TextOverflow.ellipsis,
                             style: const TextStyle(color: Colors.white,
                                 fontWeight: FontWeight.w800,
-                                fontSize: 18, height: 1.08,
+                                fontSize: 21, height: 1.08,
                                 shadows: [Shadow(color: Colors.black87,
                                     blurRadius: 8)])),
-                        const SizedBox(height: 7),
+                        const SizedBox(height: 9),
                         Row(
                           children: [
                             Text(previewController != null
-                                ? '再点一次正式切换'
+                                ? '点击切换到主画面'
                                 : loading
                                     ? (loadingLabel ?? '寻找线路中')
-                                    : '备选 ${_verifiedAlternativeCount(channel)} 条 · 双击切换',
+                                    : '单击预览 · 双击播放',
                                 style: const TextStyle(
                                     color: Colors.white70, fontSize: 11)),
                             const Spacer(),

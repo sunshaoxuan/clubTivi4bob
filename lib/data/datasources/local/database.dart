@@ -708,6 +708,20 @@ class AppDatabase extends _$AppDatabase {
         ),
       );
 
+  /// A single click on the favorite star must persist even when the user has
+  /// not created any named lists yet. Keep the default list's ID stable so
+  /// concurrent clicks cannot create duplicate lists.
+  Future<List<FavoriteList>> addChannelToDefaultFavorites(
+    String channelId,
+  ) async {
+    await into(favoriteLists).insert(
+      FavoriteListsCompanion.insert(id: 'default', name: '我的收藏'),
+      mode: InsertMode.insertOrIgnore,
+    );
+    await addChannelToList('default', channelId);
+    return getAllFavoriteLists();
+  }
+
   Future<void> removeChannelFromList(String listId, String channelId) =>
       (delete(favoriteListChannels)..where(
             (t) => t.listId.equals(listId) & t.channelId.equals(channelId),

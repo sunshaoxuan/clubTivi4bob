@@ -1197,6 +1197,17 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     final listsForChannel = await database.getListsForChannel(channelId);
     final checkedIds = listsForChannel.map((l) => l.id).toSet();
 
+    if (checkedIds.isEmpty) {
+      final lists = await database.addChannelToDefaultFavorites(channelId);
+      checkedIds.add('default');
+      if (mounted) {
+        setState(() {
+          _favoriteLists = lists;
+          _isFavorite = true;
+        });
+      }
+    }
+
     if (!mounted) return;
     await showModalBottomSheet<void>(
       context: context,
@@ -1223,7 +1234,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                       const SizedBox(width: 8),
                       Expanded(
                         child: Text(
-                          '将“$channelName”添加到列表',
+                          '收藏「$channelName」',
                           style: const TextStyle(
                             color: Colors.white,
                             fontSize: 15,
@@ -1231,6 +1242,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                           ),
                           overflow: TextOverflow.ellipsis,
                         ),
+                      ),
+                      IconButton(
+                        tooltip: '关闭',
+                        onPressed: () => Navigator.of(ctx).pop(),
+                        icon: const Icon(Icons.close, color: Colors.white70),
                       ),
                     ],
                   ),

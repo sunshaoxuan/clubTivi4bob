@@ -1251,7 +1251,21 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
         'currentIndex': _selectedIndex >= 0 ? _selectedIndex : 0,
       },
     );
-    if (mounted) _showTopBar();
+    if (mounted) {
+      final database = ref.read(databaseProvider);
+      final favIds = await database.getAllFavoritedChannelIds();
+      final lists = await database.getAllFavoriteLists();
+      if (!mounted) return;
+      setState(() {
+        _favoritedChannelIds = favIds;
+        _favoriteLists = lists;
+        _applyFilters();
+      });
+      if (_selectedGroup == 'Favorites' || _selectedGroup.startsWith('fav:')) {
+        await _loadGroupChannels(_selectedGroup, preserveScroll: true);
+      }
+      _showTopBar();
+    }
   }
 
   // ---------------------------------------------------------------------------
@@ -1635,7 +1649,10 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
         ),
       );
     }
-    if (_allChannels.isEmpty) {
+    if (_allChannels.isEmpty &&
+        _providers.isEmpty &&
+        _selectedGroup != 'Favorites' &&
+        !_selectedGroup.startsWith('fav:')) {
       return _buildEmptyState(context);
     }
 
@@ -3331,10 +3348,12 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
 
   Widget _buildChannelList() {
     if (_filteredChannels.isEmpty) {
-      return const Center(
+      final isFavorites =
+          _selectedGroup == 'Favorites' || _selectedGroup.startsWith('fav:');
+      return Center(
         child: Text(
-          'No channels match your filter',
-          style: TextStyle(color: Colors.white38),
+          isFavorites ? '暂无收藏频道，点击频道的星号即可收藏' : '当前分类暂无频道',
+          style: const TextStyle(color: Colors.white38),
         ),
       );
     }
@@ -5293,16 +5312,19 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
     final listsForChannel = await database.getListsForChannel(channel.id);
     final checkedIds = listsForChannel.map((l) => l.id).toSet();
 
-    if (!mounted) return;
-    Timer? autoCloseTimer;
-    void resetAutoClose(NavigatorState nav) {
-      autoCloseTimer?.cancel();
-      autoCloseTimer = Timer(const Duration(seconds: 5), () {
-        if (nav.canPop()) nav.pop();
-      });
+    if (checkedIds.isEmpty) {
+      final lists = await database.addChannelToDefaultFavorites(channel.id);
+      checkedIds.add('default');
+      if (mounted) {
+        setState(() {
+          _favoriteLists = lists;
+          _favoritedChannelIds.add(channel.id);
+          _applyFilters();
+        });
+      }
     }
 
-    bool autoCloseStarted = false;
+    if (!mounted) return;
     await showModalBottomSheet<void>(
       context: context,
       backgroundColor: const Color(0xFF1A1A2E),
@@ -5310,10 +5332,6 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
         borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
       ),
       builder: (ctx) {
-        if (!autoCloseStarted) {
-          autoCloseStarted = true;
-          resetAutoClose(Navigator.of(ctx));
-        }
         return StatefulBuilder(
           builder: (ctx, setSheetState) {
             return Padding(
@@ -5332,7 +5350,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                       const SizedBox(width: 8),
                       Expanded(
                         child: Text(
-                          'Add "${channel.name}" to list',
+                          '收藏「${channel.name}」',
                           style: const TextStyle(
                             color: Colors.white,
                             fontSize: 15,
@@ -5340,6 +5358,11 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                           ),
                           overflow: TextOverflow.ellipsis,
                         ),
+                      ),
+                      IconButton(
+                        tooltip: '关闭',
+                        onPressed: () => Navigator.of(ctx).pop(),
+                        icon: const Icon(Icons.close, color: Colors.white70),
                       ),
                     ],
                   ),
@@ -5379,14 +5402,12 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                           checkedIds.remove(list.id);
                         }
                         setSheetState(() {});
-                        resetAutoClose(Navigator.of(ctx));
                       },
                     );
                   }),
                   const Divider(color: Colors.white12),
                   TextButton.icon(
                     onPressed: () async {
-                      autoCloseTimer?.cancel();
                       final name = await _showCreateListDialog();
                       if (name != null && name.isNotEmpty) {
                         final newList = await database.createFavoriteList(name);
@@ -5397,10 +5418,9 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                         setState(() => _favoriteLists = updated);
                         setSheetState(() {});
                       }
-                      if (ctx.mounted) resetAutoClose(Navigator.of(ctx));
                     },
                     icon: const Icon(Icons.add_rounded, size: 18),
-                    label: const Text('Create new list'),
+                    label: const Text('新建收藏夹'),
                     style: TextButton.styleFrom(
                       foregroundColor: Colors.cyanAccent,
                     ),
@@ -5413,7 +5433,6 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
         );
       },
     );
-    autoCloseTimer?.cancel();
     // Refresh favorited state after sheet closes
     final favIds = await database.getAllFavoritedChannelIds();
     if (mounted) {
@@ -5421,6 +5440,9 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
         _favoritedChannelIds = favIds;
         _applyFilters();
       });
+      if (_selectedGroup == 'Favorites' || _selectedGroup.startsWith('fav:')) {
+        await _loadGroupChannels(_selectedGroup, preserveScroll: true);
+      }
     }
   }
 

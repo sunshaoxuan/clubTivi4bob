@@ -82,6 +82,7 @@ class PlayerService {
   DateTime? _failoverRetryNotBefore;
   int _playGeneration = 0;
   final Set<String> _failedFailoverUrls = {};
+  final Set<String> _manuallyRejectedUrls = {};
   bool _requiresUltraHd = false;
   bool _allowsAudioOnly = false;
   Timer? _qualityCheckTimer;
@@ -100,9 +101,38 @@ class PlayerService {
       _failoverSwitchingController.stream;
   bool get failoverSwitching => _failoverSwitching;
   String? get currentUrl => _currentUrl;
+  List<String> get currentAlternativeUrls => _getFailoverAlternatives();
   String? get castUrl =>
       _proxyActive ? (_streamProxy.localUrl ?? _currentUrl) : _currentUrl;
   String? get currentChannelId => _currentChannelId;
+
+  Future<bool> switchCurrentRoute(String url) async {
+    final current = _currentUrl;
+    if (current == null || url.isEmpty) return false;
+    if (current == url) return true;
+    return switchChannel(
+      url,
+      channelId: _currentChannelId,
+      epgChannelId: _currentEpgChannelId,
+      tvgId: _currentTvgId,
+      channelName: _currentChannelName,
+      vanityName: _currentVanityName,
+      originalName: _currentOriginalName,
+      failoverGroupUrls: _getFailoverAlternatives()
+          .where((candidate) => candidate != url)
+          .toList(),
+      allowAudioOnly: _allowsAudioOnly,
+      preferRequestedRoute: true,
+    );
+  }
+
+  void rejectCurrentRoute() {
+    final url = _currentUrl;
+    if (url == null) return;
+    _healthTracker?.recordStall(url);
+    _failedFailoverUrls.add(url);
+    _manuallyRejectedUrls.add(url);
+  }
 
   void _setFailoverSwitching(bool value) {
     if (_failoverSwitching == value) return;
@@ -241,6 +271,7 @@ class PlayerService {
     List<String>? failoverGroupUrls,
     bool allowAudioOnly = false,
     bool previewOnly = false,
+    bool preferRequestedRoute = false,
   }) async {
     final request = ++_channelSwitchGeneration;
     await discardPreparedChannel(invalidateRequest: false);
@@ -277,8 +308,11 @@ class PlayerService {
         excludeUrl: url,
       ));
     }
-    final candidates = candidateUrls.where((route) => route.isNotEmpty)
-        .toSet().take(8).toList();
+    final candidates = _rankCandidateUrls(
+      candidateUrls.where((route) => route.isNotEmpty &&
+          (!preferRequestedRoute || route != _currentUrl)),
+      preferredUrl: preferRequestedRoute ? url : null,
+    ).take(8).toList();
     AppDiagnostics.instance.log('channel_preload_started', {
       'channel': channelName,
       'candidateCount': candidates.length,
@@ -322,6 +356,7 @@ class PlayerService {
                 ChannelNameNormalizer.isUltraHd(tvgId ?? ''),
           );
           if (ready && request == _channelSwitchGeneration) {
+            _healthTracker?.recordPlaybackSuccess(candidateUrl);
             if (previewOnly) {
               // Ownership passes to the service while the preview is visible.
               promoted = true;
@@ -1636,7 +1671,11 @@ class PlayerService {
 
     void addUrls(Iterable<String> urls) {
       for (final url in urls) {
-        if (url.isNotEmpty && seen.add(url)) results.add(url);
+        if (url.isNotEmpty &&
+            !_manuallyRejectedUrls.contains(url) &&
+            seen.add(url)) {
+          results.add(url);
+        }
       }
     }
 
@@ -1659,7 +1698,35 @@ class PlayerService {
         ),
       );
     }
-    return results;
+    return _rankCandidateUrls(results);
+  }
+
+  List<String> _rankCandidateUrls(
+    Iterable<String> urls, {
+    String? preferredUrl,
+  }) => prioritizeCandidateUrls(
+    urls,
+    (url) => _healthTracker?.getScore(url) ?? 0.5,
+    preferredUrl: preferredUrl,
+  );
+
+  @visibleForTesting
+  static List<String> prioritizeCandidateUrls(
+    Iterable<String> urls,
+    double Function(String url) score, {
+    String? preferredUrl,
+  }) {
+    final distinct = urls.where((url) => url.isNotEmpty).toSet().toList();
+    final order = {for (var i = 0; i < distinct.length; i++) distinct[i]: i};
+    distinct.sort((left, right) {
+      if (left == preferredUrl) return -1;
+      if (right == preferredUrl) return 1;
+      final byScore = score(right).compareTo(score(left));
+      return byScore != 0
+          ? byScore
+          : order[left]!.compareTo(order[right]!);
+    });
+    return distinct;
   }
 
   /// Start pre-buffering the best alternative stream in a hidden player.
@@ -1803,7 +1870,11 @@ class PlayerService {
       for (final url in _getFailoverAlternatives()) {
         if (!availableCandidates.contains(url)) availableCandidates.add(url);
       }
-      final candidates = boundedFailoverCandidates(availableCandidates);
+      final candidates = boundedFailoverCandidates(
+        _rankCandidateUrls(availableCandidates,
+            preferredUrl: _warmReady ? _warmUrl : null),
+        limit: 4,
+      );
       if (candidates.isEmpty) {
         _stallDetector.reset();
         _failoverRetryNotBefore = DateTime.now().add(
@@ -1947,6 +2018,7 @@ class PlayerService {
       final ready = await _waitForPlayable(candidateUrl);
       if (playGeneration != _playGeneration) return false;
       if (ready) {
+        _healthTracker?.recordPlaybackSuccess(candidateUrl);
         _scheduleAudioCheck(candidateUrl);
         _scheduleVideoCheck(candidateUrl, playGeneration);
         _scheduleQualityCheck(candidateUrl, playGeneration);

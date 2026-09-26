@@ -837,7 +837,8 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
       channels = channels.where((channel) => !_isIpv6Channel(channel)).toList();
     }
 
-    if (_simpleMode || !_showUnavailableSources) {
+    if ((_simpleMode || !_showUnavailableSources) &&
+        _selectedGroup != 'Favorites') {
       channels = channels.where((channel) {
         final key = _automaticChannelKey(channel);
         return (_verifiedRouteCounts[key.isEmpty ? channel.id : key] ?? 0) > 0;
@@ -1264,7 +1265,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
         playerService.preparedChannelId == channel.id;
     final prepareOnly = !force && _simpleMode && hasActivePlayback &&
         !commitPreview;
-    if (hasActivePlayback && !commitPreview && !force) {
+    if (hasActivePlayback && !commitPreview) {
       setState(() {
         _pendingChannelIndex = index;
         _preparedChannelIndex = null;
@@ -1272,9 +1273,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
     }
     bool switched;
     try {
-      switched = force
-        ? true
-        : commitPreview
+      switched = commitPreview
         ? await playerService.commitPreparedChannel(channel.id)
         : hasActivePlayback
           ? await playerService.switchChannel(
@@ -1295,10 +1294,10 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
           'channel_preload', error, stackTrace);
       switched = false;
     }
-    if (force) {
+    if (force && !hasActivePlayback) {
       await playerService.discardPreparedChannel();
     }
-    if (!hasActivePlayback || force) {
+    if (!hasActivePlayback) {
       unawaited(playerService.play(
         channel.streamUrl,
         channelId: channel.id,
@@ -1368,6 +1367,147 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
       content: Text('$channelName：已找到并验证 $imported 条新线路'),
       duration: const Duration(seconds: 4),
+    ));
+  }
+
+  Future<void> _showCurrentRouteMenu(Offset position) async {
+    final service = ref.read(playerServiceProvider);
+    final currentUrl = service.currentUrl;
+    if (currentUrl == null) return;
+    final alternatives = service.currentAlternativeUrls
+        .where((url) => url != currentUrl)
+        .take(12)
+        .toList();
+    final overlay = Overlay.of(context).context.findRenderObject() as RenderBox;
+    final choice = await showMenu<int>(
+      context: context,
+      position: RelativeRect.fromLTRB(
+        position.dx,
+        position.dy,
+        overlay.size.width - position.dx,
+        overlay.size.height - position.dy,
+      ),
+      items: [
+        const PopupMenuItem<int>(
+          enabled: false,
+          child: Text('切换当前频道的线路'),
+        ),
+        PopupMenuItem<int>(
+          value: -3,
+          enabled: alternatives.isNotEmpty,
+          child: const Text('切换到下一条线路'),
+        ),
+        for (var index = 0; index < alternatives.length; index++)
+          PopupMenuItem<int>(
+            value: index,
+            child: Text(_routeMenuLabel(alternatives[index], index + 1)),
+          ),
+        if (alternatives.isEmpty)
+          const PopupMenuItem<int>(
+            enabled: false,
+            child: Text('暂无其他候选线路'),
+          ),
+        const PopupMenuDivider(),
+        if (_previewChannel != null)
+          PopupMenuItem<int>(
+            value: -2,
+            child: Text(_favoritedChannelIds.contains(_previewChannel!.id)
+                ? '管理收藏'
+                : '加入收藏'),
+          ),
+        const PopupMenuItem<int>(
+          value: -1,
+          child: Text('淘汰当前线路'),
+        ),
+      ],
+    );
+    if (!mounted || choice == null || service.currentUrl != currentUrl) return;
+    if (choice == -2) {
+      final channel = _previewChannel;
+      if (channel != null) await _showFavoriteListSheet(channel);
+      return;
+    }
+    if (choice == -1) {
+      await _retireCurrentRoute(currentUrl, alternatives);
+      return;
+    }
+    final selectedUrl = choice == -3
+        ? alternatives.first
+        : alternatives[choice];
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('正在检查所选线路…')),
+    );
+    final switched = await service.switchCurrentRoute(selectedUrl);
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(switched ? '已切换到可播放线路' : '候选线路不可用，已保留当前画面'),
+    ));
+  }
+
+  String _routeMenuLabel(String url, int number) {
+    final host = Uri.tryParse(url)?.host ?? '';
+    db.Channel? source;
+    for (final channel in _allChannels) {
+      if (channel.streamUrl == url) {
+        source = channel;
+        break;
+      }
+    }
+    final provider = source == null
+        ? ''
+        : ref.read(streamAlternativesProvider)
+            .providerName(source.providerId);
+    final detail = provider.isEmpty ? host : provider;
+    return '线路 $number${detail.isEmpty ? '' : ' · $detail'}';
+  }
+
+  Future<void> _retireCurrentRoute(
+    String currentUrl,
+    List<String> alternatives,
+  ) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('淘汰当前线路？'),
+        content: const Text('将屏蔽这个信号地址，其他线路会保留。此操作无法在界面中撤销。'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('取消'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('确认淘汰'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    final service = ref.read(playerServiceProvider);
+    if (service.currentUrl != currentUrl) return;
+    service.rejectCurrentRoute();
+    final deleted = await ref.read(databaseProvider).blockAndDeleteStreamUrl(
+      currentUrl,
+      reason: 'user_reported_wrong_content',
+    );
+    final switched = alternatives.isNotEmpty &&
+        await service.switchCurrentRoute(alternatives.first);
+    if (!switched) await service.stop();
+    if (!mounted) return;
+    await _loadGroupChannels(_selectedGroup, preserveScroll: true);
+    await ref.read(streamAlternativesProvider)
+        .rebuildForChannels(_allChannels);
+    if (!mounted) return;
+    final activeUrl = service.currentUrl;
+    final replacement = _filteredChannels.indexWhere(
+      (channel) => channel.streamUrl == activeUrl,
+    );
+    setState(() {
+      _selectedIndex = replacement;
+      _previewChannel = replacement < 0 ? null : _filteredChannels[replacement];
+    });
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text('已淘汰当前线路，移除 $deleted 条重复记录'),
     ));
   }
 
@@ -2260,6 +2400,8 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                             color: Colors.white24, size: 76))
                         : GestureDetector(
                             onDoubleTap: () => _goFullscreen(channel),
+                            onSecondaryTapUp: (details) =>
+                                _showCurrentRouteMenu(details.globalPosition),
                             child: _buildActiveVideo(),
                           ),
                   ),
@@ -2439,7 +2581,9 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                         Text(
                           _routeAvailabilityLoading
                               ? '正在核对线路…'
-                              : '当前分类暂无近期通过检查的频道',
+                              : _selectedGroup == 'Favorites'
+                                  ? '还没有收藏的频道'
+                                  : '当前分类暂无近期通过检查的频道',
                           textAlign: TextAlign.center,
                           style: const TextStyle(color: Colors.white54),
                         ),
@@ -2488,6 +2632,11 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                                 onTap: () => _selectChannel(index),
                                 onDoubleTap: () =>
                                     _selectChannel(index, force: true),
+                                onSecondaryTapUp: selected &&
+                                        service.currentUrl != null
+                                    ? (details) => _showCurrentRouteMenu(
+                                        details.globalPosition)
+                                    : null,
                               ),
                             );
                           },
@@ -2509,6 +2658,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
     required VideoController? previewController,
     required VoidCallback onTap,
     required VoidCallback onDoubleTap,
+    GestureTapUpCallback? onSecondaryTapUp,
   }) {
     const accents = <Color>[
       Color(0xFF677FAE), Color(0xFF74669B), Color(0xFF467F85),
@@ -2519,7 +2669,9 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
     final hasLogo = logoUrl != null &&
         (logoUrl.startsWith('https://') || logoUrl.startsWith('http://'));
     final name = _channelDisplayName(channel);
-    return AnimatedScale(
+    return GestureDetector(
+      onSecondaryTapUp: onSecondaryTapUp,
+      child: AnimatedScale(
       scale: selected ? 1.025 : 1,
       duration: const Duration(milliseconds: 180),
       curve: Curves.easeOutCubic,
@@ -2648,6 +2800,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
             ),
           ),
         ),
+      ),
       ),
     );
   }
@@ -3086,6 +3239,8 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                       )
                     : GestureDetector(
                         onTap: () => _goFullscreen(_previewChannel!),
+                        onSecondaryTapUp: (details) =>
+                            _showCurrentRouteMenu(details.globalPosition),
                         child: Stack(
                           fit: StackFit.expand,
                           children: [

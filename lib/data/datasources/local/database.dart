@@ -285,13 +285,31 @@ class AppDatabase extends _$AppDatabase {
     String channelId,
     String streamUrl,
   ) async {
+    final owner = await (select(channels)
+          ..where((table) => table.id.equals(channelId)))
+        .getSingleOrNull();
+    if (owner == null) return 0;
+    return blockAndDeleteStreamUrl(
+      streamUrl,
+      reason: 'static_advertising_frame',
+    );
+  }
+
+  /// Permanently rejects one exact address across providers and imports.
+  Future<int> blockAndDeleteStreamUrl(
+    String streamUrl, {
+    required String reason,
+  }) async {
     await into(blockedStreamRoutes).insertOnConflictUpdate(
       BlockedStreamRoutesCompanion.insert(
         streamUrl: streamUrl,
-        reason: 'static_advertising_frame',
+        reason: reason,
       ),
     );
-    return deleteChannelRoute(channelId, streamUrl);
+    final matches = await (select(channels)
+          ..where((table) => table.streamUrl.equals(streamUrl)))
+        .get();
+    return deleteChannelsByIds(matches.map((channel) => channel.id));
   }
 
   Future<int> deleteChannelsByIds(Iterable<String> channelIds) async {

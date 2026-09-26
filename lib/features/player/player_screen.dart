@@ -666,6 +666,103 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     }
   }
 
+  Future<void> _showRouteMenu(Offset position) async {
+    if (widget.channels.isEmpty) return;
+    final service = ref.read(playerServiceProvider);
+    final currentUrl = service.currentUrl;
+    if (currentUrl == null) return;
+    final alternatives = service.currentAlternativeUrls.take(12).toList();
+    final overlay = Overlay.of(context).context.findRenderObject() as RenderBox;
+    final choice = await showMenu<int>(
+      context: context,
+      position: RelativeRect.fromLTRB(
+        position.dx,
+        position.dy,
+        overlay.size.width - position.dx,
+        overlay.size.height - position.dy,
+      ),
+      items: [
+        const PopupMenuItem<int>(
+          enabled: false,
+          child: Text('切换当前频道的线路'),
+        ),
+        PopupMenuItem<int>(
+          value: -3,
+          enabled: alternatives.isNotEmpty,
+          child: const Text('切换到下一条线路'),
+        ),
+        for (var index = 0; index < alternatives.length; index++)
+          PopupMenuItem<int>(
+            value: index,
+            child: Text('线路 ${index + 1} · '
+                '${Uri.tryParse(alternatives[index])?.host ?? '候选来源'}'),
+          ),
+        if (alternatives.isEmpty)
+          const PopupMenuItem<int>(
+            enabled: false,
+            child: Text('暂无其他候选线路'),
+          ),
+        const PopupMenuDivider(),
+        PopupMenuItem<int>(
+          value: -2,
+          child: Text(_isFavorite ? '管理收藏' : '加入收藏'),
+        ),
+        const PopupMenuItem<int>(
+          value: -1,
+          child: Text('淘汰当前线路'),
+        ),
+      ],
+    );
+    if (!mounted || choice == null || service.currentUrl != currentUrl) return;
+    if (choice == -2) {
+      _toggleFavorite();
+      return;
+    }
+    if (choice >= 0 || choice == -3) {
+      final selectedUrl = choice == -3
+          ? alternatives.first
+          : alternatives[choice];
+      final switched = await service.switchCurrentRoute(selectedUrl);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(switched ? '已切换到可播放线路' : '候选线路不可用，已保留当前画面'),
+      ));
+      return;
+    }
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('淘汰当前线路？'),
+        content: const Text('将屏蔽这个信号地址，其他线路会保留。此操作无法在界面中撤销。'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('取消'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('确认淘汰'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted || service.currentUrl != currentUrl) {
+      return;
+    }
+    service.rejectCurrentRoute();
+    final deleted = await ref.read(databaseProvider).blockAndDeleteStreamUrl(
+      currentUrl,
+      reason: 'user_reported_wrong_content',
+    );
+    final switched = alternatives.isNotEmpty &&
+        await service.switchCurrentRoute(alternatives.first);
+    if (!switched) await service.stop();
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text('已淘汰当前线路，移除 $deleted 条重复记录'),
+    ));
+  }
+
   void _adjustVolume(double delta) {
     setState(() {
       _volume = (_volume + delta).clamp(0.0, 100.0);
@@ -732,6 +829,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
           child: GestureDetector(
             onTap: _toggleOverlay,
             onDoubleTap: _toggleNativeFullscreen,
+            onSecondaryTapUp: (details) =>
+                _showRouteMenu(details.globalPosition),
             child: Stack(
               fit: StackFit.expand,
               children: [

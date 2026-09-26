@@ -26,6 +26,7 @@ import '../../data/services/epg_refresh_service.dart';
 import '../../data/services/stream_alternatives_service.dart';
 import '../../data/services/channel_name_normalizer.dart';
 import '../../data/services/source_visibility.dart';
+import '../../data/services/source_maintenance_service.dart';
 import '../player/player_service.dart';
 import '../player/stream_info_badges.dart';
 import '../providers/provider_manager.dart';
@@ -51,6 +52,9 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
   Map<String, int> _verifiedRouteCounts = {};
   Set<String> _verifiedRouteUrls = {};
   bool _routeAvailabilityLoading = false;
+  int _regionCheckedRoutes = 0;
+  int _regionTotalRoutes = 0;
+  final Map<String, String> _cardRouteSelection = {};
   List<String> _groups = List.of(ChannelCategoryClassifier.categories);
   String _selectedGroup = '央视';
   bool _simpleMode = true;
@@ -518,6 +522,8 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
         _routeAvailabilityLoading = true;
         _verifiedRouteCounts = {};
         _verifiedRouteUrls = {};
+        _regionCheckedRoutes = 0;
+        _regionTotalRoutes = 0;
         if (!preserveScroll) {
           _allChannels = [];
           _filteredChannels = [];
@@ -1100,6 +1106,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
   Future<void> _refreshRouteAvailability(
     List<db.Channel> channels,
     int generation,
+    {bool startRegionalScan = true}
   ) async {
     final checks = await ref.read(databaseProvider).getStreamChecksForChannels(channels);
     if (!mounted || generation != _categoryLoadGeneration) return;
@@ -1129,6 +1136,112 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
       _applyFilters();
     });
     _playFirstFilteredChannelForGroup(_selectedGroup);
+    if (startRegionalScan &&
+        ChannelCategoryClassifier.provinceCategories.contains(_selectedGroup)) {
+      unawaited(_verifyActiveRegion(channels, checks, generation));
+    }
+  }
+
+  Future<void> _verifyActiveRegion(
+    List<db.Channel> channels,
+    List<db.StreamCheck> checks,
+    int generation,
+  ) async {
+    final checkByRoute = <String, db.StreamCheck>{
+      for (final check in checks)
+        '${check.providerId}\u0000${check.streamUrl}': check,
+    };
+    final retryBefore = DateTime.now().subtract(const Duration(hours: 2));
+    final byChannel = <String, List<db.Channel>>{};
+    for (final channel in channels) {
+      if (_hideIpv6Sources && _isIpv6Channel(channel)) continue;
+      if (_hasInvalidStreamMetadata(channel)) continue;
+      final key = _automaticChannelKey(channel);
+      final groupKey = key.isEmpty ? channel.id : key;
+      if ((_verifiedRouteCounts[groupKey] ?? 0) > 0) continue;
+      final check = checkByRoute['${channel.providerId}\u0000${channel.streamUrl}'];
+      if (check?.retired == true ||
+          (check?.lastCheckedAt?.isAfter(retryBefore) ?? false)) continue;
+      (byChannel[groupKey] ??= []).add(channel);
+    }
+    final pending = <db.Channel>[];
+    for (final entries in byChannel.values) {
+      entries.sort((a, b) {
+        final aCheck = checkByRoute['${a.providerId}\u0000${a.streamUrl}'];
+        final bCheck = checkByRoute['${b.providerId}\u0000${b.streamUrl}'];
+        final aScore = (aCheck?.lastSuccessAt != null ? 100 : 0) -
+            (aCheck?.consecutiveFailures ?? 0) * 10;
+        final bScore = (bCheck?.lastSuccessAt != null ? 100 : 0) -
+            (bCheck?.consecutiveFailures ?? 0) * 10;
+        return bScore.compareTo(aScore);
+      });
+    }
+    for (var pass = 0; pass < 2 && pending.length < 120; pass++) {
+      for (final entries in byChannel.values) {
+        if (pass < entries.length && pending.length < 120) {
+          pending.add(entries[pass]);
+        }
+      }
+    }
+    if (pending.isEmpty || !mounted || generation != _categoryLoadGeneration) {
+      return;
+    }
+    setState(() {
+      _regionCheckedRoutes = 0;
+      _regionTotalRoutes = pending.length;
+    });
+    final database = ref.read(databaseProvider);
+    final maintenance = ref.read(sourceMaintenanceCoordinatorProvider)
+        .maintenanceService;
+    for (var offset = 0; offset < pending.length; offset += 4) {
+      if (!mounted || generation != _categoryLoadGeneration) return;
+      final batch = pending.skip(offset).take(4).toList();
+      final results = await Future.wait(batch.map((channel) async {
+        try {
+          return await maintenance.probeRoute(channel.streamUrl);
+        } catch (error, stackTrace) {
+          AppDiagnostics.instance.recordError(
+              'region_route_probe', error, stackTrace);
+          return false;
+        }
+      }));
+      if (!mounted || generation != _categoryLoadGeneration) return;
+      final now = DateTime.now();
+      final updates = <db.StreamChecksCompanion>[];
+      for (var index = 0; index < batch.length; index++) {
+        final channel = batch[index];
+        final previous = checkByRoute[
+            '${channel.providerId}\u0000${channel.streamUrl}'];
+        final decision = SourceMaintenancePolicy.evaluate(
+          success: results[index],
+          previousFailures: previous?.consecutiveFailures ?? 0,
+          previousFirstFailureAt: previous?.firstFailureAt,
+          previousLastSuccessAt: previous?.lastSuccessAt,
+          now: now,
+        );
+        updates.add(db.StreamChecksCompanion.insert(
+          streamUrl: channel.streamUrl,
+          providerId: channel.providerId,
+          channelId: channel.id,
+          consecutiveFailures: Value(decision.consecutiveFailures),
+          firstFailureAt: Value(decision.firstFailureAt),
+          lastCheckedAt: Value(now),
+          lastSuccessAt: Value(decision.lastSuccessAt),
+          retired: Value(decision.retired),
+        ));
+      }
+      await database.upsertStreamChecks(updates);
+      if (!mounted || generation != _categoryLoadGeneration) return;
+      setState(() => _regionCheckedRoutes = offset + batch.length);
+      await _refreshRouteAvailability(channels, generation,
+          startRegionalScan: false);
+    }
+    if (mounted && generation == _categoryLoadGeneration) {
+      setState(() {
+        _regionCheckedRoutes = 0;
+        _regionTotalRoutes = 0;
+      });
+    }
   }
 
   Future<void> _applyFavoriteListFilter(String listId) async {
@@ -1205,7 +1318,10 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
     _selectChannel(0);
   }
 
-  Future<void> _selectChannel(int index, {bool force = false}) async {
+  Future<void> _selectChannel(int index, {
+    bool force = false,
+    String? preferredUrl,
+  }) async {
     if (index < 0 || index >= _filteredChannels.length) return;
     final channel = _filteredChannels[index];
     final playerService = ref.read(playerServiceProvider);
@@ -1230,7 +1346,8 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
       if (hadPreview) await playerService.discardPreparedChannel();
       return;
     }
-    if (!force && index == _pendingChannelIndex) return;
+    if (!force && preferredUrl == null && index == _pendingChannelIndex) return;
+    if (preferredUrl != null) _cardRouteSelection[channel.id] = preferredUrl;
     final selectionGeneration = ++_channelSelectionGeneration;
     _pendingAutoplayGroup = null;
 
@@ -1238,6 +1355,11 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
     final groupMemberships = _failoverGroupIndex[channel.id];
     final failoverUrls = _automaticAlternativeUrls(channel,
         includeUnverified: true);
+    if (preferredUrl != null && preferredUrl != channel.streamUrl &&
+        !failoverUrls.contains(channel.streamUrl)) {
+      failoverUrls.add(channel.streamUrl);
+    }
+    failoverUrls.remove(preferredUrl);
     if (groupMemberships != null && groupMemberships.isNotEmpty) {
       final groupId = groupMemberships.first.group.id;
       final memberIds = _failoverGroupMembers[groupId] ?? [];
@@ -1260,7 +1382,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
     final hasActivePlayback = playerService.currentUrl != null &&
         (playerService.player.state.playing ||
             playerService.player.state.buffering);
-    final commitPreview = !force && _simpleMode && hasActivePlayback &&
+    final commitPreview = preferredUrl == null && !force && _simpleMode && hasActivePlayback &&
         _preparedChannelIndex == index &&
         playerService.preparedChannelId == channel.id;
     final prepareOnly = !force && _simpleMode && hasActivePlayback &&
@@ -1277,7 +1399,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
         ? await playerService.commitPreparedChannel(channel.id)
         : hasActivePlayback
           ? await playerService.switchChannel(
-            channel.streamUrl,
+            preferredUrl ?? channel.streamUrl,
             channelId: channel.id,
             epgChannelId: _getEpgId(channel),
             tvgId: channel.tvgId,
@@ -1287,6 +1409,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
             failoverGroupUrls: failoverUrls,
             allowAudioOnly: _allowsAudioOnly(channel),
             previewOnly: prepareOnly,
+            preferRequestedRoute: preferredUrl != null,
           )
           : true;
     } catch (error, stackTrace) {
@@ -1299,7 +1422,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
     }
     if (!hasActivePlayback) {
       unawaited(playerService.play(
-        channel.streamUrl,
+        preferredUrl ?? channel.streamUrl,
         channelId: channel.id,
         epgChannelId: _getEpgId(channel),
         tvgId: channel.tvgId,
@@ -1442,6 +1565,85 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
       content: Text(switched ? '已切换到可播放线路' : '候选线路不可用，已保留当前画面'),
     ));
+  }
+
+  Future<void> _showCardRouteMenu(
+      db.Channel channel, Offset position) async {
+    final service = ref.read(playerServiceProvider);
+    final urls = <String>[
+      channel.streamUrl,
+      ..._automaticAlternativeUrls(channel, includeUnverified: true),
+    ].where((url) => url.isNotEmpty).toSet().toList();
+    final lastUrl = service.preparedChannelId == channel.id
+        ? service.preparedChannelUrl ?? channel.streamUrl
+        : _cardRouteSelection[channel.id] ?? channel.streamUrl;
+    final alternatives = urls.where((url) => url != lastUrl).toList();
+    final overlay = Overlay.of(context).context.findRenderObject() as RenderBox;
+    final choice = await showMenu<int>(
+      context: context,
+      position: RelativeRect.fromLTRB(
+        position.dx, position.dy,
+        overlay.size.width - position.dx,
+        overlay.size.height - position.dy,
+      ),
+      items: [
+        PopupMenuItem<int>(enabled: false,
+            child: Text('${_channelDisplayName(channel)} · 候选线路')),
+        PopupMenuItem<int>(value: -3, enabled: alternatives.isNotEmpty,
+            child: const Text('切换到下一条线路')),
+        for (var routeIndex = 0; routeIndex < urls.length; routeIndex++)
+          PopupMenuItem<int>(value: routeIndex,
+              child: Text(_routeMenuLabel(urls[routeIndex], routeIndex + 1))),
+        if (alternatives.isEmpty)
+          const PopupMenuItem<int>(enabled: false,
+              child: Text('暂无其他候选线路')),
+        const PopupMenuDivider(),
+        PopupMenuItem<int>(value: -2,
+            child: Text(_favoritedChannelIds.contains(channel.id)
+                ? '管理收藏' : '加入收藏')),
+        PopupMenuItem<int>(value: -1, enabled: lastUrl.isNotEmpty,
+            child: const Text('淘汰当前线路')),
+      ],
+    );
+    if (!mounted || choice == null) return;
+    if (choice == -2) {
+      await _showFavoriteListSheet(channel);
+      return;
+    }
+    if (choice == -1) {
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('淘汰这条线路？'),
+          content: const Text('将屏蔽这个信号地址，其他线路会保留。此操作无法在界面中撤销。'),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(context, false),
+                child: const Text('取消')),
+            FilledButton(onPressed: () => Navigator.pop(context, true),
+                child: const Text('确认淘汰')),
+          ],
+        ),
+      );
+      if (confirmed != true || !mounted) return;
+      if (service.preparedChannelId == channel.id) {
+        await service.discardPreparedChannel();
+      }
+      final deleted = await ref.read(databaseProvider).blockAndDeleteStreamUrl(
+          lastUrl, reason: 'user_reported_wrong_content');
+      _cardRouteSelection.remove(channel.id);
+      if (!mounted) return;
+      await _loadGroupChannels(_selectedGroup, preserveScroll: true);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text('已淘汰线路，移除 $deleted 条重复记录'),
+      ));
+      return;
+    }
+    final selectedUrl = choice == -3 ? alternatives.first : urls[choice];
+    final currentIndex = _filteredChannels.indexWhere(
+        (item) => item.id == channel.id);
+    if (currentIndex < 0) return;
+    await _selectChannel(currentIndex, preferredUrl: selectedUrl);
   }
 
   String _routeMenuLabel(String url, int number) {
@@ -2522,9 +2724,12 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                   fontSize: 22, fontWeight: FontWeight.w700,
                   letterSpacing: -0.4)),
               const Spacer(),
-              Text(_routeAvailabilityLoading
-                  ? '正在核对线路…'
-                  : '${_filteredChannels.length} 个频道',
+              Text(_regionTotalRoutes > 0
+                  ? '${_filteredChannels.length} 个频道 · 正在核对线路 '
+                      '$_regionCheckedRoutes/$_regionTotalRoutes'
+                  : _routeAvailabilityLoading
+                      ? '正在核对线路…'
+                      : '${_filteredChannels.length} 个频道',
                   style: const TextStyle(color: Colors.white54)),
             ],
           ),
@@ -2632,11 +2837,12 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                                 onTap: () => _selectChannel(index),
                                 onDoubleTap: () =>
                                     _selectChannel(index, force: true),
-                                onSecondaryTapUp: selected &&
-                                        service.currentUrl != null
-                                    ? (details) => _showCurrentRouteMenu(
-                                        details.globalPosition)
-                                    : null,
+                                onSecondaryTapUp: (details) =>
+                                    selected && service.currentUrl != null
+                                        ? _showCurrentRouteMenu(
+                                            details.globalPosition)
+                                        : _showCardRouteMenu(channel,
+                                            details.globalPosition),
                               ),
                             );
                           },

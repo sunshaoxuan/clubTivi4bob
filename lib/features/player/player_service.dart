@@ -30,6 +30,7 @@ class PlayerService {
   _PreparedChannel? _preparedChannel;
   Timer? _preparedChannelTimeout;
   String? get preparedChannelId => _preparedChannel?.channelId;
+  String? get preparedChannelUrl => _preparedChannel?.url;
   final _activePlayerController = StreamController<Player>.broadcast();
   Stream<Player> get activePlayerStream => _activePlayerController.stream;
   final ValueNotifier<bool> channelSwitching = ValueNotifier(false);

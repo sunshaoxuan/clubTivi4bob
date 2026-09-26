@@ -11,6 +11,7 @@ import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:media_kit/media_kit.dart' show Player;
 import 'package:media_kit_video/media_kit_video.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -104,8 +105,11 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
 
   // Volume state
   double _volume = 100.0;
+  double _preMuteVolume = 100.0;
   bool _showVolumeOverlay = false;
   Timer? _volumeOverlayTimer;
+  StreamSubscription<double>? _volumeSubscription;
+  StreamSubscription<Player>? _activePlayerSubscription;
 
   // Last channel for back/forth toggle (not a full history stack)
   int _previousIndex = -1;
@@ -176,6 +180,8 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
     _loadSearchHistory();
     // Auto-failover toast
     final ps = ref.read(playerServiceProvider);
+    _activePlayerSubscription = ps.activePlayerStream.listen(_bindVolumePlayer);
+    _bindVolumePlayer(ps.player);
     ps.onFailover = (message) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -408,6 +414,8 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
     _overlayTimer?.cancel();
     _nowPlayingTimer?.cancel();
     _volumeOverlayTimer?.cancel();
+    _volumeSubscription?.cancel();
+    _activePlayerSubscription?.cancel();
     _providersSub?.cancel();
     _channelsSub?.cancel();
     _longPressTimer?.cancel();
@@ -2099,12 +2107,77 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
     );
   }
 
+  void _bindVolumePlayer(Player player) {
+    _volumeSubscription?.cancel();
+    _volume = player.state.volume.clamp(0.0, 100.0);
+    if (_volume > 0) _preMuteVolume = _volume;
+    _volumeSubscription = player.stream.volume.listen((value) {
+      if (!mounted) return;
+      final volume = value.clamp(0.0, 100.0);
+      if ((_volume - volume).abs() < 0.01) return;
+      setState(() {
+        _volume = volume;
+        if (volume > 0) _preMuteVolume = volume;
+      });
+    });
+  }
+
+  void _setPreviewVolume(double value) {
+    final volume = value.clamp(0.0, 100.0);
+    setState(() {
+      _volume = volume;
+      if (volume > 0) _preMuteVolume = volume;
+    });
+    unawaited(ref.read(playerServiceProvider).setVolume(volume));
+  }
+
+  Widget _buildPreviewVolumeControl() {
+    return Container(
+      padding: const EdgeInsets.only(left: 3, right: 10),
+      decoration: BoxDecoration(
+        color: const Color(0xD90B1220),
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: Colors.white24),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          IconButton(
+            tooltip: _volume == 0 ? '取消静音' : '静音',
+            visualDensity: VisualDensity.compact,
+            icon: Icon(
+              _volume == 0
+                  ? Icons.volume_off_rounded
+                  : _volume < 50
+                      ? Icons.volume_down_rounded
+                      : Icons.volume_up_rounded,
+              color: Colors.white,
+              size: 19,
+            ),
+            onPressed: () => _setPreviewVolume(
+                _volume == 0 ? _preMuteVolume : 0),
+          ),
+          SizedBox(
+            width: 92,
+            child: Slider(
+              value: _volume,
+              min: 0,
+              max: 100,
+              onChanged: _setPreviewVolume,
+            ),
+          ),
+          Text('${_volume.round()}%',
+              style: const TextStyle(color: Colors.white70, fontSize: 11)),
+        ],
+      ),
+    );
+  }
+
   void _adjustVolume(double delta) {
     setState(() {
-      _volume = (_volume + delta).clamp(0.0, 100.0);
       _showVolumeOverlay = true;
     });
-    ref.read(playerServiceProvider).setVolume(_volume);
+    _setPreviewVolume(_volume + delta);
     _volumeOverlayTimer?.cancel();
     _volumeOverlayTimer = Timer(const Duration(milliseconds: 1500), () {
       if (mounted) setState(() => _showVolumeOverlay = false);
@@ -2621,6 +2694,12 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                             color: Colors.white, fontSize: 11,
                             fontWeight: FontWeight.w700, letterSpacing: 1)),
                       ),
+                    ),
+                  if (channel != null)
+                    Positioned(
+                      right: 12,
+                      bottom: 12,
+                      child: _buildPreviewVolumeControl(),
                     ),
                 ],
               ),
@@ -3451,6 +3530,11 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                           fit: StackFit.expand,
                           children: [
                             _buildActiveVideo(),
+                            Positioned(
+                              right: 8,
+                              bottom: 8,
+                              child: _buildPreviewVolumeControl(),
+                            ),
                             // Channel info overlay removed — info shown in panel to the right
                             if (_showVolumeOverlay)
                               Positioned(

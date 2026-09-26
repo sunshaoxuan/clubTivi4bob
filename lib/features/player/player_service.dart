@@ -26,6 +26,7 @@ class PlayerService {
   VideoController? _videoController;
   final ValueNotifier<VideoController?> activeVideoController = ValueNotifier(null);
   final ValueNotifier<VideoController?> previewVideoController = ValueNotifier(null);
+  final ValueNotifier<String?> channelPreviewProgress = ValueNotifier(null);
   _PreparedChannel? _preparedChannel;
   Timer? _preparedChannelTimeout;
   String? get preparedChannelId => _preparedChannel?.channelId;
@@ -284,8 +285,15 @@ class PlayerService {
     await _disposeWarmPlayer();
 
     try {
-      for (final candidateUrl in candidates) {
+      for (var candidateIndex = 0;
+          candidateIndex < candidates.length;
+          candidateIndex++) {
         if (request != _channelSwitchGeneration) return false;
+        final candidateUrl = candidates[candidateIndex];
+        if (previewOnly) {
+          channelPreviewProgress.value =
+              '正在檢查線路 ${candidateIndex + 1}/${candidates.length}';
+        }
         final candidate = Player(
           configuration: const PlayerConfiguration(
             bufferSize: 48 * 1024 * 1024,
@@ -386,6 +394,7 @@ class PlayerService {
       if (request == _channelSwitchGeneration) {
         _preparingChannelSwitch = false;
         channelSwitching.value = false;
+        channelPreviewProgress.value = null;
       }
     }
   }
@@ -399,6 +408,7 @@ class PlayerService {
     final prepared = _preparedChannel;
     _preparedChannel = null;
     previewVideoController.value = null;
+    channelPreviewProgress.value = null;
     if (prepared != null) {
       try {
         await prepared.player.dispose().timeout(const Duration(seconds: 2));
@@ -474,6 +484,7 @@ class PlayerService {
     required bool requireUltraHd,
   }) async {
     final deadline = DateTime.now().add(const Duration(seconds: 15));
+    final stopwatch = Stopwatch()..start();
     var startingPosition = candidate.state.position;
     var positionAdvanced = false;
     DateTime? readySince;
@@ -511,6 +522,19 @@ class PlayerService {
           'width': width,
           'height': height,
         });
+        return false;
+      }
+      if (!allowAudioOnly && positionAdvanced && hasAudio && !hasVideo &&
+          stopwatch.elapsed >= const Duration(seconds: 5)) {
+        AppDiagnostics.instance.log('channel_preload_audio_only', {
+          'positionMs': state.position.inMilliseconds,
+        });
+        return false;
+      }
+      if (state.buffering && !hasAudio && !hasVideo &&
+          state.position == Duration.zero &&
+          stopwatch.elapsed >= const Duration(seconds: 10)) {
+        AppDiagnostics.instance.log('channel_preload_no_signal');
         return false;
       }
       readySince = ready ? (readySince ?? DateTime.now()) : null;
@@ -1940,6 +1964,7 @@ class PlayerService {
     channelSwitching.dispose();
     activeVideoController.dispose();
     previewVideoController.dispose();
+    channelPreviewProgress.dispose();
     AppDiagnostics.instance.log('player_disposing', {
       'channel': _currentChannelName,
     });

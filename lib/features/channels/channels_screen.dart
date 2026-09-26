@@ -1200,11 +1200,11 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
     _selectChannel(0);
   }
 
-  Future<void> _selectChannel(int index) async {
+  Future<void> _selectChannel(int index, {bool force = false}) async {
     if (index < 0 || index >= _filteredChannels.length) return;
     // Skip if already selected — don't reload the stream
-    if (index == _selectedIndex && _pendingChannelIndex == null) return;
-    if (index == _pendingChannelIndex) return;
+    if (!force && index == _selectedIndex && _pendingChannelIndex == null) return;
+    if (!force && index == _pendingChannelIndex) return;
     final selectionGeneration = ++_channelSelectionGeneration;
     _pendingAutoplayGroup = null;
     final channel = _filteredChannels[index];
@@ -1236,11 +1236,12 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
     final hasActivePlayback = playerService.currentUrl != null &&
         (playerService.player.state.playing ||
             playerService.player.state.buffering);
-    final commitPreview = _simpleMode && hasActivePlayback &&
+    final commitPreview = !force && _simpleMode && hasActivePlayback &&
         _preparedChannelIndex == index &&
         playerService.preparedChannelId == channel.id;
-    final prepareOnly = _simpleMode && hasActivePlayback && !commitPreview;
-    if (hasActivePlayback && !commitPreview) {
+    final prepareOnly = !force && _simpleMode && hasActivePlayback &&
+        !commitPreview;
+    if (hasActivePlayback && !commitPreview && !force) {
       setState(() {
         _pendingChannelIndex = index;
         _preparedChannelIndex = null;
@@ -1248,7 +1249,9 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
     }
     bool switched;
     try {
-      switched = commitPreview
+      switched = force
+        ? true
+        : commitPreview
         ? await playerService.commitPreparedChannel(channel.id)
         : hasActivePlayback
           ? await playerService.switchChannel(
@@ -1269,7 +1272,10 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
           'channel_preload', error, stackTrace);
       switched = false;
     }
-    if (!hasActivePlayback) {
+    if (force) {
+      await playerService.discardPreparedChannel();
+    }
+    if (!hasActivePlayback || force) {
       unawaited(playerService.play(
         channel.streamUrl,
         channelId: channel.id,
@@ -2260,13 +2266,20 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                                 _preparedChannelIndex == index &&
                                 service.preparedChannelId == channel.id &&
                                 previewController != null;
-                            return _buildSimpleChannelTile(
-                              channel,
-                              selected: selected,
-                              loading: index == _pendingChannelIndex,
-                              previewController:
-                                  previewing ? previewController : null,
-                              onTap: () => _selectChannel(index),
+                            return ValueListenableBuilder<String?>(
+                              valueListenable: service.channelPreviewProgress,
+                              builder: (context, progress, _) =>
+                                  _buildSimpleChannelTile(
+                                channel,
+                                selected: selected,
+                                loading: index == _pendingChannelIndex,
+                                loadingLabel: progress,
+                                previewController:
+                                    previewing ? previewController : null,
+                                onTap: () => _selectChannel(index),
+                                onDoubleTap: () =>
+                                    _selectChannel(index, force: true),
+                              ),
                             );
                           },
                         );
@@ -2283,8 +2296,10 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
     db.Channel channel, {
     required bool selected,
     required bool loading,
+    required String? loadingLabel,
     required VideoController? previewController,
     required VoidCallback onTap,
+    required VoidCallback onDoubleTap,
   }) {
     const accents = <Color>[
       Color(0xFF677FAE), Color(0xFF74669B), Color(0xFF467F85),
@@ -2325,6 +2340,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
             child: InkWell(
               hoverColor: Colors.white.withValues(alpha: 0.12),
               onTap: onTap,
+              onDoubleTap: onDoubleTap,
               child: Stack(
                 fit: StackFit.expand,
                 children: [
@@ -2404,7 +2420,9 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                           children: [
                             Text(previewController != null
                                 ? '再點一次正式切換'
-                                : '备选 ${_verifiedAlternativeCount(channel)} 条',
+                                : loading
+                                    ? (loadingLabel ?? '尋找線路中')
+                                    : '備選 ${_verifiedAlternativeCount(channel)} 條 · 雙擊切換',
                                 style: const TextStyle(
                                     color: Colors.white70, fontSize: 11)),
                             const Spacer(),

@@ -54,6 +54,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   bool _isFavorite = false;
   int _channelSwitchGeneration = 0;
   bool _nativeFullscreen = false;
+  bool _leavingPlayer = false;
+  Rect? _windowBoundsBeforeFullscreen;
+  bool _windowWasMaximized = false;
+  bool _showCursor = true;
+  Timer? _cursorTimer;
   StreamSubscription<Tracks>? _tracksSubscription;
   StreamSubscription<bool>? _bufferingSubscription;
   StreamSubscription<Player>? _activePlayerSubscription;
@@ -137,6 +142,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       },
     );
     _autoHideOverlay();
+    _scheduleCursorHide();
     _loadEpgInfo();
     _loadFavoriteState();
   }
@@ -519,6 +525,20 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     });
   }
 
+  void _scheduleCursorHide() {
+    _cursorTimer?.cancel();
+    _cursorTimer = Timer(const Duration(seconds: 4), () {
+      if (mounted) setState(() => _showCursor = false);
+    });
+  }
+
+  void _onPointerActivity() {
+    if (!_showCursor && mounted) setState(() => _showCursor = true);
+    if (!_showOverlay && mounted) setState(() => _showOverlay = true);
+    _autoHideOverlay();
+    _scheduleCursorHide();
+  }
+
   void _toggleOverlay() {
     setState(() => _showOverlay = !_showOverlay);
     if (_showOverlay) _autoHideOverlay();
@@ -530,6 +550,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   Future<void> _setNativeFullscreen(bool value) async {
     if (!_supportsNativeFullscreen) return;
     if (value) {
+      _windowWasMaximized = await windowManager.isMaximized();
+      _windowBoundsBeforeFullscreen = await windowManager.getBounds();
       await windowManager.setTitleBarStyle(TitleBarStyle.hidden);
       await windowManager.setFullScreen(true);
       await windowManager.setAlwaysOnTop(true);
@@ -538,16 +560,27 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       await windowManager.setAlwaysOnTop(false);
       await windowManager.setFullScreen(false);
       await windowManager.setTitleBarStyle(TitleBarStyle.normal);
-      if (Platform.isWindows) await windowManager.maximize();
+      if (_windowWasMaximized) {
+        await windowManager.maximize();
+      } else if (_windowBoundsBeforeFullscreen != null) {
+        await windowManager.setBounds(_windowBoundsBeforeFullscreen!);
+      }
+      _windowBoundsBeforeFullscreen = null;
     }
     if (mounted) setState(() => _nativeFullscreen = value);
   }
 
   Future<void> _toggleNativeFullscreen() async {
-    await _setNativeFullscreen(!_nativeFullscreen);
+    if (_nativeFullscreen) {
+      await _leavePlayer();
+    } else {
+      await _setNativeFullscreen(true);
+    }
   }
 
   Future<void> _leavePlayer() async {
+    if (_leavingPlayer) return;
+    _leavingPlayer = true;
     if (_supportsNativeFullscreen) await _setNativeFullscreen(false);
     if (!mounted) return;
     GoRouter.of(context).canPop()
@@ -572,7 +605,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
         return KeyEventResult.handled;
       }
       if (_nativeFullscreen) {
-        _setNativeFullscreen(false);
+        unawaited(_leavePlayer());
         return KeyEventResult.handled;
       }
       _leavePlayer();
@@ -801,10 +834,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     _activePlayerSubscription?.cancel();
     _castStatusSubscription?.cancel();
     _overlayTimer?.cancel();
+    _cursorTimer?.cancel();
     _volumeTimer?.cancel();
     _tracksSubscription?.cancel();
     _bufferingSubscription?.cancel();
-    if (_supportsNativeFullscreen) {
+    if (_supportsNativeFullscreen && _nativeFullscreen) {
       unawaited(_setNativeFullscreen(false));
     }
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
@@ -822,10 +856,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       child: Scaffold(
         backgroundColor: Colors.black,
         body: MouseRegion(
-          onHover: (_) {
-            if (!_showOverlay) setState(() => _showOverlay = true);
-            _autoHideOverlay();
-          },
+          cursor: _showCursor ? MouseCursor.defer : SystemMouseCursors.none,
+          onEnter: (_) => _onPointerActivity(),
+          onHover: (_) => _onPointerActivity(),
           child: GestureDetector(
             onTap: _toggleOverlay,
             onDoubleTap: _toggleNativeFullscreen,

@@ -351,15 +351,20 @@ class PlayerService {
     required bool allowAudioOnly,
     required bool requireUltraHd,
   }) async {
-    final deadline = DateTime.now().add(const Duration(seconds: 12));
-    var lastPosition = candidate.state.position;
-    var goodSamples = 0;
+    final deadline = DateTime.now().add(const Duration(seconds: 15));
+    var startingPosition = candidate.state.position;
+    var positionAdvanced = false;
+    DateTime? readySince;
     while (DateTime.now().isBefore(deadline)) {
       if (request != _channelSwitchGeneration) return false;
       final state = candidate.state;
-      final advanced = state.position - lastPosition >=
-          const Duration(milliseconds: 200);
-      if (advanced) lastPosition = state.position;
+      if (state.position < startingPosition) {
+        startingPosition = state.position;
+        positionAdvanced = false;
+      } else if (state.position - startingPosition >=
+          const Duration(milliseconds: 250)) {
+        positionAdvanced = true;
+      }
       final hasVideo = state.tracks.video.any(
         (track) => track.id != 'auto' && track.id != 'no',
       );
@@ -375,15 +380,34 @@ class PlayerService {
         hasAudioTrack: hasAudio,
         width: width,
         height: height,
-        advanced: advanced,
+        advanced: positionAdvanced,
         allowAudioOnly: allowAudioOnly,
       );
       if (requireUltraHd && width > 0 && height > 0 &&
-          width < 3000 && height < 1700) return false;
-      goodSamples = ready ? goodSamples + 1 : 0;
-      if (goodSamples >= 3) return true;
+          width < 3000 && height < 1700) {
+        AppDiagnostics.instance.log('channel_preload_rejected_resolution', {
+          'width': width,
+          'height': height,
+        });
+        return false;
+      }
+      readySince = ready ? (readySince ?? DateTime.now()) : null;
+      if (readySince != null &&
+          DateTime.now().difference(readySince) >=
+              const Duration(milliseconds: 700)) return true;
       await Future<void>.delayed(const Duration(milliseconds: 300));
     }
+    final state = candidate.state;
+    AppDiagnostics.instance.log('channel_preload_timeout_state', {
+      'playing': state.playing,
+      'buffering': state.buffering,
+      'positionMs': state.position.inMilliseconds,
+      'positionAdvanced': positionAdvanced,
+      'videoTracks': state.tracks.video.map((track) => track.id).toList(),
+      'audioTracks': state.tracks.audio.map((track) => track.id).toList(),
+      'width': state.width,
+      'height': state.height,
+    });
     return false;
   }
 

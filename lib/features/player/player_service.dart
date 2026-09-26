@@ -326,6 +326,11 @@ class PlayerService {
           candidateIndex++) {
         if (request != _channelSwitchGeneration) return false;
         final candidateUrl = candidates[candidateIndex];
+        AppDiagnostics.instance.log('channel_preload_candidate_started', {
+          'channel': channelName,
+          'index': candidateIndex + 1,
+          'stream': AppDiagnostics.summarizeStreamUrl(candidateUrl),
+        });
         if (previewOnly) {
           channelPreviewProgress.value =
               '正在检查线路 ${candidateIndex + 1}/${candidates.length}';
@@ -565,6 +570,9 @@ class PlayerService {
           stopwatch.elapsed >= const Duration(seconds: 5)) {
         AppDiagnostics.instance.log('channel_preload_audio_only', {
           'positionMs': state.position.inMilliseconds,
+          'width': width,
+          'height': height,
+          'videoTracks': state.tracks.video.map((track) => track.id).toList(),
         });
         return false;
       }

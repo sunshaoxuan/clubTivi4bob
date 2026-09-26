@@ -1127,9 +1127,10 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
     final verifiedUrls = <String>{};
     for (final channel in channels) {
       final check = checkByRoute['${channel.providerId}\u0000${channel.streamUrl}'];
+      final lastVerifiedAt = check?.lastCheckedAt ?? check?.lastSuccessAt;
       if (check == null || check.retired || check.consecutiveFailures != 0 ||
-          check.lastSuccessAt == null || check.lastCheckedAt == null ||
-          check.lastCheckedAt!.isBefore(recent)) continue;
+          check.lastSuccessAt == null || lastVerifiedAt == null ||
+          lastVerifiedAt.isBefore(recent)) continue;
       final key = _automaticChannelKey(channel);
       (validByChannel[key.isEmpty ? channel.id : key] ??= <String>{})
           .add(channel.streamUrl);
@@ -1667,7 +1668,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
         ? ''
         : ref.read(streamAlternativesProvider)
             .providerName(source.providerId);
-    final detail = provider.isEmpty ? host : provider;
+    final detail = provider.isEmpty ? host : '$host · $provider';
     return '线路 $number${detail.isEmpty ? '' : ' · $detail'}';
   }
 

@@ -1513,6 +1513,15 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
     final overlay = Overlay.of(context).context.findRenderObject() as RenderBox;
     final choice = await showMenu<int>(
       context: context,
+      color: const Color(0xFF172439),
+      elevation: 20,
+      shadowColor: Colors.black54,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(20),
+        side: const BorderSide(color: Color(0xFF536683)),
+      ),
+      constraints: const BoxConstraints(
+        minWidth: 340, maxWidth: 380, maxHeight: 620),
       position: RelativeRect.fromLTRB(
         position.dx,
         position.dy,
@@ -1520,37 +1529,25 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
         overlay.size.height - position.dy,
       ),
       items: [
-        const PopupMenuItem<int>(
-          enabled: false,
-          child: Text('切换当前频道的线路'),
-        ),
-        PopupMenuItem<int>(
-          value: -3,
-          enabled: alternatives.isNotEmpty,
-          child: const Text('切换到下一条线路'),
-        ),
+        _routeMenuHeader(_previewChannel == null
+            ? '当前频道' : _channelDisplayName(_previewChannel!),
+            alternatives.length + 1),
+        _routeMenuAction(-3, Icons.skip_next_rounded, '切换到下一条线路',
+            '先检查线路，成功后切换',
+            enabled: alternatives.isNotEmpty),
+        const PopupMenuDivider(height: 14),
+        _routeMenuRoute(currentUrl, 1, null, current: true),
         for (var index = 0; index < alternatives.length; index++)
-          PopupMenuItem<int>(
-            value: index,
-            child: Text(_routeMenuLabel(alternatives[index], index + 1)),
-          ),
+          _routeMenuRoute(alternatives[index], index + 2, index),
         if (alternatives.isEmpty)
-          const PopupMenuItem<int>(
-            enabled: false,
-            child: Text('暂无其他候选线路'),
-          ),
-        const PopupMenuDivider(),
+          _routeMenuEmpty(),
+        const PopupMenuDivider(height: 14),
         if (_previewChannel != null)
-          PopupMenuItem<int>(
-            value: -2,
-            child: Text(_favoritedChannelIds.contains(_previewChannel!.id)
-                ? '管理收藏'
-                : '加入收藏'),
-          ),
-        const PopupMenuItem<int>(
-          value: -1,
-          child: Text('淘汰当前线路'),
-        ),
+          _routeMenuAction(-2, Icons.star_outline_rounded,
+              _favoritedChannelIds.contains(_previewChannel!.id)
+                  ? '管理收藏' : '加入收藏', '保存常看的频道'),
+        _routeMenuAction(-1, Icons.block_rounded, '淘汰当前线路',
+            '从候选线路中移除', danger: true),
       ],
     );
     if (!mounted || choice == null || service.currentUrl != currentUrl) return;
@@ -1590,28 +1587,38 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
     final overlay = Overlay.of(context).context.findRenderObject() as RenderBox;
     final choice = await showMenu<int>(
       context: context,
+      color: const Color(0xFF172439),
+      elevation: 20,
+      shadowColor: Colors.black54,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(20),
+        side: const BorderSide(color: Color(0xFF536683)),
+      ),
+      constraints: const BoxConstraints(
+        minWidth: 340, maxWidth: 380, maxHeight: 620),
       position: RelativeRect.fromLTRB(
         position.dx, position.dy,
         overlay.size.width - position.dx,
         overlay.size.height - position.dy,
       ),
       items: [
-        PopupMenuItem<int>(enabled: false,
-            child: Text('${_channelDisplayName(channel)} · 候选线路')),
-        PopupMenuItem<int>(value: -3, enabled: alternatives.isNotEmpty,
-            child: const Text('切换到下一条线路')),
+        _routeMenuHeader(_channelDisplayName(channel), urls.length),
+        _routeMenuAction(-3, Icons.skip_next_rounded, '切换到下一条线路',
+            '在卡片中预览下一条',
+            enabled: alternatives.isNotEmpty),
+        const PopupMenuDivider(height: 14),
         for (var routeIndex = 0; routeIndex < urls.length; routeIndex++)
-          PopupMenuItem<int>(value: routeIndex,
-              child: Text(_routeMenuLabel(urls[routeIndex], routeIndex + 1))),
+          _routeMenuRoute(urls[routeIndex], routeIndex + 1, routeIndex,
+              current: urls[routeIndex] == lastUrl),
         if (alternatives.isEmpty)
-          const PopupMenuItem<int>(enabled: false,
-              child: Text('暂无其他候选线路')),
-        const PopupMenuDivider(),
-        PopupMenuItem<int>(value: -2,
-            child: Text(_favoritedChannelIds.contains(channel.id)
-                ? '管理收藏' : '加入收藏')),
-        PopupMenuItem<int>(value: -1, enabled: lastUrl.isNotEmpty,
-            child: const Text('淘汰当前线路')),
+          _routeMenuEmpty(),
+        const PopupMenuDivider(height: 14),
+        _routeMenuAction(-2, Icons.star_outline_rounded,
+            _favoritedChannelIds.contains(channel.id)
+                ? '管理收藏' : '加入收藏', '保存常看的频道'),
+        _routeMenuAction(-1, Icons.block_rounded, '淘汰当前线路',
+            '从候选线路中移除',
+            enabled: lastUrl.isNotEmpty, danger: true),
       ],
     );
     if (!mounted || choice == null) return;
@@ -1655,7 +1662,144 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
     await _selectChannel(currentIndex, preferredUrl: selectedUrl);
   }
 
-  String _routeMenuLabel(String url, int number) {
+  PopupMenuItem<int> _routeMenuHeader(String channelName, int routeCount) {
+    return PopupMenuItem<int>(
+      enabled: false,
+      height: 72,
+      child: Row(
+        children: [
+          Container(
+            width: 38, height: 38,
+            decoration: BoxDecoration(
+              color: const Color(0xFF9BB5FF).withValues(alpha: 0.18),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: const Icon(Icons.live_tv_rounded,
+                color: Color(0xFFB9CAFF), size: 20),
+          ),
+          const SizedBox(width: 12),
+          Expanded(child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(channelName, maxLines: 1, overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(color: Colors.white,
+                      fontSize: 16, fontWeight: FontWeight.w700)),
+              const SizedBox(height: 3),
+              Text('$routeCount 条候选线路', style: const TextStyle(
+                  color: Color(0xFFA8B8D1), fontSize: 12)),
+            ],
+          )),
+        ],
+      ),
+    );
+  }
+
+  PopupMenuItem<int> _routeMenuAction(
+    int value, IconData icon, String title, String subtitle, {
+    bool enabled = true,
+    bool danger = false,
+  }) {
+    final accent = danger ? const Color(0xFFFFA4A4)
+        : const Color(0xFFB9CAFF);
+    return PopupMenuItem<int>(
+      value: value,
+      enabled: enabled,
+      height: 62,
+      child: Opacity(
+        opacity: enabled ? 1 : 0.45,
+        child: Row(
+          children: [
+            Container(
+              width: 34, height: 34,
+              decoration: BoxDecoration(
+                color: accent.withValues(alpha: 0.13),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Icon(icon, color: accent, size: 19),
+            ),
+            const SizedBox(width: 12),
+            Expanded(child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(title, maxLines: 1, overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(color: Colors.white,
+                        fontSize: 14, fontWeight: FontWeight.w600)),
+                const SizedBox(height: 3),
+                Text(subtitle, maxLines: 1, overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(color: Color(0xFFA8B8D1),
+                        fontSize: 11)),
+              ],
+            )),
+            if (value == -3)
+              const Icon(Icons.chevron_right_rounded,
+                  color: Color(0xFF9EAFCC), size: 20),
+          ],
+        ),
+      ),
+    );
+  }
+
+  PopupMenuItem<int> _routeMenuRoute(
+    String url, int number, int? value, {bool current = false}
+  ) {
+    final numberLabel = number.toString().padLeft(2, '0');
+    return PopupMenuItem<int>(
+      value: value,
+      enabled: value != null,
+      height: 59,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+        decoration: BoxDecoration(
+          color: current ? const Color(0xFF314465) : Colors.transparent,
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Row(
+          children: [
+            Text(numberLabel, style: const TextStyle(
+                color: Color(0xFF9AB0D4), fontSize: 13,
+                fontWeight: FontWeight.w700)),
+            const SizedBox(width: 12),
+            Expanded(child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('线路 $number', style: const TextStyle(
+                    color: Colors.white, fontSize: 13,
+                    fontWeight: FontWeight.w600)),
+                Text(_routeMenuDetail(url), maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(color: Color(0xFFA8B8D1),
+                        fontSize: 11)),
+              ],
+            )),
+            if (current)
+              Container(
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 7, vertical: 3),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFBDD0FF),
+                  borderRadius: BorderRadius.circular(7),
+                ),
+                child: const Text('当前', style: TextStyle(
+                    color: Color(0xFF14223A), fontSize: 10,
+                    fontWeight: FontWeight.w700)),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  PopupMenuItem<int> _routeMenuEmpty() => const PopupMenuItem<int>(
+    enabled: false,
+    height: 46,
+    child: Text('暂无其他候选线路', style: TextStyle(
+        color: Color(0xFFA8B8D1), fontSize: 12)),
+  );
+
+  String _routeMenuDetail(String url) {
     final host = Uri.tryParse(url)?.host ?? '';
     db.Channel? source;
     for (final channel in _allChannels) {
@@ -1669,7 +1813,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
         : ref.read(streamAlternativesProvider)
             .providerName(source.providerId);
     final detail = provider.isEmpty ? host : '$host · $provider';
-    return '线路 $number${detail.isEmpty ? '' : ' · $detail'}';
+    return detail.isEmpty ? '来源未知' : detail;
   }
 
   Future<void> _retireCurrentRoute(

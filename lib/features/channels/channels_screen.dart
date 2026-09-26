@@ -2048,7 +2048,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
     final selected = await showGeneralDialog<String>(
       context: context,
       barrierDismissible: true,
-      barrierLabel: '關閉地區選單',
+      barrierLabel: '关闭地区菜单',
       barrierColor: Colors.black26,
       transitionDuration: const Duration(milliseconds: 160),
       pageBuilder: (dialogContext, _, __) => Stack(
@@ -2083,20 +2083,20 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                   const Expanded(child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text('選擇地區', style: TextStyle(
+                      Text('选择地区', style: TextStyle(
                         color: Colors.white,
                         fontSize: 25,
                         fontWeight: FontWeight.w700,
                       )),
                       SizedBox(height: 4),
-                      Text('探索各地電視頻道', style: TextStyle(
+                      Text('探索各地电视频道', style: TextStyle(
                         color: Colors.white60,
                         fontSize: 13,
                       )),
                     ],
                   )),
                   IconButton(
-                    tooltip: '關閉',
+                    tooltip: '关闭',
                     onPressed: () => Navigator.of(dialogContext).pop(),
                     icon: const Icon(Icons.close_rounded, color: Colors.white70),
                   ),
@@ -2572,7 +2572,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                         Row(
                           children: [
                             Text(previewController == null
-                                ? '● LIVE' : '● 靜音預覽', style: const TextStyle(
+                                ? '● LIVE' : '● 静音预览', style: const TextStyle(
                                 color: Color(0xFFFFB8BD), fontSize: 10,
                                 fontWeight: FontWeight.w800,
                                 letterSpacing: 1)),
@@ -2601,10 +2601,10 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                         Row(
                           children: [
                             Text(previewController != null
-                                ? '再點一次正式切換'
+                                ? '再点一次正式切换'
                                 : loading
-                                    ? (loadingLabel ?? '尋找線路中')
-                                    : '備選 ${_verifiedAlternativeCount(channel)} 條 · 雙擊切換',
+                                    ? (loadingLabel ?? '寻找线路中')
+                                    : '备选 ${_verifiedAlternativeCount(channel)} 条 · 双击切换',
                                 style: const TextStyle(
                                     color: Colors.white70, fontSize: 11)),
                             const Spacer(),

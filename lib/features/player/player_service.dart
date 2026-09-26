@@ -292,7 +292,7 @@ class PlayerService {
         final candidateUrl = candidates[candidateIndex];
         if (previewOnly) {
           channelPreviewProgress.value =
-              '正在檢查線路 ${candidateIndex + 1}/${candidates.length}';
+              '正在检查线路 ${candidateIndex + 1}/${candidates.length}';
         }
         final candidate = Player(
           configuration: const PlayerConfiguration(

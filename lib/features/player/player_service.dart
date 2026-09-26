@@ -115,6 +115,7 @@ class PlayerService {
   /// Callback invoked when auto-failover switches streams.
   /// Provides the provider name or URL fragment for UI toast.
   void Function(String message)? onFailover;
+  void Function(String channelName)? onSourcesExhausted;
 
   /// Called after four matching frame samples show a route has displayed the
   /// same picture for roughly one minute.
@@ -479,7 +480,7 @@ class PlayerService {
 
   Future<bool> _waitForPreparedChannel(
     Player candidate,
-    int request, {
+    int? request, {
     required bool allowAudioOnly,
     required bool requireUltraHd,
   }) async {
@@ -489,7 +490,7 @@ class PlayerService {
     var positionAdvanced = false;
     DateTime? readySince;
     while (DateTime.now().isBefore(deadline)) {
-      if (request != _channelSwitchGeneration) return false;
+      if (request != null && request != _channelSwitchGeneration) return false;
       final state = candidate.state;
       if (state.position < startingPosition) {
         startingPosition = state.position;
@@ -555,6 +556,43 @@ class PlayerService {
       'height': state.height,
     });
     return false;
+  }
+
+  /// Decodes a discovered route in a separate muted player before import.
+  Future<bool> verifyDiscoveredVideoRoute(
+    String url, {
+    bool requireUltraHd = false,
+  }) async {
+    final candidate = Player(
+      configuration: const PlayerConfiguration(
+        bufferSize: 24 * 1024 * 1024,
+        logLevel: MPVLogLevel.warn,
+      ),
+    );
+    try {
+      final native = candidate.platform;
+      if (native is native_player.NativePlayer) {
+        await native.setProperty('mute', 'yes');
+      }
+      await candidate.setVolume(0);
+      VideoController(candidate);
+      await candidate.open(Media(url)).timeout(const Duration(seconds: 6));
+      return await _waitForPreparedChannel(
+        candidate,
+        null,
+        allowAudioOnly: false,
+        requireUltraHd: requireUltraHd,
+      );
+    } catch (error) {
+      AppDiagnostics.instance.log('discovered_video_probe_failed', {
+        'errorType': error.runtimeType.toString(),
+      });
+      return false;
+    } finally {
+      try {
+        await candidate.dispose().timeout(const Duration(seconds: 2));
+      } catch (_) {}
+    }
   }
 
   @visibleForTesting
@@ -1776,6 +1814,9 @@ class PlayerService {
           'candidateCount': 0,
           'retryAfterSeconds': 30,
         });
+        if (_currentChannelName != null) {
+          onSourcesExhausted?.call(_currentChannelName!);
+        }
         return;
       }
 
@@ -1837,6 +1878,9 @@ class PlayerService {
           'candidateCount': candidates.length,
           'retryAfterSeconds': 15,
         });
+        if (_currentChannelName != null) {
+          onSourcesExhausted?.call(_currentChannelName!);
+        }
       }
     } finally {
       _setFailoverSwitching(false);

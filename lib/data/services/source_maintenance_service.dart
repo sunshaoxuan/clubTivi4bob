@@ -76,6 +76,9 @@ class SourceMaintenanceService {
           ),
       _ownsDio = dio == null;
 
+  /// Checks a newly discovered route before it enters the playable catalogue.
+  Future<bool> probeRoute(String url) => _probe(url);
+
   Future<void> run() async {
     final now = DateTime.now();
     final checkBefore = now.subtract(checkInterval);

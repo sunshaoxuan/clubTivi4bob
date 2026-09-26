@@ -184,6 +184,9 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
         );
       }
     };
+    ps.onSourcesExhausted = (channelName) {
+      unawaited(_recoverChannelSources(channelName));
+    };
     // Watch providers table — reload when providers or channels change
     final database = ref.read(databaseProvider);
     Timer? debounce;
@@ -1323,6 +1326,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
         content: Text('新频道暂时无法播放，已保留原频道'),
         duration: Duration(seconds: 3),
       ));
+      unawaited(_recoverChannelSources(channel.name));
       return;
     }
     if (prepareOnly) {
@@ -1343,6 +1347,28 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
     });
     _showInfoOverlay(channel, currentIndex);
     _saveSession();
+  }
+
+  Future<void> _recoverChannelSources(String channelName) async {
+    final coordinator = ref.read(sourceMaintenanceCoordinatorProvider);
+    if (!coordinator.githubAiCrawler.config.enabled) return;
+    final imported = await coordinator.githubAiCrawler.recoverChannel(
+      channelName,
+      verifyRoute: (url) async {
+        if (!await coordinator.maintenanceService.probeRoute(url)) {
+          return false;
+        }
+        return ref.read(playerServiceProvider).verifyDiscoveredVideoRoute(
+          url,
+          requireUltraHd: ChannelNameNormalizer.isUltraHd(channelName),
+        );
+      },
+    );
+    if (!mounted || imported == 0) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text('$channelName：已找到并验证 $imported 条新线路'),
+      duration: const Duration(seconds: 4),
+    ));
   }
 
   /// Toggle between current channel and the last channel.

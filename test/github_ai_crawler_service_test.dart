@@ -355,4 +355,106 @@ void main() {
     openAi.close(force: true);
     await database.close();
   });
+
+  test('targeted recovery imports only verified matching television routes',
+      () async {
+    final database = db.AppDatabase.forTesting(NativeDatabase.memory());
+    final openAi = Dio();
+    openAi.interceptors.add(InterceptorsWrapper(onRequest: (options, handler) {
+      if (options.path.endsWith('/models')) {
+        handler.resolve(Response(
+          requestOptions: options,
+          statusCode: 200,
+          data: {'data': [{'id': 'gpt-test'}]},
+        ));
+        return;
+      }
+      final data = options.data as Map;
+      final schemaName =
+          ((data['response_format'] as Map)['json_schema'] as Map)['name'];
+      final content = schemaName == 'github_iptv_search_queries'
+          ? '{"queries":["CCTV5 plus iptv"]}'
+          : '{"paths":["unusual/live.data"]}';
+      handler.resolve(Response(
+        requestOptions: options,
+        statusCode: 200,
+        data: {'choices': [{'message': {'content': content}}]},
+      ));
+    }));
+    final github = Dio();
+    github.interceptors.add(InterceptorsWrapper(onRequest: (options, handler) {
+      Object data;
+      if (options.path.endsWith('/search/repositories')) {
+        data = {
+          'items': [{
+            'owner': {'login': 'sample'},
+            'name': 'iptv',
+            'default_branch': 'main',
+          }],
+        };
+      } else if (options.path.contains('/git/trees/main')) {
+        data = {
+          'sha': 'commit-2',
+          'truncated': false,
+          'tree': [{
+            'type': 'blob',
+            'path': 'unusual/live.data',
+            'size': 300,
+          }],
+        };
+      } else {
+        data = '#EXTM3U\n'
+            '${List.generate(3001, (index) => '#EXTINF:-1,Other $index\n'
+                'https://example.com/other-$index.m3u8\n').join()}'
+            '#EXTINF:-1,CCTV5\n'
+            '#EXTINF:-1,CCTV5+\n'
+            'https://example.com/cctv5plus-bad.m3u8\n'
+            '#EXTINF:-1,CCTV5+\n'
+            'https://example.com/cctv5plus-good.m3u8\n';
+      }
+      handler.resolve(Response(
+        requestOptions: options,
+        statusCode: 200,
+        data: data,
+      ));
+    }));
+    final probed = <String>[];
+    final service = GitHubAiCrawlerService(
+      database: database,
+      config: const OpenAiRuntimeConfig(
+        baseUrl: 'http://127.0.0.1:60813/v1',
+        apiKey: 'test-only-key',
+        model: 'gpt-test',
+      ),
+      githubDio: github,
+      openAiDio: openAi,
+    );
+    try {
+      final imported = await service.recoverChannel(
+        'CCTV5+',
+        verifyRoute: (url) async {
+          probed.add(url);
+          return url.endsWith('good.m3u8');
+        },
+      );
+      final channels = await database.getChannelsForProvider(
+        GitHubAiCrawlerService.providerId,
+      );
+      final checks = await database.getStreamChecksForChannels(channels);
+      expect(imported, 1);
+      expect(probed, hasLength(2));
+      expect(channels, hasLength(1));
+      expect(channels.single.name, 'CCTV5+');
+      expect(channels.single.streamUrl, endsWith('good.m3u8'));
+      expect(checks.single.lastSuccessAt, isNotNull);
+      expect(await service.recoverChannel(
+        'CCTV5+', verifyRoute: (_) async => true,
+      ), 0);
+    } finally {
+      service.dispose();
+      github.close(force: true);
+      openAi.close(force: true);
+      await database.close();
+    }
+  });
 }

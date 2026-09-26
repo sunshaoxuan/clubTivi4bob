@@ -9,6 +9,7 @@ import '../../core/app_diagnostics.dart';
 import '../datasources/local/database.dart' as db;
 import '../datasources/parsers/m3u_parser.dart';
 import 'channel_category_classifier.dart';
+import 'channel_name_normalizer.dart';
 
 class OpenAiRuntimeConfig {
   final String baseUrl;
@@ -109,6 +110,10 @@ class GitHubAiCrawlerService {
   final int maximumDocumentsPerRepository;
   final int maximumTreeFiles;
   final bool rethrowErrors;
+  final void Function(String stage, Map<String, Object> counts)?
+      onTargetedProgress;
+  bool _targetedRecoveryRunning = false;
+  final Map<String, DateTime> _lastTargetedRecovery = {};
 
   GitHubAiCrawlerService({
     required this.database,
@@ -119,6 +124,7 @@ class GitHubAiCrawlerService {
     this.maximumDocumentsPerRepository = _maximumDocumentsPerRepository,
     this.maximumTreeFiles = _maximumTreeFiles,
     this.rethrowErrors = false,
+    this.onTargetedProgress,
   }) : config = config ?? OpenAiRuntimeConfig.fromEnvironment(),
        _github =
            githubDio ??
@@ -239,6 +245,75 @@ class GitHubAiCrawlerService {
     }
   }
 
+  /// Searches for a failing channel without waiting for the daily broad crawl.
+  /// Only routes that pass a media probe are stored and marked as available.
+  Future<int> recoverChannel(
+    String channelName, {
+    required Future<bool> Function(String url) verifyRoute,
+  }) async {
+    final targetKey = ChannelNameNormalizer.normalize(channelName);
+    if (!config.enabled || targetKey.isEmpty || _targetedRecoveryRunning) {
+      return 0;
+    }
+    final now = DateTime.now();
+    final last = _lastTargetedRecovery[targetKey];
+    if (last != null && now.difference(last) < const Duration(hours: 3)) {
+      return 0;
+    }
+    _lastTargetedRecovery[targetKey] = now;
+    _targetedRecoveryRunning = true;
+    final deadline = now.add(const Duration(minutes: 3));
+    final probedUrls = <String>{};
+    var imported = 0;
+    try {
+      await _verifyModelAccess();
+      await _ensureCrawlerProvider();
+      final repositories = await _discoverRepositories(targetName: channelName);
+      onTargetedProgress?.call('repositories', {
+        'count': repositories.length,
+      });
+      for (final repository in repositories.take(8)) {
+        if (imported >= 3 ||
+            probedUrls.length >= 12 ||
+            DateTime.now().isAfter(deadline)) {
+          break;
+        }
+        onTargetedProgress?.call('repository', {'name': repository.key});
+        try {
+          final result = await _crawlRepository(
+            repository,
+            null,
+            targetName: channelName,
+            verifyRoute: verifyRoute,
+            probedUrls: probedUrls,
+            targetedDeadline: deadline,
+          );
+          imported += result.streamsImported;
+        } catch (error) {
+          AppDiagnostics.instance.log('github_ai_targeted_repository_failed', {
+            'repository': repository.key,
+            'errorType': error.runtimeType.toString(),
+          });
+        }
+      }
+      AppDiagnostics.instance.log('github_ai_targeted_completed', {
+        'channel': channelName,
+        'repositories': repositories.length.clamp(0, 8),
+        'probed': probedUrls.length,
+        'imported': imported,
+      });
+      return imported;
+    } catch (error, stackTrace) {
+      AppDiagnostics.instance.recordError(
+        'github_ai_targeted_recovery', error, stackTrace,
+      );
+      if (rethrowErrors) rethrow;
+      return imported;
+    } finally {
+      _targetedRecoveryRunning = false;
+    }
+  }
+
   Future<void> _verifyModelAccess() async {
     final response = await _openAi.get<Map<String, dynamic>>('/models');
     final data = response.data?['data'];
@@ -248,15 +323,22 @@ class GitHubAiCrawlerService {
     }
   }
 
-  Future<List<GitHubRepositoryCandidate>> _discoverRepositories() async {
+  Future<List<GitHubRepositoryCandidate>> _discoverRepositories({
+    String? targetName,
+  }) async {
     final repositories = <String, GitHubRepositoryCandidate>{};
-    final names = await database.getChannelNameSample();
+    final relevanceScores = <String, int>{};
+    final names = targetName == null
+        ? await database.getChannelNameSample()
+        : <String>[targetName];
     final queryResult = await _chatJson(
       name: 'github_iptv_search_queries',
       system: _safeSystemPrompt(
         'Generate concise GitHub repository search queries that can find public '
         'IPTV playlist collections with multiple live routes for the supplied '
-        'channel catalogue. Return two queries. Do not include URLs.',
+        'channel catalogue. Repository search matches repository metadata, so '
+        'include broad IPTV collection terms even if one channel is supplied. '
+        'Return two queries. Do not include URLs.',
       ),
       user: jsonEncode({'channelNames': names}),
       schema: {
@@ -271,18 +353,29 @@ class GitHubAiCrawlerService {
         'additionalProperties': false,
       },
     );
-    final queries = (queryResult['queries'] as List? ?? const [])
+    final aiQueries = (queryResult['queries'] as List? ?? const [])
         .map((item) => item.toString().trim())
         .where((item) => item.isNotEmpty && item.length <= 120)
-        .take(2);
+        .take(2)
+        .toList();
+    final targetedSearchName = targetName?.replaceFirstMapped(
+      RegExp(r'^CCTV\s*(\d+)', caseSensitive: false),
+      (match) => 'CCTV-${match.group(1)}',
+    );
+    final queries = <String>[
+      if (targetedSearchName != null)
+        '"$targetedSearchName" IPTV in:readme',
+      ...aiQueries,
+      if (targetName != null) 'iptv china',
+    ].toSet();
     for (final query in queries) {
       final response = await _github.get<Map<String, dynamic>>(
         '/search/repositories',
         queryParameters: {
           'q': '$query archived:false',
-          'sort': 'updated',
-          'order': 'desc',
-          'per_page': 5,
+          if (targetName == null) 'sort': 'updated',
+          if (targetName == null) 'order': 'desc',
+          'per_page': targetName == null ? 5 : 10,
         },
       );
       final items = response.data?['items'];
@@ -298,6 +391,12 @@ class GitHubAiCrawlerService {
           defaultRef: ref,
         );
         repositories[candidate.key] = candidate;
+        if (targetName != null) {
+          final description = item['description']?.toString() ?? '';
+          relevanceScores[candidate.key] = _repositoryRelevance(
+            '$repo $description',
+          );
+        }
       }
     }
 
@@ -312,6 +411,19 @@ class GitHubAiCrawlerService {
       configured[candidate.key] = candidate;
       repositories.remove(candidate.key);
     }
+    if (targetName != null) {
+      final order = repositories.keys.toList();
+      final ranked = repositories.values.toList()
+        ..sort((left, right) {
+          final byRelevance = (relevanceScores[right.key] ?? 0).compareTo(
+            relevanceScores[left.key] ?? 0,
+          );
+          return byRelevance != 0
+              ? byRelevance
+              : order.indexOf(left.key).compareTo(order.indexOf(right.key));
+        });
+      return [...ranked, ...configured.values];
+    }
     return [
       ...configured.values.take(3),
       ...repositories.values.take(2),
@@ -320,9 +432,29 @@ class GitHubAiCrawlerService {
     ];
   }
 
+  static int _repositoryRelevance(String metadata) {
+    final value = metadata.toLowerCase();
+    var score = 0;
+    if (value.contains('m3u') || value.contains('播放列表')) score += 8;
+    if (value.contains('直播源') || value.contains('live')) score += 5;
+    if (value.contains('采集') || value.contains('整合')) score += 3;
+    if (value.contains('组播')) score -= 8;
+    if (value.contains('epg') || value.contains('logo') ||
+        value.contains('台标')) score -= 8;
+    if (value.contains('工具') || value.contains('app') ||
+        value.contains('player') || value.contains('播放器')) score -= 5;
+    return score;
+  }
+
   Future<_RepositoryCrawlResult> _crawlRepository(
     GitHubRepositoryCandidate repository,
     db.GitHubCrawlRepository? saved,
+    {
+    String? targetName,
+    Future<bool> Function(String url)? verifyRoute,
+    Set<String>? probedUrls,
+    DateTime? targetedDeadline,
+    }
   ) async {
     final treeResponse = await _github.get<Map<String, dynamic>>(
       '/repos/${repository.owner}/${repository.repo}/git/trees/${repository.defaultRef}',
@@ -332,7 +464,8 @@ class GitHubAiCrawlerService {
     if (commit == null || commit.isEmpty) {
       throw StateError('Repository tree did not include a version');
     }
-    if (saved?.lastCommit == commit && saved?.lastSuccessAt != null) {
+    if (targetName == null &&
+        saved?.lastCommit == commit && saved?.lastSuccessAt != null) {
       await _saveRepositoryState(repository, commit: commit, success: true);
       return const _RepositoryCrawlResult();
     }
@@ -341,16 +474,42 @@ class GitHubAiCrawlerService {
         ? await _walkRepositoryContents(repository)
         : _treeFiles(treeResponse.data?['tree']);
 
-    final selectedPaths = await _selectCandidateFiles(repository, files);
+    final playlistPaths = targetName == null
+        ? <String>[]
+        : (files.where((file) => file.path.toLowerCase().endsWith('.m3u'))
+              .toList()..sort((left, right) => right.size.compareTo(left.size)))
+              .take(3)
+              .map((file) => file.path)
+              .toList();
+    final selectedPaths = playlistPaths.isNotEmpty
+        ? playlistPaths.toSet()
+        : await _selectCandidateFiles(
+            repository, files, targetName: targetName,
+          );
+    if (targetName != null) {
+      onTargetedProgress?.call('documents', {
+        'treeFiles': files.length,
+        'selected': selectedPaths.length,
+      });
+    }
+    final documentLimit = targetName == null
+        ? maximumDocumentsPerRepository
+        : maximumDocumentsPerRepository.clamp(0, 3);
     final queue = Queue<(String, int)>.from(
       selectedPaths
-          .take(maximumDocumentsPerRepository)
+          .take(documentLimit)
           .map((path) => (path, 0)),
     );
     final visited = <String>{};
     var documents = 0;
     var imported = 0;
-    while (queue.isNotEmpty && documents < maximumDocumentsPerRepository) {
+    while (queue.isNotEmpty && documents < documentLimit) {
+      if (targetedDeadline != null &&
+          DateTime.now().isAfter(targetedDeadline)) {
+        break;
+      }
+      if (targetName != null &&
+          (imported >= 3 || (probedUrls?.length ?? 0) >= 12)) break;
       final (path, depth) = queue.removeFirst();
       if (!visited.add(path)) continue;
       final content = await _fetchRawDocument(repository, path);
@@ -366,13 +525,42 @@ class GitHubAiCrawlerService {
             )
           : await _analyzeDocument(repository, path, content);
       documents++;
-      final streams = isM3u ? _parseM3u(content) : analysis.streams;
+      var streams = isM3u
+          ? _parseM3u(content, targetName: targetName)
+          : analysis.streams;
+      if (targetName != null) {
+        final targetKey = ChannelNameNormalizer.normalize(targetName);
+        final targetUltraHd = ChannelNameNormalizer.isUltraHd(targetName);
+        streams = streams.where((item) {
+          if (ChannelNameNormalizer.normalize(item.name) != targetKey) {
+            return false;
+          }
+          if (ChannelNameNormalizer.isUltraHd(item.name) != targetUltraHd) {
+            return false;
+          }
+          return !ChannelNameNormalizer.hasCctvSportsMetadataConflict(
+            names: [item.name, item.tvgId],
+            streamUrl: item.url,
+          );
+        }).toList();
+        onTargetedProgress?.call('matches', {'count': streams.length});
+        final verified = <AiExtractedStream>[];
+        for (final item in streams) {
+          if ((probedUrls?.length ?? 0) >= 12 || verified.length >= 3) break;
+          if (probedUrls?.add(item.url) == false) continue;
+          if (await verifyRoute!(item.url)) verified.add(item);
+        }
+        streams = verified;
+        onTargetedProgress?.call('verified', {'count': verified.length});
+      }
       imported += await _storeStreams(
         repository: repository,
         commit: commit,
         path: path,
         streams: streams,
         confidence: analysis.confidence,
+        replaceDocument: targetName == null,
+        markVerified: targetName != null,
       );
       if (depth < 2) {
         for (final link in analysis.followLinks) {
@@ -388,7 +576,9 @@ class GitHubAiCrawlerService {
         }
       }
     }
-    await _saveRepositoryState(repository, commit: commit, success: true);
+    if (targetName == null) {
+      await _saveRepositoryState(repository, commit: commit, success: true);
+    }
     return _RepositoryCrawlResult(
       documentsAnalyzed: documents,
       streamsImported: imported,
@@ -454,6 +644,7 @@ class GitHubAiCrawlerService {
   Future<Set<String>> _selectCandidateFiles(
     GitHubRepositoryCandidate repository,
     List<GitHubTreeFile> files,
+    {String? targetName}
   ) async {
     final selected = <String>{};
     for (var offset = 0; offset < files.length; offset += 400) {
@@ -464,10 +655,13 @@ class GitHubAiCrawlerService {
           'Review repository tree metadata. Select files likely to contain live '
           'stream records, playlist data, nested source indexes, generated output '
           'locations, or links to those files. Storage layout and file extension '
-          'may be arbitrary. Return no more than eight paths from this batch.',
+          'may be arbitrary. If a target channel is supplied, prioritize files '
+          'likely to contain that exact service. Return no more than eight '
+          'paths from this batch.',
         ),
         user: jsonEncode({
           'repository': repository.key,
+          'targetChannel': targetName,
           'files': [
             for (final item in batch) {'path': item.path, 'size': item.size},
           ],
@@ -597,9 +791,17 @@ class GitHubAiCrawlerService {
     ];
   }
 
-  List<AiExtractedStream> _parseM3u(String content) {
+  List<AiExtractedStream> _parseM3u(
+    String content, {
+    String? targetName,
+  }) {
     final result = _m3uParser.parse(content, providerId: providerId);
+    final targetKey = targetName == null
+        ? null
+        : ChannelNameNormalizer.normalize(targetName);
     return result.channels
+        .where((item) => targetKey == null ||
+            ChannelNameNormalizer.normalize(item.name) == targetKey)
         .take(3000)
         .map(
           (item) => AiExtractedStream(
@@ -620,6 +822,8 @@ class GitHubAiCrawlerService {
     required String path,
     required List<AiExtractedStream> streams,
     required double confidence,
+    bool replaceDocument = true,
+    bool markVerified = false,
   }) async {
     final now = DateTime.now();
     final documentUrl =
@@ -693,12 +897,28 @@ class GitHubAiCrawlerService {
     }
     await database.upsertChannels(channelEntries);
     await database.upsertDiscoveredStreamSources(provenanceEntries);
-    await database.deleteDiscoveredMissingFromDocument(
-      owner: repository.owner,
-      repo: repository.repo,
-      path: path,
-      currentChannelIds: channelIds,
-    );
+    if (markVerified && channelEntries.isNotEmpty) {
+      await database.upsertStreamChecks([
+        for (final item in channelEntries)
+          db.StreamChecksCompanion.insert(
+            streamUrl: item.streamUrl.value,
+            providerId: providerId,
+            channelId: item.id.value,
+            consecutiveFailures: const Value(0),
+            lastCheckedAt: Value(now),
+            lastSuccessAt: Value(now),
+            retired: const Value(false),
+          ),
+      ]);
+    }
+    if (replaceDocument) {
+      await database.deleteDiscoveredMissingFromDocument(
+        owner: repository.owner,
+        repo: repository.repo,
+        path: path,
+        currentChannelIds: channelIds,
+      );
+    }
     return channelEntries.length;
   }
 

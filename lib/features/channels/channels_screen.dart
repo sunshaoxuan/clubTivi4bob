@@ -60,6 +60,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
   // _showSearch removed — search bar is always visible in the top navbar
   int _selectedIndex = -1;
   int? _pendingChannelIndex;
+  int? _preparedChannelIndex;
   int _channelSelectionGeneration = 0;
   String? _pendingAutoplayGroup;
   db.Channel? _previewChannel;
@@ -753,8 +754,13 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
 
   Future<void> _setSimpleMode(bool value) async {
     if (_simpleMode == value) return;
+    if (!value) {
+      unawaited(ref.read(playerServiceProvider).discardPreparedChannel());
+    }
     setState(() {
       _simpleMode = value;
+      _preparedChannelIndex = null;
+      _pendingChannelIndex = null;
       _applyFilters();
     });
     final prefs = await SharedPreferences.getInstance();
@@ -1061,14 +1067,19 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
     return score;
   }
 
-  List<String> _automaticAlternativeUrls(db.Channel channel) {
+  List<String> _automaticAlternativeUrls(db.Channel channel,
+      {bool includeUnverified = false}) {
     final key = _automaticChannelKey(channel);
     if (key.isEmpty) return const [];
-    return (_automaticUrlsByKey[key] ?? const <String>[])
+    final urls = (_automaticUrlsByKey[key] ?? const <String>[])
         .where((url) =>
             url != channel.streamUrl &&
-            (!_simpleMode || _verifiedRouteUrls.contains(url)))
+            (includeUnverified || !_simpleMode || _verifiedRouteUrls.contains(url)))
         .toList();
+    urls.sort((a, b) =>
+        (_verifiedRouteUrls.contains(b) ? 1 : 0) -
+        (_verifiedRouteUrls.contains(a) ? 1 : 0));
+    return urls.take(12).toList();
   }
 
   int _verifiedRouteCount(db.Channel channel) {
@@ -1201,7 +1212,8 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
 
     // Merge legacy manual groups into the hidden automatic alternatives.
     final groupMemberships = _failoverGroupIndex[channel.id];
-    final failoverUrls = _automaticAlternativeUrls(channel);
+    final failoverUrls = _automaticAlternativeUrls(channel,
+        includeUnverified: true);
     if (groupMemberships != null && groupMemberships.isNotEmpty) {
       final groupId = groupMemberships.first.group.id;
       final memberIds = _failoverGroupMembers[groupId] ?? [];
@@ -1214,9 +1226,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
           .whereType<db.Channel>()
           .where((candidate) => _hasCompatibleQuality(channel, candidate))
           .map((candidate) => candidate.streamUrl)
-          .where((url) =>
-              url != channel.streamUrl &&
-              (!_simpleMode || _verifiedRouteUrls.contains(url)))
+          .where((url) => url != channel.streamUrl)
           .toList();
       for (final url in manualUrls) {
         if (!failoverUrls.contains(url)) failoverUrls.add(url);
@@ -1226,13 +1236,22 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
     final hasActivePlayback = playerService.currentUrl != null &&
         (playerService.player.state.playing ||
             playerService.player.state.buffering);
-    if (hasActivePlayback) {
-      setState(() => _pendingChannelIndex = index);
+    final commitPreview = _simpleMode && hasActivePlayback &&
+        _preparedChannelIndex == index &&
+        playerService.preparedChannelId == channel.id;
+    final prepareOnly = _simpleMode && hasActivePlayback && !commitPreview;
+    if (hasActivePlayback && !commitPreview) {
+      setState(() {
+        _pendingChannelIndex = index;
+        _preparedChannelIndex = null;
+      });
     }
     bool switched;
     try {
-      switched = hasActivePlayback
-        ? await playerService.switchChannel(
+      switched = commitPreview
+        ? await playerService.commitPreparedChannel(channel.id)
+        : hasActivePlayback
+          ? await playerService.switchChannel(
             channel.streamUrl,
             channelId: channel.id,
             epgChannelId: _getEpgId(channel),
@@ -1242,8 +1261,9 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
             originalName: channel.tvgName,
             failoverGroupUrls: failoverUrls,
             allowAudioOnly: _allowsAudioOnly(channel),
+            previewOnly: prepareOnly,
           )
-        : true;
+          : true;
     } catch (error, stackTrace) {
       AppDiagnostics.instance.recordError(
           'channel_preload', error, stackTrace);
@@ -1269,11 +1289,21 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
       return;
     }
     if (!switched) {
-      setState(() => _pendingChannelIndex = null);
+      setState(() {
+        _pendingChannelIndex = null;
+        _preparedChannelIndex = null;
+      });
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
         content: Text('新频道暂时无法播放，已保留原频道'),
         duration: Duration(seconds: 3),
       ));
+      return;
+    }
+    if (prepareOnly) {
+      setState(() {
+        _pendingChannelIndex = null;
+        _preparedChannelIndex = currentIndex;
+      });
       return;
     }
     if (_selectedIndex >= 0 && _selectedIndex != currentIndex) {
@@ -1281,6 +1311,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
     }
     setState(() {
       _pendingChannelIndex = null;
+      _preparedChannelIndex = null;
       _selectedIndex = currentIndex;
       _previewChannel = channel;
     });
@@ -2221,16 +2252,22 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                       itemBuilder: (context, index) {
                         final channel = _filteredChannels[index];
                         final selected = index == _selectedIndex;
-                        return _buildSimpleChannelTile(
-                          channel,
-                          selected: selected,
-                          loading: index == _pendingChannelIndex,
-                          onTap: () => _selectChannel(index),
-                          onDoubleTap: () async {
-                            await _selectChannel(index);
-                            if (mounted && _previewChannel?.id == channel.id) {
-                              _goFullscreen(channel);
-                            }
+                        final service = ref.read(playerServiceProvider);
+                        return ValueListenableBuilder<VideoController?>(
+                          valueListenable: service.previewVideoController,
+                          builder: (context, previewController, _) {
+                            final previewing =
+                                _preparedChannelIndex == index &&
+                                service.preparedChannelId == channel.id &&
+                                previewController != null;
+                            return _buildSimpleChannelTile(
+                              channel,
+                              selected: selected,
+                              loading: index == _pendingChannelIndex,
+                              previewController:
+                                  previewing ? previewController : null,
+                              onTap: () => _selectChannel(index),
+                            );
                           },
                         );
                       },
@@ -2246,8 +2283,8 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
     db.Channel channel, {
     required bool selected,
     required bool loading,
+    required VideoController? previewController,
     required VoidCallback onTap,
-    required VoidCallback onDoubleTap,
   }) {
     const accents = <Color>[
       Color(0xFF677FAE), Color(0xFF74669B), Color(0xFF467F85),
@@ -2288,11 +2325,20 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
             child: InkWell(
               hoverColor: Colors.white.withValues(alpha: 0.12),
               onTap: onTap,
-              onDoubleTap: onDoubleTap,
               child: Stack(
                 fit: StackFit.expand,
                 children: [
-                  Positioned.fill(
+                  if (previewController != null)
+                    Positioned.fill(
+                      child: IgnorePointer(
+                        child: Video(
+                          controller: previewController,
+                          controls: NoVideoControls,
+                          fill: Colors.black,
+                        ),
+                      ),
+                    )
+                  else Positioned.fill(
                     child: ImageFiltered(
                       imageFilter: ui.ImageFilter.blur(sigmaX: 13, sigmaY: 13),
                       child: Opacity(
@@ -2327,7 +2373,8 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                       children: [
                         Row(
                           children: [
-                            const Text('● LIVE', style: TextStyle(
+                            Text(previewController == null
+                                ? '● LIVE' : '● 靜音預覽', style: const TextStyle(
                                 color: Color(0xFFFFB8BD), fontSize: 10,
                                 fontWeight: FontWeight.w800,
                                 letterSpacing: 1)),
@@ -2336,6 +2383,9 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                               const SizedBox(width: 17, height: 17,
                                   child: CircularProgressIndicator(
                                       strokeWidth: 2, color: Colors.white))
+                            else if (previewController != null)
+                              const Icon(Icons.touch_app_rounded,
+                                  color: Colors.white, size: 19)
                             else if (selected)
                               const Icon(Icons.play_circle_fill_rounded,
                                   color: Colors.white, size: 19),
@@ -2352,7 +2402,9 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                         const SizedBox(height: 7),
                         Row(
                           children: [
-                            Text('备选 ${_verifiedAlternativeCount(channel)} 条',
+                            Text(previewController != null
+                                ? '再點一次正式切換'
+                                : '备选 ${_verifiedAlternativeCount(channel)} 条',
                                 style: const TextStyle(
                                     color: Colors.white70, fontSize: 11)),
                             const Spacer(),

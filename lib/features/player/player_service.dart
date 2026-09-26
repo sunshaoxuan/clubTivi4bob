@@ -25,6 +25,10 @@ class PlayerService {
   Player? _player;
   VideoController? _videoController;
   final ValueNotifier<VideoController?> activeVideoController = ValueNotifier(null);
+  final ValueNotifier<VideoController?> previewVideoController = ValueNotifier(null);
+  _PreparedChannel? _preparedChannel;
+  Timer? _preparedChannelTimeout;
+  String? get preparedChannelId => _preparedChannel?.channelId;
   final _activePlayerController = StreamController<Player>.broadcast();
   Stream<Player> get activePlayerStream => _activePlayerController.stream;
   final ValueNotifier<bool> channelSwitching = ValueNotifier(false);
@@ -234,7 +238,11 @@ class PlayerService {
     String? originalName,
     List<String>? failoverGroupUrls,
     bool allowAudioOnly = false,
+    bool previewOnly = false,
   }) async {
+    final request = ++_channelSwitchGeneration;
+    await discardPreparedChannel(invalidateRequest: false);
+    if (request != _channelSwitchGeneration) return false;
     if (_currentUrl == null ||
         !(player.state.playing || player.state.buffering)) {
       await play(url,
@@ -250,13 +258,25 @@ class PlayerService {
     }
     if (_currentChannelId == channelId && _currentUrl == url) return true;
 
-    final request = ++_channelSwitchGeneration;
     _preparingChannelSwitch = true;
     channelSwitching.value = true;
-    final candidates = <String>[
+    final candidateUrls = <String>[
       url,
       ...?failoverGroupUrls,
-    ].where((route) => route.isNotEmpty).toSet().take(3).toList();
+    ];
+    if (_alternatives != null) {
+      candidateUrls.addAll(_alternatives!.getAlternatives(
+        channelId: channelId ?? '',
+        epgChannelId: epgChannelId,
+        tvgId: tvgId,
+        channelName: channelName,
+        vanityName: vanityName,
+        originalName: originalName,
+        excludeUrl: url,
+      ));
+    }
+    final candidates = candidateUrls.where((route) => route.isNotEmpty)
+        .toSet().take(8).toList();
     AppDiagnostics.instance.log('channel_preload_started', {
       'channel': channelName,
       'candidateCount': candidates.length,
@@ -293,9 +313,34 @@ class PlayerService {
                 ChannelNameNormalizer.isUltraHd(tvgId ?? ''),
           );
           if (ready && request == _channelSwitchGeneration) {
+            if (previewOnly) {
+              // Ownership passes to the service while the preview is visible.
+              promoted = true;
+              _preparedChannel = _PreparedChannel(
+                player: candidate,
+                controller: controller,
+                url: candidateUrl,
+                channelId: channelId,
+                epgChannelId: epgChannelId,
+                tvgId: tvgId,
+                channelName: channelName,
+                vanityName: vanityName,
+                originalName: originalName,
+                failoverGroupUrls: failoverGroupUrls,
+                allowAudioOnly: allowAudioOnly,
+              );
+              previewVideoController.value = controller;
+              _preparedChannelTimeout = Timer(const Duration(minutes: 2), () {
+                unawaited(discardPreparedChannel());
+              });
+              AppDiagnostics.instance.log('channel_preview_ready', {
+                'channel': channelName,
+                'stream': AppDiagnostics.summarizeStreamUrl(candidateUrl),
+              });
+              return true;
+            }
             await candidate.setVolume(player.state.volume)
                 .timeout(const Duration(seconds: 2));
-            // Ownership passes to the service before any fallible handoff work.
             promoted = true;
             await _promotePreparedChannel(
               candidate,
@@ -342,6 +387,83 @@ class PlayerService {
         _preparingChannelSwitch = false;
         channelSwitching.value = false;
       }
+    }
+  }
+
+  Future<void> discardPreparedChannel({bool invalidateRequest = true}) async {
+    if (invalidateRequest) ++_channelSwitchGeneration;
+    _preparingChannelSwitch = false;
+    channelSwitching.value = false;
+    _preparedChannelTimeout?.cancel();
+    _preparedChannelTimeout = null;
+    final prepared = _preparedChannel;
+    _preparedChannel = null;
+    previewVideoController.value = null;
+    if (prepared != null) {
+      try {
+        await prepared.player.dispose().timeout(const Duration(seconds: 2));
+      } catch (error) {
+        AppDiagnostics.instance.log('channel_preview_dispose_failed', {
+          'error': error.toString(),
+        });
+      }
+    }
+  }
+
+  Future<bool> commitPreparedChannel(String? channelId) async {
+    final prepared = _preparedChannel;
+    if (prepared == null || prepared.channelId != channelId) return false;
+    final state = prepared.player.state;
+    final hasVideo = state.tracks.video.any(
+      (track) => track.id != 'auto' && track.id != 'no',
+    );
+    final hasAudio = state.tracks.audio.any(
+      (track) => track.id != 'auto' && track.id != 'no',
+    );
+    if (!state.playing || state.buffering ||
+        !(prepared.allowAudioOnly
+            ? hasAudio
+            : hasVideo && (state.width ?? 0) > 0 &&
+                (state.height ?? 0) > 0)) {
+      await discardPreparedChannel();
+      return false;
+    }
+    _preparedChannelTimeout?.cancel();
+    _preparedChannelTimeout = null;
+    _preparedChannel = null;
+    previewVideoController.value = null;
+    ++_channelSwitchGeneration;
+    _preparingChannelSwitch = true;
+    try {
+      await prepared.player.setVolume(player.state.volume)
+          .timeout(const Duration(seconds: 2));
+      await _promotePreparedChannel(
+        prepared.player,
+        prepared.controller,
+        prepared.url,
+        channelId: prepared.channelId,
+        epgChannelId: prepared.epgChannelId,
+        tvgId: prepared.tvgId,
+        channelName: prepared.channelName,
+        vanityName: prepared.vanityName,
+        originalName: prepared.originalName,
+        failoverGroupUrls: prepared.failoverGroupUrls,
+        allowAudioOnly: prepared.allowAudioOnly,
+      );
+      AppDiagnostics.instance.log('channel_preview_committed', {
+        'channel': prepared.channelName,
+      });
+      return true;
+    } catch (error) {
+      AppDiagnostics.instance.log('channel_preview_commit_failed', {
+        'error': error.toString(),
+      });
+      if (!identical(_player, prepared.player)) {
+        unawaited(prepared.player.dispose());
+      }
+      return false;
+    } finally {
+      _preparingChannelSwitch = false;
     }
   }
 
@@ -528,6 +650,7 @@ class PlayerService {
     bool allowAudioOnly = false,
   }) async {
     ++_channelSwitchGeneration;
+    unawaited(discardPreparedChannel());
     _preparingChannelSwitch = false;
     channelSwitching.value = false;
     final playGeneration = ++_playGeneration;
@@ -1155,6 +1278,7 @@ class PlayerService {
   /// Stop playback.
   Future<void> stop() async {
     ++_channelSwitchGeneration;
+    await discardPreparedChannel();
     _preparingChannelSwitch = false;
     channelSwitching.value = false;
     _bufferManager.stop();
@@ -1812,8 +1936,10 @@ class PlayerService {
 
   Future<void> dispose() async {
     ++_channelSwitchGeneration;
+    await discardPreparedChannel();
     channelSwitching.dispose();
     activeVideoController.dispose();
+    previewVideoController.dispose();
     AppDiagnostics.instance.log('player_disposing', {
       'channel': _currentChannelName,
     });
@@ -1857,6 +1983,34 @@ class _StreamProbe {
       firstByteMs = 3200,
       bytesPerSecond = 0,
       score = 0;
+}
+
+class _PreparedChannel {
+  final Player player;
+  final VideoController controller;
+  final String url;
+  final String? channelId;
+  final String? epgChannelId;
+  final String? tvgId;
+  final String? channelName;
+  final String? vanityName;
+  final String? originalName;
+  final List<String>? failoverGroupUrls;
+  final bool allowAudioOnly;
+
+  const _PreparedChannel({
+    required this.player,
+    required this.controller,
+    required this.url,
+    required this.channelId,
+    required this.epgChannelId,
+    required this.tvgId,
+    required this.channelName,
+    required this.vanityName,
+    required this.originalName,
+    required this.failoverGroupUrls,
+    required this.allowAudioOnly,
+  });
 }
 
 /// Riverpod provider for the player service (singleton).

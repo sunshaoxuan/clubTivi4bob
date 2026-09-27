@@ -34,7 +34,10 @@ def mirror():
             checksum = None
             if target.exists() and target.stat().st_size == size:
                 with target.open("rb") as mirrored:
-                    checksum = hashlib.file_digest(mirrored, "sha256").hexdigest()
+                    digest = hashlib.sha256()
+                    while chunk := mirrored.read(1024 * 1024):
+                        digest.update(chunk)
+                    checksum = digest.hexdigest()
             if checksum is None or (expected and expected != f"sha256:{checksum}"):
                 temp = folder / f".{name}.{os.getpid()}.tmp"
                 try:

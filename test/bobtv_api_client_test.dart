@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:clubtivi/data/services/bobtv_api_client.dart';
+import 'package:crypto/crypto.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -11,12 +12,16 @@ void main() {
   var catalogStatus = 200;
   var catalogBody = '{"sources":[]}';
   var reportStatus = 202;
+  var manifestBody = '{"schemaVersion":1,"version":null,"channelCount":0,"routeCount":0}';
+  var snapshotBody = <int>[];
 
   setUp(() async {
     requests.clear();
     catalogStatus = 200;
     catalogBody = '{"sources":[]}';
     reportStatus = 202;
+    manifestBody = '{"schemaVersion":1,"version":null,"channelCount":0,"routeCount":0}';
+    snapshotBody = [];
     server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
     server.listen((request) async {
       final body = await utf8.decoder.bind(request).join();
@@ -29,6 +34,11 @@ void main() {
       if (request.uri.path == '/api/v1/sources') {
         request.response.statusCode = catalogStatus;
         request.response.write(catalogBody);
+      } else if (request.uri.path == '/api/v1/channel-catalog/manifest') {
+        request.response.write(manifestBody);
+      } else if (request.uri.path.startsWith(
+          '/api/v1/channel-catalog/snapshots/')) {
+        request.response.add(snapshotBody);
       } else if (request.uri.path == '/api/v1/source-reports') {
         request.response.statusCode = reportStatus;
         request.response.write('{"accepted":true}');
@@ -69,6 +79,24 @@ void main() {
   test('empty reviewed catalog is a successful result', () async {
     expect(await client.fetchSources(), isEmpty);
     expect(requests.single['path'], '/api/v1/sources');
+  });
+
+  test('channel snapshot must match the website checksum', () async {
+    expect(await client.fetchChannelCatalogManifest(), isNull);
+    snapshotBody = [1, 2, 3, 4];
+    final digest = sha256.convert(snapshotBody).toString();
+    manifestBody = jsonEncode({
+      'schemaVersion': 1, 'version': '2026-09-28.1',
+      'channelCount': 1, 'routeCount': 1,
+      'snapshotUrl': '/api/v1/channel-catalog/snapshots/$digest.json.gz',
+      'compressedBytes': snapshotBody.length, 'sha256': digest,
+    });
+    final manifest = await client.fetchChannelCatalogManifest();
+    expect(manifest, isNotNull);
+    expect(await client.downloadChannelCatalog(manifest!), snapshotBody);
+    snapshotBody = [9, 9, 9, 9];
+    await expectLater(client.downloadChannelCatalog(manifest!),
+        throwsFormatException);
   });
 
   test('rejects invalid catalog without publishing partial entries', () async {

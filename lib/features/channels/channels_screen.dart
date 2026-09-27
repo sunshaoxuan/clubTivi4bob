@@ -682,6 +682,9 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
   }
 
   String _countryFor(db.Channel channel) {
+    if (channel.providerId == WebsiteChannelCatalogService.providerId) {
+      return WebsiteChannelCatalogService.countryForGroup(channel.groupTitle);
+    }
     final deterministic = ChannelCategoryClassifier.internationalCountryFor(
       name: channel.name,
       groupTitle: channel.groupTitle,
@@ -695,6 +698,9 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
   }
 
   String _categoryFor(db.Channel channel) {
+    if (channel.providerId == WebsiteChannelCatalogService.providerId) {
+      return WebsiteChannelCatalogService.categoryForGroup(channel.groupTitle);
+    }
     final key = CategoryNameInput(
       id: channel.id,
       name: channel.name,

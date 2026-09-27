@@ -56,11 +56,13 @@ class WebsiteChannelCatalogService {
   final state = ValueNotifier(const WebsiteCatalogProgress());
   Future<int>? _running;
   bool _disposed = false;
+  Object? lastError;
 
   Future<int> sync() => _running ??= _sync().whenComplete(() => _running = null);
 
   Future<int> _sync() async {
     if (_disposed) return 0;
+    lastError = null;
     state.value = const WebsiteCatalogProgress(phase: '正在检查网站频道');
     try {
       final manifest = await api.fetchChannelCatalogManifest();
@@ -147,6 +149,7 @@ class WebsiteChannelCatalogService {
       });
       return imported;
     } catch (error, stackTrace) {
+      lastError = error;
       if (!_disposed) {
         state.value = const WebsiteCatalogProgress(
           phase: '网站频道暂不可用，继续使用本机频道', error: true,

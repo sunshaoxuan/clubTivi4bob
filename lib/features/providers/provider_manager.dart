@@ -7,6 +7,7 @@ import '../../data/datasources/parsers/m3u_parser.dart';
 import '../../data/datasources/remote/xtream_client.dart';
 import '../../data/models/channel.dart' hide Provider;
 import '../../data/services/logo_resolver_service.dart';
+import '../../data/services/channel_category_classifier.dart';
 import '../../core/feature_gate.dart';
 import 'package:dio/dio.dart';
 
@@ -16,6 +17,8 @@ class ProviderManager {
   final M3uParser _m3uParser = M3uParser();
 
   ProviderManager(this._db);
+
+  db.AppDatabase get database => _db;
 
   /// Check provider count against tier limit.
   Future<void> _checkProviderLimit() async {
@@ -32,12 +35,14 @@ class ProviderManager {
     required String url,
   }) async {
     await _checkProviderLimit();
-    await _db.upsertProvider(db.ProvidersCompanion.insert(
-      id: id,
-      name: name,
-      type: 'm3u',
-      url: Value(url),
-    ));
+    await _db.upsertProvider(
+      db.ProvidersCompanion.insert(
+        id: id,
+        name: name,
+        type: 'm3u',
+        url: Value(url),
+      ),
+    );
     await refreshProvider(id);
   }
 
@@ -50,14 +55,16 @@ class ProviderManager {
     required String password,
   }) async {
     await _checkProviderLimit();
-    await _db.upsertProvider(db.ProvidersCompanion.insert(
-      id: id,
-      name: name,
-      type: 'xtream',
-      url: Value(url),
-      username: Value(username),
-      password: Value(password),
-    ));
+    await _db.upsertProvider(
+      db.ProvidersCompanion.insert(
+        id: id,
+        name: name,
+        type: 'xtream',
+        url: Value(url),
+        username: Value(username),
+        password: Value(password),
+      ),
+    );
     await refreshProvider(id);
   }
 
@@ -75,19 +82,53 @@ class ProviderManager {
       return 0;
     }
 
-    // Save channels to database
-    await _db.upsertChannels(channels.map((c) => db.ChannelsCompanion.insert(
-      id: c.id,
-      providerId: c.providerId,
-      name: c.name,
-      tvgId: Value(c.tvgId),
-      tvgName: Value(c.tvgName),
-      tvgLogo: Value(c.tvgLogo),
-      groupTitle: Value(c.groupTitle),
-      channelNumber: Value(c.channelNumber),
-      streamUrl: c.streamUrl,
-      streamType: Value(c.streamType.name),
-    )).toList());
+    final parsedCount = channels.length;
+    if (parsedCount == 0) {
+      throw StateError('Provider returned no channels');
+    }
+
+    final retiredUrls = await _db.getRetiredStreamUrls(providerId);
+    channels = channels
+        .where(
+          (channel) =>
+              !retiredUrls.contains(channel.streamUrl) &&
+              !ChannelCategoryClassifier.isClearlyNonTelevisionRoute(
+                name: channel.name,
+                groupTitle: channel.groupTitle,
+                streamUrl: channel.streamUrl,
+              ),
+        )
+        .toList();
+
+    final existing = await _db.getChannelsForProvider(providerId);
+    final existingById = {for (final channel in existing) channel.id: channel};
+
+    // Save channels while retaining local favorite and visibility choices.
+    await _db.upsertChannels(
+      channels.map((c) {
+        final saved = existingById[c.id];
+        return db.ChannelsCompanion.insert(
+          id: c.id,
+          providerId: c.providerId,
+          name: c.name,
+          tvgId: Value(c.tvgId),
+          tvgName: Value(c.tvgName),
+          tvgLogo: Value(c.tvgLogo),
+          groupTitle: Value(c.groupTitle),
+          channelNumber: Value(c.channelNumber),
+          streamUrl: c.streamUrl,
+          streamType: Value(c.streamType.name),
+          favorite: Value(saved?.favorite ?? false),
+          hidden: Value(saved?.hidden ?? false),
+          sortOrder: Value(saved?.sortOrder ?? 0),
+        );
+      }).toList(),
+    );
+
+    await _db.deleteChannelsMissingFromProvider(
+      providerId,
+      channels.map((channel) => channel.id).toSet(),
+    );
 
     await _db.markProviderRefreshed(providerId, DateTime.now());
 
@@ -154,7 +195,8 @@ class ProviderManager {
         }
       }
       for (final ch in needsLogo.toList()) {
-        final stripped = ch.name.toLowerCase()
+        final stripped = ch.name
+            .toLowerCase()
             .replaceAll(RegExp(r'^[a-z]{2}[-]?[a-z]?\|\s*'), '')
             .replaceAll(RegExp(r'^[a-z]{2}:\s+'), '')
             .replaceAll(RegExp(r'^\[?[a-z]{2}\]?\s+'), '')
@@ -171,7 +213,9 @@ class ProviderManager {
     // Then resolve remaining from tv-logo/tv-logos GitHub repo
     if (needsLogo.isNotEmpty) {
       debugPrint('[Logo] Resolving ${needsLogo.length} via GitHub tv-logos...');
-      final ghResolved = await LogoResolverService.resolveLogosForChannels(needsLogo);
+      final ghResolved = await LogoResolverService.resolveLogosForChannels(
+        needsLogo,
+      );
       debugPrint('[Logo] GitHub resolved ${ghResolved.length} logos');
       resolved.addAll(ghResolved);
     }
@@ -209,7 +253,10 @@ class ProviderManager {
         .toList();
 
     if (needsLogo.isEmpty) {
-      await prefs.setInt(_logoResolvedKey, DateTime.now().millisecondsSinceEpoch);
+      await prefs.setInt(
+        _logoResolvedKey,
+        DateTime.now().millisecondsSinceEpoch,
+      );
       await prefs.setInt(_logoChannelCountKey, allChannels.length);
       return;
     }
@@ -223,7 +270,9 @@ class ProviderManager {
     final favorites = needsLogo.where((c) => favIds.contains(c.id)).toList();
     final rest = needsLogo.where((c) => !favIds.contains(c.id)).toList();
 
-    debugPrint('[Logo] ${needsLogo.length} missing (${favorites.length} favorites, ${rest.length} other)');
+    debugPrint(
+      '[Logo] ${needsLogo.length} missing (${favorites.length} favorites, ${rest.length} other)',
+    );
 
     // Resolve favorites immediately
     if (favorites.isNotEmpty) {
@@ -274,7 +323,8 @@ class ProviderManager {
     final remaining = <({String id, String name, String? tvgLogo})>[];
 
     for (final ch in channels) {
-      final stripped = ch.name.toLowerCase()
+      final stripped = ch.name
+          .toLowerCase()
           .replaceAll(RegExp(r'^[a-z]{2}[-]?[a-z]?\|\s*'), '')
           .replaceAll(RegExp(r'^[a-z]{2}:\s+'), '')
           .replaceAll(RegExp(r'^\[?[a-z]{2}\]?\s+'), '')
@@ -288,7 +338,9 @@ class ProviderManager {
     }
 
     if (remaining.isNotEmpty) {
-      final ghResolved = await LogoResolverService.resolveLogosForChannels(remaining);
+      final ghResolved = await LogoResolverService.resolveLogosForChannels(
+        remaining,
+      );
       resolved.addAll(ghResolved);
     }
 

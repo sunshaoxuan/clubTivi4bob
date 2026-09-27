@@ -29,7 +29,7 @@ void main() {
         ),
       );
       PlaybackStallState? state;
-      for (var i = 0; i < 4; i++) {
+      for (var i = 0; i < 9; i++) {
         state = detector.add(
           const PlaybackHealthSample(
             position: Duration(seconds: 10),
@@ -45,7 +45,7 @@ void main() {
     test('fails over after sustained buffering', () {
       final detector = PlaybackStallDetector();
       PlaybackStallState? state;
-      for (var i = 0; i < 3; i++) {
+      for (var i = 0; i < 8; i++) {
         state = detector.add(
           const PlaybackHealthSample(
             position: Duration.zero,
@@ -78,6 +78,43 @@ void main() {
         ),
       );
       expect(recovered.healthy, isTrue);
+    });
+
+    test('does not switch a progressing stream just because cache is low', () {
+      final detector = PlaybackStallDetector();
+      for (var i = 0; i < 20; i++) {
+        final state = detector.add(PlaybackHealthSample(
+          position: Duration(seconds: i * 2),
+          cacheSeconds: 0.2,
+          buffering: false,
+          playing: true,
+        ));
+        expect(state.shouldFailover, isFalse);
+      }
+    });
+  });
+
+  group('RepeatedShortBufferDetector', () {
+    test('detects three brief interruptions within a minute', () {
+      final detector = RepeatedShortBufferDetector();
+      final start = DateTime.utc(2026, 1, 1);
+      expect(detector.addRecoveredBuffer(start,
+          const Duration(seconds: 2)), isFalse);
+      expect(detector.addRecoveredBuffer(start.add(const Duration(seconds: 12)),
+          const Duration(seconds: 3)), isFalse);
+      expect(detector.addRecoveredBuffer(start.add(const Duration(seconds: 25)),
+          const Duration(seconds: 4)), isTrue);
+    });
+
+    test('ignores long interruptions and expired history', () {
+      final detector = RepeatedShortBufferDetector();
+      final start = DateTime.utc(2026, 1, 1);
+      expect(detector.addRecoveredBuffer(start,
+          const Duration(seconds: 16)), isFalse);
+      expect(detector.addRecoveredBuffer(start.add(const Duration(seconds: 1)),
+          const Duration(seconds: 2)), isFalse);
+      expect(detector.addRecoveredBuffer(start.add(const Duration(seconds: 70)),
+          const Duration(seconds: 2)), isFalse);
     });
   });
 }

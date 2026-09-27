@@ -85,7 +85,7 @@ class DefaultProviderBootstrap {
       id: 'hotel-best-fan-status',
       name: 'best-fan 每日检测线路',
       url:
-          'https://raw.githubusercontent.com/best-fan/iptv-sources/master/cn_all_status.m3u8',
+          'https://raw.githubusercontent.com/best-fan/iptv-sources/main/cn_all_status.m3u8',
     ),
   ];
 

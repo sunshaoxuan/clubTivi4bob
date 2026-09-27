@@ -5,10 +5,10 @@
 // 'flutter create' template.
 
 // The application's name. By default this is also the title of the Flutter window.
-PRODUCT_NAME = clubTivi
+PRODUCT_NAME = BobTV
 
 // The application's bundle identifier
-PRODUCT_BUNDLE_IDENTIFIER = io.github.clubanderson.clubtivi
+PRODUCT_BUNDLE_IDENTIFIER = com.briconbric.bobtv
 
 // The copyright displayed in application information
-PRODUCT_COPYRIGHT = Copyright © 2026 io.github.clubanderson. All rights reserved.
+PRODUCT_COPYRIGHT = Copyright © 2026 BobTV contributors.

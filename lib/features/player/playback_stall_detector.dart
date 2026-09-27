@@ -22,7 +22,7 @@ class PlaybackStallState {
   });
 
   bool get shouldWarmAlternative => stressedSamples >= 2;
-  bool get shouldFailover => stressedSamples >= 3;
+  bool get shouldFailover => stressedSamples >= 8;
   bool get healthy => stressedSamples == 0;
 }
 
@@ -53,15 +53,12 @@ class PlaybackStallDetector {
       _noProgressSamples++;
     }
 
-    final cacheLow = sample.cacheSeconds != null && sample.cacheSeconds! < 1.0;
-    final cacheUnavailableAndFrozen =
-        sample.cacheSeconds == null && _noProgressSamples >= 2;
+    // A live stream can keep advancing with a short cache. That alone is not
+    // evidence that changing routes would improve playback.
     final playbackFrozen = _noProgressSamples >= 2;
     final stoppedUnexpectedly = !sample.playing && _noProgressSamples >= 2;
     final stressed =
         sample.buffering ||
-        cacheLow ||
-        cacheUnavailableAndFrozen ||
         playbackFrozen ||
         stoppedUnexpectedly;
 
@@ -75,5 +72,32 @@ class PlaybackStallDetector {
       stressedSamples: _stressedSamples,
       noProgressSamples: _noProgressSamples,
     );
+  }
+}
+
+/// Counts brief, recovered buffering events in a rolling time window.
+class RepeatedShortBufferDetector {
+  RepeatedShortBufferDetector({
+    this.window = const Duration(seconds: 60),
+    this.minimumDuration = const Duration(milliseconds: 400),
+    this.maximumDuration = const Duration(seconds: 15),
+    this.requiredEvents = 3,
+  });
+
+  final Duration window;
+  final Duration minimumDuration;
+  final Duration maximumDuration;
+  final int requiredEvents;
+  final List<DateTime> _recoveredAt = [];
+
+  void reset() => _recoveredAt.clear();
+
+  bool addRecoveredBuffer(DateTime at, Duration duration) {
+    _recoveredAt.removeWhere((time) => at.difference(time) > window);
+    if (duration < minimumDuration || duration > maximumDuration) {
+      return false;
+    }
+    _recoveredAt.add(at);
+    return _recoveredAt.length >= requiredEvents;
   }
 }

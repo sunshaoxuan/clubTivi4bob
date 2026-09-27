@@ -100,15 +100,13 @@ class _SplashScreenState extends State<SplashScreen>
         curve: const Interval(0.35, 0.60, curve: Curves.easeOut),
       ),
     );
-    _titleSlide = Tween<Offset>(
-      begin: const Offset(0, 0.3),
-      end: Offset.zero,
-    ).animate(
-      CurvedAnimation(
-        parent: _controller,
-        curve: const Interval(0.35, 0.60, curve: Curves.easeOut),
-      ),
-    );
+    _titleSlide = Tween<Offset>(begin: const Offset(0, 0.3), end: Offset.zero)
+        .animate(
+          CurvedAnimation(
+            parent: _controller,
+            curve: const Interval(0.35, 0.60, curve: Curves.easeOut),
+          ),
+        );
 
     // Tagline: subtle fade-in (0.50→0.70)
     _taglineOpacity = Tween<double>(begin: 0.0, end: 1.0).animate(
@@ -156,15 +154,15 @@ class _SplashScreenState extends State<SplashScreen>
               children: [
                 // Animated radial glow background (skip on TV)
                 if (!_isTV)
-                Positioned.fill(
-                  child: CustomPaint(
-                    painter: _GlowPainter(
-                      color: _accent,
-                      intensity: _glowPulse?.value ?? 0.5,
-                      progress: _iconOpacity.value,
+                  Positioned.fill(
+                    child: CustomPaint(
+                      painter: _GlowPainter(
+                        color: _accent,
+                        intensity: _glowPulse?.value ?? 0.5,
+                        progress: _iconOpacity.value,
+                      ),
                     ),
                   ),
-                ),
                 // Centered content
                 Center(
                   child: Column(
@@ -179,26 +177,26 @@ class _SplashScreenState extends State<SplashScreen>
                           children: [
                             // Streaming wave arcs (skip on TV — CustomPaint expensive)
                             if (!_isTV)
-                            Positioned(
-                              right: 8,
-                              top: 20,
-                              child: CustomPaint(
-                                size: const Size(60, 60),
-                                painter: _WavesPainter(
-                                  color: _accent,
-                                  wave1: _wave1.value,
-                                  wave2: _wave2.value,
-                                  wave3: _wave3.value,
+                              Positioned(
+                                right: 8,
+                                top: 20,
+                                child: CustomPaint(
+                                  size: const Size(60, 60),
+                                  painter: _WavesPainter(
+                                    color: _accent,
+                                    wave1: _wave1.value,
+                                    wave2: _wave2.value,
+                                    wave3: _wave3.value,
+                                  ),
                                 ),
                               ),
-                            ),
                             // App icon
                             Opacity(
                               opacity: _iconOpacity.value,
                               child: Transform.scale(
                                 scale: _iconScale.value,
                                 child: Image.asset(
-                                  'assets/icon/clubtivi-icon.png',
+                                  'assets/icon/bobtv-icon.png',
                                   width: 160,
                                   height: 160,
                                 ),
@@ -215,7 +213,7 @@ class _SplashScreenState extends State<SplashScreen>
                           opacity: _titleOpacity.value,
                           child: _isTV
                               ? const Text(
-                                  'clubTivi',
+                                  'BobTV',
                                   style: TextStyle(
                                     fontSize: 42,
                                     fontWeight: FontWeight.w700,
@@ -224,18 +222,20 @@ class _SplashScreenState extends State<SplashScreen>
                                   ),
                                 )
                               : Shimmer.fromColors(
-                            baseColor: Colors.white,
-                            highlightColor: _accent.withValues(alpha: 0.9),
-                            period: const Duration(milliseconds: 2000),
-                            child: const Text(
-                              'clubTivi',
-                              style: TextStyle(
-                                fontSize: 42,
-                                fontWeight: FontWeight.w700,
-                                letterSpacing: 2,
-                              ),
-                            ),
-                          ),
+                                  baseColor: Colors.white,
+                                  highlightColor: _accent.withValues(
+                                    alpha: 0.9,
+                                  ),
+                                  period: const Duration(milliseconds: 2000),
+                                  child: const Text(
+                                    'BobTV',
+                                    style: TextStyle(
+                                      fontSize: 42,
+                                      fontWeight: FontWeight.w700,
+                                      letterSpacing: 2,
+                                    ),
+                                  ),
+                                ),
                         ),
                       ),
                       const SizedBox(height: 12),
@@ -243,7 +243,7 @@ class _SplashScreenState extends State<SplashScreen>
                       Opacity(
                         opacity: _taglineOpacity.value,
                         child: Text(
-                          'live tv, your way',
+                          '电视直播，随心观看',
                           style: TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.w300,

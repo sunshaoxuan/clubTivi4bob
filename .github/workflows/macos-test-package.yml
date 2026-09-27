@@ -1,0 +1,76 @@
+name: macOS Test Package
+
+on:
+  push:
+    branches:
+      - test/macos-*
+  workflow_dispatch:
+
+jobs:
+  package:
+    name: BobTV macOS Intel test DMG
+    runs-on: macos-15-intel
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.23'
+
+      - name: Resolve Flutter packages
+        run: flutter pub get
+
+      - name: Test classification and AI settings
+        run: |
+          flutter test test/channel_category_classifier_test.dart test/channel_country_ai_service_test.dart test/channel_category_ai_service_test.dart test/website_channel_catalog_service_test.dart test/bobtv_api_client_test.dart
+          flutter analyze --no-fatal-infos --no-fatal-warnings lib/data/services/ai_runtime_settings.dart lib/data/services/channel_category_classifier.dart lib/data/services/channel_category_ai_service.dart lib/data/services/channel_country_ai_service.dart lib/data/services/website_channel_catalog_service.dart lib/data/services/bobtv_api_client.dart lib/features/settings/ai_configuration_screen.dart lib/features/channels/channels_screen.dart lib/features/providers/source_maintenance_coordinator.dart
+
+      - name: Fetch pinned AirPlay authentication source
+        run: |
+          git clone https://github.com/objevovat/fairplay-sap-core-airplay2-sender-authentication-handshake.git "$RUNNER_TEMP/fpsap-source"
+          git -C "$RUNNER_TEMP/fpsap-source" checkout --detach 370f9db2e26b21b4a710bdba5d51012c1239e736
+
+      - name: Build BobTV
+        run: bash tools/macos/build.sh "$RUNNER_TEMP/fpsap-source"
+
+      - name: Verify application bundle
+        run: |
+          app=build/macos/Build/Products/Release/BobTV.app
+          test -d "$app/Contents/MacOS"
+          test -x "$app/Contents/Resources/AirPlay/bobtv-airplay/bobtv-airplay"
+          test -x "$app/Contents/Resources/AirPlay/bobtv-airplay/fpsap-auth"
+          plutil -lint "$app/Contents/Info.plist"
+
+      - name: Create test disk image
+        run: |
+          hdiutil create -volname BobTV -srcfolder build/macos/Build/Products/Release/BobTV.app -ov -format UDZO BobTV-macos-x64-test.dmg
+          hdiutil verify BobTV-macos-x64-test.dmg
+          shasum -a 256 BobTV-macos-x64-test.dmg > BobTV-macos-x64-test.sha256
+
+      - name: Upload test package
+        uses: actions/upload-artifact@v4
+        with:
+          name: BobTV-macos-x64-test
+          path: |
+            BobTV-macos-x64-test.dmg
+            BobTV-macos-x64-test.sha256
+          if-no-files-found: error
+
+      - name: Upload resolved package lock
+        uses: actions/upload-artifact@v4
+        with:
+          name: BobTV-macos-test-pubspec-lock
+          path: pubspec.lock

@@ -17,6 +17,8 @@ import '../../data/services/epg_refresh_service.dart';
 import '../providers/provider_manager.dart';
 import '../remote/web_remote_server.dart';
 import 'add_epg_source_dialog.dart';
+import 'bobtv_service_settings.dart';
+import 'ai_configuration_screen.dart';
 import '../shows/shows_providers.dart';
 import '../../data/datasources/remote/trakt_client.dart';
 import '../../data/datasources/remote/tmdb_client.dart';
@@ -243,6 +245,23 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                     ),
                   ],
                 ),
+                const BobTvServiceSettings(),
+                _SettingsSection(
+                  title: 'AI',
+                  children: [
+                    ListTile(
+                      leading: const Icon(Icons.auto_awesome_rounded),
+                      title: const Text('AI 分类设置'),
+                      subtitle: const Text('配置兼容端点、模型与 API Key'),
+                      trailing: const Icon(Icons.chevron_right),
+                      onTap: () => Navigator.of(context).push(
+                        MaterialPageRoute<void>(
+                          builder: (_) => const AiConfigurationScreen(),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
                 _SettingsSection(
                   title: 'EPG',
                   children: [
@@ -342,7 +361,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   children: [
                     ListTile(
                       leading: const Icon(Icons.info_outline_rounded),
-                      title: const Text('酒店电视'),
+                      title: const Text('BobTV'),
                       subtitle: const Text('v0.4.0+5 • 开源软件 • Apache 2.0'),
                     ),
                     ListTile(
@@ -383,7 +402,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           child: Text(
             '1. Choose a folder\n'
             '   Tap "Recording Folder" above and pick any folder on your device.\n'
-            '   clubTivi will save all recordings there.\n\n'
+            '   BobTV will save all recordings there.\n\n'
             '2. Start recording\n'
             '   While watching a channel, tap the record (●) button in the\n'
             '   player controls. Recording starts immediately.\n\n'
@@ -396,7 +415,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             'Tips:\n'
             '• Make sure you have enough disk space\n'
             '• Recordings use the original stream quality\n'
-            '• On macOS: the folder picker grants clubTivi access automatically\n'
+            '• On macOS: the folder picker grants BobTV access automatically\n'
             '• On Android: choose a folder in internal storage or SD card',
           ),
         ),
@@ -416,7 +435,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       builder: (ctx) => AlertDialog(
         title: const Text('按键映射'),
         content: const Text(
-          'clubTivi supports the following remote controls:\n\n'
+          'BobTV supports the following remote controls:\n\n'
           '• IR remotes (via Android TV / Fire TV)\n'
           '• Bluetooth gamepads\n'
           '• Keyboard shortcuts\n'

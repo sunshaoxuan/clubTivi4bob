@@ -25,8 +25,7 @@ class RecordingService {
 
   RecordingService({Dio? dio}) : _dio = dio ?? Dio();
 
-  List<ActiveRecording> get activeRecordings =>
-      List.unmodifiable(_active);
+  List<ActiveRecording> get activeRecordings => List.unmodifiable(_active);
 
   /// Start recording a stream to a file.
   /// Throws if recording feature is not available (free tier).
@@ -40,8 +39,9 @@ class RecordingService {
       throw RecordingProException();
     }
 
-    final sanitizedName =
-        channelName.replaceAll(RegExp(r'[^\w\s-]'), '').replaceAll(' ', '_');
+    final sanitizedName = channelName
+        .replaceAll(RegExp(r'[^\w\s-]'), '')
+        .replaceAll(' ', '_');
     final timestamp = DateTime.now()
         .toIso8601String()
         .replaceAll(':', '-')
@@ -182,8 +182,7 @@ class ActiveRecording {
     required this.sink,
   });
 
-  Duration get duration =>
-      (stoppedAt ?? DateTime.now()).difference(startedAt);
+  Duration get duration => (stoppedAt ?? DateTime.now()).difference(startedAt);
 
   bool get isActive => stoppedAt == null && error == null;
 
@@ -225,7 +224,7 @@ class ScheduledRecording {
 
 class RecordingProException implements Exception {
   @override
-  String toString() => 'Recording requires clubTivi Pro.';
+  String toString() => 'Recording requires BobTV Pro.';
 }
 
 /// Riverpod provider.

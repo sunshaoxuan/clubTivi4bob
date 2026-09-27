@@ -1,8 +1,37 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:clubtivi/data/services/failover_engine.dart';
 import 'package:clubtivi/data/models/channel.dart';
+import 'package:clubtivi/features/player/player_service.dart';
 
 void main() {
+  test('candidate ranking keeps routes after the eighth entry', () {
+    final routes = List.generate(20, (index) => 'route-$index');
+    final ranked = PlayerService.prioritizeCandidateUrls(
+      routes, (_) => 0.5,
+    );
+    expect(ranked, routes);
+    expect(ranked.length, 20);
+  });
+
+  test('preflight does not reward an HTML response as a video source', () {
+    expect(PlayerService.looksLikeMediaPrefix(
+      '<html>advertisement</html>'.codeUnits,
+    ), isFalse);
+    expect(PlayerService.looksLikeMediaPrefix(
+      '#EXTM3U\n#EXT-X-VERSION:3'.codeUnits,
+    ), isTrue);
+    expect(PlayerService.looksLikeMediaPrefix([0x47, 0x40, 0x11, 0x10]),
+        isTrue);
+  });
+
+  test('route progress labels omit query tokens', () {
+    final label = PlayerService.routeLabel(
+      'https://media.example.com/live/channel.m3u8?token=secret',
+    );
+    expect(label, contains('media.example.com'));
+    expect(label, isNot(contains('secret')));
+  });
+
   group('ColdFailoverEngine', () {
     late ColdFailoverEngine engine;
 
@@ -106,9 +135,5 @@ void main() {
   });
 }
 
-Channel _ch(String id, String providerId, String url) => Channel(
-      id: id,
-      providerId: providerId,
-      name: id,
-      streamUrl: url,
-    );
+Channel _ch(String id, String providerId, String url) =>
+    Channel(id: id, providerId: providerId, name: id, streamUrl: url);

@@ -46,7 +46,7 @@ class AiRuntimeSettings {
       final key = (environment['OPENAI_API_KEY'] ?? '').trim();
       return AiRuntimeValues(
         baseUrl: url,
-        model: (environment['OPENAI_MODEL'] ?? '').trim(),
+        model: (environment['OPENAI_MODEL'] ?? 'gpt-5.6-luna').trim(),
         apiKey: key,
         enabled: url.isNotEmpty && key.isNotEmpty,
       );

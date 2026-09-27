@@ -24,6 +24,7 @@ import '../../data/datasources/local/database.dart' as db;
 import '../../data/datasources/remote/tmdb_client.dart';
 import '../../data/services/channel_category_classifier.dart';
 import '../../data/services/channel_country_ai_service.dart';
+import '../../data/services/channel_category_ai_service.dart';
 import '../../data/services/github_cctv5plus_recovery.dart';
 import '../../data/services/bobtv_community_service.dart';
 import '../../data/services/epg_refresh_service.dart';
@@ -77,7 +78,9 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
   List<String> _pinnedInternationalCountries = [];
   final ScrollController _countryScrollController = ScrollController();
   final ChannelCountryAiService _countryAi = ChannelCountryAiService();
+  final ChannelCategoryAiService _categoryAi = ChannelCategoryAiService();
   Map<String, String> _aiCountryCache = {};
+  Map<String, String> _aiCategoryCache = {};
   bool _simpleMode = true;
   bool _showUnavailableSources = true;
   static const _simpleModePreferenceKey = 'bobtv_simple_mode';
@@ -581,6 +584,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
     }
 
     List<db.Channel> loaded;
+    _aiCategoryCache = await _categoryAi.cachedCategories();
     if (group == 'Favorites') {
       loaded = _favoritedChannelIds.isEmpty
           ? const []
@@ -589,18 +593,16 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
       loaded = await database.getChannelsInList(group.substring(4));
     } else {
       final candidates = await database.getChannelCategoryCandidates(group);
-      loaded = candidates
-          .where(
-            (channel) =>
-                ChannelCategoryClassifier.classify(
-                  name: channel.name,
-                  groupTitle: channel.groupTitle,
-                  tvgId: channel.tvgId,
-                  streamUrl: channel.streamUrl,
-                ) ==
-                group,
-          )
-          .toList();
+      final mappedIds = _aiCategoryCache.entries
+          .where((entry) => entry.value == group)
+          .map((entry) => entry.key.split('\u0000').first)
+          .toSet();
+      final mapped = mappedIds.isEmpty
+          ? <db.Channel>[] : await database.getChannelsByIds(mappedIds);
+      loaded = {
+        for (final channel in candidates) channel.id: channel,
+        for (final channel in mapped) channel.id: channel,
+      }.values.where((channel) => _categoryFor(channel) == group).toList();
     }
 
     if (group == '国际') {
@@ -632,7 +634,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
     if (!unchanged && scrollAnchor != null) {
       _restoreScrollAnchor(scrollAnchor);
     }
-    if (group == '国际' && _countryAi.enabled) {
+    if (group == '国际' && await _countryAi.isEnabled()) {
       final unknown = loaded.where((channel) =>
           _countryFor(channel) == '未识别地区').map((channel) =>
           CountryNameInput(channel.name, channel.groupTitle)).toList();
@@ -647,6 +649,28 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
       }).catchError((Object error, StackTrace stackTrace) {
         AppDiagnostics.instance.recordError(
           'channel_country_ai_start', error, stackTrace,
+        );
+      }));
+    }
+    if (group == '其他') {
+      final unresolved = loaded.where((channel) =>
+          _categoryFor(channel) == '其他').map((channel) => CategoryNameInput(
+        id: channel.id,
+        name: channel.name,
+        groupTitle: channel.groupTitle,
+        tvgId: channel.tvgId,
+      )).toList();
+      unawaited(_categoryAi.classifyUnknown(unresolved, onBatch: (additions) {
+        if (!mounted || generation != _categoryLoadGeneration) return;
+        setState(() {
+          _aiCategoryCache.addAll(additions);
+          _applyFilters();
+        });
+      }).catchError((Object error, StackTrace stackTrace) {
+        AppDiagnostics.instance.recordError(
+          'channel_category_ai_start',
+          StateError('AI classification unavailable'),
+          stackTrace,
         );
       }));
     }
@@ -667,6 +691,21 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
     if (sharedStreamCountry != null) return sharedStreamCountry;
     final key = CountryNameInput(channel.name, channel.groupTitle).key;
     return _aiCountryCache[key] ?? deterministic;
+  }
+
+  String _categoryFor(db.Channel channel) {
+    final key = CategoryNameInput(
+      id: channel.id,
+      name: channel.name,
+      groupTitle: channel.groupTitle,
+      tvgId: channel.tvgId,
+    ).key;
+    return _aiCategoryCache[key] ?? ChannelCategoryClassifier.classify(
+      name: channel.name,
+      groupTitle: channel.groupTitle,
+      tvgId: channel.tvgId,
+      streamUrl: channel.streamUrl,
+    );
   }
 
   void _rebuildInternationalCountries(List<db.Channel> loaded, String group) {
@@ -942,12 +981,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                       c.groupTitle,
                     ) == _selectedInternationalGenre);
           }
-          return ChannelCategoryClassifier.classify(
-                name: c.name,
-                groupTitle: c.groupTitle,
-                tvgId: c.tvgId,
-                streamUrl: c.streamUrl,
-              ) == _selectedGroup;
+          return _categoryFor(c) == _selectedGroup;
         }).toList();
       }
     }

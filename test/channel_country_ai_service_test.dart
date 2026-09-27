@@ -70,8 +70,8 @@ void main() {
       'Ambiguous Network', 'General',
     ).key), isFalse);
     final saved = await service.cachedCountries();
-    expect(saved[const CountryNameInput(
+    expect(saved.containsKey(const CountryNameInput(
       'Ambiguous Network', 'General',
-    ).key], '未识别地区');
+    ).key), isFalse);
   });
 }

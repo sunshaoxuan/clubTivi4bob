@@ -114,6 +114,10 @@ class AppDatabase extends _$AppDatabase {
       // "Other" is evaluated only when selected. SQL removes every row that
       // is an obvious member of another category before Dart sees the result.
       final allTerms = ChannelCategoryClassifier.allCategoryCandidateTerms
+          // SQLite LIKE has no word-boundary operator. Do not exclude short
+          // Latin tokens such as BTV here: NRBTV must remain visible in
+          // "Other" until the Dart classifier can decide its category.
+          .where((term) => !RegExp(r'^[a-z]{2,4}$').hasMatch(term))
           .toSet();
       final conditions = <String>[];
       final variables = <Variable<String>>[];

@@ -4,6 +4,7 @@ import 'package:dio/dio.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../core/app_diagnostics.dart';
+import 'ai_runtime_settings.dart';
 import 'channel_category_classifier.dart';
 import 'github_ai_crawler_service.dart';
 
@@ -21,19 +22,37 @@ class CountryNameInput {
 /// The existing crawler's OpenAI-compatible runtime settings are reused.
 class ChannelCountryAiService {
   ChannelCountryAiService({OpenAiRuntimeConfig? config, Dio? dio})
-      : config = config ?? OpenAiRuntimeConfig.fromEnvironment(),
+      : config = config,
         _dio = dio;
 
   static const _cacheKey = 'bobtv_country_ai_cache_v1';
   static const _batchSize = 20;
   static const _maximumPerLoad = 120;
 
-  final OpenAiRuntimeConfig config;
+  final OpenAiRuntimeConfig? config;
   final Dio? _dio;
   Map<String, String>? _cache;
   bool _running = false;
 
-  bool get enabled => config.enabled;
+  bool get enabled => config?.enabled ?? false;
+
+  Future<OpenAiRuntimeConfig> _activeConfig() async {
+    if (config != null) return config!;
+    final saved = await AiRuntimeSettings.instance.load();
+    return OpenAiRuntimeConfig(
+      baseUrl: saved.enabled ? saved.baseUrl : '',
+      apiKey: saved.enabled ? saved.apiKey : '',
+      model: saved.model,
+    );
+  }
+
+  Future<bool> isEnabled() async {
+    try {
+      return (await _activeConfig()).enabled;
+    } catch (_) {
+      return false;
+    }
+  }
 
   Future<Map<String, String>> cachedCountries() async {
     if (_cache != null) return Map.of(_cache!);
@@ -54,7 +73,7 @@ class ChannelCountryAiService {
     List<CountryNameInput> inputs, {
     required void Function(Map<String, String>) onBatch,
   }) async {
-    if (!enabled || _running) return;
+    if (_running || !await isEnabled()) return;
     _running = true;
     try {
       await _classifyUnknown(inputs, onBatch: onBatch);
@@ -77,14 +96,18 @@ class ChannelCountryAiService {
     final pending = unique.values.toList();
     if (pending.isEmpty) return;
 
+    final activeConfig = await _activeConfig();
+    if (!activeConfig.enabled) return;
+
     final client = _dio ?? Dio(BaseOptions(
-      baseUrl: config.baseUrl.endsWith('/')
-          ? config.baseUrl.substring(0, config.baseUrl.length - 1)
-          : config.baseUrl,
+      baseUrl: activeConfig.baseUrl.endsWith('/')
+          ? activeConfig.baseUrl.substring(0, activeConfig.baseUrl.length - 1)
+          : activeConfig.baseUrl,
       connectTimeout: const Duration(seconds: 10),
       receiveTimeout: const Duration(seconds: 45),
+      followRedirects: false,
       headers: {
-        'Authorization': 'Bearer ${config.apiKey}',
+        'Authorization': 'Bearer ${activeConfig.apiKey}',
         'Content-Type': 'application/json',
       },
     ));
@@ -96,7 +119,7 @@ class ChannelCountryAiService {
           final response = await client.post<Map<String, dynamic>>(
             '/chat/completions',
             data: {
-              'model': config.model,
+              'model': activeConfig.model,
               'messages': [
                 {
                   'role': 'system',
@@ -167,9 +190,8 @@ class ChannelCountryAiService {
               }
             }
           }
-          for (final input in batch) {
-            _cache![input.key] = additions[input.key] ?? '未识别地区';
-          }
+          // Unknown results remain eligible for a later model or source fix.
+          _cache!.addAll(additions);
           final prefs = await SharedPreferences.getInstance();
           await prefs.setString(_cacheKey, jsonEncode(_cache));
           if (additions.isNotEmpty) onBatch(additions);

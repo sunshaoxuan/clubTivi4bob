@@ -48,6 +48,29 @@ void main() {
     expect(ChannelCategoryClassifier.categories, isNot(contains('港澳台')));
   });
 
+  test('does not assign a province from a Latin substring', () async {
+    expect(ChannelCategoryClassifier.provinceFor(name: 'NRBTV'), isNull);
+    expect(ChannelCategoryClassifier.classify(name: 'NRBTV'), '其他');
+    expect(ChannelCategoryClassifier.provinceFor(name: 'BTV-1'), '北京');
+    final database = db.AppDatabase.forTesting(NativeDatabase.memory());
+    addTearDown(database.close);
+    await database.upsertProvider(
+      db.ProvidersCompanion.insert(id: 'test', name: 'Test', type: 'm3u'),
+    );
+    await database.upsertChannels([
+      db.ChannelsCompanion.insert(
+        id: 'nrbtv', providerId: 'test', name: 'NRBTV',
+        streamUrl: 'https://example.com/nrbtv.m3u8',
+      ),
+    ]);
+    final beijing = await database.getChannelCategoryCandidates('北京');
+    expect(beijing.where((channel) =>
+        ChannelCategoryClassifier.classify(name: channel.name) == '北京'),
+        isEmpty);
+    final others = await database.getChannelCategoryCandidates('其他');
+    expect(others.map((channel) => channel.id), contains('nrbtv'));
+  });
+
   test('identifies international country before source genre', () {
     expect(ChannelCategoryClassifier.classify(
       name: 'Onda TV', tvgId: 'OndaTV.it', groupTitle: 'General',
@@ -83,7 +106,7 @@ void main() {
     ), '澳门');
     expect(ChannelCategoryClassifier.classify(
       name: 'Unmarked Network', groupTitle: 'News',
-    ), '国际');
+    ), '其他');
   });
 
   test('shares a known country across identical stream URLs', () {

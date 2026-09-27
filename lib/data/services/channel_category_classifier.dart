@@ -686,7 +686,8 @@ class ChannelCategoryClassifier {
     var bestLength = 0;
     for (final province in provinceCategories) {
       for (final alias in _provinceAliases[province]!) {
-        if (identity.contains(alias) && alias.length > bestLength) {
+        if (_matchesGeographicAlias(identity, alias) &&
+            alias.length > bestLength) {
           bestProvince = province;
           bestLength = alias.length;
         }
@@ -696,7 +697,8 @@ class ChannelCategoryClassifier {
     final group = (groupTitle ?? '').toLowerCase();
     for (final province in provinceCategories) {
       for (final alias in _provinceAliases[province]!) {
-        if (group.contains(alias) && alias.length > bestLength) {
+        if (_matchesGeographicAlias(group, alias) &&
+            alias.length > bestLength) {
           bestProvince = province;
           bestLength = alias.length;
         }
@@ -712,17 +714,6 @@ class ChannelCategoryClassifier {
         ..._hongKongMacauTaiwanTerms,
         '国际',
         'international',
-        'general',
-        'legislative',
-        'religious',
-        'news',
-        'sports',
-        'movies',
-        'series',
-        'entertainment',
-        'documentary',
-        'animation',
-        ' tv',
         'rai ',
         'rtl ',
         'fox ',
@@ -923,27 +914,26 @@ class ChannelCategoryClassifier {
   }
 
   static bool _isInternationalTelevision(String name, String group) {
-    if (_containsAny(group, const [
-      '国际',
-      '国际频道',
-      'international',
-      'general',
-      'legislative',
-      'religious',
-    ])) {
+    if (_containsAny(group, const ['国际', 'international'])) {
       return true;
     }
     final lowerName = name.toLowerCase();
     if (RegExp(r'[\u3400-\u9fff]').hasMatch(lowerName)) return false;
-    if (_containsAny(group, const [
-      'news', 'sports', 'movies', 'series', 'entertainment',
-      'documentary', 'animation',
-    ])) return true;
     return RegExp(
-      r'(^|\s|[-_])(tv|television|channel)(\s|$|[-_0-9])|^(rai|rtl|fox|ion|cnn|bbc|nhk|kbs|mbc|sbs|abc|cbs|nbc|dw|sky)\b',
+      r'^(rai|rtl|fox|ion|cnn|bbc|nhk|kbs|mbc|sbs|abc|cbs|nbc|dw|sky)\b',
     ).hasMatch(lowerName);
   }
 
   static bool _containsAny(String text, List<String> values) =>
       values.any(text.contains);
+
+  /// Short Latin station names must be complete tokens. A substring match
+  /// would incorrectly treat NRBTV as Beijing's BTV, for example.
+  static bool _matchesGeographicAlias(String text, String alias) {
+    if (RegExp(r'^[a-z]+$').hasMatch(alias)) {
+      return RegExp('(^|[^a-z])${RegExp.escape(alias)}([^a-z]|\$)')
+          .hasMatch(text);
+    }
+    return text.contains(alias);
+  }
 }

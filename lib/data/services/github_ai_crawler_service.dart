@@ -10,6 +10,7 @@ import '../datasources/local/database.dart' as db;
 import '../datasources/parsers/m3u_parser.dart';
 import 'channel_category_classifier.dart';
 import 'channel_name_normalizer.dart';
+import 'ai_runtime_settings.dart';
 
 class OpenAiRuntimeConfig {
   final String baseUrl;
@@ -100,11 +101,12 @@ class GitHubAiCrawlerService {
   static const _maximumAnalysisCharacters = 30000;
 
   final db.AppDatabase database;
-  final OpenAiRuntimeConfig config;
+  OpenAiRuntimeConfig config;
   final Dio _github;
   final Dio _openAi;
   final bool _ownsGitHub;
   final bool _ownsOpenAi;
+  final bool _usesSavedConfig;
   final M3uParser _m3uParser = M3uParser();
   final int maximumRepositoriesPerRun;
   final int maximumDocumentsPerRepository;
@@ -149,6 +151,7 @@ class GitHubAiCrawlerService {
                ),
                connectTimeout: const Duration(seconds: 10),
                receiveTimeout: const Duration(seconds: 90),
+               followRedirects: false,
                headers: {
                  'Authorization':
                      'Bearer ${(config ?? OpenAiRuntimeConfig.fromEnvironment()).apiKey}',
@@ -157,14 +160,28 @@ class GitHubAiCrawlerService {
              ),
            ),
        _ownsGitHub = githubDio == null,
-       _ownsOpenAi = openAiDio == null;
+       _ownsOpenAi = openAiDio == null,
+       _usesSavedConfig = config == null;
 
   static String _normalizedBaseUrl(OpenAiRuntimeConfig config) {
     final value = config.baseUrl.trim();
     return value.endsWith('/') ? value.substring(0, value.length - 1) : value;
   }
 
+  Future<void> _refreshSavedConfig() async {
+    if (!_usesSavedConfig) return;
+    final saved = await AiRuntimeSettings.instance.load();
+    config = OpenAiRuntimeConfig(
+      baseUrl: saved.enabled ? saved.baseUrl : '',
+      apiKey: saved.enabled ? saved.apiKey : '',
+      model: saved.model,
+    );
+    _openAi.options.baseUrl = _normalizedBaseUrl(config);
+    _openAi.options.headers['Authorization'] = 'Bearer ${config.apiKey}';
+  }
+
   Future<void> run() async {
+    await _refreshSavedConfig();
     if (!config.enabled) {
       AppDiagnostics.instance.log('github_ai_crawler_disabled', {
         'hasBaseUrl': config.baseUrl.isNotEmpty,
@@ -251,6 +268,7 @@ class GitHubAiCrawlerService {
     String channelName, {
     required Future<bool> Function(String url) verifyRoute,
   }) async {
+    await _refreshSavedConfig();
     final targetKey = ChannelNameNormalizer.normalize(channelName);
     if (!config.enabled || targetKey.isEmpty || _targetedRecoveryRunning) {
       return 0;
@@ -315,11 +333,17 @@ class GitHubAiCrawlerService {
   }
 
   Future<void> _verifyModelAccess() async {
-    final response = await _openAi.get<Map<String, dynamic>>('/models');
-    final data = response.data?['data'];
-    if (data is! List ||
-        !data.whereType<Map>().any((item) => item['id'] == config.model)) {
-      throw StateError('Configured OpenAI model is unavailable');
+    try {
+      final response = await _openAi.get<Map<String, dynamic>>('/models');
+      final data = response.data?['data'];
+      if (data is List &&
+          !data.whereType<Map>().any((item) => item['id'] == config.model)) {
+        throw StateError('Configured OpenAI model is unavailable');
+      }
+    } on DioException catch (error) {
+      // Some compatible providers expose chat completions without /models.
+      if (error.response?.statusCode != 404 &&
+          error.response?.statusCode != 405) rethrow;
     }
   }
 

@@ -30,6 +30,14 @@ jobs:
         with:
           go-version: '1.23'
 
+      - name: Resolve Flutter packages
+        run: flutter pub get
+
+      - name: Test classification and AI settings
+        run: |
+          flutter test test/channel_category_classifier_test.dart test/channel_country_ai_service_test.dart test/channel_category_ai_service_test.dart
+          flutter analyze lib/data/services/ai_runtime_settings.dart lib/data/services/channel_category_classifier.dart lib/data/services/channel_category_ai_service.dart lib/data/services/channel_country_ai_service.dart lib/features/settings/ai_configuration_screen.dart lib/features/channels/channels_screen.dart
+
       - name: Fetch pinned AirPlay authentication source
         run: |
           git clone https://github.com/objevovat/fairplay-sap-core-airplay2-sender-authentication-handshake.git "$RUNNER_TEMP/fpsap-source"
@@ -60,3 +68,9 @@ jobs:
             BobTV-macos-x64-test.dmg
             BobTV-macos-x64-test.sha256
           if-no-files-found: error
+
+      - name: Upload resolved package lock
+        uses: actions/upload-artifact@v4
+        with:
+          name: BobTV-macos-test-pubspec-lock
+          path: pubspec.lock

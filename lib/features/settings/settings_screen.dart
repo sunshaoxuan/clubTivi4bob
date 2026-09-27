@@ -18,6 +18,7 @@ import '../providers/provider_manager.dart';
 import '../remote/web_remote_server.dart';
 import 'add_epg_source_dialog.dart';
 import 'bobtv_service_settings.dart';
+import 'ai_configuration_screen.dart';
 import '../shows/shows_providers.dart';
 import '../../data/datasources/remote/trakt_client.dart';
 import '../../data/datasources/remote/tmdb_client.dart';
@@ -245,6 +246,22 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   ],
                 ),
                 const BobTvServiceSettings(),
+                _SettingsSection(
+                  title: 'AI',
+                  children: [
+                    ListTile(
+                      leading: const Icon(Icons.auto_awesome_rounded),
+                      title: const Text('AI 分类设置'),
+                      subtitle: const Text('配置兼容端点、模型与 API Key'),
+                      trailing: const Icon(Icons.chevron_right),
+                      onTap: () => Navigator.of(context).push(
+                        MaterialPageRoute<void>(
+                          builder: (_) => const AiConfigurationScreen(),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
                 _SettingsSection(
                   title: 'EPG',
                   children: [

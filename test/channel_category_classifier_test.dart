@@ -49,7 +49,7 @@ void main() {
   });
 
   test('does not assign a province from a Latin substring', () async {
-    expect(ChannelCategoryClassifier.provinceFor(name: 'NRBTV'), isNull);
+    expect(ChannelCategoryClassifier.provinceFor(name: 'NRBTV'), equals(null));
     expect(ChannelCategoryClassifier.classify(name: 'NRBTV'), '其他');
     expect(ChannelCategoryClassifier.provinceFor(name: 'BTV-1'), '北京');
     final database = db.AppDatabase.forTesting(NativeDatabase.memory());

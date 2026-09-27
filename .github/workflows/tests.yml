@@ -27,5 +27,9 @@ jobs:
           channel: stable
           cache: true
       - run: flutter pub get
+      - uses: actions/upload-artifact@v4
+        with:
+          name: bobtv-resolved-pubspec-lock
+          path: pubspec.lock
       - run: flutter test
       - run: flutter analyze --no-fatal-infos --no-fatal-warnings

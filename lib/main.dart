@@ -9,6 +9,9 @@ import 'package:window_manager/window_manager.dart';
 
 import 'app/app.dart';
 import 'core/app_diagnostics.dart';
+import 'data/services/client_fingerprint_service.dart';
+import 'data/services/legacy_preferences_migration.dart';
+import 'data/services/desktop_update_service.dart';
 
 void main() {
   final diagnostics = AppDiagnostics.instance;
@@ -16,6 +19,7 @@ void main() {
     () async {
       WidgetsFlutterBinding.ensureInitialized();
       await diagnostics.initialize();
+      await LegacyPreferencesMigration.run();
 
       FlutterError.onError = (details) {
         diagnostics.recordError(
@@ -39,6 +43,8 @@ void main() {
         'diagnosticDirectory': diagnostics.logDirectoryPath,
       });
       runApp(const ProviderScope(child: ClubTiviApp()));
+      unawaited(ClientFingerprintService.instance.initialize());
+      DesktopUpdateService.instance.start();
     },
     (error, stackTrace) {
       diagnostics.recordError('root_zone', error, stackTrace, fatal: true);

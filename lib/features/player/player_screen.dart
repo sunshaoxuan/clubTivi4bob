@@ -12,13 +12,17 @@ import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:window_manager/window_manager.dart';
 
+import '../../core/app_diagnostics.dart';
 import '../../data/datasources/local/database.dart' as db;
+import '../../data/services/channel_category_classifier.dart';
+import '../../data/services/manual_route_cycle.dart';
 import '../../data/services/stream_alternatives_service.dart';
 import '../../features/providers/provider_manager.dart' show databaseProvider;
 import '../casting/cast_service.dart';
 import '../casting/cast_dialog.dart';
 import '../channels/channel_debug_dialog.dart';
 import 'player_control_bar.dart';
+import 'alternative_preview_overlay.dart';
 import 'player_service.dart';
 import 'stream_info_badges.dart';
 
@@ -50,10 +54,19 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   int _currentUrlIndex = 0;
   bool _showChannelList = false;
   bool _isFavorite = false;
-  bool _channelSwitchInProgress = false;
+  int _channelSwitchGeneration = 0;
   bool _nativeFullscreen = false;
+  bool _leavingPlayer = false;
+  Rect? _windowBoundsBeforeFullscreen;
+  bool _windowWasMaximized = false;
+  bool _showCursor = true;
+  Timer? _cursorTimer;
+  final ManualRouteCycle _manualRouteCycle = ManualRouteCycle();
   StreamSubscription<Tracks>? _tracksSubscription;
   StreamSubscription<bool>? _bufferingSubscription;
+  StreamSubscription<Player>? _activePlayerSubscription;
+  StreamSubscription<String?>? _castStatusSubscription;
+  bool _castBusy = false;
 
   // Channel switching state
   late int _channelIndex;
@@ -76,6 +89,14 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   String? _nextTime;
   String? _groupTitle;
   String? _providerName;
+
+  bool _allowsAudioOnly(Map<String, dynamic> channel) =>
+      ChannelCategoryClassifier.isRadioChannel(
+        name: channel['name']?.toString() ?? '',
+        groupTitle: channel['groupTitle']?.toString(),
+        tvgId: channel['tvgId']?.toString(),
+        streamUrl: channel['streamUrl']?.toString(),
+      );
 
   // Favorite lists
   List<db.FavoriteList> _favoriteLists = [];
@@ -103,7 +124,28 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       _setNativeFullscreen(true);
     });
     _startPlayback();
+    _activePlayerSubscription = ref.read(playerServiceProvider)
+        .activePlayerStream.listen((_) {
+      _bindActivePlayerStreams();
+      if (mounted) {
+        _loadTrackInfo();
+        setState(() {});
+      }
+    });
+    _castStatusSubscription = ref.read(castServiceProvider).statusStream.listen(
+      (message) {
+        if (!mounted) return;
+        setState(() {});
+        if (message != null) {
+          ScaffoldMessenger.of(context).hideCurrentSnackBar();
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text(message)));
+        }
+      },
+    );
     _autoHideOverlay();
+    _scheduleCursorHide();
     _loadEpgInfo();
     _loadFavoriteState();
   }
@@ -213,9 +255,17 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                   widget.channels[_channelIndex]['tvgName'] as String?
             : null,
         failoverGroupUrls: widget.alternativeUrls,
+        allowAudioOnly: widget.channels.isNotEmpty
+            ? _allowsAudioOnly(widget.channels[_channelIndex])
+            : false,
       );
     }
 
+    _bindActivePlayerStreams();
+  }
+
+  void _bindActivePlayerStreams() {
+    final playerService = ref.read(playerServiceProvider);
     // Load track info once tracks become available
     _tracksSubscription?.cancel();
     _tracksSubscription = playerService.player.stream.tracks.listen((tracks) {
@@ -229,19 +279,41 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   }
 
   Future<void> _showCastPicker() async {
+    if (_castBusy) return;
     final device = await showCastDialog(context, ref);
     if (device != null && mounted) {
       final castService = ref.read(castServiceProvider);
-      final urls = [widget.streamUrl, ...widget.alternativeUrls];
+      final playerService = ref.read(playerServiceProvider);
+      final url = castService.relayAirPlay
+          ? playerService.castUrl
+          : playerService.currentUrl;
+      if (url == null) return;
+      setState(() => _castBusy = true);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('正在準備視頻並連接投屏設備…'),
+          duration: Duration(seconds: 30),
+        ),
+      );
       final success = await castService.castTo(
         device,
-        urls[_currentUrlIndex],
-        title: widget.channelName,
+        url,
+        title: _currentChannelName,
       );
+      if (mounted) setState(() => _castBusy = false);
       if (success && mounted) {
+        final latestUrl = castService.relayAirPlay
+            ? playerService.castUrl
+            : playerService.currentUrl;
+        if (latestUrl != null && latestUrl != url) {
+          unawaited(
+            castService.switchChannel(latestUrl, title: _currentChannelName),
+          );
+        }
+        ScaffoldMessenger.of(context).hideCurrentSnackBar();
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('正在投放到 ${device.name}'),
+            content: Text('已向 ${device.name} 發送播放請求，請確認電視畫面'),
             backgroundColor: Colors.green.shade800,
             duration: const Duration(seconds: 2),
           ),
@@ -456,6 +528,20 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     });
   }
 
+  void _scheduleCursorHide() {
+    _cursorTimer?.cancel();
+    _cursorTimer = Timer(const Duration(seconds: 4), () {
+      if (mounted) setState(() => _showCursor = false);
+    });
+  }
+
+  void _onPointerActivity() {
+    if (!_showCursor && mounted) setState(() => _showCursor = true);
+    if (!_showOverlay && mounted) setState(() => _showOverlay = true);
+    _autoHideOverlay();
+    _scheduleCursorHide();
+  }
+
   void _toggleOverlay() {
     setState(() => _showOverlay = !_showOverlay);
     if (_showOverlay) _autoHideOverlay();
@@ -467,22 +553,38 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   Future<void> _setNativeFullscreen(bool value) async {
     if (!_supportsNativeFullscreen) return;
     if (value) {
+      _windowWasMaximized = await windowManager.isMaximized();
+      _windowBoundsBeforeFullscreen = await windowManager.getBounds();
       await windowManager.setTitleBarStyle(TitleBarStyle.hidden);
       await windowManager.setFullScreen(true);
+      await windowManager.setAlwaysOnTop(true);
+      await windowManager.focus();
     } else {
+      await windowManager.setAlwaysOnTop(false);
       await windowManager.setFullScreen(false);
       await windowManager.setTitleBarStyle(TitleBarStyle.normal);
-      if (Platform.isWindows) await windowManager.maximize();
+      if (_windowWasMaximized) {
+        await windowManager.maximize();
+      } else if (_windowBoundsBeforeFullscreen != null) {
+        await windowManager.setBounds(_windowBoundsBeforeFullscreen!);
+      }
+      _windowBoundsBeforeFullscreen = null;
     }
     if (mounted) setState(() => _nativeFullscreen = value);
   }
 
   Future<void> _toggleNativeFullscreen() async {
-    await _setNativeFullscreen(!_nativeFullscreen);
+    if (_nativeFullscreen) {
+      await _leavePlayer();
+    } else {
+      await _setNativeFullscreen(true);
+    }
   }
 
   Future<void> _leavePlayer() async {
-    if (_nativeFullscreen) await _setNativeFullscreen(false);
+    if (_leavingPlayer) return;
+    _leavingPlayer = true;
+    if (_supportsNativeFullscreen) await _setNativeFullscreen(false);
     if (!mounted) return;
     GoRouter.of(context).canPop()
         ? GoRouter.of(context).pop()
@@ -506,7 +608,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
         return KeyEventResult.handled;
       }
       if (_nativeFullscreen) {
-        _setNativeFullscreen(false);
+        unawaited(_leavePlayer());
         return KeyEventResult.handled;
       }
       _leavePlayer();
@@ -554,26 +656,16 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   }
 
   Future<void> _switchChannel(int delta) async {
-    if (widget.channels.isEmpty || _channelSwitchInProgress) return;
-    _channelSwitchInProgress = true;
-    setState(() {
-      _channelIndex = (_channelIndex + delta) % widget.channels.length;
-      if (_channelIndex < 0) _channelIndex += widget.channels.length;
-      final ch = widget.channels[_channelIndex];
-      _currentChannelName = ch['name'] as String? ?? '';
-      _currentChannelLogo = ch['tvgLogo'] as String?;
-      _groupTitle = ch['groupTitle']?.toString();
-      _providerName = ref
-          .read(streamAlternativesProvider)
-          .providerName(ch['providerId']?.toString() ?? '');
-      _currentUrlIndex = 0;
-      _showOverlay = true;
-    });
-    final ch = widget.channels[_channelIndex];
+    if (widget.channels.isEmpty) return;
+    final switchGeneration = ++_channelSwitchGeneration;
+    var targetIndex = (_channelIndex + delta) % widget.channels.length;
+    if (targetIndex < 0) targetIndex += widget.channels.length;
+    final ch = widget.channels[targetIndex];
+    setState(() => _showOverlay = true);
     try {
-      await ref
+      final switched = await ref
           .read(playerServiceProvider)
-          .play(
+          .switchChannel(
             ch['streamUrl'] as String? ?? '',
             channelId: ch['id'] as String?,
             epgChannelId: ch['epgChannelId'] as String?,
@@ -583,13 +675,218 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
             originalName:
                 ch['originalName'] as String? ?? ch['tvgName'] as String?,
             failoverGroupUrls: (ch['alternativeUrls'] as List?)?.cast<String>(),
+            allowAudioOnly: _allowsAudioOnly(ch),
           );
+      if (!mounted || switchGeneration != _channelSwitchGeneration) return;
+      if (!switched) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('新频道暂时无法播放，已保留原频道'),
+          duration: Duration(seconds: 3),
+        ));
+        return;
+      }
+      setState(() {
+        _channelIndex = targetIndex;
+        _currentChannelName = ch['name'] as String? ?? '';
+        _currentChannelLogo = ch['tvgLogo'] as String?;
+        _groupTitle = ch['groupTitle']?.toString();
+        _providerName = ref.read(streamAlternativesProvider)
+            .providerName(ch['providerId']?.toString() ?? '');
+        _currentUrlIndex = 0;
+      });
       _autoHideOverlay();
       _loadEpgInfo();
       _loadFavoriteState();
-    } finally {
-      _channelSwitchInProgress = false;
+    } catch (error, stackTrace) {
+      AppDiagnostics.instance.recordError('channel_switch', error, stackTrace);
     }
+  }
+
+  PopupMenuItem<int> _routeContextAction(
+    int value, IconData icon, String title, String subtitle, {
+    bool enabled = true,
+    Color accent = const Color(0xFFB9CAFF),
+  }) => PopupMenuItem<int>(
+    value: value,
+    enabled: enabled,
+    height: 62,
+    child: Opacity(
+      opacity: enabled ? 1 : 0.45,
+      child: Row(children: [
+        Container(
+          width: 34, height: 34,
+          decoration: BoxDecoration(
+            color: accent.withValues(alpha: 0.13),
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Icon(icon, color: accent, size: 19),
+        ),
+        const SizedBox(width: 12),
+        Expanded(child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(title, style: const TextStyle(color: Colors.white,
+                fontSize: 14, fontWeight: FontWeight.w600)),
+            const SizedBox(height: 3),
+            Text(subtitle, style: const TextStyle(
+                color: Color(0xFFA8B8D1), fontSize: 11)),
+          ],
+        )),
+      ]),
+    ),
+  );
+
+  Future<void> _showRouteMenu(Offset position) async {
+    if (widget.channels.isEmpty) return;
+    final service = ref.read(playerServiceProvider);
+    final currentUrl = service.currentUrl;
+    if (currentUrl == null) return;
+    final alternatives = service.currentAlternativeUrls.take(12).toList();
+    final overlay = Overlay.of(context).context.findRenderObject() as RenderBox;
+    final choice = await showMenu<int>(
+      context: context,
+      color: const Color(0xFF172439),
+      elevation: 20,
+      shadowColor: Colors.black54,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(20),
+        side: const BorderSide(color: Color(0xFF536683)),
+      ),
+      constraints: const BoxConstraints(minWidth: 340, maxWidth: 380),
+      position: RelativeRect.fromLTRB(
+        position.dx,
+        position.dy,
+        overlay.size.width - position.dx,
+        overlay.size.height - position.dy,
+      ),
+      items: [
+        PopupMenuItem<int>(enabled: false, height: 66,
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(_currentChannelName, maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(color: Colors.white,
+                        fontSize: 16, fontWeight: FontWeight.w700)),
+                Text('${alternatives.length + 1} 条候选线路',
+                    style: const TextStyle(color: Color(0xFFA8B8D1),
+                        fontSize: 12)),
+              ],
+            )),
+        _routeContextAction(-2,
+            _isFavorite ? Icons.star_rounded : Icons.star_outline_rounded,
+            _isFavorite ? '管理收藏' : '加入收藏',
+            _isFavorite ? '调整收藏夹' : '一键保存到我的收藏',
+            accent: const Color(0xFFFFD36B)),
+        const PopupMenuDivider(height: 14),
+        _routeContextAction(-3, Icons.skip_next_rounded,
+            '切换到下一条线路', '已试线路会暂时排到后面',
+            enabled: alternatives.isNotEmpty),
+        const PopupMenuDivider(height: 14),
+        _routeContextAction(-1, Icons.block_rounded,
+            '淘汰当前线路', '立即停播并尝试下一条',
+            accent: const Color(0xFFFFA4A4)),
+      ],
+    );
+    if (!mounted || choice == null || service.currentUrl != currentUrl) return;
+    if (choice == -2) {
+      if (_isFavorite) {
+        _toggleFavorite();
+      } else {
+        final channelId = widget.channels[_channelIndex]['id'] as String?;
+        if (channelId == null || channelId.isEmpty) return;
+        late final List<db.FavoriteList> lists;
+        try {
+          lists = await ref.read(databaseProvider)
+              .addChannelToDefaultFavorites(channelId);
+        } catch (_) {
+          if (!mounted) return;
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+            content: Text('收藏失败，请稍后重试'),
+            duration: Duration(seconds: 2),
+          ));
+          return;
+        }
+        if (!mounted) return;
+        setState(() {
+          _favoriteLists = lists;
+          _isFavorite = true;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('已加入我的收藏'),
+          duration: Duration(seconds: 2),
+        ));
+      }
+      return;
+    }
+    if (choice == -3) {
+      final tracker = ref.read(streamHealthTrackerProvider);
+      final selectedUrl = _manualRouteCycle.chooseNext(
+        channelKey: service.currentChannelId ?? _currentChannelName,
+        currentUrl: currentUrl,
+        candidates: alternatives,
+        score: tracker.getScore,
+      );
+      if (selectedUrl == null) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('候选线路本轮已试完，稍后可重新尝试'),
+          duration: Duration(seconds: 3),
+        ));
+        return;
+      }
+      tracker.recordManualSkip(currentUrl);
+      final switched = await service.switchCurrentRoute(
+        selectedUrl, onlyRequestedRoute: true);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(switched ? '已切换到可播放线路' : '候选线路不可用，已保留当前画面'),
+      ));
+      return;
+    }
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('淘汰当前线路？'),
+        content: const Text('将屏蔽这个信号地址，其他线路会保留。此操作无法在界面中撤销。'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('取消'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('确认淘汰'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted || service.currentUrl != currentUrl) {
+      return;
+    }
+    service.rejectCurrentRoute();
+    final replacementUrls = service.retirementAlternativeUrls;
+    await service.stop();
+    final deleted = await ref.read(databaseProvider).blockAndDeleteStreamUrl(
+      currentUrl,
+      reason: 'user_reported_wrong_content',
+    );
+    final switched = replacementUrls.isNotEmpty &&
+        await service.playRetirementReplacement(
+            replacementUrls.first, replacementUrls.skip(1).toList());
+    if (replacementUrls.isEmpty) {
+      service.routeSearchProgress.value = const RouteSearchProgress(
+        stage: '当前频道没有其他候选线路', index: 0, total: 0,
+      );
+      service.onSourcesExhausted?.call(_currentChannelName);
+    }
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(switched
+          ? '已淘汰当前线路，正在尝试下一条线路，移除 $deleted 条重复记录'
+          : '已淘汰当前线路，暂无可用的候选线路'),
+    ));
   }
 
   void _adjustVolume(double delta) {
@@ -627,11 +924,14 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
 
   @override
   void dispose() {
+    _activePlayerSubscription?.cancel();
+    _castStatusSubscription?.cancel();
     _overlayTimer?.cancel();
+    _cursorTimer?.cancel();
     _volumeTimer?.cancel();
     _tracksSubscription?.cancel();
     _bufferingSubscription?.cancel();
-    if (_nativeFullscreen && _supportsNativeFullscreen) {
+    if (_supportsNativeFullscreen && _nativeFullscreen) {
       unawaited(_setNativeFullscreen(false));
     }
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
@@ -641,6 +941,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   @override
   Widget build(BuildContext context) {
     final playerService = ref.watch(playerServiceProvider);
+    final initialVideoController = playerService.videoController;
 
     return Focus(
       autofocus: true,
@@ -648,20 +949,75 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       child: Scaffold(
         backgroundColor: Colors.black,
         body: MouseRegion(
-          onHover: (_) {
-            if (!_showOverlay) setState(() => _showOverlay = true);
-            _autoHideOverlay();
-          },
+          cursor: _showCursor ? MouseCursor.defer : SystemMouseCursors.none,
+          onEnter: (_) => _onPointerActivity(),
+          onHover: (_) => _onPointerActivity(),
           child: GestureDetector(
             onTap: _toggleOverlay,
             onDoubleTap: _toggleNativeFullscreen,
+            onSecondaryTapUp: (details) =>
+                _showRouteMenu(details.globalPosition),
             child: Stack(
               fit: StackFit.expand,
               children: [
                 // Video — fill entire screen
-                Video(
-                  controller: playerService.videoController,
-                  controls: NoVideoControls,
+                ValueListenableBuilder<VideoController?>(
+                  valueListenable: playerService.activeVideoController,
+                  builder: (context, controller, _) => Video(
+                    key: ValueKey(controller ?? initialVideoController),
+                    controller: controller ?? initialVideoController,
+                    controls: NoVideoControls,
+                  ),
+                ),
+
+                StreamBuilder<String?>(
+                  stream: playerService.currentUrlStream,
+                  initialData: playerService.currentUrl,
+                  builder: (context, _) => ValueListenableBuilder<RouteSearchProgress?>(
+                    valueListenable: playerService.routeSearchProgress,
+                    builder: (context, progress, _) => IgnorePointer(
+                    child: Align(
+                      alignment: Alignment.topRight,
+                      child: SafeArea(
+                        child: Padding(
+                          padding: const EdgeInsets.all(16),
+                          child: DecoratedBox(
+                            decoration: BoxDecoration(
+                              color: const Color(0xBD000000),
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 12, vertical: 7),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  if (progress?.active == true &&
+                                      progress?.background != true) ...[
+                                    const SizedBox(width: 12, height: 12,
+                                        child: CircularProgressIndicator(
+                                            strokeWidth: 2,
+                                            color: Colors.white70)),
+                                    const SizedBox(width: 7),
+                                  ],
+                                  Text(
+                                    progress != null && !progress.background
+                                        ? progress.total > 0
+                                            ? '${progress.stage} ${progress.index}/${progress.total} 路'
+                                            : progress.stage
+                                        : '候选 ${playerService.currentCandidateCount} 路',
+                                    style: const TextStyle(
+                                        color: Colors.white70, fontSize: 12),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                  ),
                 ),
 
                 // TiviMate-style control bar overlay
@@ -688,6 +1044,12 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                       setState(() => _showChannelList = !_showChannelList),
                   onFullscreenToggle: _toggleNativeFullscreen,
                   isFullscreen: _nativeFullscreen,
+                ),
+
+                Positioned(
+                  right: 24,
+                  bottom: _showOverlay ? 96 : 24,
+                  child: AlternativePreviewOverlay(service: playerService),
                 ),
 
                 // Channel info overlay (top, shown alongside control bar)
@@ -1092,6 +1454,17 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     final listsForChannel = await database.getListsForChannel(channelId);
     final checkedIds = listsForChannel.map((l) => l.id).toSet();
 
+    if (checkedIds.isEmpty) {
+      final lists = await database.addChannelToDefaultFavorites(channelId);
+      checkedIds.add('default');
+      if (mounted) {
+        setState(() {
+          _favoriteLists = lists;
+          _isFavorite = true;
+        });
+      }
+    }
+
     if (!mounted) return;
     await showModalBottomSheet<void>(
       context: context,
@@ -1118,7 +1491,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                       const SizedBox(width: 8),
                       Expanded(
                         child: Text(
-                          '将“$channelName”添加到列表',
+                          '收藏「$channelName」',
                           style: const TextStyle(
                             color: Colors.white,
                             fontSize: 15,
@@ -1126,6 +1499,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                           ),
                           overflow: TextOverflow.ellipsis,
                         ),
+                      ),
+                      IconButton(
+                        tooltip: '关闭',
+                        onPressed: () => Navigator.of(ctx).pop(),
+                        icon: const Icon(Icons.close, color: Colors.white70),
                       ),
                     ],
                   ),

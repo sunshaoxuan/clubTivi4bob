@@ -4,7 +4,7 @@
 
 The source for [bobtv.briconbric.com](https://bobtv.briconbric.com), including its frontend, Python backend, deployment configuration, and tests, lives in [`website/`](website/README.md). The [application API contract](website/API.md) is maintained alongside the site. The Windows app remains under `lib/` and `windows/`. Published packages are mirrored to the BobTV host so visitors download from that host.
 
-BobTV is a Windows-focused IPTV player built from the open source [clubTivi](https://github.com/clubanderson/clubTivi) project. It provides a Chinese interface, stream selection, automatic failover, programme guide support, and fullscreen playback on a Windows computer connected to a television.
+BobTV is a Windows-focused IPTV player built from the open source [clubTivi](https://github.com/clubanderson/clubTivi) project. It provides a Chinese interface, automatic stream selection, silent failover, programme guide support, and borderless fullscreen playback on a computer connected to a television.
 
 The application is built with Flutter and uses `media_kit`, libmpv, FFmpeg, Riverpod, Drift, and SQLite.
 
@@ -13,6 +13,8 @@ The application is built with Flutter and uses `media_kit`, libmpv, FFmpeg, Rive
 </p>
 
 ## Highlights
+
+* AirPlay video casting on Windows, including a native Mac receiver path with 720p H.264 video and stereo audio. On the receiving Mac, allow Everyone and disable Require Password; no PIN is requested. Other compatible receivers use a mouse operated pairing keypad and bounded HLS relay. Open the fullscreen player's cast button. Desktop mirroring, password protected receivers and audio-only speakers are not supported. Native-Mac pause/volume controls are not yet enabled. See [AirPlay build and compatibility notes](tools/airplay/README.md).
 
 ### One channel, multiple hidden routes
 
@@ -75,6 +77,34 @@ This fork includes several changes for long running playback:
 * Bounded parallel network probes
 * Persisted health scores with time decay
 * Time window route scoring for recurring peak hour congestion
+
+### Self-maintaining playlist catalogue
+
+The application checks HTTP and HTTPS routes in small background batches every six hours. A route is retired only after five consecutive failures spanning at least 24 hours. Previously failing routes are checked first, and a batch with no successful connections is discarded when it indicates a wider network outage. Retired routes stay excluded from later playlist imports. Channels with no remaining routes disappear automatically, along with categories that become empty.
+
+For configured GitHub backed playlists, the local database records the source URL, repository owner, repository name, branch, file path, and last observed Git object version. Repository versions are checked every six hours through the public GitHub API. A changed playlist resets its retired route records, refreshes the provider, and submits the new routes to health checks again. No GitHub credential is embedded in the application.
+
+### AI assisted GitHub crawler
+
+An optional crawler can supplement the configured playlists with newly discovered GitHub sources. It asks an OpenAI compatible Chat Completions endpoint to generate repository searches, inspect complete repository tree metadata, select arbitrary candidate documents, classify their storage format, extract stream records, and identify child documents for recursive traversal. Repository trees that exceed the recursive Git API response are traversed directory by directory. Selection does not depend on a fixed playlist path or filename extension.
+
+M3U documents are expanded by the strict local parser after AI file selection. JSON, YAML, text, generated data, and other layouts are analyzed in bounded chunks with structured JSON Schema output. Repository content is treated as untrusted data and cannot supply instructions to the model. Only same repository GitHub document links are eligible for recursive fetching.
+
+Discovered routes are placed in the existing channel aggregation and failover system. Each route retains its repository, commit, file path, source document URL, confidence, and first and last discovery times. The crawler runs at most once per day, processes five repositories per pass, and prefers three configured repositories plus two newly discovered repositories.
+
+The Settings screen accepts an OpenAI-compatible HTTPS endpoint, model ID, and API key for optional classification and source discovery. The key stays in platform secure storage. Process environment variables remain a fallback when no settings have been saved:
+
+* `OPENAI_BASE_URL`
+* `OPENAI_API_KEY`
+* `OPENAI_MODEL`, optional and defaulting to `gpt-5.6-luna`
+
+If the AI configuration is incomplete or disabled, uncertain channel classifications remain in Other and AI source discovery stays off. Playback, the programme guide, normal provider refreshes, route health checks, and GitHub version monitoring continue to operate. Credentials are never written to the repository or application logs.
+
+Release builds include a sanitized bundled snapshot of the latest discovered routes. A new installation imports the snapshot automatically, so customers receive the release time channel candidates even when the optional AI endpoint is unavailable. The snapshot contains public stream metadata and GitHub provenance only. It excludes favorites, playback history, route health history, diagnostics, crash dumps, and API configuration. Later crawler passes update these candidates when runtime AI configuration is available.
+
+### Website channel synchronization
+
+The website provides a versioned manifest and a compressed snapshot of preclassified channels. The app downloads and checks the snapshot in the background, validates its hash and records, then imports it in a database transaction. Stable route IDs preserve favorites and local route decisions across updates. An empty or unreachable website catalog leaves the packaged and locally saved channels available. The website catalog currently awaits reviewed channel data; the existence of the API alone does not populate it. See [`website/API.md`](website/API.md) for the contract and [`website/README.md`](website/README.md) for the publication command.
 
 ## Included source bootstrap
 
@@ -179,13 +209,13 @@ Windows release builds should also be tested on the target display because GPU d
 
 ## Privacy and updates
 
-This fork does not perform the original application update check and does not display upstream release notifications. Playlist and EPG refreshes remain available because they are part of live TV data maintenance.
+The original upstream update check and notifications remain disabled. The new Windows updater uses the BobTV-owned HTTPS mirror, verifies package size and SHA-256, installs only after the player exits, and keeps a previous-version backup for startup rollback. See [Windows automatic updates](docs/windows-updates.md) for the mirror contract and release procedure. The public v0.9.1 bob.9 package predates this updater; it requires one manual installation of a future updater-enabled release. The mirror endpoints must be provisioned before automatic updates can operate. Playlist and EPG refreshes remain available independently.
 
-Stream health metrics and application configuration are stored locally by the application. Review the configured provider URLs before distributing a customized build.
+Stream health metrics and application configuration are stored locally by the application. After an automatic rollback, the updater sends a bounded, URL-redacted startup failure report to the configured BobTV HTTPS endpoint and queues it locally when upload is unavailable. Memory dumps are not uploaded. Review the configured provider URLs before distributing a customized build.
 
 ## Legal notice
 
-Hotel TV is a media player. It does not host, retransmit, sell, or guarantee access to television content. Repository maintainers do not control third party playlists, streams, logos, metadata, or programme guides.
+BobTV is a media player. It does not host, retransmit, sell, or guarantee access to television content. Repository maintainers do not control third party playlists, streams, logos, metadata, or programme guides.
 
 Users and deployers are responsible for verifying that they have permission to access and display every configured source and for complying with applicable copyright, contract, network, and broadcasting rules.
 

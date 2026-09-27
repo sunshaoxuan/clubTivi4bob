@@ -6,7 +6,7 @@ import 'package:flutter/widgets.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 
-/// Durable application diagnostics for unattended Windows playback.
+/// Durable application diagnostics for unattended desktop playback.
 ///
 /// Each entry is written and flushed as one JSON line. An active-session
 /// marker lets the next launch identify an earlier unclean exit even when the

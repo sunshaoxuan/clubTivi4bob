@@ -4,6 +4,14 @@
 
 本文依据当前服务端实现编写。现有发布包尚未接入这些新 API。服务端没有公开的报告网页、候选源查询接口、贡献者汇总接口或供应用端使用的 API 密钥。公网 API 可以被其他程序调用，服务端不能证明请求一定来自 BobTV。
 
+## 0. 预分类频道快照
+
+`GET /api/v1/channel-catalog/manifest` 返回 `schemaVersion`、`version`、`generatedAt`、`channelCount`、`routeCount`、`snapshotUrl`、`compressedBytes` 和 `sha256`。当前尚未发布频道快照时返回 `{"schemaVersion":1,"version":null,"channelCount":0,"routeCount":0}`，客户端应继续使用本地目录。响应支持 `ETag` 和 `If-None-Match`。
+
+有内容时，客户端从同一本站域名请求 `snapshotUrl`，路径格式为 `/api/v1/channel-catalog/snapshots/{sha256}.json.gz`。先核对压缩字节长度和 SHA-256，再解压、验证 `schemaVersion`、`version`、分类树及唯一的频道和线路 ID。快照的 `categories` 带有 `id`、`parentId`、`name`、`sortOrder`；`channels` 带有 `id`、`name`、`categoryId`、`countryCode`、`regionCode`、`sortOrder`、`epgId`、`logoUrl`、`routes`。每条 `routes` 包含 `id`、`url`、`source`、`lastPlayableAt`、`healthScore`。
+
+快照由管理者使用 `publish_channel_catalog.py` 从已整理的 JSON 文件发布。脚本在完整校验后写入不可变压缩文件，最后原子替换 manifest。空目录、无效分类、重复 ID、未通过公开地址检查的线路都不能覆盖上一版。网站目前尚无可发布的已分类频道数据；这套接口不把未经审核的 GitHub 探索结果称为有效线路。客户端继续保留用户订阅、收藏、淘汰记录与本机后备目录。
+
 ## 1. 已审核视频源目录
 
 `GET /api/v1/sources`，无需请求正文和认证。

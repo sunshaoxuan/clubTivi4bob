@@ -1097,10 +1097,16 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
             url != channel.streamUrl &&
             (includeUnverified || !_simpleMode || _verifiedRouteUrls.contains(url)))
         .toList();
-    urls.sort((a, b) =>
-        (_verifiedRouteUrls.contains(b) ? 1 : 0) -
-        (_verifiedRouteUrls.contains(a) ? 1 : 0));
-    return urls.take(12).toList();
+    final tracker = ref.read(streamHealthTrackerProvider);
+    final order = {for (var i = 0; i < urls.length; i++) urls[i]: i};
+    urls.sort((a, b) {
+      final verified = (_verifiedRouteUrls.contains(b) ? 1 : 0) -
+          (_verifiedRouteUrls.contains(a) ? 1 : 0);
+      if (verified != 0) return verified;
+      final health = tracker.getScore(b).compareTo(tracker.getScore(a));
+      return health != 0 ? health : order[a]!.compareTo(order[b]!);
+    });
+    return urls.take(64).toList();
   }
 
   int _verifiedRouteCount(db.Channel channel) {
@@ -1341,7 +1347,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
         (playerService.currentChannelId == channel.id ||
             (playerService.currentChannelId == null &&
                 playerService.currentUrl == channel.streamUrl));
-    if (isPlayingChannel) {
+    if (isPlayingChannel && !force && preferredUrl == null) {
       ++_channelSelectionGeneration;
       _pendingAutoplayGroup = null;
       final hadPreview = _pendingChannelIndex != null ||
@@ -1407,10 +1413,25 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
     }
     bool switched;
     try {
-      switched = commitPreview
-        ? await playerService.commitPreparedChannel(channel.id)
-        : hasActivePlayback
-          ? await playerService.switchChannel(
+      if (force && hasActivePlayback && _simpleMode) {
+        await playerService.discardPreparedChannel();
+        unawaited(playerService.play(
+          preferredUrl ?? channel.streamUrl,
+          channelId: channel.id,
+          epgChannelId: _getEpgId(channel),
+          tvgId: channel.tvgId,
+          channelName: channel.name,
+          vanityName: _vanityNames[channel.id],
+          originalName: channel.tvgName,
+          failoverGroupUrls: failoverUrls,
+          allowAudioOnly: _allowsAudioOnly(channel),
+        ));
+        switched = true;
+      } else {
+        switched = commitPreview
+          ? await playerService.commitPreparedChannel(channel.id)
+          : hasActivePlayback
+            ? await playerService.switchChannel(
             preferredUrl ?? channel.streamUrl,
             channelId: channel.id,
             epgChannelId: _getEpgId(channel),
@@ -1424,7 +1445,8 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
             preferRequestedRoute: preferredUrl != null,
             onlyRequestedRoute: onlyRequestedRoute,
           )
-          : true;
+            : true;
+      }
     } catch (error, stackTrace) {
       AppDiagnostics.instance.recordError(
           'channel_preload', error, stackTrace);

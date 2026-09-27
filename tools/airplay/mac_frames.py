@@ -69,10 +69,6 @@ async def play_test_frames(address, port, data, helper, diagnostic, pcm=None, so
     video_iterator = audio_iterator = None
     width, height = 640, 360
     if source:
-        video_iterator = source.video().__aiter__()
-        audio_iterator = source.audio().__aiter__()
-        (config, first_frame), first_audio = await asyncio.wait_for(asyncio.gather(
-            video_iterator.__anext__(), audio_iterator.__anext__()), 15)
         frames = None
         width, height = source.width, source.height
     else:
@@ -82,7 +78,7 @@ async def play_test_frames(address, port, data, helper, diagnostic, pcm=None, so
     protocol.frame_stream = True
     protocol.media_auth_helper = helper
     protocol.diagnostic = diagnostic
-    transport = writer = audio = audio_task = None
+    transport = writer = audio = audio_task = heartbeat_task = None
     class ReceiverTiming(TimingServer):
         requests = 0
         def datagram_received(self, data, addr):
@@ -128,14 +124,31 @@ async def play_test_frames(address, port, data, helper, diagnostic, pcm=None, so
         if audio:
             response = await asyncio.wait_for(protocol.rtsp.set_parameter('volume', '-12.0'), 5)
             diagnostic({'stage': 'audio-volume', 'status': response.code})
+        if source:
+            # Connect the receiver first. Otherwise frames decoded during the
+            # authentication handshake become a permanent startup backlog.
+            if source.process is None:
+                await source.start()
+            video_iterator = source.video().__aiter__()
+            audio_iterator = source.audio().__aiter__()
+            (config, first_frame), first_audio = await asyncio.wait_for(asyncio.gather(
+                video_iterator.__anext__(), audio_iterator.__anext__()), 15)
         start = time.monotonic()
-        epoch = protocol.media_time() + (.25 if audio else .075)
         def timestamp(index=0):
-            return int((epoch + index / 25) * (1 << 32)) & ((1 << 64) - 1)
+            return int((protocol.media_time() + (.25 if audio else .075)) * (1 << 32)) & ((1 << 64) - 1)
+        async def heartbeat():
+            packet = bytearray(128)
+            packet[4], packet[6] = 2, 0x1e
+            while True:
+                await asyncio.sleep(1)
+                writer.write(packet)
+                await asyncio.wait_for(writer.drain(), 2)
+        heartbeat_task = asyncio.create_task(heartbeat())
         writer.write(codec_packet(config, timestamp(), width, height))
         await asyncio.wait_for(writer.drain(), 2)
         if audio:
             async def send_audio():
+                nonlocal start
                 index = 0
                 while source or index < len(pcm) // PCM_BYTES:
                     if source:
@@ -146,13 +159,17 @@ async def play_test_frames(address, port, data, helper, diagnostic, pcm=None, so
                     else:
                         packet = pcm[index * PCM_BYTES:(index + 1) * PCM_BYTES]
                     await asyncio.sleep(max(0, start + index * SAMPLES / RATE - time.monotonic()))
-                    if time.monotonic() - (start + index * SAMPLES / RATE) > 2:
-                        raise TimeoutError('Audio source fell behind playback')
+                    lag = time.monotonic() - (start + index * SAMPLES / RATE)
+                    if lag > .5:
+                        start += lag
+                        diagnostic({'stage': 'audio-clock-rebase', 'lagMs': round(lag * 1000)})
                     audio.send(packet)
                     index += 1
             audio_task = asyncio.create_task(send_audio())
         index = 0
         while source or index < len(frames):
+            if heartbeat_task.done():
+                await heartbeat_task
             if audio_task and audio_task.done():
                 await audio_task
                 if source:
@@ -168,14 +185,16 @@ async def play_test_frames(address, port, data, helper, diagnostic, pcm=None, so
             else:
                 nals = frames[index]
             await asyncio.sleep(max(0, start + index / 25 - time.monotonic()))
-            if time.monotonic() - (start + index / 25) > 2:
-                raise TimeoutError('Video source fell behind playback')
+            lag = time.monotonic() - (start + index / 25)
+            if lag > .5:
+                start += lag
+                diagnostic({'stage': 'video-clock-rebase', 'lagMs': round(lag * 1000)})
             if reader.at_eof():
                 raise ConnectionError('Receiver closed video channel')
             writer.write(frame_packet(nals, timestamp(index), key, index))
             await asyncio.wait_for(writer.drain(), 2)
             index += 1
-            if index == 25 or index % 750 == 0:
+            if index == 25 or index % 250 == 0:
                 diagnostic({'stage': 'frame-progress', 'count': index,
                             'audioPackets': audio.counter if audio else 0})
         diagnostic({'stage': 'frames-sent', 'count': index, 'playbackVerified': False})
@@ -184,6 +203,9 @@ async def play_test_frames(address, port, data, helper, diagnostic, pcm=None, so
             diagnostic({'stage': 'audio-sent', 'packets': audio.counter})
         await asyncio.sleep(2)
     finally:
+        if heartbeat_task:
+            heartbeat_task.cancel()
+            await asyncio.gather(heartbeat_task, return_exceptions=True)
         if audio_task and not audio_task.done():
             audio_task.cancel()
             await asyncio.gather(audio_task, return_exceptions=True)

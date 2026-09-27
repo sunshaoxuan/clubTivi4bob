@@ -28,7 +28,7 @@ void main() {
     );
     expect(
       ChannelCategoryClassifier.classify(name: 'TVB星河', groupTitle: '港澳台频道'),
-      '港澳台',
+      '国际',
     );
     expect(
       ChannelCategoryClassifier.classify(
@@ -43,8 +43,60 @@ void main() {
     );
     expect(
       ChannelCategoryClassifier.classify(name: '澳门资讯', groupTitle: '🌊港·澳·台'),
-      '港澳台',
+      '国际',
     );
+    expect(ChannelCategoryClassifier.categories, isNot(contains('港澳台')));
+  });
+
+  test('identifies international country before source genre', () {
+    expect(ChannelCategoryClassifier.classify(
+      name: 'Onda TV', tvgId: 'OndaTV.it', groupTitle: 'General',
+    ), '国际');
+    expect(ChannelCategoryClassifier.internationalCountryFor(
+      name: 'Onda TV', tvgId: 'OndaTV.it', groupTitle: 'General',
+    ), '意大利');
+    expect(ChannelCategoryClassifier.internationalCountryFor(
+      name: 'France 24', groupTitle: 'News',
+    ), '法国');
+    expect(ChannelCategoryClassifier.internationalGenreFor('Sports'), '体育');
+    expect(ChannelCategoryClassifier.internationalGenreFor('Movies'), '电影');
+    expect(ChannelCategoryClassifier.internationalCountryFor(
+      name: 'Unmarked Channel', groupTitle: 'General',
+    ), '未识别地区');
+    expect(ChannelCategoryClassifier.internationalCountryFor(
+      name: 'Jerusalem Channel', groupTitle: 'General',
+    ), '未识别地区');
+    expect(ChannelCategoryClassifier.internationalCountryFor(
+      name: 'ABC News Live', groupTitle: 'News',
+    ), '美国');
+    expect(ChannelCategoryClassifier.internationalCountryFor(
+      name: 'ABC News', groupTitle: 'News',
+    ), '未识别地区');
+    expect(ChannelCategoryClassifier.internationalCountryFor(
+      name: 'ABC NEWS', tvgId: 'ABCNews.au',
+    ), '澳大利亚');
+    expect(ChannelCategoryClassifier.internationalCountryFor(
+      name: 'TVB星河', groupTitle: '港澳台频道',
+    ), '香港');
+    expect(ChannelCategoryClassifier.internationalCountryFor(
+      name: '澳门资讯', groupTitle: '港澳台频道',
+    ), '澳门');
+    expect(ChannelCategoryClassifier.classify(
+      name: 'Unmarked Network', groupTitle: 'News',
+    ), '国际');
+  });
+
+  test('shares a known country across identical stream URLs', () {
+    final countries = ChannelCategoryClassifier.knownCountriesByStreamUrl([
+      (name: 'ABC News Live', groupTitle: 'News', tvgId: 'ABCNewsLive.us',
+        streamUrl: 'https://example.com/abc.m3u8'),
+      (name: 'ABC News', groupTitle: 'News', tvgId: null,
+        streamUrl: 'https://example.com/abc.m3u8'),
+      (name: 'ABC NEWS', groupTitle: 'News', tvgId: 'ABCNews.au',
+        streamUrl: 'https://example.com/australia.m3u8'),
+    ]);
+    expect(countries['https://example.com/abc.m3u8'], '美国');
+    expect(countries['https://example.com/australia.m3u8'], '澳大利亚');
   });
 
   test('does not infer a central channel from an upstream group name', () {
@@ -146,6 +198,14 @@ void main() {
           name: 'CETV-1',
           streamUrl: 'https://example.com/cetv.m3u8',
         ),
+        db.ChannelsCompanion.insert(
+          id: 'italian',
+          providerId: 'test',
+          name: 'Onda TV',
+          tvgId: const Value('OndaTV.it'),
+          groupTitle: const Value('General'),
+          streamUrl: 'https://example.com/onda.m3u8',
+        ),
       ]);
 
       final central = await database.getChannelCategoryCandidates('央视');
@@ -158,6 +218,8 @@ void main() {
       expect(radio.map((channel) => channel.id), ['audio-url']);
       final digital = await database.getChannelCategoryCandidates('数字');
       expect(digital.map((channel) => channel.id), ['digital']);
+      final international = await database.getChannelCategoryCandidates('国际');
+      expect(international.map((channel) => channel.id), contains('italian'));
     },
   );
 

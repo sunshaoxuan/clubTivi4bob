@@ -312,6 +312,12 @@ class AppDatabase extends _$AppDatabase {
     return deleteChannelsByIds(matches.map((channel) => channel.id));
   }
 
+  Future<bool> isStreamUrlBlocked(String streamUrl) async =>
+      await (select(blockedStreamRoutes)
+            ..where((table) => table.streamUrl.equals(streamUrl)))
+          .getSingleOrNull() !=
+      null;
+
   Future<int> deleteChannelsByIds(Iterable<String> channelIds) async {
     final ids = channelIds.toSet().toList();
     if (ids.isEmpty) return 0;

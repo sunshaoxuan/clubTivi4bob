@@ -22,6 +22,7 @@ import '../casting/cast_service.dart';
 import '../casting/cast_dialog.dart';
 import '../channels/channel_debug_dialog.dart';
 import 'player_control_bar.dart';
+import 'alternative_preview_overlay.dart';
 import 'player_service.dart';
 import 'stream_info_badges.dart';
 
@@ -785,7 +786,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
             enabled: alternatives.isNotEmpty),
         const PopupMenuDivider(height: 14),
         _routeContextAction(-1, Icons.block_rounded,
-            '淘汰当前线路', '从候选线路中移除',
+            '淘汰当前线路', '立即停播并尝试下一条',
             accent: const Color(0xFFFFA4A4)),
       ],
     );
@@ -865,16 +866,26 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       return;
     }
     service.rejectCurrentRoute();
+    final replacementUrls = service.retirementAlternativeUrls;
+    await service.stop();
     final deleted = await ref.read(databaseProvider).blockAndDeleteStreamUrl(
       currentUrl,
       reason: 'user_reported_wrong_content',
     );
-    final switched = alternatives.isNotEmpty &&
-        await service.switchCurrentRoute(alternatives.first);
-    if (!switched) await service.stop();
+    final switched = replacementUrls.isNotEmpty &&
+        await service.playRetirementReplacement(
+            replacementUrls.first, replacementUrls.skip(1).toList());
+    if (replacementUrls.isEmpty) {
+      service.routeSearchProgress.value = const RouteSearchProgress(
+        stage: '当前频道没有其他候选线路', index: 0, total: 0,
+      );
+      service.onSourcesExhausted?.call(_currentChannelName);
+    }
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      content: Text('已淘汰当前线路，移除 $deleted 条重复记录'),
+      content: Text(switched
+          ? '已淘汰当前线路，正在尝试下一条线路，移除 $deleted 条重复记录'
+          : '已淘汰当前线路，暂无可用的候选线路'),
     ));
   }
 
@@ -959,86 +970,54 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                   ),
                 ),
 
-                ValueListenableBuilder<bool>(
-                  valueListenable: playerService.channelSwitching,
-                  builder: (context, preparing, _) {
-                    if (!preparing) return const SizedBox.shrink();
-                    return IgnorePointer(
-                      child: Align(
-                        alignment: Alignment.topCenter,
-                        child: SafeArea(
-                          child: Padding(
-                            padding: const EdgeInsets.only(top: 18),
-                            child: DecoratedBox(
-                              decoration: BoxDecoration(
-                                color: Colors.black87,
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              child: const Padding(
-                                padding: EdgeInsets.symmetric(
-                                    horizontal: 16, vertical: 10),
-                                child: Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    SizedBox(width: 16, height: 16,
-                                        child: CircularProgressIndicator(
-                                            strokeWidth: 2,
-                                            color: Colors.white)),
-                                    SizedBox(width: 10),
-                                    Text('新频道正在后台载入，当前播放保持不变',
-                                        style: TextStyle(color: Colors.white)),
-                                  ],
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                    );
-                  },
-                ),
-
-                StreamBuilder<bool>(
-                  stream: playerService.failoverSwitchingStream,
-                  initialData: playerService.failoverSwitching,
-                  builder: (context, snapshot) {
-                    if (snapshot.data != true) return const SizedBox.shrink();
-                    return IgnorePointer(
-                      child: ColoredBox(
-                        color: Colors.black54,
-                        child: Center(
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 18,
-                              vertical: 12,
-                            ),
+                StreamBuilder<String?>(
+                  stream: playerService.currentUrlStream,
+                  initialData: playerService.currentUrl,
+                  builder: (context, _) => ValueListenableBuilder<RouteSearchProgress?>(
+                    valueListenable: playerService.routeSearchProgress,
+                    builder: (context, progress, _) => IgnorePointer(
+                    child: Align(
+                      alignment: Alignment.topRight,
+                      child: SafeArea(
+                        child: Padding(
+                          padding: const EdgeInsets.all(16),
+                          child: DecoratedBox(
                             decoration: BoxDecoration(
-                              color: Colors.black87,
+                              color: const Color(0xBD000000),
                               borderRadius: BorderRadius.circular(10),
                             ),
-                            child: const Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                SizedBox(
-                                  width: 18,
-                                  height: 18,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                    color: Colors.white70,
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 12, vertical: 7),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  if (progress?.active == true &&
+                                      progress?.background != true) ...[
+                                    const SizedBox(width: 12, height: 12,
+                                        child: CircularProgressIndicator(
+                                            strokeWidth: 2,
+                                            color: Colors.white70)),
+                                    const SizedBox(width: 7),
+                                  ],
+                                  Text(
+                                    progress != null && !progress.background
+                                        ? progress.total > 0
+                                            ? '${progress.stage} ${progress.index}/${progress.total} 路'
+                                            : progress.stage
+                                        : '候选 ${playerService.currentCandidateCount} 路',
+                                    style: const TextStyle(
+                                        color: Colors.white70, fontSize: 12),
                                   ),
-                                ),
-                                SizedBox(width: 10),
-                                Text(
-                                  '正在切换线路，可继续选择其他频道',
-                                  style: TextStyle(color: Colors.white70),
-                                ),
-                              ],
+                                ],
+                              ),
                             ),
                           ),
                         ),
                       ),
-                    );
-                  },
+                    ),
+                  ),
+                  ),
                 ),
 
                 // TiviMate-style control bar overlay
@@ -1065,6 +1044,12 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                       setState(() => _showChannelList = !_showChannelList),
                   onFullscreenToggle: _toggleNativeFullscreen,
                   isFullscreen: _nativeFullscreen,
+                ),
+
+                Positioned(
+                  right: 24,
+                  bottom: _showOverlay ? 96 : 24,
+                  child: AlternativePreviewOverlay(service: playerService),
                 ),
 
                 // Channel info overlay (top, shown alongside control bar)

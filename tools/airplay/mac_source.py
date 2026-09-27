@@ -10,6 +10,7 @@ import subprocess
 import sys
 
 from mac_audio import PCM_BYTES
+from cast_diagnostics import record
 
 
 class AnnexBFrames:
@@ -107,7 +108,11 @@ class FFmpegFrames:
             from urllib.parse import urlsplit
             if urlsplit(self.url or '').scheme not in ('http', 'https'):
                 raise ValueError('Live casting requires an HTTP(S) source')
-            inputs = ['-rw_timeout', '10000000', '-i', self.url]
+            # Keep demuxer defaults: forcing the newest HLS segment together
+            # with nobuffer can discard the available keyframe and delay first
+            # output beyond the sender's startup deadline.
+            inputs = ['-rw_timeout', '15000000', '-i', self.url]
+            record({'stage': 'source-start', 'hlsLiveEdge': False})
             audio_map = '0:a:0'
         options = {'creationflags': subprocess.CREATE_NO_WINDOW} if sys.platform == 'win32' else {}
         video_filter = 'scale=1280:720:force_original_aspect_ratio=decrease,pad=1280:720:(ow-iw)/2:(oh-ih)/2,fps=25'
@@ -118,12 +123,12 @@ class FFmpegFrames:
             *inputs,
             '-map', '0:v:0', '-an', '-vf',
             video_filter,
-            '-c:v', 'libx264', '-threads', '2', '-preset', 'veryfast', '-tune', 'zerolatency',
+            '-c:v', 'libx264', '-threads', '2', '-preset', 'ultrafast', '-tune', 'zerolatency',
             '-profile:v', 'baseline', '-pix_fmt', 'yuv420p', '-b:v', '4000k',
             '-maxrate', '5000k', '-bufsize', '1000k', '-g', '25',
-            '-x264-params', 'aud=1:repeat-headers=1', '-f', 'h264', 'pipe:1',
+            '-x264-params', 'aud=1:repeat-headers=1', '-flush_packets', '1', '-f', 'h264', 'pipe:1',
             '-map', audio_map, '-vn', '-ac', '2', '-ar', '44100',
-            '-af', 'aresample=async=1:first_pts=0', '-c:a', 'pcm_s16le', '-f', 's16le',
+            '-af', 'aresample=async=1:first_pts=0', '-c:a', 'pcm_s16le', '-flush_packets', '1', '-f', 's16le',
             f'tcp://127.0.0.1:{port}',
             stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE, limit=65536, **options)
 
@@ -147,6 +152,8 @@ class FFmpegFrames:
                     raise ValueError('Video lacks decoder configuration')
                 yield self.parser.config, frame
             if not data:
+                record({'stage': 'video-eof', 'sourceEnded': True,
+                        'decoderExit': self.process.returncode if self.process.returncode is not None else -999})
                 return
 
     async def audio(self):
@@ -158,6 +165,7 @@ class FFmpegFrames:
             try:
                 yield await asyncio.wait_for(self.audio_reader.readexactly(PCM_BYTES), 10)
             except asyncio.IncompleteReadError:
+                record({'stage': 'audio-eof', 'sourceEnded': True})
                 return
 
     async def close(self):

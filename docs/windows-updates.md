@@ -1,10 +1,13 @@
 # Windows automatic updates
 
-BobTV checks https://bobtv.briconbric.com/updates/latest.json after startup and
-every six hours. When the mirror is unavailable, playback continues unchanged.
-The installed application does not need GitHub access.
+The current public API provides `GET /releases.json` and
+`GET /downloads/{filename}`. Settings can list releases and download a ZIP,
+validating the actual file with SHA-256. The public API does not yet define
+version comparison or automatic installation. Automatic polling of the retired
+`/updates/latest.json` endpoint is disabled. The installed application does not
+need GitHub access.
 
-## Mirror contract
+## Legacy mirror contract, retained for a future compatible server
 
 The HTTPS JSON manifest has these fields:
 
@@ -45,11 +48,17 @@ cleared. A normal close also clears it. After three consecutive unclean
 startups, the independent monitor triggers rollback immediately and remembers the failed version
 in skipped_versions.txt, preventing its automatic reinstallation.
 
-The rollback worker keeps a small, URL-redacted failure report and attempts to
-POST it to https://bobtv.briconbric.com/api/update-failures. The endpoint is
-provisional until the upload service is configured. Memory dumps are not sent.
-If the POST fails, the report remains queued on disk and is retried during
-later update checks.
+The rollback worker keeps a small failure record locally. It no longer sends
+records to the retired `/api/update-failures` endpoint. Separately, users may
+opt in to upload a restricted diagnostics summary through `POST /api/v1/logs`.
+Raw logs and memory dumps are never sent by that path.
 
 Automatic updates apply to writable portable Windows installations. A
 read-only installation remains on its current version and records the failure.
+
+On the first launch of a release build, BobTV checks the current user's
+redirected Desktop and the shared Desktop for a shortcut targeting this
+installation. If none exists, it creates BobTV.lnk on the current user's
+Desktop. A stale BobTV.lnk targeting an older BobTV executable is updated;
+unrelated shortcuts are preserved. The update worker repeats the check after
+installing a new version. Shortcut failures do not prevent playback or updates.

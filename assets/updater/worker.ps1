@@ -151,64 +151,14 @@ function Restore-Backup([string]$backup, [string]$destination,
 }
 
 function Report-Failure([string]$badVersion) {
-  $logs = @()
-  $logDir = Join-Path $env:LOCALAPPDATA 'HotelTV\Logs'
-  if (!$TestRoot -and (Test-Path -LiteralPath $logDir)) {
-    $logs = @(Get-ChildItem -LiteralPath $logDir -Filter '*.log' -File |
-      Sort-Object LastWriteTime -Descending | Select-Object -First 3 |
-      ForEach-Object {
-        $content = [IO.File]::ReadAllText($_.FullName)
-        if ($content.Length -gt 32768) {
-          $content = $content.Substring($content.Length - 32768)
-        }
-        $content = [regex]::Replace($content, 'https?://[^\s"\\]+', '[url]')
-        $content = [regex]::Replace(
-          $content, '(?i)(authorization|token|password|secret)[^\r\n]*',
-          '[redacted]')
-        @{ name = $_.Name; text = $content }
-      })
-  }
   $body = @{
     schema = 1
     failedVersion = $badVersion
     time = [DateTime]::UtcNow.ToString('o')
-    logs = $logs
   } | ConvertTo-Json -Depth 5 -Compress
   $queue = Join-Path $root ('failure-' + $badVersion.Replace('+', '_') + '.json')
   [IO.File]::WriteAllText($queue, $body, (New-Object Text.UTF8Encoding($false)))
-  if ($TestRoot) { return }
-  $endpoint = 'https://bobtv.briconbric.com/api/update-failures'
-  $override = Join-Path $root 'failure-upload-url.txt'
-  if (Test-Path -LiteralPath $override) {
-    $endpoint = [IO.File]::ReadAllText($override).Trim()
-  }
-  $uri = [Uri]$endpoint
-  if ($uri.Scheme -ne 'https' -or $uri.Host -ne 'bobtv.briconbric.com') {
-    Write-Log 'Failure report retained because upload URL is invalid'
-    return
-  }
-  try {
-    $handler = New-Object Net.Http.HttpClientHandler
-    $handler.AllowAutoRedirect = $false
-    $http = New-Object Net.Http.HttpClient($handler)
-    $http.Timeout = [TimeSpan]::FromSeconds(15)
-    $content = New-Object Net.Http.StringContent(
-      $body, [Text.Encoding]::UTF8, 'application/json')
-    try {
-      $response = $http.PostAsync($uri, $content).GetAwaiter().GetResult()
-      if ([int]$response.StatusCode -lt 200 -or
-          [int]$response.StatusCode -ge 300) {
-        throw 'Failure report endpoint rejected request'
-      }
-      Remove-Item -LiteralPath $queue -Force
-    } finally {
-      $content.Dispose()
-      $http.Dispose()
-      $handler.Dispose()
-    }
-  } catch {
-    Write-Log ('Failure report queued: ' + $_.Exception.Message)
-  }
+  Write-Log 'Failure report retained locally'
 }
 
 function Perform-Rollback {
@@ -434,6 +384,16 @@ try {
     Restore-Backup $backup $AppDir $newFileList
     Remove-Item -LiteralPath $statePath -Force -ErrorAction SilentlyContinue
     throw
+  }
+  if (!$TestRoot) {
+    $shortcutScript = Join-Path $root 'ensure_shortcut.ps1'
+    if (Test-Path -LiteralPath $shortcutScript) {
+      try {
+        & $shortcutScript -ExecutablePath (Join-Path $AppDir $exe)
+      } catch {
+        Write-Log ('Desktop shortcut check failed: ' + $_.Exception.Message)
+      }
+    }
   }
   Write-Status 'ready' $Version 100 '更新已安装，下次启动生效'
   Write-Log ('Installed ' + $Version)

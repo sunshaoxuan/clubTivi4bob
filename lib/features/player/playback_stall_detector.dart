@@ -74,3 +74,30 @@ class PlaybackStallDetector {
     );
   }
 }
+
+/// Counts brief, recovered buffering events in a rolling time window.
+class RepeatedShortBufferDetector {
+  RepeatedShortBufferDetector({
+    this.window = const Duration(seconds: 60),
+    this.minimumDuration = const Duration(milliseconds: 400),
+    this.maximumDuration = const Duration(seconds: 15),
+    this.requiredEvents = 3,
+  });
+
+  final Duration window;
+  final Duration minimumDuration;
+  final Duration maximumDuration;
+  final int requiredEvents;
+  final List<DateTime> _recoveredAt = [];
+
+  void reset() => _recoveredAt.clear();
+
+  bool addRecoveredBuffer(DateTime at, Duration duration) {
+    _recoveredAt.removeWhere((time) => at.difference(time) > window);
+    if (duration < minimumDuration || duration > maximumDuration) {
+      return false;
+    }
+    _recoveredAt.add(at);
+    return _recoveredAt.length >= requiredEvents;
+  }
+}

@@ -1,7 +1,7 @@
 name: clubtivi
 description: "Open-source cross-platform IPTV player with intelligent EPG mapping, multi-provider stream failover, and remote control support."
 publish_to: 'none'
-version: 0.9.1+53
+version: 0.9.1+60
 
 environment:
   sdk: ^3.11.0
@@ -24,6 +24,7 @@ dependencies:
   # Networking
   dio: ^5.7.0
   http: ^1.2.2
+  crypto: ^3.0.7
 
   # Local database (SQLite)
   drift: ^2.22.1
@@ -86,6 +87,7 @@ flutter:
     - assets/icon/
     - assets/fonts/
     - assets/data/
+    - assets/identity/
     - assets/updater/
 
 flutter_launcher_icons:

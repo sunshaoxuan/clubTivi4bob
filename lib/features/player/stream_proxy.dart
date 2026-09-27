@@ -186,6 +186,8 @@ class StreamProxy {
       if (Platform.isWindows) r'C:\ProgramData\chocolatey\bin\ffmpeg.exe',
       if (Platform.isWindows && localAppData != null)
         '$localAppData\\Microsoft\\WinGet\\Links\\ffmpeg.exe',
+      if (Platform.isMacOS)
+        '${Directory(executableDirectory).parent.path}/Resources/Tools/ffmpeg',
       '/opt/homebrew/bin/ffmpeg',
       '/usr/local/bin/ffmpeg',
       '/usr/bin/ffmpeg',

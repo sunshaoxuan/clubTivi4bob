@@ -28,13 +28,16 @@ class AirPlayBridge {
   }
 
   Future<void> _launch() async {
-    final executable = p.join(
-      p.dirname(Platform.resolvedExecutable),
-      'AirPlay',
-      'bobtv-airplay.exe',
-    );
-    if (!Platform.isWindows || !await File(executable).exists()) {
-      throw StateError('此安裝缺少 AirPlay 組件，請使用包含 AirPlay 的 Windows 版本。');
+    final executable = Platform.isWindows
+        ? p.join(p.dirname(Platform.resolvedExecutable), 'AirPlay',
+            'bobtv-airplay.exe')
+        : Platform.isMacOS
+            ? p.normalize(p.join(p.dirname(Platform.resolvedExecutable),
+                '..', 'Resources', 'AirPlay', 'bobtv-airplay',
+                'bobtv-airplay'))
+            : null;
+    if (executable == null || !await File(executable).exists()) {
+      throw StateError('此安裝缺少 AirPlay 組件。');
     }
     final process = await Process.start(executable, [], runInShell: false);
     if (_disposed) {
@@ -118,6 +121,14 @@ class AirPlayBridge {
       } catch (_) {
         process.kill();
       }
+    } else if (Platform.isMacOS) {
+      // The helper may still own an FFmpeg decoder when it is unresponsive.
+      try {
+        await Process.run('/usr/bin/pkill', [
+          '-TERM', '-P', '${process.pid}',
+        ]).timeout(const Duration(seconds: 2));
+      } catch (_) {}
+      process.kill(ProcessSignal.sigterm);
     } else {
       process.kill();
     }

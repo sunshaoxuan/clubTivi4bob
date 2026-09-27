@@ -23,14 +23,19 @@ import '../../core/weather_clock_widget.dart';
 import '../../data/datasources/local/database.dart' as db;
 import '../../data/datasources/remote/tmdb_client.dart';
 import '../../data/services/channel_category_classifier.dart';
+import '../../data/services/channel_country_ai_service.dart';
+import '../../data/services/github_cctv5plus_recovery.dart';
+import '../../data/services/bobtv_community_service.dart';
 import '../../data/services/epg_refresh_service.dart';
 import '../../data/services/stream_alternatives_service.dart';
 import '../../data/services/manual_route_cycle.dart';
 import '../../data/services/channel_name_normalizer.dart';
 import '../../data/services/source_visibility.dart';
 import '../../data/services/source_maintenance_service.dart';
-import '../../data/services/windows_update_service.dart';
+import '../../data/services/desktop_update_state.dart';
+import '../../data/services/desktop_update_service.dart';
 import '../player/player_service.dart';
+import '../player/alternative_preview_overlay.dart';
 import '../player/stream_info_badges.dart';
 import '../providers/provider_manager.dart';
 import '../providers/source_maintenance_coordinator.dart';
@@ -56,15 +61,28 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
   Map<String, int> _verifiedRouteCounts = {};
   Set<String> _verifiedRouteUrls = {};
   bool _routeAvailabilityLoading = false;
+  int _availabilityRevision = 0;
   int _regionCheckedRoutes = 0;
   int _regionTotalRoutes = 0;
   final Map<String, String> _cardRouteSelection = {};
   final ManualRouteCycle _manualRouteCycle = ManualRouteCycle();
+  bool _cctv5PlusRecoveryRunning = false;
+  DateTime? _lastCctv5PlusRecovery;
   List<String> _groups = List.of(ChannelCategoryClassifier.categories);
   String _selectedGroup = '央视';
+  String _selectedInternationalCountry = '';
+  String _selectedInternationalGenre = '全部';
+  List<String> _internationalCountries = [];
+  Map<String, String> _knownCountryByStreamUrl = {};
+  List<String> _pinnedInternationalCountries = [];
+  final ScrollController _countryScrollController = ScrollController();
+  final ChannelCountryAiService _countryAi = ChannelCountryAiService();
+  Map<String, String> _aiCountryCache = {};
   bool _simpleMode = true;
   bool _showUnavailableSources = true;
   static const _simpleModePreferenceKey = 'bobtv_simple_mode';
+  static const _pinnedCountriesPreferenceKey = 'bobtv_pinned_countries';
+  static const _lastCountryPreferenceKey = 'bobtv_last_international_country';
   String _searchQuery = '';
   // _showSearch removed — search bar is always visible in the top navbar
   int _selectedIndex = -1;
@@ -120,7 +138,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
 
   // Sidebar state
   bool _sidebarExpanded = true;
-  Set<String> _expandedSections = {'groups', 'regions'};
+  Set<String> _expandedSections = {'groups', 'china', 'regions'};
   final _sidebarSearchController = TextEditingController();
   final _sidebarFocusNode = FocusScopeNode(debugLabel: 'sidebar');
   final _sidebarAllItemFocusNode = FocusNode(debugLabel: 'sidebar-all');
@@ -180,6 +198,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
     super.initState();
     _guideScrollController = ScrollController();
     _loadChannels();
+    unawaited(ref.read(bobTvCommunityProvider).start());
     _ensureEpgSources();
     _loadSearchHistory();
     // Auto-failover toast
@@ -412,6 +431,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
     _firstChannelFocusNode.dispose();
     _channelListController.dispose();
     _guideScrollController.dispose();
+    _countryScrollController.dispose();
     _guideVerticalController.dispose();
     _guideIdleTimer?.cancel();
     _searchDebounce?.cancel();
@@ -450,6 +470,17 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
       final favChannelIds = results[2] as Set<String>;
       final prefs = results[3] as SharedPreferences;
       _simpleMode = prefs.getBool(_simpleModePreferenceKey) ?? true;
+      _pinnedInternationalCountries = (prefs.getStringList(
+                _pinnedCountriesPreferenceKey,
+              ) ??
+              const <String>[])
+          .where((country) => country.trim().isNotEmpty)
+          .toSet()
+          .toList();
+      if (isFirstLoad) {
+        _selectedInternationalCountry =
+            prefs.getString(_lastCountryPreferenceKey) ?? '';
+      }
       _hideIpv6Sources =
           prefs.getBool(SourceVisibility.hideIpv6PreferenceKey) ?? false;
 
@@ -490,7 +521,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
         if (!_startupHealthScheduled) {
           _startupHealthScheduled = true;
           Future.delayed(const Duration(seconds: 30), () {
-            unawaited(WindowsUpdateService.instance.markStartupHealthy());
+            unawaited(DesktopUpdateService.instance.markStartupHealthy());
           });
         }
         await _restoreSession();
@@ -572,14 +603,28 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
           .toList();
     }
 
+    if (group == '国际') {
+      _aiCountryCache = await _countryAi.cachedCountries();
+    }
     if (!mounted || generation != _categoryLoadGeneration) return;
     final unchanged = _sameChannelSnapshot(_allChannels, loaded);
     setState(() {
+      _knownCountryByStreamUrl = group == '国际'
+          ? ChannelCategoryClassifier.knownCountriesByStreamUrl(
+              loaded.map((channel) => (
+                name: channel.name,
+                groupTitle: channel.groupTitle,
+                tvgId: channel.tvgId,
+                streamUrl: channel.streamUrl,
+              )),
+            )
+          : {};
+      _rebuildInternationalCountries(loaded, group);
       if (!unchanged) {
         _allChannels = loaded;
         _rebuildAutomaticChannelIndex();
-        _applyFilters();
       }
+      if (!unchanged || group == '国际') _applyFilters();
       _loadStatus =
           '$group：载入 ${loaded.length} 条线路，合并为 ${_filteredChannels.length} 个频道';
       _categoryLoading = false;
@@ -587,10 +632,74 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
     if (!unchanged && scrollAnchor != null) {
       _restoreScrollAnchor(scrollAnchor);
     }
+    if (group == '国际' && _countryAi.enabled) {
+      final unknown = loaded.where((channel) =>
+          _countryFor(channel) == '未识别地区').map((channel) =>
+          CountryNameInput(channel.name, channel.groupTitle)).toList();
+      unawaited(_countryAi.classifyUnknown(unknown, onBatch: (additions) {
+        if (!mounted || generation != _categoryLoadGeneration ||
+            _selectedGroup != '国际') return;
+        setState(() {
+          _aiCountryCache.addAll(additions);
+          _rebuildInternationalCountries(_allChannels, '国际');
+          _applyFilters();
+        });
+      }).catchError((Object error, StackTrace stackTrace) {
+        AppDiagnostics.instance.recordError(
+          'channel_country_ai_start', error, stackTrace,
+        );
+      }));
+    }
     unawaited(_refreshRouteAvailability(loaded, generation));
     await ref.read(streamAlternativesProvider).rebuildForChannels(loaded);
     if (!mounted || generation != _categoryLoadGeneration) return;
     _playFirstFilteredChannelForGroup(group);
+  }
+
+  String _countryFor(db.Channel channel) {
+    final deterministic = ChannelCategoryClassifier.internationalCountryFor(
+      name: channel.name,
+      groupTitle: channel.groupTitle,
+      tvgId: channel.tvgId,
+    );
+    if (deterministic != '未识别地区') return deterministic;
+    final sharedStreamCountry = _knownCountryByStreamUrl[channel.streamUrl];
+    if (sharedStreamCountry != null) return sharedStreamCountry;
+    final key = CountryNameInput(channel.name, channel.groupTitle).key;
+    return _aiCountryCache[key] ?? deterministic;
+  }
+
+  void _rebuildInternationalCountries(List<db.Channel> loaded, String group) {
+    if (group != '国际') {
+      _internationalCountries = [];
+      return;
+    }
+    final internationalCountries = <String, int>{};
+    for (final channel in loaded) {
+      final country = _countryFor(channel);
+      internationalCountries.update(country, (count) => count + 1,
+          ifAbsent: () => 1);
+    }
+    final sortedCountries = internationalCountries.keys.toList()
+      ..sort((a, b) {
+        if (a == '未识别地区') return 1;
+        if (b == '未识别地区') return -1;
+        const priority = ['香港', '澳门', '台湾'];
+        final aPriority = priority.indexOf(a);
+        final bPriority = priority.indexOf(b);
+        if (aPriority >= 0 || bPriority >= 0) {
+          if (aPriority < 0) return 1;
+          if (bPriority < 0) return -1;
+          return aPriority.compareTo(bPriority);
+        }
+        final countOrder = internationalCountries[b]!.compareTo(internationalCountries[a]!);
+        return countOrder != 0 ? countOrder : a.compareTo(b);
+      });
+    _internationalCountries = sortedCountries;
+    if (!_internationalCountries.contains(_selectedInternationalCountry)) {
+      _selectedInternationalCountry = _internationalCountries.firstOrNull ?? '';
+      _selectedInternationalGenre = '全部';
+    }
   }
 
   /// Loads EPG sources, mappings, and now-playing data in the background.
@@ -825,18 +934,21 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
         _applyFavoriteListFilter(listId);
         return;
       } else {
-        channels = channels
-            .where(
-              (c) =>
-                  ChannelCategoryClassifier.classify(
-                    name: c.name,
-                    groupTitle: c.groupTitle,
-                    tvgId: c.tvgId,
-                    streamUrl: c.streamUrl,
-                  ) ==
-                  _selectedGroup,
-            )
-            .toList();
+        channels = channels.where((c) {
+          if (_selectedGroup == '国际') {
+            return _countryFor(c) == _selectedInternationalCountry &&
+                (_selectedInternationalGenre == '全部' ||
+                    ChannelCategoryClassifier.internationalGenreFor(
+                      c.groupTitle,
+                    ) == _selectedInternationalGenre);
+          }
+          return ChannelCategoryClassifier.classify(
+                name: c.name,
+                groupTitle: c.groupTitle,
+                tvgId: c.tvgId,
+                streamUrl: c.streamUrl,
+              ) == _selectedGroup;
+        }).toList();
       }
     }
 
@@ -1114,7 +1226,14 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
       final health = tracker.getScore(b).compareTo(tracker.getScore(a));
       return health != 0 ? health : order[a]!.compareTo(order[b]!);
     });
-    return urls.take(64).toList();
+    return urls;
+  }
+
+  int _candidateRouteCount(db.Channel channel) {
+    final key = _automaticChannelKey(channel);
+    final urls = _automaticUrlsByKey[key];
+    if (urls == null || urls.isEmpty) return 1;
+    return {...urls, channel.streamUrl}.length;
   }
 
   int _verifiedRouteCount(db.Channel channel) {
@@ -1130,10 +1249,11 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
   Future<void> _refreshRouteAvailability(
     List<db.Channel> channels,
     int generation,
-    {bool startRegionalScan = true}
   ) async {
+    final revision = ++_availabilityRevision;
     final checks = await ref.read(databaseProvider).getStreamChecksForChannels(channels);
-    if (!mounted || generation != _categoryLoadGeneration) return;
+    if (!mounted || generation != _categoryLoadGeneration ||
+        revision != _availabilityRevision) return;
     final checkByRoute = <String, db.StreamCheck>{
       for (final check in checks)
         '${check.providerId}\u0000${check.streamUrl}': check,
@@ -1161,16 +1281,16 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
       _applyFilters();
     });
     _playFirstFilteredChannelForGroup(_selectedGroup);
-    if (startRegionalScan &&
-        ChannelCategoryClassifier.provinceCategories.contains(_selectedGroup)) {
-      unawaited(_verifyActiveRegion(channels, checks, generation));
+    if (ChannelCategoryClassifier.categories.contains(_selectedGroup)) {
+      unawaited(_verifyActiveCategory(channels, checks, generation, revision));
     }
   }
 
-  Future<void> _verifyActiveRegion(
+  Future<void> _verifyActiveCategory(
     List<db.Channel> channels,
     List<db.StreamCheck> checks,
     int generation,
+    int revision,
   ) async {
     final checkByRoute = <String, db.StreamCheck>{
       for (final check in checks)
@@ -1179,6 +1299,12 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
     final retryBefore = DateTime.now().subtract(const Duration(hours: 2));
     final byChannel = <String, List<db.Channel>>{};
     for (final channel in channels) {
+      if (_selectedGroup == '国际' &&
+          (_countryFor(channel) != _selectedInternationalCountry ||
+              (_selectedInternationalGenre != '全部' &&
+                  ChannelCategoryClassifier.internationalGenreFor(
+                    channel.groupTitle,
+                  ) != _selectedInternationalGenre))) continue;
       if (_hideIpv6Sources && _isIpv6Channel(channel)) continue;
       if (_hasInvalidStreamMetadata(channel)) continue;
       final key = _automaticChannelKey(channel);
@@ -1201,14 +1327,21 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
         return bScore.compareTo(aScore);
       });
     }
-    for (var pass = 0; pass < 2 && pending.length < 120; pass++) {
-      for (final entries in byChannel.values) {
-        if (pass < entries.length && pending.length < 120) {
-          pending.add(entries[pass]);
+    final seenRoutes = <String>{};
+    var remaining = byChannel.values.toList();
+    for (var pass = 0; remaining.isNotEmpty; pass++) {
+      final next = <List<db.Channel>>[];
+      for (final entries in remaining) {
+        final channel = entries[pass];
+        if (seenRoutes.add('${channel.providerId}\u0000${channel.streamUrl}')) {
+          pending.add(channel);
         }
+        if (pass + 1 < entries.length) next.add(entries);
       }
+      remaining = next;
     }
-    if (pending.isEmpty || !mounted || generation != _categoryLoadGeneration) {
+    if (pending.isEmpty || !mounted || generation != _categoryLoadGeneration ||
+        revision != _availabilityRevision) {
       return;
     }
     setState(() {
@@ -1218,19 +1351,47 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
     final database = ref.read(databaseProvider);
     final maintenance = ref.read(sourceMaintenanceCoordinatorProvider)
         .maintenanceService;
+    final validByChannel = <String, Set<String>>{};
+    final channelsByRoute = <String, List<db.Channel>>{};
+    final recent = DateTime.now().subtract(const Duration(days: 7));
+    for (final channel in channels) {
+      final routeKey = '${channel.providerId}\u0000${channel.streamUrl}';
+      (channelsByRoute[routeKey] ??= <db.Channel>[]).add(channel);
+      final check = checkByRoute[routeKey];
+      final lastVerifiedAt = check?.lastCheckedAt ?? check?.lastSuccessAt;
+      if (check == null || check.retired || check.consecutiveFailures != 0 ||
+          check.lastSuccessAt == null || lastVerifiedAt == null ||
+          lastVerifiedAt.isBefore(recent)) continue;
+      final key = _automaticChannelKey(channel);
+      (validByChannel[key.isEmpty ? channel.id : key] ??= <String>{})
+          .add(channel.streamUrl);
+    }
     for (var offset = 0; offset < pending.length; offset += 4) {
-      if (!mounted || generation != _categoryLoadGeneration) return;
-      final batch = pending.skip(offset).take(4).toList();
+      if (!mounted || generation != _categoryLoadGeneration ||
+          revision != _availabilityRevision) return;
+      final end = (offset + 4).clamp(0, pending.length);
+      final batch = pending.sublist(offset, end).where((channel) {
+        if (_selectedGroup == '国际' &&
+            (_countryFor(channel) != _selectedInternationalCountry ||
+                (_selectedInternationalGenre != '全部' &&
+                    ChannelCategoryClassifier.internationalGenreFor(
+                      channel.groupTitle,
+                    ) != _selectedInternationalGenre))) return false;
+        final key = _automaticChannelKey(channel);
+        return validByChannel[key.isEmpty ? channel.id : key]?.isEmpty ?? true;
+      }).toList();
+      if (batch.isEmpty) continue;
       final results = await Future.wait(batch.map((channel) async {
         try {
           return await maintenance.probeRoute(channel.streamUrl);
         } catch (error, stackTrace) {
           AppDiagnostics.instance.recordError(
-              'region_route_probe', error, stackTrace);
+              'category_route_probe', error, stackTrace);
           return false;
         }
       }));
-      if (!mounted || generation != _categoryLoadGeneration) return;
+      if (!mounted || generation != _categoryLoadGeneration ||
+          revision != _availabilityRevision) return;
       final now = DateTime.now();
       final updates = <db.StreamChecksCompanion>[];
       for (var index = 0; index < batch.length; index++) {
@@ -1256,12 +1417,32 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
         ));
       }
       await database.upsertStreamChecks(updates);
-      if (!mounted || generation != _categoryLoadGeneration) return;
-      setState(() => _regionCheckedRoutes = offset + batch.length);
-      await _refreshRouteAvailability(channels, generation,
-          startRegionalScan: false);
+      if (!mounted || generation != _categoryLoadGeneration ||
+          revision != _availabilityRevision) return;
+      final foundPlayable = results.contains(true);
+      setState(() {
+        _regionCheckedRoutes = end;
+        if (!foundPlayable) return;
+        for (var index = 0; index < batch.length; index++) {
+          if (!results[index]) continue;
+          final channel = batch[index];
+          final routeKey = '${channel.providerId}\u0000${channel.streamUrl}';
+          for (final candidate in channelsByRoute[routeKey] ?? [channel]) {
+            final key = _automaticChannelKey(candidate);
+            (validByChannel[key.isEmpty ? candidate.id : key] ??= <String>{})
+                .add(candidate.streamUrl);
+          }
+          _verifiedRouteUrls.add(channel.streamUrl);
+        }
+        _verifiedRouteCounts = validByChannel.map(
+          (key, urls) => MapEntry(key, urls.length),
+        );
+        _applyFilters();
+      });
+      if (foundPlayable) _playFirstFilteredChannelForGroup(_selectedGroup);
     }
-    if (mounted && generation == _categoryLoadGeneration) {
+    if (mounted && generation == _categoryLoadGeneration &&
+        revision == _availabilityRevision) {
       setState(() {
         _regionCheckedRoutes = 0;
         _regionTotalRoutes = 0;
@@ -1333,6 +1514,113 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
     if (mounted && _selectedGroup == group) {
       setState(() => _epgLoading = false);
     }
+  }
+
+  List<String> _internationalGenresForSelectedCountry() {
+    if (_selectedGroup != '国际' || _selectedInternationalCountry.isEmpty) {
+      return const [];
+    }
+    final found = <String>{};
+    for (final channel in _allChannels) {
+      if (_countryFor(channel) == _selectedInternationalCountry) {
+        found.add(ChannelCategoryClassifier.internationalGenreFor(
+          channel.groupTitle,
+        ));
+      }
+    }
+    return [
+      '全部',
+      ...ChannelCategoryClassifier.internationalGenres.where(found.contains),
+    ];
+  }
+
+  void _selectInternationalCountry(String country) {
+    if (_selectedInternationalCountry == country) return;
+    setState(() {
+      _selectedInternationalCountry = country;
+      _selectedInternationalGenre = '全部';
+      _selectedIndex = -1;
+      _applyFilters();
+    });
+    unawaited(_saveSelectedInternationalCountry(country));
+    unawaited(_refreshRouteAvailability(_allChannels, _categoryLoadGeneration));
+  }
+
+  Future<void> _saveSelectedInternationalCountry(String country) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_lastCountryPreferenceKey, country);
+  }
+
+  Future<void> _selectPinnedCountry(String country) async {
+    if (_selectedGroup == '国际') {
+      _selectInternationalCountry(country);
+      return;
+    }
+    _selectedInternationalCountry = country;
+    _selectedInternationalGenre = '全部';
+    unawaited(_saveSelectedInternationalCountry(country));
+    await _selectGroupAndPlayFirst('国际');
+  }
+
+  Future<void> _togglePinnedCountry(String country) async {
+    setState(() {
+      if (_pinnedInternationalCountries.contains(country)) {
+        _pinnedInternationalCountries.remove(country);
+      } else {
+        _pinnedInternationalCountries.add(country);
+      }
+    });
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setStringList(
+      _pinnedCountriesPreferenceKey,
+      _pinnedInternationalCountries,
+    );
+  }
+
+  Future<void> _showCountryPinMenu(String country, Offset position) async {
+    final pinned = _pinnedInternationalCountries.contains(country);
+    final overlay = Overlay.of(context).context.findRenderObject() as RenderBox;
+    final choice = await showMenu<bool>(
+      context: context,
+      color: const Color(0xFF172439),
+      elevation: 20,
+      shadowColor: Colors.black54,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: const BorderSide(color: Color(0xFF536683)),
+      ),
+      position: RelativeRect.fromLTRB(
+        position.dx,
+        position.dy,
+        overlay.size.width - position.dx,
+        overlay.size.height - position.dy,
+      ),
+      items: [
+        PopupMenuItem<bool>(
+          value: true,
+          child: Row(
+            children: [
+              Icon(pinned ? Icons.push_pin_outlined : Icons.push_pin_rounded,
+                  size: 19, color: const Color(0xFFB7CAFF)),
+              const SizedBox(width: 12),
+              Text(pinned ? '取消钉选主导航分类' : '钉选到主导航分类',
+                  style: const TextStyle(color: Colors.white)),
+            ],
+          ),
+        ),
+      ],
+    );
+    if (mounted && choice == true) await _togglePinnedCountry(country);
+  }
+
+  void _selectInternationalGenre(String genre) {
+    if (_selectedInternationalGenre == genre) return;
+    setState(() {
+      _selectedInternationalGenre = genre;
+      _selectedIndex = -1;
+      _applyFilters();
+    });
+    unawaited(_refreshRouteAvailability(_allChannels, _categoryLoadGeneration));
   }
 
   void _playFirstFilteredChannelForGroup(String group) {
@@ -1517,19 +1805,60 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
 
   Future<void> _recoverChannelSources(String channelName) async {
     final coordinator = ref.read(sourceMaintenanceCoordinatorProvider);
-    if (!coordinator.githubAiCrawler.config.enabled) return;
-    final imported = await coordinator.githubAiCrawler.recoverChannel(
-      channelName,
-      verifyRoute: (url) async {
-        if (!await coordinator.maintenanceService.probeRoute(url)) {
-          return false;
-        }
-        return ref.read(playerServiceProvider).verifyDiscoveredVideoRoute(
-          url,
-          requireUltraHd: ChannelNameNormalizer.isUltraHd(channelName),
+    final playerService = ref.read(playerServiceProvider);
+    var imported = 0;
+    if (ChannelNameNormalizer.cctvSportsServiceKey(channelName) == 'cctv5plus' &&
+        !_cctv5PlusRecoveryRunning &&
+        (_lastCctv5PlusRecovery == null || DateTime.now()
+            .difference(_lastCctv5PlusRecovery!) >= const Duration(hours: 1))) {
+      _cctv5PlusRecoveryRunning = true;
+      _lastCctv5PlusRecovery = DateTime.now();
+      try {
+        imported += await GitHubCctv5PlusRecovery(
+          ref.read(databaseProvider),
+        ).recover(
+          probeRoute: coordinator.maintenanceService.probeRoute,
+          verifyVideo: (url) => playerService.verifyDiscoveredVideoRoute(
+              url, requireUltraHd: false),
+          onProgress: (checked, total) {
+            if (!mounted) return;
+            playerService.routeSearchProgress.value = RouteSearchProgress(
+              stage: '正在从 GitHub 验证新线路',
+              index: checked, total: total, active: true,
+              background: true,
+            );
+          },
         );
-      },
-    );
+      } catch (error, stackTrace) {
+        AppDiagnostics.instance.recordError(
+            'cctv5plus_github_recovery', error, stackTrace);
+      } finally {
+        _cctv5PlusRecoveryRunning = false;
+        if (mounted && playerService.routeSearchProgress.value?.stage ==
+            '正在从 GitHub 验证新线路') {
+          playerService.routeSearchProgress.value = RouteSearchProgress(
+            stage: imported > 0
+                ? '新线路已加入，请重新选择频道'
+                : '本轮没有验证通过的新线路',
+            index: 0, total: 0, background: true,
+          );
+        }
+      }
+    }
+    if (coordinator.githubAiCrawler.config.enabled) {
+      imported += await coordinator.githubAiCrawler.recoverChannel(
+        channelName,
+        verifyRoute: (url) async {
+          if (!await coordinator.maintenanceService.probeRoute(url)) {
+            return false;
+          }
+          return playerService.verifyDiscoveredVideoRoute(
+            url,
+            requireUltraHd: ChannelNameNormalizer.isUltraHd(channelName),
+          );
+        },
+      );
+    }
     if (!mounted || imported == 0) return;
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
       content: Text('$channelName：已找到并验证 $imported 条新线路'),
@@ -1584,7 +1913,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
           _routeMenuEmpty(),
         const PopupMenuDivider(height: 14),
         _routeMenuAction(-1, Icons.block_rounded, '淘汰当前线路',
-            '从候选线路中移除', danger: true),
+            '立即停播并尝试下一条', danger: true),
       ],
     );
     if (!mounted || choice == null || service.currentUrl != currentUrl) return;
@@ -1594,7 +1923,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
       return;
     }
     if (choice == -1) {
-      await _retireCurrentRoute(currentUrl, alternatives);
+      await _retireCurrentRoute(currentUrl);
       return;
     }
     final channelId = _previewChannel?.id ?? service.currentChannelId ?? '';
@@ -1672,6 +2001,10 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
       return;
     }
     if (choice == -1) {
+      if (service.currentUrl == lastUrl) {
+        await _retireCurrentRoute(lastUrl);
+        return;
+      }
       final confirmed = await showDialog<bool>(
         context: context,
         builder: (context) => AlertDialog(
@@ -1686,6 +2019,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
         ),
       );
       if (confirmed != true || !mounted) return;
+      final channelKey = _automaticChannelKey(channel);
       if (service.preparedChannelId == channel.id) {
         await service.discardPreparedChannel();
       }
@@ -1695,9 +2029,18 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
       if (!mounted) return;
       await _loadGroupChannels(_selectedGroup, preserveScroll: true);
       if (!mounted) return;
+      final replacement = _filteredChannels.indexWhere((candidate) =>
+          _automaticChannelKey(candidate) == channelKey);
+      final canTryNext = replacement >= 0 && alternatives.isNotEmpty;
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text('已淘汰线路，移除 $deleted 条重复记录'),
+        content: Text(!canTryNext
+            ? '已淘汰线路，当前频道没有其他候选线路'
+            : '已淘汰线路，正在尝试下一条线路，移除 $deleted 条重复记录'),
       ));
+      if (canTryNext) {
+        await _selectChannel(replacement,
+            preferredUrl: alternatives.first, onlyRequestedRoute: false);
+      }
       return;
     }
     final selectedUrl = _nextManualRoute(
@@ -1863,7 +2206,6 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
 
   Future<void> _retireCurrentRoute(
     String currentUrl,
-    List<String> alternatives,
   ) async {
     final confirmed = await showDialog<bool>(
       context: context,
@@ -1885,14 +2227,23 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
     if (confirmed != true || !mounted) return;
     final service = ref.read(playerServiceProvider);
     if (service.currentUrl != currentUrl) return;
+    final channelKey = _automaticKeyByChannelId[service.currentChannelId];
     service.rejectCurrentRoute();
+    final alternatives = service.retirementAlternativeUrls;
+    await service.stop();
     final deleted = await ref.read(databaseProvider).blockAndDeleteStreamUrl(
       currentUrl,
       reason: 'user_reported_wrong_content',
     );
     final switched = alternatives.isNotEmpty &&
-        await service.switchCurrentRoute(alternatives.first);
-    if (!switched) await service.stop();
+        await service.playRetirementReplacement(
+            alternatives.first, alternatives.skip(1).toList());
+    if (alternatives.isEmpty) {
+      service.routeSearchProgress.value = const RouteSearchProgress(
+        stage: '当前频道没有其他候选线路', index: 0, total: 0,
+      );
+      service.onSourcesExhausted?.call(_previewChannel?.name ?? '');
+    }
     if (!mounted) return;
     await _loadGroupChannels(_selectedGroup, preserveScroll: true);
     await ref.read(streamAlternativesProvider)
@@ -1900,14 +2251,18 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
     if (!mounted) return;
     final activeUrl = service.currentUrl;
     final replacement = _filteredChannels.indexWhere(
-      (channel) => channel.streamUrl == activeUrl,
+      (channel) => channel.streamUrl == activeUrl ||
+          (channelKey?.isNotEmpty == true &&
+              _automaticChannelKey(channel) == channelKey),
     );
     setState(() {
       _selectedIndex = replacement;
       _previewChannel = replacement < 0 ? null : _filteredChannels[replacement];
     });
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      content: Text('已淘汰当前线路，移除 $deleted 条重复记录'),
+      content: Text(switched
+          ? '已淘汰当前线路，正在尝试下一条线路，移除 $deleted 条重复记录'
+          : '已淘汰当前线路，暂无可用的候选线路'),
     ));
   }
 
@@ -2487,6 +2842,15 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                                         bottom: 8,
                                         child: _buildMultiSelectBar(),
                                       ),
+                                    if (!Platform.isAndroid)
+                                      Positioned(
+                                        right: 16,
+                                        bottom: 16,
+                                        child: AlternativePreviewOverlay(
+                                          service: ref.read(
+                                              playerServiceProvider),
+                                        ),
+                                      ),
                                   ],
                                 ),
                               ),
@@ -2507,7 +2871,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
 
   Widget _buildUpdateBadge() {
     return ValueListenableBuilder<WindowsUpdateState>(
-      valueListenable: WindowsUpdateService.instance.state,
+      valueListenable: DesktopUpdateService.instance.state,
       builder: (context, update, _) {
         if (!update.visible) return const SizedBox.shrink();
         final label = switch (update.phase) {
@@ -2605,7 +2969,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                     ),
                     IconButton(
                       tooltip: '重新读取线路检查结果',
-                      onPressed: _routeAvailabilityLoading
+                      onPressed: _routeAvailabilityLoading || _regionTotalRoutes > 0
                           ? null
                           : () {
                               setState(() => _routeAvailabilityLoading = true);
@@ -2689,12 +3053,16 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
   Widget _buildSimpleCategoryTab(String label, {
     required bool selected,
     VoidCallback? onTap,
+    VoidCallback? onLongPress,
+    GestureTapUpCallback? onSecondaryTapUp,
     IconData? trailing,
   }) {
     return Material(
       color: Colors.transparent,
       child: InkWell(
         onTap: onTap,
+        onLongPress: onLongPress,
+        onSecondaryTapUp: onSecondaryTapUp,
         borderRadius: BorderRadius.circular(12),
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 180),
@@ -2925,15 +3293,49 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                     ),
                   if (channel != null)
                     Positioned(
-                      right: 12,
+                      left: 12,
                       bottom: 12,
                       child: _buildPreviewVolumeControl(),
+                    ),
+                  if (channel != null)
+                    Positioned(
+                      right: 12,
+                      bottom: 12,
+                      child: AlternativePreviewOverlay(
+                        service: ref.read(playerServiceProvider),
+                      ),
                     ),
                 ],
               ),
             ),
           ),
           const SizedBox(height: 15),
+          ValueListenableBuilder<RouteSearchProgress?>(
+            valueListenable: ref.read(playerServiceProvider).routeSearchProgress,
+            builder: (context, progress, _) {
+              if (progress == null) return const SizedBox.shrink();
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 12),
+                child: Row(
+                  children: [
+                    if (progress.active)
+                      const SizedBox(width: 14, height: 14,
+                        child: CircularProgressIndicator(strokeWidth: 2)),
+                    if (progress.active) const SizedBox(width: 9),
+                    Expanded(child: Text(
+                      progress.total > 0
+                          ? '${progress.stage} ${progress.index}/${progress.total}  ${progress.label}'
+                          : progress.stage,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(color: Color(0xFFB6C6F7),
+                          fontSize: 12),
+                    )),
+                  ],
+                ),
+              );
+            },
+          ),
           Row(
             children: [
               Expanded(
@@ -2959,11 +3361,6 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                 ),
               ),
               if (channel != null) ...[
-                if (_pendingChannelIndex != null) ...[
-                  const Text('正在后台载入新频道',
-                      style: TextStyle(color: Color(0xFFB6C6F7), fontSize: 12)),
-                  const SizedBox(width: 10),
-                ],
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
                   decoration: BoxDecoration(
@@ -2971,7 +3368,8 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                     borderRadius: BorderRadius.circular(12),
                     border: Border.all(color: Colors.white12),
                   ),
-                  child: Text('备选 ${_verifiedAlternativeCount(channel)} 路',
+                  child: Text('候选 ${_candidateRouteCount(channel)} 路 · '
+                      '已验证 ${_verifiedRouteCount(channel)} 路',
                       style: const TextStyle(color: Colors.white70,
                           fontSize: 12)),
                 ),
@@ -3019,11 +3417,11 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
   }
 
   Widget _buildSimpleChannelPanel() {
-    const quickGroups = <String>[
-      'Favorites', '央视', '港澳台', '国际', '广播', '数字', '其他',
-    ];
     final selectedProvince = ChannelCategoryClassifier.provinceCategories
         .contains(_selectedGroup);
+    final mainlandSelected = _selectedGroup == '央视' || selectedProvince ||
+        const ['广播', '数字', '其他'].contains(_selectedGroup);
+    final internationalGenres = _internationalGenresForSelectedCountry();
     return Container(
       decoration: _simpleSurfaceDecoration(),
       padding: const EdgeInsets.all(20),
@@ -3059,12 +3457,43 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
             spacing: 7,
             runSpacing: 7,
             children: [
-              for (final group in quickGroups)
-                _buildSimpleCategoryTab(
-                  group == 'Favorites' ? '我的收藏' : group,
+              _buildSimpleCategoryTab('我的收藏',
+                selected: _selectedGroup == 'Favorites' ||
+                    _selectedGroup.startsWith('fav:'),
+                onTap: () => _selectGroupAndPlayFirst('Favorites')),
+              _buildSimpleCategoryTab('中国',
+                selected: mainlandSelected,
+                onTap: () {
+                  if (!mainlandSelected) _selectGroupAndPlayFirst('央视');
+                }),
+              _buildSimpleCategoryTab('国际',
+                selected: _selectedGroup == '国际' &&
+                    !_pinnedInternationalCountries.contains(
+                        _selectedInternationalCountry),
+                onTap: () => _selectGroupAndPlayFirst('国际')),
+              for (final country in _pinnedInternationalCountries)
+                _buildSimpleCategoryTab(country,
+                  selected: _selectedGroup == '国际' &&
+                      _selectedInternationalCountry == country,
+                  onTap: () => _selectPinnedCountry(country),
+                  onSecondaryTapUp: (details) => _showCountryPinMenu(
+                      country, details.globalPosition)),
+            ],
+          ),
+          if (mainlandSelected) ...[
+            const SizedBox(height: 13),
+            const Text('频道分类', style: TextStyle(
+              color: Colors.white60, fontSize: 12,
+            )),
+            const SizedBox(height: 7),
+            Wrap(
+              spacing: 7,
+              runSpacing: 7,
+              children: [
+              for (final group in const ['央视', '数字', '广播', '其他'])
+                _buildSimpleCategoryTab(group,
                   selected: _selectedGroup == group,
-                  onTap: () => _selectGroupAndPlayFirst(group),
-                ),
+                  onTap: () => _selectGroupAndPlayFirst(group)),
               KeyedSubtree(
                 key: _provinceButtonKey,
                 child: _buildSimpleCategoryTab(
@@ -3074,8 +3503,58 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                   onTap: _showProvincePicker,
                 ),
               ),
-            ],
-          ),
+              ],
+            ),
+          ],
+          if (_selectedGroup == '国际' && _internationalCountries.isNotEmpty) ...[
+            const SizedBox(height: 13),
+            const Text('国家或地区', style: TextStyle(
+              color: Colors.white60, fontSize: 12,
+            )),
+            const SizedBox(height: 7),
+            ConstrainedBox(
+              constraints: const BoxConstraints(maxHeight: 160),
+              child: Scrollbar(
+                controller: _countryScrollController,
+                thumbVisibility: true,
+                child: SingleChildScrollView(
+                  controller: _countryScrollController,
+                  padding: const EdgeInsets.only(right: 12),
+                  child: Wrap(
+                    spacing: 7,
+                    runSpacing: 7,
+                    children: [
+                      for (final country in _internationalCountries)
+                        _buildSimpleCategoryTab(country,
+                          selected: country == _selectedInternationalCountry,
+                          onTap: () => _selectInternationalCountry(country),
+                          onSecondaryTapUp: (details) => _showCountryPinMenu(
+                              country, details.globalPosition)),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 10),
+            const Text('频道类型', style: TextStyle(
+              color: Colors.white60, fontSize: 12,
+            )),
+            const SizedBox(height: 7),
+            SizedBox(
+              height: 43,
+              child: ListView.separated(
+                scrollDirection: Axis.horizontal,
+                itemCount: internationalGenres.length,
+                separatorBuilder: (_, __) => const SizedBox(width: 7),
+                itemBuilder: (context, index) {
+                  final genre = internationalGenres[index];
+                  return _buildSimpleCategoryTab(genre,
+                    selected: genre == _selectedInternationalGenre,
+                    onTap: () => _selectInternationalGenre(genre));
+                },
+              ),
+            ),
+          ],
           const SizedBox(height: 16),
           TextField(
             controller: _searchController,
@@ -3110,14 +3589,16 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                       children: [
                         Text(
                           _routeAvailabilityLoading
-                              ? '正在核对线路…'
+                              ? '正在读取线路检查记录…'
+                              : _regionTotalRoutes > 0
+                                  ? '正在核对线路，已处理 $_regionCheckedRoutes/$_regionTotalRoutes，找到 ${_filteredChannels.length} 个频道'
                               : _selectedGroup == 'Favorites'
                                   ? '还没有收藏的频道'
                                   : '当前分类暂无近期通过检查的频道',
                           textAlign: TextAlign.center,
                           style: const TextStyle(color: Colors.white54),
                         ),
-                        if (!_routeAvailabilityLoading) ...[
+                        if (!_routeAvailabilityLoading && _regionTotalRoutes == 0) ...[
                           const SizedBox(height: 12),
                           TextButton(
                             onPressed: () => _setSimpleMode(false),
@@ -3131,6 +3612,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                     final columns = (constraints.maxWidth / 250)
                         .floor().clamp(1, 5);
                     return GridView.builder(
+                      padding: const EdgeInsets.fromLTRB(12, 8, 12, 24),
                       itemCount: _filteredChannels.length,
                       gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                         crossAxisCount: columns,
@@ -3149,14 +3631,15 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                                 _preparedChannelIndex == index &&
                                 service.preparedChannelId == channel.id &&
                                 previewController != null;
-                            return ValueListenableBuilder<String?>(
+                            return ValueListenableBuilder<RouteSearchProgress?>(
                               valueListenable: service.channelPreviewProgress,
                               builder: (context, progress, _) =>
                                   _buildSimpleChannelTile(
                                 channel,
                                 selected: selected,
                                 loading: index == _pendingChannelIndex,
-                                loadingLabel: progress,
+                                loadingProgress: index == _pendingChannelIndex
+                                    ? progress : null,
                                 previewController:
                                     previewing ? previewController : null,
                                 onTap: () => _selectChannel(index),
@@ -3185,7 +3668,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
     db.Channel channel, {
     required bool selected,
     required bool loading,
-    required String? loadingLabel,
+    required RouteSearchProgress? loadingProgress,
     required VideoController? previewController,
     required VoidCallback onTap,
     required VoidCallback onDoubleTap,
@@ -3290,14 +3773,19 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                                     color: Color(0xFFCFD9FF), fontSize: 11,
                                     fontWeight: FontWeight.w700)),
                             const Spacer(),
-                            if (loading)
-                              const SizedBox(width: 17, height: 17,
+                            if (loading) ...[
+                              const SizedBox(width: 13, height: 13,
                                   child: CircularProgressIndicator(
-                                      strokeWidth: 2, color: Colors.white))
-                            else
-                              Text('${_verifiedRouteCount(channel)} 路',
-                                  style: const TextStyle(
-                                      color: Colors.white70, fontSize: 11)),
+                                      strokeWidth: 2, color: Colors.white)),
+                              const SizedBox(width: 6),
+                            ],
+                            Text(
+                              loading && loadingProgress != null
+                                  ? '${loadingProgress.index}/${loadingProgress.total} 路'
+                                  : '${_candidateRouteCount(channel)} 路候选',
+                              style: const TextStyle(
+                                  color: Colors.white70, fontSize: 11),
+                            ),
                           ],
                         ),
                         const Spacer(),
@@ -3314,7 +3802,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                             Text(previewController != null
                                 ? '点击切换到主画面'
                                 : loading
-                                    ? (loadingLabel ?? '寻找线路中')
+                                    ? '正在尝试线路'
                                     : '单击预览 · 双击播放',
                                 style: const TextStyle(
                                     color: Colors.white70, fontSize: 11)),
@@ -3925,6 +4413,23 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                             ],
                           ),
                           const SizedBox(height: 4),
+                          ValueListenableBuilder<RouteSearchProgress?>(
+                            valueListenable: playerService.routeSearchProgress,
+                            builder: (context, progress, _) {
+                              if (progress == null) {
+                                return const SizedBox.shrink();
+                              }
+                              return Text(
+                                progress.total > 0
+                                    ? '${progress.stage} ${progress.index}/${progress.total} 路'
+                                    : progress.stage,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                    color: Color(0xFFB6C6F7), fontSize: 11),
+                              );
+                            },
+                          ),
                           // Now playing
                           if (programme != null) ...[
                             Row(
@@ -4485,9 +4990,15 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
 
   Widget _buildSidebarTree() {
     final q = _sidebarSearchQuery;
+    final filteredCountries = q.isEmpty
+        ? _internationalCountries
+        : _internationalCountries
+            .where((country) => country.toLowerCase().contains(q))
+            .toList();
     final filteredGroups = q.isEmpty
         ? _groups
-        : _groups.where((g) => g.toLowerCase().contains(q)).toList();
+        : _groups.where((g) => g.toLowerCase().contains(q) ||
+            (g == '国际' && filteredCountries.isNotEmpty)).toList();
     final filteredProvinceGroups = filteredGroups
         .where(ChannelCategoryClassifier.provinceCategories.contains)
         .toList();
@@ -4535,37 +5046,62 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
           ]),
         if (showFavSection && filteredGroups.isNotEmpty)
           const Divider(height: 1, color: Colors.white10),
-        if (filteredGroups.isNotEmpty) _buildSidebarSectionLabel('按地区分类'),
+        if (filteredGroups.isNotEmpty) _buildSidebarSectionLabel('国家或地区'),
         if (filteredGroups.isNotEmpty)
           _buildTreeSection(
             'groups',
             Icons.folder_rounded,
-            '频道分类 (${filteredGroups.length})',
+            '电视地区',
             [
-              for (final group in filteredMainGroups.where(
-                (group) => group == '央视',
-              ))
-                _buildTreeItem(
-                  group,
-                  group,
-                  null,
-                  indent: 1,
-                  focusNode: _sidebarAllItemFocusNode,
-                ),
-              if (filteredProvinceGroups.isNotEmpty)
-                _buildTreeSection(
-                  'regions',
-                  Icons.map_rounded,
-                  '地区（省份） (${filteredProvinceGroups.length})',
-                  [
-                    for (final group in filteredProvinceGroups)
-                      _buildTreeItem(group, group, null, indent: 2),
+              if (filteredProvinceGroups.isNotEmpty ||
+                  filteredMainGroups.any((g) =>
+                      const ['央视', '广播', '数字', '其他'].contains(g)))
+                _buildTreeSection('china', Icons.map_rounded, '中国', [
+                  if (filteredMainGroups.contains('央视'))
+                    _buildTreeItem('央视', '央视', null, indent: 1,
+                        focusNode: _sidebarAllItemFocusNode),
+                  if (filteredProvinceGroups.isNotEmpty)
+                    _buildTreeSection(
+                      'regions',
+                      Icons.map_rounded,
+                      '地方（省份） (${filteredProvinceGroups.length})',
+                      [
+                        for (final group in filteredProvinceGroups)
+                          _buildTreeItem(group, group, null, indent: 2),
+                      ],
+                    ),
+                  for (final group in const ['数字', '广播', '其他'])
+                    if (filteredMainGroups.contains(group))
+                      _buildTreeItem(group, group, null, indent: 1),
+                ]),
+              if (filteredMainGroups.contains('国际')) ...[
+                _buildTreeItem('国际频道', '国际', Icons.public_rounded,
+                    indent: 1),
+                if (_selectedGroup == '国际') ...[
+                  for (final country in filteredCountries) ...[
+                    _buildTreeItem(
+                      country,
+                      'international-country:$country',
+                      null,
+                      indent: 2,
+                      onSelect: () => _selectInternationalCountry(country),
+                      selectedOverride:
+                          country == _selectedInternationalCountry,
+                    ),
+                    if (country == _selectedInternationalCountry)
+                      for (final genre in _internationalGenresForSelectedCountry())
+                        _buildTreeItem(
+                          genre,
+                          'international-genre:$genre',
+                          null,
+                          indent: 3,
+                          onSelect: () => _selectInternationalGenre(genre),
+                          selectedOverride:
+                              genre == _selectedInternationalGenre,
+                        ),
                   ],
-                ),
-              for (final group in filteredMainGroups.where(
-                (group) => group != '央视',
-              ))
-                _buildTreeItem(group, group, null, indent: 1),
+                ],
+              ],
             ],
           ),
         // Shows & Movies
@@ -4869,8 +5405,10 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
     VoidCallback? onSecondaryTap,
     Widget? trailing,
     FocusNode? focusNode,
+    VoidCallback? onSelect,
+    bool? selectedOverride,
   }) {
-    final isSelected = _selectedGroup == filterKey;
+    final isSelected = selectedOverride ?? _selectedGroup == filterKey;
     return GestureDetector(
       onSecondaryTap: onSecondaryTap,
       child: Focus(
@@ -4889,7 +5427,11 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
               _handleQuickAction(filterKey.substring(7));
               return KeyEventResult.handled;
             }
-            _selectGroupAndPlayFirst(filterKey);
+            if (onSelect != null) {
+              onSelect();
+            } else {
+              _selectGroupAndPlayFirst(filterKey);
+            }
             return KeyEventResult.handled;
           }
           return KeyEventResult.ignored;
@@ -4904,7 +5446,11 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                   _handleQuickAction(filterKey.substring(7));
                   return;
                 }
-                _selectGroupAndPlayFirst(filterKey);
+                if (onSelect != null) {
+                  onSelect();
+                } else {
+                  _selectGroupAndPlayFirst(filterKey);
+                }
               },
               child: Container(
                 height: 30,

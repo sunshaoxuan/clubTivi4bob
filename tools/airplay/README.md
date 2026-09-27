@@ -25,6 +25,27 @@ channel changes cancel the previous session and close its decoder and sockets.
 Native-Mac remote pause/resume/volume controls are not yet enabled; adjust volume
 on the Mac. A source must contain both video and audio for this initial profile.
 
+Build 0.9.1+27 restores the pre-26 local player, volume handling, preview UI,
+and proxy bootstrap behavior for a controlled playback regression comparison.
+Automatic local muting and the cast picture overlay are temporarily disabled.
+Channel databases and user settings are preserved.
+Build 0.9.1+28 reintroduces only local muting during a cast through mpv's
+independent `mute` property, restoring the pre-cast mute state on stop or failure.
+Normal volume initialization, video rendering, and proxy buffering remain at
+the pre-26 baseline. Receiver-state updates are serialized and tested for
+duplicate events, rapid start/stop, failed restoration, and disposal.
+HLS input uses the demuxer's default probing and segment selection. Forced
+live-edge/nobuffer options were withdrawn after an actual-channel comparison
+took 16.5 seconds with those options and 1.9 seconds with defaults.
+Encoding uses the ultrafast profile, and decoding starts after receiver setup
+to avoid accumulating frames during authentication.
+
+Transient media scheduling lag rebases the shared pacing clock instead of
+terminating the entire cast at a two-second threshold. The video data channel
+sends its one-second heartbeat. Fixed-name, numeric-only stage diagnostics are
+kept in `%LOCALAPPDATA%\BobTV\AirPlay\native-cast.log`, with one rotated copy and
+a 256 KB threshold; source URLs and arbitrary error text are excluded.
+
 **Physical validation on 2026-09-20:** the owner confirmed continuously advancing
 `LIVE FRAME` video and audible test audio on a native MacBookPro16,2 receiver.
 The live pipeline sent more than 750 frames, completed TEARDOWN with HTTP 200,
@@ -33,6 +54,9 @@ video clock domain. Intermittent SETUP timeouts were resolved in the test by
 allowing the receiver's UDP timing requests. Install the executable-scoped
 firewall rules below; successful discovery alone does not prove timing access.
 Other Mac models and long-duration A/V drift still need physical validation.
+The follow-up continuous synthetic test sent over 5,000 video frames and 25,000
+audio packets over roughly 200 seconds, then completed TEARDOWN and decoder
+cleanup. This does not substitute for stability testing of each network source.
 
 `mac_video.py` contains the shared session and redacted per-stage
 diagnostics. Its cancellation cleanup closes timing/event/control transports and

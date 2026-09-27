@@ -14,19 +14,79 @@ import 'stream_proxy.dart';
 import '../../data/services/channel_name_normalizer.dart';
 import '../../data/services/stream_alternatives_service.dart';
 import '../../data/services/stream_health_tracker.dart';
+import '../../data/services/bobtv_community_service.dart';
 import '../providers/provider_manager.dart';
 import '../casting/cast_service.dart';
+import '../casting/local_cast_mute.dart';
+
+class RouteSearchProgress {
+  const RouteSearchProgress({
+    required this.stage,
+    required this.index,
+    required this.total,
+    this.label = '',
+    this.active = false,
+    this.background = false,
+  });
+
+  final String stage;
+  final int index;
+  final int total;
+  final String label;
+  final bool active;
+  final bool background;
+}
+
+class AlternativePreviewState {
+  const AlternativePreviewState({
+    required this.stage,
+    required this.index,
+    required this.total,
+    this.controller,
+  });
+
+  final String stage;
+  final int index;
+  final int total;
+  final VideoController? controller;
+  bool get ready => controller != null;
+}
 
 /// Manages video playback with stream failover support.
 class PlayerService {
   CastService? castService;
+  LocalCastMute? _localCastMute;
+
+  Future<void> syncLocalCastMute(bool casting) async {
+    // Ordinary playback and pre-initialization status events are untouched.
+    final p = _player;
+    if (p == null || !_playerReady) return;
+    final np = p.platform;
+    if (np is! native_player.NativePlayer) return;
+    _localCastMute ??= LocalCastMute(
+      readMute: () async => await np.getProperty('mute') == 'yes',
+      writeMute: (muted) => np.setProperty('mute', muted ? 'yes' : 'no'),
+    );
+    try {
+      await _localCastMute!.update(casting);
+    } catch (error) {
+      AppDiagnostics.instance.log('cast_local_mute_error', {
+        'errorType': error.runtimeType.toString(),
+      });
+    }
+  }
   static const minimumUltraHdVideoBitrate = 8000000.0;
 
   Player? _player;
   VideoController? _videoController;
   final ValueNotifier<VideoController?> activeVideoController = ValueNotifier(null);
   final ValueNotifier<VideoController?> previewVideoController = ValueNotifier(null);
-  final ValueNotifier<String?> channelPreviewProgress = ValueNotifier(null);
+  final ValueNotifier<RouteSearchProgress?> channelPreviewProgress =
+      ValueNotifier(null);
+  final ValueNotifier<RouteSearchProgress?> routeSearchProgress =
+      ValueNotifier(null);
+  final ValueNotifier<AlternativePreviewState?> alternativePreviewState =
+      ValueNotifier(null);
   _PreparedChannel? _preparedChannel;
   Timer? _preparedChannelTimeout;
   String? get preparedChannelId => _preparedChannel?.channelId;
@@ -67,6 +127,9 @@ class PlayerService {
   StreamHealthTracker? _healthTracker;
   Timer? _failoverCheckTimer;
   final PlaybackStallDetector _stallDetector = PlaybackStallDetector();
+  final RepeatedShortBufferDetector _shortBufferDetector =
+      RepeatedShortBufferDetector();
+  DateTime? _briefFreezeStartedAt;
   bool _failoverMonitorBusy = false;
   final StreamProxy _streamProxy = StreamProxy();
   bool _proxyActive = false;
@@ -81,6 +144,12 @@ class PlayerService {
   int _warmGeneration = 0;
   bool _autoFailoverInProgress = false;
   DateTime? _failoverRetryNotBefore;
+  Player? _alternativePreviewPlayer;
+  String? _alternativePreviewUrl;
+  Timer? _alternativePreviewMonitor;
+  int _alternativePreviewGeneration = 0;
+  final Set<String> _alternativeTriedUrls = {};
+  DateTime? _alternativeRetryNotBefore;
   int _playGeneration = 0;
   int _rewardedPlaybackGeneration = -1;
   final Set<String> _rewardedPlaybackUrls = {};
@@ -105,6 +174,19 @@ class PlayerService {
   bool get failoverSwitching => _failoverSwitching;
   String? get currentUrl => _currentUrl;
   List<String> get currentAlternativeUrls => _getFailoverAlternatives();
+  List<String> get retirementAlternativeUrls =>
+      _getFailoverAlternatives(includePreviouslyFailed: true);
+  int get currentCandidateCount => _currentUrl == null ? 0 :
+      1 + _getFailoverAlternatives(includePreviouslyFailed: true).length;
+
+  static String routeLabel(String url) {
+    final uri = Uri.tryParse(url.split('|').first.trim());
+    if (uri == null || uri.host.isEmpty) return '未知来源';
+    final segments = uri.pathSegments.where((part) => part.isNotEmpty).toList();
+    final tail = segments.isEmpty ? '' : segments.last;
+    final concise = tail.length > 24 ? '${tail.substring(0, 24)}…' : tail;
+    return concise.isEmpty ? uri.host : '${uri.host} / $concise';
+  }
   String? get castUrl =>
       _proxyActive ? (_streamProxy.localUrl ?? _currentUrl) : _currentUrl;
   String? get currentChannelId => _currentChannelId;
@@ -132,6 +214,61 @@ class PlayerService {
     );
   }
 
+  /// Starts a replacement after the rejected route has been stopped.
+  Future<bool> playRetirementReplacement(
+    String url,
+    List<String> remainingAlternatives,
+  ) async {
+    final candidates = _rankCandidateUrls([url, ...remainingAlternatives])
+        .where((candidate) => candidate.isNotEmpty &&
+            !_manuallyRejectedUrls.contains(candidate))
+        .toList();
+    if (candidates.isEmpty) {
+      routeSearchProgress.value = const RouteSearchProgress(
+          stage: '当前频道没有其他候选线路', index: 0, total: 0);
+      if (_currentChannelName != null) {
+        onSourcesExhausted?.call(_currentChannelName!);
+      }
+      return false;
+    }
+    final generation = _playGeneration;
+    _failoverGroupUrls = candidates;
+    _setFailoverSwitching(true);
+    try {
+      for (var index = 0; index < candidates.length; index++) {
+        if (generation != _playGeneration) return false;
+        final candidate = candidates[index];
+        routeSearchProgress.value = RouteSearchProgress(
+          stage: '淘汰后寻找新线路', index: index + 1,
+          total: candidates.length, label: routeLabel(candidate), active: true,
+        );
+        if (await _switchWithVerification(candidate, generation)) {
+          _currentUrlController.add(candidate);
+          startBufferTracking();
+          _startFailoverMonitor();
+          _startStaticFrameMonitor(candidate, generation);
+          AppDiagnostics.instance.updatePlaybackContext(
+              channelName: _currentChannelName, streamUrl: candidate);
+          routeSearchProgress.value = null;
+          return true;
+        }
+      }
+      if (generation == _playGeneration) {
+        await stop();
+        routeSearchProgress.value = RouteSearchProgress(
+          stage: '候选线路均未播放成功',
+          index: candidates.length, total: candidates.length,
+        );
+        if (_currentChannelName != null) {
+          onSourcesExhausted?.call(_currentChannelName!);
+        }
+      }
+      return false;
+    } finally {
+      _setFailoverSwitching(false);
+    }
+  }
+
   void rejectCurrentRoute() {
     final url = _currentUrl;
     if (url == null) return;
@@ -152,6 +289,8 @@ class PlayerService {
   /// Provides the provider name or URL fragment for UI toast.
   void Function(String message)? onFailover;
   void Function(String channelName)? onSourcesExhausted;
+  void Function(String? channelId, String url, bool playable)?
+      onReviewedPlaybackVerdict;
 
   /// Called after four matching frame samples show a route has displayed the
   /// same picture for roughly one minute.
@@ -262,8 +401,12 @@ class PlayerService {
       _rewardedPlaybackGeneration = generation;
       _rewardedPlaybackUrls.clear();
     }
-    if (_rewardedPlaybackUrls.add(url) && !alreadyCredited) {
-      _healthTracker?.recordPlaybackSuccess(url);
+    if (_rewardedPlaybackUrls.add(url)) {
+      if (!alreadyCredited) _healthTracker?.recordPlaybackSuccess(url);
+      onReviewedPlaybackVerdict?.call(_currentChannelId, url, true);
+      if (routeSearchProgress.value?.active == true) {
+        routeSearchProgress.value = null;
+      }
     }
   }
 
@@ -294,6 +437,7 @@ class PlayerService {
     bool onlyRequestedRoute = false,
   }) async {
     final request = ++_channelSwitchGeneration;
+    await discardAlternativePreview();
     await discardPreparedChannel(invalidateRequest: false);
     if (request != _channelSwitchGeneration) return false;
     if (_currentUrl == null ||
@@ -332,7 +476,7 @@ class PlayerService {
       candidateUrls.where((route) => route.isNotEmpty &&
           (!preferRequestedRoute || route != _currentUrl)),
       preferredUrl: preferRequestedRoute ? url : null,
-    ).take(8).toList();
+    ).toList();
     AppDiagnostics.instance.log('channel_preload_started', {
       'channel': channelName,
       'candidateCount': candidates.length,
@@ -351,8 +495,20 @@ class PlayerService {
           'stream': AppDiagnostics.summarizeStreamUrl(candidateUrl),
         });
         if (previewOnly) {
-          channelPreviewProgress.value =
-              '正在检查线路 ${candidateIndex + 1}/${candidates.length}';
+          channelPreviewProgress.value = RouteSearchProgress(
+            stage: '正在检查线路',
+            index: candidateIndex + 1,
+            total: candidates.length,
+            active: true,
+          );
+        } else {
+          routeSearchProgress.value = RouteSearchProgress(
+            stage: '正在切换频道',
+            index: candidateIndex + 1,
+            total: candidates.length,
+            label: routeLabel(candidateUrl),
+            active: true,
+          );
         }
         final candidate = Player(
           configuration: const PlayerConfiguration(
@@ -457,6 +613,7 @@ class PlayerService {
         _preparingChannelSwitch = false;
         channelSwitching.value = false;
         channelPreviewProgress.value = null;
+        if (!previewOnly) routeSearchProgress.value = null;
       }
     }
   }
@@ -465,6 +622,7 @@ class PlayerService {
     if (invalidateRequest) ++_channelSwitchGeneration;
     _preparingChannelSwitch = false;
     channelSwitching.value = false;
+    if (invalidateRequest) routeSearchProgress.value = null;
     _preparedChannelTimeout?.cancel();
     _preparedChannelTimeout = null;
     final prepared = _preparedChannel;
@@ -546,6 +704,7 @@ class PlayerService {
     int? request, {
     required bool allowAudioOnly,
     required bool requireUltraHd,
+    bool Function()? stillValid,
   }) async {
     final deadline = DateTime.now().add(const Duration(seconds: 15));
     final stopwatch = Stopwatch()..start();
@@ -554,6 +713,7 @@ class PlayerService {
     DateTime? readySince;
     while (DateTime.now().isBefore(deadline)) {
       if (request != null && request != _channelSwitchGeneration) return false;
+      if (stillValid != null && !stillValid()) return false;
       final state = candidate.state;
       if (state.position < startingPosition) {
         startingPosition = state.position;
@@ -690,6 +850,9 @@ class PlayerService {
     List<String>? failoverGroupUrls,
     required bool allowAudioOnly,
   }) async {
+    if (!identical(candidate, _alternativePreviewPlayer)) {
+      await discardAlternativePreview();
+    }
     final previous = player;
     final generation = ++_playGeneration;
     _qualityCheckTimer?.cancel();
@@ -728,6 +891,11 @@ class PlayerService {
     _proxyActive = false;
     _failedFailoverUrls.clear();
     _stallDetector.reset();
+    _shortBufferDetector.reset();
+    _briefFreezeStartedAt = null;
+    _alternativeRetryNotBefore = null;
+    _isBuffering = false;
+    _bufferStartTime = null;
     _failoverRetryNotBefore = null;
     _bindPlayerLogs(candidate);
     activeVideoController.value = controller;
@@ -779,6 +947,8 @@ class PlayerService {
   }) async {
     ++_channelSwitchGeneration;
     unawaited(discardPreparedChannel());
+    unawaited(discardAlternativePreview());
+    routeSearchProgress.value = null;
     _preparingChannelSwitch = false;
     channelSwitching.value = false;
     final playGeneration = ++_playGeneration;
@@ -787,6 +957,9 @@ class PlayerService {
     _isBuffering = false;
     _bufferStartTime = null;
     _stallDetector.reset();
+    _shortBufferDetector.reset();
+    _briefFreezeStartedAt = null;
+    _alternativeRetryNotBefore = null;
     _failedFailoverUrls.clear();
     _currentUrl = url;
     _currentChannelId = channelId;
@@ -859,10 +1032,19 @@ class PlayerService {
     );
     if (playGeneration != _playGeneration) return;
 
+    routeSearchProgress.value = RouteSearchProgress(
+      stage: '正在快速探测前 ${currentCandidateCount > 24 ? 24 : currentCandidateCount} 路',
+      index: 0, total: currentCandidateCount,
+      label: '随后会逐条验证画面', active: true,
+    );
     final selectedUrl = await _selectFastestStream(url);
     if (playGeneration != _playGeneration) return;
     var activeUrl = selectedUrl;
     _currentUrl = activeUrl;
+    routeSearchProgress.value = RouteSearchProgress(
+      stage: '正在连接线路', index: 1,
+      total: currentCandidateCount, label: routeLabel(activeUrl), active: true,
+    );
     AppDiagnostics.instance.updatePlaybackContext(
       channelName: channelName,
       streamUrl: activeUrl,
@@ -878,7 +1060,20 @@ class PlayerService {
       step: 'open_media',
       timeout: const Duration(seconds: 5),
     );
-    if (!opened) return;
+    if (!opened) {
+      _failedFailoverUrls.add(activeUrl);
+      _healthTracker?.recordProbeFailure(activeUrl);
+      if (_getFailoverAlternatives().isNotEmpty) {
+        unawaited(_autoFailover());
+      } else {
+        routeSearchProgress.value = const RouteSearchProgress(
+          stage: '线路无法连接，没有其他候选线路', index: 0, total: 0);
+        if (_currentChannelName != null) {
+          onSourcesExhausted?.call(_currentChannelName!);
+        }
+      }
+      return;
+    }
     await _runPlayStep(
       _bufferManager.applyForStream(activeUrl, this),
       generation: playGeneration,
@@ -922,7 +1117,13 @@ class PlayerService {
           step: 'restore_requested_media',
           timeout: const Duration(seconds: 5),
         );
-        if (!restored) return;
+        if (!restored) {
+          _failedFailoverUrls.add(activeUrl);
+          if (_getFailoverAlternatives().isNotEmpty) {
+            unawaited(_autoFailover());
+          }
+          return;
+        }
         await _runPlayStep(
           _bufferManager.applyForStream(activeUrl, this),
           generation: playGeneration,
@@ -946,6 +1147,10 @@ class PlayerService {
     // ffmpeg proxy if needed (fixes EAC-3 with non-standard codec tags)
     _scheduleAudioCheck(activeUrl);
     _scheduleVideoCheck(activeUrl, playGeneration);
+    routeSearchProgress.value = RouteSearchProgress(
+      stage: '已连接，正在等待画面', index: 1,
+      total: currentCandidateCount, label: routeLabel(activeUrl), active: true,
+    );
     _startStaticFrameMonitor(activeUrl, playGeneration);
 
     // Reset and start buffer tracking for the new stream
@@ -979,6 +1184,13 @@ class PlayerService {
       });
       if (!continueOnError) {
         AppDiagnostics.instance.recordError('player_$step', error, stackTrace);
+        if (error is! TimeoutException &&
+            generation == _playGeneration && _currentUrl != null &&
+            (step == 'open_media' || step == 'restore_requested_media')) {
+          onReviewedPlaybackVerdict?.call(
+            _currentChannelId, _currentUrl!, false,
+          );
+        }
       }
       return continueOnError && generation == _playGeneration;
     }
@@ -1141,6 +1353,7 @@ class PlayerService {
       });
       _failedFailoverUrls.add(expectedUrl);
       _healthTracker?.recordProbeFailure(expectedUrl);
+      onReviewedPlaybackVerdict?.call(_currentChannelId, expectedUrl, false);
       onFailover?.call(
         _allowsAudioOnly ? '当前音频线路无法播放，正在切换其他线路' : '当前线路只有声音，正在切换有画面的线路',
       );
@@ -1286,6 +1499,7 @@ class PlayerService {
     var firstByteMs = 3200;
     var bytes = 0;
     var statusOk = false;
+    final prefix = <int>[];
     try {
       final request = await client
           .getUrl(uri)
@@ -1297,7 +1511,13 @@ class PlayerService {
       final response = await request.close().timeout(
         const Duration(milliseconds: 1600),
       );
-      statusOk = response.statusCode >= 200 && response.statusCode < 400;
+      statusOk = response.statusCode >= 200 && response.statusCode < 300;
+      final contentType = response.headers.contentType?.mimeType.toLowerCase() ?? '';
+      if (contentType.contains('text/html') ||
+          contentType.contains('application/json') ||
+          contentType.contains('text/xml')) {
+        statusOk = false;
+      }
       if (!statusOk) {
         _healthTracker?.recordProbeFailure(url);
         return _StreamProbe.unusable(url);
@@ -1308,6 +1528,9 @@ class PlayerService {
       )) {
         if (bytes == 0) firstByteMs = stopwatch.elapsedMilliseconds;
         bytes += chunk.length;
+        if (prefix.length < 64) {
+          prefix.addAll(chunk.take(64 - prefix.length));
+        }
         if (bytes >= 64 * 1024) break;
       }
     } catch (_) {
@@ -1322,7 +1545,7 @@ class PlayerService {
 
     final elapsedMs = stopwatch.elapsedMilliseconds.clamp(1, 3200);
     final bytesPerSecond = bytes * 1000.0 / elapsedMs;
-    if (!statusOk || bytes == 0) {
+    if (!statusOk || bytes == 0 || !looksLikeMediaPrefix(prefix)) {
       _healthTracker?.recordProbeFailure(url);
       return _StreamProbe.unusable(url);
     }
@@ -1338,6 +1561,19 @@ class PlayerService {
       bytesPerSecond: bytesPerSecond,
       score: score,
     );
+  }
+
+  @visibleForTesting
+  static bool looksLikeMediaPrefix(List<int> bytes) {
+    if (bytes.isEmpty) return false;
+    final text = String.fromCharCodes(bytes.take(16));
+    if (text.startsWith('#EXTM3U') || text.startsWith('FLV') ||
+        text.startsWith('ID3') || text.startsWith('OggS')) return true;
+    if (bytes[0] == 0x47) return true;
+    if (bytes.length >= 8 &&
+        String.fromCharCodes(bytes.skip(4).take(4)) == 'ftyp') return true;
+    return bytes.length >= 2 && bytes[0] == 0xff &&
+        (bytes[1] & 0xf0) == 0xf0;
   }
 
   /// Check audio tracks after playback starts; retry through ffmpeg proxy
@@ -1379,20 +1615,30 @@ class PlayerService {
   /// Re-open the stream through the local ffmpeg proxy.
   Future<void> _retryWithProxy(String originalUrl) async {
     if (_proxyActive) return; // Avoid recursive retry
+    final playGeneration = _playGeneration;
     final proxyUrl = await _streamProxy.start(originalUrl);
     if (proxyUrl == null) {
       debugPrint('[Player] ffmpeg proxy unavailable, keeping direct playback');
       return;
     }
     // Verify the stream URL hasn't changed while we were starting the proxy
-    if (_currentUrl != originalUrl) {
+    if (playGeneration != _playGeneration || _currentUrl != originalUrl) {
       await _streamProxy.stop();
       return;
     }
     _proxyActive = true;
     debugPrint('[Player] Switching to proxied stream: $proxyUrl');
     await _enableVideoOutput();
+    if (playGeneration != _playGeneration || _currentUrl != originalUrl) {
+      await _streamProxy.stop();
+      return;
+    }
     await player.open(Media(proxyUrl));
+    if (playGeneration != _playGeneration || _currentUrl != originalUrl) {
+      if (_currentUrl == originalUrl) await player.stop();
+      await _streamProxy.stop();
+      return;
+    }
     _currentUrlController.add(originalUrl);
     await _bufferManager.applyForStream(originalUrl, this);
     await player.setVolume(100.0);
@@ -1409,13 +1655,31 @@ class PlayerService {
   /// Stop playback.
   Future<void> stop() async {
     ++_channelSwitchGeneration;
-    await discardPreparedChannel();
+    ++_playGeneration;
+    _currentUrl = null;
+    routeSearchProgress.value = null;
+    if (!_currentUrlController.isClosed) _currentUrlController.add(null);
     _preparingChannelSwitch = false;
     channelSwitching.value = false;
+    _setFailoverSwitching(false);
+    _failoverRetryNotBefore = null;
+    _stallDetector.reset();
+    _shortBufferDetector.reset();
+    _briefFreezeStartedAt = null;
+    _alternativeRetryNotBefore = null;
     _bufferManager.stop();
     _qualityCheckTimer?.cancel();
     _videoCheckTimer?.cancel();
+    _failoverCheckTimer?.cancel();
+    _resetStaticFrameMonitor();
+    await _tracksSub?.cancel();
+    _tracksSub = null;
     await player.stop();
+    await discardPreparedChannel();
+    await discardAlternativePreview();
+    await _disposeWarmPlayer();
+    await _streamProxy.stop();
+    _proxyActive = false;
     AppDiagnostics.instance.log('playback_stopped', {
       'channel': _currentChannelName,
     });
@@ -1473,12 +1737,19 @@ class PlayerService {
       });
     } else if (!buffering) {
       if (_isBuffering) {
+        final recoveredAt = DateTime.now();
+        final duration = _bufferStartTime == null
+            ? Duration.zero : recoveredAt.difference(_bufferStartTime!);
         AppDiagnostics.instance.log('buffering_ended', {
           'channel': _currentChannelName,
           'durationMs': _bufferLogStart == null
               ? null
               : DateTime.now().difference(_bufferLogStart!).inMilliseconds,
         });
+        if (_shortBufferDetector.addRecoveredBuffer(
+                recoveredAt, duration)) {
+          _startAlternativePreviewIfNeeded();
+        }
       }
       _isBuffering = false;
       _bufferStartTime = null;
@@ -1635,12 +1906,246 @@ class PlayerService {
       bufferHistory.removeAt(0);
       bufferHistory.add(isBuffering);
       if (isBuffering && !_isBuffering) bufferEventCount++;
+      onBufferingChanged(isBuffering);
     });
 
     _bufferTrackTimer?.cancel();
     _bufferTrackTimer = Timer.periodic(const Duration(seconds: 1), (_) {
       if (player.state.buffering) bufferingSeconds++;
     });
+  }
+
+  void _startAlternativePreviewIfNeeded() {
+    if (!(Platform.isWindows || Platform.isMacOS) ||
+        _currentUrl == null || _allowsAudioOnly ||
+        _preparingChannelSwitch ||
+        _autoFailoverInProgress || alternativePreviewState.value != null) {
+      return;
+    }
+    final retryAt = _alternativeRetryNotBefore;
+    if (retryAt != null && DateTime.now().isBefore(retryAt)) return;
+    final candidates = _getFailoverAlternatives()
+        .where((url) => !_alternativeTriedUrls.contains(url)).toList();
+    if (candidates.isEmpty) {
+      _alternativeTriedUrls.clear();
+      _alternativeRetryNotBefore = DateTime.now().add(
+          const Duration(minutes: 2));
+      return;
+    }
+    final generation = ++_alternativePreviewGeneration;
+    final playGeneration = _playGeneration;
+    final mainUrl = _currentUrl!;
+    alternativePreviewState.value = AlternativePreviewState(
+      stage: '正在寻找备用线路', index: 0, total: candidates.length,
+    );
+    unawaited(_searchAlternativePreview(
+      candidates, generation, playGeneration, mainUrl,
+    ));
+  }
+
+  Future<void> _searchAlternativePreview(List<String> candidates,
+      int generation, int playGeneration, String mainUrl) async {
+    bool valid() => generation == _alternativePreviewGeneration &&
+        playGeneration == _playGeneration && _currentUrl == mainUrl;
+    await _disposeWarmPlayer();
+    if (!valid()) return;
+    for (var index = 0; index < candidates.length; index++) {
+      if (!valid()) return;
+      final url = candidates[index];
+      _alternativeTriedUrls.add(url);
+      alternativePreviewState.value = AlternativePreviewState(
+        stage: '正在尝试备用线路', index: index + 1,
+        total: candidates.length,
+      );
+      final candidate = Player(configuration: const PlayerConfiguration(
+        bufferSize: 32 * 1024 * 1024,
+        logLevel: MPVLogLevel.warn,
+      ));
+      _alternativePreviewPlayer = candidate;
+      var keepPlayer = false;
+      try {
+        final native = candidate.platform;
+        if (native is native_player.NativePlayer) {
+          await native.setProperty('mute', 'yes');
+        }
+        await candidate.setVolume(0);
+        final controller = VideoController(candidate);
+        await candidate.open(Media(url)).timeout(const Duration(seconds: 6));
+        final ready = await _waitForPreparedChannel(
+          candidate, null,
+          allowAudioOnly: false,
+          requireUltraHd: _requiresUltraHd,
+          stillValid: valid,
+        );
+        if (ready && valid() &&
+            await _waitForStableAlternative(candidate, valid)) {
+          if (!valid()) return;
+          _alternativePreviewUrl = url;
+          _healthTracker?.recordPlaybackSuccess(url);
+          alternativePreviewState.value = AlternativePreviewState(
+            stage: '备用线路已稳定', index: index + 1,
+            total: candidates.length, controller: controller,
+          );
+          keepPlayer = true;
+          _monitorAlternativePreview(candidate, generation, playGeneration,
+              mainUrl);
+          AppDiagnostics.instance.log('alternative_preview_ready', {
+            'channel': _currentChannelName,
+            'stream': AppDiagnostics.summarizeStreamUrl(url),
+            'attempt': index + 1,
+          });
+          return;
+        }
+      } catch (error) {
+        AppDiagnostics.instance.log('alternative_preview_candidate_failed', {
+          'stream': AppDiagnostics.summarizeStreamUrl(url),
+          'errorType': error.runtimeType.toString(),
+        });
+      } finally {
+        if (!keepPlayer) {
+          if (identical(_alternativePreviewPlayer, candidate)) {
+            _alternativePreviewPlayer = null;
+          }
+          try {
+            await candidate.dispose().timeout(const Duration(seconds: 2));
+          } catch (_) {}
+          if (valid()) _healthTracker?.recordProbeFailure(url);
+        }
+      }
+    }
+    if (!valid()) return;
+    _alternativeTriedUrls.clear();
+    _alternativeRetryNotBefore = DateTime.now().add(
+        const Duration(minutes: 2));
+    alternativePreviewState.value = AlternativePreviewState(
+      stage: '暂未找到稳定备用线路',
+      index: candidates.length, total: candidates.length,
+    );
+    Timer(const Duration(seconds: 8), () {
+      if (valid() && alternativePreviewState.value?.controller == null) {
+        alternativePreviewState.value = null;
+      }
+    });
+  }
+
+  Future<bool> _waitForStableAlternative(
+      Player candidate, bool Function() valid) async {
+    final deadline = DateTime.now().add(const Duration(seconds: 14));
+    DateTime? stableSince;
+    Duration? startingPosition;
+    while (DateTime.now().isBefore(deadline)) {
+      if (!valid()) return false;
+      final state = candidate.state;
+      if (state.playing && !state.buffering) {
+        stableSince ??= DateTime.now();
+        startingPosition ??= state.position;
+        if (DateTime.now().difference(stableSince) >=
+                const Duration(seconds: 6) &&
+            state.position - startingPosition >= const Duration(seconds: 3)) {
+          return true;
+        }
+      } else {
+        stableSince = null;
+        startingPosition = null;
+      }
+      await Future<void>.delayed(const Duration(milliseconds: 500));
+    }
+    return false;
+  }
+
+  void _monitorAlternativePreview(Player candidate, int generation,
+      int playGeneration, String mainUrl) {
+    _alternativePreviewMonitor?.cancel();
+    var unhealthySamples = 0;
+    var previousPosition = candidate.state.position;
+    _alternativePreviewMonitor = Timer.periodic(const Duration(seconds: 2),
+        (_) async {
+      if (generation != _alternativePreviewGeneration ||
+          playGeneration != _playGeneration || _currentUrl != mainUrl) {
+        _alternativePreviewMonitor?.cancel();
+        return;
+      }
+      final state = candidate.state;
+      final advancing = state.position - previousPosition >=
+          const Duration(milliseconds: 300);
+      previousPosition = state.position;
+      unhealthySamples = state.playing && !state.buffering && advancing
+          ? 0 : unhealthySamples + 1;
+      if (unhealthySamples < 4) return;
+      final alternativeUrl = _alternativePreviewUrl;
+      if (alternativeUrl != null) {
+        _healthTracker?.recordStall(alternativeUrl);
+      }
+      await discardAlternativePreview(resetTried: false);
+      _startAlternativePreviewIfNeeded();
+    });
+  }
+
+  Future<void> discardAlternativePreview({bool resetTried = true}) async {
+    ++_alternativePreviewGeneration;
+    _alternativePreviewMonitor?.cancel();
+    _alternativePreviewMonitor = null;
+    final candidate = _alternativePreviewPlayer;
+    _alternativePreviewPlayer = null;
+    _alternativePreviewUrl = null;
+    alternativePreviewState.value = null;
+    if (resetTried) _alternativeTriedUrls.clear();
+    try {
+      await candidate?.dispose().timeout(const Duration(seconds: 2));
+    } catch (_) {}
+  }
+
+  Future<void> dismissAlternativePreview() async {
+    _alternativeRetryNotBefore = DateTime.now().add(
+        const Duration(minutes: 5));
+    await discardAlternativePreview();
+  }
+
+  Future<bool> commitAlternativePreview() async {
+    final candidate = _alternativePreviewPlayer;
+    final controller = alternativePreviewState.value?.controller;
+    final url = _alternativePreviewUrl;
+    if (candidate == null || controller == null || url == null ||
+        !candidate.state.playing || candidate.state.buffering) return false;
+    final playGeneration = _playGeneration;
+    final mainUrl = _currentUrl;
+    ++_alternativePreviewGeneration;
+    _alternativePreviewMonitor?.cancel();
+    _alternativePreviewMonitor = null;
+    _alternativePreviewPlayer = null;
+    _alternativePreviewUrl = null;
+    alternativePreviewState.value = null;
+    _alternativeTriedUrls.clear();
+    ++_channelSwitchGeneration;
+    await discardPreparedChannel(invalidateRequest: false);
+    await _disposeWarmPlayer();
+    if (playGeneration != _playGeneration || _currentUrl != mainUrl) {
+      unawaited(candidate.dispose());
+      return false;
+    }
+    try {
+      await candidate.setVolume(player.state.volume).timeout(
+          const Duration(seconds: 2));
+      await _promotePreparedChannel(
+        candidate, controller, url,
+        channelId: _currentChannelId,
+        epgChannelId: _currentEpgChannelId,
+        tvgId: _currentTvgId,
+        channelName: _currentChannelName,
+        vanityName: _currentVanityName,
+        originalName: _currentOriginalName,
+        failoverGroupUrls: _failoverGroupUrls,
+        allowAudioOnly: _allowsAudioOnly,
+      );
+      _recordPlaybackReadyOnce(url, _playGeneration, alreadyCredited: true);
+      return true;
+    } catch (error) {
+      AppDiagnostics.instance.log('alternative_preview_commit_failed', {
+        'errorType': error.runtimeType.toString(),
+      });
+      if (!identical(_player, candidate)) unawaited(candidate.dispose());
+      return false;
+    }
   }
 
   // ── Auto-failover monitor ──────────────────────────────────────────────
@@ -1652,7 +2157,9 @@ class PlayerService {
     _failoverCheckTimer = Timer.periodic(const Duration(seconds: 2), (_) async {
       if (_preparingChannelSwitch) return;
       if (_failoverMonitorBusy) return;
-      if (_currentUrl == null) return;
+      final monitoredUrl = _currentUrl;
+      if (monitoredUrl == null) return;
+      final monitorGeneration = _playGeneration;
       final retryNotBefore = _failoverRetryNotBefore;
       if (retryNotBefore != null && DateTime.now().isBefore(retryNotBefore)) {
         return;
@@ -1665,9 +2172,11 @@ class PlayerService {
       _failoverMonitorBusy = true;
       try {
         final raw = await getMpvProperty('demuxer-cache-duration');
+        if (monitorGeneration != _playGeneration ||
+            _currentUrl != monitoredUrl) return;
         final cacheSecs = double.tryParse(raw ?? '');
         if (cacheSecs != null) {
-          _healthTracker?.recordBufferSample(_currentUrl!, cacheSecs);
+          _healthTracker?.recordBufferSample(monitoredUrl, cacheSecs);
         }
 
         final state = _stallDetector.add(
@@ -1679,13 +2188,29 @@ class PlayerService {
           ),
         );
 
+        if (player.state.buffering) {
+          _briefFreezeStartedAt = null;
+        } else if (state.noProgressSamples >= 2) {
+          _briefFreezeStartedAt ??= DateTime.now();
+        } else if (state.noProgressSamples == 0 &&
+            _briefFreezeStartedAt != null) {
+          final recoveredAt = DateTime.now();
+          final duration = recoveredAt.difference(_briefFreezeStartedAt!);
+          _briefFreezeStartedAt = null;
+          if (_shortBufferDetector.addRecoveredBuffer(
+              recoveredAt, duration)) {
+            _startAlternativePreviewIfNeeded();
+          }
+        }
+
         if (_getFailoverAlternatives().isEmpty) return;
 
-        if (state.shouldWarmAlternative && !_warmReady && _warmPlayer == null) {
+        if (state.shouldWarmAlternative && !_warmReady && _warmPlayer == null &&
+            alternativePreviewState.value == null) {
           await _startWarmPreload();
         }
         if (state.shouldFailover) {
-          _healthTracker?.recordStall(_currentUrl!);
+          _healthTracker?.recordStall(monitoredUrl);
           await _autoFailover();
         } else if (state.healthy && _warmPlayer != null && !_warmReady) {
           await _disposeWarmPlayer();
@@ -1697,11 +2222,14 @@ class PlayerService {
   }
 
   /// Get failover alternative URLs, preferring manual group URLs over auto-detected.
-  List<String> _getFailoverAlternatives() {
+  List<String> _getFailoverAlternatives({bool includePreviouslyFailed = false}) {
     if (_currentUrl == null) return [];
 
     final results = <String>[];
-    final seen = <String>{_currentUrl!, ..._failedFailoverUrls};
+    final seen = <String>{
+      _currentUrl!,
+      if (!includePreviouslyFailed) ..._failedFailoverUrls,
+    };
 
     void addUrls(Iterable<String> urls) {
       for (final url in urls) {
@@ -1884,6 +2412,11 @@ class PlayerService {
     if (_currentUrl == null) return;
     if (_alternatives == null &&
         (_failoverGroupUrls == null || _failoverGroupUrls!.isEmpty)) {
+      routeSearchProgress.value = const RouteSearchProgress(
+        stage: '当前频道没有其他候选线路', index: 0, total: 0);
+      if (_currentChannelName != null) {
+        onSourcesExhausted?.call(_currentChannelName!);
+      }
       return;
     }
 
@@ -1894,6 +2427,7 @@ class PlayerService {
 
     _autoFailoverInProgress = true;
     try {
+      await discardAlternativePreview();
       final playGeneration = _playGeneration;
       final previousUrl = _currentUrl!;
       final availableCandidates = <String>[];
@@ -1904,16 +2438,15 @@ class PlayerService {
       for (final url in _getFailoverAlternatives()) {
         if (!availableCandidates.contains(url)) availableCandidates.add(url);
       }
-      final candidates = boundedFailoverCandidates(
-        _rankCandidateUrls(availableCandidates,
-            preferredUrl: _warmReady ? _warmUrl : null),
-        limit: 4,
-      );
+      final candidates = _rankCandidateUrls(availableCandidates,
+          preferredUrl: _warmReady ? _warmUrl : null);
       if (candidates.isEmpty) {
         _stallDetector.reset();
         _failoverRetryNotBefore = DateTime.now().add(
           const Duration(seconds: 30),
         );
+        routeSearchProgress.value = const RouteSearchProgress(
+          stage: '没有剩余候选线路', index: 0, total: 0);
         AppDiagnostics.instance.log('failover_exhausted', {
           'channel': _currentChannelName,
           'candidateCount': 0,
@@ -1943,9 +2476,15 @@ class PlayerService {
       if (playGeneration != _playGeneration) return;
       _stallDetector.reset();
       String? switchedUrl;
-      for (final candidateUrl in candidates) {
+      for (var index = 0; index < candidates.length; index++) {
         await Future<void>.delayed(Duration.zero);
         if (playGeneration != _playGeneration) return;
+        final candidateUrl = candidates[index];
+        routeSearchProgress.value = RouteSearchProgress(
+          stage: '正在自动寻找线路', index: index + 1,
+          total: candidates.length, label: routeLabel(candidateUrl),
+          active: true,
+        );
         final switched = await _switchWithVerification(
           candidateUrl,
           playGeneration,
@@ -1978,6 +2517,9 @@ class PlayerService {
         _failoverRetryNotBefore = DateTime.now().add(
           const Duration(seconds: 15),
         );
+        routeSearchProgress.value = RouteSearchProgress(
+          stage: '候选线路均未播放成功',
+          index: candidates.length, total: candidates.length);
         AppDiagnostics.instance.log('failover_exhausted', {
           'channel': _currentChannelName,
           'candidateCount': candidates.length,
@@ -1988,18 +2530,12 @@ class PlayerService {
         }
       }
     } finally {
+      if (routeSearchProgress.value?.stage == '正在自动寻找线路') {
+        routeSearchProgress.value = null;
+      }
       _setFailoverSwitching(false);
       _autoFailoverInProgress = false;
     }
-  }
-
-  @visibleForTesting
-  static List<String> boundedFailoverCandidates(
-    Iterable<String> candidates, {
-    int limit = 2,
-  }) {
-    if (limit <= 0) return const [];
-    return candidates.take(limit).toList(growable: false);
   }
 
   Future<bool> _switchWithVerification(
@@ -2049,7 +2585,8 @@ class PlayerService {
         continueOnError: true,
       );
       if (playGeneration != _playGeneration) return false;
-      final ready = await _waitForPlayable(candidateUrl);
+      final ready = await _waitForPlayable(
+          candidateUrl, timeout: const Duration(seconds: 10));
       if (playGeneration != _playGeneration) return false;
       if (ready) {
         _recordPlaybackReadyOnce(candidateUrl, playGeneration);
@@ -2111,10 +2648,14 @@ class PlayerService {
   Future<void> dispose() async {
     ++_channelSwitchGeneration;
     await discardPreparedChannel();
+    await discardAlternativePreview();
+    alternativePreviewState.dispose();
     channelSwitching.dispose();
     activeVideoController.dispose();
     previewVideoController.dispose();
     channelPreviewProgress.dispose();
+    routeSearchProgress.dispose();
+    _localCastMute?.dispose();
     AppDiagnostics.instance.log('player_disposing', {
       'channel': _currentChannelName,
     });
@@ -2193,6 +2734,10 @@ final playerServiceProvider = Provider<PlayerService>((ref) {
   final service = PlayerService();
   final casting = ref.read(castServiceProvider);
   service.castService = casting;
+  final muteSubscription = casting.statusStream.listen((_) {
+    unawaited(service.syncLocalCastMute(casting.isCasting));
+  });
+  ref.onDispose(() => muteSubscription.cancel());
   final castSubscription = service.currentUrlStream.listen((url) {
     if (url != null && casting.isCasting) {
       unawaited(
@@ -2211,6 +2756,12 @@ final playerServiceProvider = Provider<PlayerService>((ref) {
     service.configureFailover(alternatives, health);
     final database = ref.read(databaseProvider);
     service.onStaticStreamDetected = database.blockAndDeleteChannelRoute;
+    final community = ref.read(bobTvCommunityProvider);
+    service.onReviewedPlaybackVerdict = (channelId, url, playable) {
+      unawaited(community.reportPlayback(
+        channelId: channelId, url: url, playable: playable,
+      ));
+    };
   } catch (_) {
     // Services may not be available yet — failover will be disabled
   }

@@ -9,27 +9,15 @@ import 'package:path/path.dart' as p;
 
 import '../../core/app_diagnostics.dart';
 import '../../core/app_version.dart';
+import 'desktop_update_state.dart';
 import 'update_manifest.dart';
-
-enum WindowsUpdatePhase { idle, available, downloading, ready, installing, failed }
-
-class WindowsUpdateState {
-  const WindowsUpdateState(this.phase, {this.version, this.percent, this.message});
-
-  final WindowsUpdatePhase phase;
-  final String? version;
-  final int? percent;
-  final String? message;
-
-  bool get visible => phase != WindowsUpdatePhase.idle;
-}
+export 'desktop_update_state.dart';
 
 class WindowsUpdateService {
   WindowsUpdateService._();
 
   static final instance = WindowsUpdateService._();
-  static final defaultManifestUri =
-      Uri.parse('https://bobtv.briconbric.com/updates/latest.json');
+  static const _mirrorHost = 'bobtv.briconbric.com';
   static const _maxManifestBytes = 64 * 1024;
 
   final state = ValueNotifier<WindowsUpdateState>(
@@ -45,15 +33,13 @@ class WindowsUpdateService {
     final localAppData = Platform.environment['LOCALAPPDATA'];
     if (localAppData == null || localAppData.isEmpty) return;
     _updateDirectory = Directory(p.join(localAppData, 'HotelTV', 'Update'));
+    if (kReleaseMode) unawaited(_ensureDesktopShortcut());
     Timer.periodic(
       const Duration(seconds: 3),
       (_) => unawaited(_readWorkerStatus()),
     );
-    Timer.periodic(
-      const Duration(hours: 6),
-      (_) => unawaited(checkNow()),
-    );
-    Future.delayed(const Duration(seconds: 10), () => unawaited(checkNow()));
+    // The public releases.json is a catalog, without an installation policy.
+    // Keep rollback monitoring active but do not poll the retired manifest.
   }
 
   Future<void> checkNow() async {
@@ -62,6 +48,7 @@ class WindowsUpdateService {
     final client = HttpClient()..connectionTimeout = const Duration(seconds: 8);
     try {
       final manifestUri = await _resolveManifestUri();
+      if (manifestUri == null) return;
       final request = await client.getUrl(manifestUri).timeout(
         const Duration(seconds: 10),
       );
@@ -105,19 +92,18 @@ class WindowsUpdateService {
     } finally {
       client.close(force: true);
       _checking = false;
-      unawaited(_flushQueuedFailureReports());
     }
   }
 
-  Future<Uri> _resolveManifestUri() async {
+  Future<Uri?> _resolveManifestUri() async {
     final directory = _updateDirectory;
-    if (directory == null) return defaultManifestUri;
+    if (directory == null) return null;
     final configured = File(p.join(directory.path, 'update-manifest-url.txt'));
-    if (!await configured.exists()) return defaultManifestUri;
+    if (!await configured.exists()) return null;
     final candidate = Uri.tryParse((await configured.readAsString()).trim());
     if (candidate == null ||
         candidate.scheme != 'https' ||
-        candidate.host != defaultManifestUri.host ||
+        candidate.host != _mirrorHost ||
         candidate.userInfo.isNotEmpty ||
         candidate.hasQuery ||
         candidate.hasFragment ||
@@ -128,60 +114,10 @@ class WindowsUpdateService {
     return candidate;
   }
 
-  Future<void> _flushQueuedFailureReports() async {
-    final directory = _updateDirectory;
-    if (directory == null || !await directory.exists()) return;
-    try {
-      var endpoint =
-          Uri.parse('https://bobtv.briconbric.com/api/update-failures');
-      final configured = File(
-        p.join(directory.path, 'failure-upload-url.txt'),
-      );
-      if (await configured.exists()) {
-        endpoint = Uri.parse((await configured.readAsString()).trim());
-      }
-      if (endpoint.scheme != 'https' ||
-          endpoint.host != 'bobtv.briconbric.com' ||
-          endpoint.userInfo.isNotEmpty) {
-        return;
-      }
-      final reports = await directory
-          .list()
-          .where((entry) =>
-              entry is File &&
-              p.basename(entry.path).startsWith('failure-') &&
-              p.extension(entry.path) == '.json')
-          .cast<File>()
-          .take(5)
-          .toList();
-      for (final report in reports) {
-        if (await report.length() > 256 * 1024) continue;
-        final client = HttpClient()
-          ..connectionTimeout = const Duration(seconds: 8);
-        try {
-          final request = await client.postUrl(endpoint)
-              .timeout(const Duration(seconds: 10));
-          request.followRedirects = false;
-          request.headers.contentType = ContentType.json;
-          request.add(await report.readAsBytes());
-          final response = await request.close()
-              .timeout(const Duration(seconds: 15));
-          await response.drain<void>();
-          if (response.statusCode >= 200 && response.statusCode < 300) {
-            await report.delete();
-          }
-        } catch (_) {
-          return;
-        } finally {
-          client.close(force: true);
-        }
-      }
-    } catch (_) {}
-  }
-
   Future<void> _launchWorker(UpdateManifest manifest) async {
     final directory = _updateDirectory!;
     await directory.create(recursive: true);
+    await _writeShortcutScript();
     final script = File(p.join(directory.path, 'worker.ps1'));
     final source = await rootBundle.loadString('assets/updater/worker.ps1');
     await script.writeAsBytes(
@@ -221,6 +157,47 @@ class WindowsUpdateService {
     AppDiagnostics.instance.log('update_worker_started', {
       'version': manifest.version,
     });
+  }
+
+  Future<File> _writeShortcutScript() async {
+    final directory = _updateDirectory!;
+    await directory.create(recursive: true);
+    final script = File(p.join(directory.path, 'ensure_shortcut.ps1'));
+    final source = await rootBundle.loadString(
+      'assets/updater/ensure_shortcut.ps1',
+    );
+    await script.writeAsBytes(
+      [0xef, 0xbb, 0xbf, ...utf8.encode(source)],
+      flush: true,
+    );
+    return script;
+  }
+
+  Future<void> _ensureDesktopShortcut() async {
+    try {
+      final script = await _writeShortcutScript();
+      final result = await Process.run(
+        'powershell.exe',
+        [
+          '-NoProfile',
+          '-NonInteractive',
+          '-ExecutionPolicy',
+          'Bypass',
+          '-File',
+          script.path,
+          '-ExecutablePath',
+          Platform.resolvedExecutable,
+        ],
+        runInShell: false,
+      ).timeout(const Duration(seconds: 20));
+      if (result.exitCode != 0) {
+        throw StateError('Desktop shortcut creation failed: ${result.exitCode}');
+      }
+    } catch (error, stackTrace) {
+      AppDiagnostics.instance.recordError(
+        'desktop_shortcut', error, stackTrace,
+      );
+    }
   }
 
   Future<void> _readWorkerStatus() async {

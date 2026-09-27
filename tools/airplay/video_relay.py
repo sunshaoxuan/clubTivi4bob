@@ -27,7 +27,10 @@ class VideoRelay:
         for path in (base.parent / 'Tools' / 'ffmpeg.exe', base.parent / 'ffmpeg.exe',
                      base / 'ffmpeg.exe', Path('C:/ProgramData/chocolatey/lib/ffmpeg/tools/ffmpeg/bin/ffmpeg.exe'),
                      Path('C:/ProgramData/chocolatey/bin/ffmpeg.exe'),
-                     Path(os.environ.get('LOCALAPPDATA', '.')) / 'Microsoft/WinGet/Links/ffmpeg.exe'):
+                     Path(os.environ.get('LOCALAPPDATA', '.')) / 'Microsoft/WinGet/Links/ffmpeg.exe',
+                     base / 'ffmpeg', base.parent.parent / 'Tools' / 'ffmpeg',
+                     Path('/opt/homebrew/bin/ffmpeg'), Path('/usr/local/bin/ffmpeg'),
+                     Path('/usr/bin/ffmpeg')):
             if path.is_file():
                 return str(path)
         return shutil.which('ffmpeg')

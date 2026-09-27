@@ -93,8 +93,15 @@ jobs:
 
   # ─── macOS ──────────────────────────────────────────────────────────
   build-macos:
-    name: macOS (DMG)
-    runs-on: macos-latest
+    name: macOS BobTV (${{ matrix.arch }})
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      matrix:
+        include:
+          - runner: macos-15-intel
+            arch: x64
+          - runner: macos-15
+            arch: arm64
     steps:
       - uses: actions/checkout@v4
 
@@ -104,23 +111,47 @@ jobs:
           channel: stable
           cache: true
 
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.23'
+
       - name: Install dependencies
         run: flutter pub get
 
-      - name: Build macOS
-        run: flutter build macos --release
+      - name: Fetch pinned AirPlay authentication source
+        run: |
+          git clone https://github.com/objevovat/fairplay-sap-core-airplay2-sender-authentication-handshake.git "$RUNNER_TEMP/fpsap-source"
+          git -C "$RUNNER_TEMP/fpsap-source" checkout --detach 370f9db2e26b21b4a710bdba5d51012c1239e736
+
+      - name: Build macOS with AirPlay helper
+        run: bash tools/macos/build.sh "$RUNNER_TEMP/fpsap-source"
 
       - name: Create DMG
+        env:
+          ARCH: ${{ matrix.arch }}
         run: |
-          APP_PATH="build/macos/Build/Products/Release/clubtivi.app"
-          DMG_NAME="clubtivi-macos.dmg"
-          hdiutil create -volname "clubTivi" -srcfolder "$APP_PATH" -ov -format UDZO "$DMG_NAME"
+          APP_PATH="build/macos/Build/Products/Release/BobTV.app"
+          DMG_NAME="BobTV-macos-${ARCH}.dmg"
+          hdiutil create -volname "BobTV" -srcfolder "$APP_PATH" -ov -format UDZO "$DMG_NAME"
+          ditto -c -k --keepParent "$APP_PATH" "BobTV-macos-${ARCH}-update.zip"
 
       - name: Upload DMG
         uses: actions/upload-artifact@v4
         with:
-          name: macos-dmg
-          path: clubtivi-macos.dmg
+          name: macos-dmg-${{ matrix.arch }}
+          path: BobTV-macos-${{ matrix.arch }}.dmg
+
+      - name: Upload Mac update test archive
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-update-${{ matrix.arch }}
+          path: BobTV-macos-${{ matrix.arch }}-update.zip
 
   # ─── Windows ────────────────────────────────────────────────────────
   build-windows:
@@ -190,7 +221,7 @@ jobs:
   # ─── Create Release ────────────────────────────────────────────────
   create-release:
     name: Create GitHub Release
-    needs: [build-android, build-ios, build-macos, build-windows, build-linux]
+    needs: [build-android, build-ios, build-windows, build-linux]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -208,7 +239,8 @@ jobs:
           cp artifacts/android-apk/app-release.apk       release/clubtivi-android.apk
           cp artifacts/android-aab/app-release.aab        release/clubtivi-android.aab
           cp artifacts/ios-ipa/clubtivi-ios-unsigned.ipa   release/clubtivi-ios-unsigned.ipa
-          cp artifacts/macos-dmg/clubtivi-macos.dmg       release/clubtivi-macos.dmg
+          # Mac DMGs remain CI artifacts until Developer ID signing,
+          # notarization and physical playback verification are enabled.
           cp artifacts/windows-zip/clubtivi-windows.zip   release/clubtivi-windows.zip
           cp artifacts/linux-tar/clubtivi-linux-x64.tar.gz release/clubtivi-linux-x64.tar.gz
 

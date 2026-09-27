@@ -17,6 +17,7 @@ import '../../data/services/epg_refresh_service.dart';
 import '../providers/provider_manager.dart';
 import '../remote/web_remote_server.dart';
 import 'add_epg_source_dialog.dart';
+import 'bobtv_service_settings.dart';
 import '../shows/shows_providers.dart';
 import '../../data/datasources/remote/trakt_client.dart';
 import '../../data/datasources/remote/tmdb_client.dart';
@@ -243,6 +244,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                     ),
                   ],
                 ),
+                const BobTvServiceSettings(),
                 _SettingsSection(
                   title: 'EPG',
                   children: [

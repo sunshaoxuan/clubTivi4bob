@@ -1,4 +1,111 @@
 class ChannelCategoryClassifier {
+  static const internationalCountryNames = <String, String>{
+    'ar': '阿根廷', 'at': '奥地利', 'au': '澳大利亚', 'be': '比利时',
+    'br': '巴西', 'ca': '加拿大', 'ch': '瑞士', 'cl': '智利',
+    'co': '哥伦比亚', 'cu': '古巴', 'de': '德国', 'dk': '丹麦',
+    'eg': '埃及', 'es': '西班牙', 'fi': '芬兰', 'fr': '法国',
+    'gb': '英国', 'gr': '希腊', 'hk': '香港', 'id': '印度尼西亚', 'il': '以色列',
+    'in': '印度', 'ir': '伊朗', 'is': '冰岛', 'it': '意大利',
+    'jp': '日本', 'kp': '朝鲜', 'kr': '韩国', 'mx': '墨西哥',
+    'mo': '澳门', 'my': '马来西亚', 'nl': '荷兰', 'no': '挪威', 'nz': '新西兰',
+    'ph': '菲律宾', 'pl': '波兰', 'pt': '葡萄牙', 'rs': '塞尔维亚',
+    'ru': '俄罗斯', 'rw': '卢旺达', 'sa': '沙特阿拉伯', 'se': '瑞典',
+    'sg': '新加坡', 'th': '泰国', 'tr': '土耳其', 'tw': '台湾', 'ua': '乌克兰',
+    'uk': '英国', 'us': '美国', 'vn': '越南', 'za': '南非',
+  };
+
+  static const internationalGenres = <String>[
+    '综合', '新闻', '体育', '电影', '剧集', '娱乐', '儿童', '纪录片', '音乐', '宗教', '公共事务',
+  ];
+
+  static String internationalCountryFor({
+    required String name,
+    String? groupTitle,
+    String? tvgId,
+  }) {
+    final id = (tvgId ?? '').trim().toLowerCase();
+    final suffix = RegExp(r'\.([a-z]{2})$').firstMatch(id)?.group(1);
+    if (suffix != null && internationalCountryNames.containsKey(suffix)) {
+      return internationalCountryNames[suffix]!;
+    }
+    final identity = '${name.trim()} ${groupTitle ?? ''}'.toLowerCase();
+    const aliases = <String, List<String>>{
+      '香港': ['香港', 'hong kong', 'tvb', '翡翠台', '明珠台', 'viutv', 'rthk'],
+      '澳门': ['澳门', '澳門', 'macau', 'macao', 'tdm'],
+      '台湾': ['台湾', '台灣', 'taiwan', '台视', '台視', '中视', '中視',
+        '华视', '華視', '民视', '民視', '公视', '公視', '三立', '东森', '東森'],
+      '美国': ['美国', 'usa', 'united states'],
+      '英国': ['英国', 'united kingdom', 'britain'],
+      '法国': ['法国', 'france'],
+      '德国': ['德国', 'germany', 'deutschland'],
+      '意大利': ['意大利', 'italy', 'italia'],
+      '日本': ['日本', 'japan'],
+      '韩国': ['韩国', 'south korea'],
+      '俄罗斯': ['俄罗斯', 'russia'],
+      '加拿大': ['加拿大', 'canada'],
+      '巴西': ['巴西', 'brazil'],
+      '澳大利亚': ['澳大利亚', 'australia'],
+      '越南': ['越南', 'vietnam'],
+      '泰国': ['泰国', 'thailand'],
+      '新加坡': ['新加坡', 'singapore'],
+    };
+    for (final entry in aliases.entries) {
+      if (entry.value.any((alias) => RegExp(r'[a-z]').hasMatch(alias)
+          ? RegExp('(^|[^a-z])${RegExp.escape(alias)}([^a-z]|\$)')
+              .hasMatch(identity)
+          : identity.contains(alias))) {
+        return entry.key;
+      }
+    }
+    if (RegExp(r'^abc news live(?:\s+\d+)?$', caseSensitive: false)
+        .hasMatch(name.trim())) {
+      return '美国';
+    }
+    final prefix = RegExp(r'^([a-z]{2})\s*[:|–-]\s*').firstMatch(name.trim().toLowerCase());
+    return internationalCountryNames[prefix?.group(1)] ?? '未识别地区';
+  }
+
+  static Map<String, String> knownCountriesByStreamUrl(
+    Iterable<({String name, String? groupTitle, String? tvgId,
+      String streamUrl})> channels,
+  ) {
+    final known = <String, String>{};
+    final conflicts = <String>{};
+    for (final channel in channels) {
+      final country = internationalCountryFor(
+        name: channel.name,
+        groupTitle: channel.groupTitle,
+        tvgId: channel.tvgId,
+      );
+      if (country == '未识别地区' || channel.streamUrl.isEmpty) continue;
+      final previous = known[channel.streamUrl];
+      if (previous != null && previous != country) {
+        conflicts.add(channel.streamUrl);
+      } else {
+        known[channel.streamUrl] = country;
+      }
+    }
+    for (final url in conflicts) {
+      known.remove(url);
+    }
+    return known;
+  }
+
+  static String internationalGenreFor(String? groupTitle) {
+    final group = (groupTitle ?? '').toLowerCase();
+    if (_containsAny(group, const ['news', '新闻', '資訊', '资讯'])) return '新闻';
+    if (_containsAny(group, const ['sport', '体育', '體育'])) return '体育';
+    if (_containsAny(group, const ['movie', 'film', '电影', '電影'])) return '电影';
+    if (_containsAny(group, const ['series', '剧集', '电视剧', '電視劇'])) return '剧集';
+    if (_containsAny(group, const ['entertainment', '综艺', '綜藝'])) return '娱乐';
+    if (_containsAny(group, const ['kids', 'children', 'animation', '儿童', '少儿'])) return '儿童';
+    if (_containsAny(group, const ['documentary', '纪录', '紀錄'])) return '纪录片';
+    if (_containsAny(group, const ['music', '音乐', '音樂'])) return '音乐';
+    if (_containsAny(group, const ['religious', '宗教'])) return '宗教';
+    if (_containsAny(group, const ['legislative', 'government', '公共'])) return '公共事务';
+    return '综合';
+  }
+
   static const provinceCategories = <String>[
     '北京',
     '天津',
@@ -36,7 +143,6 @@ class ChannelCategoryClassifier {
   static const categories = <String>[
     '央视',
     ...provinceCategories,
-    '港澳台',
     '国际',
     '广播',
     '数字',
@@ -539,7 +645,7 @@ class ChannelCategoryClassifier {
       return '央视';
     }
     if (_containsAny(text, _hongKongMacauTaiwanTerms)) {
-      return '港澳台';
+      return '国际';
     }
     final province = provinceFor(
       name: name,
@@ -548,6 +654,18 @@ class ChannelCategoryClassifier {
     );
     if (province != null) {
       return province;
+    }
+    final countryCode = RegExp(r'\.([a-z]{2})$')
+        .firstMatch((tvgId ?? '').trim().toLowerCase())?.group(1);
+    if (internationalCountryNames.containsKey(countryCode)) {
+      return '国际';
+    }
+    if (internationalCountryFor(
+          name: name,
+          groupTitle: groupTitle,
+          tvgId: tvgId,
+        ) != '未识别地区') {
+      return '国际';
     }
     if (_isInternationalTelevision(name, group)) {
       return '国际';
@@ -589,14 +707,21 @@ class ChannelCategoryClassifier {
 
   static List<String>? candidateTermsForCategory(String category) {
     if (category == '央视') return _centralTerms;
-    if (category == '港澳台') return _hongKongMacauTaiwanTerms;
     if (category == '国际') {
-      return const [
+      return [
+        ..._hongKongMacauTaiwanTerms,
         '国际',
         'international',
         'general',
         'legislative',
         'religious',
+        'news',
+        'sports',
+        'movies',
+        'series',
+        'entertainment',
+        'documentary',
+        'animation',
         ' tv',
         'rai ',
         'rtl ',
@@ -606,6 +731,20 @@ class ChannelCategoryClassifier {
         'bbc',
         'nhk',
         'kbs',
+        'france',
+        'germany',
+        'japan',
+        'korea',
+        'russia',
+        'brazil',
+        'canada',
+        'australia',
+        'italy',
+        'thailand',
+        'vietnam',
+        'united states',
+        'united kingdom',
+        ...internationalCountryNames.keys.map((code) => '.$code'),
       ];
     }
     if (category == '广播') {
@@ -796,6 +935,10 @@ class ChannelCategoryClassifier {
     }
     final lowerName = name.toLowerCase();
     if (RegExp(r'[\u3400-\u9fff]').hasMatch(lowerName)) return false;
+    if (_containsAny(group, const [
+      'news', 'sports', 'movies', 'series', 'entertainment',
+      'documentary', 'animation',
+    ])) return true;
     return RegExp(
       r'(^|\s|[-_])(tv|television|channel)(\s|$|[-_0-9])|^(rai|rtl|fox|ion|cnn|bbc|nhk|kbs|mbc|sbs|abc|cbs|nbc|dw|sky)\b',
     ).hasMatch(lowerName);

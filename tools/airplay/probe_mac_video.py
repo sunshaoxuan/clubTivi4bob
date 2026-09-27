@@ -67,11 +67,10 @@ async def main():
         if os.environ.get('BOBTV_PROBE_LIVE') == '1':
             source = FFmpegFrames('C:\\ProgramData\\chocolatey\\lib\\ffmpeg\\tools\\ffmpeg\\bin\\ffmpeg.exe', test=True)
             try:
-                await source.start()
                 async with timing_access(address) as timing_ready:
                     await asyncio.wait_for(play_test_frames(address, service.port, None, helper,
                         lambda item: print(json.dumps(item), flush=True), source=source,
-                        timing_ready=timing_ready), 45)
+                        timing_ready=timing_ready), min(240, int(os.environ.get('BOBTV_PROBE_LIVE_SECONDS', '45'))))
             except asyncio.TimeoutError:
                 print(json.dumps({'stage': 'live-test', 'result': 'bounded-test-stopped'}), flush=True)
             except Exception as error:

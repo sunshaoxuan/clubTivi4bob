@@ -250,7 +250,10 @@ class Bridge:
 
 async def main():
     # Credentials stay in the user's profile and never enter the release bundle.
-    base = Path(os.environ.get('LOCALAPPDATA', str(Path.home()))) / 'BobTV' / 'AirPlay'
+    if sys.platform == 'darwin':
+        base = Path.home() / 'Library' / 'Application Support' / 'BobTV' / 'AirPlay'
+    else:
+        base = Path(os.environ.get('LOCALAPPDATA', str(Path.home()))) / 'BobTV' / 'AirPlay'
     base.mkdir(parents=True, exist_ok=True)
     storage = FileStorage(str(base / 'pairings.json'), asyncio.get_running_loop())
     await storage.load()

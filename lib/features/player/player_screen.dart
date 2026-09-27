@@ -15,6 +15,7 @@ import 'package:window_manager/window_manager.dart';
 import '../../core/app_diagnostics.dart';
 import '../../data/datasources/local/database.dart' as db;
 import '../../data/services/channel_category_classifier.dart';
+import '../../data/services/manual_route_cycle.dart';
 import '../../data/services/stream_alternatives_service.dart';
 import '../../features/providers/provider_manager.dart' show databaseProvider;
 import '../casting/cast_service.dart';
@@ -59,6 +60,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   bool _windowWasMaximized = false;
   bool _showCursor = true;
   Timer? _cursorTimer;
+  final ManualRouteCycle _manualRouteCycle = ManualRouteCycle();
   StreamSubscription<Tracks>? _tracksSubscription;
   StreamSubscription<bool>? _bufferingSubscription;
   StreamSubscription<Player>? _activePlayerSubscription;
@@ -699,6 +701,41 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     }
   }
 
+  PopupMenuItem<int> _routeContextAction(
+    int value, IconData icon, String title, String subtitle, {
+    bool enabled = true,
+    Color accent = const Color(0xFFB9CAFF),
+  }) => PopupMenuItem<int>(
+    value: value,
+    enabled: enabled,
+    height: 62,
+    child: Opacity(
+      opacity: enabled ? 1 : 0.45,
+      child: Row(children: [
+        Container(
+          width: 34, height: 34,
+          decoration: BoxDecoration(
+            color: accent.withValues(alpha: 0.13),
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Icon(icon, color: accent, size: 19),
+        ),
+        const SizedBox(width: 12),
+        Expanded(child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(title, style: const TextStyle(color: Colors.white,
+                fontSize: 14, fontWeight: FontWeight.w600)),
+            const SizedBox(height: 3),
+            Text(subtitle, style: const TextStyle(
+                color: Color(0xFFA8B8D1), fontSize: 11)),
+          ],
+        )),
+      ]),
+    ),
+  );
+
   Future<void> _showRouteMenu(Offset position) async {
     if (widget.channels.isEmpty) return;
     final service = ref.read(playerServiceProvider);
@@ -708,6 +745,14 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     final overlay = Overlay.of(context).context.findRenderObject() as RenderBox;
     final choice = await showMenu<int>(
       context: context,
+      color: const Color(0xFF172439),
+      elevation: 20,
+      shadowColor: Colors.black54,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(20),
+        side: const BorderSide(color: Color(0xFF536683)),
+      ),
+      constraints: const BoxConstraints(minWidth: 340, maxWidth: 380),
       position: RelativeRect.fromLTRB(
         position.dx,
         position.dy,
@@ -715,47 +760,84 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
         overlay.size.height - position.dy,
       ),
       items: [
-        const PopupMenuItem<int>(
-          enabled: false,
-          child: Text('切换当前频道的线路'),
-        ),
-        PopupMenuItem<int>(
-          value: -3,
-          enabled: alternatives.isNotEmpty,
-          child: const Text('切换到下一条线路'),
-        ),
-        for (var index = 0; index < alternatives.length; index++)
-          PopupMenuItem<int>(
-            value: index,
-            child: Text('线路 ${index + 1} · '
-                '${Uri.tryParse(alternatives[index])?.host ?? '候选来源'}'),
-          ),
-        if (alternatives.isEmpty)
-          const PopupMenuItem<int>(
-            enabled: false,
-            child: Text('暂无其他候选线路'),
-          ),
-        const PopupMenuDivider(),
-        PopupMenuItem<int>(
-          value: -2,
-          child: Text(_isFavorite ? '管理收藏' : '加入收藏'),
-        ),
-        const PopupMenuItem<int>(
-          value: -1,
-          child: Text('淘汰当前线路'),
-        ),
+        PopupMenuItem<int>(enabled: false, height: 66,
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(_currentChannelName, maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(color: Colors.white,
+                        fontSize: 16, fontWeight: FontWeight.w700)),
+                Text('${alternatives.length + 1} 条候选线路',
+                    style: const TextStyle(color: Color(0xFFA8B8D1),
+                        fontSize: 12)),
+              ],
+            )),
+        _routeContextAction(-2,
+            _isFavorite ? Icons.star_rounded : Icons.star_outline_rounded,
+            _isFavorite ? '管理收藏' : '加入收藏',
+            _isFavorite ? '调整收藏夹' : '一键保存到我的收藏',
+            accent: const Color(0xFFFFD36B)),
+        const PopupMenuDivider(height: 14),
+        _routeContextAction(-3, Icons.skip_next_rounded,
+            '切换到下一条线路', '已试线路会暂时排到后面',
+            enabled: alternatives.isNotEmpty),
+        const PopupMenuDivider(height: 14),
+        _routeContextAction(-1, Icons.block_rounded,
+            '淘汰当前线路', '从候选线路中移除',
+            accent: const Color(0xFFFFA4A4)),
       ],
     );
     if (!mounted || choice == null || service.currentUrl != currentUrl) return;
     if (choice == -2) {
-      _toggleFavorite();
+      if (_isFavorite) {
+        _toggleFavorite();
+      } else {
+        final channelId = widget.channels[_channelIndex]['id'] as String?;
+        if (channelId == null || channelId.isEmpty) return;
+        late final List<db.FavoriteList> lists;
+        try {
+          lists = await ref.read(databaseProvider)
+              .addChannelToDefaultFavorites(channelId);
+        } catch (_) {
+          if (!mounted) return;
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+            content: Text('收藏失败，请稍后重试'),
+            duration: Duration(seconds: 2),
+          ));
+          return;
+        }
+        if (!mounted) return;
+        setState(() {
+          _favoriteLists = lists;
+          _isFavorite = true;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('已加入我的收藏'),
+          duration: Duration(seconds: 2),
+        ));
+      }
       return;
     }
-    if (choice >= 0 || choice == -3) {
-      final selectedUrl = choice == -3
-          ? alternatives.first
-          : alternatives[choice];
-      final switched = await service.switchCurrentRoute(selectedUrl);
+    if (choice == -3) {
+      final tracker = ref.read(streamHealthTrackerProvider);
+      final selectedUrl = _manualRouteCycle.chooseNext(
+        channelKey: service.currentChannelId ?? _currentChannelName,
+        currentUrl: currentUrl,
+        candidates: alternatives,
+        score: tracker.getScore,
+      );
+      if (selectedUrl == null) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('候选线路本轮已试完，稍后可重新尝试'),
+          duration: Duration(seconds: 3),
+        ));
+        return;
+      }
+      tracker.recordStall(currentUrl);
+      final switched = await service.switchCurrentRoute(
+        selectedUrl, onlyRequestedRoute: true);
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
         content: Text(switched ? '已切换到可播放线路' : '候选线路不可用，已保留当前画面'),

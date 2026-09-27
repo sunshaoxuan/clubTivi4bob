@@ -107,7 +107,9 @@ class PlayerService {
       _proxyActive ? (_streamProxy.localUrl ?? _currentUrl) : _currentUrl;
   String? get currentChannelId => _currentChannelId;
 
-  Future<bool> switchCurrentRoute(String url) async {
+  Future<bool> switchCurrentRoute(String url, {
+    bool onlyRequestedRoute = false,
+  }) async {
     final current = _currentUrl;
     if (current == null || url.isEmpty) return false;
     if (current == url) return true;
@@ -124,6 +126,7 @@ class PlayerService {
           .toList(),
       allowAudioOnly: _allowsAudioOnly,
       preferRequestedRoute: true,
+      onlyRequestedRoute: onlyRequestedRoute,
     );
   }
 
@@ -273,6 +276,7 @@ class PlayerService {
     bool allowAudioOnly = false,
     bool previewOnly = false,
     bool preferRequestedRoute = false,
+    bool onlyRequestedRoute = false,
   }) async {
     final request = ++_channelSwitchGeneration;
     await discardPreparedChannel(invalidateRequest: false);
@@ -296,9 +300,9 @@ class PlayerService {
     channelSwitching.value = true;
     final candidateUrls = <String>[
       url,
-      ...?failoverGroupUrls,
+      if (!onlyRequestedRoute) ...?failoverGroupUrls,
     ];
-    if (_alternatives != null) {
+    if (!onlyRequestedRoute && _alternatives != null) {
       candidateUrls.addAll(_alternatives!.getAlternatives(
         channelId: channelId ?? '',
         epgChannelId: epgChannelId,

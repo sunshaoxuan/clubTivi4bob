@@ -25,6 +25,7 @@ import '../../data/datasources/remote/tmdb_client.dart';
 import '../../data/services/channel_category_classifier.dart';
 import '../../data/services/epg_refresh_service.dart';
 import '../../data/services/stream_alternatives_service.dart';
+import '../../data/services/manual_route_cycle.dart';
 import '../../data/services/channel_name_normalizer.dart';
 import '../../data/services/source_visibility.dart';
 import '../../data/services/source_maintenance_service.dart';
@@ -56,6 +57,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
   int _regionCheckedRoutes = 0;
   int _regionTotalRoutes = 0;
   final Map<String, String> _cardRouteSelection = {};
+  final ManualRouteCycle _manualRouteCycle = ManualRouteCycle();
   List<String> _groups = List.of(ChannelCategoryClassifier.categories);
   String _selectedGroup = '央视';
   bool _simpleMode = true;
@@ -1330,6 +1332,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
   Future<void> _selectChannel(int index, {
     bool force = false,
     String? preferredUrl,
+    bool onlyRequestedRoute = false,
   }) async {
     if (index < 0 || index >= _filteredChannels.length) return;
     final channel = _filteredChannels[index];
@@ -1419,6 +1422,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
             allowAudioOnly: _allowsAudioOnly(channel),
             previewOnly: prepareOnly,
             preferRequestedRoute: preferredUrl != null,
+            onlyRequestedRoute: onlyRequestedRoute,
           )
           : true;
     } catch (error, stackTrace) {
@@ -1545,10 +1549,6 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
         _routeMenuAction(-3, Icons.skip_next_rounded, '切换到下一条线路',
             '先检查线路，成功后切换',
             enabled: alternatives.isNotEmpty),
-        const PopupMenuDivider(height: 14),
-        _routeMenuRoute(currentUrl, 1, null, current: true),
-        for (var index = 0; index < alternatives.length; index++)
-          _routeMenuRoute(alternatives[index], index + 2, index),
         if (alternatives.isEmpty)
           _routeMenuEmpty(),
         const PopupMenuDivider(height: 14),
@@ -1566,13 +1566,19 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
       await _retireCurrentRoute(currentUrl, alternatives);
       return;
     }
-    final selectedUrl = choice == -3
-        ? alternatives.first
-        : alternatives[choice];
+    final channelId = _previewChannel?.id ?? service.currentChannelId ?? '';
+    final selectedUrl = _nextManualRoute(
+      channelId, currentUrl, alternatives,
+    );
+    if (selectedUrl == null) {
+      _showManualRoutesExhausted();
+      return;
+    }
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('正在检查所选线路…')),
     );
-    final switched = await service.switchCurrentRoute(selectedUrl);
+    final switched = await service.switchCurrentRoute(
+      selectedUrl, onlyRequestedRoute: true);
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
       content: Text(switched ? '已切换到可播放线路' : '候选线路不可用，已保留当前画面'),
@@ -1621,10 +1627,6 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
         _routeMenuAction(-3, Icons.skip_next_rounded, '切换到下一条线路',
             '在卡片中预览下一条',
             enabled: alternatives.isNotEmpty),
-        const PopupMenuDivider(height: 14),
-        for (var routeIndex = 0; routeIndex < urls.length; routeIndex++)
-          _routeMenuRoute(urls[routeIndex], routeIndex + 1, routeIndex,
-              current: urls[routeIndex] == lastUrl),
         if (alternatives.isEmpty)
           _routeMenuEmpty(),
         const PopupMenuDivider(height: 14),
@@ -1667,11 +1669,43 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
       ));
       return;
     }
-    final selectedUrl = choice == -3 ? alternatives.first : urls[choice];
+    final selectedUrl = _nextManualRoute(
+      channel.id, lastUrl, alternatives,
+    );
+    if (selectedUrl == null) {
+      _showManualRoutesExhausted();
+      return;
+    }
     final currentIndex = _filteredChannels.indexWhere(
         (item) => item.id == channel.id);
     if (currentIndex < 0) return;
-    await _selectChannel(currentIndex, preferredUrl: selectedUrl);
+    await _selectChannel(currentIndex,
+        preferredUrl: selectedUrl, onlyRequestedRoute: true);
+  }
+
+  String? _nextManualRoute(
+    String channelId, String currentUrl, Iterable<String> alternatives,
+  ) {
+    final tracker = ref.read(streamHealthTrackerProvider);
+    final next = _manualRouteCycle.chooseNext(
+      channelKey: channelId,
+      currentUrl: currentUrl,
+      candidates: alternatives,
+      score: tracker.getScore,
+    );
+    if (next != null && currentUrl.isNotEmpty) {
+      tracker.recordStall(currentUrl);
+    }
+    return next;
+  }
+
+  void _showManualRoutesExhausted() {
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(const SnackBar(
+        content: Text('候选线路本轮已试完，稍后可重新尝试'),
+        duration: Duration(seconds: 3),
+      ));
   }
 
   Future<void> _handleRouteMenuFavorite(db.Channel channel) async {
@@ -1789,80 +1823,12 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
     );
   }
 
-  PopupMenuItem<int> _routeMenuRoute(
-    String url, int number, int? value, {bool current = false}
-  ) {
-    final numberLabel = number.toString().padLeft(2, '0');
-    return PopupMenuItem<int>(
-      value: value,
-      enabled: value != null,
-      height: 59,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-        decoration: BoxDecoration(
-          color: current ? const Color(0xFF314465) : Colors.transparent,
-          borderRadius: BorderRadius.circular(10),
-        ),
-        child: Row(
-          children: [
-            Text(numberLabel, style: const TextStyle(
-                color: Color(0xFF9AB0D4), fontSize: 13,
-                fontWeight: FontWeight.w700)),
-            const SizedBox(width: 12),
-            Expanded(child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('线路 $number', style: const TextStyle(
-                    color: Colors.white, fontSize: 13,
-                    fontWeight: FontWeight.w600)),
-                Text(_routeMenuDetail(url), maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(color: Color(0xFFA8B8D1),
-                        fontSize: 11)),
-              ],
-            )),
-            if (current)
-              Container(
-                padding: const EdgeInsets.symmetric(
-                    horizontal: 7, vertical: 3),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFBDD0FF),
-                  borderRadius: BorderRadius.circular(7),
-                ),
-                child: const Text('当前', style: TextStyle(
-                    color: Color(0xFF14223A), fontSize: 10,
-                    fontWeight: FontWeight.w700)),
-              ),
-          ],
-        ),
-      ),
-    );
-  }
-
   PopupMenuItem<int> _routeMenuEmpty() => const PopupMenuItem<int>(
     enabled: false,
     height: 46,
     child: Text('暂无其他候选线路', style: TextStyle(
         color: Color(0xFFA8B8D1), fontSize: 12)),
   );
-
-  String _routeMenuDetail(String url) {
-    final host = Uri.tryParse(url)?.host ?? '';
-    db.Channel? source;
-    for (final channel in _allChannels) {
-      if (channel.streamUrl == url) {
-        source = channel;
-        break;
-      }
-    }
-    final provider = source == null
-        ? ''
-        : ref.read(streamAlternativesProvider)
-            .providerName(source.providerId);
-    final detail = provider.isEmpty ? host : '$host · $provider';
-    return detail.isEmpty ? '来源未知' : detail;
-  }
 
   Future<void> _retireCurrentRoute(
     String currentUrl,

@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="向 BobTV 站点上传经过字段过滤的 JSONL 诊断日志。">
+  <title>诊断日志 | BobTV</title>
+  <link rel="icon" type="image/png" href="/assets/favicon.png?v=2">
+  <link rel="stylesheet" href="/assets/site.css?v=5">
+</head>
+<body>
+  <header class="site-header"><div class="container header-inner"><a class="brand" href="/" aria-label="BobTV 首页"><span class="brand-mark">▶</span>Bob<span>TV</span></a><nav aria-label="主导航"><a href="/">产品</a><a href="/downloads">下载</a><a href="/diagnostics" aria-current="page">诊断日志</a></nav></div></header>
+  <main class="page">
+    <div class="page-hero"><div class="container"><p class="eyebrow"><span class="accent-line"></span> 问题排查</p><h1>诊断日志</h1><p class="page-lead">遇到播放或运行问题时，可上传 BobTV 的 JSONL 日志。网页在发送前只保留允许的诊断字段。</p></div></div>
+    <div class="container page-content upload-layout">
+      <section aria-labelledby="upload-title"><p class="section-index">手动上传</p><h2 id="upload-title">提交日志文件</h2><p class="muted">支持 .log 或 .jsonl 文件，最大 1 MiB。上传完成后会返回一个诊断编号。</p><form class="upload" id="upload-form"><span>JSONL 诊断日志 · 最大 1 MiB</span><div class="file-row"><input id="log-file" class="visually-hidden" type="file" accept=".log,.jsonl,application/x-ndjson" required><label class="button secondary" for="log-file">选择文件</label><span id="selected-file">未选择文件</span></div><button class="button primary" type="submit">上传日志</button><output id="upload-status" aria-live="polite"></output></form></section>
+      <aside class="privacy-note" aria-label="日志处理说明"><h2>数据处理</h2><p>网页仅发送时间、事件、来源和运行指标等白名单字段。原始异常文本、路径及播放地址不会随文件直接发送。</p><p>服务器私有保存日志 14 天，没有公开读取入口。现有 BobTV 发布包尚未集成自动上传。</p></aside>
+    </div>
+  </main>
+  <footer><div class="container footer-inner"><span>BobTV · 开源桌面播放器</span><span>第三方节目源的可用性与授权由使用者自行确认。</span></div></footer>
+  <script src="/assets/diagnostics.js?v=1" defer></script>
+</body>
+</html>

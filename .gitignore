@@ -32,6 +32,11 @@ migrate_working_dir/
 .pub/
 /build/
 /coverage/
+/website/.test-output/
+/website/.capture/
+/website/data/
+**/__pycache__/
+.pytest_cache/
 
 # Symbolication related
 app.*.symbols

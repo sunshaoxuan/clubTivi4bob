@@ -1,0 +1,19 @@
+[Unit]
+Description=BobTV product site and diagnostics API
+After=network.target
+
+[Service]
+User=bobtv
+Group=bobtv
+WorkingDirectory=/opt/bobtv/site
+Environment=BOBTV_DATA_DIR=/var/lib/bobtv
+ExecStart=/opt/bobtv/venv/bin/uvicorn app:app --host 127.0.0.1 --port 8917 --proxy-headers --forwarded-allow-ips 127.0.0.1
+Restart=on-failure
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ReadWritePaths=/var/lib/bobtv
+
+[Install]
+WantedBy=multi-user.target

@@ -1532,6 +1532,16 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
         _routeMenuHeader(_previewChannel == null
             ? '当前频道' : _channelDisplayName(_previewChannel!),
             alternatives.length + 1),
+        if (_previewChannel != null)
+          _routeMenuAction(-2,
+              _favoritedChannelIds.contains(_previewChannel!.id)
+                  ? Icons.star_rounded : Icons.star_outline_rounded,
+              _favoritedChannelIds.contains(_previewChannel!.id)
+                  ? '管理收藏' : '加入收藏',
+              _favoritedChannelIds.contains(_previewChannel!.id)
+                  ? '调整收藏夹' : '一键保存到我的收藏',
+              favorite: true),
+        const PopupMenuDivider(height: 14),
         _routeMenuAction(-3, Icons.skip_next_rounded, '切换到下一条线路',
             '先检查线路，成功后切换',
             enabled: alternatives.isNotEmpty),
@@ -1542,10 +1552,6 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
         if (alternatives.isEmpty)
           _routeMenuEmpty(),
         const PopupMenuDivider(height: 14),
-        if (_previewChannel != null)
-          _routeMenuAction(-2, Icons.star_outline_rounded,
-              _favoritedChannelIds.contains(_previewChannel!.id)
-                  ? '管理收藏' : '加入收藏', '保存常看的频道'),
         _routeMenuAction(-1, Icons.block_rounded, '淘汰当前线路',
             '从候选线路中移除', danger: true),
       ],
@@ -1553,7 +1559,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
     if (!mounted || choice == null || service.currentUrl != currentUrl) return;
     if (choice == -2) {
       final channel = _previewChannel;
-      if (channel != null) await _showFavoriteListSheet(channel);
+      if (channel != null) await _handleRouteMenuFavorite(channel);
       return;
     }
     if (choice == -1) {
@@ -1603,6 +1609,15 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
       ),
       items: [
         _routeMenuHeader(_channelDisplayName(channel), urls.length),
+        _routeMenuAction(-2,
+            _favoritedChannelIds.contains(channel.id)
+                ? Icons.star_rounded : Icons.star_outline_rounded,
+            _favoritedChannelIds.contains(channel.id)
+                ? '管理收藏' : '加入收藏',
+            _favoritedChannelIds.contains(channel.id)
+                ? '调整收藏夹' : '一键保存到我的收藏',
+            favorite: true),
+        const PopupMenuDivider(height: 14),
         _routeMenuAction(-3, Icons.skip_next_rounded, '切换到下一条线路',
             '在卡片中预览下一条',
             enabled: alternatives.isNotEmpty),
@@ -1613,9 +1628,6 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
         if (alternatives.isEmpty)
           _routeMenuEmpty(),
         const PopupMenuDivider(height: 14),
-        _routeMenuAction(-2, Icons.star_outline_rounded,
-            _favoritedChannelIds.contains(channel.id)
-                ? '管理收藏' : '加入收藏', '保存常看的频道'),
         _routeMenuAction(-1, Icons.block_rounded, '淘汰当前线路',
             '从候选线路中移除',
             enabled: lastUrl.isNotEmpty, danger: true),
@@ -1623,7 +1635,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
     );
     if (!mounted || choice == null) return;
     if (choice == -2) {
-      await _showFavoriteListSheet(channel);
+      await _handleRouteMenuFavorite(channel);
       return;
     }
     if (choice == -1) {
@@ -1660,6 +1672,40 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
         (item) => item.id == channel.id);
     if (currentIndex < 0) return;
     await _selectChannel(currentIndex, preferredUrl: selectedUrl);
+  }
+
+  Future<void> _handleRouteMenuFavorite(db.Channel channel) async {
+    if (_favoritedChannelIds.contains(channel.id)) {
+      await _showFavoriteListSheet(channel);
+      return;
+    }
+    late final List<db.FavoriteList> lists;
+    try {
+      lists = await ref.read(databaseProvider)
+          .addChannelToDefaultFavorites(channel.id);
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('收藏失败，请稍后重试'),
+        duration: Duration(seconds: 2),
+      ));
+      return;
+    }
+    if (!mounted) return;
+    setState(() {
+      _favoriteLists = lists;
+      _favoritedChannelIds.add(channel.id);
+      _applyFilters();
+    });
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(const SnackBar(
+        content: Text('已加入我的收藏'),
+        duration: Duration(seconds: 2),
+      ));
+    if (_selectedGroup == 'Favorites' || _selectedGroup.startsWith('fav:')) {
+      await _loadGroupChannels(_selectedGroup, preserveScroll: true);
+    }
   }
 
   PopupMenuItem<int> _routeMenuHeader(String channelName, int routeCount) {
@@ -1699,8 +1745,10 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
     int value, IconData icon, String title, String subtitle, {
     bool enabled = true,
     bool danger = false,
+    bool favorite = false,
   }) {
     final accent = danger ? const Color(0xFFFFA4A4)
+        : favorite ? const Color(0xFFFFD36B)
         : const Color(0xFFB9CAFF);
     return PopupMenuItem<int>(
       value: value,

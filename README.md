@@ -92,15 +92,19 @@ M3U documents are expanded by the strict local parser after AI file selection. J
 
 Discovered routes are placed in the existing channel aggregation and failover system. Each route retains its repository, commit, file path, source document URL, confidence, and first and last discovery times. The crawler runs at most once per day, processes five repositories per pass, and prefers three configured repositories plus two newly discovered repositories.
 
-The crawler requires all of these process environment variables:
+The Settings screen accepts an OpenAI-compatible HTTPS endpoint, model ID, and API key for optional classification and source discovery. The key stays in platform secure storage. Process environment variables remain a fallback when no settings have been saved:
 
 * `OPENAI_BASE_URL`
 * `OPENAI_API_KEY`
 * `OPENAI_MODEL`, optional and defaulting to `gpt-5.6-luna`
 
-If either required value is absent, only the AI crawler is disabled. Playback, the programme guide, normal provider refreshes, route health checks, and GitHub version monitoring continue to operate. Credentials are never written to the repository or application logs.
+If the AI configuration is incomplete or disabled, uncertain channel classifications remain in Other and AI source discovery stays off. Playback, the programme guide, normal provider refreshes, route health checks, and GitHub version monitoring continue to operate. Credentials are never written to the repository or application logs.
 
 Release builds include a sanitized bundled snapshot of the latest discovered routes. A new installation imports the snapshot automatically, so customers receive the release time channel candidates even when the optional AI endpoint is unavailable. The snapshot contains public stream metadata and GitHub provenance only. It excludes favorites, playback history, route health history, diagnostics, crash dumps, and API configuration. Later crawler passes update these candidates when runtime AI configuration is available.
+
+### Website channel synchronization
+
+The website provides a versioned manifest and a compressed snapshot of preclassified channels. The app downloads and checks the snapshot in the background, validates its hash and records, then imports it in a database transaction. Stable route IDs preserve favorites and local route decisions across updates. An empty or unreachable website catalog leaves the packaged and locally saved channels available. The website catalog currently awaits reviewed channel data; the existence of the API alone does not populate it. See [`website/API.md`](website/API.md) for the contract and [`website/README.md`](website/README.md) for the publication command.
 
 ## Included source bootstrap
 

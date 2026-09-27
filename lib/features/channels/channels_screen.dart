@@ -1442,7 +1442,8 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
             failoverGroupUrls: failoverUrls,
             allowAudioOnly: _allowsAudioOnly(channel),
             previewOnly: prepareOnly,
-            preferRequestedRoute: preferredUrl != null,
+            preferRequestedRoute: preferredUrl != null ||
+                (prepareOnly && _verifiedRouteUrls.contains(channel.streamUrl)),
             onlyRequestedRoute: onlyRequestedRoute,
           )
             : true;

@@ -197,7 +197,7 @@ class PlayerService {
     final current = _currentUrl;
     if (current == null || url.isEmpty) return false;
     if (current == url) return true;
-    return switchChannel(
+    final switched = await switchChannel(
       url,
       channelId: _currentChannelId,
       epgChannelId: _currentEpgChannelId,
@@ -212,6 +212,19 @@ class PlayerService {
       preferRequestedRoute: true,
       onlyRequestedRoute: onlyRequestedRoute,
     );
+    if (switched && _currentUrl != null && _currentUrl != current) {
+      // A manual skip is a quality verdict. Keep automatic failover from
+      // immediately returning to the skipped route.
+      _healthTracker?.recordStall(current);
+      _failedFailoverUrls.add(current);
+      _manuallyRejectedUrls.add(current);
+      AppDiagnostics.instance.log('manual_route_skipped', {
+        'channel': _currentChannelName,
+        'skippedStream': AppDiagnostics.summarizeStreamUrl(current),
+        'activeStream': AppDiagnostics.summarizeStreamUrl(_currentUrl!),
+      });
+    }
+    return switched;
   }
 
   /// Starts a replacement after the rejected route has been stopped.
@@ -343,14 +356,14 @@ class PlayerService {
   Future<void> _initPlayer(Player p) async {
     final np = p.platform;
     if (np is native_player.NativePlayer) {
-      // Downmix surround to stereo for output compatibility
-      await np.setProperty('audio-channels', 'stereo');
       if (Platform.isMacOS) {
-        // Keep the macOS output path free of gain compensation and live audio
-        // filters. Some streams produce audible artifacts with this chain.
+        // Follow the selected CoreAudio device's channel layout and provide
+        // extra output buffering for jittery live streams.
+        await np.setProperty('audio-buffer', '0.8');
         await np.setProperty('audio-normalize-downmix', 'no');
         await np.setProperty('af', '');
       } else {
+        await np.setProperty('audio-channels', 'stereo');
         await np.setProperty('audio-normalize-downmix', 'yes');
         await np.setProperty('af', 'loudnorm=I=-14:TP=-1:LRA=13');
       }
@@ -370,7 +383,9 @@ class PlayerService {
     _playerReady = true;
     _playerReadyCompleter.complete();
     AppDiagnostics.instance.log('player_ready', {
-      'audioProfile': Platform.isMacOS ? 'macos_unprocessed' : 'normalized',
+      'audioProfile': Platform.isMacOS
+          ? 'macos_auto_channels_buffer_0_8'
+          : 'normalized',
     });
   }
 
@@ -411,10 +426,31 @@ class PlayerService {
     if (_rewardedPlaybackUrls.add(url)) {
       if (!alreadyCredited) _healthTracker?.recordPlaybackSuccess(url);
       onReviewedPlaybackVerdict?.call(_currentChannelId, url, true);
+      if (Platform.isMacOS) {
+        unawaited(_logMacAudioOutput(url, generation));
+      }
       if (routeSearchProgress.value?.active == true) {
         routeSearchProgress.value = null;
       }
     }
+  }
+
+  Future<void> _logMacAudioOutput(String url, int generation) async {
+    final results = await Future.wait([
+      getMpvProperty('current-ao'),
+      getMpvProperty('audio-codec-name'),
+      getMpvProperty('audio-params'),
+      getMpvProperty('audio-out-params'),
+    ]);
+    if (generation != _playGeneration || _currentUrl != url) return;
+    AppDiagnostics.instance.log('mac_audio_output', {
+      'channel': _currentChannelName,
+      'stream': AppDiagnostics.summarizeStreamUrl(url),
+      'output': results[0],
+      'codec': results[1],
+      'inputParams': results[2],
+      'outputParams': results[3],
+    });
   }
 
   /// Replaces screen-supplied alternatives after a source visibility filter
@@ -528,7 +564,11 @@ class PlayerService {
           final native = candidate.platform;
           if (native is native_player.NativePlayer) {
             await native.setProperty('mute', 'yes');
-            await native.setProperty('audio-channels', 'stereo');
+            if (Platform.isMacOS) {
+              await native.setProperty('audio-buffer', '0.8');
+            } else {
+              await native.setProperty('audio-channels', 'stereo');
+            }
           }
           await candidate.setVolume(0);
           final controller = VideoController(candidate);
@@ -806,6 +846,9 @@ class PlayerService {
       final native = candidate.platform;
       if (native is native_player.NativePlayer) {
         await native.setProperty('mute', 'yes');
+        if (Platform.isMacOS) {
+          await native.setProperty('audio-buffer', '0.8');
+        }
       }
       await candidate.setVolume(0);
       VideoController(candidate);
@@ -1974,6 +2017,9 @@ class PlayerService {
         final native = candidate.platform;
         if (native is native_player.NativePlayer) {
           await native.setProperty('mute', 'yes');
+          if (Platform.isMacOS) {
+            await native.setProperty('audio-buffer', '0.8');
+          }
         }
         await candidate.setVolume(0);
         final controller = VideoController(candidate);
@@ -2344,13 +2390,15 @@ class PlayerService {
       if (np is native_player.NativePlayer) {
         await np.setProperty('vid', 'no'); // disable video decoding
         if (_warmGeneration != generation) return;
-        await np.setProperty('audio-channels', 'stereo');
-        if (_warmGeneration != generation) return;
         if (Platform.isMacOS) {
+          await np.setProperty('audio-buffer', '0.8');
+          if (_warmGeneration != generation) return;
           await np.setProperty('audio-normalize-downmix', 'no');
           if (_warmGeneration != generation) return;
           await np.setProperty('af', '');
         } else {
+          await np.setProperty('audio-channels', 'stereo');
+          if (_warmGeneration != generation) return;
           await np.setProperty('audio-normalize-downmix', 'yes');
           if (_warmGeneration != generation) return;
           await np.setProperty('af', 'loudnorm=I=-14:TP=-1:LRA=13');

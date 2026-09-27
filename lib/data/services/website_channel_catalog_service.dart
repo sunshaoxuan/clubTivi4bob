@@ -1,6 +1,5 @@
 import 'dart:convert';
 import 'dart:io';
-import 'dart:isolate';
 
 import 'package:drift/drift.dart' show Value;
 import 'package:flutter/foundation.dart';
@@ -84,9 +83,12 @@ class WebsiteChannelCatalogService {
       );
       final bytes = await api.downloadChannelCatalog(manifest);
       if (_disposed) return 0;
-      final records = await Isolate.run(() => _decodeCatalog(
-        bytes, manifest.version, manifest.channelCount, manifest.routeCount,
-      ));
+      final records = await compute(_decodeCatalogFromMessage, {
+        'bytes': bytes,
+        'version': manifest.version,
+        'channelCount': manifest.channelCount,
+        'routeCount': manifest.routeCount,
+      });
       if (_disposed) return 0;
       final existing = {
         for (final channel in await database.getChannelsForProvider(providerId))
@@ -166,6 +168,12 @@ class WebsiteChannelCatalogService {
     state.dispose();
   }
 }
+
+Future<List<Map<String, Object?>>> _decodeCatalogFromMessage(
+    Map<String, Object> message) => _decodeCatalog(
+  message['bytes'] as List<int>, message['version'] as String,
+  message['channelCount'] as int, message['routeCount'] as int,
+);
 
 Future<List<Map<String, Object?>>> _decodeCatalog(
     List<int> compressed, String version, int channelCount,

@@ -82,6 +82,8 @@ class PlayerService {
   bool _autoFailoverInProgress = false;
   DateTime? _failoverRetryNotBefore;
   int _playGeneration = 0;
+  int _rewardedPlaybackGeneration = -1;
+  final Set<String> _rewardedPlaybackUrls = {};
   final Set<String> _failedFailoverUrls = {};
   final Set<String> _manuallyRejectedUrls = {};
   bool _requiresUltraHd = false;
@@ -252,6 +254,19 @@ class PlayerService {
     _healthTracker = health;
   }
 
+  void _recordPlaybackReadyOnce(String url, int generation, {
+    bool alreadyCredited = false,
+  }) {
+    if (generation != _playGeneration || _currentUrl != url) return;
+    if (_rewardedPlaybackGeneration != generation) {
+      _rewardedPlaybackGeneration = generation;
+      _rewardedPlaybackUrls.clear();
+    }
+    if (_rewardedPlaybackUrls.add(url) && !alreadyCredited) {
+      _healthTracker?.recordPlaybackSuccess(url);
+    }
+  }
+
   /// Replaces screen-supplied alternatives after a source visibility filter
   /// changes and drops any route that was already warming in the background.
   Future<void> updateFailoverAlternatives(List<String>? urls) async {
@@ -366,8 +381,8 @@ class PlayerService {
                 ChannelNameNormalizer.isUltraHd(tvgId ?? ''),
           );
           if (ready && request == _channelSwitchGeneration) {
-            _healthTracker?.recordPlaybackSuccess(candidateUrl);
             if (previewOnly) {
+              _healthTracker?.recordPlaybackSuccess(candidateUrl);
               // Ownership passes to the service while the preview is visible.
               promoted = true;
               _preparedChannel = _PreparedChannel(
@@ -409,6 +424,7 @@ class PlayerService {
               failoverGroupUrls: failoverGroupUrls,
               allowAudioOnly: allowAudioOnly,
             );
+            _recordPlaybackReadyOnce(candidateUrl, _playGeneration);
             AppDiagnostics.instance.log('channel_preload_committed', {
               'channel': channelName,
               'stream': AppDiagnostics.summarizeStreamUrl(candidateUrl),
@@ -506,6 +522,8 @@ class PlayerService {
         failoverGroupUrls: prepared.failoverGroupUrls,
         allowAudioOnly: prepared.allowAudioOnly,
       );
+      _recordPlaybackReadyOnce(
+        prepared.url, _playGeneration, alreadyCredited: true);
       AppDiagnostics.instance.log('channel_preview_committed', {
         'channel': prepared.channelName,
       });
@@ -1086,6 +1104,9 @@ class PlayerService {
         height: height,
         allowAudioOnly: _allowsAudioOnly,
       )) {
+        if (player.state.playing && !player.state.buffering) {
+          _recordPlaybackReadyOnce(expectedUrl, playGeneration);
+        }
         AppDiagnostics.instance.log(
           hasVideoTrack ? 'video_ready' : 'audio_ready',
           {'channel': _currentChannelName, 'width': width, 'height': height},
@@ -2031,7 +2052,7 @@ class PlayerService {
       final ready = await _waitForPlayable(candidateUrl);
       if (playGeneration != _playGeneration) return false;
       if (ready) {
-        _healthTracker?.recordPlaybackSuccess(candidateUrl);
+        _recordPlaybackReadyOnce(candidateUrl, playGeneration);
         _scheduleAudioCheck(candidateUrl);
         _scheduleVideoCheck(candidateUrl, playGeneration);
         _scheduleQualityCheck(candidateUrl, playGeneration);

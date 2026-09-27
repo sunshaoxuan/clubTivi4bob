@@ -835,7 +835,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
         ));
         return;
       }
-      tracker.recordStall(currentUrl);
+      tracker.recordManualSkip(currentUrl);
       final switched = await service.switchCurrentRoute(
         selectedUrl, onlyRequestedRoute: true);
       if (!mounted) return;

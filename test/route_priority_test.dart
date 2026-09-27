@@ -30,6 +30,25 @@ void main() {
     );
   });
 
+  test('decoded playback raises weight and a manual skip lowers it once',
+      () async {
+    SharedPreferences.setMockInitialValues({});
+    final tracker = StreamHealthTracker();
+    await tracker.load();
+    const url = 'https://example.com/live.m3u8';
+    final neutral = tracker.getScore(url);
+
+    tracker.recordPlaybackSuccess(url);
+    final afterSuccess = tracker.getScore(url);
+    tracker.recordManualSkip(url);
+    final afterSkip = tracker.getScore(url);
+    tracker.recordPlaybackSuccess(url);
+
+    expect(afterSuccess, greaterThan(neutral));
+    expect(afterSkip, lessThan(afterSuccess));
+    expect(tracker.getScore(url), greaterThan(afterSkip));
+  });
+
   test('legacy saved failures remain effective after tracker reload', () async {
     const url = 'https://example.com/cctv5.m3u8';
     SharedPreferences.setMockInitialValues({

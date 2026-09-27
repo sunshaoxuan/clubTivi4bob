@@ -64,6 +64,10 @@ class StreamHealthTracker {
     _scheduleSave();
   }
 
+  /// A viewer intentionally left this route. This is one negative vote,
+  /// lighter than a measured playback stall.
+  void recordManualSkip(String url) => recordProbeFailure(url);
+
   /// Reward a route only after the player has decoded moving media.
   void recordPlaybackSuccess(String url) {
     final m = _getOrCreate(url);

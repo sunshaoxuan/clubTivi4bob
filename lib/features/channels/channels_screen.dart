@@ -1717,7 +1717,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
       score: tracker.getScore,
     );
     if (next != null && currentUrl.isNotEmpty) {
-      tracker.recordStall(currentUrl);
+      tracker.recordManualSkip(currentUrl);
     }
     return next;
   }

@@ -28,7 +28,7 @@ class WindowsUpdateService {
   WindowsUpdateService._();
 
   static final instance = WindowsUpdateService._();
-  static final manifestUri =
+  static final defaultManifestUri =
       Uri.parse('https://bobtv.briconbric.com/updates/latest.json');
   static const _maxManifestBytes = 64 * 1024;
 
@@ -61,6 +61,7 @@ class WindowsUpdateService {
     _checking = true;
     final client = HttpClient()..connectionTimeout = const Duration(seconds: 8);
     try {
+      final manifestUri = await _resolveManifestUri();
       final request = await client.getUrl(manifestUri).timeout(
         const Duration(seconds: 10),
       );
@@ -106,6 +107,25 @@ class WindowsUpdateService {
       _checking = false;
       unawaited(_flushQueuedFailureReports());
     }
+  }
+
+  Future<Uri> _resolveManifestUri() async {
+    final directory = _updateDirectory;
+    if (directory == null) return defaultManifestUri;
+    final configured = File(p.join(directory.path, 'update-manifest-url.txt'));
+    if (!await configured.exists()) return defaultManifestUri;
+    final candidate = Uri.tryParse((await configured.readAsString()).trim());
+    if (candidate == null ||
+        candidate.scheme != 'https' ||
+        candidate.host != defaultManifestUri.host ||
+        candidate.userInfo.isNotEmpty ||
+        candidate.hasQuery ||
+        candidate.hasFragment ||
+        !candidate.path.startsWith('/updates/') ||
+        !candidate.path.endsWith('.json')) {
+      throw const FormatException('Invalid update manifest URL');
+    }
+    return candidate;
   }
 
   Future<void> _flushQueuedFailureReports() async {
@@ -240,6 +260,8 @@ class WindowsUpdateService {
     final marker = File(p.join(_updateDirectory!.path, 'startup.marker'));
     if (await marker.exists()) {
       try {
+        final healthy = File(p.join(_updateDirectory!.path, 'startup.healthy'));
+        await healthy.writeAsString('$pid', flush: true);
         await marker.delete();
         AppDiagnostics.instance.log('update_startup_healthy', {
           'version': bobTvVersion,

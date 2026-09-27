@@ -201,9 +201,9 @@ Windows release builds should also be tested on the target display because GPU d
 
 ## Privacy and updates
 
-This fork does not perform the original application update check and does not display upstream release notifications. Playlist and EPG refreshes remain available because they are part of live TV data maintenance.
+The original upstream update check and notifications remain disabled. The new Windows updater uses the BobTV-owned HTTPS mirror, verifies package size and SHA-256, installs only after the player exits, and keeps a previous-version backup for startup rollback. See [Windows automatic updates](docs/windows-updates.md) for the mirror contract and release procedure. The public v0.9.1 bob.9 package predates this updater; it requires one manual installation of a future updater-enabled release. The mirror endpoints must be provisioned before automatic updates can operate. Playlist and EPG refreshes remain available independently.
 
-Stream health metrics and application configuration are stored locally by the application. Review the configured provider URLs before distributing a customized build.
+Stream health metrics and application configuration are stored locally by the application. After an automatic rollback, the updater sends a bounded, URL-redacted startup failure report to the configured BobTV HTTPS endpoint and queues it locally when upload is unavailable. Memory dumps are not uploaded. Review the configured provider URLs before distributing a customized build.
 
 ## Legal notice
 

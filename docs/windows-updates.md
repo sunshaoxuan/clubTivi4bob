@@ -42,7 +42,7 @@ new files. Runtime preferences and playlists remain in the user data directory.
 The Windows bootstrap records startup attempts before Flutter starts. After
 the channel browser loads and remains up for 30 seconds, the startup marker is
 cleared. A normal close also clears it. After three consecutive unclean
-startups, the next launch triggers rollback and remembers the failed version
+startups, the independent monitor triggers rollback immediately and remembers the failed version
 in skipped_versions.txt, preventing its automatic reinstallation.
 
 The rollback worker keeps a small, URL-redacted failure report and attempts to

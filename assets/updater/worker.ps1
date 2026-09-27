@@ -1,5 +1,5 @@
 param(
-  [ValidateSet('Update', 'Rollback')][string]$Mode,
+  [ValidateSet('Update', 'Rollback', 'Monitor')][string]$Mode,
   [string]$AppDir,
   [int]$CurrentPid,
   [string]$Version,
@@ -25,6 +25,7 @@ if ($TestRoot) {
 $statePath = Join-Path $root 'candidate.ini'
 $statusPath = Join-Path $root 'status.json'
 $markerPath = Join-Path $root 'startup.marker'
+$healthyPath = Join-Path $root 'startup.healthy'
 $skippedPath = Join-Path $root 'skipped_versions.txt'
 $logPath = Join-Path $root 'worker.log'
 New-Item -ItemType Directory -Path $root -Force | Out-Null
@@ -60,6 +61,18 @@ function Read-State {
     }
   }
   return $result
+}
+
+function Set-Attempts([int]$count) {
+  if (!(Test-Path -LiteralPath $statePath)) { return }
+  $source = [IO.File]::ReadAllText($statePath)
+  $updated = [regex]::Replace(
+    $source, '(?m)^Attempts=\d+\r?$', ('Attempts=' + $count))
+  if ($updated -eq $source -and $count -ne 0) {
+    throw 'Candidate attempt counter missing'
+  }
+  [IO.File]::WriteAllText(
+    $statePath, $updated, (New-Object Text.UTF8Encoding($false)))
 }
 
 function Assert-AppDir([string]$path) {
@@ -198,6 +211,29 @@ function Report-Failure([string]$badVersion) {
   }
 }
 
+function Perform-Rollback {
+  $candidate = Read-State
+  $badVersion = [string]$candidate.Version
+  $backup = [string]$candidate.BackupDir
+  $target = Assert-AppDir ([string]$candidate.AppDir)
+  $backupPrefix = [IO.Path]::GetFullPath((Join-Path $root 'Backups')).TrimEnd('\') + '\'
+  if ($badVersion -notmatch '^\d+\.\d+\.\d+\+\d+$' -or
+      !$backup -or
+      ![IO.Path]::GetFullPath($backup).StartsWith(
+        $backupPrefix, [StringComparison]::OrdinalIgnoreCase)) {
+    throw 'Invalid rollback state'
+  }
+  Wait-ForAppIdle $target
+  Restore-Backup $backup $target (Join-Path $root 'new-files.txt')
+  Add-Content -LiteralPath $skippedPath -Value $badVersion -Encoding ascii
+  Remove-Item -LiteralPath $statePath, $markerPath, $healthyPath -Force -ErrorAction SilentlyContinue
+  Write-Status 'failed' $badVersion 0 '新版连续三次启动失败，已恢复旧版'
+  Write-Log ('Rolled back ' + $badVersion)
+  Report-Failure $badVersion
+}
+
+$monitoring = $Mode -eq 'Monitor'
+if ($monitoring) { Wait-ForExit $CurrentPid }
 $mutex = New-Object Threading.Mutex($false, 'Local\BobTVUpdater')
 $locked = $false
 try {
@@ -205,25 +241,28 @@ try {
   if (!$locked) { return }
 
   if ($Mode -eq 'Rollback') {
-    $candidate = Read-State
-    $badVersion = [string]$candidate.Version
-    $backup = [string]$candidate.BackupDir
-    $target = Assert-AppDir ([string]$candidate.AppDir)
-    $backupPrefix = [IO.Path]::GetFullPath((Join-Path $root 'Backups')).TrimEnd('\') + '\'
-    if ($badVersion -notmatch '^\d+\.\d+\.\d+\+\d+$' -or
-        !$backup -or
-        ![IO.Path]::GetFullPath($backup).StartsWith(
-          $backupPrefix, [StringComparison]::OrdinalIgnoreCase)) {
-      throw 'Invalid rollback state'
-    }
     Wait-ForExit $CurrentPid
-    Wait-ForAppIdle $target
-    Restore-Backup $backup $target (Join-Path $root 'new-files.txt')
-    Add-Content -LiteralPath $skippedPath -Value $badVersion -Encoding ascii
-    Remove-Item -LiteralPath $statePath, $markerPath -Force -ErrorAction SilentlyContinue
-    Write-Status 'failed' $badVersion 0 '新版连续三次启动失败，已恢复旧版'
-    Write-Log ('Rolled back ' + $badVersion)
-    Report-Failure $badVersion
+    Perform-Rollback
+    return
+  }
+
+  if ($Mode -eq 'Monitor') {
+    $candidate = Read-State
+    if (!$candidate.Version) { return }
+    if (Test-Path -LiteralPath $healthyPath) {
+      Set-Attempts 0
+      Remove-Item -LiteralPath $healthyPath, $markerPath -Force -ErrorAction SilentlyContinue
+      return
+    }
+    if (!(Test-Path -LiteralPath $markerPath)) { return }
+    $markerPid = [IO.File]::ReadAllText($markerPath).Trim()
+    if ($markerPid -ne [string]$CurrentPid) { return }
+    $attempts = [int]$candidate.Attempts + 1
+    Set-Attempts $attempts
+    Remove-Item -LiteralPath $markerPath -Force
+    Write-Log ('Startup failed for ' + $candidate.Version +
+               '; consecutive failures=' + $attempts)
+    if ($attempts -ge 3) { Perform-Rollback }
     return
   }
 
@@ -355,7 +394,8 @@ try {
     return
   }
   $backup = Join-Path $root ('Backups\' + $Version.Replace('+', '_') + '-' +
-                             [DateTime]::UtcNow.ToString('yyyyMMddHHmmss'))
+                             [DateTime]::UtcNow.ToString('yyyyMMddHHmmss') + '-' +
+                             [guid]::NewGuid().ToString('N'))
   Copy-Contents $AppDir $backup
   if ((Get-FileHash (Join-Path $AppDir 'data\app.so')).Hash -ne
       (Get-FileHash (Join-Path $backup 'data\app.so')).Hash) {

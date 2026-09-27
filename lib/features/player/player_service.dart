@@ -345,10 +345,15 @@ class PlayerService {
     if (np is native_player.NativePlayer) {
       // Downmix surround to stereo for output compatibility
       await np.setProperty('audio-channels', 'stereo');
-      // Normalize volume when downmixing surround to stereo
-      await np.setProperty('audio-normalize-downmix', 'yes');
-      // EBU R128 loudness normalization — keeps volume consistent across streams
-      await np.setProperty('af', 'loudnorm=I=-14:TP=-1:LRA=13');
+      if (Platform.isMacOS) {
+        // Keep the macOS output path free of gain compensation and live audio
+        // filters. Some streams produce audible artifacts with this chain.
+        await np.setProperty('audio-normalize-downmix', 'no');
+        await np.setProperty('af', '');
+      } else {
+        await np.setProperty('audio-normalize-downmix', 'yes');
+        await np.setProperty('af', 'loudnorm=I=-14:TP=-1:LRA=13');
+      }
       // Disable SPDIF passthrough which can cause silent output
       await np.setProperty('audio-spdif', '');
       // Volume
@@ -364,7 +369,9 @@ class PlayerService {
     await p.setVolume(100);
     _playerReady = true;
     _playerReadyCompleter.complete();
-    AppDiagnostics.instance.log('player_ready');
+    AppDiagnostics.instance.log('player_ready', {
+      'audioProfile': Platform.isMacOS ? 'macos_unprocessed' : 'normalized',
+    });
   }
 
   /// Wait for player properties to be applied before playback.
@@ -2339,9 +2346,15 @@ class PlayerService {
         if (_warmGeneration != generation) return;
         await np.setProperty('audio-channels', 'stereo');
         if (_warmGeneration != generation) return;
-        await np.setProperty('audio-normalize-downmix', 'yes');
-        if (_warmGeneration != generation) return;
-        await np.setProperty('af', 'loudnorm=I=-14:TP=-1:LRA=13');
+        if (Platform.isMacOS) {
+          await np.setProperty('audio-normalize-downmix', 'no');
+          if (_warmGeneration != generation) return;
+          await np.setProperty('af', '');
+        } else {
+          await np.setProperty('audio-normalize-downmix', 'yes');
+          if (_warmGeneration != generation) return;
+          await np.setProperty('af', 'loudnorm=I=-14:TP=-1:LRA=13');
+        }
         if (_warmGeneration != generation) return;
         await np.setProperty('volume', '0'); // silent
       }

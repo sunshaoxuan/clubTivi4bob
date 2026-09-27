@@ -10,6 +10,7 @@ add_executable(${BINARY_NAME} WIN32
   "crash_handler.cpp"
   "flutter_window.cpp"
   "main.cpp"
+  "update_bootstrap.cpp"
   "utils.cpp"
   "win32_window.cpp"
   "${FLUTTER_MANAGED_DIR}/generated_plugin_registrant.cc"

@@ -29,6 +29,7 @@ import '../../data/services/manual_route_cycle.dart';
 import '../../data/services/channel_name_normalizer.dart';
 import '../../data/services/source_visibility.dart';
 import '../../data/services/source_maintenance_service.dart';
+import '../../data/services/windows_update_service.dart';
 import '../player/player_service.dart';
 import '../player/stream_info_badges.dart';
 import '../providers/provider_manager.dart';
@@ -45,6 +46,7 @@ class ChannelsScreen extends ConsumerStatefulWidget {
 
 class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
   bool _initialLoadDone = false;
+  bool _startupHealthScheduled = false;
   String _loadStatus = '';
   bool _epgLoading = false;
   List<db.Channel> _allChannels = [];
@@ -485,6 +487,12 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
       if (!mounted) return;
       if (isFirstLoad) {
         setState(() => _initialLoadDone = true);
+        if (!_startupHealthScheduled) {
+          _startupHealthScheduled = true;
+          Future.delayed(const Duration(seconds: 30), () {
+            unawaited(WindowsUpdateService.instance.markStartupHealthy());
+          });
+        }
         await _restoreSession();
       }
 
@@ -2497,6 +2505,49 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
     );
   }
 
+  Widget _buildUpdateBadge() {
+    return ValueListenableBuilder<WindowsUpdateState>(
+      valueListenable: WindowsUpdateService.instance.state,
+      builder: (context, update, _) {
+        if (!update.visible) return const SizedBox.shrink();
+        final label = switch (update.phase) {
+          WindowsUpdatePhase.downloading => '更新 ${update.percent ?? 0}%',
+          WindowsUpdatePhase.ready => '更新已就绪',
+          WindowsUpdatePhase.installing => '正在更新',
+          WindowsUpdatePhase.failed => '更新失败',
+          _ => '发现新版本',
+        };
+        return Padding(
+          padding: const EdgeInsets.only(right: 12),
+          child: Tooltip(
+            message: update.message ??
+                'BobTV ${update.version ?? ''}；关闭应用后自动安装',
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+              decoration: BoxDecoration(
+                color: const Color(0xFF7D88DC).withValues(alpha: 0.22),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: const Color(0xFF9DA8FF)),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.system_update_alt_rounded,
+                      color: Color(0xFFCED5FF), size: 16),
+                  const SizedBox(width: 7),
+                  Text(label, style: const TextStyle(
+                    color: Color(0xFFE2E6FF), fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                  )),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
   Widget _buildSimpleHome(BuildContext context) {
     return PopScope(
       canPop: false,
@@ -2544,6 +2595,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                           fontWeight: FontWeight.w700, letterSpacing: 1.5)),
                     ),
                     const Spacer(),
+                    _buildUpdateBadge(),
                     TextButton.icon(
                       onPressed: () => _setSimpleMode(false),
                       icon: const Icon(Icons.tune_rounded),
@@ -3378,10 +3430,11 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
             ),
           ),
           const SizedBox(width: 10),
+          _buildUpdateBadge(),
           OutlinedButton.icon(
             onPressed: () => _setSimpleMode(true),
             icon: const Icon(Icons.dashboard_rounded, size: 18),
-            label: const Text('簡潔模式'),
+            label: const Text('简洁模式'),
             style: OutlinedButton.styleFrom(
               foregroundColor: Colors.white,
               side: const BorderSide(color: Colors.white38),

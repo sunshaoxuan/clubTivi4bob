@@ -10,6 +10,7 @@ import 'package:window_manager/window_manager.dart';
 import 'app/app.dart';
 import 'core/app_diagnostics.dart';
 import 'data/services/legacy_preferences_migration.dart';
+import 'data/services/windows_update_service.dart';
 
 void main() {
   final diagnostics = AppDiagnostics.instance;
@@ -41,6 +42,7 @@ void main() {
         'diagnosticDirectory': diagnostics.logDirectoryPath,
       });
       runApp(const ProviderScope(child: ClubTiviApp()));
+      WindowsUpdateService.instance.start();
     },
     (error, stackTrace) {
       diagnostics.recordError('root_zone', error, stackTrace, fatal: true);

@@ -86,11 +86,20 @@ void main() {
         name: 'CGTN', streamUrl: 'https://media.example.org/cgtn.m3u8',
         groupTitle: const Value('中国 / 央视'),
       ),
+      db.ChannelsCompanion.insert(
+        id: 'website-unknown',
+        providerId: WebsiteChannelCatalogService.providerId,
+        name: '北京样片', streamUrl: 'https://media.example.org/unknown.m3u8',
+        groupTitle: const Value('中国 / 其他'),
+      ),
     ]);
     final central = await database.getChannelCategoryCandidates('央视');
     expect(central.map((channel) => channel.id), contains('website-cgtn'));
     expect(WebsiteChannelCatalogService.categoryForGroup(
-        central.single.groupTitle), '央视');
+        central.firstWhere((channel) => channel.id == 'website-cgtn').groupTitle),
+        '央视');
+    final others = await database.getChannelCategoryCandidates('其他');
+    expect(others.map((channel) => channel.id), contains('website-unknown'));
   });
 
   test('identifies international country before source genre', () {

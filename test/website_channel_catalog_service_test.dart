@@ -66,7 +66,7 @@ void main() {
       service.dispose();
       await database.close();
     });
-    expect(await service.sync(), 1);
+    expect(await service.sync(), 1, reason: '${service.lastError}');
     var channels = await database.getChannelsForProvider(
       WebsiteChannelCatalogService.providerId);
     expect(channels.single.name, 'CCTV-5+ 体育赛事');

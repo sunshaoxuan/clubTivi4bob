@@ -134,8 +134,16 @@ class AppDatabase extends _$AppDatabase {
         ]);
       }
       final rows = await customSelect(
-        'SELECT * FROM channels WHERE NOT (${conditions.join(' OR ')})',
-        variables: variables,
+        'SELECT * FROM channels WHERE '
+        '(provider_id = ? AND group_title IN (?, ?)) OR '
+        '(provider_id != ? AND NOT (${conditions.join(' OR ')}))',
+        variables: [
+          Variable.withString('bobtv-channel-catalog'),
+          Variable.withString('其他'),
+          Variable.withString('中国 / 其他'),
+          Variable.withString('bobtv-channel-catalog'),
+          ...variables,
+        ],
         readsFrom: {channels},
       ).get();
       return rows.map((row) => channels.map(row.data)).toList();

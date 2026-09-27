@@ -43,6 +43,7 @@ import '../providers/provider_manager.dart';
 import '../providers/source_maintenance_coordinator.dart';
 import '../shows/shows_providers.dart';
 import 'channel_debug_dialog.dart';
+import 'channel_list_identity.dart';
 
 class ChannelsScreen extends ConsumerStatefulWidget {
   const ChannelsScreen({super.key});
@@ -90,8 +91,8 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
   String _searchQuery = '';
   // _showSearch removed — search bar is always visible in the top navbar
   int _selectedIndex = -1;
-  int? _pendingChannelIndex;
-  int? _preparedChannelIndex;
+  String? _pendingChannelId;
+  String? _preparedChannelId;
   int _channelSelectionGeneration = 0;
   String? _pendingAutoplayGroup;
   db.Channel? _previewChannel;
@@ -138,7 +139,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
   StreamSubscription<Player>? _activePlayerSubscription;
 
   // Last channel for back/forth toggle (not a full history stack)
-  int _previousIndex = -1;
+  String? _previousChannelId;
 
   // Sidebar state
   bool _sidebarExpanded = true;
@@ -927,10 +928,10 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
   Future<void> _saveSession() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_kLastGroup, _selectedGroup);
-    if (_selectedIndex >= 0 && _selectedIndex < _filteredChannels.length) {
+    if (_selectedIndex >= 0 && _previewChannel != null) {
       await prefs.setString(
         _kLastChannelId,
-        _filteredChannels[_selectedIndex].id,
+        _previewChannel!.id,
       );
     }
   }
@@ -942,8 +943,8 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
     }
     setState(() {
       _simpleMode = value;
-      _preparedChannelIndex = null;
-      _pendingChannelIndex = null;
+      _preparedChannelId = null;
+      _pendingChannelId = null;
       _applyFilters();
     });
     final prefs = await SharedPreferences.getInstance();
@@ -1040,8 +1041,10 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
         return aKey.compareTo(bKey);
       });
     }
-    if (_selectedIndex >= _filteredChannels.length) {
-      _selectedIndex = -1;
+    if (_selectedIndex >= 0) {
+      _selectedIndex = ChannelListIdentity.indexOf(
+        _filteredChannels, _previewChannel?.id, (channel) => channel.id,
+      );
     }
   }
 
@@ -1196,7 +1199,9 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
       if (previewWasHidden) {
         _previewChannel = null;
         _selectedIndex = -1;
-        _previousIndex = -1;
+        _previousChannelId = null;
+        _pendingChannelId = null;
+        _preparedChannelId = null;
       }
       _rebuildAutomaticChannelIndex();
       _applyFilters();
@@ -1525,8 +1530,10 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
     if (!mounted) return;
     setState(() {
       _filteredChannels = _deduplicateChannels(channels);
-      if (_selectedIndex >= _filteredChannels.length) {
-        _selectedIndex = -1;
+      if (_selectedIndex >= 0) {
+        _selectedIndex = ChannelListIdentity.indexOf(
+          _filteredChannels, _previewChannel?.id, (channel) => channel.id,
+        );
       }
     });
     _playFirstFilteredChannelForGroup('fav:$listId');
@@ -1672,6 +1679,13 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
     _selectChannel(0);
   }
 
+  Future<void> _selectChannelById(String channelId, {bool force = false}) async {
+    final index = ChannelListIdentity.indexOf(
+      _filteredChannels, channelId, (channel) => channel.id,
+    );
+    if (index >= 0) await _selectChannel(index, force: force);
+  }
+
   Future<void> _selectChannel(int index, {
     bool force = false,
     String? preferredUrl,
@@ -1687,13 +1701,13 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
     if (isPlayingChannel && !force && preferredUrl == null) {
       ++_channelSelectionGeneration;
       _pendingAutoplayGroup = null;
-      final hadPreview = _pendingChannelIndex != null ||
-          _preparedChannelIndex != null ||
+      final hadPreview = _pendingChannelId != null ||
+          _preparedChannelId != null ||
           playerService.preparedChannelId != null;
       if (hadPreview || _selectedIndex != index) {
         setState(() {
-          _pendingChannelIndex = null;
-          _preparedChannelIndex = null;
+          _pendingChannelId = null;
+          _preparedChannelId = null;
           _selectedIndex = index;
           _previewChannel = channel;
         });
@@ -1701,7 +1715,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
       if (hadPreview) await playerService.discardPreparedChannel();
       return;
     }
-    if (!force && preferredUrl == null && index == _pendingChannelIndex) return;
+    if (!force && preferredUrl == null && channel.id == _pendingChannelId) return;
     if (preferredUrl != null) _cardRouteSelection[channel.id] = preferredUrl;
     final selectionGeneration = ++_channelSelectionGeneration;
     _pendingAutoplayGroup = null;
@@ -1738,14 +1752,14 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
         (playerService.player.state.playing ||
             playerService.player.state.buffering);
     final commitPreview = preferredUrl == null && !force && _simpleMode && hasActivePlayback &&
-        _preparedChannelIndex == index &&
+        _preparedChannelId == channel.id &&
         playerService.preparedChannelId == channel.id;
     final prepareOnly = !force && _simpleMode && hasActivePlayback &&
         !commitPreview;
     if (hasActivePlayback && !commitPreview) {
       setState(() {
-        _pendingChannelIndex = index;
-        _preparedChannelIndex = null;
+        _pendingChannelId = channel.id;
+        _preparedChannelId = null;
       });
     }
     bool switched;
@@ -1807,15 +1821,17 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
       ));
     }
     if (!mounted || selectionGeneration != _channelSelectionGeneration) return;
-    final currentIndex = _filteredChannels.indexWhere((c) => c.id == channel.id);
+    final currentIndex = ChannelListIdentity.indexOf(
+      _filteredChannels, channel.id, (candidate) => candidate.id,
+    );
     if (currentIndex < 0) {
-      setState(() => _pendingChannelIndex = null);
+      setState(() => _pendingChannelId = null);
       return;
     }
     if (!switched) {
       setState(() {
-        _pendingChannelIndex = null;
-        _preparedChannelIndex = null;
+        _pendingChannelId = null;
+        _preparedChannelId = null;
       });
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
         content: Text('新频道暂时无法播放，已保留原频道'),
@@ -1826,17 +1842,17 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
     }
     if (prepareOnly) {
       setState(() {
-        _pendingChannelIndex = null;
-        _preparedChannelIndex = currentIndex;
+        _pendingChannelId = null;
+        _preparedChannelId = channel.id;
       });
       return;
     }
     if (_selectedIndex >= 0 && _selectedIndex != currentIndex) {
-      _previousIndex = _selectedIndex;
+      _previousChannelId = _previewChannel?.id;
     }
     setState(() {
-      _pendingChannelIndex = null;
-      _preparedChannelIndex = null;
+      _pendingChannelId = null;
+      _preparedChannelId = null;
       _selectedIndex = currentIndex;
       _previewChannel = channel;
     });
@@ -2309,9 +2325,12 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
 
   /// Toggle between current channel and the last channel.
   void _goBackChannel() {
-    if (_previousIndex < 0 || _previousIndex >= _filteredChannels.length)
-      return;
-    unawaited(_selectChannel(_previousIndex));
+    final previousId = _previousChannelId;
+    if (previousId == null) return;
+    final index = ChannelListIdentity.indexOf(
+      _filteredChannels, previousId, (channel) => channel.id,
+    );
+    if (index >= 0) unawaited(_selectChannel(index));
   }
 
   void _showInfoOverlay(db.Channel channel, int index) {
@@ -3663,13 +3682,17 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                       ),
                       itemBuilder: (context, index) {
                         final channel = _filteredChannels[index];
-                        final selected = index == _selectedIndex;
+                        final selected = _selectedIndex >= 0 &&
+                            ChannelListIdentity.matches(
+                              _previewChannel?.id, channel.id);
                         final service = ref.read(playerServiceProvider);
                         return ValueListenableBuilder<VideoController?>(
+                          key: ValueKey('channel-card-${channel.id}'),
                           valueListenable: service.previewVideoController,
                           builder: (context, previewController, _) {
                             final previewing =
-                                _preparedChannelIndex == index &&
+                                ChannelListIdentity.matches(
+                                  _preparedChannelId, channel.id) &&
                                 service.preparedChannelId == channel.id &&
                                 previewController != null;
                             return ValueListenableBuilder<RouteSearchProgress?>(
@@ -3678,14 +3701,16 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                                   _buildSimpleChannelTile(
                                 channel,
                                 selected: selected,
-                                loading: index == _pendingChannelIndex,
-                                loadingProgress: index == _pendingChannelIndex
+                                loading: ChannelListIdentity.matches(
+                                  _pendingChannelId, channel.id),
+                                loadingProgress: ChannelListIdentity.matches(
+                                  _pendingChannelId, channel.id)
                                     ? progress : null,
                                 previewController:
                                     previewing ? previewController : null,
-                                onTap: () => _selectChannel(index),
+                                onTap: () => _selectChannelById(channel.id),
                                 onDoubleTap: () =>
-                                    _selectChannel(index, force: true),
+                                    _selectChannelById(channel.id, force: true),
                                 onSecondaryTapUp: (details) =>
                                     selected && service.currentUrl != null
                                         ? _showCurrentRouteMenu(
@@ -4168,7 +4193,8 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                   _buildIpv6SourceToggle(),
                   const SizedBox(width: 6),
                   // Previous channel toggle button
-                  if (_previousIndex >= 0)
+                  if (_previousChannelId != null &&
+                      _filteredChannels.any((c) => c.id == _previousChannelId))
                     IconButton(
                       icon: const Icon(
                         Icons.swap_horiz_rounded,

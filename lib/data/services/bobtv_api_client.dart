@@ -48,6 +48,24 @@ class BobTvRelease {
   final String sha256;
 }
 
+class BobTvChannelCatalogManifest {
+  const BobTvChannelCatalogManifest({
+    required this.version,
+    required this.channelCount,
+    required this.routeCount,
+    required this.snapshotPath,
+    required this.compressedBytes,
+    required this.sha256,
+  });
+
+  final String version;
+  final int channelCount;
+  final int routeCount;
+  final String snapshotPath;
+  final int compressedBytes;
+  final String sha256;
+}
+
 /// Strict client for the public BobTV service. Never sends a media URL in a
 /// playback report, and never follows API or download redirects.
 class BobTvApiClient {
@@ -130,6 +148,61 @@ class BobTvApiClient {
       ));
     }
     return result;
+  }
+
+  Future<BobTvChannelCatalogManifest?> fetchChannelCatalogManifest() async {
+    final response = await _request('GET', '/api/v1/channel-catalog/manifest',
+        maxBytes: 4096);
+    if (response.status != 200) {
+      throw BobTvApiException('channel_catalog_manifest_status',
+          statusCode: response.status, retryAfter: response.retryAfter);
+    }
+    final decoded = jsonDecode(utf8.decode(response.body));
+    if (decoded is! Map || decoded['schemaVersion'] != 1) {
+      throw const FormatException('Unsupported channel catalog manifest');
+    }
+    if (decoded['version'] == null && decoded['channelCount'] == 0 &&
+        decoded['routeCount'] == 0) return null;
+    final version = decoded['version'];
+    final channelCount = decoded['channelCount'];
+    final routeCount = decoded['routeCount'];
+    final path = decoded['snapshotUrl'];
+    final compressedBytes = decoded['compressedBytes'];
+    final digest = decoded['sha256'];
+    if (version is! String || version.isEmpty || version.length > 80 ||
+        channelCount is! int || channelCount < 1 || channelCount > 10000 ||
+        routeCount is! int || routeCount < channelCount || routeCount > 100000 ||
+        compressedBytes is! int || compressedBytes < 1 ||
+        compressedBytes > 32 * 1024 * 1024 ||
+        digest is! String || !_shaPattern.hasMatch(digest) ||
+        path != '/api/v1/channel-catalog/snapshots/$digest.json.gz') {
+      throw const FormatException('Invalid channel catalog manifest');
+    }
+    return BobTvChannelCatalogManifest(
+      version: version, channelCount: channelCount, routeCount: routeCount,
+      snapshotPath: path as String, compressedBytes: compressedBytes,
+      sha256: digest,
+    );
+  }
+
+  Future<List<int>> downloadChannelCatalog(
+      BobTvChannelCatalogManifest manifest) async {
+    if (!_shaPattern.hasMatch(manifest.sha256) ||
+        manifest.snapshotPath !=
+            '/api/v1/channel-catalog/snapshots/${manifest.sha256}.json.gz') {
+      throw const FormatException('Invalid catalog snapshot path');
+    }
+    final response = await _request('GET', manifest.snapshotPath,
+        maxBytes: 32 * 1024 * 1024);
+    if (response.status != 200) {
+      throw BobTvApiException('channel_catalog_snapshot_status',
+          statusCode: response.status, retryAfter: response.retryAfter);
+    }
+    if (response.body.length != manifest.compressedBytes ||
+        sha256.convert(response.body).toString() != manifest.sha256) {
+      throw const FormatException('Channel catalog checksum mismatch');
+    }
+    return response.body;
   }
 
   Future<void> postPlaybackReport({

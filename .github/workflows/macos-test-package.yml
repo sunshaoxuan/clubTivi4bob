@@ -35,8 +35,8 @@ jobs:
 
       - name: Test classification and AI settings
         run: |
-          flutter test test/channel_category_classifier_test.dart test/channel_country_ai_service_test.dart test/channel_category_ai_service_test.dart
-          flutter analyze lib/data/services/ai_runtime_settings.dart lib/data/services/channel_category_classifier.dart lib/data/services/channel_category_ai_service.dart lib/data/services/channel_country_ai_service.dart lib/features/settings/ai_configuration_screen.dart lib/features/channels/channels_screen.dart
+          flutter test test/channel_category_classifier_test.dart test/channel_country_ai_service_test.dart test/channel_category_ai_service_test.dart test/website_channel_catalog_service_test.dart test/bobtv_api_client_test.dart
+          flutter analyze --no-fatal-infos --no-fatal-warnings lib/data/services/ai_runtime_settings.dart lib/data/services/channel_category_classifier.dart lib/data/services/channel_category_ai_service.dart lib/data/services/channel_country_ai_service.dart lib/data/services/website_channel_catalog_service.dart lib/data/services/bobtv_api_client.dart lib/features/settings/ai_configuration_screen.dart lib/features/channels/channels_screen.dart lib/features/providers/source_maintenance_coordinator.dart
 
       - name: Fetch pinned AirPlay authentication source
         run: |

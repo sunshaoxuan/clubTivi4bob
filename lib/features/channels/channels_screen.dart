@@ -34,6 +34,7 @@ import '../../data/services/channel_name_normalizer.dart';
 import '../../data/services/source_visibility.dart';
 import '../../data/services/source_maintenance_service.dart';
 import '../../data/services/desktop_update_state.dart';
+import '../../data/services/website_channel_catalog_service.dart';
 import '../../data/services/desktop_update_service.dart';
 import '../player/player_service.dart';
 import '../player/alternative_preview_overlay.dart';
@@ -3912,12 +3913,21 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                       ),
                     ),
                     const SizedBox(height: 8),
-                    Text(
-                      message,
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(
-                        fontSize: 14,
-                        color: Colors.white38,
+                    ValueListenableBuilder<WebsiteCatalogProgress>(
+                      valueListenable: ref.read(
+                        sourceMaintenanceCoordinatorProvider,
+                      ).websiteCatalog.state,
+                      builder: (context, progress, _) => Text(
+                        progress.phase.isNotEmpty && !progress.complete
+                            ? progress.total > 0
+                                ? '${progress.phase} ${progress.imported}/${progress.total}'
+                                : progress.phase
+                            : message,
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                          fontSize: 14,
+                          color: Colors.white38,
+                        ),
                       ),
                     ),
                   ],

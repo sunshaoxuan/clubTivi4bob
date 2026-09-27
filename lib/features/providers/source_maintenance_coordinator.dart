@@ -7,6 +7,7 @@ import '../../data/services/bundled_source_snapshot_service.dart';
 import '../../data/services/github_source_monitor.dart';
 import '../../data/services/github_ai_crawler_service.dart';
 import '../../data/services/source_maintenance_service.dart';
+import '../../data/services/website_channel_catalog_service.dart';
 import 'default_provider_bootstrap.dart';
 import 'provider_manager.dart';
 
@@ -16,6 +17,7 @@ class SourceMaintenanceCoordinator {
   final SourceMaintenanceService maintenanceService;
   final GitHubAiCrawlerService githubAiCrawler;
   final BundledSourceSnapshotService bundledSourceSnapshot;
+  final WebsiteChannelCatalogService websiteCatalog;
 
   Timer? _timer;
   Timer? _startupTimer;
@@ -30,13 +32,14 @@ class SourceMaintenanceCoordinator {
     required this.maintenanceService,
     required this.githubAiCrawler,
     required this.bundledSourceSnapshot,
+    required this.websiteCatalog,
   });
 
   void start() {
     if (_timer != null) return;
     _snapshotTimer = Timer(
       const Duration(seconds: 2),
-      () => unawaited(_importBundledSnapshot()),
+      () => unawaited(_importInitialSnapshot()),
     );
     // Large source refreshes stay away from the first interactive frame.
     _startupTimer = Timer(const Duration(minutes: 1), () => unawaited(_run()));
@@ -48,6 +51,15 @@ class SourceMaintenanceCoordinator {
       const Duration(hours: 1),
       (_) => unawaited(_runHealthMaintenance()),
     );
+  }
+
+  Future<void> _importInitialSnapshot() async {
+    await websiteCatalog.sync();
+    if ((await manager.database.getChannelsForProvider(
+      WebsiteChannelCatalogService.providerId,
+    )).isEmpty) {
+      await _importBundledSnapshot();
+    }
   }
 
   Future<void> _importBundledSnapshot() async {
@@ -97,7 +109,12 @@ class SourceMaintenanceCoordinator {
             'deletedChannels': purged,
           });
         }
-        await bundledSourceSnapshot.run();
+        await websiteCatalog.sync();
+        if ((await database.getChannelsForProvider(
+          WebsiteChannelCatalogService.providerId,
+        )).isEmpty) {
+          await bundledSourceSnapshot.run();
+        }
       } catch (error, stackTrace) {
         AppDiagnostics.instance.recordError(
           'bundled_source_snapshot',
@@ -133,6 +150,7 @@ class SourceMaintenanceCoordinator {
     githubMonitor.dispose();
     maintenanceService.dispose();
     githubAiCrawler.dispose();
+    websiteCatalog.dispose();
   }
 }
 
@@ -145,6 +163,7 @@ final sourceMaintenanceCoordinatorProvider =
         maintenanceService: SourceMaintenanceService(database: database),
         githubAiCrawler: GitHubAiCrawlerService(database: database),
         bundledSourceSnapshot: BundledSourceSnapshotService(database: database),
+        websiteCatalog: WebsiteChannelCatalogService(database: database),
       );
       coordinator.start();
       ref.onDispose(coordinator.dispose);

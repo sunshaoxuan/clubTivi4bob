@@ -1,7 +1,6 @@
 """Immutable, preclassified channel snapshots for BobTV clients."""
 
 import hashlib
-import json
 import os
 import re
 from pathlib import Path
@@ -37,18 +36,9 @@ def manifest(request: Request):
 def snapshot(digest: str):
     if not DIGEST.fullmatch(digest):
         raise HTTPException(404)
-    manifest_path = DATA / DIRECTORY / "manifest.json"
-    if not manifest_path.is_file():
-        raise HTTPException(404)
-    try:
-        current = json.loads(manifest_path.read_text(encoding="utf-8"))
-    except (OSError, ValueError):
-        raise HTTPException(503, "Catalog manifest unavailable") from None
-    if current.get("sha256") != digest:
-        raise HTTPException(404)
     path = DATA / DIRECTORY / "snapshots" / f"{digest}.json.gz"
     if not path.is_file():
-        raise HTTPException(503, "Catalog snapshot unavailable")
+        raise HTTPException(404)
     return FileResponse(
         path, media_type="application/gzip",
         headers={"Cache-Control": "public, max-age=31536000, immutable"},

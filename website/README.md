@@ -11,7 +11,7 @@ The product page reflects the published BobTV release notes: `v0.9.1-bob.9` cove
 ## Endpoints
 
 - `GET /api/v1/channel-catalog/manifest`: version, counts, snapshot path, byte length, and SHA-256 for a preclassified channel catalog. An unpublished catalog returns a zero-count manifest so clients keep local sources. Conditional `If-None-Match` requests are supported.
-- `GET /api/v1/channel-catalog/snapshots/{sha256}.json.gz`: immutable, manifest-gated compressed catalog. The publisher validates stable category, channel, and route IDs, category parents, and reviewed public URLs before atomically replacing the manifest. Clients verify the byte count and SHA-256 before importing while preserving local favorites, retired routes, and subscriptions.
+- `GET /api/v1/channel-catalog/snapshots/{sha256}.json.gz`: immutable compressed catalog. Previous snapshots remain readable while a client completes a download across a manifest change. The publisher validates stable category, channel, and route IDs, category parents, and reviewed public URLs before atomically replacing the manifest. Clients verify the byte count and SHA-256 before importing while preserving local favorites, retired routes, and subscriptions.
 - `GET /`: product view. `GET /downloads`: release downloads. `GET /diagnostics`: manual diagnostic upload. There is no public source-report page or contribution summary.
 - `GET /releases.json`: locally published release manifest.
 - `GET /downloads/{filename}`: local ZIP bytes, with range support from `FileResponse`. Never redirects to GitHub.

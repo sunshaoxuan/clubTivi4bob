@@ -57,6 +57,10 @@ def test_publish_serves_immutable_snapshot(tmp_path, monkeypatch):
     assert snapshot.status_code == 200
     assert json.loads(gzip.decompress(snapshot.content)) == example()
     assert snapshot.headers["cache-control"].endswith("immutable")
+    next_catalog = example()
+    next_catalog["version"] = "2026-09-28.2"
+    publish(next_catalog, tmp_path)
+    assert client.get(metadata["snapshotUrl"]).status_code == 200
     assert client.get("/api/v1/channel-catalog/snapshots/" + "b" * 64 + ".json.gz").status_code == 404
 
 

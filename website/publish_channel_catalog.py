@@ -76,6 +76,8 @@ def validate(payload):
         for field in ("countryCode", "regionCode", "epgId", "logoUrl"):
             if channel[field] is not None and not isinstance(channel[field], str):
                 raise ValueError("Invalid optional channel metadata")
+        if channel["logoUrl"] is not None:
+            validate_public_url(channel["logoUrl"])
         channel_ids.add(channel_id)
         for route in channel["routes"]:
             if not isinstance(route, dict) or set(route) != {"id", "url", "source", "lastPlayableAt", "healthScore"}:

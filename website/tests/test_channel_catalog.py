@@ -75,3 +75,7 @@ def test_invalid_publication_does_not_replace_manifest(tmp_path):
     invalid["channels"][0]["routes"].append(dict(invalid["channels"][0]["routes"][0]))
     with pytest.raises(ValueError, match="Duplicate"):
         publish(invalid, tmp_path)
+    invalid = example()
+    invalid["channels"][0]["logoUrl"] = "https://127.0.0.1/logo.png"
+    with pytest.raises(ValueError):
+        publish(invalid, tmp_path)

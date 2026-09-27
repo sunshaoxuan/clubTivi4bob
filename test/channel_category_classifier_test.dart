@@ -1,4 +1,5 @@
 import 'package:clubtivi/data/services/channel_category_classifier.dart';
+import 'package:clubtivi/data/services/website_channel_catalog_service.dart';
 import 'package:clubtivi/data/datasources/local/database.dart' as db;
 import 'package:drift/drift.dart';
 import 'package:drift/native.dart';
@@ -69,6 +70,27 @@ void main() {
         isEmpty);
     final others = await database.getChannelCategoryCandidates('其他');
     expect(others.map((channel) => channel.id), contains('nrbtv'));
+  });
+
+  test('website classifications remain authoritative in candidate queries', () async {
+    final database = db.AppDatabase.forTesting(NativeDatabase.memory());
+    addTearDown(database.close);
+    await database.upsertProvider(db.ProvidersCompanion.insert(
+      id: WebsiteChannelCatalogService.providerId,
+      name: 'Website', type: 'catalog',
+    ));
+    await database.upsertChannels([
+      db.ChannelsCompanion.insert(
+        id: 'website-cgtn',
+        providerId: WebsiteChannelCatalogService.providerId,
+        name: 'CGTN', streamUrl: 'https://media.example.org/cgtn.m3u8',
+        groupTitle: const Value('中国 / 央视'),
+      ),
+    ]);
+    final central = await database.getChannelCategoryCandidates('央视');
+    expect(central.map((channel) => channel.id), contains('website-cgtn'));
+    expect(WebsiteChannelCatalogService.categoryForGroup(
+        central.single.groupTitle), '央视');
   });
 
   test('identifies international country before source genre', () {

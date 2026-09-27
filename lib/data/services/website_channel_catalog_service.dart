@@ -30,6 +30,27 @@ class WebsiteChannelCatalogService {
 
   static const providerId = 'bobtv-channel-catalog';
   static const _versionKey = 'bobtv_website_catalog_version_v1';
+
+  static String categoryForGroup(String? group) {
+    final parts = (group ?? '').split(' / ');
+    if (parts.first == '中国' && parts.length > 1) {
+      return ChannelCategoryClassifier.categories.contains(parts[1])
+          ? parts[1] : '其他';
+    }
+    if (parts.first == '国际') return '国际';
+    return ChannelCategoryClassifier.categories.contains(parts.first)
+        ? parts.first : '其他';
+  }
+
+  static String countryForGroup(String? group) {
+    final parts = (group ?? '').split(' / ');
+    if (parts.length > 1 && parts.first == '国际' &&
+        ChannelCategoryClassifier.internationalCountryNames
+            .containsValue(parts[1])) {
+      return parts[1];
+    }
+    return '未识别地区';
+  }
   final db.AppDatabase database;
   final BobTvApiClient api;
   final state = ValueNotifier(const WebsiteCatalogProgress());
@@ -69,59 +90,68 @@ class WebsiteChannelCatalogService {
         for (final channel in await database.getChannelsForProvider(providerId))
           channel.id: channel,
       };
-      final providers = await database.getAllProviders();
-      if (!providers.any((provider) => provider.id == providerId)) {
-        await database.upsertProvider(db.ProvidersCompanion.insert(
-          id: providerId, name: 'BobTV 网站频道', type: 'catalog',
-        ));
-      }
       final keepIds = <String>{};
       var imported = 0;
-      for (var offset = 0; offset < records.length; offset += 400) {
-        if (_disposed) return imported;
-        final batch = <db.ChannelsCompanion>[];
-        for (final record in records.skip(offset).take(400)) {
-          final id = '$providerId:${record['routeId']}';
-          final old = existing[id];
-          keepIds.add(id);
-          batch.add(db.ChannelsCompanion.insert(
-            id: id,
-            providerId: providerId,
-            name: record['name'] as String,
-            streamUrl: record['url'] as String,
-            groupTitle: Value(record['group'] as String),
-            tvgId: Value(record['epgId'] as String?),
-            tvgLogo: Value(record['logoUrl'] as String?),
-            channelNumber: Value(record['order'] as int),
-            favorite: Value(old?.favorite ?? false),
-            hidden: Value(old?.hidden ?? false),
-            sortOrder: Value(old?.sortOrder ?? 0),
+      await database.transaction(() async {
+        final providers = await database.getAllProviders();
+        if (!providers.any((provider) => provider.id == providerId)) {
+          await database.upsertProvider(db.ProvidersCompanion.insert(
+            id: providerId, name: 'BobTV 网站频道', type: 'catalog',
           ));
         }
-        await database.upsertChannels(batch);
-        imported += batch.length;
+        for (var offset = 0; offset < records.length; offset += 400) {
+          if (_disposed) throw StateError('Catalog sync canceled');
+          final batch = <db.ChannelsCompanion>[];
+          for (final record in records.skip(offset).take(400)) {
+            final id = '$providerId:${record['routeId']}';
+            final old = existing[id];
+            keepIds.add(id);
+            batch.add(db.ChannelsCompanion.insert(
+              id: id,
+              providerId: providerId,
+              name: record['name'] as String,
+              streamUrl: record['url'] as String,
+              groupTitle: Value(record['group'] as String),
+              tvgId: Value(record['epgId'] as String?),
+              tvgLogo: Value(record['logoUrl'] as String?),
+              channelNumber: Value(record['order'] as int),
+              favorite: Value(old?.favorite ?? false),
+              hidden: Value(old?.hidden ?? false),
+              sortOrder: Value(old?.sortOrder ?? 0),
+            ));
+          }
+          await database.upsertChannels(batch);
+          imported += batch.length;
+          if (!_disposed) {
+            state.value = WebsiteCatalogProgress(
+              phase: '正在整理网站频道', imported: imported,
+              total: records.length,
+            );
+          }
+        }
+        for (final old in existing.values) {
+          if (old.favorite || old.hidden) keepIds.add(old.id);
+        }
+        await database.deleteChannelsMissingFromProvider(providerId, keepIds);
+        await database.markProviderRefreshed(providerId, DateTime.now());
+      });
+      await prefs.setString(_versionKey, manifest.version);
+      if (!_disposed) {
         state.value = WebsiteCatalogProgress(
-          phase: '正在整理网站频道', imported: imported, total: records.length,
+          phase: '网站频道已同步', imported: imported,
+          total: records.length, complete: true,
         );
       }
-      for (final old in existing.values) {
-        if (old.favorite || old.hidden) keepIds.add(old.id);
-      }
-      await database.deleteChannelsMissingFromProvider(providerId, keepIds);
-      await database.markProviderRefreshed(providerId, DateTime.now());
-      await prefs.setString(_versionKey, manifest.version);
-      state.value = WebsiteCatalogProgress(
-        phase: '网站频道已同步', imported: imported,
-        total: records.length, complete: true,
-      );
       AppDiagnostics.instance.log('website_channel_catalog_synced', {
         'version': manifest.version, 'routes': imported,
       });
       return imported;
     } catch (error, stackTrace) {
-      state.value = const WebsiteCatalogProgress(
-        phase: '网站频道暂不可用，继续使用本机频道', error: true,
-      );
+      if (!_disposed) {
+        state.value = const WebsiteCatalogProgress(
+          phase: '网站频道暂不可用，继续使用本机频道', error: true,
+        );
+      }
       AppDiagnostics.instance.recordError('website_channel_catalog', error, stackTrace);
       return 0;
     }
@@ -174,8 +204,8 @@ Future<List<Map<String, Object?>>> _decodeCatalog(
     }
     final category = categories[channel['categoryId']];
     if (category == null) throw const FormatException('Unknown category');
-    final parent = categories[category['parentId']];
-    final group = '${parent?['name'] ?? ''} ${category['name']}'.trim();
+    final group = _catalogGroupFor(category, categories,
+        channel['countryCode'] as String?);
     for (final route in channel['routes'] as List) {
       if (route is! Map || route['id'] is! String || route['url'] is! String ||
           !ids.add('route:${route['id']}') ||
@@ -194,10 +224,48 @@ Future<List<Map<String, Object?>>> _decodeCatalog(
         'logoUrl': channel['logoUrl'] as String?,
         'order': channel['sortOrder'] is int ? channel['sortOrder'] as int : 0,
       });
+      if (result.length > routeCount) {
+        throw const FormatException('Too many website routes');
+      }
     }
   }
   if (result.length != routeCount) {
     throw const FormatException('Route count mismatch');
   }
   return result;
+}
+
+String _catalogGroupFor(Map category, Map<String, Map> categories,
+    String? countryCode) {
+  final chain = <String>[];
+  var current = category;
+  final visited = <String>{};
+  while (true) {
+    final id = current['id'];
+    final name = current['name'];
+    if (id is! String || name is! String || name.isEmpty ||
+        !visited.add(id) || chain.length >= 8) {
+      throw const FormatException('Invalid website category tree');
+    }
+    chain.insert(0, name);
+    final parentId = current['parentId'];
+    if (parentId == null) break;
+    current = categories[parentId] ??
+        (throw const FormatException('Missing website category parent'));
+  }
+  final root = chain.first;
+  final leaf = chain.last;
+  if (root == '中国') {
+    final categoryName = ChannelCategoryClassifier.categories.contains(leaf)
+        ? leaf : '其他';
+    return '中国 / $categoryName';
+  }
+  if (root == '国际') return chain.join(' / ');
+  if (ChannelCategoryClassifier.internationalCountryNames.containsValue(root)) {
+    return '国际 / ${chain.join(' / ')}';
+  }
+  final country = ChannelCategoryClassifier.internationalCountryNames[
+      countryCode?.toLowerCase()];
+  if (country != null) return '国际 / $country / $leaf';
+  return ChannelCategoryClassifier.categories.contains(leaf) ? leaf : '其他';
 }

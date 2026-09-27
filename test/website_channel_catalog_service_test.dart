@@ -70,14 +70,14 @@ void main() {
     var channels = await database.getChannelsForProvider(
       WebsiteChannelCatalogService.providerId);
     expect(channels.single.name, 'CCTV-5+ 体育赛事');
-    expect(channels.single.groupTitle, '中国 央视');
+    expect(channels.single.groupTitle, '中国 / 央视');
     await database.upsertChannels([
       db.ChannelsCompanion.insert(
         id: channels.single.id,
         providerId: WebsiteChannelCatalogService.providerId,
         name: channels.single.name,
         streamUrl: channels.single.streamUrl,
-        groupTitle: const Value('中国 央视'),
+        groupTitle: const Value('中国 / 央视'),
         favorite: const Value(true),
       ),
     ]);

@@ -147,10 +147,13 @@ class AppDatabase extends _$AppDatabase {
       final pattern = '%${term.toLowerCase()}%';
       if (category == '央视') {
         conditions.add(
-          '(lower(name) LIKE ? OR lower(COALESCE(tvg_id, \'\')) LIKE ?)',
+          '(lower(name) LIKE ? OR lower(COALESCE(tvg_id, \'\')) LIKE ? '
+          'OR (provider_id = ? AND lower(COALESCE(group_title, \'\')) LIKE ?))',
         );
         variables.addAll([
           Variable.withString(pattern),
+          Variable.withString(pattern),
+          Variable.withString('bobtv-channel-catalog'),
           Variable.withString(pattern),
         ]);
       } else if (category == '广播') {

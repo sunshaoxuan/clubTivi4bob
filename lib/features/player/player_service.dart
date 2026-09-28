@@ -449,6 +449,16 @@ class PlayerService {
       if (Platform.isMacOS) {
         unawaited(_logMacAudioOutput(url, generation));
       }
+      final currentPlayer = player;
+      unawaited(_logVideoMetrics(currentPlayer, url,
+          _currentChannelName, 'main'));
+      Timer(const Duration(seconds: 10), () {
+        if (generation == _playGeneration &&
+            _currentUrl == url && identical(_player, currentPlayer)) {
+          unawaited(_logVideoMetrics(currentPlayer, url,
+              _currentChannelName, 'main_after_10s'));
+        }
+      });
       if (routeSearchProgress.value?.active == true) {
         routeSearchProgress.value = null;
       }
@@ -470,6 +480,43 @@ class PlayerService {
       'codec': results[1],
       'inputParams': results[2],
       'outputParams': results[3],
+    });
+  }
+
+  /// Capture decoder and presentation data for a specific player. This also
+  /// covers card previews, which do not use the active player accessor.
+  Future<void> _logVideoMetrics(
+      Player target, String url, String? channel, String role) async {
+    final native = target.platform;
+    if (native is! native_player.NativePlayer) return;
+    const properties = <String>[
+      'video-codec-name',
+      'hwdec-current',
+      'video-params/pixelformat',
+      'video-frame-info/interlaced',
+      'video-frame-info/tff',
+      'container-fps',
+      'estimated-vf-fps',
+      'decoder-frame-drop-count',
+      'frame-drop-count',
+      'vo-delayed-frame-count',
+    ];
+    final values = <String, String?>{};
+    for (final property in properties) {
+      try {
+        values[property] = await native.getProperty(property);
+      } catch (_) {
+        values[property] = null;
+      }
+    }
+    AppDiagnostics.instance.log('video_decoder_metrics', {
+      'role': role,
+      'channel': channel,
+      'stream': AppDiagnostics.summarizeStreamUrl(url),
+      'width': target.state.width,
+      'height': target.state.height,
+      'buffering': target.state.buffering,
+      'properties': values,
     });
   }
 
@@ -630,6 +677,14 @@ class PlayerService {
               AppDiagnostics.instance.log('channel_preview_ready', {
                 'channel': channelName,
                 'stream': AppDiagnostics.summarizeStreamUrl(candidateUrl),
+              });
+              unawaited(_logVideoMetrics(candidate, candidateUrl,
+                  channelName, 'card_preview'));
+              Timer(const Duration(seconds: 10), () {
+                if (identical(_preparedChannel?.player, candidate)) {
+                  unawaited(_logVideoMetrics(candidate, candidateUrl,
+                      channelName, 'card_preview_after_10s'));
+                }
               });
               return true;
             }
@@ -2735,6 +2790,7 @@ class PlayerService {
   }
 
   Future<void> dispose() async {
+    ++_playGeneration;
     ++_channelSwitchGeneration;
     await discardPreparedChannel();
     await discardAlternativePreview();

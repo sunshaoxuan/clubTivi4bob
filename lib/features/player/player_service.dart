@@ -102,6 +102,7 @@ class PlayerService {
   StreamSubscription<Tracks>? _tracksSub;
   StreamSubscription<String>? _playbackErrorLogSub;
   StreamSubscription<bool>? _playingLogSub;
+  StreamSubscription<PlayerLog>? _macAudioLogSub;
   DateTime? _bufferLogStart;
 
   // Buffer health tracking (persists across info dialog opens)
@@ -336,6 +337,7 @@ class PlayerService {
   void _bindPlayerLogs(Player active) {
     unawaited(_playbackErrorLogSub?.cancel());
     unawaited(_playingLogSub?.cancel());
+    unawaited(_macAudioLogSub?.cancel());
     _playbackErrorLogSub = active.stream.error.listen((message) {
         AppDiagnostics.instance.log('player_error', {
           'message': message,
@@ -351,15 +353,30 @@ class PlayerService {
           'channel': _currentChannelName,
         });
       });
+    if (Platform.isMacOS) {
+      _macAudioLogSub = active.stream.log.listen((entry) {
+        final message = entry.text.toLowerCase();
+        if (!message.contains('underrun') &&
+            !message.contains('underflow') &&
+            !message.contains('audio device')) return;
+        AppDiagnostics.instance.log('mac_audio_warning', {
+          'prefix': entry.prefix,
+          'level': entry.level,
+          'message': entry.text.trim(),
+          'channel': _currentChannelName,
+        });
+      });
+    }
   }
 
   Future<void> _initPlayer(Player p) async {
     final np = p.platform;
     if (np is native_player.NativePlayer) {
       if (Platform.isMacOS) {
-        // Follow the selected CoreAudio device's channel layout and provide
-        // extra output buffering for jittery live streams.
+        // Keep the device's channel layout, resample to the common Mac output
+        // rate, and retain the buffer that reduced audible interruptions.
         await np.setProperty('audio-buffer', '0.8');
+        await np.setProperty('audio-samplerate', '48000');
         await np.setProperty('audio-normalize-downmix', 'no');
         await np.setProperty('af', '');
       } else {
@@ -384,7 +401,7 @@ class PlayerService {
     _playerReadyCompleter.complete();
     AppDiagnostics.instance.log('player_ready', {
       'audioProfile': Platform.isMacOS
-          ? 'macos_auto_channels_buffer_0_8'
+          ? 'macos_48khz_buffer_0_8'
           : 'normalized',
     });
   }
@@ -566,6 +583,7 @@ class PlayerService {
             await native.setProperty('mute', 'yes');
             if (Platform.isMacOS) {
               await native.setProperty('audio-buffer', '0.8');
+              await native.setProperty('audio-samplerate', '48000');
             } else {
               await native.setProperty('audio-channels', 'stereo');
             }
@@ -848,6 +866,7 @@ class PlayerService {
         await native.setProperty('mute', 'yes');
         if (Platform.isMacOS) {
           await native.setProperty('audio-buffer', '0.8');
+          await native.setProperty('audio-samplerate', '48000');
         }
       }
       await candidate.setVolume(0);
@@ -2019,6 +2038,7 @@ class PlayerService {
           await native.setProperty('mute', 'yes');
           if (Platform.isMacOS) {
             await native.setProperty('audio-buffer', '0.8');
+            await native.setProperty('audio-samplerate', '48000');
           }
         }
         await candidate.setVolume(0);
@@ -2392,6 +2412,7 @@ class PlayerService {
         if (_warmGeneration != generation) return;
         if (Platform.isMacOS) {
           await np.setProperty('audio-buffer', '0.8');
+          await np.setProperty('audio-samplerate', '48000');
           if (_warmGeneration != generation) return;
           await np.setProperty('audio-normalize-downmix', 'no');
           if (_warmGeneration != generation) return;
@@ -2727,6 +2748,7 @@ class PlayerService {
     await _tracksSub?.cancel();
     await _playbackErrorLogSub?.cancel();
     await _playingLogSub?.cancel();
+    await _macAudioLogSub?.cancel();
     await _bufferTrackSub?.cancel();
     _bufferTrackTimer?.cancel();
     _failoverCheckTimer?.cancel();

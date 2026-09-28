@@ -84,6 +84,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
   Map<String, String> _aiCountryCache = {};
   Map<String, String> _aiCategoryCache = {};
   bool _simpleMode = true;
+  bool _sharedCatalogAvailable = false;
   bool _showUnavailableSources = true;
   static const _simpleModePreferenceKey = 'bobtv_simple_mode';
   static const _pinnedCountriesPreferenceKey = 'bobtv_pinned_countries';
@@ -474,6 +475,8 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
       final favLists = results[1] as List<db.FavoriteList>;
       final favChannelIds = results[2] as Set<String>;
       final prefs = results[3] as SharedPreferences;
+      _sharedCatalogAvailable = providers.any((provider) =>
+          provider.id == WebsiteChannelCatalogService.providerId);
       _simpleMode = prefs.getBool(_simpleModePreferenceKey) ?? true;
       _pinnedInternationalCountries = (prefs.getStringList(
                 _pinnedCountriesPreferenceKey,
@@ -605,6 +608,17 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
         for (final channel in candidates) channel.id: channel,
         for (final channel in mapped) channel.id: channel,
       }.values.where((channel) => _categoryFor(channel) == group).toList();
+    }
+
+    if (_simpleMode) {
+      final personalCollection = group == 'Favorites' ||
+          group.startsWith('fav:');
+      loaded = loaded.where((channel) =>
+          WebsiteChannelCatalogService.showInSimpleMode(
+            sharedCatalogAvailable: _sharedCatalogAvailable,
+            personalCollection: personalCollection,
+            providerId: channel.providerId,
+          )).toList();
     }
 
     if (group == '国际') {
@@ -949,6 +963,9 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
     });
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(_simpleModePreferenceKey, value);
+    if (mounted) {
+      await _loadGroupChannels(_selectedGroup, preserveScroll: true);
+    }
   }
 
   void _applyFilters() {

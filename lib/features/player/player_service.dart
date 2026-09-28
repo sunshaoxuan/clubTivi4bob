@@ -158,6 +158,8 @@ class PlayerService {
   final Set<String> _manuallyRejectedUrls = {};
   bool _requiresUltraHd = false;
   bool _allowsAudioOnly = false;
+  bool _compatibilityDecoding = false;
+  bool get compatibilityDecoding => _compatibilityDecoding;
   Timer? _qualityCheckTimer;
   Timer? _videoCheckTimer;
   Timer? _staticFrameTimer;
@@ -419,11 +421,62 @@ class PlayerService {
   }
 
   VideoController get videoController {
-    _videoController ??= VideoController(player);
+    _videoController ??= _createVideoController(player);
     if (activeVideoController.value == null) {
       activeVideoController.value = _videoController;
     }
     return _videoController!;
+  }
+
+  VideoController _createVideoController(Player target) => VideoController(
+        target,
+        configuration: VideoControllerConfiguration(
+          hwdec: Platform.isMacOS && _compatibilityDecoding ? 'no' : null,
+        ),
+      );
+
+  /// Switches the current Mac decoder for a controlled comparison on the
+  /// same stream. New preview and main players inherit this session setting.
+  Future<bool> setCompatibilityDecoding(bool enabled) async {
+    if (!Platform.isMacOS) return false;
+    final active = _player;
+    final native = active?.platform;
+    if (native is! native_player.NativePlayer) return false;
+    try {
+      await native.setProperty('hwdec', enabled ? 'no' : 'auto');
+    } catch (error) {
+      AppDiagnostics.instance.log('video_decoder_mode_failed', {
+        'error': error.toString(),
+      });
+      return false;
+    }
+    _compatibilityDecoding = enabled;
+    for (final other in <Player?>[
+      _preparedChannel?.player,
+      _alternativePreviewPlayer,
+    ]) {
+      final otherNative = other?.platform;
+      if (otherNative is native_player.NativePlayer) {
+        try {
+          await otherNative.setProperty('hwdec', enabled ? 'no' : 'auto');
+        } catch (_) {}
+      }
+    }
+    final url = _currentUrl;
+    AppDiagnostics.instance.log('video_decoder_mode_changed', {
+      'mode': enabled ? 'software' : 'auto',
+      'channel': _currentChannelName,
+      'stream': url == null ? null : AppDiagnostics.summarizeStreamUrl(url),
+    });
+    if (url != null && active != null) {
+      Timer(const Duration(seconds: 5), () {
+        if (identical(_player, active) && _currentUrl == url) {
+          unawaited(_logVideoMetrics(active, url,
+              _currentChannelName, 'main_after_decoder_change'));
+        }
+      });
+    }
+    return true;
   }
 
   /// Inject services for auto-failover (call once at startup).
@@ -640,7 +693,7 @@ class PlayerService {
             }
           }
           await candidate.setVolume(0);
-          final controller = VideoController(candidate);
+          final controller = _createVideoController(candidate);
           await candidate.open(Media(candidateUrl))
               .timeout(const Duration(seconds: 6));
           final ready = await _waitForPreparedChannel(
@@ -930,7 +983,7 @@ class PlayerService {
         }
       }
       await candidate.setVolume(0);
-      VideoController(candidate);
+      _createVideoController(candidate);
       await candidate.open(Media(url)).timeout(const Duration(seconds: 6));
       return await _waitForPreparedChannel(
         candidate,
@@ -2103,7 +2156,7 @@ class PlayerService {
           }
         }
         await candidate.setVolume(0);
-        final controller = VideoController(candidate);
+        final controller = _createVideoController(candidate);
         await candidate.open(Media(url)).timeout(const Duration(seconds: 6));
         final ready = await _waitForPreparedChannel(
           candidate, null,

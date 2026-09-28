@@ -1968,6 +1968,10 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
             enabled: alternatives.isNotEmpty),
         if (alternatives.isEmpty)
           _routeMenuEmpty(),
+        if (Platform.isMacOS)
+          _routeMenuAction(-4, Icons.tune_rounded,
+              service.compatibilityDecoding ? '恢复自动解码' : '使用兼容解码',
+              '排查当前线路的视频闪屏'),
         const PopupMenuDivider(height: 14),
         _routeMenuAction(-1, Icons.block_rounded, '淘汰当前线路',
             '立即停播并尝试下一条', danger: true),
@@ -1981,6 +1985,17 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
     }
     if (choice == -1) {
       await _retireCurrentRoute(currentUrl);
+      return;
+    }
+    if (choice == -4) {
+      final enabled = !service.compatibilityDecoding;
+      final changed = await service.setCompatibilityDecoding(enabled);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(changed
+            ? (enabled ? '已使用兼容解码，请观察画面' : '已恢复自动解码')
+            : '解码方式切换失败'),
+      ));
       return;
     }
     final channelId = _previewChannel?.id ?? service.currentChannelId ?? '';
@@ -2046,6 +2061,10 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
             enabled: alternatives.isNotEmpty),
         if (alternatives.isEmpty)
           _routeMenuEmpty(),
+        if (Platform.isMacOS)
+          _routeMenuAction(-4, Icons.tune_rounded,
+              service.compatibilityDecoding ? '恢复自动解码' : '使用兼容解码',
+              '排查卡片与主画面闪屏'),
         const PopupMenuDivider(height: 14),
         _routeMenuAction(-1, Icons.block_rounded, '淘汰当前线路',
             '从候选线路中移除',
@@ -2053,6 +2072,17 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
       ],
     );
     if (!mounted || choice == null) return;
+    if (choice == -4) {
+      final enabled = !service.compatibilityDecoding;
+      final changed = await service.setCompatibilityDecoding(enabled);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(changed
+            ? (enabled ? '已使用兼容解码，请观察画面' : '已恢复自动解码')
+            : '解码方式切换失败'),
+      ));
+      return;
+    }
     if (choice == -2) {
       await _handleRouteMenuFavorite(channel);
       return;

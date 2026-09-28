@@ -30,6 +30,16 @@ class WebsiteChannelCatalogService {
   static const providerId = 'bobtv-channel-catalog';
   static const _versionKey = 'bobtv_website_catalog_version_v1';
 
+  /// The website list is the common default on every installation. Personal
+  /// subscriptions remain available in advanced mode and favorites.
+  static bool showInSimpleMode({
+    required bool sharedCatalogAvailable,
+    required bool personalCollection,
+    required String providerId,
+  }) =>
+      !sharedCatalogAvailable || personalCollection ||
+      providerId == WebsiteChannelCatalogService.providerId;
+
   static String categoryForGroup(String? group) {
     final parts = (group ?? '').split(' / ');
     if (parts.first == '中国' && parts.length > 1) {
@@ -70,8 +80,10 @@ class WebsiteChannelCatalogService {
         return 0;
       }
       final prefs = await SharedPreferences.getInstance();
-      if (prefs.getString(_versionKey) == manifest.version &&
-          (await database.getChannelsForProvider(providerId)).isNotEmpty) {
+      final installed = (await database.getAllProviders()).any(
+        (provider) => provider.id == providerId,
+      );
+      if (prefs.getString(_versionKey) == manifest.version && installed) {
         state.value = WebsiteCatalogProgress(
           phase: '网站频道已是最新', imported: manifest.routeCount,
           total: manifest.routeCount, complete: true,
@@ -94,6 +106,7 @@ class WebsiteChannelCatalogService {
         for (final channel in await database.getChannelsForProvider(providerId))
           channel.id: channel,
       };
+      final blockedUrls = await database.getBlockedStreamUrls();
       final keepIds = <String>{};
       var imported = 0;
       await database.transaction(() async {
@@ -107,6 +120,7 @@ class WebsiteChannelCatalogService {
           if (_disposed) throw StateError('Catalog sync canceled');
           final batch = <db.ChannelsCompanion>[];
           for (final record in records.skip(offset).take(400)) {
+            if (blockedUrls.contains(record['url'])) continue;
             final id = '$providerId:${record['routeId']}';
             final old = existing[id];
             keepIds.add(id);
@@ -132,9 +146,6 @@ class WebsiteChannelCatalogService {
               total: records.length,
             );
           }
-        }
-        for (final old in existing.values) {
-          if (old.favorite || old.hidden) keepIds.add(old.id);
         }
         await database.deleteChannelsMissingFromProvider(providerId, keepIds);
         await database.markProviderRefreshed(providerId, DateTime.now());

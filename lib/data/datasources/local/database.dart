@@ -208,9 +208,23 @@ class AppDatabase extends _$AppDatabase {
         Variable.withString('%#%'),
       ]);
     }
+    // Website routes already carry reviewed categories. Include them by
+    // category metadata so a channel name without category keywords is not
+    // silently omitted from the shared list.
+    final websiteGroup = category == '国际' ? '国际 / %' : '中国 / $category';
     final rows = await customSelect(
-      'SELECT * FROM channels WHERE ${conditions.join(' OR ')}',
-      variables: variables,
+      'SELECT * FROM channels WHERE '
+      '(provider_id = ? AND (group_title = ? OR group_title = ? '
+      'OR group_title LIKE ?)) OR '
+      '(provider_id != ? AND (${conditions.join(' OR ')}))',
+      variables: [
+        Variable.withString('bobtv-channel-catalog'),
+        Variable.withString(category),
+        Variable.withString('中国 / $category'),
+        Variable.withString(websiteGroup),
+        Variable.withString('bobtv-channel-catalog'),
+        ...variables,
+      ],
       readsFrom: {channels},
     ).get();
     return rows.map((row) => channels.map(row.data)).toList();
@@ -332,6 +346,11 @@ class AppDatabase extends _$AppDatabase {
             ..where((table) => table.streamUrl.equals(streamUrl)))
           .getSingleOrNull() !=
       null;
+
+  Future<Set<String>> getBlockedStreamUrls() async => {
+        for (final route in await select(blockedStreamRoutes).get())
+          route.streamUrl,
+      };
 
   Future<int> deleteChannelsByIds(Iterable<String> channelIds) async {
     final ids = channelIds.toSet().toList();

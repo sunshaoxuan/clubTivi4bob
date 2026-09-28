@@ -22,6 +22,7 @@ class SourceMaintenanceCoordinator {
   Timer? _timer;
   Timer? _startupTimer;
   Timer? _snapshotTimer;
+  Timer? _catalogTimer;
   Timer? _healthTimer;
   bool _running = false;
   bool _healthRunning = false;
@@ -41,6 +42,12 @@ class SourceMaintenanceCoordinator {
       const Duration(seconds: 2),
       () => unawaited(_importInitialSnapshot()),
     );
+    // A catalog revision reaches running clients without waiting for the
+    // slower provider discovery and health-maintenance cycle.
+    _catalogTimer = Timer.periodic(
+      const Duration(minutes: 15),
+      (_) => unawaited(websiteCatalog.sync()),
+    );
     // Large source refreshes stay away from the first interactive frame.
     _startupTimer = Timer(const Duration(minutes: 1), () => unawaited(_run()));
     _timer = Timer.periodic(
@@ -55,9 +62,8 @@ class SourceMaintenanceCoordinator {
 
   Future<void> _importInitialSnapshot() async {
     await websiteCatalog.sync();
-    if ((await manager.database.getChannelsForProvider(
-      WebsiteChannelCatalogService.providerId,
-    )).isEmpty) {
+    if (!(await manager.database.getAllProviders()).any((provider) =>
+        provider.id == WebsiteChannelCatalogService.providerId)) {
       await _importBundledSnapshot();
     }
   }
@@ -110,9 +116,11 @@ class SourceMaintenanceCoordinator {
           });
         }
         await websiteCatalog.sync();
-        if ((await database.getChannelsForProvider(
-          WebsiteChannelCatalogService.providerId,
-        )).isEmpty) {
+        final hasSharedCatalog = (await database.getAllProviders()).any(
+          (provider) =>
+              provider.id == WebsiteChannelCatalogService.providerId,
+        );
+        if (!hasSharedCatalog) {
           await bundledSourceSnapshot.run();
         }
       } catch (error, stackTrace) {
@@ -125,10 +133,13 @@ class SourceMaintenanceCoordinator {
       final providers = await database.getAllProviders();
       await githubMonitor.syncOrigins(providers);
       await githubMonitor.scanForUpdates(manager);
-      await DefaultProviderBootstrap(
-        database: database,
-        manager: manager,
-      ).run();
+      if (!(await database.getAllProviders()).any((provider) =>
+          provider.id == WebsiteChannelCatalogService.providerId)) {
+        await DefaultProviderBootstrap(
+          database: database,
+          manager: manager,
+        ).run();
+      }
       await maintenanceService.run();
       await githubAiCrawler.run();
     } catch (error, stackTrace) {
@@ -144,6 +155,7 @@ class SourceMaintenanceCoordinator {
 
   void dispose() {
     _snapshotTimer?.cancel();
+    _catalogTimer?.cancel();
     _startupTimer?.cancel();
     _healthTimer?.cancel();
     _timer?.cancel();

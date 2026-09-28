@@ -19,7 +19,10 @@ bash tools/macos/build.sh /path/to/clean/fpsap-source
 The script builds `BobTV.app` and embeds the isolated AirPlay helper and its
 authentication adapter. The adapter's corresponding source and license notices
 are copied into the bundle. GitHub Actions builds separate Intel and Apple
-Silicon DMGs. A self-contained FFmpeg executable can be included by setting
+Silicon DMGs. Each DMG presents BobTV and an Applications shortcut; drag
+BobTV onto Applications before opening it. Both test and release workflows use
+the same `tools/macos/package_dmg.sh` layout. A self-contained FFmpeg
+executable can be included by setting
 `BOBTV_FFMPEG_BIN`, `BOBTV_FFMPEG_LICENSE` and `BOBTV_FFMPEG_SOURCE` before
 building. Its linked libraries and corresponding source obligations must be
 covered. Otherwise the user needs FFmpeg at
@@ -55,6 +58,16 @@ version reports remain local. Ordinary diagnostic snapshots can use the
 existing consent-gated log API; the updater never uploads raw logs.
 
 ## Local data
+
+Running BobTV from the mounted DMG and running a copy in Applications use the
+same per-user application data because the bundle ID is unchanged. The channel
+database is at
+`~/Library/Application Support/com.briconbric.bobtv/clubtivi/clubtivi.db`;
+diagnostic logs are under
+`~/Library/Application Support/com.briconbric.bobtv/logs/`. Preferences are
+stored by macOS for that bundle ID. Copying the app to Applications does not
+reset these files. Running from the read-only DMG is suitable for a brief test,
+but the in-app updater cannot replace that copy there.
 
 Mac AirPlay pairings and native-cast diagnostics are stored under
 `~/Library/Application Support/BobTV/AirPlay/`. The client fingerprint is

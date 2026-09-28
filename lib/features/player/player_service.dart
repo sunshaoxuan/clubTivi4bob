@@ -358,7 +358,9 @@ class PlayerService {
         final message = entry.text.toLowerCase();
         if (!message.contains('underrun') &&
             !message.contains('underflow') &&
-            !message.contains('audio device')) return;
+            !message.contains('audio device') &&
+            !message.contains('aac') &&
+            !message.contains('audio decoder')) return;
         AppDiagnostics.instance.log('mac_audio_warning', {
           'prefix': entry.prefix,
           'level': entry.level,
@@ -373,10 +375,11 @@ class PlayerService {
     final np = p.platform;
     if (np is native_player.NativePlayer) {
       if (Platform.isMacOS) {
-        // Keep the device's channel layout, resample to the common Mac output
-        // rate, and retain the buffer that reduced audible interruptions.
+        // Keep the device's channel layout, test integer CoreAudio output,
+        // and retain the buffer that reduced audible interruptions.
         await np.setProperty('audio-buffer', '0.8');
         await np.setProperty('audio-samplerate', '48000');
+        await np.setProperty('audio-format', 's16');
         await np.setProperty('audio-normalize-downmix', 'no');
         await np.setProperty('af', '');
       } else {
@@ -401,7 +404,7 @@ class PlayerService {
     _playerReadyCompleter.complete();
     AppDiagnostics.instance.log('player_ready', {
       'audioProfile': Platform.isMacOS
-          ? 'macos_48khz_buffer_0_8'
+          ? 'macos_48khz_s16_buffer_0_8'
           : 'normalized',
     });
   }
@@ -584,6 +587,7 @@ class PlayerService {
             if (Platform.isMacOS) {
               await native.setProperty('audio-buffer', '0.8');
               await native.setProperty('audio-samplerate', '48000');
+              await native.setProperty('audio-format', 's16');
             } else {
               await native.setProperty('audio-channels', 'stereo');
             }
@@ -867,6 +871,7 @@ class PlayerService {
         if (Platform.isMacOS) {
           await native.setProperty('audio-buffer', '0.8');
           await native.setProperty('audio-samplerate', '48000');
+          await native.setProperty('audio-format', 's16');
         }
       }
       await candidate.setVolume(0);
@@ -2039,6 +2044,7 @@ class PlayerService {
           if (Platform.isMacOS) {
             await native.setProperty('audio-buffer', '0.8');
             await native.setProperty('audio-samplerate', '48000');
+            await native.setProperty('audio-format', 's16');
           }
         }
         await candidate.setVolume(0);
@@ -2413,6 +2419,7 @@ class PlayerService {
         if (Platform.isMacOS) {
           await np.setProperty('audio-buffer', '0.8');
           await np.setProperty('audio-samplerate', '48000');
+          await np.setProperty('audio-format', 's16');
           if (_warmGeneration != generation) return;
           await np.setProperty('audio-normalize-downmix', 'no');
           if (_warmGeneration != generation) return;

@@ -1,8 +1,8 @@
 #!/bin/bash
 set -euo pipefail
 
-# Run on a Mac after building BobTV.app with a Developer ID identity.
-# NOTARY_KEY, NOTARY_KEY_ID and NOTARY_ISSUER are App Store Connect API values.
+# Run on a Mac after building BobTV.app. Apple notarization is optional.
+# The BobTV publisher key is required for self-hosted automatic updates.
 app="${1:-}"
 arch="${2:-}"
 output="${3:-}"
@@ -11,14 +11,10 @@ if [[ ! -d "$app/Contents" || ! -d "$output" ||
   echo 'Usage: package_signed_update.sh BobTV.app x64|arm64 output-directory' >&2
   exit 2
 fi
-: "${NOTARY_KEY:?Set NOTARY_KEY to an App Store Connect private key path}"
-: "${NOTARY_KEY_ID:?Set NOTARY_KEY_ID}"
-: "${NOTARY_ISSUER:?Set NOTARY_ISSUER}"
+: "${BOBTV_UPDATE_SIGNING_KEY:?Set BOBTV_UPDATE_SIGNING_KEY to the local private key path}"
+[[ -f "$BOBTV_UPDATE_SIGNING_KEY" && ! -L "$BOBTV_UPDATE_SIGNING_KEY" ]] || exit 2
 
 codesign --verify --deep --strict "$app"
-team="$(codesign -dv --verbose=4 "$app" 2>&1 |
-  sed -n 's/^TeamIdentifier=\([A-Z0-9]*\)$/\1/p' | head -1)"
-[[ -n "$team" ]] || { echo 'Developer ID team is missing' >&2; exit 3; }
 version="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' \
   "$app/Contents/Info.plist")"
 build="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' \
@@ -37,18 +33,30 @@ done
 
 temporary="$(mktemp -d)"
 trap 'rm -rf "$temporary"' EXIT
-ditto -c -k --keepParent "$app" "$temporary/notarize.zip"
-xcrun notarytool submit "$temporary/notarize.zip" --key "$NOTARY_KEY" \
-  --key-id "$NOTARY_KEY_ID" --issuer "$NOTARY_ISSUER" --wait
-xcrun stapler staple "$app"
-xcrun stapler validate "$app"
-spctl --assess --type execute "$app"
+if [[ -n "${NOTARY_KEY:-}${NOTARY_KEY_ID:-}${NOTARY_ISSUER:-}" ]]; then
+  : "${NOTARY_KEY:?Set all three notarization variables or leave all unset}"
+  : "${NOTARY_KEY_ID:?Set all three notarization variables or leave all unset}"
+  : "${NOTARY_ISSUER:?Set all three notarization variables or leave all unset}"
+  ditto -c -k --keepParent "$app" "$temporary/notarize.zip"
+  xcrun notarytool submit "$temporary/notarize.zip" --key "$NOTARY_KEY" \
+    --key-id "$NOTARY_KEY_ID" --issuer "$NOTARY_ISSUER" --wait
+  xcrun stapler staple "$app"
+  xcrun stapler validate "$app"
+  spctl --assess --type execute "$app"
+fi
 
 archive="$output/BobTV-$version+$build-macos-$arch.zip"
 ditto -c -k --keepParent "$app" "$archive"
-echo "Signed and notarized update archive: $archive"
+/usr/bin/openssl dgst -sha256 -sign "$BOBTV_UPDATE_SIGNING_KEY" \
+  -out "$temporary/update-signature.der" "$archive"
+/usr/bin/openssl dgst -sha256 -verify \
+  "$(cd "$(dirname "$0")/../.." && pwd)/assets/updater/update-signing-public.pem" \
+  -signature "$temporary/update-signature.der" "$archive" >/dev/null
+echo "Publisher-signed update archive: $archive"
 shasum -a 256 "$archive"
-python3 - "$archive" "$arch" "$version+$build" "$output/BobTV-update-metadata.json" <<'PY'
+python3 - "$archive" "$arch" "$version+$build" \
+  "$output/BobTV-update-metadata.json" "$temporary/update-signature.der" <<'PY'
+import base64
 import hashlib
 import json
 import pathlib
@@ -61,10 +69,21 @@ digest = hashlib.sha256()
 with archive.open('rb') as source:
     while chunk := source.read(1024 * 1024):
         digest.update(chunk)
-payload = {'schema': 1, 'version': version, 'packages': [{
+entry = {
     'platform': platform, 'filename': archive.name,
     'sha256': digest.hexdigest(), 'bytes': archive.stat().st_size,
-}]}
-pathlib.Path(sys.argv[4]).write_text(json.dumps(payload, separators=(',', ':')),
-                                   encoding='utf-8')
+    'signature': base64.b64encode(pathlib.Path(sys.argv[5]).read_bytes()).decode('ascii'),
+}
+path = pathlib.Path(sys.argv[4])
+if path.exists():
+    payload = json.loads(path.read_text(encoding='utf-8'))
+    if (payload.get('schema') != 1 or payload.get('version') != version or
+            not isinstance(payload.get('packages'), list)):
+        raise SystemExit('Existing update metadata has a different version or schema')
+    payload['packages'] = [item for item in payload['packages']
+                           if item.get('platform') != platform]
+else:
+    payload = {'schema': 1, 'version': version, 'packages': []}
+payload['packages'].append(entry)
+path.write_text(json.dumps(payload, separators=(',', ':')), encoding='utf-8')
 PY

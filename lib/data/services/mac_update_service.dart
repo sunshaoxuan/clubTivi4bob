@@ -14,7 +14,7 @@ import 'desktop_update_state.dart';
 import 'update_manifest.dart';
 
 /// macOS update transport. The detached shell worker performs installation
-/// only after the app exits and verifies the replacement's Apple signature.
+/// only after the app exits and verifies the publisher's update signature.
 class MacUpdateService {
   MacUpdateService._();
 
@@ -87,6 +87,9 @@ class MacUpdateService {
       final manifest = UpdateManifest.parse(
         utf8.decode(buffer.takeBytes()), manifestUri,
       );
+      if (manifest.signature == null) {
+        throw const FormatException('Mac update has no publisher signature');
+      }
       if (UpdateManifest.compareVersions(manifest.version, bobTvVersion) <= 0) {
         return;
       }
@@ -140,6 +143,11 @@ class MacUpdateService {
     final file = File(p.join(_directory!.path, 'mac_worker.sh'));
     final source = await rootBundle.loadString('assets/updater/mac_worker.sh');
     await file.writeAsString(source, flush: true);
+    final publicKey = await rootBundle.loadString(
+      'assets/updater/update-signing-public.pem',
+    );
+    await File(p.join(_directory!.path, 'update-signing-public.pem'))
+        .writeAsString(publicKey, flush: true);
     return file;
   }
 
@@ -149,6 +157,7 @@ class MacUpdateService {
       script.path, 'update', _directory!.path, _appPath, '$pid',
       manifest.version, manifest.archive.toString(), manifest.sha256,
       '${manifest.bytes}',
+      manifest.signature!,
     ], mode: ProcessStartMode.detached, runInShell: false);
     AppDiagnostics.instance.log('mac_update_worker_started', {
       'version': manifest.version,

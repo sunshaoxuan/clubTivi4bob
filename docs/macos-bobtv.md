@@ -27,10 +27,10 @@ covered. Otherwise the user needs FFmpeg at
 transcoding and the MPEG-TS audio proxy. Basic media_kit playback does not
 require the FFmpeg command-line executable.
 
-For distribution, set `BOBTV_CODESIGN_IDENTITY` to the Developer ID identity
-before building, then notarize and staple the DMG. An unsigned CI artifact is
-only a test package. The in-app updater rejects unsigned or differently signed
-replacements.
+Without an Apple Developer ID, the build script ad-hoc signs the completed
+bundle so macOS can verify its local integrity. A Developer ID and Apple
+notarization remain optional distribution improvements. The BobTV update
+signature below independently authenticates self-hosted update ZIPs.
 
 ## Updates
 
@@ -43,27 +43,33 @@ select a different path on the same HTTPS host for staged testing.
 The schema matches `UpdateManifest`; its archive must be a ZIP with one
 `BobTV.app/` root. Use separate Intel and Apple Silicon manifests and archives.
 The candidate app must have the declared version and bundle ID, pass macOS
-signature and Gatekeeper checks, and use the same Apple Team ID as the installed
-app. The worker downloads in the background and installs after BobTV closes.
+code-signature integrity checks, and have a BobTV publisher signature over the
+exact ZIP bytes. The site's mirror verifies the same signature before it
+publishes the manifest. The worker downloads in the background and installs
+after BobTV closes.
 The previous app is backed up. Startup health is counted when the channel
 browser becomes available; three consecutive unclean launches trigger a
 rollback and skip that version.
 
-The current CI Mac packages are unsigned test artifacts and are excluded from
-the automatic update feed. Publish a Mac package only after Developer ID
-signing, notarization, Gatekeeper verification and an installation test. The
-`tools/macos/package_signed_update.sh` helper validates the signed bundle,
-submits it for Apple notarization, staples the result and creates an
-architecture-specific ZIP and matching `BobTV-update-metadata.json`. It needs
-a Developer ID identity when the app is built and App Store Connect notarization
-credentials when packaging. Upload both files to a GitHub release only after
-testing the packaged app on the corresponding Mac architecture. The first
-signed update can migrate an existing ad-hoc BobTV test installation after
-checking its bundle ID and local signature. Later updates require the same
-Apple Team ID as the installed app. The
+CI Mac test packages are excluded from the automatic update feed until a
+publisher-signed release ZIP is created. Set `BOBTV_UPDATE_SIGNING_KEY` to the
+private P-256 key stored outside the repository, then run
+`tools/macos/package_signed_update.sh BobTV.app arm64 output-directory` (or
+`x64`). The helper checks the bundle, creates an architecture-specific ZIP,
+signs its exact bytes and writes `BobTV-update-metadata.json` with the
+base64 signature. It checks the signature against the public key embedded in
+BobTV before producing metadata. The private key must never be committed or
+copied into the package. Upload both files to a GitHub release only after
+testing that architecture. The website's mirror downloads and validates the
+release, then serves the manifest and ZIP from its own HTTPS origin. Optional
+`NOTARY_KEY`, `NOTARY_KEY_ID`, and `NOTARY_ISSUER` enable Apple notarization.
+Without notarization, a first installation on a different Mac may require a
+one-time approval in macOS Privacy & Security. The
 updater needs write access to the parent of the installed `.app`. When
 BobTV is installed in a protected system directory without that access, the
-worker keeps the current app and reports a failed update. The native macOS
+worker keeps the current app and reports a failed update. Install into a
+user-writable directory such as `~/Applications` for silent replacement.
+The native macOS
 entry point marks candidate startup before the Flutter interface loads. Failed
 version reports remain local. Ordinary diagnostic snapshots can use the
 existing consent-gated log API; the updater never uploads raw logs.

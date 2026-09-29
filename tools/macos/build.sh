@@ -87,6 +87,18 @@ if [[ -n "${BOBTV_CODESIGN_IDENTITY:-}" ]]; then
   codesign --force --deep --options runtime \
     --entitlements "$root/macos/Runner/Release.entitlements" \
     --sign "$BOBTV_CODESIGN_IDENTITY" "$app"
+else
+  # A local publisher-signed update still needs an internally valid app bundle.
+  if [[ -f "$app/Contents/Resources/Tools/ffmpeg" ]]; then
+    codesign --force --sign - "$app/Contents/Resources/Tools/ffmpeg"
+  fi
+  codesign --force --sign - \
+    "$app/Contents/Resources/AirPlay/bobtv-airplay/fpsap-auth"
+  codesign --force --sign - \
+    "$app/Contents/Resources/AirPlay/bobtv-airplay/bobtv-airplay"
+  codesign --force --deep --entitlements "$root/macos/Runner/Release.entitlements" \
+    --sign - "$app"
 fi
+codesign --verify --deep --strict "$app"
 echo "Built $app"
 echo 'FFmpeg must be available at a supported system path for AirPlay transcoding.'

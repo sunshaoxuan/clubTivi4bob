@@ -1,9 +1,12 @@
 """Mirror published BobTV Windows assets before exposing them to visitors."""
 
 import hashlib
+import base64
 import json
 import os
 import re
+import subprocess
+import tempfile
 import urllib.request
 import zipfile
 from pathlib import Path
@@ -17,6 +20,24 @@ UPDATE_VERSION = re.compile(r"^\d+\.\d+\.\d+\+\d+$")
 UPDATE_NAME = re.compile(r"^BobTV-[A-Za-z0-9.+_-]+\.zip$")
 UPDATE_PLATFORMS = {"windows-x64", "macos-x64", "macos-arm64"}
 MAX_UPDATE_BYTES = 2_000_000_000
+UPDATE_PUBLIC_KEY = Path(__file__).resolve().parents[1] / "assets/updater/update-signing-public.pem"
+
+
+def _verify_mac_signature(archive, encoded):
+    if not isinstance(encoded, str) or not re.fullmatch(r"[A-Za-z0-9+/]{80,120}={0,2}", encoded):
+        raise ValueError("Mac update signature is missing or invalid")
+    try:
+        signature = base64.b64decode(encoded, validate=True)
+    except ValueError as exc:
+        raise ValueError("Invalid Mac update signature encoding") from exc
+    with tempfile.TemporaryDirectory() as folder:
+        path = Path(folder) / "signature.der"
+        path.write_bytes(signature)
+        result = subprocess.run(["openssl", "dgst", "-sha256", "-verify",
+                                 str(UPDATE_PUBLIC_KEY), "-signature", str(path),
+                                 str(archive)], capture_output=True, check=False)
+    if result.returncode != 0:
+        raise ValueError("Mac update publisher signature mismatch")
 
 
 def version_parts(version):
@@ -113,7 +134,7 @@ def _mirror_updates(release, selected):
         raise ValueError("Update metadata has no packages")
     seen = set()
     for package in packages:
-        if not isinstance(package, dict) or set(package) != {"platform", "filename", "sha256", "bytes"}:
+        if not isinstance(package, dict) or not {"platform", "filename", "sha256", "bytes"} <= set(package) or set(package) - {"platform", "filename", "sha256", "bytes", "signature"}:
             raise ValueError("Invalid update package entry")
         platform = package["platform"]
         filename = package["filename"]
@@ -129,6 +150,10 @@ def _mirror_updates(release, selected):
         target = DATA / "updates" / "files" / filename
         _download_verified(asset, target, checksum)
         _inspect_update_archive(target, platform)
+        if platform.startswith("macos-"):
+            _verify_mac_signature(target, package.get("signature"))
+        elif "signature" in package:
+            raise ValueError("Unexpected Windows update signature")
         current = selected.get(platform)
         if current is None or version_parts(version) > version_parts(current["version"]):
             selected[platform] = {
@@ -137,6 +162,8 @@ def _mirror_updates(release, selected):
                 "sha256": checksum, "bytes": package["bytes"],
                 "publishedAt": release["published_at"],
             }
+            if platform.startswith("macos-"):
+                selected[platform]["signature"] = package["signature"]
 
 
 def request(url):

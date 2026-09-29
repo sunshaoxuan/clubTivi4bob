@@ -24,6 +24,14 @@ void main() {
         '"sha256":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",'
         '"bytes":64000000}';
     expect(UpdateManifest.parse(valid, mirror).version, '0.9.2+54');
+    final testSignature = List.filled(96, 'A').join();
+    final macSigned = valid.replaceFirst('"bytes":64000000}',
+        '"bytes":64000000,"signature":"$testSignature"}');
+    expect(UpdateManifest.parse(macSigned, mirror).signature, testSignature);
+    expect(() => UpdateManifest.parse(
+        valid.replaceFirst('"bytes":64000000}',
+            '"bytes":64000000,"signature":"bad"}'), mirror),
+        throwsFormatException);
     expect(
       () => UpdateManifest.parse(
         valid.replaceFirst('bobtv.briconbric.com/updates/BobTV.zip',

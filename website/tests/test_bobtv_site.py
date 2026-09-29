@@ -57,13 +57,14 @@ def test_site_download_is_local_and_manifest_gated(tmp_path, monkeypatch):
 def test_product_pages_reflect_published_releases():
     client = TestClient(module.app)
     home = client.get("/").text
-    assert all(version in home for version in ("v0.9.1-bob.9", "v0.8.4-bob.8", "v0.8.0-bob.7"))
+    assert "v0.9.1-bob.10" in home and "WINDOWS · MACOS" in home
     assert "静音预览" in home and "Mac AirPlay" in home and "纯音频电台" in home
     assert '/assets/product.png?v=3' in home
     assert 'href="/downloads"' in home and 'href="/diagnostics"' in home
     assert "github.com" not in home.lower()
     downloads = client.get("/downloads").text
     assert 'id="release-list"' in downloads and "BobTV.exe" in downloads
+    assert "Apple Silicon" in downloads and "v0.9.1-bob.10" in downloads
 
 
 def test_expired_diagnostics_are_removed(tmp_path, monkeypatch):

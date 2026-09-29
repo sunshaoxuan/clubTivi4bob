@@ -147,7 +147,16 @@ codesign --verify --deep --strict "$replacement"
 spctl --assess --type execute "$replacement"
 old_team="$(team_id "$app")"
 new_team="$(team_id "$replacement")"
-[[ -n "$old_team" && "$old_team" == "$new_team" ]] || exit 8
+[[ -n "$new_team" ]] || exit 8
+if [[ -n "$old_team" ]]; then
+  [[ "$old_team" == "$new_team" ]] || exit 8
+else
+  # The first signed release may replace an earlier ad-hoc Mac test package.
+  [[ "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' \
+    "$app/Contents/Info.plist")" == 'com.briconbric.bobtv' ]] || exit 8
+  codesign --verify --strict "$app"
+  codesign -dv --verbose=4 "$app" 2>&1 | grep -Fxq 'Signature=adhoc' || exit 8
+fi
 write_status ready "$version" 100
 
 wait_for_exit

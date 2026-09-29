@@ -57,7 +57,10 @@ submits it for Apple notarization, staples the result and creates an
 architecture-specific ZIP and matching `BobTV-update-metadata.json`. It needs
 a Developer ID identity when the app is built and App Store Connect notarization
 credentials when packaging. Upload both files to a GitHub release only after
-testing the packaged app on the corresponding Mac architecture. The
+testing the packaged app on the corresponding Mac architecture. The first
+signed update can migrate an existing ad-hoc BobTV test installation after
+checking its bundle ID and local signature. Later updates require the same
+Apple Team ID as the installed app. The
 updater needs write access to the parent of the installed `.app`. When
 BobTV is installed in a protected system directory without that access, the
 worker keeps the current app and reports a failed update. The native macOS

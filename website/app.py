@@ -15,6 +15,7 @@ from fastapi.staticfiles import StaticFiles
 from source_registry import router as source_router
 from source_candidates import router as candidate_router
 from channel_catalog import router as catalog_router
+from update_delivery import router as update_router
 
 BASE = Path(__file__).resolve().parent
 DATA = Path(os.environ.get("BOBTV_DATA_DIR", BASE / "data"))
@@ -27,6 +28,7 @@ app = FastAPI(docs_url=None, redoc_url=None, openapi_url=None)
 app.include_router(source_router)
 app.include_router(candidate_router)
 app.include_router(catalog_router)
+app.include_router(update_router)
 app.mount("/assets", StaticFiles(directory=BASE / "assets"), name="assets")
 
 

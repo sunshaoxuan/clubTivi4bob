@@ -1,20 +1,19 @@
 # Windows automatic updates
 
-The current public API provides `GET /releases.json` and
-`GET /downloads/{filename}`. Settings can list releases and download a ZIP,
-validating the actual file with SHA-256. The public API does not yet define
-version comparison or automatic installation. Automatic polling of the retired
-`/updates/latest.json` endpoint is disabled. The installed application does not
-need GitHub access.
+Release builds check `https://bobtv.briconbric.com/updates/windows-x64/latest.json`
+on startup and every six hours. A missing manifest means that no approved
+automatic update has been published. The independent worker downloads a newer
+archive while BobTV runs and installs it after the app closes. Debug builds do
+not poll automatically. The installed application does not need GitHub access.
 
-## Legacy mirror contract, retained for a future compatible server
+## Platform mirror contract
 
 The HTTPS JSON manifest has these fields:
 
     {
       "schema": 1,
       "version": "0.9.2+54",
-      "archive": "https://bobtv.briconbric.com/updates/BobTV-v0.9.2-bob.10-windows-x64.zip",
+      "archive": "https://bobtv.briconbric.com/updates/files/BobTV-0.9.2+61-windows-x64.zip",
       "sha256": "64 lowercase hexadecimal characters",
       "bytes": 64963783,
       "publishedAt": "2026-09-27T00:00:00Z"
@@ -25,11 +24,11 @@ BobTV.exe and data/app.so, and have an executable file version equal to the
 manifest version. Its SHA-256 and byte count must match the manifest. The app
 rejects redirects and archive URLs outside /updates/.
 
-The provisional uploader accepts HTTPS PUT with a bearer token stored in the
-BOBTV_MIRROR_TOKEN environment variable. It uploads the archive first,
-downloads it again to verify SHA-256, and publishes latest.json last. The
-upload adapter can be changed if the eventual server uses another authenticated
-method. Publication must fail if mirror verification fails.
+The release workflow packages a `BobTV/` rooted ZIP and produces
+`BobTV-update-metadata.json` containing the exact archive hash and byte count.
+The site mirror verifies both against GitHub release assets before publishing
+the platform manifest. Pre-existing releases without update metadata remain
+available as manual downloads and do not trigger automatic installation.
 
 Advance lib/core/app_version.dart and pubspec.yaml together for every release.
 Build the Windows ZIP from that version, run the ZIP integrity check and a

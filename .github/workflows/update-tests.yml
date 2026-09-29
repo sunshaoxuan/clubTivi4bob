@@ -1,0 +1,64 @@
+name: BobTV Update Packaging
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/build.yml'
+      - '.github/workflows/update-tests.yml'
+      - 'windows/**'
+      - 'macos/**'
+      - 'tools/macos/**'
+      - 'assets/updater/**'
+      - 'lib/data/services/*update*'
+      - 'pubspec.yaml'
+  workflow_dispatch:
+
+jobs:
+  windows-package:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: false
+      - run: flutter pub get
+      - run: flutter build windows --release
+      - name: Verify updater package layout and version
+        shell: pwsh
+        run: |
+          $version = (Select-String -Path pubspec.yaml -Pattern '^version:\s*(\S+)' | Select-Object -First 1).Matches.Groups[1].Value
+          $bundle = Join-Path $env:RUNNER_TEMP 'BobTV'
+          New-Item -ItemType Directory -Path $bundle -Force | Out-Null
+          Copy-Item -Path 'build\windows\x64\runner\Release\*' -Destination $bundle -Recurse -Force
+          Rename-Item -LiteralPath (Join-Path $bundle 'clubtivi.exe') -NewName 'BobTV.exe'
+          if ((Get-Item (Join-Path $bundle 'BobTV.exe')).VersionInfo.FileVersion -ne $version) {
+            throw 'Executable version mismatch'
+          }
+          Compress-Archive -Path $bundle -DestinationPath 'update.zip'
+          Add-Type -AssemblyName System.IO.Compression.FileSystem
+          $archive = [IO.Compression.ZipFile]::OpenRead((Resolve-Path 'update.zip'))
+          try {
+            $names = @($archive.Entries | ForEach-Object FullName)
+            if ($names -notcontains 'BobTV/BobTV.exe' -or
+                $names -notcontains 'BobTV/data/app.so') {
+              throw 'Updater package layout mismatch'
+            }
+          } finally { $archive.Dispose() }
+
+  mac-native-build:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: bash -n assets/updater/mac_worker.sh tools/macos/build.sh tools/macos/package_signed_update.sh
+      - run: openssl pkey -pubin -in assets/updater/update-signing-public.pem -noout
+      - run: cmp assets/updater/update-signing-public.pem website/update-signing-public.pem
+      - run: bash tools/macos/test_update_worker.sh
+      - run: xcrun swiftc -frontend -parse macos/Runner/AppDelegate.swift
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: false
+      - run: flutter pub get
+      - run: flutter build macos --release
+      - run: codesign --verify --deep --strict build/macos/Build/Products/Release/BobTV.app

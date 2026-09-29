@@ -26,6 +26,7 @@ class WindowsUpdateService {
   bool _checking = false;
   bool _started = false;
   Directory? _updateDirectory;
+  String? _workerLaunchedForVersion;
 
   void start() {
     if (!Platform.isWindows || _started) return;
@@ -38,8 +39,10 @@ class WindowsUpdateService {
       const Duration(seconds: 3),
       (_) => unawaited(_readWorkerStatus()),
     );
-    // The public releases.json is a catalog, without an installation policy.
-    // Keep rollback monitoring active but do not poll the retired manifest.
+    if (kReleaseMode) {
+      unawaited(checkNow());
+      Timer.periodic(const Duration(hours: 6), (_) => unawaited(checkNow()));
+    }
   }
 
   Future<void> checkNow() async {
@@ -57,6 +60,7 @@ class WindowsUpdateService {
       final response = await request.close().timeout(
         const Duration(seconds: 10),
       );
+      if (response.statusCode == HttpStatus.notFound) return;
       if (response.statusCode != HttpStatus.ok) {
         throw HttpException('Mirror returned ${response.statusCode}');
       }
@@ -86,7 +90,9 @@ class WindowsUpdateService {
         WindowsUpdatePhase.available,
         version: manifest.version,
       );
+      if (_workerLaunchedForVersion == manifest.version) return;
       await _launchWorker(manifest);
+      _workerLaunchedForVersion = manifest.version;
     } catch (error, stack) {
       AppDiagnostics.instance.recordError('update_check', error, stack);
     } finally {
@@ -99,11 +105,14 @@ class WindowsUpdateService {
     final directory = _updateDirectory;
     if (directory == null) return null;
     final configured = File(p.join(directory.path, 'update-manifest-url.txt'));
-    if (!await configured.exists()) return null;
-    final candidate = Uri.tryParse((await configured.readAsString()).trim());
+    final address = await configured.exists()
+        ? (await configured.readAsString()).trim()
+        : 'https://$_mirrorHost/updates/windows-x64/latest.json';
+    final candidate = Uri.tryParse(address);
     if (candidate == null ||
         candidate.scheme != 'https' ||
         candidate.host != _mirrorHost ||
+        candidate.hasPort ||
         candidate.userInfo.isNotEmpty ||
         candidate.hasQuery ||
         candidate.hasFragment ||
@@ -220,6 +229,10 @@ class WindowsUpdateService {
         'failed' => WindowsUpdatePhase.failed,
         _ => WindowsUpdatePhase.available,
       };
+      if (phase == WindowsUpdatePhase.failed &&
+          _workerLaunchedForVersion == version) {
+        _workerLaunchedForVersion = null;
+      }
       state.value = WindowsUpdateState(
         phase,
         version: version,

@@ -6,12 +6,14 @@ class UpdateManifest {
     required this.archive,
     required this.sha256,
     required this.bytes,
+    this.signature,
   });
 
   final String version;
   final Uri archive;
   final String sha256;
   final int bytes;
+  final String? signature;
 
   static final _versionPattern = RegExp(r'^\d+\.\d+\.\d+\+\d+$');
   static final _hashPattern = RegExp(r'^[a-fA-F0-9]{64}$');
@@ -25,6 +27,7 @@ class UpdateManifest {
     final archiveText = decoded['archive'];
     final hash = decoded['sha256'];
     final bytes = decoded['bytes'];
+    final signature = decoded['signature'];
     if (version is! String ||
         !_versionPattern.hasMatch(version) ||
         archiveText is! String ||
@@ -35,10 +38,15 @@ class UpdateManifest {
         bytes > 2000000000) {
       throw const FormatException('Invalid update manifest fields');
     }
+    if (signature != null && (signature is! String ||
+        !RegExp(r'^[A-Za-z0-9+/]{80,120}={0,2}$').hasMatch(signature))) {
+      throw const FormatException('Invalid update signature');
+    }
     final archive = Uri.tryParse(archiveText);
     if (archive == null ||
         archive.scheme != 'https' ||
         archive.host != manifestUri.host ||
+        archive.hasPort ||
         archive.userInfo.isNotEmpty ||
         archive.hasQuery ||
         archive.hasFragment ||
@@ -51,6 +59,7 @@ class UpdateManifest {
       archive: archive,
       sha256: hash.toLowerCase(),
       bytes: bytes,
+      signature: signature as String?,
     );
   }
 

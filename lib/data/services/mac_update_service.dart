@@ -14,7 +14,7 @@ import 'desktop_update_state.dart';
 import 'update_manifest.dart';
 
 /// macOS update transport. The detached shell worker performs installation
-/// only after the app exits and verifies the replacement's Apple signature.
+/// only after the app exits and verifies the publisher's update signature.
 class MacUpdateService {
   MacUpdateService._();
 
@@ -73,6 +73,7 @@ class MacUpdateService {
       final response = await request.close().timeout(
         const Duration(seconds: 10),
       );
+      if (response.statusCode == HttpStatus.notFound) return;
       if (response.statusCode != HttpStatus.ok) {
         throw HttpException('Mirror returned ${response.statusCode}');
       }
@@ -86,6 +87,9 @@ class MacUpdateService {
       final manifest = UpdateManifest.parse(
         utf8.decode(buffer.takeBytes()), manifestUri,
       );
+      if (manifest.signature == null) {
+        throw const FormatException('Mac update has no publisher signature');
+      }
       if (UpdateManifest.compareVersions(manifest.version, bobTvVersion) <= 0) {
         return;
       }
@@ -110,10 +114,19 @@ class MacUpdateService {
 
   Future<Uri?> _resolveManifestUri() async {
     final configured = File(p.join(_directory!.path, 'update-manifest-url.txt'));
-    if (!await configured.exists()) return null;
-    final candidate = Uri.tryParse((await configured.readAsString()).trim());
+    final machine = await Process.run('/usr/bin/uname', ['-m']);
+    if (machine.exitCode != 0) {
+      throw const FormatException('Cannot determine Mac architecture');
+    }
+    final architecture = machine.stdout.toString().trim() == 'arm64'
+        ? 'arm64' : 'x64';
+    final address = await configured.exists()
+        ? (await configured.readAsString()).trim()
+        : 'https://$_mirrorHost/updates/macos-$architecture/latest.json';
+    final candidate = Uri.tryParse(address);
     if (candidate == null || candidate.scheme != 'https' ||
         candidate.host != _mirrorHost || candidate.userInfo.isNotEmpty ||
+        candidate.hasPort ||
         candidate.hasQuery || candidate.hasFragment ||
         !candidate.path.startsWith('/updates/') ||
         !candidate.path.endsWith('.json')) {
@@ -130,6 +143,11 @@ class MacUpdateService {
     final file = File(p.join(_directory!.path, 'mac_worker.sh'));
     final source = await rootBundle.loadString('assets/updater/mac_worker.sh');
     await file.writeAsString(source, flush: true);
+    final publicKey = await rootBundle.loadString(
+      'assets/updater/update-signing-public.pem',
+    );
+    await File(p.join(_directory!.path, 'update-signing-public.pem'))
+        .writeAsString(publicKey, flush: true);
     return file;
   }
 
@@ -139,6 +157,7 @@ class MacUpdateService {
       script.path, 'update', _directory!.path, _appPath, '$pid',
       manifest.version, manifest.archive.toString(), manifest.sha256,
       '${manifest.bytes}',
+      manifest.signature!,
     ], mode: ProcessStartMode.detached, runInShell: false);
     AppDiagnostics.instance.log('mac_update_worker_started', {
       'version': manifest.version,
@@ -149,6 +168,9 @@ class MacUpdateService {
     final candidate = File(p.join(_directory!.path, 'candidate.txt'));
     if (!await candidate.exists()) return;
     final marker = File(p.join(_directory!.path, 'startup.marker'));
+    if (await marker.exists() && (await marker.readAsString()).trim() == '$pid') {
+      return;
+    }
     await marker.writeAsString('$pid', flush: true);
     final script = await _writeWorker();
     await Process.start('/bin/bash', [

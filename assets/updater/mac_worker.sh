@@ -9,6 +9,7 @@ version="${5:-}"
 archive_url="${6:-}"
 expected_hash="${7:-}"
 expected_bytes="${8:-}"
+package_signature="${9:-}"
 
 if [[ "$root" != "$HOME/Library/Application Support/"* ||
       "$app" != *.app || "$app" == '/' ||
@@ -19,6 +20,11 @@ if [[ ! -f "$app/Contents/MacOS/BobTV" ]]; then
   exit 2
 fi
 mkdir -p "$root"
+if [[ "$mode" == 'update' ]]; then
+  exec /usr/bin/lockf -t 0 "$root/update.lock" /bin/bash "$0" \
+    update-locked "$root" "$app" "$watched_pid" "$version" \
+    "$archive_url" "$expected_hash" "$expected_bytes" "$package_signature"
+fi
 status="$root/status.json"
 candidate="$root/candidate.txt"
 marker="$root/startup.marker"
@@ -41,11 +47,6 @@ wait_for_exit() {
   done
 }
 
-team_id() {
-  codesign -dv --verbose=4 "$1" 2>&1 |
-    sed -n 's/^TeamIdentifier=\([A-Z0-9]*\)$/\1/p' | head -1
-}
-
 if [[ "$mode" == 'monitor' ]]; then
   wait_for_exit
   [[ -f "$candidate" ]] || exit 0
@@ -61,10 +62,6 @@ if [[ "$mode" == 'monitor' ]]; then
     exit 0
   fi
   [[ -f "$marker" && "$(cat "$marker")" == "$watched_pid" ]] || exit 0
-  if [[ ! -f "$(dirname "$root")/logs/active_session.json" ]]; then
-    rm -f "$marker"
-    exit 0
-  fi
   attempts=$(( previous_attempts + 1 ))
   rm -f "$marker"
   if (( attempts < 3 )); then
@@ -90,10 +87,11 @@ if [[ "$mode" == 'monitor' ]]; then
   exit 0
 fi
 
-[[ "$mode" == 'update' ]] || exit 2
+[[ "$mode" == 'update-locked' ]] || exit 2
 [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+\+[0-9]+$ &&
    "$expected_hash" =~ ^[a-fA-F0-9]{64}$ &&
-   "$expected_bytes" =~ ^[0-9]+$ ]] || exit 2
+   "$expected_bytes" =~ ^[0-9]+$ &&
+   "$package_signature" =~ ^[A-Za-z0-9+/]{80,120}={0,2}$ ]] || exit 2
 (( expected_bytes >= 1000000 && expected_bytes <= 2000000000 )) || exit 2
 [[ "$archive_url" == https://bobtv.briconbric.com/updates/*.zip &&
    "$archive_url" != *'?'* && "$archive_url" != *'#'* ]] || exit 2
@@ -112,6 +110,14 @@ actual_hash="$(shasum -a 256 "$partial" | awk '{print tolower($1)}')"
 expected_hash="$(printf '%s' "$expected_hash" | tr '[:upper:]' '[:lower:]')"
 [[ "$actual_hash" == "$expected_hash" ]] || exit 6
 mv -f "$partial" "$archive"
+public_key="$root/update-signing-public.pem"
+[[ -f "$public_key" && ! -L "$public_key" ]] || exit 8
+signature_file="$root/package-signature-$$.der"
+trap 'code=$?; rm -f "$signature_file"; if (( code != 0 )); then write_status failed "$version" 0; fi' EXIT
+printf '%s' "$package_signature" | /usr/bin/base64 -D > "$signature_file"
+/usr/bin/openssl dgst -sha256 -verify "$public_key" \
+  -signature "$signature_file" "$archive" >/dev/null || exit 8
+rm -f "$signature_file"
 
 # The Mac archive has exactly one BobTV.app root; never extract another path.
 unzip -tqq "$archive"
@@ -126,6 +132,10 @@ done < <(unzip -Z1 "$archive")
 stage="$root/Stage/${version//+/_}-$$"
 mkdir -p "$stage"
 ditto -x -k "$archive" "$stage"
+while IFS= read -r -d '' link; do
+  resolved="$(/bin/realpath "$link")" || exit 7
+  [[ "$resolved" == "$stage/"* ]] || exit 7
+done < <(find "$stage" -type l -print0)
 replacement="$stage/BobTV.app"
 [[ -f "$replacement/Contents/MacOS/BobTV" ]] || exit 7
 short_version="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' \
@@ -143,10 +153,8 @@ for binary in \
   [[ -f "$binary" && " $(lipo -archs "$binary") " == *" $machine_arch "* ]] || exit 7
 done
 codesign --verify --deep --strict "$replacement"
-spctl --assess --type execute "$replacement"
-old_team="$(team_id "$app")"
-new_team="$(team_id "$replacement")"
-[[ -n "$old_team" && "$old_team" == "$new_team" ]] || exit 8
+[[ "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' \
+  "$app/Contents/Info.plist")" == 'com.briconbric.bobtv' ]] || exit 8
 write_status ready "$version" 100
 
 wait_for_exit
@@ -154,7 +162,7 @@ wait_for_exit
 backup="$root/Backups/${version//+/_}-$(date +%s)-$$"
 mkdir -p "$backup"
 ditto "$app" "$backup/BobTV.app"
-codesign --verify --deep --strict "$backup/BobTV.app"
+diff -qr "$app" "$backup/BobTV.app" >/dev/null || exit 9
 old="$app.bobtv-previous-$$"
 write_status installing "$version" 100
 mv "$app" "$old"

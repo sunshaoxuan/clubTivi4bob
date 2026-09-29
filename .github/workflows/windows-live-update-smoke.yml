@@ -1,0 +1,55 @@
+name: Windows Live Update Smoke Test
+
+on:
+  push:
+    branches:
+      - agent/bobtv-windows-live-update-test
+  workflow_dispatch:
+
+jobs:
+  update:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Upgrade a previous Windows package from BobTV website
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $site = 'https://bobtv.briconbric.com'
+          $manifest = Invoke-RestMethod -Uri "$site/updates/windows-x64/latest.json" -UserAgent 'BobTV/0.9.1'
+          if ($manifest.version -ne '0.9.1+61') { throw 'Unexpected live update version' }
+          $fixture = Join-Path $env:TEMP ('BobTVUpdaterTests\live-' + [guid]::NewGuid().ToString('N'))
+          $legacyZip = Join-Path $fixture 'previous.zip'
+          $oldBundle = Join-Path $fixture 'Previous'
+          $updateRoot = Join-Path $fixture 'Update'
+          New-Item -ItemType Directory -Path $fixture -Force | Out-Null
+          Invoke-WebRequest -Uri "$site/downloads/BobTV-v0.9.1-bob.9-windows-x64.zip" -OutFile $legacyZip -UserAgent 'BobTV/0.9.1'
+          Expand-Archive -LiteralPath $legacyZip -DestinationPath $oldBundle
+          $oldExe = Get-ChildItem -LiteralPath $oldBundle -Recurse -File |
+            Where-Object { $_.Name -in @('clubtivi.exe', 'BobTV.exe') } |
+            Select-Object -First 1
+          if (!$oldExe) { throw 'Previous executable missing' }
+          $appDir = $oldExe.DirectoryName
+          if (!(Test-Path -LiteralPath (Join-Path $appDir 'data\app.so'))) { throw 'Previous app data missing' }
+          $previousVersion = $oldExe.VersionInfo.FileVersion
+          $env:BOBTV_UPDATE_TESTING = '1'
+          & powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File assets/updater/worker.ps1 `
+            -Mode Update -AppDir $appDir -CurrentPid 99999999 -Version $manifest.version `
+            -ArchiveUrl $manifest.archive -Sha256 $manifest.sha256 -Bytes $manifest.bytes `
+            -TestRoot $updateRoot
+          $status = Get-Content -LiteralPath (Join-Path $updateRoot 'status.json') -Raw | ConvertFrom-Json
+          if ($status.phase -ne 'ready') {
+            Get-Content -LiteralPath (Join-Path $updateRoot 'worker.log') -Tail 20
+            throw "Update worker stopped at $($status.phase)"
+          }
+          $installed = Get-Item -LiteralPath (Join-Path $appDir $oldExe.Name)
+          if ($installed.VersionInfo.FileVersion -ne $manifest.version) { throw 'New executable not installed' }
+          if (!(Test-Path -LiteralPath (Join-Path $appDir 'data\app.so'))) { throw 'New app data missing' }
+          $backup = Get-ChildItem -LiteralPath (Join-Path $updateRoot 'Backups') -Directory |
+            Select-Object -First 1
+          if (!$backup) { throw 'Old version backup missing' }
+          $backupExe = Get-Item -LiteralPath (Join-Path $backup.FullName $oldExe.Name)
+          if ($backupExe.VersionInfo.FileVersion -ne $previousVersion) { throw 'Backup version changed' }
+          if (!(Test-Path -LiteralPath (Join-Path $updateRoot 'candidate.ini'))) { throw 'Startup rollback marker missing' }
+          Write-Output "Windows website update installed $($manifest.version) and preserved $previousVersion"

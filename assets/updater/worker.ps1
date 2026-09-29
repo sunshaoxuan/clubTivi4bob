@@ -249,6 +249,7 @@ try {
   if (!(Test-Path -LiteralPath $archive) -or
       (Get-Item -LiteralPath $archive).Length -ne $Bytes -or
       (Get-FileHash -LiteralPath $archive -Algorithm SHA256).Hash -ine $Sha256) {
+    Add-Type -AssemblyName System.Net.Http
     $handler = New-Object Net.Http.HttpClientHandler
     $handler.AllowAutoRedirect = $false
     $http = New-Object Net.Http.HttpClient($handler)

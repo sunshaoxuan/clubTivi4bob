@@ -268,7 +268,7 @@ footer { border-top: 1px solid #dce5df; background: #f9fbf8; color: #71857a; fon
 .home-page .release-meta { margin-top: 20px; color: #a9bac3; }
 .home-page .release-meta span { color: #627e8c; }
 .home-page .hero-visual { min-width: 0; margin: 0; }
-.home-visual-frame { overflow: hidden; padding: 9px; border: 1px solid #ffffff2c; border-radius: 23px; background: #ffffff13; box-shadow: 0 35px 70px #02091180; transform: rotate(1.2deg); }
+.home-visual-frame { overflow: hidden; padding: 9px; border: 1px solid #ffffff2c; border-radius: 23px; background: #ffffff13; box-shadow: 0 35px 70px #02091180; }
 .home-page .product-image { width: 100%; border: 0; border-radius: 15px; box-shadow: none; }
 .home-page .image-caption { max-width: none; margin-top: 17px; color: #adbec7; letter-spacing: .06em; }
 .home-page .content-band { padding: 94px 0; background: #142431; color: #f4f5f2; }

@@ -47,17 +47,18 @@ jobs:
           ARCH: ${{ matrix.arch }}
         run: |
           app=build/macos/Build/Products/Release/BobTV.app
+          version=$(sed -n 's/^version: //p' pubspec.yaml)
           mkdir -p installer
           ditto "$app" installer/BobTV.app
           ln -s /Applications installer/Applications
-          hdiutil create -volname BobTV -srcfolder installer -ov -format UDZO "BobTV-macos-${ARCH}.dmg"
-          hdiutil verify "BobTV-macos-${ARCH}.dmg"
+          hdiutil create -volname BobTV -srcfolder installer -ov -format UDZO "BobTV-${version}-macos-${ARCH}.dmg"
+          hdiutil verify "BobTV-${version}-macos-${ARCH}.dmg"
           ditto -c -k --norsrc --keepParent "$app" "BobTV-macos-${ARCH}-update.zip"
       - uses: actions/upload-artifact@v4
         with:
           name: BobTV-macos-${{ matrix.arch }}
           path: |
-            BobTV-macos-${{ matrix.arch }}.dmg
+            BobTV-*-macos-${{ matrix.arch }}.dmg
             BobTV-macos-${{ matrix.arch }}-update.zip
           if-no-files-found: error
 

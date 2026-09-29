@@ -6,6 +6,7 @@ set -euo pipefail
 app="${1:-}"
 arch="${2:-}"
 output="${3:-}"
+repository="$(cd "$(dirname "$0")/../.." && pwd)"
 if [[ ! -d "$app/Contents" || ! -d "$output" ||
       "$arch" != 'x64' && "$arch" != 'arm64' ]]; then
   echo 'Usage: package_signed_update.sh BobTV.app x64|arm64 output-directory' >&2
@@ -46,16 +47,17 @@ if [[ -n "${NOTARY_KEY:-}${NOTARY_KEY_ID:-}${NOTARY_ISSUER:-}" ]]; then
 fi
 
 archive="$output/BobTV-$version+$build-macos-$arch.zip"
-ditto -c -k --keepParent "$app" "$archive"
+ditto -c -k --norsrc --keepParent "$app" "$archive"
 /usr/bin/openssl dgst -sha256 -sign "$BOBTV_UPDATE_SIGNING_KEY" \
   -out "$temporary/update-signature.der" "$archive"
 /usr/bin/openssl dgst -sha256 -verify \
-  "$(cd "$(dirname "$0")/../.." && pwd)/assets/updater/update-signing-public.pem" \
+  "$repository/assets/updater/update-signing-public.pem" \
   -signature "$temporary/update-signature.der" "$archive" >/dev/null
 echo "Publisher-signed update archive: $archive"
 shasum -a 256 "$archive"
 python3 - "$archive" "$arch" "$version+$build" \
-  "$output/BobTV-update-metadata.json" "$temporary/update-signature.der" <<'PY'
+  "$output/BobTV-update-metadata.json" "$temporary/update-signature.der" \
+  "$repository" <<'PY'
 import base64
 import hashlib
 import json
@@ -65,6 +67,9 @@ import sys
 archive = pathlib.Path(sys.argv[1])
 platform = 'macos-' + sys.argv[2]
 version = sys.argv[3]
+sys.path.insert(0, str(pathlib.Path(sys.argv[6]) / 'website'))
+from mirror_releases import _inspect_update_archive
+_inspect_update_archive(archive, platform)
 digest = hashlib.sha256()
 with archive.open('rb') as source:
     while chunk := source.read(1024 * 1024):

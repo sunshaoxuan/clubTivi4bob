@@ -128,15 +128,18 @@ Windows x64、macOS Intel 和 macOS Apple Silicon 分别检查
 `GET /updates/windows-x64/latest.json`、`GET /updates/macos-x64/latest.json`、
 `GET /updates/macos-arm64/latest.json`。尚未发布对应平台的合格更新包时返回
 `404`，客户端继续使用当前版本。成功响应沿用 `schema: 1`、`version`、
-`archive`、`sha256`、`bytes`、`publishedAt` 字段。`archive` 位于本站
+`archive`、`sha256`、`bytes`、`publishedAt` 字段。macOS 清单还包含
+`signature`，其值是对 ZIP 原始字节作 P-256 SHA-256 签名后得到的 Base64。
+`archive` 位于本站
 `/updates/files/`，仅已列入平台清单的 ZIP 可下载。客户端核对版本、字节长度、
 SHA-256 和包内结构；Windows 在退出后备份并替换可写的便携安装目录，
-macOS 还检查 Apple 签名、Gatekeeper、应用标识和架构。
+macOS 还用应用内置公钥验证 ZIP 签名，并检查应用代码签名完整性、标识和架构。
 
 发布工作流为 Windows 生成带 `BobTV/` 根目录的 ZIP 和
 `BobTV-update-metadata.json`。镜像任务完整校验发布文件后再原子更新平台清单。
-Mac 测试 DMG 未签名，不会进入自动更新清单；需先取得 Developer ID 签名、
-Apple 公证并验证安装后的正式包。
+Mac 测试 DMG 不会进入自动更新清单。正式更新包必须用 BobTV 发布私钥签名，
+经对应架构的安装测试后再发布。Apple Developer ID 签名与公证可另行加入，
+不属于本站更新包签名的依赖项。
 
 ## 6. 状态码与重试
 

@@ -64,7 +64,11 @@ def test_product_pages_reflect_published_releases():
     assert "github.com" not in home.lower()
     downloads = client.get("/downloads").text
     assert 'id="release-list"' in downloads and "BobTV.exe" in downloads
-    assert "Apple Silicon" in downloads and "v0.9.1-bob.11" in downloads
+    assert "Apple Silicon" in downloads and "下载最新版本" in downloads
+    assert "v0.9.1-bob.11" not in downloads
+    script = client.get("/assets/downloads.js").text
+    assert "release.version === latest.version" in script
+    assert script.count("{ name: '") == 3
 
 
 def test_expired_diagnostics_are_removed(tmp_path, monkeypatch):

@@ -10,7 +10,105 @@ from pathlib import Path
 DATA = Path(os.environ.get("BOBTV_DATA_DIR", Path(__file__).resolve().parent / "data"))
 
 API = "https://api.github.com/repos/sunshaoxuan/clubTivi4bob/releases?per_page=100"
-NAME = re.compile(r"^BobTV-v[\w.-]+-windows-x64\.zip$")
+NAME = re.compile(r"^BobTV-[A-Za-z0-9.+_-]+-windows-x64\.zip$")
+UPDATE_METADATA = "BobTV-update-metadata.json"
+UPDATE_VERSION = re.compile(r"^\d+\.\d+\.\d+\+\d+$")
+UPDATE_NAME = re.compile(r"^BobTV-[A-Za-z0-9.+_-]+\.zip$")
+UPDATE_PLATFORMS = {"windows-x64", "macos-x64", "macos-arm64"}
+MAX_UPDATE_BYTES = 2_000_000_000
+
+
+def version_parts(version):
+    if not isinstance(version, str) or not UPDATE_VERSION.fullmatch(version):
+        raise ValueError("Invalid update version")
+    return tuple(map(int, re.split(r"[.+]", version)))
+
+
+def _download_verified(asset, target, expected_hash=None):
+    size = asset["size"]
+    if not isinstance(size, int) or not 1_000_000 <= size <= MAX_UPDATE_BYTES:
+        raise ValueError("Invalid update asset size")
+    github_hash = asset.get("digest")
+    if github_hash and not re.fullmatch(r"sha256:[a-f0-9]{64}", github_hash):
+        raise ValueError("Invalid GitHub asset digest")
+    target.parent.mkdir(parents=True, exist_ok=True)
+    if target.is_file() and target.stat().st_size == size:
+        current_digest = hashlib.sha256()
+        with target.open("rb") as cached:
+            while chunk := cached.read(1024 * 1024):
+                current_digest.update(chunk)
+        current_hash = current_digest.hexdigest()
+        if current_hash == expected_hash and (not github_hash or github_hash == f"sha256:{current_hash}"):
+            return
+    temporary = target.with_name(f".{target.name}.{os.getpid()}.tmp")
+    try:
+        digest = hashlib.sha256()
+        total = 0
+        with request(asset["browser_download_url"]) as source, temporary.open("wb") as output:
+            while chunk := source.read(1024 * 1024):
+                total += len(chunk)
+                if total > size:
+                    raise ValueError("Update asset grew unexpectedly")
+                digest.update(chunk)
+                output.write(chunk)
+        with temporary.open("rb") as downloaded:
+            signature = downloaded.read(4)
+        if total != size or signature != b"PK\x03\x04":
+            raise ValueError("Invalid update archive")
+        actual_hash = digest.hexdigest()
+        if actual_hash != expected_hash or (github_hash and github_hash != f"sha256:{actual_hash}"):
+            raise ValueError("Update checksum mismatch")
+        os.replace(temporary, target)
+    finally:
+        temporary.unlink(missing_ok=True)
+
+
+def _mirror_updates(release, selected):
+    assets = {asset["name"]: asset for asset in release.get("assets", [])}
+    metadata_asset = assets.get(UPDATE_METADATA)
+    if metadata_asset is None or release.get("draft") or release.get("prerelease"):
+        return
+    if not isinstance(metadata_asset.get("size"), int) or metadata_asset["size"] > 65536:
+        raise ValueError("Update metadata too large")
+    with request(metadata_asset["browser_download_url"]) as response:
+        raw = response.read(65537)
+    if len(raw) != metadata_asset["size"] or len(raw) > 65536:
+        raise ValueError("Update metadata size mismatch")
+    if metadata_asset.get("digest") and metadata_asset["digest"] != f"sha256:{hashlib.sha256(raw).hexdigest()}":
+        raise ValueError("Update metadata checksum mismatch")
+    payload = json.loads(raw)
+    if not isinstance(payload, dict) or set(payload) != {"schema", "version", "packages"} or payload["schema"] != 1:
+        raise ValueError("Invalid update metadata")
+    version = payload["version"]
+    version_parts(version)
+    packages = payload["packages"]
+    if not isinstance(packages, list) or not packages:
+        raise ValueError("Update metadata has no packages")
+    seen = set()
+    for package in packages:
+        if not isinstance(package, dict) or set(package) != {"platform", "filename", "sha256", "bytes"}:
+            raise ValueError("Invalid update package entry")
+        platform = package["platform"]
+        filename = package["filename"]
+        checksum = package["sha256"]
+        if platform not in UPDATE_PLATFORMS or platform in seen or not isinstance(filename, str) or not UPDATE_NAME.fullmatch(filename) or platform not in filename:
+            raise ValueError("Invalid update platform or filename")
+        seen.add(platform)
+        if not isinstance(checksum, str) or not re.fullmatch(r"[a-f0-9]{64}", checksum):
+            raise ValueError("Invalid update checksum")
+        asset = assets.get(filename)
+        if asset is None or type(package["bytes"]) is not int or asset["size"] != package["bytes"]:
+            raise ValueError("Update archive is missing or changed")
+        target = DATA / "updates" / "files" / filename
+        _download_verified(asset, target, checksum)
+        current = selected.get(platform)
+        if current is None or version_parts(version) > version_parts(current["version"]):
+            selected[platform] = {
+                "schema": 1, "version": version,
+                "archive": f"https://bobtv.briconbric.com/updates/files/{filename}",
+                "sha256": checksum, "bytes": package["bytes"],
+                "publishedAt": release["published_at"],
+            }
 
 
 def request(url):
@@ -23,7 +121,9 @@ def mirror():
     folder = DATA / "releases"
     folder.mkdir(parents=True, exist_ok=True)
     result = []
+    updates = {}
     for release in releases:
+        _mirror_updates(release, updates)
         for asset in release.get("assets", []):
             name = asset["name"]
             size = asset["size"]
@@ -61,12 +161,27 @@ def mirror():
                 finally:
                     temp.unlink(missing_ok=True)
             result.append({"version": release["tag_name"], "date": release["published_at"][:10], "filename": name, "size": f"{size / 1048576:.1f} MB", "sha256": checksum})
-    if not result:
-        raise ValueError("No Windows release assets found; manifest unchanged")
-    manifest = DATA / "releases.json"
-    temp_manifest = DATA / f".releases.{os.getpid()}.tmp"
-    temp_manifest.write_text(json.dumps({"releases": result}, ensure_ascii=False, indent=2), encoding="utf-8")
-    os.replace(temp_manifest, manifest)
+    if not result and not updates:
+        raise ValueError("No eligible release assets found; manifest unchanged")
+    if result:
+        manifest = DATA / "releases.json"
+        temp_manifest = DATA / f".releases.{os.getpid()}.tmp"
+        temp_manifest.write_text(json.dumps({"releases": result}, ensure_ascii=False, indent=2), encoding="utf-8")
+        os.replace(temp_manifest, manifest)
+    for platform, entry in updates.items():
+        path = DATA / "updates" / platform / "latest.json"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        previous = None
+        if path.is_file():
+            try:
+                previous = json.loads(path.read_text(encoding="utf-8"))
+            except ValueError:
+                pass
+        if previous and version_parts(previous["version"]) >= version_parts(entry["version"]):
+            continue
+        temporary = path.with_name(f".latest.{os.getpid()}.tmp")
+        temporary.write_text(json.dumps(entry, separators=(",", ":")), encoding="utf-8")
+        os.replace(temporary, path)
     print(f"Published {len(result)} mirrored releases")
 
 

@@ -11,9 +11,11 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/weather_service.dart';
+import '../../core/app_version.dart';
 import '../../data/datasources/local/database.dart' as db;
 import '../../data/services/backup_service.dart';
 import '../../data/services/epg_refresh_service.dart';
+import '../../data/services/desktop_update_service.dart';
 import '../providers/provider_manager.dart';
 import '../remote/web_remote_server.dart';
 import 'add_epg_source_dialog.dart';
@@ -362,8 +364,22 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                     ListTile(
                       leading: const Icon(Icons.info_outline_rounded),
                       title: const Text('BobTV'),
-                      subtitle: const Text('v0.4.0+5 • 开源软件 • Apache 2.0'),
+                      subtitle: const Text('v$bobTvVersion • 开源软件 • Apache 2.0'),
                     ),
+                    if (Platform.isWindows || Platform.isMacOS)
+                      ListTile(
+                        leading: const Icon(Icons.system_update_rounded),
+                        title: const Text('检查更新'),
+                        subtitle: const Text('自动下载，退出后安装'),
+                        onTap: () async {
+                          await DesktopUpdateService.instance.checkNow();
+                          if (context.mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(content: Text('更新检查已完成')),
+                            );
+                          }
+                        },
+                      ),
                     ListTile(
                       leading: const Icon(Icons.code_rounded),
                       title: const Text('源代码'),

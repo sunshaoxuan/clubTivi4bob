@@ -173,13 +173,32 @@ jobs:
         run: flutter build windows --release
 
       - name: Create ZIP
-        run: Compress-Archive -Path "build\windows\x64\runner\Release\*" -DestinationPath "clubtivi-windows.zip"
+        shell: pwsh
+        run: |
+          $version = (Select-String -Path pubspec.yaml -Pattern '^version:\s*(\S+)' | Select-Object -First 1).Matches.Groups[1].Value
+          if ($version -notmatch '^\d+\.\d+\.\d+\+\d+$') { throw 'Invalid BobTV version' }
+          $bundle = Join-Path $env:RUNNER_TEMP 'BobTV'
+          New-Item -ItemType Directory -Path $bundle -Force | Out-Null
+          Copy-Item -Path 'build\windows\x64\runner\Release\*' -Destination $bundle -Recurse -Force
+          Rename-Item -LiteralPath (Join-Path $bundle 'clubtivi.exe') -NewName 'BobTV.exe'
+          if ((Get-Item (Join-Path $bundle 'BobTV.exe')).VersionInfo.FileVersion -ne $version) {
+            throw 'Windows executable version does not match pubspec'
+          }
+          $archive = "BobTV-$version-windows-x64.zip"
+          Compress-Archive -Path $bundle -DestinationPath $archive -CompressionLevel Optimal
+          Add-Type -AssemblyName System.IO.Compression.FileSystem
+          $packed = [IO.Compression.ZipFile]::OpenRead((Resolve-Path $archive))
+          try {
+            if (-not ($packed.Entries | Where-Object FullName -eq 'BobTV/BobTV.exe')) {
+              throw 'Archive root is invalid'
+            }
+          } finally { $packed.Dispose() }
 
       - name: Upload ZIP
         uses: actions/upload-artifact@v4
         with:
           name: windows-zip
-          path: clubtivi-windows.zip
+          path: BobTV-*-windows-x64.zip
 
   # ─── Linux ──────────────────────────────────────────────────────────
   build-linux:
@@ -241,8 +260,28 @@ jobs:
           cp artifacts/ios-ipa/clubtivi-ios-unsigned.ipa   release/clubtivi-ios-unsigned.ipa
           # Mac DMGs remain CI artifacts until Developer ID signing,
           # notarization and physical playback verification are enabled.
-          cp artifacts/windows-zip/clubtivi-windows.zip   release/clubtivi-windows.zip
+          cp artifacts/windows-zip/BobTV-*-windows-x64.zip release/
           cp artifacts/linux-tar/clubtivi-linux-x64.tar.gz release/clubtivi-linux-x64.tar.gz
+
+      - name: Create verified update metadata
+        run: |
+          python - <<'PY'
+          import hashlib, json, pathlib, re
+          version = re.search(r'^version:\s*(\S+)', pathlib.Path('pubspec.yaml').read_text(), re.M).group(1)
+          archive = pathlib.Path('release') / f'BobTV-{version}-windows-x64.zip'
+          if not archive.is_file():
+              raise SystemExit('Windows update archive missing')
+          digest = hashlib.sha256()
+          with archive.open('rb') as source:
+              while chunk := source.read(1024 * 1024):
+                  digest.update(chunk)
+          metadata = {'schema': 1, 'version': version, 'packages': [{
+              'platform': 'windows-x64', 'filename': archive.name,
+              'sha256': digest.hexdigest(), 'bytes': archive.stat().st_size,
+          }]}
+          pathlib.Path('release/BobTV-update-metadata.json').write_text(
+              json.dumps(metadata, separators=(',', ':')), encoding='utf-8')
+          PY
 
       - name: Create release
         uses: softprops/action-gh-release@v2

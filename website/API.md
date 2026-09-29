@@ -122,7 +122,23 @@ URL 校验限制的是语法与主机名形式，服务端不会对候选地址�
 
 完全相同的请求字节再次上传返回 HTTP `200`，`duplicate` 为 `true`。日志仅在服务端私有存储，保留 14 天且无公共读取接口，总存储上限 512 MiB。客户端应从既有日志投影出白名单字段，发送最近的有限快照；不要发送原始日志、路径、异常正文、堆栈、播放地址、令牌、账号、崩溃转储或设备唯一标识。自动上传应由用户主动启用，默认关闭，关闭后停止请求。网络故障不得阻塞播放和本地日志。
 
-## 5. 状态码与重试
+## 5. 桌面版自动更新
+
+Windows x64、macOS Intel 和 macOS Apple Silicon 分别检查
+`GET /updates/windows-x64/latest.json`、`GET /updates/macos-x64/latest.json`、
+`GET /updates/macos-arm64/latest.json`。尚未发布对应平台的合格更新包时返回
+`404`，客户端继续使用当前版本。成功响应沿用 `schema: 1`、`version`、
+`archive`、`sha256`、`bytes`、`publishedAt` 字段。`archive` 位于本站
+`/updates/files/`，仅已列入平台清单的 ZIP 可下载。客户端核对版本、字节长度、
+SHA-256 和包内结构；Windows 在退出后备份并替换可写的便携安装目录，
+macOS 还检查 Apple 签名、Gatekeeper、应用标识和架构。
+
+发布工作流为 Windows 生成带 `BobTV/` 根目录的 ZIP 和
+`BobTV-update-metadata.json`。镜像任务完整校验发布文件后再原子更新平台清单。
+Mac 测试 DMG 未签名，不会进入自动更新清单；需先取得 Developer ID 签名、
+Apple 公证并验证安装后的正式包。
+
+## 6. 状态码与重试
 
 | 状态 | 含义 | 客户端处理 |
 | --- | --- | --- |

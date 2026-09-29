@@ -34,10 +34,12 @@ replacements.
 
 ## Updates
 
-The Mac updater is opt-in until the HTTPS mirror is provisioned. Place an
-architecture-specific manifest URL in
-`~/Library/Application Support/com.briconbric.bobtv/Update/update-manifest-url.txt`.
-The URL must be HTTPS under `bobtv.briconbric.com/updates/` and end in `.json`.
+Release builds check the architecture-specific manifest at
+`https://bobtv.briconbric.com/updates/macos-x64/latest.json` or
+`https://bobtv.briconbric.com/updates/macos-arm64/latest.json` on startup and
+every six hours. A missing manifest means no approved Mac update is available.
+An optional `update-manifest-url.txt` in the app's Update support directory can
+select a different path on the same HTTPS host for staged testing.
 The schema matches `UpdateManifest`; its archive must be a ZIP with one
 `BobTV.app/` root. Use separate Intel and Apple Silicon manifests and archives.
 The candidate app must have the declared version and bundle ID, pass macOS
@@ -47,7 +49,16 @@ The previous app is backed up. Startup health is counted when the channel
 browser becomes available; three consecutive unclean launches trigger a
 rollback and skip that version.
 
-The updater needs write access to the parent of the installed `.app`. When
+The current CI Mac packages are unsigned test artifacts and are excluded from
+the automatic update feed. Publish a Mac package only after Developer ID
+signing, notarization, Gatekeeper verification and an installation test. The
+`tools/macos/package_signed_update.sh` helper validates the signed bundle,
+submits it for Apple notarization, staples the result and creates an
+architecture-specific ZIP and matching `BobTV-update-metadata.json`. It needs
+a Developer ID identity when the app is built and App Store Connect notarization
+credentials when packaging. Upload both files to a GitHub release only after
+testing the packaged app on the corresponding Mac architecture. The
+updater needs write access to the parent of the installed `.app`. When
 BobTV is installed in a protected system directory without that access, the
 worker keeps the current app and reports a failed update. A crash before the
 Flutter startup monitor runs cannot yet be counted as an attempt. Failed

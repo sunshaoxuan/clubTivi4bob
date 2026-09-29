@@ -73,6 +73,7 @@ class MacUpdateService {
       final response = await request.close().timeout(
         const Duration(seconds: 10),
       );
+      if (response.statusCode == HttpStatus.notFound) return;
       if (response.statusCode != HttpStatus.ok) {
         throw HttpException('Mirror returned ${response.statusCode}');
       }
@@ -110,8 +111,16 @@ class MacUpdateService {
 
   Future<Uri?> _resolveManifestUri() async {
     final configured = File(p.join(_directory!.path, 'update-manifest-url.txt'));
-    if (!await configured.exists()) return null;
-    final candidate = Uri.tryParse((await configured.readAsString()).trim());
+    final machine = await Process.run('/usr/bin/uname', ['-m']);
+    if (machine.exitCode != 0) {
+      throw const FormatException('Cannot determine Mac architecture');
+    }
+    final architecture = machine.stdout.toString().trim() == 'arm64'
+        ? 'arm64' : 'x64';
+    final address = await configured.exists()
+        ? (await configured.readAsString()).trim()
+        : 'https://$_mirrorHost/updates/macos-$architecture/latest.json';
+    final candidate = Uri.tryParse(address);
     if (candidate == null || candidate.scheme != 'https' ||
         candidate.host != _mirrorHost || candidate.userInfo.isNotEmpty ||
         candidate.hasQuery || candidate.hasFragment ||

@@ -20,7 +20,7 @@ UPDATE_VERSION = re.compile(r"^\d+\.\d+\.\d+\+\d+$")
 UPDATE_NAME = re.compile(r"^BobTV-[A-Za-z0-9.+_-]+\.zip$")
 UPDATE_PLATFORMS = {"windows-x64", "macos-x64", "macos-arm64"}
 MAX_UPDATE_BYTES = 2_000_000_000
-UPDATE_PUBLIC_KEY = Path(__file__).resolve().parents[1] / "assets/updater/update-signing-public.pem"
+UPDATE_PUBLIC_KEY = Path(__file__).resolve().parent / "update-signing-public.pem"
 
 
 def _verify_mac_signature(archive, encoded):

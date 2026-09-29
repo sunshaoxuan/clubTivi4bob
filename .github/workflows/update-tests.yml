@@ -52,6 +52,7 @@ jobs:
       - uses: actions/checkout@v4
       - run: bash -n assets/updater/mac_worker.sh tools/macos/build.sh tools/macos/package_signed_update.sh
       - run: openssl pkey -pubin -in assets/updater/update-signing-public.pem -noout
+      - run: cmp assets/updater/update-signing-public.pem website/update-signing-public.pem
       - run: bash tools/macos/test_update_worker.sh
       - run: xcrun swiftc -frontend -parse macos/Runner/AppDelegate.swift
       - uses: subosito/flutter-action@v2

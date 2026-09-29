@@ -82,7 +82,8 @@ def download(filename: str):
     path = DATA / "releases" / filename
     if not path.is_file():
         raise HTTPException(404)
-    return FileResponse(path, filename=filename, media_type="application/zip")
+    media_type = "application/x-apple-diskimage" if filename.endswith(".dmg") else "application/zip"
+    return FileResponse(path, filename=filename, media_type=media_type)
 
 
 @app.post("/api/v1/logs")

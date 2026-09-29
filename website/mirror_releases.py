@@ -15,7 +15,7 @@ from pathlib import Path
 DATA = Path(os.environ.get("BOBTV_DATA_DIR", Path(__file__).resolve().parent / "data"))
 
 API = "https://api.github.com/repos/sunshaoxuan/clubTivi4bob/releases?per_page=100"
-NAME = re.compile(r"^BobTV-[A-Za-z0-9.+_-]+-windows-x64\.zip$")
+NAME = re.compile(r"^BobTV-[A-Za-z0-9.+_-]+-(windows-x64\.zip|macos-(x64|arm64)\.dmg)$")
 UPDATE_METADATA = "BobTV-update-metadata.json"
 UPDATE_VERSION = re.compile(r"^\d+\.\d+\.\d+\+\d+$")
 UPDATE_NAME = re.compile(r"^BobTV-[A-Za-z0-9.+_-]+\.zip$")
@@ -192,7 +192,8 @@ def mirror():
         for asset in release.get("assets", []):
             name = asset["name"]
             size = asset["size"]
-            if not NAME.fullmatch(name) or size > 300 * 1024 * 1024:
+            if (not NAME.fullmatch(name) or size > 500 * 1024 * 1024 or
+                    name.endswith(".dmg") and size < 512):
                 continue
             target = folder / name
             expected = asset.get("digest")
@@ -216,8 +217,14 @@ def mirror():
                             digest.update(chunk)
                             output.write(chunk)
                     with temp.open("rb") as uploaded:
-                        signature = uploaded.read(4)
-                    if total != size or signature != b"PK\x03\x04":
+                        if name.endswith(".dmg"):
+                            uploaded.seek(-512, os.SEEK_END)
+                            signature = uploaded.read(4)
+                            expected_signature = b"koly"
+                        else:
+                            signature = uploaded.read(4)
+                            expected_signature = b"PK\x03\x04"
+                    if total != size or signature != expected_signature:
                         raise ValueError(f"Asset invalid: {name}")
                     checksum = digest.hexdigest()
                     if expected and expected != f"sha256:{checksum}":
@@ -225,7 +232,12 @@ def mirror():
                     os.replace(temp, target)
                 finally:
                     temp.unlink(missing_ok=True)
-            result.append({"version": release["tag_name"], "date": release["published_at"][:10], "filename": name, "size": f"{size / 1048576:.1f} MB", "sha256": checksum})
+            platform = ("Windows x64" if name.endswith("windows-x64.zip") else
+                        "macOS Intel" if name.endswith("macos-x64.dmg") else
+                        "macOS Apple Silicon")
+            result.append({"version": release["tag_name"], "date": release["published_at"][:10],
+                           "platform": platform, "filename": name,
+                           "size": f"{size / 1048576:.1f} MB", "sha256": checksum})
     if not result and not updates:
         raise ValueError("No eligible release assets found; manifest unchanged")
     if result:

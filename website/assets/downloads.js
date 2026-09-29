@@ -5,10 +5,10 @@ fetch('/releases.json').then(r => { if (!r.ok) throw new Error(); return r.json(
   for (const release of releases) {
     const row = document.createElement('div'); row.className = 'release-row';
     const info = document.createElement('div');
-    const title = document.createElement('strong'); title.textContent = release.version;
+    const title = document.createElement('strong'); title.textContent = `${release.version} · ${release.platform || 'Windows x64'}`;
     const meta = document.createElement('small'); meta.textContent = `${release.date} · ${release.size} · SHA-256 ${release.sha256}`;
     info.append(title, meta);
-    const link = document.createElement('a'); link.className = 'button primary'; link.textContent = '下载 Windows x64'; link.href = `/downloads/${encodeURIComponent(release.filename)}`; link.setAttribute('download', release.filename);
+    const link = document.createElement('a'); link.className = 'button primary'; link.textContent = `下载 ${release.platform || 'Windows x64'}`; link.href = `/downloads/${encodeURIComponent(release.filename)}`; link.setAttribute('download', release.filename);
     row.append(info, link); list.append(row);
   }
 }).catch(() => { list.textContent = '版本信息暂时不可用。'; });

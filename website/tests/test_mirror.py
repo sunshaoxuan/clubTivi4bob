@@ -65,6 +65,22 @@ def test_mirror_publishes_only_verified_zip(tmp_path, monkeypatch):
     assert (tmp_path / "releases" / asset["name"]).read_bytes() == payload
 
 
+def test_mirror_publishes_mac_install_dmg(tmp_path, monkeypatch):
+    monkeypatch.setattr(module, "DATA", tmp_path)
+    image = b"disk-image" * 80 + b"koly" + b"\0" * 508
+    name = "BobTV-0.9.1+61-macos-x64.dmg"
+    asset = {"name": name, "size": len(image), "browser_download_url": "dmg",
+             "digest": "sha256:" + hashlib.sha256(image).hexdigest()}
+    releases = [{"tag_name": "v0.9.1-bob.10", "published_at": "2026-09-30T00:00:00Z",
+                 "assets": [asset]}]
+    monkeypatch.setattr(module, "request", lambda url: io.BytesIO(
+        json.dumps(releases).encode() if url == module.API else image))
+    module.mirror()
+    row = json.loads((tmp_path / "releases.json").read_text())["releases"][0]
+    assert row["platform"] == "macOS Intel"
+    assert (tmp_path / "releases" / name).read_bytes() == image
+
+
 def test_mirror_publishes_platform_update_only_after_checksum_verification(tmp_path, monkeypatch):
     monkeypatch.setattr(module, "DATA", tmp_path)
     legacy = b"PK\x03\x04release"

@@ -159,6 +159,9 @@ class MacUpdateService {
     final candidate = File(p.join(_directory!.path, 'candidate.txt'));
     if (!await candidate.exists()) return;
     final marker = File(p.join(_directory!.path, 'startup.marker'));
+    if (await marker.exists() && (await marker.readAsString()).trim() == '$pid') {
+      return;
+    }
     await marker.writeAsString('$pid', flush: true);
     final script = await _writeWorker();
     await Process.start('/bin/bash', [

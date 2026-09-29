@@ -61,10 +61,6 @@ if [[ "$mode" == 'monitor' ]]; then
     exit 0
   fi
   [[ -f "$marker" && "$(cat "$marker")" == "$watched_pid" ]] || exit 0
-  if [[ ! -f "$(dirname "$root")/logs/active_session.json" ]]; then
-    rm -f "$marker"
-    exit 0
-  fi
   attempts=$(( previous_attempts + 1 ))
   rm -f "$marker"
   if (( attempts < 3 )); then

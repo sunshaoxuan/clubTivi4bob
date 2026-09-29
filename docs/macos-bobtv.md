@@ -60,8 +60,8 @@ credentials when packaging. Upload both files to a GitHub release only after
 testing the packaged app on the corresponding Mac architecture. The
 updater needs write access to the parent of the installed `.app`. When
 BobTV is installed in a protected system directory without that access, the
-worker keeps the current app and reports a failed update. A crash before the
-Flutter startup monitor runs cannot yet be counted as an attempt. Failed
+worker keeps the current app and reports a failed update. The native macOS
+entry point marks candidate startup before the Flutter interface loads. Failed
 version reports remain local. Ordinary diagnostic snapshots can use the
 existing consent-gated log API; the updater never uploads raw logs.
 

@@ -3,6 +3,7 @@ import importlib.util
 import io
 import json
 import os
+import zipfile
 from pathlib import Path
 
 import pytest
@@ -10,6 +11,19 @@ import pytest
 spec = importlib.util.spec_from_file_location("mirror", Path(__file__).parents[1] / "mirror_releases.py")
 module = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(module)
+
+
+def update_zip(platform):
+    output = io.BytesIO()
+    root = "BobTV/" if platform == "windows-x64" else "BobTV.app/"
+    with zipfile.ZipFile(output, "w", compression=zipfile.ZIP_STORED) as package:
+        if platform == "windows-x64":
+            package.writestr(root + "BobTV.exe", b"x" * 1_000_000)
+            package.writestr(root + "data/app.so", b"data")
+        else:
+            package.writestr(root + "Contents/MacOS/BobTV", b"m" * 1_000_000)
+            package.writestr(root + "Contents/Info.plist", b"plist")
+    return output.getvalue()
 
 
 def test_mirror_publishes_only_verified_zip(tmp_path, monkeypatch):
@@ -36,7 +50,7 @@ def test_mirror_publishes_only_verified_zip(tmp_path, monkeypatch):
 def test_mirror_publishes_platform_update_only_after_checksum_verification(tmp_path, monkeypatch):
     monkeypatch.setattr(module, "DATA", tmp_path)
     legacy = b"PK\x03\x04release"
-    update = b"PK\x03\x04" + b"x" * 1_000_000
+    update = update_zip("windows-x64")
     update_name = "BobTV-0.9.1+61-windows-x64.zip"
     package = {"platform": "windows-x64", "filename": update_name,
                "sha256": hashlib.sha256(update).hexdigest(), "bytes": len(update)}
@@ -72,7 +86,7 @@ def test_mirror_publishes_platform_update_only_after_checksum_verification(tmp_p
 
 def test_mac_only_update_can_publish_without_windows_download(tmp_path, monkeypatch):
     monkeypatch.setattr(module, "DATA", tmp_path)
-    archive = b"PK\x03\x04" + b"m" * 1_000_000
+    archive = update_zip("macos-arm64")
     name = "BobTV-0.9.1+62-macos-arm64.zip"
     metadata = json.dumps({"schema": 1, "version": "0.9.1+62", "packages": [{
         "platform": "macos-arm64", "filename": name,
@@ -91,3 +105,13 @@ def test_mac_only_update_can_publish_without_windows_download(tmp_path, monkeypa
     module.mirror()
     assert json.loads((tmp_path / "updates/macos-arm64/latest.json").read_text())["version"] == "0.9.1+62"
     assert not (tmp_path / "releases.json").exists()
+
+
+def test_update_archive_rejects_path_escape(tmp_path):
+    path = tmp_path / "unsafe.zip"
+    with zipfile.ZipFile(path, "w") as package:
+        package.writestr("BobTV/BobTV.exe", b"app")
+        package.writestr("BobTV/data/app.so", b"data")
+        package.writestr("BobTV/../outside.txt", b"outside")
+    with pytest.raises(ValueError, match="Unsafe"):
+        module._inspect_update_archive(path, "windows-x64")

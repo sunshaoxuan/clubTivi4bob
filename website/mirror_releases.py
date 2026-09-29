@@ -5,6 +5,7 @@ import json
 import os
 import re
 import urllib.request
+import zipfile
 from pathlib import Path
 
 DATA = Path(os.environ.get("BOBTV_DATA_DIR", Path(__file__).resolve().parent / "data"))
@@ -63,6 +64,32 @@ def _download_verified(asset, target, expected_hash=None):
         temporary.unlink(missing_ok=True)
 
 
+def _inspect_update_archive(path, platform):
+    root = "BobTV/" if platform == "windows-x64" else "BobTV.app/"
+    required = ({"BobTV/BobTV.exe", "BobTV/data/app.so"}
+                if platform == "windows-x64" else
+                {"BobTV.app/Contents/MacOS/BobTV", "BobTV.app/Contents/Info.plist"})
+    try:
+        with zipfile.ZipFile(path) as package:
+            entries = package.infolist()
+            if not 1 <= len(entries) <= 5000 or sum(item.file_size for item in entries) > MAX_UPDATE_BYTES:
+                raise ValueError("Invalid update archive size")
+            names = set()
+            for item in entries:
+                name = item.filename
+                parts = name.split("/")
+                if (not name.startswith(root) or len(name) > 300 or
+                    "\\" in name or ":" in name or ".." in parts or
+                    "" in parts[:-1] or
+                    (item.external_attr >> 16) & 0o170000 == 0o120000):
+                    raise ValueError("Unsafe update archive entry")
+                names.add(name)
+            if not required <= names:
+                raise ValueError("Update archive is missing application files")
+    except zipfile.BadZipFile as exc:
+        raise ValueError("Invalid update ZIP") from exc
+
+
 def _mirror_updates(release, selected):
     assets = {asset["name"]: asset for asset in release.get("assets", [])}
     metadata_asset = assets.get(UPDATE_METADATA)
@@ -101,6 +128,7 @@ def _mirror_updates(release, selected):
             raise ValueError("Update archive is missing or changed")
         target = DATA / "updates" / "files" / filename
         _download_verified(asset, target, checksum)
+        _inspect_update_archive(target, platform)
         current = selected.get(platform)
         if current is None or version_parts(version) > version_parts(current["version"]):
             selected[platform] = {

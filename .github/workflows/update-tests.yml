@@ -6,6 +6,8 @@ on:
       - '.github/workflows/build.yml'
       - '.github/workflows/update-tests.yml'
       - 'windows/**'
+      - 'macos/**'
+      - 'tools/macos/**'
       - 'assets/updater/**'
       - 'lib/data/services/*update*'
       - 'pubspec.yaml'
@@ -44,8 +46,16 @@ jobs:
             }
           } finally { $archive.Dispose() }
 
-  mac-worker-syntax:
+  mac-native-build:
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
       - run: bash -n assets/updater/mac_worker.sh
+      - run: bash tools/macos/test_update_worker.sh
+      - run: xcrun swiftc -frontend -parse macos/Runner/AppDelegate.swift
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: false
+      - run: flutter pub get
+      - run: flutter build macos --release

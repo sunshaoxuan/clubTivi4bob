@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - agent/bobtv-windows-live-update-test
+      - agent/bobtv-update-smoke-*
   workflow_dispatch:
 
 jobs:
@@ -18,7 +19,7 @@ jobs:
           $ErrorActionPreference = 'Stop'
           $site = 'https://bobtv.briconbric.com'
           $manifest = Invoke-RestMethod -Uri "$site/updates/windows-x64/latest.json" -UserAgent 'BobTV/0.9.1'
-          if ($manifest.version -ne '0.9.1+61') { throw 'Unexpected live update version' }
+          if ($manifest.version -notmatch '^\d+\.\d+\.\d+\+\d+$') { throw 'Invalid live update version' }
           $fixture = Join-Path $env:TEMP ('BobTVUpdaterTests\live-' + [guid]::NewGuid().ToString('N'))
           $legacyZip = Join-Path $fixture 'previous.zip'
           $oldBundle = Join-Path $fixture 'Previous'
@@ -33,6 +34,7 @@ jobs:
           $appDir = $oldExe.DirectoryName
           if (!(Test-Path -LiteralPath (Join-Path $appDir 'data\app.so'))) { throw 'Previous app data missing' }
           $previousVersion = $oldExe.VersionInfo.FileVersion
+          if ($previousVersion -eq $manifest.version) { throw 'Previous package is already current' }
           $env:BOBTV_UPDATE_TESTING = '1'
           & powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File assets/updater/worker.ps1 `
             -Mode Update -AppDir $appDir -CurrentPid 99999999 -Version $manifest.version `

@@ -132,6 +132,10 @@ done < <(unzip -Z1 "$archive")
 stage="$root/Stage/${version//+/_}-$$"
 mkdir -p "$stage"
 ditto -x -k "$archive" "$stage"
+while IFS= read -r -d '' link; do
+  resolved="$(/bin/realpath "$link")" || exit 7
+  [[ "$resolved" == "$stage/"* ]] || exit 7
+done < <(find "$stage" -type l -print0)
 replacement="$stage/BobTV.app"
 [[ -f "$replacement/Contents/MacOS/BobTV" ]] || exit 7
 short_version="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' \

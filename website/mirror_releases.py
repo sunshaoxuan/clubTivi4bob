@@ -4,6 +4,7 @@ import hashlib
 import base64
 import json
 import os
+import posixpath
 import re
 import subprocess
 import tempfile
@@ -101,9 +102,18 @@ def _inspect_update_archive(path, platform):
                 parts = name.split("/")
                 if (not name.startswith(root) or len(name) > 300 or
                     "\\" in name or ":" in name or ".." in parts or
-                    "" in parts[:-1] or
-                    (item.external_attr >> 16) & 0o170000 == 0o120000):
+                    "" in parts[:-1]):
                     raise ValueError("Unsafe update archive entry")
+                if (item.external_attr >> 16) & 0o170000 == 0o120000:
+                    if item.file_size > 4096:
+                        raise ValueError("Unsafe update archive symlink")
+                    target = package.read(item).decode("utf-8")
+                    resolved = posixpath.normpath(posixpath.join(
+                        posixpath.dirname(name), target))
+                    if (not target or target.startswith("/") or
+                        "\\" in target or "\x00" in target or
+                        resolved != root[:-1] and not resolved.startswith(root)):
+                        raise ValueError("Unsafe update archive symlink")
                 names.add(name)
             if not required <= names:
                 raise ValueError("Update archive is missing application files")

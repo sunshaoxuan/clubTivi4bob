@@ -149,3 +149,22 @@ def test_update_archive_rejects_path_escape(tmp_path):
         package.writestr("BobTV/../outside.txt", b"outside")
     with pytest.raises(ValueError, match="Unsafe"):
         module._inspect_update_archive(path, "windows-x64")
+
+
+def test_mac_update_archive_allows_only_internal_framework_symlinks(tmp_path):
+    path = tmp_path / "framework.zip"
+    link = zipfile.ZipInfo("BobTV.app/Contents/Frameworks/Flutter.framework/Versions/Current")
+    link.create_system = 3
+    link.external_attr = 0o120777 << 16
+    with zipfile.ZipFile(path, "w") as package:
+        package.writestr("BobTV.app/Contents/MacOS/BobTV", b"app")
+        package.writestr("BobTV.app/Contents/Info.plist", b"plist")
+        package.writestr(link, "A")
+    module._inspect_update_archive(path, "macos-x64")
+    unsafe = tmp_path / "unsafe-framework.zip"
+    with zipfile.ZipFile(unsafe, "w") as package:
+        package.writestr("BobTV.app/Contents/MacOS/BobTV", b"app")
+        package.writestr("BobTV.app/Contents/Info.plist", b"plist")
+        package.writestr(link, "../../../../../outside")
+    with pytest.raises(ValueError, match="symlink"):
+        module._inspect_update_archive(unsafe, "macos-x64")

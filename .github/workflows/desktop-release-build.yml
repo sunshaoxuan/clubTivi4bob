@@ -1,0 +1,92 @@
+name: Desktop Release Build
+
+on:
+  push:
+    branches:
+      - agent/bobtv-desktop-release-*
+  workflow_dispatch:
+
+jobs:
+  macos:
+    name: macOS ${{ matrix.arch }}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-15-intel
+            arch: x64
+          - runner: macos-15
+            arch: arm64
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.23'
+      - run: flutter pub get
+      - run: flutter test test/website_channel_catalog_service_test.dart test/update_manifest_test.dart
+      - name: Fetch pinned AirPlay authentication source
+        run: |
+          git clone https://github.com/objevovat/fairplay-sap-core-airplay2-sender-authentication-handshake.git "$RUNNER_TEMP/fpsap-source"
+          git -C "$RUNNER_TEMP/fpsap-source" checkout --detach 370f9db2e26b21b4a710bdba5d51012c1239e736
+      - name: Build and verify macOS app
+        run: |
+          bash tools/macos/build.sh "$RUNNER_TEMP/fpsap-source"
+          codesign --verify --deep --strict build/macos/Build/Products/Release/BobTV.app
+          plutil -lint build/macos/Build/Products/Release/BobTV.app/Contents/Info.plist
+      - name: Package macOS installer and update archive
+        env:
+          ARCH: ${{ matrix.arch }}
+        run: |
+          app=build/macos/Build/Products/Release/BobTV.app
+          mkdir -p installer
+          ditto "$app" installer/BobTV.app
+          ln -s /Applications installer/Applications
+          hdiutil create -volname BobTV -srcfolder installer -ov -format UDZO "BobTV-macos-${ARCH}.dmg"
+          hdiutil verify "BobTV-macos-${ARCH}.dmg"
+          ditto -c -k --norsrc --keepParent "$app" "BobTV-macos-${ARCH}-update.zip"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: BobTV-macos-${{ matrix.arch }}
+          path: |
+            BobTV-macos-${{ matrix.arch }}.dmg
+            BobTV-macos-${{ matrix.arch }}-update.zip
+          if-no-files-found: error
+
+  windows:
+    name: Windows x64
+    runs-on: windows-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - run: flutter pub get
+      - run: flutter test test/website_channel_catalog_service_test.dart test/update_manifest_test.dart
+      - run: flutter build windows --release
+      - name: Package portable Windows app
+        shell: pwsh
+        run: |
+          $version = (Select-String -Path pubspec.yaml -Pattern '^version:\s*(\S+)' | Select-Object -First 1).Matches.Groups[1].Value
+          if ($version -notmatch '^\d+\.\d+\.\d+\+\d+$') { throw 'Invalid BobTV version' }
+          $bundle = Join-Path $env:RUNNER_TEMP 'BobTV'
+          New-Item -ItemType Directory -Path $bundle -Force | Out-Null
+          Copy-Item -Path 'build\windows\x64\runner\Release\*' -Destination $bundle -Recurse -Force
+          Rename-Item -LiteralPath (Join-Path $bundle 'clubtivi.exe') -NewName 'BobTV.exe'
+          if ((Get-Item (Join-Path $bundle 'BobTV.exe')).VersionInfo.FileVersion -ne $version) { throw 'Version mismatch' }
+          Compress-Archive -Path $bundle -DestinationPath "BobTV-$version-windows-x64.zip" -CompressionLevel Optimal
+      - uses: actions/upload-artifact@v4
+        with:
+          name: BobTV-windows-x64
+          path: BobTV-*-windows-x64.zip
+          if-no-files-found: error

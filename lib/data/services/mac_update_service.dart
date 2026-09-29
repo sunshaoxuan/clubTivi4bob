@@ -123,6 +123,7 @@ class MacUpdateService {
     final candidate = Uri.tryParse(address);
     if (candidate == null || candidate.scheme != 'https' ||
         candidate.host != _mirrorHost || candidate.userInfo.isNotEmpty ||
+        candidate.hasPort ||
         candidate.hasQuery || candidate.hasFragment ||
         !candidate.path.startsWith('/updates/') ||
         !candidate.path.endsWith('.json')) {

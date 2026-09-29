@@ -39,6 +39,7 @@ class UpdateManifest {
     if (archive == null ||
         archive.scheme != 'https' ||
         archive.host != manifestUri.host ||
+        archive.hasPort ||
         archive.userInfo.isNotEmpty ||
         archive.hasQuery ||
         archive.hasFragment ||

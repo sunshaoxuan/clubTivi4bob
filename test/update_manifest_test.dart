@@ -36,5 +36,13 @@ void main() {
       () => UpdateManifest.parse(valid.replaceFirst('https://', 'http://'), mirror),
       throwsFormatException,
     );
+    expect(
+      () => UpdateManifest.parse(
+        valid.replaceFirst('bobtv.briconbric.com/updates/',
+            'bobtv.briconbric.com:8443/updates/'),
+        mirror,
+      ),
+      throwsFormatException,
+    );
   });
 }

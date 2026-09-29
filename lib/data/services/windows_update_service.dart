@@ -112,6 +112,7 @@ class WindowsUpdateService {
     if (candidate == null ||
         candidate.scheme != 'https' ||
         candidate.host != _mirrorHost ||
+        candidate.hasPort ||
         candidate.userInfo.isNotEmpty ||
         candidate.hasQuery ||
         candidate.hasFragment ||

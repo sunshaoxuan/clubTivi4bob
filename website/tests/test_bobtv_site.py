@@ -60,15 +60,20 @@ def test_product_pages_reflect_published_releases():
     assert "v0.9.1-bob.11" in home and "WINDOWS · MACOS" in home
     assert "静音预览" in home and "Mac AirPlay" in home and "纯音频电台" in home
     assert '/assets/product.png?v=3' in home
+    assert 'class="home-page"' in home and 'class="container home-hero-layout"' in home
     assert 'href="/downloads"' in home and 'href="/diagnostics"' in home
     assert "github.com" not in home.lower()
     downloads = client.get("/downloads").text
     assert 'id="release-list"' in downloads and "BobTV.exe" in downloads
     assert "Apple Silicon" in downloads and "下载最新版本" in downloads
     assert "v0.9.1-bob.11" not in downloads
+    assert 'class="downloads-page"' in downloads
     script = client.get("/assets/downloads.js").text
     assert "release.version === latest.version" in script
     assert script.count("{ name: '") == 3
+    diagnostics = client.get("/diagnostics").text
+    assert 'class="diagnostics-page"' in diagnostics
+    assert 'id="upload-form"' in diagnostics and 'id="log-file"' in diagnostics
 
 
 def test_expired_diagnostics_are_removed(tmp_path, monkeypatch):

@@ -235,3 +235,125 @@ footer { border-top: 1px solid #dce5df; background: #f9fbf8; color: #71857a; fon
   .download-help { padding-top: 65px; }
   .download-help-grid { grid-template-columns: 1fr; gap: 27px; }
 }
+
+/* Shared visual language across the product and support pages. */
+.home-page, .diagnostics-page { background: #0d1721; color: #f4f5f2; }
+.home-page .site-header, .diagnostics-page .site-header { position: relative; z-index: 2; background: #101b25; border-bottom-color: #ffffff18; }
+.home-page .brand, .diagnostics-page .brand { color: #f8f8f4; }
+.home-page .brand-mark, .diagnostics-page .brand-mark { background: #f3aa7b; color: #172533; }
+.home-page .brand span:last-child, .diagnostics-page .brand span:last-child { color: #f3aa7b; }
+.home-page nav a, .diagnostics-page nav a { color: #b2c0c8; }
+.home-page nav a:hover, .home-page nav a:focus-visible, .home-page nav a[aria-current="page"], .diagnostics-page nav a:hover, .diagnostics-page nav a:focus-visible, .diagnostics-page nav a[aria-current="page"] { color: #f3aa7b; border-bottom-color: #f3aa7b; }
+.home-page footer, .diagnostics-page footer { border-top-color: #ffffff19; background: #101b25; color: #9eafb7; }
+.home-page .button.primary, .diagnostics-page .button.primary { border-color: #f2b88f; background: #f2b88f; color: #1a2935; }
+.home-page .button.primary:hover, .diagnostics-page .button.primary:hover { border-color: #ffd0ad; background: #ffd0ad; }
+.home-page .button.secondary, .diagnostics-page .button.secondary { border-color: #ffffff5b; color: #f2f5f4; }
+.home-page .button.secondary:hover, .diagnostics-page .button.secondary:hover { background: #ffffff1a; border-color: #ffffffaf; }
+.home-page .button, .diagnostics-page .button { border-radius: 11px; }
+.home-page .button span, .diagnostics-page .button span { margin-left: 10px; }
+.home-page .section-index, .diagnostics-page .section-index { color: #f2b88f; letter-spacing: .16em; }
+
+.home-page .hero-band { position: relative; overflow: hidden; padding: 80px 0 104px; background: radial-gradient(ellipse 65% 100% at 85% 25%, #304c62, transparent 72%), linear-gradient(135deg, #101c27, #1a2d3d); }
+.home-page .hero-band::before { content: ""; position: absolute; width: 640px; height: 640px; top: -310px; right: -70px; border: 1px solid #ffffff17; border-radius: 50%; box-shadow: 0 0 0 100px #ffffff07, 0 0 0 200px #ffffff05; }
+.home-hero-layout { position: relative; display: grid; grid-template-columns: minmax(0, .82fr) minmax(0, 1.18fr); align-items: center; gap: 60px; }
+.home-page .hero-copy { text-align: left; }
+.home-page .eyebrow { color: #f3b58d; letter-spacing: .2em; }
+.home-page .accent-line { background: #f3b58d; }
+.home-page .hero-copy h1 { margin: 20px 0 18px; color: #f3b58d; font-size: 24px; letter-spacing: -.03em; }
+.home-hero-period { color: #f8f8f4; }
+.home-page .hero-statement { color: #fafaf7; font-size: clamp(42px, 4.3vw, 61px); line-height: 1.18; letter-spacing: -.05em; }
+.home-page .hero-statement span { color: #f3b58d; }
+.home-page .hero-description { max-width: 480px; margin: 24px 0 0; color: #bdcbd1; font-size: 16px; }
+.home-page .actions { justify-content: flex-start; margin-top: 30px; }
+.home-page .release-meta { margin-top: 20px; color: #a9bac3; }
+.home-page .release-meta span { color: #627e8c; }
+.home-page .hero-visual { min-width: 0; margin: 0; }
+.home-visual-frame { overflow: hidden; padding: 9px; border: 1px solid #ffffff2c; border-radius: 23px; background: #ffffff13; box-shadow: 0 35px 70px #02091180; transform: rotate(1.2deg); }
+.home-page .product-image { width: 100%; border: 0; border-radius: 15px; box-shadow: none; }
+.home-page .image-caption { max-width: none; margin-top: 17px; color: #adbec7; letter-spacing: .06em; }
+.home-page .content-band { padding: 94px 0; background: #142431; color: #f4f5f2; }
+.home-page .hero-band + .content-band { padding-top: 94px; }
+.home-page .section-heading { max-width: 800px; }
+.home-page .section-heading h2 { margin: 12px 0 18px; font-size: clamp(31px, 3.6vw, 47px); letter-spacing: -.035em; }
+.home-page .section-heading > p:last-child { color: #b9c7cb; }
+.home-page .feature-grid { gap: 18px; margin-top: 40px; }
+.home-page .feature-grid article { min-height: 220px; padding: 29px; border: 1px solid #ffffff1c; border-radius: 20px; background: #1f3341; }
+.home-page .feature-number { color: #f2b88f; font-size: 13px; letter-spacing: .1em; }
+.home-page .feature-grid h3 { margin: 26px 0 10px; color: #f7f8f4; }
+.home-page .feature-grid p { color: #bdcbd0; }
+.home-page .catalog-band { padding: 104px 0; background: #eeece6; color: #1b2b34; }
+.home-page .catalog-layout { gap: 95px; align-items: center; }
+.home-page .catalog-intro h2 { font-size: clamp(32px, 3.6vw, 47px); letter-spacing: -.035em; }
+.home-page .catalog-intro > p:last-child { color: #596870; }
+.home-page .catalog-band .section-index, .home-page .history-band .section-index { color: #ae6445; }
+.home-page .catalog-list { border: 0; display: grid; gap: 12px; }
+.home-page .catalog-list > div { grid-template-columns: 1fr; gap: 7px; padding: 22px 25px; border: 1px solid #d9d9d3; border-radius: 16px; background: #fbfaf6; box-shadow: 0 8px 24px #1427320a; }
+.home-page .catalog-list strong { font-size: 18px; }
+.home-page .catalog-list span { color: #5d6d73; }
+.home-page .route-band { padding: 104px 0; background: #0e1b26; }
+.home-page .route-steps { gap: 16px; margin-top: 42px; }
+.home-page .route-steps > div { padding: 23px 25px 27px; border: 1px solid #ffffff27; border-radius: 18px; background: #ffffff08; }
+.home-page .route-steps span { color: #f2b88f; letter-spacing: .1em; }
+.home-page .route-steps strong { font-size: 19px; }
+.home-page .route-steps p { color: #b5c5c9; }
+.home-page .route-note { margin-top: 32px; border-top-color: #ffffff22; }
+.home-page .history-band { padding: 104px 0; background: #eeece6; color: #1b2b34; }
+.home-page .history-layout { gap: 95px; }
+.home-page .history-intro { color: #596870; }
+.home-page .history-list { border-top-color: #cdd3ce; }
+.home-page .history-list > div { border-bottom-color: #cdd3ce; }
+.home-page .history-list time { color: #a96345; }
+.home-page .history-list p { color: #65747a; }
+.home-page .text-link { color: #8a4a32; }
+.home-page .closing-band { padding: 75px 0; background: #e7b393; color: #172630; }
+.home-page .closing-inner h2 { letter-spacing: -.025em; }
+.home-page .closing-inner p:last-child { color: #41525a; }
+.home-page .closing-inner .section-index { color: #74452f; }
+.home-page .closing-inner .button.primary { background: #172630; border-color: #172630; color: #fff; }
+.home-page .closing-inner .button.primary:hover { background: #293e4c; border-color: #293e4c; }
+
+.diagnostics-hero { position: relative; overflow: hidden; padding: 50px 0 85px; background: radial-gradient(ellipse 60% 115% at 85% 25%, #314e65, transparent 75%), linear-gradient(135deg, #101c27, #1b2f40); }
+.diagnostics-hero::before { content: ""; position: absolute; width: 570px; height: 570px; top: -200px; right: -120px; border: 1px solid #ffffff16; border-radius: 50%; box-shadow: 0 0 0 94px #ffffff06, 0 0 0 188px #ffffff04; }
+.diagnostics-hero .container { position: relative; }
+.diagnostics-hero h1 { margin: 0; font-size: clamp(46px, 4.8vw, 62px); line-height: 1.15; letter-spacing: -.045em; }
+.diagnostics-hero h1 span { color: #f2b88f; }
+.diagnostics-hero p:last-child { max-width: 620px; margin: 22px 0 0; color: #c1ccd2; font-size: 16px; line-height: 1.8; }
+.diagnostics-content { position: relative; display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(290px, .7fr); align-items: start; gap: 26px; margin-top: -84px; padding-bottom: 125px; }
+.diagnostics-panel { padding: 35px; border: 1px solid #ffffff22; border-radius: 24px; background: #1c2e3b; box-shadow: 0 26px 65px #030b1590; }
+.diagnostics-panel-heading { display: flex; align-items: center; gap: 19px; }
+.diagnostics-icon { display: grid; place-items: center; width: 51px; height: 51px; border: 1px solid #f2b88f66; border-radius: 15px; color: #f2b88f; font-size: 30px; }
+.diagnostics-panel h2 { margin: 6px 0 0; color: #f7f8f4; font-size: 30px; letter-spacing: -.03em; }
+.diagnostics-intro { margin: 25px 0; color: #bdcbd0; line-height: 1.8; }
+.diagnostics-page .upload { gap: 20px; }
+.diagnostics-file { display: flex; align-items: center; flex-wrap: wrap; gap: 16px; min-height: 118px; padding: 22px; border: 1px dashed #8fa5b180; border-radius: 16px; background: #ffffff06; color: #b9c9ce; overflow-wrap: anywhere; }
+.diagnostics-file label { cursor: pointer; }
+.diagnostics-page .upload .button.primary { min-width: 165px; }
+.diagnostics-page #upload-status { color: #f2b88f; }
+.diagnostics-privacy { padding: 35px; border: 1px solid #ffffff19; border-radius: 24px; background: #253a48; }
+.diagnostics-privacy h2 { margin: 9px 0 31px; color: #f7f8f4; font-size: 26px; letter-spacing: -.03em; }
+.diagnostics-privacy-row { display: grid; grid-template-columns: 28px minmax(0, 1fr); gap: 13px; padding: 20px 0; border-top: 1px solid #ffffff27; }
+.diagnostics-privacy-row span { color: #f2b88f; font-size: 12px; font-weight: 800; }
+.diagnostics-privacy-row p { margin: 0; color: #c1cdd0; font-size: 13px; line-height: 1.8; }
+@media (max-width: 900px) {
+  .home-hero-layout { grid-template-columns: 1fr; gap: 42px; }
+  .home-page .hero-copy { max-width: 650px; }
+  .home-page .hero-visual { max-width: 760px; }
+  .diagnostics-content { grid-template-columns: 1fr; }
+}
+@media (max-width: 640px) {
+  .home-page .hero-band { padding: 58px 0 64px; }
+  .home-page .hero-statement { font-size: clamp(38px, 10vw, 51px); }
+  .home-page .hero-description { font-size: 15px; }
+  .home-page .content-band, .home-page .catalog-band, .home-page .route-band, .home-page .history-band { padding: 65px 0; }
+  .home-page .hero-band + .content-band { padding-top: 65px; }
+  .home-page .feature-grid { margin-top: 33px; }
+  .home-page .feature-grid article { min-height: auto; }
+  .home-page .catalog-layout, .home-page .history-layout { gap: 35px; }
+  .home-page .route-steps { margin-top: 33px; }
+  .home-page .closing-band { padding: 60px 0; }
+  .diagnostics-hero { padding: 62px 0 133px; }
+  .diagnostics-content { margin-top: -74px; padding-bottom: 72px; }
+  .diagnostics-panel, .diagnostics-privacy { padding: 25px; }
+  .diagnostics-panel h2 { font-size: 24px; }
+  .diagnostics-icon { width: 43px; height: 43px; font-size: 25px; }
+}

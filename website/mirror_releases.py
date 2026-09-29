@@ -196,6 +196,20 @@ def mirror():
         temp_manifest = DATA / f".releases.{os.getpid()}.tmp"
         temp_manifest.write_text(json.dumps({"releases": result}, ensure_ascii=False, indent=2), encoding="utf-8")
         os.replace(temp_manifest, manifest)
+    if updates:
+        approved_path = DATA / "updates" / "approved.json"
+        if approved_path.is_file():
+            approved = json.loads(approved_path.read_text(encoding="utf-8"))
+            if not isinstance(approved, dict):
+                raise ValueError("Invalid approved update registry")
+        else:
+            approved = {}
+        for entry in updates.values():
+            filename = entry["archive"].rsplit("/", 1)[-1]
+            approved[filename] = entry["sha256"]
+        temporary = approved_path.with_name(f".approved.{os.getpid()}.tmp")
+        temporary.write_text(json.dumps(approved, separators=(",", ":")), encoding="utf-8")
+        os.replace(temporary, approved_path)
     for platform, entry in updates.items():
         path = DATA / "updates" / platform / "latest.json"
         path.parent.mkdir(parents=True, exist_ok=True)

@@ -29,17 +29,13 @@ def latest(platform: str):
 def archive(filename: str):
     if not FILENAME.fullmatch(filename):
         raise HTTPException(404)
-    expected = f"https://bobtv.briconbric.com/updates/files/{filename}"
-    allowed = False
-    for platform in PLATFORMS:
-        manifest = DATA / "updates" / platform / "latest.json"
-        if manifest.is_file():
-            try:
-                allowed |= json.loads(manifest.read_text(encoding="utf-8")).get("archive") == expected
-            except (ValueError, OSError):
-                continue
+    approved_path = DATA / "updates" / "approved.json"
+    try:
+        approved = json.loads(approved_path.read_text(encoding="utf-8"))
+    except (ValueError, OSError):
+        raise HTTPException(404)
     path = DATA / "updates" / "files" / filename
-    if not allowed or not path.is_file():
+    if not isinstance(approved, dict) or filename not in approved or not path.is_file():
         raise HTTPException(404)
     return FileResponse(path, filename=filename, media_type="application/zip",
                         headers={"Cache-Control": "public, max-age=86400"})

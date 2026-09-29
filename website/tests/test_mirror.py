@@ -77,6 +77,7 @@ def test_mirror_publishes_platform_update_only_after_checksum_verification(tmp_p
     assert manifest["version"] == "0.9.1+61"
     assert manifest["sha256"] == package["sha256"]
     assert (tmp_path / "updates/files" / update_name).read_bytes() == update
+    assert json.loads((tmp_path / "updates/approved.json").read_text())[update_name] == package["sha256"]
 
     assets[-1]["digest"] = "sha256:" + "0" * 64
     with pytest.raises(ValueError, match="checksum mismatch"):

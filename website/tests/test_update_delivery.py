@@ -31,6 +31,9 @@ def test_update_delivery_requires_published_manifest(tmp_path, monkeypatch):
     manifest_file = tmp_path / "updates/windows-x64/latest.json"
     manifest_file.parent.mkdir(parents=True)
     manifest_file.write_text(json.dumps(manifest))
+    (tmp_path / "updates/approved.json").write_text(json.dumps({filename: "a" * 64}))
     assert client.get("/updates/windows-x64/latest.json").json() == manifest
     assert client.get(f"/updates/files/{filename}").content == target.read_bytes()
     assert client.get("/updates/files/other.zip").status_code == 404
+    manifest_file.unlink()
+    assert client.get(f"/updates/files/{filename}").content == target.read_bytes()

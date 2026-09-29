@@ -19,6 +19,11 @@ if [[ ! -f "$app/Contents/MacOS/BobTV" ]]; then
   exit 2
 fi
 mkdir -p "$root"
+if [[ "$mode" == 'update' ]]; then
+  exec /usr/bin/lockf -t 0 "$root/update.lock" /bin/bash "$0" \
+    update-locked "$root" "$app" "$watched_pid" "$version" \
+    "$archive_url" "$expected_hash" "$expected_bytes"
+fi
 status="$root/status.json"
 candidate="$root/candidate.txt"
 marker="$root/startup.marker"
@@ -86,7 +91,7 @@ if [[ "$mode" == 'monitor' ]]; then
   exit 0
 fi
 
-[[ "$mode" == 'update' ]] || exit 2
+[[ "$mode" == 'update-locked' ]] || exit 2
 [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+\+[0-9]+$ &&
    "$expected_hash" =~ ^[a-fA-F0-9]{64}$ &&
    "$expected_bytes" =~ ^[0-9]+$ ]] || exit 2

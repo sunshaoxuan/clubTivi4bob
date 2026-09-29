@@ -34,3 +34,15 @@ printf '%s' "$pid" > "$root/startup.healthy"
 bash assets/updater/mac_worker.sh monitor "$root" "$app" "$pid"
 [[ ! -f "$root/candidate.txt" ]]
 [[ "$(cat "$app/Contents/MacOS/BobTV")" == 'new' ]]
+
+/usr/bin/lockf -t 1 "$root/update.lock" sleep 3 &
+holder=$!
+sleep 1
+if bash assets/updater/mac_worker.sh update "$root" "$app" "$pid" \
+  '0.9.2+3' 'https://bobtv.briconbric.com/updates/files/BobTV-test.zip' \
+  'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' \
+  '1000000'; then
+  echo 'Concurrent Mac update unexpectedly acquired the worker lock' >&2
+  exit 1
+fi
+wait "$holder"

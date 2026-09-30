@@ -1,6 +1,6 @@
 # BobTV channel catalog synchronization contract
 
-This document defines the proposed website contract for fast first launch. It
+This document defines the implemented website contract for fast first launch. It
 does not replace the existing `/api/v1/sources` endpoint, whose reviewed-source
 directory currently has a different schema and may legitimately be empty.
 
@@ -104,6 +104,32 @@ own provider or tables during migration. Existing local sources continue to
 work until the website catalog is populated and verified. The GitHub crawler
 remains a source-discovery mechanism; candidates enter the public catalog only
 after review.
+
+## Installation inventory and verification
+
+Every Windows and macOS installation uploads public channel metadata to
+`POST /api/v1/channel-catalog/inventory` in pages of at most 200 routes.
+The JSON body includes `schemaVersion: 1`, a 64-character application-scoped
+`fingerprint`, and `routes`. Each route contains `name`, `url`, `group`,
+`source`, optional `epgId`, `logoUrl`, `playableAt` (Unix seconds), and `blocked`.
+Successful unchanged pages are checkpointed and skipped on later runs.
+Failed pages retry automatically. Private and credential-bearing URLs and
+obvious platform livestreams are excluded. Classification uses saved AI results
+where available; unresolved channels remain in the explicit unknown category.
+
+`bobtv-catalog.timer` starts the verification worker every five minutes.
+Verification follows HLS playlists to actual media bytes, with bounded
+concurrency, timeouts, and public-address checks. Recently verified routes are
+published atomically. CCTV-5, CCTV-5+ and 4K variants retain separate identities.
+Clients download revisions every fifteen minutes. Initial server verification
+records seed local availability, so a fresh installation does not have to
+recheck every route before showing its cards.
+
+`GET /api/v1/channel-catalog/blocked` returns `schemaVersion: 1` and `urls`.
+Retirement is monotonic: later inventory uploads cannot restore that URL.
+Clients apply these tombstones to all providers, including bundled sources.
+The old manifest remains available if generation fails. Deploy the timer and
+service files under `website/deploy` alongside the updated website runtime.
 
 ## Acceptance checks
 

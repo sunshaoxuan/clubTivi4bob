@@ -111,6 +111,71 @@ class BobTvApiClient {
     return true;
   }
 
+  static bool isPublicCatalogUrl(String value) {
+    final uri = Uri.tryParse(value);
+    if (uri == null || value.length > 2048 ||
+        RegExp(r'[\x00-\x20\x7f]').hasMatch(value) ||
+        !const ['http', 'https'].contains(uri.scheme) ||
+        uri.host.isEmpty || uri.userInfo.isNotEmpty || uri.hasFragment ||
+        uri.queryParameters.keys.any((key) =>
+          RegExp(r'token|password|secret|auth|api.?key', caseSensitive: false)
+              .hasMatch(key))) return false;
+    final address = InternetAddress.tryParse(uri.host);
+    if (address == null) {
+      final host = uri.host.toLowerCase();
+      return host.contains('.') && !host.endsWith('.local') &&
+          !host.endsWith('.internal') && !host.endsWith('.localhost');
+    }
+    if (address.isLoopback || address.isLinkLocal || address.isMulticast) {
+      return false;
+    }
+    final bytes = address.rawAddress;
+    if (bytes.length == 4) {
+      return bytes[0] != 0 && bytes[0] != 10 && bytes[0] != 127 &&
+          bytes[0] < 224 && !(bytes[0] == 172 && bytes[1] >= 16 && bytes[1] <= 31) &&
+          !(bytes[0] == 192 && bytes[1] == 168) &&
+          !(bytes[0] == 169 && bytes[1] == 254) &&
+          !(bytes[0] == 100 && bytes[1] >= 64 && bytes[1] <= 127);
+    }
+    return bytes[0] >= 0x20 && bytes[0] <= 0x3f;
+  }
+
+  Future<int> uploadChannelInventory({
+    required String fingerprint,
+    required List<Map<String, Object?>> routes,
+  }) async {
+    if (!fingerprintPattern.hasMatch(fingerprint) || routes.isEmpty ||
+        routes.length > 200) throw const FormatException('Invalid inventory');
+    final body = utf8.encode(jsonEncode({
+      'schemaVersion': 1, 'fingerprint': fingerprint, 'routes': routes,
+    }));
+    if (body.length > 512 * 1024) throw const FormatException('Inventory too large');
+    final response = await _request('POST', '/api/v1/channel-catalog/inventory',
+        contentType: 'application/json', body: body, maxBytes: 4096);
+    if (response.status != 202) throw BobTvApiException(
+        'inventory_http_status', statusCode: response.status,
+        retryAfter: response.retryAfter);
+    final receipt = jsonDecode(utf8.decode(response.body));
+    if (receipt is! Map || receipt['accepted'] is! int) {
+      throw const FormatException('Invalid inventory receipt');
+    }
+    return receipt['accepted'] as int;
+  }
+
+  Future<List<String>> fetchCatalogBlockedRoutes() async {
+    final response = await _request('GET', '/api/v1/channel-catalog/blocked',
+        maxBytes: 8 * 1024 * 1024);
+    if (response.status == 404) return const [];
+    if (response.status != 200) throw BobTvApiException(
+        'blocked_routes_http_status', statusCode: response.status);
+    final payload = jsonDecode(utf8.decode(response.body));
+    if (payload is! Map || payload['schemaVersion'] != 1 || payload['urls'] is! List) {
+      throw const FormatException('Invalid blocked routes');
+    }
+    return (payload['urls'] as List).whereType<String>()
+        .where(isPublicCatalogUrl).toList();
+  }
+
   Future<List<BobTvReviewedSource>> fetchSources() async {
     final response = await _request('GET', '/api/v1/sources', maxBytes: 4 * 1024 * 1024);
     if (response.status != 200) throw BobTvApiException(

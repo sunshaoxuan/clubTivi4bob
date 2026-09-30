@@ -165,3 +165,14 @@ Mac 测试 DMG 不会进入自动更新清单。正式更新包必须用 BobTV �
 ## 7. 客户端验收要点
 
 覆盖空目录、缓存与断网、用户本地源隔离、指纹格式与跨 IP 稳定性、真实播放后的报告、关闭开关无上报、候选提交前明确同意、非法地址拒绝、日志字段投影和大小限制、`200/201/202` 成功、`404/413/415/422` 不原样重试、`429/503` 遵守 `Retry-After`、超时不影响播放，以及应用退出后不保留后台上传任务。上线前用两个独立客户端和真实新发行包核对 HTTPS 调用；现有发布包不会自动具备这些功能。
+
+## 8. 共享频道初始化闭环
+
+Windows 与 macOS 的共享频道接口与旧版 `/api/v1/sources` 独立。
+
+- `GET /api/v1/channel-catalog/manifest` 返回已分类清单版本、频道数、线路数、快照地址、压缩字节数和 SHA-256。
+- `GET /api/v1/channel-catalog/snapshots/{sha256}.json.gz` 下载不可变快照。
+- `POST /api/v1/channel-catalog/inventory` 分批上报公开频道、分类、线路和淘汰记录。正文包含 `schemaVersion: 1`、64 位十六进制 `fingerprint`、最多 200 项的 `routes`，最多 512 KiB。线路字段为 `name`、`url`、`group`、`source`、`blocked`，可选 `epgId`、`logoUrl`、Unix 秒数 `playableAt`。响应 `202` 包含 `accepted`、`skipped`、`storedRoutes`、`blockedRoutes`、`verifiedRoutes`。
+- `GET /api/v1/channel-catalog/blocked` 返回 `schemaVersion: 1` 与已淘汰地址数组 `urls`。后续上报不能解除淘汰状态。
+
+服务器定时验证候选媒体并原子发布清单。客户端采用内置小型启动清单，后台下载网站清单及验证记录，按分类直接展示，通过本地检查继续更新可用性。线路上报采用分页与成功检查点，失败自动重试。全局淘汰记录应用到所有来源。频道清单不会夹带收藏、观看历史或私人源认证数据。详细快照结构与验收流程见 `docs/channel-catalog-sync.md`。

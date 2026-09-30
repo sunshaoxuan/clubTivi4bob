@@ -18,6 +18,7 @@ from pathlib import Path
 
 from channel_catalog import DATA, DIRECTORY
 from source_registry import validate_public_url
+from catalog_inventory import validate_media_url
 
 IDENTIFIER = re.compile(r"^[a-z0-9][a-z0-9-]{0,79}$")
 MAX_CHANNELS = 10000
@@ -85,7 +86,7 @@ def validate(payload):
             route_id = route["id"]
             if not isinstance(route_id, str) or not IDENTIFIER.fullmatch(route_id) or route_id in route_ids:
                 raise ValueError("Duplicate or invalid route ID")
-            validate_public_url(route["url"])
+            validate_media_url(route["url"])
             if not isinstance(route["source"], str) or not 1 <= len(route["source"]) <= 128:
                 raise ValueError("Invalid route provenance")
             if route["lastPlayableAt"] is not None and not isinstance(route["lastPlayableAt"], str):

@@ -127,7 +127,7 @@ public class MediaKitVideoPlugin: NSObject, FlutterPlugin {
 
   private func handleDisposeMethodCall(
     _ arguments: Any?,
-    _ result: FlutterResult
+    _ result: @escaping FlutterResult
   ) {
     let args = arguments as? [String: Any]
     let handleStr = args?["handle"] as! String

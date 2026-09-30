@@ -22,7 +22,8 @@ try {
   $env:GOPROXY = 'off'
   & go build -trimpath -o (Join-Path $output 'fpsap-auth.exe') $adapter
   if ($LASTEXITCODE) { throw 'FPSAP adapter build failed' }
-  & git archive --format=zip --output=(Join-Path $output 'fpsap-upstream-source.zip') $expected
+  $fpsapArchive = Join-Path $output 'fpsap-upstream-source.zip'
+  & git archive --format=zip "--output=$fpsapArchive" $expected
   if ($LASTEXITCODE) { throw 'FPSAP corresponding source archive failed' }
   Copy-Item -LiteralPath $adapter -Destination $output
   Copy-Item -LiteralPath $PSCommandPath -Destination $output

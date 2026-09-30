@@ -67,6 +67,12 @@ def test_catalog_preserves_logo_and_epg_metadata(tmp_path):
     assert channel["epgId"] == item["epgId"]
 
 
+def test_webpage_routes_do_not_poison_the_whole_shared_catalog(tmp_path):
+    ingest([route(), route("Web page", "https://media.example.org/watch.html")], "a" * 64, tmp_path)
+    process(tmp_path, verifier=lambda url: True)
+    assert [channel["name"] for channel in snapshot(tmp_path)["channels"]] == ["CCTV-5+"]
+
+
 def test_inventory_api_and_global_tombstones(tmp_path, monkeypatch):
     monkeypatch.setattr(catalog_inventory, "DATA", tmp_path)
     app = FastAPI()

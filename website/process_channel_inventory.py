@@ -121,7 +121,8 @@ def _identity(name):
 def _public_media(url):
     try:
         validate_media_url(url)
-        return True
+        parsed = urlsplit(url)
+        return not parsed.path.lower().endswith(('.html', '.htm'))
     except (ValueError, TypeError):
         return False
 

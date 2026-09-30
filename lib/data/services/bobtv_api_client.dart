@@ -120,6 +120,11 @@ class BobTvApiClient {
         uri.queryParameters.keys.any((key) =>
           RegExp(r'token|password|secret|auth|api.?key', caseSensitive: false)
               .hasMatch(key))) return false;
+    final segments = uri.pathSegments;
+    if (segments.length >= 4 &&
+        const {'live', 'movie', 'series'}.contains(segments.first.toLowerCase())) {
+      return false;
+    }
     final address = InternetAddress.tryParse(uri.host);
     if (address == null) {
       final host = uri.host.toLowerCase();

@@ -4,6 +4,7 @@ import 'package:clubtivi/data/services/channel_inventory_sync_service.dart';
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:drift/drift.dart' show Value;
 
 class InventoryApi extends BobTvApiClient {
   final batches = <List<Map<String, Object?>>>[];
@@ -19,6 +20,52 @@ class InventoryApi extends BobTvApiClient {
 
 void main() {
   setUp(() => SharedPreferences.setMockInitialValues({}));
+  test('personal subscriptions and their retirements remain local', () async {
+    final database = db.AppDatabase.forTesting(NativeDatabase.memory());
+    final api = InventoryApi();
+    final service = ChannelInventorySyncService(
+      database: database,
+      api: api,
+      fingerprintOverride: 'b' * 64,
+    );
+    addTearDown(() async {
+      service.dispose();
+      await database.close();
+    });
+    for (final type in ['m3u', 'xtream']) {
+      await database.upsertProvider(
+        db.ProvidersCompanion.insert(
+          id: type,
+          name: 'Personal',
+          type: type,
+          url: const Value('https://personal.example.org/subscription.m3u'),
+        ),
+      );
+      await database.upsertChannels([
+        db.ChannelsCompanion.insert(
+          id: type,
+          providerId: type,
+          name: 'CCTV1',
+          streamUrl: 'https://personal.example.org/$type.m3u8',
+        ),
+      ]);
+    }
+    await database.blockAndDeleteStreamUrl(
+      'https://personal.example.org/m3u.m3u8',
+      reason: 'manual',
+    );
+    await service.reportRetirement('https://personal.example.org/m3u.m3u8');
+    await service.sync();
+    expect(api.batches, isEmpty);
+    expect(await database.getBlockedStreamUrls(), hasLength(1));
+    expect(await database.getSharedBlockedStreamUrls(), isEmpty);
+    expect(
+      BobTvApiClient.isPublicCatalogUrl(
+        'https://media.example.org/live/user/password/1.ts',
+      ),
+      isFalse,
+    );
+  });
   test('uploads every page, categories and removed-route tombstones', () async {
     final database = db.AppDatabase.forTesting(NativeDatabase.memory());
     final api = InventoryApi();
@@ -32,7 +79,14 @@ void main() {
       await database.close();
     });
     await database.upsertProvider(
-      db.ProvidersCompanion.insert(id: 'test', name: 'test', type: 'm3u'),
+      db.ProvidersCompanion.insert(
+        id: 'test',
+        name: 'test',
+        type: 'm3u',
+        url: const Value(
+          'https://raw.githubusercontent.com/public/tv/main/tv.m3u',
+        ),
+      ),
     );
     await database.upsertChannels(
       List.generate(

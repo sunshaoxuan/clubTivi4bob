@@ -118,6 +118,14 @@ def _identity(name):
     return re.sub(r"\s+(HD|FHD|SD|1080P|720P)$", "", name, flags=re.I)
 
 
+def _public_media(url):
+    try:
+        validate_media_url(url)
+        return True
+    except (ValueError, TypeError):
+        return False
+
+
 def process(data_dir=DATA, limit=120, verifier=probe):
     data_dir.mkdir(parents=True, exist_ok=True)
     with (data_dir / "catalog-process.lock").open("a") as lock:
@@ -144,6 +152,7 @@ def process(data_dir=DATA, limit=120, verifier=probe):
         categories = {}
         channels = {}
         for row in rows:
+            if not _public_media(row["url"]): continue
             path = row["group_name"].split(" / ")[:4]
             if path[0] not in ("中国", "国际", "其他", "广播", "数字"): path = ["其他"]
             parent = None
@@ -159,7 +168,7 @@ def process(data_dir=DATA, limit=120, verifier=probe):
         if current:
             inventory_urls = {row["url"] for row in rows}
             for channel in current["channels"]:
-                routes = [route for route in channel["routes"] if route["url"] not in blocked and route["url"] not in inventory_urls]
+                routes = [route for route in channel["routes"] if _public_media(route["url"]) and route["url"] not in blocked and route["url"] not in inventory_urls]
                 if routes:
                     with database(data_dir) as conn:
                         routes = [route for route in routes if not conn.execute("SELECT 1 FROM routes WHERE url=? AND failures>=3", (route["url"],)).fetchone()]

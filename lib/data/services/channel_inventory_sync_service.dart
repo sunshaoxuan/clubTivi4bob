@@ -9,6 +9,7 @@ import 'channel_category_classifier.dart';
 import 'channel_category_ai_service.dart';
 import 'channel_country_ai_service.dart';
 import 'client_fingerprint_service.dart';
+import 'public_inventory_policy.dart';
 import 'website_channel_catalog_service.dart';
 
 /// Uploads public television metadata in bounded pages. Server verification
@@ -41,7 +42,18 @@ class ChannelInventorySyncService {
       if (fingerprint == null) return;
       final categories = await ChannelCategoryAiService().cachedCategories();
       final countries = await ChannelCountryAiService().cachedCountries();
-      final blocked = await database.getBlockedStreamUrls();
+      final blocked = await database.getSharedBlockedStreamUrls();
+      final eligibleProviders = {
+        for (final provider in await database.getAllProviders())
+          if (isSharedInventoryProvider(
+            id: provider.id,
+            type: provider.type,
+            url: provider.url,
+            username: provider.username,
+            password: provider.password,
+          ))
+            provider.id,
+      };
       final prefs = await SharedPreferences.getInstance();
       var uploaded = 0;
       var cursor = '';
@@ -54,6 +66,7 @@ class ChannelInventorySyncService {
         final batch = <Map<String, Object?>>[];
         for (final channel in page) {
           if (channel.streamType != 'live' ||
+              !eligibleProviders.contains(channel.providerId) ||
               !seen.add(channel.streamUrl) ||
               !BobTvApiClient.isPublicCatalogUrl(channel.streamUrl) ||
               ChannelCategoryClassifier.isClearlyNonTelevisionRoute(
@@ -175,6 +188,7 @@ class ChannelInventorySyncService {
   Future<void> reportRetirement(String url) async {
     if (_disposed || !BobTvApiClient.isPublicCatalogUrl(url)) return;
     try {
+      if (!(await database.getSharedBlockedStreamUrls()).contains(url)) return;
       if (fingerprintOverride == null) {
         await ClientFingerprintService.instance.initialize();
       }

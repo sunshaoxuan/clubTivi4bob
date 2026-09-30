@@ -6,6 +6,7 @@ import 'package:path/path.dart' as p;
 import 'package:uuid/uuid.dart';
 
 import '../../services/channel_category_classifier.dart';
+import '../../services/public_inventory_policy.dart';
 import 'tables.dart';
 
 part 'database.g.dart';
@@ -329,15 +330,25 @@ class AppDatabase extends _$AppDatabase {
     String streamUrl, {
     required String reason,
   }) async {
+    final matches = await (select(channels)
+          ..where((table) => table.streamUrl.equals(streamUrl))).get();
+    final previous = await (select(blockedStreamRoutes)
+          ..where((table) => table.streamUrl.equals(streamUrl))).getSingleOrNull();
+    final publicProviders = {
+      for (final provider in await getAllProviders())
+        if (isSharedInventoryProvider(id: provider.id, type: provider.type,
+            url: provider.url, username: provider.username,
+            password: provider.password)) provider.id,
+    };
+    final shared = reason == 'shared_catalog_retired' ||
+        (previous != null && !previous.reason.startsWith('private:')) ||
+        matches.any((channel) => publicProviders.contains(channel.providerId));
     await into(blockedStreamRoutes).insertOnConflictUpdate(
       BlockedStreamRoutesCompanion.insert(
         streamUrl: streamUrl,
-        reason: reason,
+        reason: shared ? reason : 'private:$reason',
       ),
     );
-    final matches = await (select(channels)
-          ..where((table) => table.streamUrl.equals(streamUrl)))
-        .get();
     return deleteChannelsByIds(matches.map((channel) => channel.id));
   }
 
@@ -351,6 +362,11 @@ class AppDatabase extends _$AppDatabase {
         for (final route in await select(blockedStreamRoutes).get())
           route.streamUrl,
       };
+
+  Future<Set<String>> getSharedBlockedStreamUrls() async => {
+    for (final route in await select(blockedStreamRoutes).get())
+      if (!route.reason.startsWith('private:')) route.streamUrl,
+  };
 
   Future<int> deleteChannelsByIds(Iterable<String> channelIds) async {
     final ids = channelIds.toSet().toList();

@@ -35,6 +35,9 @@ def validate_media_url(url):
             raise ValueError("Private address")
     if any(re.search(r"token|password|secret|auth|api.?key", key, re.I) for key, _ in parse_qsl(parsed.query)):
         raise ValueError("Credential-bearing media URL")
+    segments = [part for part in parsed.path.split('/') if part]
+    if len(segments) >= 4 and segments[0].lower() in ('live', 'movie', 'series'):
+        raise ValueError("Account-bearing media URL")
     if parsed.port is not None and not 1 <= parsed.port <= 65535:
         raise ValueError("Invalid port")
     return url

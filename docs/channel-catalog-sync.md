@@ -114,7 +114,10 @@ The JSON body includes `schemaVersion: 1`, a 64-character application-scoped
 `source`, optional `epgId`, `logoUrl`, `playableAt` (Unix seconds), and `blocked`.
 Successful unchanged pages are checkpointed and skipped on later runs.
 Failed pages retry automatically. Private and credential-bearing URLs and
-obvious platform livestreams are excluded. Classification uses saved AI results
+obvious platform livestreams are excluded. Automatic contribution is restricted
+to bundled public catalogs, reviewed discovery providers, and credential-free
+GitHub subscriptions. Personal M3U subscriptions and Xtream accounts stay local,
+including their retirement records. Classification uses saved AI results
 where available; unresolved channels remain in the explicit unknown category.
 
 `bobtv-catalog.timer` starts the verification worker every five minutes.

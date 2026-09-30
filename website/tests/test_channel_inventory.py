@@ -45,9 +45,10 @@ def test_retirement_propagates_and_cannot_be_reintroduced(tmp_path):
 def test_invalid_routes_are_skipped(tmp_path):
     result = ingest([route(url="http://127.0.0.1/private"),
         route(url="https://media.example.org/live?token=secret"),
+        route(url="https://media.example.org/live/user/password/1.ts"),
         route(url="http://38.75.136.137:8080/live")], "a" * 64, tmp_path)
     assert result["accepted"] == 1
-    assert result["skipped"] == 2
+    assert result["skipped"] == 3
 
 
 def test_distinct_cctv_signals():

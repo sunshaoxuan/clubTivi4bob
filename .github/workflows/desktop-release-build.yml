@@ -39,6 +39,10 @@ jobs:
         with:
           go-version: '1.23'
       - run: flutter pub get
+      - name: Test macOS render worker disposal ordering
+        run: |
+          swiftc third_party/media_kit_video/macos/Classes/plugin/common/Worker.swift tools/macos/test_video_worker.swift -o "$RUNNER_TEMP/video-worker-test"
+          "$RUNNER_TEMP/video-worker-test"
       - run: flutter test test/website_channel_catalog_service_test.dart test/channel_inventory_sync_service_test.dart test/update_manifest_test.dart
       - name: Fetch pinned AirPlay authentication source
         run: |

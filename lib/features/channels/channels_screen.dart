@@ -2339,6 +2339,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
       currentUrl,
       reason: 'user_reported_wrong_content',
     );
+    unawaited(ref.read(sourceMaintenanceCoordinatorProvider).inventory.reportRetirement(currentUrl));
     final switched = alternatives.isNotEmpty &&
         await service.playRetirementReplacement(
             alternatives.first, alternatives.skip(1).toList());
@@ -3694,6 +3695,28 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
+                        ValueListenableBuilder<WebsiteCatalogProgress>(
+                          valueListenable: ref.read(sourceMaintenanceCoordinatorProvider).websiteCatalog.state,
+                          builder: (context, progress, _) => Column(
+                            children: [
+                              Text(progress.phase.isEmpty ? '正在初始化共享频道' :
+                                '${progress.phase}${progress.total > 0 ? ' ${progress.imported}/${progress.total}' : ''}',
+                                textAlign: TextAlign.center,
+                                style: const TextStyle(color: Colors.white70)),
+                              if (progress.error) TextButton.icon(
+                                onPressed: () => ref.read(sourceMaintenanceCoordinatorProvider).websiteCatalog.sync(),
+                                icon: const Icon(Icons.refresh), label: const Text('重新同步频道')),
+                              const SizedBox(height: 12),
+                            ],
+                          ),
+                        ),
+                        ValueListenableBuilder<WebsiteCatalogProgress>(
+                          valueListenable: ref.read(sourceMaintenanceCoordinatorProvider).inventory.state,
+                          builder: (context, progress, _) => progress.phase.isEmpty
+                            ? const SizedBox.shrink()
+                            : Text('${progress.phase} · ${progress.imported} 条',
+                              style: const TextStyle(color: Colors.white54)),
+                        ),
                         Text(
                           _routeAvailabilityLoading
                               ? '正在读取线路检查记录…'
@@ -3953,13 +3976,13 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
     final title = _categoryLoading
         ? '正在载入$_selectedGroup'
         : waitingForBundledSources
-        ? '正在整理内置电视源'
+        ? '正在初始化共享频道'
         : '当前分类暂无频道';
     final message = _categoryLoading
         ? '频道和备用线路会在载入完成后自动显示'
         : waitingForBundledSources
-        ? 'BobTV 正在后台导入并整理内置来源，完成后会自动显示'
-        : '可以选择其他内容分类，或手动添加新的电视源';
+        ? 'BobTV 正在载入已分类的启动清单，并与网站同步'
+        : '频道会自动从 BobTV 网站同步，暂时没有可用线路时可稍后重试';
     return Scaffold(
       body: SafeArea(
         child: Column(
@@ -4015,9 +4038,9 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
             const SizedBox(height: 24),
             OutlinedButton.icon(
               autofocus: true,
-              onPressed: () => context.push('/providers'),
-              icon: const Icon(Icons.add),
-              label: const Text('手动添加电视源'),
+              onPressed: () => ref.read(sourceMaintenanceCoordinatorProvider).websiteCatalog.sync(),
+              icon: const Icon(Icons.refresh),
+              label: const Text('重新同步频道'),
             ),
             const Spacer(),
           ],

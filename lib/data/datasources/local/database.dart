@@ -685,6 +685,12 @@ class AppDatabase extends _$AppDatabase {
 
   Future<List<Channel>> getAllChannels() => select(channels).get();
 
+  Future<List<Channel>> getChannelInventoryPage(String afterId,
+      {int limit = 200}) => (select(channels)
+        ..where((table) => table.id.isBiggerThanValue(afterId))
+        ..orderBy([(table) => OrderingTerm.asc(table.id)])
+        ..limit(limit)).get();
+
   Future<List<String>> getChannelNameSample({int limit = 80}) async {
     final query = selectOnly(channels, distinct: true)
       ..addColumns([channels.name])

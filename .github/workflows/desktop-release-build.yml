@@ -32,7 +32,7 @@ jobs:
         with:
           go-version: '1.23'
       - run: flutter pub get
-      - run: flutter test test/website_channel_catalog_service_test.dart test/update_manifest_test.dart
+      - run: flutter test test/website_channel_catalog_service_test.dart test/channel_inventory_sync_service_test.dart test/update_manifest_test.dart
       - name: Fetch pinned AirPlay authentication source
         run: |
           git clone https://github.com/objevovat/fairplay-sap-core-airplay2-sender-authentication-handshake.git "$RUNNER_TEMP/fpsap-source"
@@ -48,11 +48,8 @@ jobs:
         run: |
           app=build/macos/Build/Products/Release/BobTV.app
           version=$(sed -n 's/^version: //p' pubspec.yaml)
-          mkdir -p installer
-          ditto "$app" installer/BobTV.app
-          ln -s /Applications installer/Applications
-          hdiutil create -volname BobTV -srcfolder installer -ov -format UDZO "BobTV-${version}-macos-${ARCH}.dmg"
-          hdiutil verify "BobTV-${version}-macos-${ARCH}.dmg"
+          python3 -m pip install dmgbuild==1.6.7
+          bash tools/macos/package_dmg.sh "$app" "BobTV-${version}-macos-${ARCH}.dmg"
           ditto -c -k --norsrc --keepParent "$app" "BobTV-macos-${ARCH}-update.zip"
       - uses: actions/upload-artifact@v4
         with:
@@ -73,7 +70,7 @@ jobs:
           channel: stable
           cache: true
       - run: flutter pub get
-      - run: flutter test test/website_channel_catalog_service_test.dart test/update_manifest_test.dart
+      - run: flutter test test/website_channel_catalog_service_test.dart test/channel_inventory_sync_service_test.dart test/update_manifest_test.dart
       - run: flutter build windows --release
       - name: Package portable Windows app
         shell: pwsh

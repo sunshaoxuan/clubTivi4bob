@@ -15,6 +15,8 @@ class _CatalogApi extends BobTvApiClient {
 
   Map<String, Object?>? catalog;
   String version = '2026-09-28.1';
+  @override
+  Future<List<String>> fetchCatalogBlockedRoutes() async => const [];
 
   List<int> get bytes => gzip.encode(utf8.encode(jsonEncode(catalog)));
 
@@ -57,7 +59,31 @@ Map<String, Object?> _catalog() => {
 };
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
   setUp(() => SharedPreferences.setMockInitialValues({}));
+
+  test('packaged starter initializes an empty database without network access', () async {
+    final database = db.AppDatabase.forTesting(NativeDatabase.memory());
+    final service = WebsiteChannelCatalogService(database: database, api: _CatalogApi(null));
+    addTearDown(() async { service.dispose(); await database.close(); });
+    expect(await service.importBundled(), greaterThan(0), reason: '${service.lastError}');
+    final rows = await database.getChannelsForProvider(WebsiteChannelCatalogService.providerId);
+    expect(rows.where((row) => row.groupTitle == '中国 / 央视'), isNotEmpty);
+  });
+
+  test('fresh installation receives server verification without a local scan', () async {
+    final database = db.AppDatabase.forTesting(NativeDatabase.memory());
+    final catalog = _catalog();
+    ((catalog['channels'] as List).single['routes'] as List).single['lastPlayableAt'] =
+        DateTime.now().toUtc().toIso8601String();
+    final service = WebsiteChannelCatalogService(database: database, api: _CatalogApi(catalog));
+    addTearDown(() async { service.dispose(); await database.close(); });
+    expect(await service.sync(), 1);
+    final checks = await database.getAllStreamChecks();
+    expect(checks.single.lastSuccessAt, isNotNull);
+    expect(checks.single.consecutiveFailures, 0);
+    expect(checks.single.retired, isFalse);
+  });
 
   test('imports a classified website route and preserves its favorite', () async {
     final database = db.AppDatabase.forTesting(NativeDatabase.memory());

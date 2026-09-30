@@ -1,0 +1,10 @@
+[Unit]
+Description=Refresh shared BobTV channels every five minutes
+
+[Timer]
+OnBootSec=30s
+OnUnitInactiveSec=5min
+Persistent=true
+
+[Install]
+WantedBy=timers.target

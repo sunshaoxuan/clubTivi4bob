@@ -1,0 +1,13 @@
+[Unit]
+Description=Verify and publish BobTV channel inventory
+After=network-online.target
+
+[Service]
+Type=oneshot
+User=bobtv
+Group=bobtv
+Environment=BOBTV_DATA_DIR=/var/lib/bobtv
+WorkingDirectory=/opt/bobtv/site
+ExecStart=/opt/bobtv/venv/bin/python /opt/bobtv/site/process_channel_inventory.py
+TimeoutStartSec=900
+

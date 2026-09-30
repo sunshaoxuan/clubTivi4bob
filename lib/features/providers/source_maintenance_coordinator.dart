@@ -8,6 +8,7 @@ import '../../data/services/github_source_monitor.dart';
 import '../../data/services/github_ai_crawler_service.dart';
 import '../../data/services/source_maintenance_service.dart';
 import '../../data/services/website_channel_catalog_service.dart';
+import '../../data/services/channel_inventory_sync_service.dart';
 import 'default_provider_bootstrap.dart';
 import 'provider_manager.dart';
 
@@ -18,6 +19,7 @@ class SourceMaintenanceCoordinator {
   final GitHubAiCrawlerService githubAiCrawler;
   final BundledSourceSnapshotService bundledSourceSnapshot;
   final WebsiteChannelCatalogService websiteCatalog;
+  late final inventory = ChannelInventorySyncService(database: manager.database);
 
   Timer? _timer;
   Timer? _startupTimer;
@@ -46,7 +48,7 @@ class SourceMaintenanceCoordinator {
     // slower provider discovery and health-maintenance cycle.
     _catalogTimer = Timer.periodic(
       const Duration(minutes: 15),
-      (_) => unawaited(websiteCatalog.sync()),
+      (_) { unawaited(websiteCatalog.sync()); unawaited(inventory.sync()); },
     );
     // Large source refreshes stay away from the first interactive frame.
     _startupTimer = Timer(const Duration(minutes: 1), () => unawaited(_run()));
@@ -61,11 +63,17 @@ class SourceMaintenanceCoordinator {
   }
 
   Future<void> _importInitialSnapshot() async {
+    // A small preclassified starter is visible before the first network round trip.
+    if ((await manager.database.getChannelsForProvider(
+        WebsiteChannelCatalogService.providerId)).isEmpty) {
+      await websiteCatalog.importBundled();
+    }
     await websiteCatalog.sync();
-    if (!(await manager.database.getAllProviders()).any((provider) =>
-        provider.id == WebsiteChannelCatalogService.providerId)) {
+    if ((await manager.database.getChannelsForProvider(
+        WebsiteChannelCatalogService.providerId)).isEmpty) {
       await _importBundledSnapshot();
     }
+    unawaited(inventory.sync());
   }
 
   Future<void> _importBundledSnapshot() async {
@@ -142,6 +150,7 @@ class SourceMaintenanceCoordinator {
       }
       await maintenanceService.run();
       await githubAiCrawler.run();
+      await inventory.sync();
     } catch (error, stackTrace) {
       AppDiagnostics.instance.recordError(
         'source_maintenance_coordinator',
@@ -163,6 +172,7 @@ class SourceMaintenanceCoordinator {
     maintenanceService.dispose();
     githubAiCrawler.dispose();
     websiteCatalog.dispose();
+    inventory.dispose();
   }
 }
 

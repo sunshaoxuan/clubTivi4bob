@@ -160,7 +160,7 @@ Mac 测试 DMG 不会进入自动更新清单。正式更新包必须用 BobTV �
 
 ## 6. 本站安装包接口
 
-如果客户端需要读取本站发行包，可使用 `GET /releases.json` 获取 `releases` 数组，条目包含 `version`、`date`、`filename`、显示用的 `size` 和 64 字符 SHA-256 `sha256`。再请求 `GET /downloads/{filename}`；只有清单中的文件名可下载，支持 `HEAD` 和 HTTP Range。实际文件字节应以 `sha256` 校验，不能用显示用 `size` 校验。当前站点提供三份 Windows x64 ZIP。此接口不会重定向用户到 GitHub；客户端自动更新行为尚未定义，接入前应另行确定交互与版本规则。
+如果客户端需要读取本站发行包，可使用 `GET /releases.json` 获取 `releases` 数组，条目包含 `version`、`date`、`filename`、显示用的 `size` 和 64 字符 SHA-256 `sha256`。再请求 `GET /downloads/{filename}`；只有清单中的文件名可下载，支持 `HEAD` 和 HTTP Range。实际文件字节应以 `sha256` 校验，不能用显示用 `size` 校验。本站提供 Windows x64 ZIP 与 macOS Intel、Apple Silicon DMG，下载不会重定向用户到 GitHub。自动更新分别查询 `/updates/windows-x64/latest.json`、`/updates/macos-x64/latest.json`、`/updates/macos-arm64/latest.json`，校验更新包字节数与 SHA-256；macOS 更新还校验内置公钥对应的发布者签章。
 
 ## 7. 客户端验收要点
 

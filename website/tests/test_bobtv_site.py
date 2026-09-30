@@ -57,7 +57,7 @@ def test_site_download_is_local_and_manifest_gated(tmp_path, monkeypatch):
 def test_product_pages_reflect_published_releases():
     client = TestClient(module.app)
     home = client.get("/").text
-    assert "v0.9.1-bob.11" in home and "WINDOWS · MACOS" in home
+    assert "v0.9.1-bob.12" in home and "WINDOWS · MACOS" in home
     assert "静音预览" in home and "Mac AirPlay" in home and "纯音频电台" in home
     assert '/assets/product.png?v=3' in home
     assert 'class="home-page"' in home and 'class="container home-hero-layout"' in home

@@ -18,7 +18,7 @@ records have passed validation. A failed or partial generation keeps the
 previous snapshot available. Channel and route IDs must remain stable between
 snapshots so favorites, retired routes and local health history survive updates.
 
-## Proposed public API
+## Public API
 
 `GET /api/v1/channel-catalog/manifest` returns a small JSON document. The
 server should support `ETag` and conditional requests. An example follows:
@@ -30,13 +30,13 @@ server should support `ETag` and conditional requests. An example follows:
   "generatedAt": "2026-09-27T12:00:00Z",
   "channelCount": 2000,
   "routeCount": 30000,
-  "snapshotUrl": "/api/v1/channel-catalog/snapshots/2026-09-27T12-00-00Z-1.json.gz",
+  "snapshotUrl": "/api/v1/channel-catalog/snapshots/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.json.gz",
   "compressedBytes": 2500000,
   "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
 }
 ```
 
-`GET /api/v1/channel-catalog/snapshots/{version}.json.gz` returns an
+`GET /api/v1/channel-catalog/snapshots/{sha256}.json.gz` returns an
 immutable gzip-compressed UTF-8 JSON document. `sha256` is calculated over the
 compressed response bytes. The response should be cacheable for a long time.
 The client rejects a mismatched hash, unsupported schema, duplicate IDs,

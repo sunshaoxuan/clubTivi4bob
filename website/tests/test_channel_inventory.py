@@ -57,6 +57,16 @@ def test_distinct_cctv_signals():
     assert _identity("CCTV5 4K") == "CCTV-5 4K"
 
 
+def test_catalog_preserves_logo_and_epg_metadata(tmp_path):
+    item = route()
+    item.update(logoUrl="https://logos.example.org/cctv5plus.png", epgId="cctv5plus")
+    ingest([item], "a" * 64, tmp_path)
+    process(tmp_path, verifier=lambda url: True)
+    channel = snapshot(tmp_path)["channels"][0]
+    assert channel["logoUrl"] == item["logoUrl"]
+    assert channel["epgId"] == item["epgId"]
+
+
 def test_inventory_api_and_global_tombstones(tmp_path, monkeypatch):
     monkeypatch.setattr(catalog_inventory, "DATA", tmp_path)
     app = FastAPI()

@@ -126,6 +126,16 @@ def _public_media(url):
         return False
 
 
+def _public_logo(url):
+    if not url: return None
+    try:
+        from source_registry import validate_public_url
+        validate_public_url(url)
+        return url
+    except (ValueError, TypeError):
+        return None
+
+
 def process(data_dir=DATA, limit=120, verifier=probe):
     data_dir.mkdir(parents=True, exist_ok=True)
     with (data_dir / "catalog-process.lock").open("a") as lock:
@@ -162,7 +172,9 @@ def process(data_dir=DATA, limit=120, verifier=probe):
                 parent = identity
             name = _identity(row["name"])
             identity = "channel-" + hashlib.sha256((row["group_name"] + "\n" + name).encode()).hexdigest()[:24]
-            channel = channels.setdefault(identity, {"id": identity, "name": name, "categoryId": parent, "countryCode": "CN" if path[0] == "中国" else None, "regionCode": None, "sortOrder": len(channels), "epgId": row["epg_id"], "logoUrl": None, "routes": []})
+            channel = channels.setdefault(identity, {"id": identity, "name": name, "categoryId": parent, "countryCode": "CN" if path[0] == "中国" else None, "regionCode": None, "sortOrder": len(channels), "epgId": row["epg_id"], "logoUrl": _public_logo(row["logo_url"]), "routes": []})
+            if not channel["logoUrl"]: channel["logoUrl"] = _public_logo(row["logo_url"])
+            if not channel["epgId"]: channel["epgId"] = row["epg_id"]
             channel["routes"].append({"id": "route-" + row["digest"][:24], "url": row["url"], "source": row["source"], "lastPlayableAt": datetime.fromtimestamp(row["success_at"], timezone.utc).isoformat().replace("+00:00", "Z"), "healthScore": max(.1, .8 - row["failures"] * .2)})
         # Keep prior reviewed routes until their inventory record is verified.
         if current:

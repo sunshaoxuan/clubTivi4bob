@@ -138,7 +138,8 @@ jobs:
         run: |
           APP_PATH="build/macos/Build/Products/Release/BobTV.app"
           DMG_NAME="BobTV-macos-${ARCH}.dmg"
-          hdiutil create -volname "BobTV" -srcfolder "$APP_PATH" -ov -format UDZO "$DMG_NAME"
+          python3 -m pip install dmgbuild==1.6.7
+          bash tools/macos/package_dmg.sh "$APP_PATH" "$DMG_NAME"
           ditto -c -k --keepParent "$APP_PATH" "BobTV-macos-${ARCH}-update.zip"
 
       - name: Upload DMG

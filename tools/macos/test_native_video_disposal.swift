@@ -26,6 +26,7 @@ struct NativeVideoDisposalTests {
   }
 
   static func main() {
+    let hardware = ProcessInfo.processInfo.environment["BOBTV_TEST_HARDWARE"] == "1"
     let registry = RetainingRegistry()
     let manager = VideoOutputManager(registry: registry)
     for _ in 0..<20 {
@@ -36,7 +37,7 @@ struct NativeVideoDisposalTests {
       var ready = false
       manager.create(handle: handle,
         configuration: VideoOutputConfiguration(width: nil, height: nil,
-          enableHardwareAcceleration: false),
+          enableHardwareAcceleration: hardware),
         textureUpdateCallback: { _, _ in ready = true })
       waitUntil { ready }
       var released = false

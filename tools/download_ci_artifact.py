@@ -38,7 +38,7 @@ def main():
     parsed = urlsplit(location)
     if parsed.scheme != 'https' or not parsed.hostname.endswith('.blob.core.windows.net'):
         raise RuntimeError('Unexpected artifact storage host')
-    remote = f'/opt/bobtv/staging/bob12-64/{args.platform}'
+    remote = f'/opt/bobtv/staging/artifact-{args.artifact_id}/{args.platform}'
     command = (
         f'mkdir -p {shlex.quote(remote)} && '
         f'curl --fail --silent --show-error --connect-timeout 15 --max-time 300 '

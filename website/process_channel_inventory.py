@@ -137,6 +137,20 @@ def _public_logo(url):
         return None
 
 
+def _television_media(name, url):
+    # Match the client rejection policy before atomic catalog publication.
+    if not _public_media(url): return False
+    identity = name.strip().lower()
+    if identity in ('直播中国', '熊猫直播') or re.fullmatch(r'咪咕直播\d+', identity):
+        return False
+    if any(term in identity for term in ('游戏风云', '电竞', '购物', '商城')):
+        return False
+    host = (urlsplit(url).hostname or '').lower()
+    if host == '107.173.156.246': return False
+    return not host.endswith(('.huya.com', '.douyu.com', '.douyucdn.cn',
+        '.bilivideo.com', '.acgvideo.com', '.kwimgs.com'))
+
+
 def process(data_dir=DATA, limit=120, verifier=probe):
     data_dir.mkdir(parents=True, exist_ok=True)
     with (data_dir / "catalog-process.lock").open("a") as lock:
@@ -163,7 +177,7 @@ def process(data_dir=DATA, limit=120, verifier=probe):
         categories = {}
         channels = {}
         for row in rows:
-            if not _public_media(row["url"]): continue
+            if not _television_media(row["name"], row["url"]): continue
             path = row["group_name"].split(" / ")[:4]
             if path[0] not in ("中国", "国际", "其他", "广播", "数字"): path = ["其他"]
             parent = None
@@ -181,7 +195,7 @@ def process(data_dir=DATA, limit=120, verifier=probe):
         if current:
             inventory_urls = {row["url"] for row in rows}
             for channel in current["channels"]:
-                routes = [route for route in channel["routes"] if _public_media(route["url"]) and route["url"] not in blocked and route["url"] not in inventory_urls]
+                routes = [route for route in channel["routes"] if _television_media(channel["name"], route["url"]) and route["url"] not in blocked and route["url"] not in inventory_urls]
                 if routes:
                     with database(data_dir) as conn:
                         routes = [route for route in routes if not conn.execute("SELECT 1 FROM routes WHERE url=? AND failures>=3", (route["url"],)).fetchone()]

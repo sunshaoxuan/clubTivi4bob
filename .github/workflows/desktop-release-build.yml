@@ -53,6 +53,8 @@ jobs:
           bash tools/macos/build.sh "$RUNNER_TEMP/fpsap-source"
           codesign --verify --deep --strict build/macos/Build/Products/Release/BobTV.app
           plutil -lint build/macos/Build/Products/Release/BobTV.app/Contents/Info.plist
+      - name: Verify native MPV render-context release
+        run: bash tools/macos/test_native_video_disposal.sh "$PWD/build/macos/Build/Products/Release/BobTV.app"
       - name: Package macOS installer and update archive
         env:
           ARCH: ${{ matrix.arch }}

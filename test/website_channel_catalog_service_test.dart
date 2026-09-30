@@ -85,6 +85,23 @@ void main() {
     expect(checks.single.retired, isFalse);
   });
 
+  test('catalog route ID migration preserves favorite lists by URL', () async {
+    final database = db.AppDatabase.forTesting(NativeDatabase.memory());
+    final api = _CatalogApi(_catalog());
+    final service = WebsiteChannelCatalogService(database: database, api: api);
+    addTearDown(() async { service.dispose(); await database.close(); });
+    await service.sync();
+    final old = (await database.getChannelsForProvider(WebsiteChannelCatalogService.providerId)).single;
+    await database.addChannelToDefaultFavorites(old.id);
+    api.version = '2026-09-28.2';
+    api.catalog = {..._catalog(), 'version': api.version};
+    ((api.catalog!['channels'] as List).single['routes'] as List).single['id'] = 'route-renamed';
+    await service.sync();
+    final favorites = await database.getChannelsInList('default');
+    expect(favorites.single.streamUrl, old.streamUrl);
+    expect(favorites.single.id, endsWith(':route-renamed'));
+  });
+
   test('imports a classified website route and preserves its favorite', () async {
     final database = db.AppDatabase.forTesting(NativeDatabase.memory());
     final api = _CatalogApi(_catalog());

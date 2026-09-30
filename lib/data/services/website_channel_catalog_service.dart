@@ -137,6 +137,10 @@ class WebsiteChannelCatalogService {
           channel.id: channel,
       };
       final blockedUrls = await database.getBlockedStreamUrls();
+      final existingByUrl = <String, List<db.Channel>>{};
+      for (final channel in existing.values) {
+        (existingByUrl[channel.streamUrl] ??= []).add(channel);
+      }
       final knownChecks = await database.getStreamChecksForChannels(
         existing.values.toList(),
       );
@@ -160,7 +164,7 @@ class WebsiteChannelCatalogService {
           for (final record in records.skip(offset).take(400)) {
             if (blockedUrls.contains(record['url'])) continue;
             final id = '$providerId:${record['routeId']}';
-            final old = existing[id];
+            final old = existing[id] ?? existingByUrl[record['url']]?.first;
             keepIds.add(id);
             batch.add(
               db.ChannelsCompanion.insert(
@@ -179,6 +183,13 @@ class WebsiteChannelCatalogService {
             );
           }
           await database.upsertChannels(batch);
+          for (final record in records.skip(offset).take(400)) {
+            if (blockedUrls.contains(record['url'])) continue;
+            final id = '$providerId:${record['routeId']}';
+            for (final old in existingByUrl[record['url']] ?? <db.Channel>[]) {
+              if (old.id != id) await database.copyChannelReferences(old.id, id);
+            }
+          }
           final verified = <db.StreamChecksCompanion>[];
           for (final record in records.skip(offset).take(400)) {
             final url = record['url'] as String;

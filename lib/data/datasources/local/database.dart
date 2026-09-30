@@ -391,6 +391,33 @@ class AppDatabase extends _$AppDatabase {
     return deleteChannelsByIds(staleIds);
   }
 
+  /// A catalog migration can rename route IDs while keeping the same URL.
+  /// Copy user references before the old channel is removed by the importer.
+  Future<void> copyChannelReferences(String oldId, String newId) async {
+    if (oldId == newId) return;
+    final favorites = await (select(favoriteListChannels)
+      ..where((row) => row.channelId.equals(oldId))).get();
+    for (final row in favorites) {
+      await into(favoriteListChannels).insert(
+        row.toCompanion(false).copyWith(channelId: Value(newId)),
+        mode: InsertMode.insertOrIgnore);
+    }
+    final groups = await (select(failoverGroupChannels)
+      ..where((row) => row.channelId.equals(oldId))).get();
+    for (final row in groups) {
+      await into(failoverGroupChannels).insert(
+        row.toCompanion(false).copyWith(channelId: Value(newId)),
+        mode: InsertMode.insertOrIgnore);
+    }
+    final mappings = await (select(epgMappings)
+      ..where((row) => row.channelId.equals(oldId))).get();
+    for (final row in mappings) {
+      await into(epgMappings).insert(
+        row.toCompanion(false).copyWith(channelId: Value(newId)),
+        mode: InsertMode.insertOrIgnore);
+    }
+  }
+
   Future<List<StreamCheck>> getAllStreamChecks() => select(streamChecks).get();
 
   /// Fetch availability for the active category without loading the entire

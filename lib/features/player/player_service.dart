@@ -102,6 +102,7 @@ class PlayerService {
   StreamSubscription<Tracks>? _tracksSub;
   StreamSubscription<String>? _playbackErrorLogSub;
   StreamSubscription<bool>? _playingLogSub;
+  StreamSubscription<PlayerLog>? _macAudioLogSub;
   DateTime? _bufferLogStart;
 
   // Buffer health tracking (persists across info dialog opens)
@@ -157,6 +158,8 @@ class PlayerService {
   final Set<String> _manuallyRejectedUrls = {};
   bool _requiresUltraHd = false;
   bool _allowsAudioOnly = false;
+  bool _compatibilityDecoding = false;
+  bool get compatibilityDecoding => _compatibilityDecoding;
   Timer? _qualityCheckTimer;
   Timer? _videoCheckTimer;
   Timer? _staticFrameTimer;
@@ -197,7 +200,7 @@ class PlayerService {
     final current = _currentUrl;
     if (current == null || url.isEmpty) return false;
     if (current == url) return true;
-    return switchChannel(
+    final switched = await switchChannel(
       url,
       channelId: _currentChannelId,
       epgChannelId: _currentEpgChannelId,
@@ -212,6 +215,19 @@ class PlayerService {
       preferRequestedRoute: true,
       onlyRequestedRoute: onlyRequestedRoute,
     );
+    if (switched && _currentUrl != null && _currentUrl != current) {
+      // A manual skip is a quality verdict. Keep automatic failover from
+      // immediately returning to the skipped route.
+      _healthTracker?.recordStall(current);
+      _failedFailoverUrls.add(current);
+      _manuallyRejectedUrls.add(current);
+      AppDiagnostics.instance.log('manual_route_skipped', {
+        'channel': _currentChannelName,
+        'skippedStream': AppDiagnostics.summarizeStreamUrl(current),
+        'activeStream': AppDiagnostics.summarizeStreamUrl(_currentUrl!),
+      });
+    }
+    return switched;
   }
 
   /// Starts a replacement after the rejected route has been stopped.
@@ -323,6 +339,7 @@ class PlayerService {
   void _bindPlayerLogs(Player active) {
     unawaited(_playbackErrorLogSub?.cancel());
     unawaited(_playingLogSub?.cancel());
+    unawaited(_macAudioLogSub?.cancel());
     _playbackErrorLogSub = active.stream.error.listen((message) {
         AppDiagnostics.instance.log('player_error', {
           'message': message,
@@ -338,17 +355,40 @@ class PlayerService {
           'channel': _currentChannelName,
         });
       });
+    if (Platform.isMacOS) {
+      _macAudioLogSub = active.stream.log.listen((entry) {
+        final message = entry.text.toLowerCase();
+        if (!message.contains('underrun') &&
+            !message.contains('underflow') &&
+            !message.contains('audio device') &&
+            !message.contains('aac') &&
+            !message.contains('audio decoder')) return;
+        AppDiagnostics.instance.log('mac_audio_warning', {
+          'prefix': entry.prefix,
+          'level': entry.level,
+          'message': entry.text.trim(),
+          'channel': _currentChannelName,
+        });
+      });
+    }
   }
 
   Future<void> _initPlayer(Player p) async {
     final np = p.platform;
     if (np is native_player.NativePlayer) {
-      // Downmix surround to stereo for output compatibility
-      await np.setProperty('audio-channels', 'stereo');
-      // Normalize volume when downmixing surround to stereo
-      await np.setProperty('audio-normalize-downmix', 'yes');
-      // EBU R128 loudness normalization — keeps volume consistent across streams
-      await np.setProperty('af', 'loudnorm=I=-14:TP=-1:LRA=13');
+      if (Platform.isMacOS) {
+        // Keep the device's channel layout, test integer CoreAudio output,
+        // and retain the buffer that reduced audible interruptions.
+        await np.setProperty('audio-buffer', '0.8');
+        await np.setProperty('audio-samplerate', '48000');
+        await np.setProperty('audio-format', 's16');
+        await np.setProperty('audio-normalize-downmix', 'no');
+        await np.setProperty('af', '');
+      } else {
+        await np.setProperty('audio-channels', 'stereo');
+        await np.setProperty('audio-normalize-downmix', 'yes');
+        await np.setProperty('af', 'loudnorm=I=-14:TP=-1:LRA=13');
+      }
       // Disable SPDIF passthrough which can cause silent output
       await np.setProperty('audio-spdif', '');
       // Volume
@@ -364,7 +404,11 @@ class PlayerService {
     await p.setVolume(100);
     _playerReady = true;
     _playerReadyCompleter.complete();
-    AppDiagnostics.instance.log('player_ready');
+    AppDiagnostics.instance.log('player_ready', {
+      'audioProfile': Platform.isMacOS
+          ? 'macos_48khz_s16_buffer_0_8'
+          : 'normalized',
+    });
   }
 
   /// Wait for player properties to be applied before playback.
@@ -377,11 +421,62 @@ class PlayerService {
   }
 
   VideoController get videoController {
-    _videoController ??= VideoController(player);
+    _videoController ??= _createVideoController(player);
     if (activeVideoController.value == null) {
       activeVideoController.value = _videoController;
     }
     return _videoController!;
+  }
+
+  VideoController _createVideoController(Player target) => VideoController(
+        target,
+        configuration: VideoControllerConfiguration(
+          hwdec: Platform.isMacOS && _compatibilityDecoding ? 'no' : null,
+        ),
+      );
+
+  /// Switches the current Mac decoder for a controlled comparison on the
+  /// same stream. New preview and main players inherit this session setting.
+  Future<bool> setCompatibilityDecoding(bool enabled) async {
+    if (!Platform.isMacOS) return false;
+    final active = _player;
+    final native = active?.platform;
+    if (native is! native_player.NativePlayer) return false;
+    try {
+      await native.setProperty('hwdec', enabled ? 'no' : 'auto');
+    } catch (error) {
+      AppDiagnostics.instance.log('video_decoder_mode_failed', {
+        'error': error.toString(),
+      });
+      return false;
+    }
+    _compatibilityDecoding = enabled;
+    for (final other in <Player?>[
+      _preparedChannel?.player,
+      _alternativePreviewPlayer,
+    ]) {
+      final otherNative = other?.platform;
+      if (otherNative is native_player.NativePlayer) {
+        try {
+          await otherNative.setProperty('hwdec', enabled ? 'no' : 'auto');
+        } catch (_) {}
+      }
+    }
+    final url = _currentUrl;
+    AppDiagnostics.instance.log('video_decoder_mode_changed', {
+      'mode': enabled ? 'software' : 'auto',
+      'channel': _currentChannelName,
+      'stream': url == null ? null : AppDiagnostics.summarizeStreamUrl(url),
+    });
+    if (url != null && active != null) {
+      Timer(const Duration(seconds: 5), () {
+        if (identical(_player, active) && _currentUrl == url) {
+          unawaited(_logVideoMetrics(active, url,
+              _currentChannelName, 'main_after_decoder_change'));
+        }
+      });
+    }
+    return true;
   }
 
   /// Inject services for auto-failover (call once at startup).
@@ -404,10 +499,78 @@ class PlayerService {
     if (_rewardedPlaybackUrls.add(url)) {
       if (!alreadyCredited) _healthTracker?.recordPlaybackSuccess(url);
       onReviewedPlaybackVerdict?.call(_currentChannelId, url, true);
+      if (Platform.isMacOS) {
+        unawaited(_logMacAudioOutput(url, generation));
+      }
+      final currentPlayer = player;
+      unawaited(_logVideoMetrics(currentPlayer, url,
+          _currentChannelName, 'main'));
+      Timer(const Duration(seconds: 10), () {
+        if (generation == _playGeneration &&
+            _currentUrl == url && identical(_player, currentPlayer)) {
+          unawaited(_logVideoMetrics(currentPlayer, url,
+              _currentChannelName, 'main_after_10s'));
+        }
+      });
       if (routeSearchProgress.value?.active == true) {
         routeSearchProgress.value = null;
       }
     }
+  }
+
+  Future<void> _logMacAudioOutput(String url, int generation) async {
+    final results = await Future.wait([
+      getMpvProperty('current-ao'),
+      getMpvProperty('audio-codec-name'),
+      getMpvProperty('audio-params'),
+      getMpvProperty('audio-out-params'),
+    ]);
+    if (generation != _playGeneration || _currentUrl != url) return;
+    AppDiagnostics.instance.log('mac_audio_output', {
+      'channel': _currentChannelName,
+      'stream': AppDiagnostics.summarizeStreamUrl(url),
+      'output': results[0],
+      'codec': results[1],
+      'inputParams': results[2],
+      'outputParams': results[3],
+    });
+  }
+
+  /// Capture decoder and presentation data for a specific player. This also
+  /// covers card previews, which do not use the active player accessor.
+  Future<void> _logVideoMetrics(
+      Player target, String url, String? channel, String role) async {
+    final native = target.platform;
+    if (native is! native_player.NativePlayer) return;
+    const properties = <String>[
+      'video-codec-name',
+      'hwdec-current',
+      'video-params/pixelformat',
+      'video-frame-info/interlaced',
+      'video-frame-info/tff',
+      'container-fps',
+      'estimated-vf-fps',
+      'decoder-frame-drop-count',
+      'frame-drop-count',
+      'vo-delayed-frame-count',
+    ];
+    final values = <String, String?>{};
+    for (final property in properties) {
+      try {
+        values[property] = await native.getProperty(property);
+      } catch (_) {
+        values[property] = null;
+      }
+    }
+    AppDiagnostics.instance.log('video_decoder_metrics', {
+      'role': role,
+      'channel': channel,
+      'stream': AppDiagnostics.summarizeStreamUrl(url),
+      'width': target.state.width,
+      'height': target.state.height,
+      'buffering': target.state.buffering,
+      'properties': values,
+    });
   }
 
   /// Replaces screen-supplied alternatives after a source visibility filter
@@ -521,10 +684,16 @@ class PlayerService {
           final native = candidate.platform;
           if (native is native_player.NativePlayer) {
             await native.setProperty('mute', 'yes');
-            await native.setProperty('audio-channels', 'stereo');
+            if (Platform.isMacOS) {
+              await native.setProperty('audio-buffer', '0.8');
+              await native.setProperty('audio-samplerate', '48000');
+              await native.setProperty('audio-format', 's16');
+            } else {
+              await native.setProperty('audio-channels', 'stereo');
+            }
           }
           await candidate.setVolume(0);
-          final controller = VideoController(candidate);
+          final controller = _createVideoController(candidate);
           await candidate.open(Media(candidateUrl))
               .timeout(const Duration(seconds: 6));
           final ready = await _waitForPreparedChannel(
@@ -561,6 +730,14 @@ class PlayerService {
               AppDiagnostics.instance.log('channel_preview_ready', {
                 'channel': channelName,
                 'stream': AppDiagnostics.summarizeStreamUrl(candidateUrl),
+              });
+              unawaited(_logVideoMetrics(candidate, candidateUrl,
+                  channelName, 'card_preview'));
+              Timer(const Duration(seconds: 10), () {
+                if (identical(_preparedChannel?.player, candidate)) {
+                  unawaited(_logVideoMetrics(candidate, candidateUrl,
+                      channelName, 'card_preview_after_10s'));
+                }
               });
               return true;
             }
@@ -799,9 +976,14 @@ class PlayerService {
       final native = candidate.platform;
       if (native is native_player.NativePlayer) {
         await native.setProperty('mute', 'yes');
+        if (Platform.isMacOS) {
+          await native.setProperty('audio-buffer', '0.8');
+          await native.setProperty('audio-samplerate', '48000');
+          await native.setProperty('audio-format', 's16');
+        }
       }
       await candidate.setVolume(0);
-      VideoController(candidate);
+      _createVideoController(candidate);
       await candidate.open(Media(url)).timeout(const Duration(seconds: 6));
       return await _waitForPreparedChannel(
         candidate,
@@ -1967,9 +2149,14 @@ class PlayerService {
         final native = candidate.platform;
         if (native is native_player.NativePlayer) {
           await native.setProperty('mute', 'yes');
+          if (Platform.isMacOS) {
+            await native.setProperty('audio-buffer', '0.8');
+            await native.setProperty('audio-samplerate', '48000');
+            await native.setProperty('audio-format', 's16');
+          }
         }
         await candidate.setVolume(0);
-        final controller = VideoController(candidate);
+        final controller = _createVideoController(candidate);
         await candidate.open(Media(url)).timeout(const Duration(seconds: 6));
         final ready = await _waitForPreparedChannel(
           candidate, null,
@@ -2337,11 +2524,21 @@ class PlayerService {
       if (np is native_player.NativePlayer) {
         await np.setProperty('vid', 'no'); // disable video decoding
         if (_warmGeneration != generation) return;
-        await np.setProperty('audio-channels', 'stereo');
-        if (_warmGeneration != generation) return;
-        await np.setProperty('audio-normalize-downmix', 'yes');
-        if (_warmGeneration != generation) return;
-        await np.setProperty('af', 'loudnorm=I=-14:TP=-1:LRA=13');
+        if (Platform.isMacOS) {
+          await np.setProperty('audio-buffer', '0.8');
+          await np.setProperty('audio-samplerate', '48000');
+          await np.setProperty('audio-format', 's16');
+          if (_warmGeneration != generation) return;
+          await np.setProperty('audio-normalize-downmix', 'no');
+          if (_warmGeneration != generation) return;
+          await np.setProperty('af', '');
+        } else {
+          await np.setProperty('audio-channels', 'stereo');
+          if (_warmGeneration != generation) return;
+          await np.setProperty('audio-normalize-downmix', 'yes');
+          if (_warmGeneration != generation) return;
+          await np.setProperty('af', 'loudnorm=I=-14:TP=-1:LRA=13');
+        }
         if (_warmGeneration != generation) return;
         await np.setProperty('volume', '0'); // silent
       }
@@ -2646,6 +2843,7 @@ class PlayerService {
   }
 
   Future<void> dispose() async {
+    ++_playGeneration;
     ++_channelSwitchGeneration;
     await discardPreparedChannel();
     await discardAlternativePreview();
@@ -2666,6 +2864,7 @@ class PlayerService {
     await _tracksSub?.cancel();
     await _playbackErrorLogSub?.cancel();
     await _playingLogSub?.cancel();
+    await _macAudioLogSub?.cancel();
     await _bufferTrackSub?.cancel();
     _bufferTrackTimer?.cancel();
     _failoverCheckTimer?.cancel();

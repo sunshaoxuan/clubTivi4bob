@@ -10,6 +10,16 @@ The product page reflects the published BobTV release notes: `v0.9.1-bob.9` cove
 
 ## Endpoints
 
+The shared installation inventory is implemented separately from the legacy
+opt-in reviewed-source directory. Every installation contributes public TV
+metadata in batches through `POST /api/v1/channel-catalog/inventory`.
+`GET /api/v1/channel-catalog/blocked` distributes durable global retirement
+records. Deploy `bobtv-catalog.service` and `bobtv-catalog.timer` to verify
+pending media and atomically publish fresh preclassified snapshots every five
+minutes. Client success reports prioritize verification but do not directly
+publish routes. The legacy `/source-candidates` workflow below remains private
+and manual; it does not govern the new shared channel inventory.
+
 - `GET /api/v1/channel-catalog/manifest`: version, counts, snapshot path, byte length, and SHA-256 for a preclassified channel catalog. An unpublished catalog returns a zero-count manifest so clients keep local sources. Conditional `If-None-Match` requests are supported.
 - `GET /api/v1/channel-catalog/snapshots/{sha256}.json.gz`: immutable compressed catalog. Previous snapshots remain readable while a client completes a download across a manifest change. The publisher validates stable category, channel, and route IDs, category parents, and reviewed public URLs before atomically replacing the manifest. Clients verify the byte count and SHA-256 before importing while preserving local favorites, retired routes, and subscriptions.
 - `GET /`: product view. `GET /downloads`: release downloads. `GET /diagnostics`: manual diagnostic upload. There is no public source-report page or contribution summary.

@@ -5,9 +5,16 @@ on:
     branches:
       - agent/bobtv-desktop-release-*
   workflow_dispatch:
+    inputs:
+      platform:
+        description: Desktop platforms to build
+        default: all
+        type: choice
+        options: [all, windows, macos]
 
 jobs:
   macos:
+    if: inputs.platform != 'windows'
     name: macOS ${{ matrix.arch }}
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 90
@@ -60,6 +67,7 @@ jobs:
           if-no-files-found: error
 
   windows:
+    if: inputs.platform != 'macos'
     name: Windows x64
     runs-on: windows-latest
     timeout-minutes: 90
@@ -69,6 +77,22 @@ jobs:
         with:
           channel: stable
           cache: true
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.23'
+      - name: Build Windows AirPlay helper and native authentication adapter
+        shell: pwsh
+        run: |
+          $source = Join-Path $env:RUNNER_TEMP 'fpsap-source'
+          git clone https://github.com/objevovat/fairplay-sap-core-airplay2-sender-authentication-handshake.git $source
+          git -C $source checkout --detach 370f9db2e26b21b4a710bdba5d51012c1239e736
+          Push-Location $source
+          try { go mod download } finally { Pop-Location }
+          & tools/airplay/build-fpsap.ps1 -SourceDirectory $source -OutputDirectory build/fpsap-dist
+          & tools/airplay/build.ps1
       - run: flutter pub get
       - run: flutter test test/website_channel_catalog_service_test.dart test/channel_inventory_sync_service_test.dart test/update_manifest_test.dart
       - run: flutter build windows --release
@@ -81,6 +105,8 @@ jobs:
           New-Item -ItemType Directory -Path $bundle -Force | Out-Null
           Copy-Item -Path 'build\windows\x64\runner\Release\*' -Destination $bundle -Recurse -Force
           Rename-Item -LiteralPath (Join-Path $bundle 'clubtivi.exe') -NewName 'BobTV.exe'
+          if (-not (Test-Path (Join-Path $bundle 'AirPlay/bobtv-airplay.exe')) -or
+              -not (Test-Path (Join-Path $bundle 'AirPlay/fpsap-auth.exe'))) { throw 'AirPlay components missing' }
           if ((Get-Item (Join-Path $bundle 'BobTV.exe')).VersionInfo.FileVersion -ne $version) { throw 'Version mismatch' }
           Compress-Archive -Path $bundle -DestinationPath "BobTV-$version-windows-x64.zip" -CompressionLevel Optimal
       - uses: actions/upload-artifact@v4

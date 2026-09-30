@@ -3,6 +3,7 @@ import concurrent.futures
 import fcntl
 import gzip
 import hashlib
+import http.client
 import ipaddress
 import json
 import re
@@ -25,6 +26,44 @@ def _public_target(url):
         raise ValueError("Non-public resolved address")
 
 
+def _public_socket(host, port, timeout, source_address):
+    addresses = socket.getaddrinfo(host, port, type=socket.SOCK_STREAM)
+    if not addresses or any(not ipaddress.ip_address(item[4][0]).is_global for item in addresses):
+        raise ValueError("Non-public connection address")
+    error = None
+    for item in addresses:
+        try:
+            # Connect to the checked numeric address, avoiding a second DNS
+            # resolution between validation and the actual socket connection.
+            return socket.create_connection((item[4][0], port), timeout, source_address)
+        except OSError as exc:
+            error = exc
+    raise error or OSError("No usable public address")
+
+
+class _HTTPConnection(http.client.HTTPConnection):
+    def connect(self):
+        if self._tunnel_host: raise ValueError("Proxy tunnels are not supported")
+        self.sock = _public_socket(self.host, self.port, self.timeout, self.source_address)
+
+
+class _HTTPSConnection(http.client.HTTPSConnection):
+    def connect(self):
+        if self._tunnel_host: raise ValueError("Proxy tunnels are not supported")
+        sock = _public_socket(self.host, self.port, self.timeout, self.source_address)
+        self.sock = self._context.wrap_socket(sock, server_hostname=self.host)
+
+
+class _HTTPHandler(urllib.request.HTTPHandler):
+    def http_open(self, req):
+        return self.do_open(_HTTPConnection, req)
+
+
+class _HTTPSHandler(urllib.request.HTTPSHandler):
+    def https_open(self, req):
+        return self.do_open(_HTTPSConnection, req, context=self._context)
+
+
 class _Redirect(urllib.request.HTTPRedirectHandler):
     def redirect_request(self, req, fp, code, msg, headers, newurl):
         _public_target(newurl)
@@ -33,7 +72,7 @@ class _Redirect(urllib.request.HTTPRedirectHandler):
 
 def probe(url):
     try:
-        opener = urllib.request.build_opener(_Redirect())
+        opener = urllib.request.build_opener(urllib.request.ProxyHandler({}), _Redirect(), _HTTPHandler(), _HTTPSHandler())
         for depth in range(4):
             _public_target(url)
             request = urllib.request.Request(url, headers={"User-Agent": "BobTV-Catalog/1.0", "Range": "bytes=0-65535"})

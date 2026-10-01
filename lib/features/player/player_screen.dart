@@ -82,6 +82,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   Timer? _overlayTimer;
 
   // EPG state
+  int _epgLoadGeneration = 0;
   String? _nowPlayingTitle;
   String? _nowPlayingTime;
   String? _nowDescription;
@@ -167,8 +168,19 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   }
 
   Future<void> _loadEpgInfo() async {
+    final generation = ++_epgLoadGeneration;
     if (widget.channels.isEmpty) return;
     final ch = widget.channels[_channelIndex];
+    // Clear the old channel's guide before querying the new channel.
+    if (mounted) {
+      setState(() {
+        _nowPlayingTitle = null;
+        _nowPlayingTime = null;
+        _nowDescription = null;
+        _nextTitle = null;
+        _nextTime = null;
+      });
+    }
     final epgId = ch['epgId'] as String?;
     if (epgId == null || epgId.isEmpty) {
       if (mounted) {
@@ -191,7 +203,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       end: now.add(const Duration(hours: 6)),
     );
 
-    if (!mounted) return;
+    if (!mounted || generation != _epgLoadGeneration) return;
 
     db.EpgProgramme? current;
     db.EpgProgramme? next;
@@ -204,6 +216,12 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       }
     }
 
+    AppDiagnostics.instance.log('fullscreen_epg_loaded', {
+      'channelId': ch['id'],
+      'channel': ch['name'],
+      'epgId': epgId,
+      'programme': current?.title,
+    });
     setState(() {
       _nowPlayingTitle = current?.title;
       _nowPlayingTime = current != null

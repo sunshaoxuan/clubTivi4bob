@@ -2392,7 +2392,13 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
   }
 
   Future<void> _goFullscreen(db.Channel channel) async {
-    final channelMaps = _filteredChannels
+    final fullscreenChannels = ChannelListIdentity.includingCurrent(
+      _filteredChannels, channel, (c) => c.id,
+    );
+    final currentIndex = ChannelListIdentity.indexOf(
+      fullscreenChannels, channel.id, (c) => c.id,
+    );
+    final channelMaps = fullscreenChannels
         .map(
           (c) => <String, dynamic>{
             'id': c.id,
@@ -2412,6 +2418,12 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
           },
         )
         .toList();
+    AppDiagnostics.instance.log('fullscreen_channel_context', {
+      'channelId': channel.id,
+      'channel': channel.name,
+      'epgId': channelMaps[currentIndex]['epgId'],
+      'currentIndex': currentIndex,
+    });
     await context.push(
       '/player',
       extra: {
@@ -2420,7 +2432,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
         'channelLogo': channel.tvgLogo,
         'alternativeUrls': _automaticAlternativeUrls(channel),
         'channels': channelMaps,
-        'currentIndex': _selectedIndex >= 0 ? _selectedIndex : 0,
+        'currentIndex': currentIndex,
       },
     );
     if (mounted) {

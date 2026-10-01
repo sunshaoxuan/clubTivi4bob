@@ -44,6 +44,7 @@ import '../providers/source_maintenance_coordinator.dart';
 import '../shows/shows_providers.dart';
 import 'channel_debug_dialog.dart';
 import 'channel_list_identity.dart';
+import 'channel_startup_progress.dart';
 
 class ChannelsScreen extends ConsumerStatefulWidget {
   const ChannelsScreen({super.key});
@@ -2856,46 +2857,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
   @override
   Widget build(BuildContext context) {
     if (!_initialLoadDone) {
-      return Scaffold(
-        backgroundColor: const Color(0xFF0A0A1A),
-        body: Center(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Image.asset(
-                'assets/icon/bobtv-icon.png',
-                width: 80,
-                height: 80,
-                errorBuilder: (_, __, ___) =>
-                    const Icon(Icons.tv, size: 64, color: Color(0xFF6C5CE7)),
-              ),
-              const SizedBox(height: 12),
-              const Text(
-                'BobTV',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 22,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              const SizedBox(height: 20),
-              const SizedBox(
-                width: 32,
-                height: 32,
-                child: CircularProgressIndicator(
-                  strokeWidth: 2,
-                  color: Color(0xFF6C5CE7),
-                ),
-              ),
-              const SizedBox(height: 16),
-              Text(
-                _loadStatus,
-                style: const TextStyle(color: Colors.white54, fontSize: 13),
-              ),
-            ],
-          ),
-        ),
-      );
+      return ChannelStartupProgress(status: _loadStatus);
     }
     if (_allChannels.isEmpty &&
         _providers.isEmpty &&

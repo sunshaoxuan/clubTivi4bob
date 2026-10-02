@@ -17,6 +17,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/countdown_snackbar.dart';
 import '../../core/app_diagnostics.dart';
+import '../../core/app_version.dart';
 import '../../core/fuzzy_match.dart';
 import '../../core/platform_info.dart';
 import '../../core/weather_clock_widget.dart';
@@ -5059,7 +5060,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
             Padding(
               padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 8),
               child: Text(
-                _sidebarExpanded ? 'BobTV v0.9.1+25' : 'v0.9.1+25',
+                _sidebarExpanded ? 'BobTV v$bobTvVersion' : 'v$bobTvVersion',
                 style: const TextStyle(
                   fontSize: 10,
                   color: Colors.white24,

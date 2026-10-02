@@ -12,6 +12,15 @@ void main() {
     expect(pubspec, contains('version: $bobTvVersion'));
   });
 
+  test('channel sidebar reads the shared application version', () {
+    final channels = File(
+      'lib/features/channels/channels_screen.dart',
+    ).readAsStringSync();
+    expect(channels, contains(r"'BobTV v$bobTvVersion'"));
+    expect(channels, contains(r"'v$bobTvVersion'"));
+    expect(RegExp(r'v\d+\.\d+\.\d+\+\d+').hasMatch(channels), isFalse);
+  });
+
   test('newer build is newer even within the same release', () {
     expect(UpdateManifest.compareVersions('0.9.1+54', '0.9.1+53'), greaterThan(0));
     expect(UpdateManifest.compareVersions('0.9.2+1', '0.9.1+53'), greaterThan(0));

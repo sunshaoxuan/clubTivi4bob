@@ -1,0 +1,25 @@
+Microsoft Visual C++ Runtime
+
+This Windows package includes unmodified Microsoft Visual C++ v14 release
+runtime DLLs from the installed Visual Studio VC/Redist/MSVC x64 CRT directory.
+They are copied beside BobTV.exe and the AirPlay executables. The same DLL set
+is also copied into the packaged Python _internal directory when present.
+vc-runtime-manifest.json records the selected source, versions and SHA-256
+checksums. Debug and Windows system-directory binaries are not redistributed.
+
+These Microsoft components retain their original copyright and are not covered
+by BobTV's open-source license. Redistribution remains subject to the applicable
+Visual Studio Microsoft Software License Terms and Distributable Code list.
+The publisher must have the required Visual Studio license/redistribution rights.
+
+Official redistribution and application-local deployment documentation:
+https://learn.microsoft.com/en-us/cpp/windows/redistributing-visual-cpp-files
+
+Visual Studio license terms and Distributable Code lists:
+https://visualstudio.microsoft.com/license-terms/
+
+Application-local runtime files do not receive independent central servicing.
+BobTV publishers must rebuild and redistribute them when Microsoft issues
+applicable runtime fixes. Windows OS components, including the Universal CRT,
+remain operating-system dependencies. Package checks do not replace testing
+installation and playback on supported clean Windows systems.

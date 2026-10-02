@@ -118,6 +118,9 @@ jobs:
           test/channel_programme_preview_test.dart test/channel_programme_strip_test.dart
           test/inline_expanded_channel_grid_test.dart test/upcoming_programmes_test.dart
       - run: flutter build windows --release
+      - name: Test Windows CRT bundling safeguards
+        shell: pwsh
+        run: '& tools/windows/test_bundle_vc_runtime.ps1'
       - name: Package portable Windows app
         shell: pwsh
         run: |
@@ -130,6 +133,7 @@ jobs:
           if (-not (Test-Path (Join-Path $bundle 'AirPlay/bobtv-airplay.exe')) -or
               -not (Test-Path (Join-Path $bundle 'AirPlay/fpsap-auth.exe'))) { throw 'AirPlay components missing' }
           if ((Get-Item (Join-Path $bundle 'BobTV.exe')).VersionInfo.FileVersion -ne $version) { throw 'Version mismatch' }
+          & tools/windows/bundle_vc_runtime.ps1 -BundleDirectory $bundle
           Compress-Archive -Path $bundle -DestinationPath "BobTV-$version-windows-x64.zip" -CompressionLevel Optimal
       - uses: actions/upload-artifact@v4
         with:

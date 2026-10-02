@@ -22,8 +22,17 @@ mkdir -p "$root"
 [[ ! -e "$root/startup.healthy" ]]
 # A fresh runner uses a rollback candidate to exercise the real health monitor.
 printf '%s\n%s\n0\n%s\n' "$version" "$root/Backups/smoke-previous" "$app" > "$root/candidate.txt"
-"$app/Contents/MacOS/BobTV" > "$root/startup-smoke-console.log" 2>&1 &
-app_pid=$!
+echo "Launching $version on $machine_arch through macOS Launch Services."
+open -n --stdout "$root/startup-smoke-console.log" \
+  --stderr "$root/startup-smoke-errors.log" "$app"
+app_pid=''
+for (( attempt=0; attempt<10; attempt++ )); do
+  app_pid="$(pgrep -f "$app/Contents/MacOS/BobTV" | head -1 || true)"
+  [[ "$app_pid" =~ ^[1-9][0-9]*$ ]] && break
+  sleep 1
+done
+[[ "$app_pid" =~ ^[1-9][0-9]*$ ]]
+echo "Waiting for startup health from PID $app_pid."
 trap 'kill -TERM "$app_pid" 2>/dev/null || true' EXIT
 healthy=false
 for (( attempt=0; attempt<90; attempt++ )); do
@@ -35,6 +44,7 @@ for (( attempt=0; attempt<90; attempt++ )); do
   sleep 1
 done
 [[ "$healthy" == true ]]
+echo 'Startup-health acknowledgement received.'
 # Keep the native renderer alive beyond its first frame and initialization.
 for (( attempt=0; attempt<20; attempt++ )); do kill -0 "$app_pid"; sleep 1; done
 printf '{"version":"%s","architecture":"%s","startupHealthy":true,"pid":%s}\n' \
@@ -49,7 +59,6 @@ if kill -0 "$app_pid" 2>/dev/null; then
   echo 'The native startup check passed; force-stopping only the smoke-test app.'
   kill -KILL "$app_pid"
 fi
-wait "$app_pid" || true
 for (( attempt=0; attempt<15; attempt++ )); do
   [[ ! -e "$root/candidate.txt" ]] && break
   sleep 1

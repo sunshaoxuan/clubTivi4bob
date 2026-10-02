@@ -51,5 +51,6 @@ jobs:
           path: |
             ~/Library/Application Support/com.briconbric.bobtv/logs/*.log
             ~/Library/Application Support/com.briconbric.bobtv/Update/startup-smoke.json
+            ~/Library/Application Support/com.briconbric.bobtv/Update/startup-smoke*.log
             ~/Library/Logs/DiagnosticReports/BobTV*.ips
           if-no-files-found: ignore

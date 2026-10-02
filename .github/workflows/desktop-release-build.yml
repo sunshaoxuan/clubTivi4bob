@@ -43,7 +43,13 @@ jobs:
         run: |
           swiftc third_party/media_kit_video/macos/Classes/plugin/common/Worker.swift tools/macos/test_video_worker.swift -o "$RUNNER_TEMP/video-worker-test"
           "$RUNNER_TEMP/video-worker-test"
-      - run: flutter test test/website_channel_catalog_service_test.dart test/channel_inventory_sync_service_test.dart test/update_manifest_test.dart
+      - run: >-
+          flutter test test/website_channel_catalog_service_test.dart
+          test/channel_inventory_sync_service_test.dart test/update_manifest_test.dart
+          test/desktop_fullscreen_session_test.dart
+          test/window_manager_fullscreen_backend_test.dart
+          test/fullscreen_return_navigation_test.dart
+          test/channel_startup_progress_test.dart test/channel_list_identity_test.dart
       - name: Fetch pinned AirPlay authentication source
         run: |
           git clone https://github.com/objevovat/fairplay-sap-core-airplay2-sender-authentication-handshake.git "$RUNNER_TEMP/fpsap-source"
@@ -100,7 +106,13 @@ jobs:
           & tools/airplay/build-fpsap.ps1 -SourceDirectory $source -OutputDirectory build/fpsap-dist
           & tools/airplay/build.ps1
       - run: flutter pub get
-      - run: flutter test test/website_channel_catalog_service_test.dart test/channel_inventory_sync_service_test.dart test/update_manifest_test.dart
+      - run: >-
+          flutter test test/website_channel_catalog_service_test.dart
+          test/channel_inventory_sync_service_test.dart test/update_manifest_test.dart
+          test/desktop_fullscreen_session_test.dart
+          test/window_manager_fullscreen_backend_test.dart
+          test/fullscreen_return_navigation_test.dart
+          test/channel_startup_progress_test.dart test/channel_list_identity_test.dart
       - run: flutter build windows --release
       - name: Package portable Windows app
         shell: pwsh

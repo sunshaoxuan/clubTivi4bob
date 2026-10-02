@@ -55,6 +55,7 @@ class ChannelsScreen extends ConsumerStatefulWidget {
 
 class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
   bool _initialLoadDone = false;
+  bool _fullscreenRouteOpen = false;
   bool _startupHealthScheduled = false;
   String _loadStatus = '';
   bool _epgLoading = false;
@@ -2393,6 +2394,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
   }
 
   Future<void> _goFullscreen(db.Channel channel) async {
+    if (_fullscreenRouteOpen || !mounted) return;
     final fullscreenChannels = ChannelListIdentity.includingCurrent(
       _filteredChannels, channel, (c) => c.id,
     );
@@ -2425,17 +2427,22 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
       'epgId': channelMaps[currentIndex]['epgId'],
       'currentIndex': currentIndex,
     });
-    await context.push(
-      '/player',
-      extra: {
-        'streamUrl': channel.streamUrl,
-        'channelName': _channelDisplayName(channel),
-        'channelLogo': channel.tvgLogo,
-        'alternativeUrls': _automaticAlternativeUrls(channel),
-        'channels': channelMaps,
-        'currentIndex': currentIndex,
-      },
-    );
+    _fullscreenRouteOpen = true;
+    try {
+      await context.push(
+        '/player',
+        extra: {
+          'streamUrl': channel.streamUrl,
+          'channelName': _channelDisplayName(channel),
+          'channelLogo': channel.tvgLogo,
+          'alternativeUrls': _automaticAlternativeUrls(channel),
+          'channels': channelMaps,
+          'currentIndex': currentIndex,
+        },
+      );
+    } finally {
+      _fullscreenRouteOpen = false;
+    }
     if (mounted) {
       final database = ref.read(databaseProvider);
       final favIds = await database.getAllFavoritedChannelIds();

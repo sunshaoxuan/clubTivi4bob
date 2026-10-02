@@ -10,7 +10,6 @@ import 'package:media_kit/media_kit.dart';
 import 'package:media_kit_video/media_kit_video.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:window_manager/window_manager.dart';
 
 import '../../core/app_diagnostics.dart';
 import '../../data/datasources/local/database.dart' as db;
@@ -25,6 +24,9 @@ import 'player_control_bar.dart';
 import 'alternative_preview_overlay.dart';
 import 'player_service.dart';
 import 'stream_info_badges.dart';
+import 'desktop_fullscreen_session.dart';
+import 'window_manager_fullscreen_backend.dart';
+import 'fullscreen_return_navigation.dart';
 
 /// Full-screen video player with overlay controls and keyboard navigation.
 class PlayerScreen extends ConsumerStatefulWidget {
@@ -57,8 +59,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   int _channelSwitchGeneration = 0;
   bool _nativeFullscreen = false;
   bool _leavingPlayer = false;
-  Rect? _windowBoundsBeforeFullscreen;
-  bool _windowWasMaximized = false;
+  DesktopFullscreenSession? _fullscreenSession;
   bool _showCursor = true;
   Timer? _cursorTimer;
   final ManualRouteCycle _manualRouteCycle = ManualRouteCycle();
@@ -121,18 +122,34 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
           .providerName(ch['providerId']?.toString() ?? '');
     }
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
+    if (_supportsNativeFullscreen) {
+      _fullscreenSession = DesktopFullscreenSession(
+        backend: WindowManagerFullscreenBackend(),
+        onChanged: (value) {
+          if (mounted) setState(() => _nativeFullscreen = value);
+        },
+        onExternalExit: () => unawaited(_leavePlayer()),
+        onError: (error, stack) => AppDiagnostics.instance.recordError(
+          'fullscreen_transition',
+          error,
+          stack,
+        ),
+      );
+    }
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _setNativeFullscreen(true);
+      if (mounted) unawaited(_enterNativeFullscreen());
     });
     _startPlayback();
-    _activePlayerSubscription = ref.read(playerServiceProvider)
-        .activePlayerStream.listen((_) {
-      _bindActivePlayerStreams();
-      if (mounted) {
-        _loadTrackInfo();
-        setState(() {});
-      }
-    });
+    _activePlayerSubscription = ref
+        .read(playerServiceProvider)
+        .activePlayerStream
+        .listen((_) {
+          _bindActivePlayerStreams();
+          if (mounted) {
+            _loadTrackInfo();
+            setState(() {});
+          }
+        });
     _castStatusSubscription = ref.read(castServiceProvider).statusStream.listen(
       (message) {
         if (!mounted) return;
@@ -568,45 +585,42 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   bool get _supportsNativeFullscreen =>
       Platform.isWindows || Platform.isLinux || Platform.isMacOS;
 
-  Future<void> _setNativeFullscreen(bool value) async {
-    if (!_supportsNativeFullscreen) return;
-    if (value) {
-      _windowWasMaximized = await windowManager.isMaximized();
-      _windowBoundsBeforeFullscreen = await windowManager.getBounds();
-      await windowManager.setTitleBarStyle(TitleBarStyle.hidden);
-      await windowManager.setFullScreen(true);
-      await windowManager.setAlwaysOnTop(true);
-      await windowManager.focus();
-    } else {
-      await windowManager.setAlwaysOnTop(false);
-      await windowManager.setFullScreen(false);
-      await windowManager.setTitleBarStyle(TitleBarStyle.normal);
-      if (_windowWasMaximized) {
-        await windowManager.maximize();
-      } else if (_windowBoundsBeforeFullscreen != null) {
-        await windowManager.setBounds(_windowBoundsBeforeFullscreen!);
-      }
-      _windowBoundsBeforeFullscreen = null;
+  Future<void> _enterNativeFullscreen() async {
+    try {
+      AppDiagnostics.instance.log('fullscreen_enter_requested');
+      await _fullscreenSession?.enter();
+      AppDiagnostics.instance.log('fullscreen_enter_completed');
+    } catch (error, stack) {
+      AppDiagnostics.instance.recordError('fullscreen_enter', error, stack);
     }
-    if (mounted) setState(() => _nativeFullscreen = value);
   }
 
   Future<void> _toggleNativeFullscreen() async {
-    if (_nativeFullscreen) {
-      await _leavePlayer();
-    } else {
-      await _setNativeFullscreen(true);
-    }
+    // This route is the fullscreen presentation, including while entering.
+    // Every exit control returns to the screen that opened it.
+    await _leavePlayer();
   }
 
-  Future<void> _leavePlayer() async {
-    if (_leavingPlayer) return;
+  Future<bool> _leavePlayer() async {
+    if (_leavingPlayer) return false;
     _leavingPlayer = true;
-    if (_supportsNativeFullscreen) await _setNativeFullscreen(false);
-    if (!mounted) return;
-    GoRouter.of(context).canPop()
-        ? GoRouter.of(context).pop()
-        : GoRouter.of(context).go('/');
+    try {
+      AppDiagnostics.instance.log('fullscreen_exit_requested');
+      await _fullscreenSession?.exit();
+      AppDiagnostics.instance.log('fullscreen_exit_completed');
+    } catch (error, stack) {
+      _leavingPlayer = false;
+      AppDiagnostics.instance.recordError('fullscreen_exit', error, stack);
+      return false;
+    }
+    if (!mounted) return false;
+    FullscreenReturnNavigation.returnToCaller(context);
+    return true;
+  }
+
+  Future<void> _openSettings() async {
+    final router = GoRouter.of(context);
+    if (await _leavePlayer()) await router.push('/settings');
   }
 
   // ---- Keyboard controls ----
@@ -697,10 +711,12 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
           );
       if (!mounted || switchGeneration != _channelSwitchGeneration) return;
       if (!switched) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: Text('新频道暂时无法播放，已保留原频道'),
-          duration: Duration(seconds: 3),
-        ));
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('新频道暂时无法播放，已保留原频道'),
+            duration: Duration(seconds: 3),
+          ),
+        );
         return;
       }
       setState(() {
@@ -708,7 +724,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
         _currentChannelName = ch['name'] as String? ?? '';
         _currentChannelLogo = ch['tvgLogo'] as String?;
         _groupTitle = ch['groupTitle']?.toString();
-        _providerName = ref.read(streamAlternativesProvider)
+        _providerName = ref
+            .read(streamAlternativesProvider)
             .providerName(ch['providerId']?.toString() ?? '');
         _currentUrlIndex = 0;
       });
@@ -721,7 +738,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   }
 
   PopupMenuItem<int> _routeContextAction(
-    int value, IconData icon, String title, String subtitle, {
+    int value,
+    IconData icon,
+    String title,
+    String subtitle, {
     bool enabled = true,
     Color accent = const Color(0xFFB9CAFF),
   }) => PopupMenuItem<int>(
@@ -730,28 +750,44 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     height: 62,
     child: Opacity(
       opacity: enabled ? 1 : 0.45,
-      child: Row(children: [
-        Container(
-          width: 34, height: 34,
-          decoration: BoxDecoration(
-            color: accent.withValues(alpha: 0.13),
-            borderRadius: BorderRadius.circular(10),
+      child: Row(
+        children: [
+          Container(
+            width: 34,
+            height: 34,
+            decoration: BoxDecoration(
+              color: accent.withValues(alpha: 0.13),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Icon(icon, color: accent, size: 19),
           ),
-          child: Icon(icon, color: accent, size: 19),
-        ),
-        const SizedBox(width: 12),
-        Expanded(child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(title, style: const TextStyle(color: Colors.white,
-                fontSize: 14, fontWeight: FontWeight.w600)),
-            const SizedBox(height: 3),
-            Text(subtitle, style: const TextStyle(
-                color: Color(0xFFA8B8D1), fontSize: 11)),
-          ],
-        )),
-      ]),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  subtitle,
+                  style: const TextStyle(
+                    color: Color(0xFFA8B8D1),
+                    fontSize: 11,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
     ),
   );
 
@@ -779,33 +815,53 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
         overlay.size.height - position.dy,
       ),
       items: [
-        PopupMenuItem<int>(enabled: false, height: 66,
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(_currentChannelName, maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(color: Colors.white,
-                        fontSize: 16, fontWeight: FontWeight.w700)),
-                Text('${alternatives.length + 1} 条候选线路',
-                    style: const TextStyle(color: Color(0xFFA8B8D1),
-                        fontSize: 12)),
-              ],
-            )),
-        _routeContextAction(-2,
-            _isFavorite ? Icons.star_rounded : Icons.star_outline_rounded,
-            _isFavorite ? '管理收藏' : '加入收藏',
-            _isFavorite ? '调整收藏夹' : '一键保存到我的收藏',
-            accent: const Color(0xFFFFD36B)),
+        PopupMenuItem<int>(
+          enabled: false,
+          height: 66,
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                _currentChannelName,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              Text(
+                '${alternatives.length + 1} 条候选线路',
+                style: const TextStyle(color: Color(0xFFA8B8D1), fontSize: 12),
+              ),
+            ],
+          ),
+        ),
+        _routeContextAction(
+          -2,
+          _isFavorite ? Icons.star_rounded : Icons.star_outline_rounded,
+          _isFavorite ? '管理收藏' : '加入收藏',
+          _isFavorite ? '调整收藏夹' : '一键保存到我的收藏',
+          accent: const Color(0xFFFFD36B),
+        ),
         const PopupMenuDivider(height: 14),
-        _routeContextAction(-3, Icons.skip_next_rounded,
-            '切换到下一条线路', '已试线路会暂时排到后面',
-            enabled: alternatives.isNotEmpty),
+        _routeContextAction(
+          -3,
+          Icons.skip_next_rounded,
+          '切换到下一条线路',
+          '已试线路会暂时排到后面',
+          enabled: alternatives.isNotEmpty,
+        ),
         const PopupMenuDivider(height: 14),
-        _routeContextAction(-1, Icons.block_rounded,
-            '淘汰当前线路', '立即停播并尝试下一条',
-            accent: const Color(0xFFFFA4A4)),
+        _routeContextAction(
+          -1,
+          Icons.block_rounded,
+          '淘汰当前线路',
+          '立即停播并尝试下一条',
+          accent: const Color(0xFFFFA4A4),
+        ),
       ],
     );
     if (!mounted || choice == null || service.currentUrl != currentUrl) return;
@@ -817,14 +873,17 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
         if (channelId == null || channelId.isEmpty) return;
         late final List<db.FavoriteList> lists;
         try {
-          lists = await ref.read(databaseProvider)
+          lists = await ref
+              .read(databaseProvider)
               .addChannelToDefaultFavorites(channelId);
         } catch (_) {
           if (!mounted) return;
-          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-            content: Text('收藏失败，请稍后重试'),
-            duration: Duration(seconds: 2),
-          ));
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('收藏失败，请稍后重试'),
+              duration: Duration(seconds: 2),
+            ),
+          );
           return;
         }
         if (!mounted) return;
@@ -832,10 +891,12 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
           _favoriteLists = lists;
           _isFavorite = true;
         });
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: Text('已加入我的收藏'),
-          duration: Duration(seconds: 2),
-        ));
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('已加入我的收藏'),
+            duration: Duration(seconds: 2),
+          ),
+        );
       }
       return;
     }
@@ -848,19 +909,23 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
         score: tracker.getScore,
       );
       if (selectedUrl == null) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: Text('候选线路本轮已试完，稍后可重新尝试'),
-          duration: Duration(seconds: 3),
-        ));
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('候选线路本轮已试完，稍后可重新尝试'),
+            duration: Duration(seconds: 3),
+          ),
+        );
         return;
       }
       tracker.recordManualSkip(currentUrl);
       final switched = await service.switchCurrentRoute(
-        selectedUrl, onlyRequestedRoute: true);
+        selectedUrl,
+        onlyRequestedRoute: true,
+      );
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text(switched ? '已切换到可播放线路' : '候选线路不可用，已保留当前画面'),
-      ));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(switched ? '已切换到可播放线路' : '候选线路不可用，已保留当前画面')),
+      );
       return;
     }
     final confirmed = await showDialog<bool>(
@@ -886,25 +951,36 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     service.rejectCurrentRoute();
     final replacementUrls = service.retirementAlternativeUrls;
     await service.stop();
-    final deleted = await ref.read(databaseProvider).blockAndDeleteStreamUrl(
-      currentUrl,
-      reason: 'user_reported_wrong_content',
-    );
-    final switched = replacementUrls.isNotEmpty &&
+    final deleted = await ref
+        .read(databaseProvider)
+        .blockAndDeleteStreamUrl(
+          currentUrl,
+          reason: 'user_reported_wrong_content',
+        );
+    final switched =
+        replacementUrls.isNotEmpty &&
         await service.playRetirementReplacement(
-            replacementUrls.first, replacementUrls.skip(1).toList());
+          replacementUrls.first,
+          replacementUrls.skip(1).toList(),
+        );
     if (replacementUrls.isEmpty) {
       service.routeSearchProgress.value = const RouteSearchProgress(
-        stage: '当前频道没有其他候选线路', index: 0, total: 0,
+        stage: '当前频道没有其他候选线路',
+        index: 0,
+        total: 0,
       );
       service.onSourcesExhausted?.call(_currentChannelName);
     }
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      content: Text(switched
-          ? '已淘汰当前线路，正在尝试下一条线路，移除 $deleted 条重复记录'
-          : '已淘汰当前线路，暂无可用的候选线路'),
-    ));
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          switched
+              ? '已淘汰当前线路，正在尝试下一条线路，移除 $deleted 条重复记录'
+              : '已淘汰当前线路，暂无可用的候选线路',
+        ),
+      ),
+    );
   }
 
   void _adjustVolume(double delta) {
@@ -949,9 +1025,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     _volumeTimer?.cancel();
     _tracksSubscription?.cancel();
     _bufferingSubscription?.cancel();
-    if (_supportsNativeFullscreen && _nativeFullscreen) {
-      unawaited(_setNativeFullscreen(false));
-    }
+    _fullscreenSession?.dispose();
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
     super.dispose();
   }
@@ -961,468 +1035,487 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     final playerService = ref.watch(playerServiceProvider);
     final initialVideoController = playerService.videoController;
 
-    return Focus(
-      autofocus: true,
-      onKeyEvent: _handleKeyEvent,
-      child: Scaffold(
-        backgroundColor: Colors.black,
-        body: MouseRegion(
-          cursor: _showCursor ? MouseCursor.defer : SystemMouseCursors.none,
-          onEnter: (_) => _onPointerActivity(),
-          onHover: (_) => _onPointerActivity(),
-          child: GestureDetector(
-            onTap: _toggleOverlay,
-            onDoubleTap: _toggleNativeFullscreen,
-            onSecondaryTapUp: (details) =>
-                _showRouteMenu(details.globalPosition),
-            child: Stack(
-              fit: StackFit.expand,
-              children: [
-                // Video — fill entire screen
-                ValueListenableBuilder<VideoController?>(
-                  valueListenable: playerService.activeVideoController,
-                  builder: (context, controller, _) => Video(
-                    key: ValueKey(controller ?? initialVideoController),
-                    controller: controller ?? initialVideoController,
-                    controls: NoVideoControls,
+    return PopScope(
+      canPop: _leavingPlayer,
+      onPopInvokedWithResult: (didPop, result) {
+        if (!didPop) unawaited(_leavePlayer());
+      },
+      child: Focus(
+        autofocus: true,
+        onKeyEvent: _handleKeyEvent,
+        child: Scaffold(
+          backgroundColor: Colors.black,
+          body: MouseRegion(
+            cursor: _showCursor ? MouseCursor.defer : SystemMouseCursors.none,
+            onEnter: (_) => _onPointerActivity(),
+            onHover: (_) => _onPointerActivity(),
+            child: GestureDetector(
+              onTap: _toggleOverlay,
+              onDoubleTap: _toggleNativeFullscreen,
+              onSecondaryTapUp: (details) =>
+                  _showRouteMenu(details.globalPosition),
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  // Video — fill entire screen
+                  ValueListenableBuilder<VideoController?>(
+                    valueListenable: playerService.activeVideoController,
+                    builder: (context, controller, _) => Video(
+                      key: ValueKey(controller ?? initialVideoController),
+                      controller: controller ?? initialVideoController,
+                      controls: NoVideoControls,
+                    ),
                   ),
-                ),
 
-                StreamBuilder<String?>(
-                  stream: playerService.currentUrlStream,
-                  initialData: playerService.currentUrl,
-                  builder: (context, _) => ValueListenableBuilder<RouteSearchProgress?>(
-                    valueListenable: playerService.routeSearchProgress,
-                    builder: (context, progress, _) => IgnorePointer(
-                    child: Align(
-                      alignment: Alignment.topRight,
-                      child: SafeArea(
-                        child: Padding(
-                          padding: const EdgeInsets.all(16),
-                          child: DecoratedBox(
-                            decoration: BoxDecoration(
-                              color: const Color(0xBD000000),
-                              borderRadius: BorderRadius.circular(10),
-                            ),
-                            child: Padding(
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 12, vertical: 7),
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  if (progress?.active == true &&
-                                      progress?.background != true) ...[
-                                    const SizedBox(width: 12, height: 12,
-                                        child: CircularProgressIndicator(
-                                            strokeWidth: 2,
-                                            color: Colors.white70)),
-                                    const SizedBox(width: 7),
-                                  ],
-                                  Text(
-                                    progress != null && !progress.background
-                                        ? progress.total > 0
-                                            ? '${progress.stage} ${progress.index}/${progress.total} 路'
-                                            : progress.stage
-                                        : '候选 ${playerService.currentCandidateCount} 路',
-                                    style: const TextStyle(
-                                        color: Colors.white70, fontSize: 12),
+                  StreamBuilder<String?>(
+                    stream: playerService.currentUrlStream,
+                    initialData: playerService.currentUrl,
+                    builder: (context, _) =>
+                        ValueListenableBuilder<RouteSearchProgress?>(
+                          valueListenable: playerService.routeSearchProgress,
+                          builder: (context, progress, _) => IgnorePointer(
+                            child: Align(
+                              alignment: Alignment.topRight,
+                              child: SafeArea(
+                                child: Padding(
+                                  padding: const EdgeInsets.all(16),
+                                  child: DecoratedBox(
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xBD000000),
+                                      borderRadius: BorderRadius.circular(10),
+                                    ),
+                                    child: Padding(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 12,
+                                        vertical: 7,
+                                      ),
+                                      child: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          if (progress?.active == true &&
+                                              progress?.background != true) ...[
+                                            const SizedBox(
+                                              width: 12,
+                                              height: 12,
+                                              child: CircularProgressIndicator(
+                                                strokeWidth: 2,
+                                                color: Colors.white70,
+                                              ),
+                                            ),
+                                            const SizedBox(width: 7),
+                                          ],
+                                          Text(
+                                            progress != null &&
+                                                    !progress.background
+                                                ? progress.total > 0
+                                                      ? '${progress.stage} ${progress.index}/${progress.total} 路'
+                                                      : progress.stage
+                                                : '候选 ${playerService.currentCandidateCount} 路',
+                                            style: const TextStyle(
+                                              color: Colors.white70,
+                                              fontSize: 12,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
                                   ),
-                                ],
+                                ),
                               ),
                             ),
                           ),
                         ),
-                      ),
-                    ),
                   ),
+
+                  // TiviMate-style control bar overlay
+                  PlayerControlBar(
+                    isCasting: ref.read(castServiceProvider).isCasting,
+                    isFavorite: _isFavorite,
+                    hasSubtitles: _subtitleTracks.isNotEmpty,
+                    subtitlesEnabled: _subtitlesEnabled,
+                    onSubtitleToggle: _toggleSubtitles,
+                    onSubtitleSelect: _showSubtitlePicker,
+                    audioTrackCount: _audioTracks.length,
+                    onAudioSelect: _showAudioPicker,
+                    onCastTap: () => _showCastPicker(),
+                    onBackTap: () {
+                      _leavePlayer();
+                    },
+                    onScreenshot: _takeScreenshot,
+                    onFavorite: _toggleFavorite,
+                    onPip: _enterPip,
+                    onInfo: _showInfoDialog,
+                    onRename: _renameCurrentChannel,
+                    onSettings: _openSettings,
+                    onChannelList: () =>
+                        setState(() => _showChannelList = !_showChannelList),
+                    onFullscreenToggle: _toggleNativeFullscreen,
+                    isFullscreen: _nativeFullscreen,
                   ),
-                ),
 
-                // TiviMate-style control bar overlay
-                PlayerControlBar(
-                  isCasting: ref.read(castServiceProvider).isCasting,
-                  isFavorite: _isFavorite,
-                  hasSubtitles: _subtitleTracks.isNotEmpty,
-                  subtitlesEnabled: _subtitlesEnabled,
-                  onSubtitleToggle: _toggleSubtitles,
-                  onSubtitleSelect: _showSubtitlePicker,
-                  audioTrackCount: _audioTracks.length,
-                  onAudioSelect: _showAudioPicker,
-                  onCastTap: () => _showCastPicker(),
-                  onBackTap: () {
-                    _leavePlayer();
-                  },
-                  onScreenshot: _takeScreenshot,
-                  onFavorite: _toggleFavorite,
-                  onPip: _enterPip,
-                  onInfo: _showInfoDialog,
-                  onRename: _renameCurrentChannel,
-                  onSettings: () => GoRouter.of(context).push('/settings'),
-                  onChannelList: () =>
-                      setState(() => _showChannelList = !_showChannelList),
-                  onFullscreenToggle: _toggleNativeFullscreen,
-                  isFullscreen: _nativeFullscreen,
-                ),
-
-                Positioned(
-                  right: 24,
-                  bottom: _showOverlay ? 96 : 24,
-                  child: AlternativePreviewOverlay(service: playerService),
-                ),
-
-                // Channel info overlay (top, shown alongside control bar)
-                if (_showOverlay) ...[
                   Positioned(
-                    top: 0,
-                    left: 0,
-                    right: 0,
-                    child: Container(
-                      padding: const EdgeInsets.fromLTRB(48, 4, 12, 12),
-                      decoration: const BoxDecoration(
-                        gradient: LinearGradient(
-                          begin: Alignment.topCenter,
-                          end: Alignment.bottomCenter,
-                          colors: [
-                            Colors.black87,
-                            Colors.black54,
-                            Colors.transparent,
-                          ],
-                          stops: [0.0, 0.7, 1.0],
+                    right: 24,
+                    bottom: _showOverlay ? 96 : 24,
+                    child: AlternativePreviewOverlay(service: playerService),
+                  ),
+
+                  // Channel info overlay (top, shown alongside control bar)
+                  if (_showOverlay) ...[
+                    Positioned(
+                      top: 0,
+                      left: 0,
+                      right: 0,
+                      child: Container(
+                        padding: const EdgeInsets.fromLTRB(48, 4, 12, 12),
+                        decoration: const BoxDecoration(
+                          gradient: LinearGradient(
+                            begin: Alignment.topCenter,
+                            end: Alignment.bottomCenter,
+                            colors: [
+                              Colors.black87,
+                              Colors.black54,
+                              Colors.transparent,
+                            ],
+                            stops: [0.0, 0.7, 1.0],
+                          ),
                         ),
-                      ),
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          // Col 1: Channel name + group
-                          if (_currentChannelLogo != null)
-                            Padding(
-                              padding: const EdgeInsets.only(right: 8),
-                              child: Image.network(
-                                _currentChannelLogo!,
-                                width: 24,
-                                height: 24,
-                                errorBuilder: (c, e, s) => const SizedBox(),
-                              ),
-                            ),
-                          Expanded(
-                            flex: 2,
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Text(
-                                  _currentChannelName,
-                                  style: const TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 15,
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                  overflow: TextOverflow.ellipsis,
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            // Col 1: Channel name + group
+                            if (_currentChannelLogo != null)
+                              Padding(
+                                padding: const EdgeInsets.only(right: 8),
+                                child: Image.network(
+                                  _currentChannelLogo!,
+                                  width: 24,
+                                  height: 24,
+                                  errorBuilder: (c, e, s) => const SizedBox(),
                                 ),
-                                if (_groupTitle != null &&
-                                    _groupTitle!.isNotEmpty)
+                              ),
+                            Expanded(
+                              flex: 2,
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
                                   Text(
-                                    _groupTitle!,
+                                    _currentChannelName,
                                     style: const TextStyle(
-                                      color: Colors.white38,
-                                      fontSize: 11,
+                                      color: Colors.white,
+                                      fontSize: 15,
+                                      fontWeight: FontWeight.w600,
                                     ),
                                     overflow: TextOverflow.ellipsis,
                                   ),
-                              ],
-                            ),
-                          ),
-                          const SizedBox(width: 16),
-                          // Col 2: Programme name + time + next
-                          Expanded(
-                            flex: 2,
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                if (_nowPlayingTitle != null) ...[
-                                  Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      const Icon(
-                                        Icons.play_circle_outline,
-                                        size: 14,
-                                        color: Colors.cyanAccent,
-                                      ),
-                                      const SizedBox(width: 4),
-                                      Flexible(
-                                        child: Text(
-                                          _nowPlayingTitle!,
-                                          style: const TextStyle(
-                                            color: Colors.white,
-                                            fontSize: 13,
-                                          ),
-                                          overflow: TextOverflow.ellipsis,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                  if (_nowPlayingTime != null)
+                                  if (_groupTitle != null &&
+                                      _groupTitle!.isNotEmpty)
                                     Text(
-                                      _nowPlayingTime!,
+                                      _groupTitle!,
                                       style: const TextStyle(
                                         color: Colors.white38,
                                         fontSize: 11,
                                       ),
+                                      overflow: TextOverflow.ellipsis,
                                     ),
                                 ],
-                                if (_nextTitle != null) ...[
-                                  const SizedBox(height: 2),
-                                  Text(
-                                    '接下来：$_nextTitle${_nextTime != null ? '  $_nextTime' : ''}',
-                                    style: const TextStyle(
-                                      color: Colors.white38,
-                                      fontSize: 10,
-                                    ),
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                ],
-                              ],
+                              ),
                             ),
-                          ),
-                          const SizedBox(width: 16),
-                          // Col 3: Description
-                          Expanded(
-                            flex: 3,
-                            child:
-                                (_nowDescription != null &&
-                                    _nowDescription!.isNotEmpty)
-                                ? Text(
-                                    _nowDescription!,
-                                    style: const TextStyle(
-                                      color: Colors.white54,
-                                      fontSize: 11,
-                                    ),
-                                    maxLines: 3,
-                                    overflow: TextOverflow.ellipsis,
-                                  )
-                                : const SizedBox.shrink(),
-                          ),
-                          const SizedBox(width: 16),
-                          // Col 4: Stream badges + provider + time
-                          Column(
-                            crossAxisAlignment: CrossAxisAlignment.end,
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Row(
+                            const SizedBox(width: 16),
+                            // Col 2: Programme name + time + next
+                            Expanded(
+                              flex: 2,
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
-                                  StreamInfoBadges(
-                                    playerService: ref.read(
-                                      playerServiceProvider,
+                                  if (_nowPlayingTitle != null) ...[
+                                    Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        const Icon(
+                                          Icons.play_circle_outline,
+                                          size: 14,
+                                          color: Colors.cyanAccent,
+                                        ),
+                                        const SizedBox(width: 4),
+                                        Flexible(
+                                          child: Text(
+                                            _nowPlayingTitle!,
+                                            style: const TextStyle(
+                                              color: Colors.white,
+                                              fontSize: 13,
+                                            ),
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
+                                        ),
+                                      ],
                                     ),
-                                  ),
-                                  if (_providerName != null &&
-                                      _providerName!.isNotEmpty) ...[
-                                    const SizedBox(width: 6),
-                                    Container(
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 6,
-                                        vertical: 2,
-                                      ),
-                                      decoration: BoxDecoration(
-                                        color: const Color(
-                                          0xFF6C5CE7,
-                                        ).withValues(alpha: 0.3),
-                                        borderRadius: BorderRadius.circular(4),
-                                        border: Border.all(
-                                          color: const Color(0xFF6C5CE7),
-                                          width: 0.5,
-                                        ),
-                                      ),
-                                      child: Text(
-                                        _providerName!,
+                                    if (_nowPlayingTime != null)
+                                      Text(
+                                        _nowPlayingTime!,
                                         style: const TextStyle(
-                                          fontSize: 10,
-                                          color: Color(0xFFA29BFE),
-                                          fontWeight: FontWeight.w600,
+                                          color: Colors.white38,
+                                          fontSize: 11,
                                         ),
                                       ),
+                                  ],
+                                  if (_nextTitle != null) ...[
+                                    const SizedBox(height: 2),
+                                    Text(
+                                      '接下来：$_nextTitle${_nextTime != null ? '  $_nextTime' : ''}',
+                                      style: const TextStyle(
+                                        color: Colors.white38,
+                                        fontSize: 10,
+                                      ),
+                                      overflow: TextOverflow.ellipsis,
                                     ),
                                   ],
                                 ],
                               ),
-                              const SizedBox(height: 4),
-                              Text(
-                                TimeOfDay.now().format(context),
-                                style: const TextStyle(
-                                  color: Colors.white38,
-                                  fontSize: 11,
-                                ),
-                              ),
-                              const SizedBox(height: 8),
-                              Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  _mouseActionButton(
-                                    icon: _nativeFullscreen
-                                        ? Icons.fullscreen_exit
-                                        : Icons.fullscreen,
-                                    label: _nativeFullscreen ? '退出全屏' : '全屏',
-                                    onPressed: _toggleNativeFullscreen,
-                                  ),
-                                  const SizedBox(width: 8),
-                                  _mouseActionButton(
-                                    icon: Icons.arrow_back,
-                                    label: '返回频道',
-                                    onPressed: _leavePlayer,
-                                  ),
-                                ],
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ],
-
-                // Volume overlay
-                if (_showVolumeOverlay)
-                  Positioned(
-                    top: 80,
-                    right: 24,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 10,
-                      ),
-                      decoration: BoxDecoration(
-                        color: Colors.black87,
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(
-                            _volume == 0
-                                ? Icons.volume_off
-                                : _volume < 50
-                                ? Icons.volume_down
-                                : Icons.volume_up,
-                            color: Colors.white,
-                            size: 20,
-                          ),
-                          const SizedBox(width: 8),
-                          Text(
-                            '${_volume.round()}',
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
                             ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                // Channel list overlay
-                if (_showChannelList && widget.channels.isNotEmpty)
-                  Positioned(
-                    right: 0,
-                    top: 0,
-                    bottom: 0,
-                    width: 320,
-                    child: Container(
-                      color: Colors.black.withValues(alpha: 0.85),
-                      child: Column(
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.fromLTRB(16, 40, 8, 8),
-                            child: Row(
+                            const SizedBox(width: 16),
+                            // Col 3: Description
+                            Expanded(
+                              flex: 3,
+                              child:
+                                  (_nowDescription != null &&
+                                      _nowDescription!.isNotEmpty)
+                                  ? Text(
+                                      _nowDescription!,
+                                      style: const TextStyle(
+                                        color: Colors.white54,
+                                        fontSize: 11,
+                                      ),
+                                      maxLines: 3,
+                                      overflow: TextOverflow.ellipsis,
+                                    )
+                                  : const SizedBox.shrink(),
+                            ),
+                            const SizedBox(width: 16),
+                            // Col 4: Stream badges + provider + time
+                            Column(
+                              crossAxisAlignment: CrossAxisAlignment.end,
+                              mainAxisSize: MainAxisSize.min,
                               children: [
-                                const Icon(
-                                  Icons.list,
-                                  color: Colors.white70,
-                                  size: 20,
+                                Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    StreamInfoBadges(
+                                      playerService: ref.read(
+                                        playerServiceProvider,
+                                      ),
+                                    ),
+                                    if (_providerName != null &&
+                                        _providerName!.isNotEmpty) ...[
+                                      const SizedBox(width: 6),
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 6,
+                                          vertical: 2,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color: const Color(
+                                            0xFF6C5CE7,
+                                          ).withValues(alpha: 0.3),
+                                          borderRadius: BorderRadius.circular(
+                                            4,
+                                          ),
+                                          border: Border.all(
+                                            color: const Color(0xFF6C5CE7),
+                                            width: 0.5,
+                                          ),
+                                        ),
+                                        child: Text(
+                                          _providerName!,
+                                          style: const TextStyle(
+                                            fontSize: 10,
+                                            color: Color(0xFFA29BFE),
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ],
                                 ),
-                                const SizedBox(width: 8),
-                                const Text(
-                                  '频道',
-                                  style: TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.w600,
+                                const SizedBox(height: 4),
+                                Text(
+                                  TimeOfDay.now().format(context),
+                                  style: const TextStyle(
+                                    color: Colors.white38,
+                                    fontSize: 11,
                                   ),
                                 ),
-                                const Spacer(),
-                                IconButton(
-                                  icon: const Icon(
-                                    Icons.close,
-                                    color: Colors.white54,
-                                    size: 20,
-                                  ),
-                                  onPressed: () =>
-                                      setState(() => _showChannelList = false),
+                                const SizedBox(height: 8),
+                                Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    _mouseActionButton(
+                                      icon: _nativeFullscreen
+                                          ? Icons.fullscreen_exit
+                                          : Icons.fullscreen,
+                                      label: _nativeFullscreen ? '退出全屏' : '全屏',
+                                      onPressed: _toggleNativeFullscreen,
+                                    ),
+                                    const SizedBox(width: 8),
+                                    _mouseActionButton(
+                                      icon: Icons.arrow_back,
+                                      label: '返回频道',
+                                      onPressed: _leavePlayer,
+                                    ),
+                                  ],
                                 ),
                               ],
                             ),
-                          ),
-                          const Divider(height: 1, color: Colors.white10),
-                          Expanded(
-                            child: ListView.builder(
-                              itemCount: widget.channels.length,
-                              itemBuilder: (ctx, i) {
-                                final ch = widget.channels[i];
-                                final name = ch['name'] as String? ?? '';
-                                final isCurrent = i == _channelIndex;
-                                return ListTile(
-                                  dense: true,
-                                  selected: isCurrent,
-                                  selectedTileColor: const Color(
-                                    0xFF6C5CE7,
-                                  ).withValues(alpha: 0.3),
-                                  leading: ch['tvgLogo'] != null
-                                      ? Image.network(
-                                          ch['tvgLogo'] as String,
-                                          width: 28,
-                                          height: 28,
-                                          errorBuilder: (_, __, ___) =>
-                                              const Icon(
-                                                Icons.tv,
-                                                size: 28,
-                                                color: Colors.white30,
-                                              ),
-                                        )
-                                      : const Icon(
-                                          Icons.tv,
-                                          size: 28,
-                                          color: Colors.white30,
-                                        ),
-                                  title: Text(
-                                    name,
-                                    style: TextStyle(
-                                      color: isCurrent
-                                          ? Colors.white
-                                          : Colors.white70,
-                                      fontWeight: isCurrent
-                                          ? FontWeight.bold
-                                          : FontWeight.normal,
-                                      fontSize: 13,
-                                    ),
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                  onTap: () {
-                                    setState(() => _showChannelList = false);
-                                    if (i != _channelIndex) {
-                                      _switchChannel(i - _channelIndex);
-                                    }
-                                  },
-                                );
-                              },
-                            ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
                     ),
-                  ),
-              ],
+                  ],
+
+                  // Volume overlay
+                  if (_showVolumeOverlay)
+                    Positioned(
+                      top: 80,
+                      right: 24,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 10,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.black87,
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              _volume == 0
+                                  ? Icons.volume_off
+                                  : _volume < 50
+                                  ? Icons.volume_down
+                                  : Icons.volume_up,
+                              color: Colors.white,
+                              size: 20,
+                            ),
+                            const SizedBox(width: 8),
+                            Text(
+                              '${_volume.round()}',
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  // Channel list overlay
+                  if (_showChannelList && widget.channels.isNotEmpty)
+                    Positioned(
+                      right: 0,
+                      top: 0,
+                      bottom: 0,
+                      width: 320,
+                      child: Container(
+                        color: Colors.black.withValues(alpha: 0.85),
+                        child: Column(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.fromLTRB(16, 40, 8, 8),
+                              child: Row(
+                                children: [
+                                  const Icon(
+                                    Icons.list,
+                                    color: Colors.white70,
+                                    size: 20,
+                                  ),
+                                  const SizedBox(width: 8),
+                                  const Text(
+                                    '频道',
+                                    style: TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                  const Spacer(),
+                                  IconButton(
+                                    icon: const Icon(
+                                      Icons.close,
+                                      color: Colors.white54,
+                                      size: 20,
+                                    ),
+                                    onPressed: () => setState(
+                                      () => _showChannelList = false,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const Divider(height: 1, color: Colors.white10),
+                            Expanded(
+                              child: ListView.builder(
+                                itemCount: widget.channels.length,
+                                itemBuilder: (ctx, i) {
+                                  final ch = widget.channels[i];
+                                  final name = ch['name'] as String? ?? '';
+                                  final isCurrent = i == _channelIndex;
+                                  return ListTile(
+                                    dense: true,
+                                    selected: isCurrent,
+                                    selectedTileColor: const Color(
+                                      0xFF6C5CE7,
+                                    ).withValues(alpha: 0.3),
+                                    leading: ch['tvgLogo'] != null
+                                        ? Image.network(
+                                            ch['tvgLogo'] as String,
+                                            width: 28,
+                                            height: 28,
+                                            errorBuilder: (_, __, ___) =>
+                                                const Icon(
+                                                  Icons.tv,
+                                                  size: 28,
+                                                  color: Colors.white30,
+                                                ),
+                                          )
+                                        : const Icon(
+                                            Icons.tv,
+                                            size: 28,
+                                            color: Colors.white30,
+                                          ),
+                                    title: Text(
+                                      name,
+                                      style: TextStyle(
+                                        color: isCurrent
+                                            ? Colors.white
+                                            : Colors.white70,
+                                        fontWeight: isCurrent
+                                            ? FontWeight.bold
+                                            : FontWeight.normal,
+                                        fontSize: 13,
+                                      ),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                    onTap: () {
+                                      setState(() => _showChannelList = false);
+                                      if (i != _channelIndex) {
+                                        _switchChannel(i - _channelIndex);
+                                      }
+                                    },
+                                  );
+                                },
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                ],
+              ),
             ),
           ),
         ),

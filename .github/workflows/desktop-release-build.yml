@@ -50,6 +50,8 @@ jobs:
           test/window_manager_fullscreen_backend_test.dart
           test/fullscreen_return_navigation_test.dart
           test/channel_startup_progress_test.dart test/channel_list_identity_test.dart
+          test/channel_programme_preview_test.dart test/channel_programme_strip_test.dart
+          test/inline_expanded_channel_grid_test.dart test/upcoming_programmes_test.dart
       - name: Fetch pinned AirPlay authentication source
         run: |
           git clone https://github.com/objevovat/fairplay-sap-core-airplay2-sender-authentication-handshake.git "$RUNNER_TEMP/fpsap-source"
@@ -113,6 +115,8 @@ jobs:
           test/window_manager_fullscreen_backend_test.dart
           test/fullscreen_return_navigation_test.dart
           test/channel_startup_progress_test.dart test/channel_list_identity_test.dart
+          test/channel_programme_preview_test.dart test/channel_programme_strip_test.dart
+          test/inline_expanded_channel_grid_test.dart test/upcoming_programmes_test.dart
       - run: flutter build windows --release
       - name: Package portable Windows app
         shell: pwsh

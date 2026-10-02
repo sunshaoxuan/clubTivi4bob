@@ -45,6 +45,9 @@ import '../shows/shows_providers.dart';
 import 'channel_debug_dialog.dart';
 import 'channel_list_identity.dart';
 import 'channel_startup_progress.dart';
+import 'channel_programme_preview.dart';
+import 'channel_programme_strip.dart';
+import 'inline_expanded_channel_grid.dart';
 
 class ChannelsScreen extends ConsumerStatefulWidget {
   const ChannelsScreen({super.key});
@@ -56,6 +59,9 @@ class ChannelsScreen extends ConsumerStatefulWidget {
 class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
   bool _initialLoadDone = false;
   bool _fullscreenRouteOpen = false;
+  late final ChannelProgrammePreview _inlineProgrammePreview;
+  final _inlineProgrammeStripKey = GlobalKey();
+  String? _lastVisibleProgrammeChannel;
   bool _startupHealthScheduled = false;
   String _loadStatus = '';
   bool _epgLoading = false;
@@ -204,6 +210,18 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
   @override
   void initState() {
     super.initState();
+    _inlineProgrammePreview = ChannelProgrammePreview(
+      load: (epgId, at, limit) => ref.read(databaseProvider).getUpcomingProgrammes(
+        epgChannelId: epgId,
+        at: at,
+        limit: limit,
+      ),
+      onError: (error, stack) => AppDiagnostics.instance.recordError(
+        'inline_channel_epg',
+        error,
+        stack,
+      ),
+    )..addListener(_onInlineProgrammeChanged);
     _guideScrollController = ScrollController();
     _loadChannels();
     unawaited(ref.read(bobTvCommunityProvider).start());
@@ -256,6 +274,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
 
   Future<void> _refreshNowPlaying() async {
     if (!mounted) return;
+    _refreshInlineProgrammeStrip(forceRefresh: true);
     final database = ref.read(databaseProvider);
     // Collect EPG channel IDs for all favorited channels + their failover alts
     final epgChannelIds = <String>{};
@@ -431,6 +450,8 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
 
   @override
   void dispose() {
+    _inlineProgrammePreview.removeListener(_onInlineProgrammeChanged);
+    _inlineProgrammePreview.dispose();
     _searchController.dispose();
     _searchFocusNode.dispose();
     _sidebarSearchController.dispose();
@@ -913,6 +934,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
       _epgSportsServiceById = epgSportsServiceById;
       _epgCallSignToId = epgCallSignToId;
     });
+    _refreshInlineProgrammeStrip();
   }
 
   Future<void> _restoreSession() async {
@@ -1703,6 +1725,52 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
       _filteredChannels, channelId, (channel) => channel.id,
     );
     if (index >= 0) await _selectChannel(index, force: force);
+  }
+
+  void _onSimpleChannelTap(db.Channel channel) {
+    unawaited(_inlineProgrammePreview.select(
+      channelId: channel.id,
+      epgChannelId: _getEpgId(channel),
+      timeshiftHours: _epgTimeshifts[channel.id] ?? 0,
+    ));
+    unawaited(_selectChannelById(channel.id));
+  }
+
+  void _refreshInlineProgrammeStrip({bool forceRefresh = false}) {
+    final index = ChannelListIdentity.indexOf(
+      _filteredChannels, _inlineProgrammePreview.selectedChannelId, (c) => c.id,
+    );
+    if (index < 0) return;
+    final channel = _filteredChannels[index];
+    unawaited(_inlineProgrammePreview.select(
+      channelId: channel.id,
+      epgChannelId: _getEpgId(channel),
+      timeshiftHours: _epgTimeshifts[channel.id] ?? 0,
+      forceRefresh: forceRefresh,
+    ));
+  }
+
+  void _onInlineProgrammeChanged() {
+    if (!mounted) return;
+    final id = _inlineProgrammePreview.selectedChannelId;
+    final visible = _inlineProgrammePreview.programmes.isNotEmpty;
+    final reveal = visible && _lastVisibleProgrammeChannel != id;
+    _lastVisibleProgrammeChannel = visible ? id : null;
+    setState(() {});
+    if (!reveal || !_simpleMode) return;
+    // Reveal the expanded row after its size animation, without moving on
+    // periodic guide refreshes or applying a stale click to another channel.
+    Future<void>.delayed(const Duration(milliseconds: 240), () {
+      if (!mounted || _inlineProgrammePreview.selectedChannelId != id) return;
+      final stripContext = _inlineProgrammeStripKey.currentContext;
+      if (stripContext == null || !stripContext.mounted) return;
+      unawaited(Scrollable.ensureVisible(
+        stripContext,
+        alignmentPolicy: ScrollPositionAlignmentPolicy.keepVisibleAtEnd,
+        duration: const Duration(milliseconds: 180),
+        curve: Curves.easeOutCubic,
+      ));
+    });
   }
 
   Future<void> _selectChannel(int index, {
@@ -3722,16 +3790,36 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                 : LayoutBuilder(builder: (context, constraints) {
                     final columns = (constraints.maxWidth / 250)
                         .floor().clamp(1, 5);
-                    return GridView.builder(
-                      padding: const EdgeInsets.fromLTRB(12, 8, 12, 24),
-                      itemCount: _filteredChannels.length,
-                      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                        crossAxisCount: columns,
-                        mainAxisExtent: 172,
-                        mainAxisSpacing: 14,
-                        crossAxisSpacing: 14,
-                      ),
-                      itemBuilder: (context, index) {
+                    final guideIndex = ChannelListIdentity.indexOf(
+                      _filteredChannels,
+                      _inlineProgrammePreview.selectedChannelId,
+                      (c) => c.id,
+                    );
+                    final hasGuide = guideIndex >= 0 &&
+                        _inlineProgrammePreview.programmes.isNotEmpty;
+                    return InlineExpandedChannelGrid(
+                      channelIds: _filteredChannels.map((c) => c.id).toList(),
+                      columns: columns,
+                      expandedChannelId: hasGuide
+                          ? _inlineProgrammePreview.selectedChannelId
+                          : null,
+                      expandedContent: hasGuide
+                          ? Container(
+                              key: _inlineProgrammeStripKey,
+                              child: ChannelProgrammeStrip(
+                                key: ValueKey(
+                                  'programme-strip-${_inlineProgrammePreview.selectedChannelId}',
+                                ),
+                                channelName: _channelDisplayName(
+                                  _filteredChannels[guideIndex],
+                                ),
+                                programmes: _inlineProgrammePreview.programmes,
+                                timeshiftHours:
+                                    _inlineProgrammePreview.timeshiftHours,
+                              ),
+                            )
+                          : null,
+                      cardBuilder: (context, index) {
                         final channel = _filteredChannels[index];
                         final selected = _selectedIndex >= 0 &&
                             ChannelListIdentity.matches(
@@ -3759,7 +3847,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                                     ? progress : null,
                                 previewController:
                                     previewing ? previewController : null,
-                                onTap: () => _selectChannelById(channel.id),
+                                onTap: () => _onSimpleChannelTap(channel),
                                 onDoubleTap: () =>
                                     _selectChannelById(channel.id, force: true),
                                 onSecondaryTapUp: (details) =>

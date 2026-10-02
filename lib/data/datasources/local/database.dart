@@ -674,6 +674,43 @@ class AppDatabase extends _$AppDatabase {
             ..orderBy([(t) => OrderingTerm.asc(t.start)]))
           .get();
 
+  /// Return the current programme and the next few entries for one exact EPG ID.
+  /// A current film can have started hours ago. Overlapping guide entries must
+  /// not consume the limited slots intended for upcoming programmes.
+  Future<List<EpgProgramme>> getUpcomingProgrammes({
+    required String epgChannelId,
+    required DateTime at,
+    int limit = 3,
+  }) async {
+    if (epgChannelId.isEmpty || limit <= 0) return [];
+    final count = limit.clamp(1, 20);
+    final current = await (select(epgProgrammes)
+          ..where(
+            (t) =>
+                t.epgChannelId.equals(epgChannelId) &
+                t.start.isSmallerOrEqualValue(at) &
+                t.stop.isBiggerThanValue(at),
+          )
+          ..orderBy([
+            (t) => OrderingTerm.desc(t.start),
+            (t) => OrderingTerm.desc(t.id),
+          ])
+          ..limit(1))
+        .getSingleOrNull();
+    if (current != null && count == 1) return [current];
+    final upcoming = await (select(epgProgrammes)
+          ..where(
+            (t) =>
+                t.epgChannelId.equals(epgChannelId) &
+                t.start.isBiggerThanValue(at) &
+                t.stop.isBiggerThanValue(at),
+          )
+          ..orderBy([(t) => OrderingTerm.asc(t.start)])
+          ..limit(count - (current == null ? 0 : 1)))
+        .get();
+    return current == null ? upcoming : [current, ...upcoming];
+  }
+
   /// Get what's on now for a list of EPG channel IDs.
   Future<List<EpgProgramme>> getNowPlaying(List<String> epgChannelIds) {
     final now = DateTime.now();

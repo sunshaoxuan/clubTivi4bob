@@ -52,6 +52,7 @@ jobs:
           test/channel_startup_progress_test.dart test/channel_list_identity_test.dart
           test/channel_programme_preview_test.dart test/channel_programme_strip_test.dart
           test/inline_expanded_channel_grid_test.dart test/upcoming_programmes_test.dart
+          test/channel_card_feedback_test.dart
       - name: Fetch pinned AirPlay authentication source
         run: |
           git clone https://github.com/objevovat/fairplay-sap-core-airplay2-sender-authentication-handshake.git "$RUNNER_TEMP/fpsap-source"
@@ -63,6 +64,8 @@ jobs:
           plutil -lint build/macos/Build/Products/Release/BobTV.app/Contents/Info.plist
       - name: Verify native MPV render-context release
         run: bash tools/macos/test_native_video_disposal.sh "$PWD/build/macos/Build/Products/Release/BobTV.app"
+      - name: Verify owned Metal frame lifetime
+        run: bash tools/macos/test_owned_metal_frame.sh "$PWD/build/macos/Build/Products/Release/BobTV.app"
       - name: Package macOS installer and update archive
         env:
           ARCH: ${{ matrix.arch }}

@@ -31,7 +31,9 @@ Pod::Spec.new do |s|
     # Define paths to frameworks dir
     framework_search_paths_macosx = sprintf('$(PROJECT_DIR)/../Flutter/ephemeral/.symlinks/plugins/%s/macos/Frameworks/.symlinks/mpv/macos', mku.libs_package)
 
-    s.source_files        = 'Classes/plugin/**/*.swift', 'Headers/**/*.h'
+    s.source_files        = 'Classes/plugin/**/*.swift', 'Classes/plugin/**/*.mm', 'Headers/**/*.h'
+    s.frameworks          = 'Metal', 'CoreVideo'
+    s.requires_arc        = true
     s.pod_target_xcconfig = {
       'DEFINES_MODULE'                      => 'YES',
       'GCC_WARN_INHIBIT_ALL_WARNINGS'       => 'YES',

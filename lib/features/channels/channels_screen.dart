@@ -49,6 +49,7 @@ import 'channel_startup_progress.dart';
 import 'channel_programme_preview.dart';
 import 'channel_programme_strip.dart';
 import 'inline_expanded_channel_grid.dart';
+import 'channel_card_feedback.dart';
 
 class ChannelsScreen extends ConsumerStatefulWidget {
   const ChannelsScreen({super.key});
@@ -1728,13 +1729,13 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
     if (index >= 0) await _selectChannel(index, force: force);
   }
 
-  void _onSimpleChannelTap(db.Channel channel) {
+  Future<void> _onSimpleChannelTap(db.Channel channel) async {
     unawaited(_inlineProgrammePreview.select(
       channelId: channel.id,
       epgChannelId: _getEpgId(channel),
       timeshiftHours: _epgTimeshifts[channel.id] ?? 0,
     ));
-    unawaited(_selectChannelById(channel.id));
+    await _selectChannelById(channel.id);
   }
 
   void _refreshInlineProgrammeStrip({bool forceRefresh = false}) {
@@ -1808,6 +1809,24 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
     final selectionGeneration = ++_channelSelectionGeneration;
     _pendingAutoplayGroup = null;
 
+    final hasActivePlayback = playerService.currentUrl != null &&
+        (playerService.player.state.playing ||
+            playerService.player.state.buffering);
+    final commitPreview = preferredUrl == null && !force && _simpleMode && hasActivePlayback &&
+        _preparedChannelId == channel.id &&
+        playerService.preparedChannelId == channel.id;
+    final prepareOnly = !force && _simpleMode && hasActivePlayback &&
+        !commitPreview;
+    if (hasActivePlayback && !commitPreview) {
+      setState(() {
+        _pendingChannelId = channel.id;
+        _preparedChannelId = null;
+      });
+    }
+    // Paint the pending state before preparing potentially large route sets.
+    await WidgetsBinding.instance.endOfFrame;
+    if (!mounted || selectionGeneration != _channelSelectionGeneration) return;
+
     // Merge legacy manual groups into the hidden automatic alternatives.
     final groupMemberships = _failoverGroupIndex[channel.id];
     final failoverUrls = _automaticAlternativeUrls(channel,
@@ -1836,20 +1855,6 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
       }
     }
 
-    final hasActivePlayback = playerService.currentUrl != null &&
-        (playerService.player.state.playing ||
-            playerService.player.state.buffering);
-    final commitPreview = preferredUrl == null && !force && _simpleMode && hasActivePlayback &&
-        _preparedChannelId == channel.id &&
-        playerService.preparedChannelId == channel.id;
-    final prepareOnly = !force && _simpleMode && hasActivePlayback &&
-        !commitPreview;
-    if (hasActivePlayback && !commitPreview) {
-      setState(() {
-        _pendingChannelId = channel.id;
-        _preparedChannelId = null;
-      });
-    }
     bool switched;
     try {
       if (force && hasActivePlayback && _simpleMode) {
@@ -3876,8 +3881,8 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
     required bool loading,
     required RouteSearchProgress? loadingProgress,
     required VideoController? previewController,
-    required VoidCallback onTap,
-    required VoidCallback onDoubleTap,
+    required Future<void> Function() onTap,
+    required Future<void> Function() onDoubleTap,
     GestureTapUpCallback? onSecondaryTapUp,
   }) {
     const accents = <Color>[
@@ -3891,7 +3896,11 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
     final name = _channelDisplayName(channel);
     return GestureDetector(
       onSecondaryTapUp: onSecondaryTapUp,
-      child: AnimatedScale(
+      child: ChannelCardFeedback(
+      loading: loading,
+      onTap: onTap,
+      onDoubleTap: onDoubleTap,
+      builder: (busy) => AnimatedScale(
       scale: selected ? 1.008 : 1,
       duration: const Duration(milliseconds: 180),
       curve: Curves.easeOutCubic,
@@ -3920,8 +3929,10 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
             color: Colors.transparent,
             child: InkWell(
               hoverColor: Colors.white.withValues(alpha: 0.12),
-              onTap: onTap,
-              onDoubleTap: onDoubleTap,
+              // Immediate pointer activation is handled by the feedback shell.
+              onTap: () {},
+              canRequestFocus: false,
+              excludeFromSemantics: true,
               child: Stack(
                 fit: StackFit.expand,
                 children: [
@@ -3979,7 +3990,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                                     color: Color(0xFFCFD9FF), fontSize: 11,
                                     fontWeight: FontWeight.w700)),
                             const Spacer(),
-                            if (loading) ...[
+                            if (busy) ...[
                               const SizedBox(width: 13, height: 13,
                                   child: CircularProgressIndicator(
                                       strokeWidth: 2, color: Colors.white)),
@@ -4007,8 +4018,9 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                           children: [
                             Text(previewController != null
                                 ? '点击切换到主画面'
-                                : loading
-                                    ? '正在尝试线路'
+                                : busy
+                                    ? loadingProgress == null
+                                        ? '正在准备预览' : '正在尝试线路'
                                     : '单击预览 · 双击播放',
                                 style: const TextStyle(
                                     color: Colors.white70, fontSize: 11)),
@@ -4026,6 +4038,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
             ),
           ),
         ),
+      ),
       ),
       ),
     );

@@ -1,0 +1,115 @@
+#import <Foundation/Foundation.h>
+#import <CoreVideo/CoreVideo.h>
+#import <Metal/Metal.h>
+#include <cassert>
+#include <cstring>
+extern "C" id<MTLTexture> BobTVCreateOwnedMetalView(CVMetalTextureCacheRef, CVPixelBufferRef);
+extern "C" int BobTVLiveMetalBackings(void);
+struct TestExternalTexture {
+  size_t struct_size, width, height;
+  int pixel_format;
+  size_t num_textures;
+  const void **textures;
+  int yuv_color_space;
+};
+@interface TestSafeResizableTexture : NSObject
+@end
+@implementation TestSafeResizableTexture
+@end
+@interface TestMetalContext : NSObject
+@property(nonatomic) CVMetalTextureCacheRef textureCache;
+@end
+@implementation TestMetalContext
+@end
+@protocol TestFlutterTexture
+- (id)initWithFlutterTexture:(id)texture darwinMetalContext:(id)context;
+- (BOOL)populateTextureFromRGBAPixelBuffer:(CVPixelBufferRef)buffer
+                              textureOut:(TestExternalTexture *)out;
+@end
+
+int main(int argc, char **argv) {
+  @autoreleasepool {
+    id<MTLDevice> device = MTLCreateSystemDefaultDevice();
+    assert(device);
+    CVMetalTextureCacheRef cache = nullptr;
+    assert(CVMetalTextureCacheCreate(nullptr, nullptr, device, nullptr, &cache) == kCVReturnSuccess);
+    id<MTLCommandQueue> queue = [device newCommandQueue];
+    if (argc > 1) {
+      Class cls = NSClassFromString(@"FlutterExternalTexture");
+      assert(cls);
+      @autoreleasepool {
+        TestMetalContext *context = [TestMetalContext new];
+        context.textureCache = cache;
+        id<TestFlutterTexture> external = (id<TestFlutterTexture>)[cls alloc];
+        external = [external initWithFlutterTexture:[TestSafeResizableTexture new]
+                               darwinMetalContext:context];
+        id<MTLTexture> heldFrame = nil;
+        for (int i = 0; i < 500; ++i) {
+          @autoreleasepool {
+            CVPixelBufferRef buffer = nullptr;
+            NSDictionary *attrs = @{(id)kCVPixelBufferMetalCompatibilityKey: @YES,
+              (id)kCVPixelBufferIOSurfacePropertiesKey: @{}};
+            assert(CVPixelBufferCreate(nullptr, 128, 72, kCVPixelFormatType_32BGRA,
+              (__bridge CFDictionaryRef)attrs, &buffer) == kCVReturnSuccess);
+            TestExternalTexture out = {};
+            out.struct_size = sizeof(out);
+            assert([external populateTextureFromRGBAPixelBuffer:buffer textureOut:&out]);
+            assert(out.width == 128 && out.num_textures == 1 && out.pixel_format == 1);
+            heldFrame = (__bridge id<MTLTexture>)out.textures[0];
+            CVPixelBufferRelease(buffer);
+            assert(heldFrame.width == 128);
+            assert(BobTVLiveMetalBackings() >= 1 && BobTVLiveMetalBackings() <= 2);
+          }
+        }
+        external = nil;
+        assert(heldFrame.width == 128 && BobTVLiveMetalBackings() == 1);
+        heldFrame = nil;
+      }
+      assert(BobTVLiveMetalBackings() == 0);
+      NSLog(@"PASS: installed Flutter runtime adapter, 500 callbacks, release during retained frame");
+    }
+    // Two active streams, resizing and immediately dropping producer buffers.
+    for (int frame = 0; frame < 2000; ++frame) {
+      @autoreleasepool {
+        for (int stream = 0; stream < 2; ++stream) {
+          size_t width = frame % 2 ? 128 : 256;
+          CVPixelBufferRef buffer = nullptr;
+          NSDictionary *attrs = @{(id)kCVPixelBufferMetalCompatibilityKey: @YES,
+            (id)kCVPixelBufferIOSurfacePropertiesKey: @{}};
+          assert(CVPixelBufferCreate(nullptr, width, 72, kCVPixelFormatType_32BGRA,
+            (__bridge CFDictionaryRef)attrs, &buffer) == kCVReturnSuccess);
+          CVPixelBufferLockBaseAddress(buffer, 0);
+          memset(CVPixelBufferGetBaseAddress(buffer), frame % 255,
+            CVPixelBufferGetBytesPerRow(buffer) * 72);
+          CVPixelBufferUnlockBaseAddress(buffer, 0);
+          id<MTLTexture> view = BobTVCreateOwnedMetalView(cache, buffer);
+          assert(view && view.width == width && BobTVLiveMetalBackings() >= 1);
+          CVPixelBufferRelease(buffer);
+          // GPU work retains the view after the producer has been disposed.
+          id<MTLCommandBuffer> command = [queue commandBuffer];
+          id<MTLBlitCommandEncoder> blit = [command blitCommandEncoder];
+          MTLTextureDescriptor *descriptor = [MTLTextureDescriptor
+            texture2DDescriptorWithPixelFormat:MTLPixelFormatBGRA8Unorm
+            width:width height:72 mipmapped:NO];
+          id<MTLTexture> target = [device newTextureWithDescriptor:descriptor];
+          [blit copyFromTexture:view sourceSlice:0 sourceLevel:0
+            sourceOrigin:MTLOriginMake(0, 0, 0) sourceSize:MTLSizeMake(width, 72, 1)
+            toTexture:target destinationSlice:0 destinationLevel:0
+            destinationOrigin:MTLOriginMake(0, 0, 0)];
+          [blit endEncoding];
+          view = nil;
+          CVMetalTextureCacheFlush(cache, 0);
+          [command commit];
+          [command waitUntilCompleted];
+          assert(command.status == MTLCommandBufferStatusCompleted);
+          unsigned char pixel[4];
+          [target getBytes:pixel bytesPerRow:4 fromRegion:MTLRegionMake2D(0, 0, 1, 1) mipmapLevel:0];
+          assert(pixel[0] == frame % 255);
+        }
+      }
+      assert(BobTVLiveMetalBackings() == 0);
+    }
+    CFRelease(cache);
+    NSLog(@"PASS: 4000 owned frames, two streams, resize, GPU readback, no retained backings");
+  }
+}

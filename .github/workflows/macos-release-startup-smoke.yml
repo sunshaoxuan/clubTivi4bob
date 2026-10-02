@@ -1,0 +1,54 @@
+name: macOS Release Startup Smoke Test
+
+on:
+  workflow_dispatch:
+    inputs:
+      source_run:
+        description: Successful Desktop Release Build run containing Mac artifacts
+        required: true
+        default: '37037038719'
+        type: string
+
+permissions:
+  actions: read
+  contents: read
+
+jobs:
+  startup:
+    name: Native startup ${{ matrix.arch }}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-15-intel
+            arch: x64
+          - runner: macos-15
+            arch: arm64
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download the exact release candidate
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SOURCE_RUN: ${{ inputs.source_run }}
+          ARCH: ${{ matrix.arch }}
+        run: |
+          [[ "$SOURCE_RUN" =~ ^[0-9]+$ ]]
+          gh run download "$SOURCE_RUN" --repo "$GITHUB_REPOSITORY" \
+            --name "BobTV-macos-$ARCH" --dir "$RUNNER_TEMP/release-artifacts"
+          ditto -x -k "$RUNNER_TEMP/release-artifacts/BobTV-macos-$ARCH-update.zip" \
+            "$RUNNER_TEMP/release-startup"
+      - name: Verify native startup and startup-health acknowledgement
+        env:
+          ARCH: ${{ matrix.arch }}
+        run: bash tools/macos/test_release_startup.sh "$RUNNER_TEMP/release-startup/BobTV.app" "$ARCH"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: BobTV-startup-${{ matrix.arch }}-diagnostics
+          path: |
+            ~/Library/Application Support/com.briconbric.bobtv/logs/*.log
+            ~/Library/Application Support/com.briconbric.bobtv/Update/startup-smoke.json
+            ~/Library/Logs/DiagnosticReports/BobTV*.ips
+          if-no-files-found: ignore

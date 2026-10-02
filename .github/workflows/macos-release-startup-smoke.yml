@@ -40,6 +40,7 @@ jobs:
           ditto -x -k "$RUNNER_TEMP/release-artifacts/BobTV-macos-$ARCH-update.zip" \
             "$RUNNER_TEMP/release-startup"
       - name: Verify native startup and startup-health acknowledgement
+        timeout-minutes: 4
         env:
           ARCH: ${{ matrix.arch }}
         run: bash tools/macos/test_release_startup.sh "$RUNNER_TEMP/release-startup/BobTV.app" "$ARCH"

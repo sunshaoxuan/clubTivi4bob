@@ -40,6 +40,15 @@ for (( attempt=0; attempt<20; attempt++ )); do kill -0 "$app_pid"; sleep 1; done
 printf '{"version":"%s","architecture":"%s","startupHealthy":true,"pid":%s}\n' \
   "$version" "$expected" "$app_pid" > "$root/startup-smoke.json"
 kill -TERM "$app_pid"
+# Some GUI runners ignore TERM. Keep test cleanup bounded to this exact app.
+for (( attempt=0; attempt<10; attempt++ )); do
+  kill -0 "$app_pid" 2>/dev/null || break
+  sleep 1
+done
+if kill -0 "$app_pid" 2>/dev/null; then
+  echo 'The native startup check passed; force-stopping only the smoke-test app.'
+  kill -KILL "$app_pid"
+fi
 wait "$app_pid" || true
 for (( attempt=0; attempt<15; attempt++ )); do
   [[ ! -e "$root/candidate.txt" ]] && break

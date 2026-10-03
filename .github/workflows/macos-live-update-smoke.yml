@@ -36,7 +36,10 @@ jobs:
           ARCH: ${{ matrix.arch }}
           EXPECTED_VERSION: ${{ inputs.expected_version }}
           PREVIOUS_VERSION: ${{ inputs.previous_version }}
-        run: bash tools/macos/test_live_automatic_update.sh "$ARCH" "$EXPECTED_VERSION" '' false "$PREVIOUS_VERSION"
+        run: |
+          close_early=false
+          if [ "$ARCH" = arm64 ]; then close_early=true; fi
+          bash tools/macos/test_live_automatic_update.sh "$ARCH" "$EXPECTED_VERSION" '' "$close_early" "$PREVIOUS_VERSION"
       - uses: actions/upload-artifact@v4
         if: always()
         with:

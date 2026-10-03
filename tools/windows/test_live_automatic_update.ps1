@@ -93,7 +93,7 @@ try{
   Start-Sleep -Seconds 20
   $appProcess.Refresh()
   if($appProcess.HasExited){throw 'New GUI exited after startup acknowledgement'}
-  Write-Output "PASS: Windows old GUI discovered and downloaded $($manifest.version), installed after exit, preserved +68 and acknowledged healthy startup."
+  Write-Output "PASS: Windows old GUI discovered and downloaded $($manifest.version), installed after exit, preserved $PreviousVersion and acknowledged healthy startup."
 }finally{
   Stop-TestApp
   $diagnostics=Join-Path $env:GITHUB_WORKSPACE 'windows-live-update-diagnostics'

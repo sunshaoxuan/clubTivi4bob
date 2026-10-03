@@ -16,7 +16,7 @@ void VideoOutputManager::Create(
     int64_t handle,
     VideoOutputConfiguration configuration,
     std::function<void(int64_t, int64_t, int64_t)> texture_update_callback) {
-  std::thread([=]() {
+  operations_->Post([=]() {
     std::lock_guard<std::mutex> lock(mutex_);
     if (video_outputs_.find(handle) == video_outputs_.end()) {
       auto instance = std::make_unique<VideoOutput>(
@@ -24,30 +24,36 @@ void VideoOutputManager::Create(
       instance->SetTextureUpdateCallback(texture_update_callback);
       video_outputs_.insert(std::make_pair(handle, std::move(instance)));
     }
-  }).detach();
+  });
 }
 
 void VideoOutputManager::SetSize(int64_t handle,
                                  std::optional<int64_t> width,
                                  std::optional<int64_t> height) {
-  std::thread([=]() {
+  operations_->Post([=]() {
     std::lock_guard<std::mutex> lock(mutex_);
     if (video_outputs_.find(handle) != video_outputs_.end()) {
       video_outputs_[handle]->SetSize(width, height);
     }
-  }).detach();
+  });
 }
 
-void VideoOutputManager::Dispose(int64_t handle) {
-  std::thread([=]() {
-    std::lock_guard<std::mutex> lock(mutex_);
-    if (video_outputs_.find(handle) != video_outputs_.end()) {
-      video_outputs_.erase(handle);
+void VideoOutputManager::Dispose(int64_t handle,
+                                 std::function<void()> completion) {
+  operations_->Post([=]() {
+    {
+      std::lock_guard<std::mutex> lock(mutex_);
+      if (video_outputs_.find(handle) != video_outputs_.end()) {
+        video_outputs_.erase(handle);
+      }
     }
-  }).detach();
+    // The destructor has drained frames and freed its mpv render context.
+    completion();
+  });
 }
 
 VideoOutputManager::~VideoOutputManager() {
+  operations_.reset();
   std::lock_guard<std::mutex> lock(mutex_);
   // |VideoOutput| destructor will do the relevant cleanup.
   video_outputs_.clear();

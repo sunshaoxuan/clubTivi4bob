@@ -43,6 +43,8 @@ jobs:
         run: |
           swiftc third_party/media_kit_video/macos/Classes/plugin/common/Worker.swift tools/macos/test_video_worker.swift -o "$RUNNER_TEMP/video-worker-test"
           "$RUNNER_TEMP/video-worker-test"
+          swiftc third_party/media_kit_video/macos/Classes/plugin/common/VideoOutputManager.swift tools/macos/test_video_output_manager.swift -o "$RUNNER_TEMP/video-manager-test"
+          "$RUNNER_TEMP/video-manager-test"
       - run: >-
           flutter test test/website_channel_catalog_service_test.dart
           test/channel_inventory_sync_service_test.dart test/manual_channel_category_test.dart test/update_manifest_test.dart
@@ -124,7 +126,25 @@ jobs:
           test/channel_startup_progress_test.dart test/channel_list_identity_test.dart
           test/channel_programme_preview_test.dart test/channel_programme_strip_test.dart
           test/inline_expanded_channel_grid_test.dart test/upcoming_programmes_test.dart
-      - run: flutter build windows --release
+      - name: Test real Windows video disposal before mpv core destruction
+        shell: pwsh
+        run: |
+          flutter build windows --release --target tools/windows/native_video_disposal_probe.dart
+          if ($LASTEXITCODE -ne 0) { throw 'Native fixture build failed' }
+          $fixture = Join-Path $env:RUNNER_TEMP 'bobtv-disposal.avi'
+          python tools/windows/make_video_disposal_fixture.py $fixture
+          $env:BOBTV_NATIVE_DISPOSAL_MEDIA = $fixture
+          $env:BOBTV_NATIVE_DISPOSAL_LOG = Join-Path $env:RUNNER_TEMP 'bobtv-disposal.log'
+          $env:LOCALAPPDATA = Join-Path $env:RUNNER_TEMP 'BobTVNativeDisposal'
+          New-Item -ItemType Directory -Path $env:LOCALAPPDATA -Force | Out-Null
+          $exe = Join-Path $PWD 'build/windows/x64/runner/Release/clubtivi.exe'
+          $probe = Start-Process -FilePath $exe -WorkingDirectory (Split-Path $exe) -PassThru
+          if (!$probe.WaitForExit(240000)) { Stop-Process -Id $probe.Id -Force; throw 'Native fixture timeout' }
+          $probe.Refresh()
+          $log = Get-Content -LiteralPath $env:BOBTV_NATIVE_DISPOSAL_LOG -Raw
+          Write-Output $log
+          if ($probe.ExitCode -ne 0 -or $log -notmatch 'PASS: 30 real video') { throw 'Native disposal regression' }
+      - run: flutter build windows --release --target lib/main.dart
       - name: Test Windows CRT bundling safeguards
         shell: pwsh
         run: '& tools/windows/test_bundle_vc_runtime.ps1'

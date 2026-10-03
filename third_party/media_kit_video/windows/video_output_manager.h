@@ -41,7 +41,7 @@ class VideoOutputManager {
                std::optional<int64_t> height);
 
   // Destroys the |VideoOutput| with given handle.
-  void Dispose(int64_t handle);
+  void Dispose(int64_t handle, std::function<void()> completion);
 
   ~VideoOutputManager();
 
@@ -78,6 +78,9 @@ class VideoOutputManager {
   // that all the posted tasks are performed on a single thread orderly. This
   // also makes usage of any |std::mutex| unnecessary (for the good).
   std::unique_ptr<ThreadPool> thread_pool_ = std::make_unique<ThreadPool>(1);
+  // Serialize create/resize/dispose requests. Detached threads can reorder
+  // destruction ahead of creation and outlive their manager.
+  std::unique_ptr<ThreadPool> operations_ = std::make_unique<ThreadPool>(1);
   flutter::PluginRegistrarWindows* registrar_ = nullptr;
   std::unordered_map<int64_t, std::unique_ptr<VideoOutput>> video_outputs_ = {};
 };

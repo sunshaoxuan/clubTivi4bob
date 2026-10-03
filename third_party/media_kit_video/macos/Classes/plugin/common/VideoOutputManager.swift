@@ -1,3 +1,5 @@
+import Foundation
+
 #if canImport(Flutter)
   import Flutter
 #elseif canImport(FlutterMacOS)
@@ -7,6 +9,7 @@
 public class VideoOutputManager: NSObject {
   private let registry: FlutterTextureRegistry
   private var videoOutputs = [Int64: VideoOutput]()
+  private var disposingOutputs = [Int64: VideoOutput]()
 
   init(registry: FlutterTextureRegistry) {
     self.registry = registry
@@ -47,6 +50,10 @@ public class VideoOutputManager: NSObject {
     handle: Int64,
     completion: @escaping () -> Void
   ) {
+    if let disposing = self.disposingOutputs[handle] {
+      disposing.dispose(completion: completion)
+      return
+    }
     let videoOutput = self.videoOutputs[handle]
     if videoOutput == nil {
       completion()
@@ -54,6 +61,10 @@ public class VideoOutputManager: NSObject {
     }
 
     self.videoOutputs[handle] = nil
-    videoOutput!.dispose(completion: completion)
+    self.disposingOutputs[handle] = videoOutput
+    videoOutput!.dispose {
+      self.disposingOutputs[handle] = nil
+      completion()
+    }
   }
 }

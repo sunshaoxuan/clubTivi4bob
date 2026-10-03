@@ -108,7 +108,16 @@ VideoOutput::VideoOutput(int64_t handle,
 }
 
 VideoOutput::~VideoOutput() {
-  destroyed_ = true;
+  {
+    std::lock_guard<std::mutex> lock(callback_mutex_);
+    destroyed_ = true;
+  }
+  // Stop native callbacks while this object is still alive, on the EGL worker.
+  thread_pool_ref_->Post([this]() {
+    if (render_context_) {
+      mpv_render_context_set_update_callback(render_context_, nullptr, nullptr);
+    }
+  }).get();
   auto promise = std::promise<void>();
   if (texture_id_) {
     registrar_->texture_registrar()->UnregisterTexture(
@@ -139,15 +148,19 @@ VideoOutput::~VideoOutput() {
         });
   }
 
-  promise.get_future().wait();
+  // Outputs with failed/no texture initialization still own an mpv context.
+  if (!texture_id_) promise.set_value();
+  promise.get_future().get();
   texture_id_ = 0;
 
   thread_pool_ref_->Post([render_context = render_context_]() {
-    mpv_render_context_free(render_context);
-  });
+    if (render_context) mpv_render_context_free(render_context);
+  }).get();
+  render_context_ = nullptr;
 }
 
 void VideoOutput::NotifyRender() {
+  std::lock_guard<std::mutex> lock(callback_mutex_);
   if (destroyed_) {
     return;
   }

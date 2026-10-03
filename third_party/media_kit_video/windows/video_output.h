@@ -10,6 +10,7 @@
 #define VIDEO_OUTPUT_H_
 
 #include <optional>
+#include <atomic>
 
 #include <client.h>
 #include <render.h>
@@ -101,7 +102,8 @@ class VideoOutput {
   // For preventing any asynchronous operations (primarily texture objects
   // deletion after unregister in |Resize|) access this object after
   // destruction.
-  bool destroyed_ = false;
+  std::atomic<bool> destroyed_ = false;
+  std::mutex callback_mutex_;
 
   std::mutex textures_mutex_ = std::mutex();
 

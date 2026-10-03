@@ -72,7 +72,8 @@ try{
     if($ui -notmatch 'window_shown'){throw 'Independent update window did not report being shown'}
   }
   $backup=Get-ChildItem "$root\Backups" -Directory|Select-Object -First 1
-  if(!$backup -or (Get-Item (Join-Path $backup.FullName 'BobTV.exe')).VersionInfo.FileVersion -ne '0.9.1+68'){
+  $previousExecutable=Split-Path $exe -Leaf
+  if(!$backup -or (Get-Item (Join-Path $backup.FullName $previousExecutable)).VersionInfo.FileVersion -ne '0.9.1+68'){
     throw 'Previous GUI backup missing'
   }
   $appProcess=Start-Process $exe -WorkingDirectory (Split-Path $exe) -PassThru

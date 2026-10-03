@@ -124,7 +124,7 @@ where available; unresolved channels remain in the explicit unknown category.
 Verification follows HLS playlists to actual media bytes, with bounded
 concurrency, timeouts, and public-address checks. Recently verified routes are
 published atomically. CCTV-5, CCTV-5+ and 4K variants retain separate identities.
-Clients download revisions every fifteen minutes. Initial server verification
+Clients check revisions every minute. Initial server verification
 records seed local availability, so a fresh installation does not have to
 recheck every route before showing its cards.
 
@@ -133,6 +133,53 @@ Retirement is monotonic: later inventory uploads cannot restore that URL.
 Clients apply these tombstones to all providers, including bundled sources.
 The old manifest remains available if generation fails. Deploy the timer and
 service files under `website/deploy` alongside the updated website runtime.
+
+## Durable cross-device change events
+
+`POST /api/v1/channel-catalog/events` accepts `schemaVersion: 1`, an
+application fingerprint, and at most 200 events. Each event has a unique `id`,
+public `url`, and `kind`: `upsert`, `classify`, `health`, `delete`, or `retire`.
+Classification includes `group` and `baseRevision`; health observations include
+bounded positive `success` and negative `failure` counts. Upserts include
+`metadata` (name, group, source, optional EPG ID and logo) and `baseRevision`.
+The receipt returns an ID, revision and `applied`, `conflict`, `rejected`, or
+`retry` status for each event. Retry receipts remain queued; terminal receipts
+remove only the exact acknowledged event ID.
+
+SQLite triggers capture public channel additions, metadata changes and last
+route deletions in the same transaction as the local operation. Explicit
+classification and retirement events and measured health observations share
+the persistent queue. Changes are flushed every 15 seconds in bounded pages,
+with retries after disconnection or restart. Server imports suppress triggers
+to prevent echoes. Existing saved classifications and bounded historical
+health observations are migrated once per local database.
+
+The server deduplicates events by reporter and event ID. Classification uses
+compare-and-set revisions so an older installation cannot overwrite a newer
+edit. Discovery inventory cannot overwrite manual classification. Tombstones
+are monotonic and propagate even if the final route is removed. Snapshots can
+represent zero channels and prune unused categories. New routes still require
+server verification; client playback observations alone cannot publish them.
+
+Metadata, deletions and weights publish in a background task without waiting
+for slow network verification. Verification does not hold the publication
+lock. Snapshots carry route revisions and shared health scores. Clients keep
+unacknowledged manual edits, reconcile confirmed changes, reject older dated
+snapshots, preserve personal favorites during route ID migration, and combine
+shared ranking with local network observations. Sync progress is shown beside
+the channel list rather than over the video.
+
+Run the full HTTP acceptance test using a Python runtime with
+`website/requirements.txt` installed:
+
+```sh
+BOBTV_SYNC_E2E_PYTHON=/path/to/python flutter test test/shared_catalog_http_e2e_test.dart
+```
+
+The test starts an isolated real HTTP API and multiple independent client
+databases. It covers initialization, classification propagation, stale
+inventory, additive weights, candidate validation, deletion and fresh-client
+bootstrap. No test route is written to the production catalog.
 
 ## Acceptance checks
 

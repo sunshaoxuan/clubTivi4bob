@@ -10,7 +10,7 @@ from pathlib import Path
 from contextlib import contextmanager
 from urllib.parse import urlsplit, parse_qsl
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, HTTPException, Request, BackgroundTasks
 from fastapi.responses import JSONResponse
 
 DATA = Path(os.environ.get("BOBTV_DATA_DIR", Path(__file__).parent / "data"))
@@ -53,6 +53,15 @@ def database(data_dir=None):
     conn.execute("CREATE TABLE IF NOT EXISTS routes (digest TEXT PRIMARY KEY, name TEXT NOT NULL, url TEXT NOT NULL, group_name TEXT NOT NULL, source TEXT NOT NULL, epg_id TEXT, logo_url TEXT, playable_at INTEGER, blocked INTEGER NOT NULL DEFAULT 0, received INTEGER NOT NULL, checked_at INTEGER, success_at INTEGER, failures INTEGER NOT NULL DEFAULT 0)")
     conn.execute("CREATE TABLE IF NOT EXISTS batches (reporter TEXT NOT NULL, digest TEXT NOT NULL, received INTEGER NOT NULL, PRIMARY KEY(reporter,digest))")
     conn.execute("CREATE TABLE IF NOT EXISTS limits (reporter TEXT PRIMARY KEY, hour INTEGER NOT NULL, count INTEGER NOT NULL)")
+    columns = {row[1] for row in conn.execute('PRAGMA table_info(routes)')}
+    for name, definition in {'revision': 'INTEGER NOT NULL DEFAULT 0',
+            'deleted': 'INTEGER NOT NULL DEFAULT 0',
+            'success_votes': 'INTEGER NOT NULL DEFAULT 0',
+            'failure_votes': 'INTEGER NOT NULL DEFAULT 0',
+            'manual_category': 'INTEGER NOT NULL DEFAULT 0'}.items():
+        if name not in columns:
+            conn.execute(f'ALTER TABLE routes ADD COLUMN {name} {definition}')
+    conn.execute('CREATE TABLE IF NOT EXISTS sync_receipts (reporter TEXT NOT NULL, event_id TEXT NOT NULL, receipt TEXT NOT NULL, PRIMARY KEY(reporter,event_id))')
     try:
         with conn:
             yield conn
@@ -96,7 +105,8 @@ def ingest(rows, fingerprint, data_dir=None):
         total = conn.execute("SELECT count(*) FROM routes").fetchone()[0]
         if total + len(normalized) > 250000: raise HTTPException(503, "Inventory capacity reached")
         for item in normalized:
-            conn.execute("INSERT INTO routes (digest,name,url,group_name,source,epg_id,logo_url,playable_at,blocked,received) VALUES (?,?,?,?,?,?,?,?,?,?) ON CONFLICT(digest) DO UPDATE SET name=excluded.name,group_name=excluded.group_name,source=excluded.source,epg_id=excluded.epg_id,logo_url=excluded.logo_url,playable_at=MAX(COALESCE(routes.playable_at,0),COALESCE(excluded.playable_at,0)),blocked=MAX(routes.blocked,excluded.blocked),received=excluded.received", item)
+            # Repeated discovery must not overwrite reviewed/manual metadata.
+            conn.execute("INSERT INTO routes (digest,name,url,group_name,source,epg_id,logo_url,playable_at,blocked,received) VALUES (?,?,?,?,?,?,?,?,?,?) ON CONFLICT(digest) DO UPDATE SET playable_at=MAX(COALESCE(routes.playable_at,0),COALESCE(excluded.playable_at,0)),blocked=MAX(routes.blocked,excluded.blocked),received=excluded.received", item)
             accepted += 1
         conn.execute("DELETE FROM batches WHERE received<?", (now - 7 * 86400,))
         conn.execute("INSERT OR REPLACE INTO batches VALUES (?,?,?)", (reporter, batch_digest, now))
@@ -126,5 +136,117 @@ async def inventory(request: Request):
 @router.get("/blocked")
 def blocked_routes():
     with database() as conn:
-        urls = [row[0] for row in conn.execute("SELECT url FROM routes WHERE blocked=1 ORDER BY digest")]
+        urls = [row[0] for row in conn.execute("SELECT url FROM routes WHERE blocked=1 OR deleted=1 ORDER BY digest")]
     return {"schemaVersion": 1, "urls": urls}
+
+
+def ingest_events(events, fingerprint, data_dir=None):
+    reporter = hashlib.sha256(fingerprint.encode()).hexdigest()
+    receipts = []
+    with database(data_dir) as conn:
+        now=int(time.time())
+        limit=conn.execute('SELECT hour,count FROM limits WHERE reporter=?',(reporter,)).fetchone()
+        count=limit['count']+1 if limit and limit['hour']==now//3600 else 1
+        if count>2000: raise HTTPException(429,'Sync rate limit',headers={'Retry-After':'3600'})
+        conn.execute('INSERT INTO limits VALUES(?,?,?) ON CONFLICT(reporter) DO UPDATE SET hour=excluded.hour,count=excluded.count',(reporter,now//3600,count))
+        total=conn.execute('SELECT count(*) FROM routes').fetchone()[0]
+        for event in events:
+            if not isinstance(event, dict) or not isinstance(event.get('id'),str) or not re.fullmatch(r'[a-f0-9-]{16,80}', event['id']):
+                raise HTTPException(422, 'Invalid event ID')
+            event_id = event['id']
+            saved = conn.execute('SELECT receipt FROM sync_receipts WHERE reporter=? AND event_id=?', (reporter, event_id)).fetchone()
+            if saved:
+                receipts.append(json.loads(saved[0]))
+                continue
+            receipt = {'id': event_id, 'status': 'rejected', 'revision': 0}
+            try:
+                url = validate_media_url(event.get('url'))
+                kind = event.get('kind')
+                digest = hashlib.sha256(url.encode()).hexdigest()
+                row = conn.execute('SELECT * FROM routes WHERE digest=?', (digest,)).fetchone()
+                if kind == 'upsert':
+                    metadata = event.get('metadata')
+                    if not isinstance(metadata, dict): raise ValueError('Missing metadata')
+                    # Insert through the same privacy and validation policy.
+                    normalized = {**metadata, 'url': url, 'blocked': False}
+                    name, group, source = normalized.get('name'), normalized.get('group'), normalized.get('source')
+                    if not all(isinstance(v, str) and 1 <= len(v) <= limit and not any(ord(c) < 32 for c in v)
+                               for v, limit in ((name,128),(group,192),(source,128))): raise ValueError('Invalid metadata')
+                    epg,logo=normalized.get('epgId'),normalized.get('logoUrl')
+                    if epg is not None and (not isinstance(epg,str) or len(epg)>128): raise ValueError('Invalid EPG')
+                    if logo is not None: validate_media_url(logo)
+                    if row is None:
+                        if total>=250000: raise HTTPException(503,'Inventory capacity reached')
+                        total+=1
+                        conn.execute('INSERT INTO routes(digest,name,url,group_name,source,received) VALUES(?,?,?,?,?,?)', (digest,name,url,group,source,int(time.time())))
+                        row = conn.execute('SELECT * FROM routes WHERE digest=?', (digest,)).fetchone()
+                        conn.execute('UPDATE routes SET epg_id=?,logo_url=? WHERE digest=?',(epg,logo,digest))
+                elif kind not in ('classify', 'health', 'delete', 'retire'):
+                    raise ValueError('Unknown event')
+                if row is None:
+                    if kind in ('delete', 'retire'):
+                        conn.execute('INSERT INTO routes(digest,name,url,group_name,source,received) VALUES(?,?,?,?,?,?)', (digest,'已删除线路',url,'其他','BobTV',int(time.time())))
+                        row = conn.execute('SELECT * FROM routes WHERE digest=?', (digest,)).fetchone()
+                    else:
+                        receipt['status'] = 'retry'
+                        receipts.append(receipt)
+                        continue
+                revision = row['revision']
+                if kind == 'classify':
+                    group = event.get('group')
+                    if not isinstance(group,str) or not 1 <= len(group) <= 192 or any(ord(c)<32 for c in group): raise ValueError('Invalid group')
+                    base = event.get('baseRevision')
+                    if type(base) is not int or base != revision:
+                        receipt.update(status='conflict', revision=revision)
+                    else:
+                        conn.execute('UPDATE routes SET group_name=?,manual_category=1,revision=revision+1 WHERE digest=?', (group,digest))
+                        receipt.update(status='applied', revision=revision+1)
+                elif kind == 'health':
+                    success, failure = event.get('success',0), event.get('failure',0)
+                    if not all(type(v) is int and 0 <= v <= 10 for v in (success,failure)) or not success+failure: raise ValueError('Invalid health observation')
+                    conn.execute('UPDATE routes SET success_votes=success_votes+?,failure_votes=failure_votes+? WHERE digest=?', (success,failure,digest))
+                    receipt.update(status='applied', revision=revision)
+                elif kind in ('delete','retire'):
+                    column = 'blocked' if kind == 'retire' else 'deleted'
+                    conn.execute(f'UPDATE routes SET {column}=1,revision=revision+1 WHERE digest=?', (digest,))
+                    receipt.update(status='applied',revision=revision+1)
+                else:
+                    group = row['group_name'] if row['manual_category'] else metadata['group']
+                    changed=(name,group,epg,logo)!=(row['name'],row['group_name'],row['epg_id'],row['logo_url'])
+                    if changed and not row['blocked'] and not row['deleted']:
+                        if event.get('baseRevision',0)!=revision:
+                            receipt.update(status='conflict',revision=revision)
+                        else:
+                            conn.execute('UPDATE routes SET name=?,group_name=?,epg_id=?,logo_url=?,revision=revision+1 WHERE digest=?',(name,group,epg,logo,digest))
+                            receipt.update(status='applied',revision=revision+1)
+                    else:
+                        receipt.update(status='applied',revision=revision)
+            except (ValueError,TypeError):
+                pass
+            conn.execute('INSERT INTO sync_receipts VALUES(?,?,?)',(reporter,event_id,json.dumps(receipt)))
+            receipts.append(receipt)
+    return {'schemaVersion':1, 'receipts':receipts}
+
+
+@router.post('/events')
+async def sync_events(request: Request, background_tasks: BackgroundTasks):
+    if request.headers.get('content-type','').split(';',1)[0] != 'application/json': raise HTTPException(415)
+    body = bytearray()
+    async for chunk in request.stream():
+        body.extend(chunk)
+        if len(body)>MAX_BODY: raise HTTPException(413)
+    try:
+        payload = json.loads(body)
+        if payload.get('schemaVersion') != 1 or not re.fullmatch(r'[a-f0-9]{64}',payload.get('fingerprint','')): raise ValueError()
+        events = payload.get('events')
+        if not isinstance(events,list) or not 1 <= len(events) <= 200: raise ValueError()
+    except (ValueError,TypeError,AttributeError):
+        raise HTTPException(422,'Invalid sync events') from None
+    receipt=ingest_events(events,payload['fingerprint'])
+    background_tasks.add_task(_publish_changes)
+    return JSONResponse(receipt,status_code=202)
+
+
+def _publish_changes():
+    from process_channel_inventory import process
+    process(DATA,limit=0)

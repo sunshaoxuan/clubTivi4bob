@@ -175,4 +175,8 @@ Windows 与 macOS 的共享频道接口与旧版 `/api/v1/sources` 独立。
 - `POST /api/v1/channel-catalog/inventory` 分批上报公开频道、分类、线路和淘汰记录。正文包含 `schemaVersion: 1`、64 位十六进制 `fingerprint`、最多 200 项的 `routes`，最多 512 KiB。线路字段为 `name`、`url`、`group`、`source`、`blocked`，可选 `epgId`、`logoUrl`、Unix 秒数 `playableAt`。响应 `202` 包含 `accepted`、`skipped`、`storedRoutes`、`blockedRoutes`、`verifiedRoutes`。
 - `GET /api/v1/channel-catalog/blocked` 返回 `schemaVersion: 1` 与已淘汰地址数组 `urls`。后续上报不能解除淘汰状态。
 
+- `POST /api/v1/channel-catalog/events` 持久化同步新增、分类、线路权重、删除和淘汰事件。正文包含 `schemaVersion: 1`、`fingerprint` 和最多 200 个 `events`，上限 512 KiB。每个事件含唯一 `id`、公开 `url`、`kind`。`upsert` 含 `metadata` 与 `baseRevision`；`classify` 含 `group` 与 `baseRevision`；`health` 含 0 至 10 的正向 `success` 和负向 `failure` 次数；`delete`、`retire` 无额外字段。
+- 响应 `202` 含 `schemaVersion: 1` 和 `receipts`，每项包含事件 `id`、`revision`、`status`。状态为 `applied`、`conflict`、`rejected` 或 `retry`。服务器按客户端与事件 ID 去重，分类采用版本比较保护。`retry` 保留在客户端持久队列，其他状态仅确认对应事件 ID。旧版清单上报不会覆盖手工分类。
+- 客户端每 15 秒分批上报变更，每分钟检查共享清单版本。修改、权重和删除在后台发布，不等待慢线路验证；新增线路仍需服务器验证。快照线路可包含 `revision`，共享 `healthScore` 参与线路排序。空清单和失去最后线路的分类都能同步移除。界面显示同步过程，网络失败不阻塞本地修改。
+
 服务器定时验证候选媒体并原子发布清单。客户端采用内置小型启动清单，后台下载网站清单及验证记录，按分类直接展示，通过本地检查继续更新可用性。线路上报采用分页与成功检查点，失败自动重试。全局淘汰记录应用到所有来源。频道清单不会夹带收藏、观看历史或私人源认证数据。详细快照结构与验收流程见 `docs/channel-catalog-sync.md`。

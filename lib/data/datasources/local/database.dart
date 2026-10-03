@@ -1,9 +1,11 @@
 import 'dart:io';
+import 'dart:convert';
 import 'package:drift/drift.dart';
 import 'package:drift/native.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as p;
 import 'package:uuid/uuid.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../services/channel_category_classifier.dart';
 import '../../services/public_inventory_policy.dart';
@@ -46,6 +48,7 @@ class AppDatabase extends _$AppDatabase {
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
+    beforeOpen: (_) => _initializeSharedSync(),
     onCreate: (m) => m.createAll(),
     onUpgrade: (m, from, to) async {
       if (from < 2) {
@@ -77,6 +80,220 @@ class AppDatabase extends _$AppDatabase {
       }
     },
   );
+
+  Future<void> _initializeSharedSync() async {
+    await customStatement(
+      'CREATE TABLE IF NOT EXISTS shared_sync_control (id INTEGER PRIMARY KEY, suppressed INTEGER NOT NULL)',
+    );
+    await customStatement(
+      'INSERT OR IGNORE INTO shared_sync_control VALUES(1,0)',
+    );
+    await customStatement(
+      'CREATE TABLE IF NOT EXISTS shared_sync_state (url TEXT PRIMARY KEY, revision INTEGER NOT NULL DEFAULT 0, score REAL)',
+    );
+    await customStatement(
+      'CREATE TABLE IF NOT EXISTS shared_sync_outbox (id TEXT PRIMARY KEY, coalesce_key TEXT UNIQUE, url TEXT NOT NULL, kind TEXT NOT NULL, payload TEXT NOT NULL)',
+    );
+    // SQL triggers capture every import/edit/delete atomically with the data.
+    // Personal/account-bearing providers never enter the public queue.
+    final ids = sharedInventoryProviderIds.map((id) => "'$id'").join(',');
+    final eligible =
+        "EXISTS(SELECT 1 FROM providers p WHERE p.id=NEW.provider_id AND p.type!='xtream' AND COALESCE(p.username,'')='' AND COALESCE(p.password,'')='' AND (p.id IN ($ids) OR ((p.url LIKE 'https://raw.githubusercontent.com/%' OR p.url LIKE 'https://github.com/%' OR p.url LIKE 'https://%.github.io/%') AND p.url NOT LIKE '%?%' AND p.url NOT LIKE '%#%' AND p.url NOT LIKE '%@%')))";
+    for (final operation in ['INSERT', 'UPDATE', 'DELETE']) {
+      final owner = operation == 'DELETE' ? 'OLD' : 'NEW';
+      final kind = operation == 'DELETE' ? 'delete' : 'upsert';
+      final changed = operation == 'UPDATE'
+          ? 'AND (OLD.name IS NOT NEW.name OR OLD.stream_url IS NOT NEW.stream_url OR OLD.group_title IS NOT NEW.group_title OR OLD.tvg_id IS NOT NEW.tvg_id OR OLD.tvg_logo IS NOT NEW.tvg_logo)'
+          : operation == 'DELETE'
+          ? 'AND NOT EXISTS(SELECT 1 FROM channels WHERE stream_url=OLD.stream_url)'
+          : '';
+      await customStatement(
+        '''CREATE TRIGGER IF NOT EXISTS shared_sync_${operation.toLowerCase()}
+        AFTER $operation ON channels WHEN (SELECT suppressed FROM shared_sync_control WHERE id=1)=0
+        AND ${eligible.replaceAll('NEW.', '$owner.')} $changed BEGIN
+        INSERT INTO shared_sync_outbox(id,coalesce_key,url,kind,payload)
+        VALUES(lower(hex(randomblob(16))), '$kind:'||$owner.stream_url, $owner.stream_url,'$kind',
+        json_object('name',$owner.name,'group',COALESCE($owner.group_title,'其他'),'source',$owner.provider_id,'epgId',$owner.tvg_id,'logoUrl',$owner.tvg_logo))
+        ON CONFLICT(coalesce_key) DO UPDATE SET id=excluded.id,payload=excluded.payload;
+        END''',
+      );
+    }
+    for (final operation in ['INSERT', 'UPDATE']) {
+      await customStatement(
+        '''CREATE TRIGGER IF NOT EXISTS shared_sync_retire_${operation.toLowerCase()}
+      AFTER $operation ON blocked_stream_routes WHEN NEW.reason NOT LIKE 'private:%' AND NEW.reason!='shared_catalog_retired'
+      AND (SELECT suppressed FROM shared_sync_control WHERE id=1)=0 BEGIN
+      INSERT INTO shared_sync_outbox(id,coalesce_key,url,kind,payload) VALUES(lower(hex(randomblob(16))), 'retire:'||NEW.stream_url,NEW.stream_url,'retire','{}')
+      ON CONFLICT(coalesce_key) DO UPDATE SET id=excluded.id; END''',
+      );
+    }
+    await customStatement(
+      'CREATE TABLE IF NOT EXISTS shared_sync_migrations (name TEXT PRIMARY KEY)',
+    );
+    if ((await customSelect(
+      "SELECT name FROM shared_sync_migrations WHERE name='legacy-v1'",
+    ).get()).isEmpty) {
+      await transaction(() async {
+        for (final entry in (await ManualChannelCategory.load()).entries) {
+          await queueSharedEvent(entry.key, 'classify', {
+            'group': entry.value.group,
+            'baseRevision': await sharedRouteRevision(entry.key),
+          });
+        }
+        final prefs = await SharedPreferences.getInstance();
+        Object? old;
+        try {
+          old = jsonDecode(prefs.getString('stream_health_scores') ?? '{}');
+        } catch (_) {
+          old = {};
+        }
+        if (old is Map) {
+          for (final value in old.values) {
+            if (value is! Map || value['url'] is! String) continue;
+            final success = value['ok'] is int
+                ? (value['ok'] as int).clamp(0, 10)
+                : 0;
+            final failure = value['fail'] is int
+                ? (value['fail'] as int).clamp(0, 10)
+                : 0;
+            if (success + failure > 0)
+              await queueSharedEvent(value['url'] as String, 'health', {
+                'success': success,
+                'failure': failure,
+              });
+          }
+        }
+        await customStatement(
+          "INSERT OR IGNORE INTO shared_sync_migrations VALUES('legacy-v1')",
+        );
+      });
+    }
+  }
+
+  Future<T> withoutSharedReporting<T>(Future<T> Function() action) =>
+      transaction(() async {
+        final original = (await customSelect(
+          'SELECT suppressed FROM shared_sync_control WHERE id=1',
+        ).getSingle()).read<int>('suppressed');
+        await customStatement(
+          'UPDATE shared_sync_control SET suppressed=1 WHERE id=1',
+        );
+        try {
+          return await action();
+        } finally {
+          await customStatement(
+            'UPDATE shared_sync_control SET suppressed=? WHERE id=1',
+            [original],
+          );
+        }
+      });
+
+  Future<int> sharedRouteRevision(String url) async {
+    final rows = await customSelect(
+      'SELECT revision FROM shared_sync_state WHERE url=?',
+      variables: [Variable(url)],
+    ).get();
+    return rows.isEmpty ? 0 : rows.single.read<int>('revision');
+  }
+
+  Future<void> setSharedRouteState(
+    String url,
+    int revision, {
+    double? score,
+  }) => customStatement(
+    'INSERT INTO shared_sync_state(url,revision,score) VALUES(?,?,?) ON CONFLICT(url) DO UPDATE SET revision=MAX(excluded.revision,shared_sync_state.revision),score=COALESCE(excluded.score,shared_sync_state.score)',
+    [url, revision, score],
+  );
+
+  Future<Map<String, int>> sharedRouteRevisions() async => {
+    for (final row in await customSelect(
+      'SELECT url,revision FROM shared_sync_state',
+    ).get())
+      row.read<String>('url'): row.read<int>('revision'),
+  };
+
+  Future<void> setSharedRouteStates(
+    Iterable<Map<String, Object?>> records,
+  ) => batch((b) {
+    for (final record in records)
+      b.customStatement(
+        'INSERT INTO shared_sync_state(url,revision,score) VALUES(?,?,?) ON CONFLICT(url) DO UPDATE SET revision=MAX(excluded.revision,shared_sync_state.revision),score=COALESCE(excluded.score,shared_sync_state.score)',
+        [record['url'], record['revision'], record['healthScore']],
+      );
+  });
+
+  Future<Set<String>> pendingSharedRemovedUrls() async => {
+    for (final row in await customSelect(
+      "SELECT DISTINCT url FROM shared_sync_outbox WHERE kind IN ('delete','retire')",
+    ).get())
+      row.read<String>('url'),
+  };
+
+  Future<void> queueSharedEvent(
+    String url,
+    String kind,
+    Map<String, Object?> payload,
+  ) async {
+    final owners = await getChannelsByStreamUrls([url]);
+    final eligible = {
+      for (final p in await getAllProviders())
+        if (isSharedInventoryProvider(
+          id: p.id,
+          type: p.type,
+          url: p.url,
+          username: p.username,
+          password: p.password,
+        ))
+          p.id,
+    };
+    if (!owners.any((c) => eligible.contains(c.providerId))) return;
+    if (kind == 'classify')
+      await customStatement(
+        "DELETE FROM shared_sync_outbox WHERE url=? AND kind='classify'",
+        [url],
+      );
+    await customStatement(
+      'INSERT INTO shared_sync_outbox(id,url,kind,payload) VALUES(?,?,?,?)',
+      [_uuid.v4(), url, kind, jsonEncode(payload)],
+    );
+  }
+
+  Future<List<Map<String, Object?>>> pendingSharedEvents({
+    int limit = 100,
+  }) async {
+    final rows = await customSelect(
+      'SELECT id,url,kind,payload FROM shared_sync_outbox ORDER BY rowid LIMIT ?',
+      variables: [Variable(limit)],
+    ).get();
+    return [
+      for (final row in rows)
+        {
+          'id': row.read<String>('id'),
+          'url': row.read<String>('url'),
+          'kind': row.read<String>('kind'),
+          'payload': jsonDecode(row.read<String>('payload')),
+        },
+    ];
+  }
+
+  Future<void> acknowledgeSharedEvent(String id) =>
+      customStatement('DELETE FROM shared_sync_outbox WHERE id=?', [id]);
+
+  Future<void> advanceQueuedCategoryRevision(
+    String url,
+    int oldRevision,
+    int revision,
+  ) => customStatement(
+    "UPDATE shared_sync_outbox SET payload=json_set(payload,'\$.baseRevision',?) WHERE url=? AND kind='classify' AND json_extract(payload,'\$.baseRevision')=?",
+    [revision, url, oldRevision],
+  );
+
+  Future<Set<String>> pendingSharedCategoryUrls() async => {
+    for (final row in await customSelect(
+      "SELECT DISTINCT url FROM shared_sync_outbox WHERE kind='classify'",
+    ).get())
+      row.read<String>('url'),
+  };
 
   // --- Provider queries ---
 
@@ -268,6 +485,7 @@ class AppDatabase extends _$AppDatabase {
     final blockedUrls = {
       for (final route in await select(blockedStreamRoutes).get())
         route.streamUrl,
+      ...await pendingSharedRemovedUrls(),
     };
     entries = entries.where((entry) {
       if (!entry.name.present || !entry.streamUrl.present) return true;
@@ -311,13 +529,19 @@ class AppDatabase extends _$AppDatabase {
     ChannelCategoryDestination destination,
   ) async {
     final unique = urls.where((url) => url.isNotEmpty).toSet().toList();
-    await ManualChannelCategory.save(unique, destination);
-    await transaction(() async {
+    await withoutSharedReporting(() async {
+      await ManualChannelCategory.save(unique, destination);
       for (var offset = 0; offset < unique.length; offset += 400) {
         await (update(channels)..where(
               (row) => row.streamUrl.isIn(unique.skip(offset).take(400)),
             ))
             .write(ChannelsCompanion(groupTitle: Value(destination.group)));
+      }
+      for (final url in unique) {
+        await queueSharedEvent(url, 'classify', {
+          'group': destination.group,
+          'baseRevision': await sharedRouteRevision(url),
+        });
       }
     });
   }
@@ -355,9 +579,9 @@ class AppDatabase extends _$AppDatabase {
     String channelId,
     String streamUrl,
   ) async {
-    final owner = await (select(channels)
-          ..where((table) => table.id.equals(channelId)))
-        .getSingleOrNull();
+    final owner = await (select(
+      channels,
+    )..where((table) => table.id.equals(channelId))).getSingleOrNull();
     if (owner == null) return 0;
     return blockAndDeleteStreamUrl(
       streamUrl,
@@ -370,17 +594,25 @@ class AppDatabase extends _$AppDatabase {
     String streamUrl, {
     required String reason,
   }) async {
-    final matches = await (select(channels)
-          ..where((table) => table.streamUrl.equals(streamUrl))).get();
-    final previous = await (select(blockedStreamRoutes)
-          ..where((table) => table.streamUrl.equals(streamUrl))).getSingleOrNull();
+    final matches = await (select(
+      channels,
+    )..where((table) => table.streamUrl.equals(streamUrl))).get();
+    final previous = await (select(
+      blockedStreamRoutes,
+    )..where((table) => table.streamUrl.equals(streamUrl))).getSingleOrNull();
     final publicProviders = {
       for (final provider in await getAllProviders())
-        if (isSharedInventoryProvider(id: provider.id, type: provider.type,
-            url: provider.url, username: provider.username,
-            password: provider.password)) provider.id,
+        if (isSharedInventoryProvider(
+          id: provider.id,
+          type: provider.type,
+          url: provider.url,
+          username: provider.username,
+          password: provider.password,
+        ))
+          provider.id,
     };
-    final shared = reason == 'shared_catalog_retired' ||
+    final shared =
+        reason == 'shared_catalog_retired' ||
         (previous != null && !previous.reason.startsWith('private:')) ||
         matches.any((channel) => publicProviders.contains(channel.providerId));
     await into(blockedStreamRoutes).insertOnConflictUpdate(
@@ -399,9 +631,9 @@ class AppDatabase extends _$AppDatabase {
       null;
 
   Future<Set<String>> getBlockedStreamUrls() async => {
-        for (final route in await select(blockedStreamRoutes).get())
-          route.streamUrl,
-      };
+    for (final route in await select(blockedStreamRoutes).get())
+      route.streamUrl,
+  };
 
   Future<Set<String>> getSharedBlockedStreamUrls() async => {
     for (final route in await select(blockedStreamRoutes).get())
@@ -451,26 +683,32 @@ class AppDatabase extends _$AppDatabase {
   /// Copy user references before the old channel is removed by the importer.
   Future<void> copyChannelReferences(String oldId, String newId) async {
     if (oldId == newId) return;
-    final favorites = await (select(favoriteListChannels)
-      ..where((row) => row.channelId.equals(oldId))).get();
+    final favorites = await (select(
+      favoriteListChannels,
+    )..where((row) => row.channelId.equals(oldId))).get();
     for (final row in favorites) {
       await into(favoriteListChannels).insert(
         row.toCompanion(false).copyWith(channelId: Value(newId)),
-        mode: InsertMode.insertOrIgnore);
+        mode: InsertMode.insertOrIgnore,
+      );
     }
-    final groups = await (select(failoverGroupChannels)
-      ..where((row) => row.channelId.equals(oldId))).get();
+    final groups = await (select(
+      failoverGroupChannels,
+    )..where((row) => row.channelId.equals(oldId))).get();
     for (final row in groups) {
       await into(failoverGroupChannels).insert(
         row.toCompanion(false).copyWith(channelId: Value(newId)),
-        mode: InsertMode.insertOrIgnore);
+        mode: InsertMode.insertOrIgnore,
+      );
     }
-    final mappings = await (select(epgMappings)
-      ..where((row) => row.channelId.equals(oldId))).get();
+    final mappings = await (select(
+      epgMappings,
+    )..where((row) => row.channelId.equals(oldId))).get();
     for (final row in mappings) {
       await into(epgMappings).insert(
         row.toCompanion(false).copyWith(channelId: Value(newId)),
-        mode: InsertMode.insertOrIgnore);
+        mode: InsertMode.insertOrIgnore,
+      );
     }
   }
 
@@ -481,13 +719,18 @@ class AppDatabase extends _$AppDatabase {
   Future<List<StreamCheck>> getStreamChecksForChannels(
     List<Channel> activeChannels,
   ) async {
-    final urls = activeChannels.map((channel) => channel.streamUrl).toSet().toList();
+    final urls = activeChannels
+        .map((channel) => channel.streamUrl)
+        .toSet()
+        .toList();
     final checks = <StreamCheck>[];
     for (var offset = 0; offset < urls.length; offset += 300) {
       final end = (offset + 300).clamp(0, urls.length);
-      checks.addAll(await (select(streamChecks)
-            ..where((row) => row.streamUrl.isIn(urls.sublist(offset, end))))
-          .get());
+      checks.addAll(
+        await (select(
+          streamChecks,
+        )..where((row) => row.streamUrl.isIn(urls.sublist(offset, end)))).get(),
+      );
     }
     return checks;
   }
@@ -724,30 +967,32 @@ class AppDatabase extends _$AppDatabase {
   }) async {
     if (epgChannelId.isEmpty || limit <= 0) return [];
     final count = limit.clamp(1, 20);
-    final current = await (select(epgProgrammes)
-          ..where(
-            (t) =>
-                t.epgChannelId.equals(epgChannelId) &
-                t.start.isSmallerOrEqualValue(at) &
-                t.stop.isBiggerThanValue(at),
-          )
-          ..orderBy([
-            (t) => OrderingTerm.desc(t.start),
-            (t) => OrderingTerm.desc(t.id),
-          ])
-          ..limit(1))
-        .getSingleOrNull();
+    final current =
+        await (select(epgProgrammes)
+              ..where(
+                (t) =>
+                    t.epgChannelId.equals(epgChannelId) &
+                    t.start.isSmallerOrEqualValue(at) &
+                    t.stop.isBiggerThanValue(at),
+              )
+              ..orderBy([
+                (t) => OrderingTerm.desc(t.start),
+                (t) => OrderingTerm.desc(t.id),
+              ])
+              ..limit(1))
+            .getSingleOrNull();
     if (current != null && count == 1) return [current];
-    final upcoming = await (select(epgProgrammes)
-          ..where(
-            (t) =>
-                t.epgChannelId.equals(epgChannelId) &
-                t.start.isBiggerThanValue(at) &
-                t.stop.isBiggerThanValue(at),
-          )
-          ..orderBy([(t) => OrderingTerm.asc(t.start)])
-          ..limit(count - (current == null ? 0 : 1)))
-        .get();
+    final upcoming =
+        await (select(epgProgrammes)
+              ..where(
+                (t) =>
+                    t.epgChannelId.equals(epgChannelId) &
+                    t.start.isBiggerThanValue(at) &
+                    t.stop.isBiggerThanValue(at),
+              )
+              ..orderBy([(t) => OrderingTerm.asc(t.start)])
+              ..limit(count - (current == null ? 0 : 1)))
+            .get();
     return current == null ? upcoming : [current, ...upcoming];
   }
 
@@ -805,11 +1050,15 @@ class AppDatabase extends _$AppDatabase {
 
   Future<List<Channel>> getAllChannels() => select(channels).get();
 
-  Future<List<Channel>> getChannelInventoryPage(String afterId,
-      {int limit = 200}) => (select(channels)
-        ..where((table) => table.id.isBiggerThanValue(afterId))
-        ..orderBy([(table) => OrderingTerm.asc(table.id)])
-        ..limit(limit)).get();
+  Future<List<Channel>> getChannelInventoryPage(
+    String afterId, {
+    int limit = 200,
+  }) =>
+      (select(channels)
+            ..where((table) => table.id.isBiggerThanValue(afterId))
+            ..orderBy([(table) => OrderingTerm.asc(table.id)])
+            ..limit(limit))
+          .get();
 
   Future<List<String>> getChannelNameSample({int limit = 80}) async {
     final query = selectOnly(channels, distinct: true)

@@ -28,6 +28,132 @@ class ChannelInventorySyncService {
   Future<void>? _running;
   bool _disposed = false;
   bool _refreshAfterRunning = false;
+  Future<int>? _eventsRunning;
+
+  Future<int> flushEvents() => _eventsRunning ??= _flushEvents().whenComplete(
+    () => _eventsRunning = null,
+  );
+
+  Future<int> _flushEvents() async {
+    if (_disposed) return 0;
+    var acknowledged = 0;
+    try {
+      if (fingerprintOverride == null)
+        await ClientFingerprintService.instance.initialize();
+      final fingerprint =
+          fingerprintOverride ??
+          ClientFingerprintService.instance.apiFingerprint;
+      if (fingerprint == null) return 0;
+      for (var page = 0; page < 20 && !_disposed; page++) {
+        final pending = await database.pendingSharedEvents();
+        if (pending.isEmpty) break;
+        final batch = <Map<String, Object?>>[];
+        for (final row in pending) {
+          final url = row['url'] as String;
+          if (row['kind'] == 'classify' &&
+              batch.any((e) => e['url'] == url && e['kind'] == 'upsert'))
+            continue;
+          if (!BobTvApiClient.isPublicCatalogUrl(url)) {
+            await database.acknowledgeSharedEvent(row['id'] as String);
+            continue;
+          }
+          final payload = Map<String, Object?>.from(row['payload'] as Map);
+          if (row['kind'] == 'upsert') {
+            final group = payload['group'] as String? ?? '其他';
+            if (!group.startsWith('中国 / ') && !group.startsWith('国际 / ')) {
+              final category = ChannelCategoryClassifier.classify(
+                name: payload['name'] as String,
+                groupTitle: group,
+                streamUrl: url,
+              );
+              payload['group'] = category == '国际'
+                  ? '国际 / ${ChannelCategoryClassifier.internationalCountryFor(name: payload['name'] as String, groupTitle: group)}'
+                  : category == '其他'
+                  ? '其他'
+                  : '中国 / $category';
+            }
+          }
+          batch.add({
+            'id': row['id'],
+            'url': url,
+            'kind': row['kind'],
+            if (row['kind'] == 'upsert') ...{
+              'metadata': payload,
+              'baseRevision': await database.sharedRouteRevision(url),
+            } else
+              ...payload,
+          });
+        }
+        if (batch.isEmpty) continue;
+        if (!_disposed)
+          state.value = WebsiteCatalogProgress(
+            phase: '正在同步频道变更',
+            total: pending.length,
+            imported: acknowledged,
+          );
+        final receipts = await api.uploadChannelEvents(
+          fingerprint: fingerprint,
+          events: batch,
+        );
+        var completed = 0;
+        final receivedIds = <Object?>{};
+        for (final receipt in receipts) {
+          final matches = batch.where((e) => e['id'] == receipt['id']).toList();
+          if (!receivedIds.add(receipt['id']) ||
+              matches.length != 1 ||
+              ![
+                'applied',
+                'conflict',
+                'rejected',
+                'retry',
+              ].contains(receipt['status']) ||
+              receipt['revision'] is! int ||
+              (receipt['revision'] as int) < 0)
+            throw const FormatException('Invalid sync event receipt');
+          final event = matches.single;
+          if (receipt['status'] == 'retry') continue;
+          await database.transaction(() async {
+            if (receipt['status'] == 'applied' &&
+                (event['kind'] == 'classify' || event['kind'] == 'upsert')) {
+              await database.advanceQueuedCategoryRevision(
+                event['url'] as String,
+                event['baseRevision'] as int,
+                receipt['revision'] as int,
+              );
+            }
+            await database.setSharedRouteState(
+              event['url'] as String,
+              receipt['revision'] as int,
+            );
+            await database.acknowledgeSharedEvent(event['id'] as String);
+          });
+          if (receipt['status'] != 'applied')
+            AppDiagnostics.instance.log('channel_sync_${receipt['status']}', {
+              'eventId': event['id'],
+              'kind': event['kind'],
+            });
+          completed++;
+        }
+        acknowledged += completed;
+        if (completed == 0) break;
+        await Future<void>.delayed(const Duration(milliseconds: 30));
+      }
+      if (!_disposed)
+        state.value = WebsiteCatalogProgress(
+          phase: '频道变更已同步',
+          imported: acknowledged,
+          complete: true,
+        );
+    } catch (error, stack) {
+      if (!_disposed)
+        state.value = const WebsiteCatalogProgress(
+          phase: '同步待重试，本机修改已保存',
+          error: true,
+        );
+      AppDiagnostics.instance.recordError('channel_events_sync', error, stack);
+    }
+    return acknowledged;
+  }
 
   Future<void> sync({bool refreshAfterRunning = false}) {
     if (_running != null) {
@@ -179,6 +305,7 @@ class ChannelInventorySyncService {
               .toList(),
         );
       }
+      await flushEvents();
       if (!_disposed) {
         state.value = WebsiteCatalogProgress(
           phase: '频道上报完成，等待网站验证',
@@ -224,6 +351,7 @@ class ChannelInventorySyncService {
           },
         ],
       );
+      await flushEvents();
     } catch (error, stack) {
       AppDiagnostics.instance.recordError(
         'channel_retirement_upload',

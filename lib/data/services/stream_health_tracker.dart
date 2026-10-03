@@ -8,6 +8,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 /// Persisted to SharedPreferences, decayed over time so recent data
 /// weighs more than old data.
 class StreamHealthTracker {
+  void Function(String url, int success, int failure)? onSharedObservation;
+  Map<String, double> _sharedScores = {};
   static const _prefsKey = 'stream_health_scores';
   static const _maxEntries = 300;
   static const _decayDays = 7;
@@ -20,6 +22,14 @@ class StreamHealthTracker {
     if (_loaded) return;
     try {
       final prefs = await SharedPreferences.getInstance();
+      final shared =
+          jsonDecode(prefs.getString('bobtv_shared_route_scores_v1') ?? '{}')
+              as Map;
+      _sharedScores = {
+        for (final e in shared.entries)
+          if (e.value is num)
+            e.key as String: (e.value as num).toDouble().clamp(0, 1),
+      };
       final json = prefs.getString(_prefsKey);
       if (json != null) {
         final map = jsonDecode(json) as Map<String, dynamic>;
@@ -40,6 +50,7 @@ class StreamHealthTracker {
     m.stallCount++;
     m.failureCount += 2;
     m.currentWindow.recordFailure(weight: 2);
+    onSharedObservation?.call(url, 0, 2);
     m.lastUpdated = DateTime.now();
     _scheduleSave();
   }
@@ -48,6 +59,7 @@ class StreamHealthTracker {
   void recordProbeSuccess(String url, int firstByteMs, double bytesPerSecond) {
     final m = _getOrCreate(url);
     m.successCount++;
+    onSharedObservation?.call(url, 1, 0);
     m.ttffMs = _ewma(m.ttffMs.toDouble(), firstByteMs.toDouble()).round();
     m.bytesPerSecond = _ewma(m.bytesPerSecond, bytesPerSecond);
     m.currentWindow.recordSuccess(firstByteMs, bytesPerSecond);
@@ -59,6 +71,7 @@ class StreamHealthTracker {
   void recordProbeFailure(String url) {
     final m = _getOrCreate(url);
     m.failureCount++;
+    onSharedObservation?.call(url, 0, 1);
     m.currentWindow.recordFailure();
     m.lastUpdated = DateTime.now();
     _scheduleSave();
@@ -72,6 +85,7 @@ class StreamHealthTracker {
   void recordPlaybackSuccess(String url) {
     final m = _getOrCreate(url);
     m.successCount += 2;
+    onSharedObservation?.call(url, 2, 0);
     m.currentWindow.successCount += 2;
     m.lastUpdated = DateTime.now();
     _scheduleSave();
@@ -99,7 +113,7 @@ class StreamHealthTracker {
   double getScore(String url) {
     final key = _urlKey(url);
     final m = _metrics[key];
-    if (m == null) return 0.5;
+    if (m == null) return _sharedScores[url] ?? 0.5;
 
     // Old observations fade toward neutral so a recovered route can be tried
     // again after enough time has passed.
@@ -128,7 +142,16 @@ class StreamHealthTracker {
     );
     final learned =
         overall * (1.0 - windowConfidence) + windowScore * windowConfidence;
-    return (0.5 + (learned - 0.5) * decay).clamp(0.0, 1.0);
+    final local = (0.5 + (learned - 0.5) * decay).clamp(0.0, 1.0);
+    return _sharedScores.containsKey(url)
+        ? local * .75 + _sharedScores[url]! * .25
+        : local;
+  }
+
+  Future<void> setSharedScores(Map<String, double> scores) async {
+    _sharedScores = Map.of(scores);
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('bobtv_shared_route_scores_v1', jsonEncode(scores));
   }
 
   double _scoreMetrics({

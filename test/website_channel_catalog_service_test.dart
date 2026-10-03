@@ -9,6 +9,7 @@ import 'package:drift/drift.dart' show Value;
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:clubtivi/data/services/manual_channel_category.dart';
 
 class _CatalogApi extends BobTvApiClient {
   _CatalogApi(this.catalog);
@@ -27,8 +28,10 @@ class _CatalogApi extends BobTvApiClient {
     return BobTvChannelCatalogManifest(
       version: version,
       channelCount: (catalog!['channels'] as List).length,
-      routeCount: (catalog!['channels'] as List).fold<int>(0,
-          (count, channel) => count + (channel['routes'] as List).length),
+      routeCount: (catalog!['channels'] as List).fold<int>(
+        0,
+        (count, channel) => count + (channel['routes'] as List).length,
+      ),
       snapshotPath: '/api/v1/channel-catalog/snapshots/$digest.json.gz',
       compressedBytes: bytes.length,
       sha256: digest,
@@ -37,7 +40,8 @@ class _CatalogApi extends BobTvApiClient {
 
   @override
   Future<List<int>> downloadChannelCatalog(
-      BobTvChannelCatalogManifest manifest) async => bytes;
+    BobTvChannelCatalogManifest manifest,
+  ) async => bytes;
 }
 
 Map<String, Object?> _catalog() => {
@@ -47,111 +51,235 @@ Map<String, Object?> _catalog() => {
     {'id': 'cn', 'parentId': null, 'name': '中国'},
     {'id': 'cn-cctv', 'parentId': 'cn', 'name': '央视'},
   ],
-  'channels': [{
-    'id': 'cctv-5-plus', 'name': 'CCTV-5+ 体育赛事',
-    'categoryId': 'cn-cctv', 'sortOrder': 25,
-    'epgId': 'cctv5plus', 'logoUrl': null,
-    'routes': [{
-      'id': 'route-one',
-      'url': 'https://media.example.org/live.m3u8',
-    }],
-  }],
+  'channels': [
+    {
+      'id': 'cctv-5-plus',
+      'name': 'CCTV-5+ 体育赛事',
+      'categoryId': 'cn-cctv',
+      'sortOrder': 25,
+      'epgId': 'cctv5plus',
+      'logoUrl': null,
+      'routes': [
+        <String,Object?>{'id': 'route-one', 'url': 'https://media.example.org/live.m3u8'},
+      ],
+    },
+  ],
 };
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   setUp(() => SharedPreferences.setMockInitialValues({}));
 
-  test('packaged starter initializes an empty database without network access', () async {
+  test('an offline deletion is not resurrected by a newer snapshot', () async {
     final database = db.AppDatabase.forTesting(NativeDatabase.memory());
-    final service = WebsiteChannelCatalogService(database: database, api: _CatalogApi(null));
-    addTearDown(() async { service.dispose(); await database.close(); });
-    expect(await service.importBundled(), greaterThan(0), reason: '${service.lastError}');
-    final rows = await database.getChannelsForProvider(WebsiteChannelCatalogService.providerId);
-    expect(rows.where((row) => row.groupTitle == '中国 / 央视'), isNotEmpty);
+    final api = _CatalogApi(_catalog());
+    final service = WebsiteChannelCatalogService(database: database, api: api);
+    addTearDown(() async {
+      service.dispose();
+      await database.close();
+    });
+    await service.sync();
+    await database.deleteChannelsByIds(
+      (await database.getAllChannels()).map((c) => c.id),
+    );
+    api.version = '2026-09-28.2';
+    api.catalog = {..._catalog(), 'version': api.version};
+    await service.sync();
+    expect(await database.getAllChannels(), isEmpty);
+    expect((await database.pendingSharedEvents()).single['kind'], 'delete');
   });
 
-  test('fresh installation receives server verification without a local scan', () async {
+  test('older dated snapshots cannot overwrite a newer catalog', () async {
     final database = db.AppDatabase.forTesting(NativeDatabase.memory());
-    final catalog = _catalog();
-    ((catalog['channels'] as List).single['routes'] as List).single['lastPlayableAt'] =
-        DateTime.now().toUtc().toIso8601String();
-    final service = WebsiteChannelCatalogService(database: database, api: _CatalogApi(catalog));
-    addTearDown(() async { service.dispose(); await database.close(); });
+    final api = _CatalogApi({..._catalog(), 'version': '2026-10-04T01:00:00Z'})
+      ..version = '2026-10-04T01:00:00Z';
+    final service = WebsiteChannelCatalogService(database: database, api: api);
+    addTearDown(() async {
+      service.dispose();
+      await database.close();
+    });
     expect(await service.sync(), 1);
-    final checks = await database.getAllStreamChecks();
-    expect(checks.single.lastSuccessAt, isNotNull);
-    expect(checks.single.consecutiveFailures, 0);
-    expect(checks.single.retired, isFalse);
+    api.version = '2026-10-03T01:00:00Z';
+    api.catalog = {..._catalog(), 'version': api.version};
+    expect(await service.sync(), 0);
+    expect(service.state.value.error, isTrue);
+    expect(await database.getAllChannels(), hasLength(1));
   });
+
+  test('acknowledged local category yields to newer shared revision', () async {
+    final database = db.AppDatabase.forTesting(NativeDatabase.memory());
+    final api = _CatalogApi(_catalog());
+    final service = WebsiteChannelCatalogService(database: database, api: api);
+    addTearDown(() async {
+      service.dispose();
+      await database.close();
+    });
+    await service.sync();
+    const url = 'https://media.example.org/live.m3u8';
+    await database.setManualChannelCategory([
+      url,
+    ], ChannelCategoryDestination(['美国', '新闻']));
+    for (final e in await database.pendingSharedEvents()) {
+      await database.acknowledgeSharedEvent(e['id'] as String);
+    }
+    await database.setSharedRouteState(url, 2);
+    api.version = '2026-09-28.2';
+    api.catalog = {
+      ..._catalog(),
+      'version': api.version,
+      'categories': [
+        {'id': 'us', 'name': '美国', 'parentId': null},
+        {'id': 'religion', 'name': '宗教', 'parentId': 'us'},
+      ],
+    };
+    final channel = (api.catalog!['channels'] as List).single;
+    channel['categoryId'] = 'religion';
+    (channel['routes'] as List).single['revision'] = 3;
+    await service.sync();
+    expect((await database.getAllChannels()).single.groupTitle, '国际 / 美国 / 宗教');
+    expect(await ManualChannelCategory.load(), isEmpty);
+    expect(await database.pendingSharedEvents(), isEmpty);
+  });
+
+  test(
+    'packaged starter initializes an empty database without network access',
+    () async {
+      final database = db.AppDatabase.forTesting(NativeDatabase.memory());
+      final service = WebsiteChannelCatalogService(
+        database: database,
+        api: _CatalogApi(null),
+      );
+      addTearDown(() async {
+        service.dispose();
+        await database.close();
+      });
+      expect(
+        await service.importBundled(),
+        greaterThan(0),
+        reason: '${service.lastError}',
+      );
+      final rows = await database.getChannelsForProvider(
+        WebsiteChannelCatalogService.providerId,
+      );
+      expect(rows.where((row) => row.groupTitle == '中国 / 央视'), isNotEmpty);
+    },
+  );
+
+  test(
+    'fresh installation receives server verification without a local scan',
+    () async {
+      final database = db.AppDatabase.forTesting(NativeDatabase.memory());
+      final catalog = _catalog();
+      ((catalog['channels'] as List).single['routes'] as List)
+          .single['lastPlayableAt'] = DateTime.now()
+          .toUtc()
+          .toIso8601String();
+      final service = WebsiteChannelCatalogService(
+        database: database,
+        api: _CatalogApi(catalog),
+      );
+      addTearDown(() async {
+        service.dispose();
+        await database.close();
+      });
+      expect(await service.sync(), 1);
+      final checks = await database.getAllStreamChecks();
+      expect(checks.single.lastSuccessAt, isNotNull);
+      expect(checks.single.consecutiveFailures, 0);
+      expect(checks.single.retired, isFalse);
+    },
+  );
 
   test('catalog route ID migration preserves favorite lists by URL', () async {
     final database = db.AppDatabase.forTesting(NativeDatabase.memory());
     final api = _CatalogApi(_catalog());
     final service = WebsiteChannelCatalogService(database: database, api: api);
-    addTearDown(() async { service.dispose(); await database.close(); });
+    addTearDown(() async {
+      service.dispose();
+      await database.close();
+    });
     await service.sync();
-    final old = (await database.getChannelsForProvider(WebsiteChannelCatalogService.providerId)).single;
+    final old = (await database.getChannelsForProvider(
+      WebsiteChannelCatalogService.providerId,
+    )).single;
     await database.addChannelToDefaultFavorites(old.id);
     api.version = '2026-09-28.2';
     api.catalog = {..._catalog(), 'version': api.version};
-    ((api.catalog!['channels'] as List).single['routes'] as List).single['id'] = 'route-renamed';
+    ((api.catalog!['channels'] as List).single['routes'] as List).single['id'] =
+        'route-renamed';
     await service.sync();
     final favorites = await database.getChannelsInList('default');
     expect(favorites.single.streamUrl, old.streamUrl);
     expect(favorites.single.id, endsWith(':route-renamed'));
   });
 
-  test('imports a classified website route and preserves its favorite', () async {
-    final database = db.AppDatabase.forTesting(NativeDatabase.memory());
-    final api = _CatalogApi(_catalog());
-    final service = WebsiteChannelCatalogService(database: database, api: api);
-    addTearDown(() async {
-      service.dispose();
-      await database.close();
-    });
-    expect(await service.sync(), 1, reason: '${service.lastError}');
-    var channels = await database.getChannelsForProvider(
-      WebsiteChannelCatalogService.providerId);
-    expect(channels.single.name, 'CCTV-5+ 体育赛事');
-    expect(channels.single.groupTitle, '中国 / 央视');
-    await database.upsertChannels([
-      db.ChannelsCompanion.insert(
-        id: channels.single.id,
-        providerId: WebsiteChannelCatalogService.providerId,
-        name: channels.single.name,
-        streamUrl: channels.single.streamUrl,
-        groupTitle: const Value('中国 / 央视'),
-        favorite: const Value(true),
-      ),
-    ]);
-    api.version = '2026-09-28.2';
-    api.catalog = {..._catalog(), 'version': api.version};
-    expect(await service.sync(), 1);
-    channels = await database.getChannelsForProvider(
-      WebsiteChannelCatalogService.providerId);
-    expect(channels.single.favorite, isTrue);
-    api.catalog = null;
-    expect(await service.sync(), 0);
-    expect((await database.getChannelsForProvider(
-      WebsiteChannelCatalogService.providerId)).length, 1);
-  });
+  test(
+    'imports a classified website route and preserves its favorite',
+    () async {
+      final database = db.AppDatabase.forTesting(NativeDatabase.memory());
+      final api = _CatalogApi(_catalog());
+      final service = WebsiteChannelCatalogService(
+        database: database,
+        api: api,
+      );
+      addTearDown(() async {
+        service.dispose();
+        await database.close();
+      });
+      expect(await service.sync(), 1, reason: '${service.lastError}');
+      var channels = await database.getChannelsForProvider(
+        WebsiteChannelCatalogService.providerId,
+      );
+      expect(channels.single.name, 'CCTV-5+ 体育赛事');
+      expect(channels.single.groupTitle, '中国 / 央视');
+      await database.upsertChannels([
+        db.ChannelsCompanion.insert(
+          id: channels.single.id,
+          providerId: WebsiteChannelCatalogService.providerId,
+          name: channels.single.name,
+          streamUrl: channels.single.streamUrl,
+          groupTitle: const Value('中国 / 央视'),
+          favorite: const Value(true),
+        ),
+      ]);
+      api.version = '2026-09-28.2';
+      api.catalog = {..._catalog(), 'version': api.version};
+      expect(await service.sync(), 1);
+      channels = await database.getChannelsForProvider(
+        WebsiteChannelCatalogService.providerId,
+      );
+      expect(channels.single.favorite, isTrue);
+      api.catalog = null;
+      expect(await service.sync(), 0);
+      expect(
+        (await database.getChannelsForProvider(
+          WebsiteChannelCatalogService.providerId,
+        )).length,
+        1,
+      );
+    },
+  );
 
-  test('rejects malformed snapshot before touching the local database', () async {
-    final database = db.AppDatabase.forTesting(NativeDatabase.memory());
-    final payload = _catalog();
-    ((payload['channels'] as List).single['routes'] as List).single['url'] =
-        'http://127.0.0.1/private';
-    final service = WebsiteChannelCatalogService(
-      database: database, api: _CatalogApi(payload));
-    addTearDown(() async {
-      service.dispose();
-      await database.close();
-    });
-    expect(await service.sync(), 0);
-    expect(service.state.value.error, isTrue);
-    expect(await database.getAllProviders(), isEmpty);
-  });
+  test(
+    'rejects malformed snapshot before touching the local database',
+    () async {
+      final database = db.AppDatabase.forTesting(NativeDatabase.memory());
+      final payload = _catalog();
+      ((payload['channels'] as List).single['routes'] as List).single['url'] =
+          'http://127.0.0.1/private';
+      final service = WebsiteChannelCatalogService(
+        database: database,
+        api: _CatalogApi(payload),
+      );
+      addTearDown(() async {
+        service.dispose();
+        await database.close();
+      });
+      expect(await service.sync(), 0);
+      expect(service.state.value.error, isTrue);
+      expect(await database.getAllProviders(), isEmpty);
+    },
+  );
 
   test('two installations receive the same shared routes', () async {
     final first = db.AppDatabase.forTesting(NativeDatabase.memory());
@@ -159,7 +287,9 @@ void main() {
     final api = _CatalogApi(_catalog());
     final firstSync = WebsiteChannelCatalogService(database: first, api: api);
     final secondSync = WebsiteChannelCatalogService(
-        database: second, api: _CatalogApi(_catalog()));
+      database: second,
+      api: _CatalogApi(_catalog()),
+    );
     addTearDown(() async {
       firstSync.dispose();
       secondSync.dispose();
@@ -169,65 +299,93 @@ void main() {
     expect(await firstSync.sync(), 1);
     expect(await secondSync.sync(), 1);
     final firstRoutes = await first.getChannelsForProvider(
-        WebsiteChannelCatalogService.providerId);
+      WebsiteChannelCatalogService.providerId,
+    );
     final secondRoutes = await second.getChannelsForProvider(
-        WebsiteChannelCatalogService.providerId);
-    expect(firstRoutes.map((route) => (route.id, route.streamUrl)),
-        secondRoutes.map((route) => (route.id, route.streamUrl)));
-    expect(WebsiteChannelCatalogService.showInSimpleMode(
-      sharedCatalogAvailable: true,
-      personalCollection: false,
-      providerId: WebsiteChannelCatalogService.providerId,
-    ), isTrue);
-    expect(WebsiteChannelCatalogService.showInSimpleMode(
-      sharedCatalogAvailable: true,
-      personalCollection: false,
-      providerId: 'hotel-myiptv-ipv4',
-    ), isFalse);
-    expect(WebsiteChannelCatalogService.showInSimpleMode(
-      sharedCatalogAvailable: true,
-      personalCollection: true,
-      providerId: 'hotel-myiptv-ipv4',
-    ), isTrue);
+      WebsiteChannelCatalogService.providerId,
+    );
+    expect(
+      firstRoutes.map((route) => (route.id, route.streamUrl)),
+      secondRoutes.map((route) => (route.id, route.streamUrl)),
+    );
+    expect(
+      WebsiteChannelCatalogService.showInSimpleMode(
+        sharedCatalogAvailable: true,
+        personalCollection: false,
+        providerId: WebsiteChannelCatalogService.providerId,
+      ),
+      isTrue,
+    );
+    expect(
+      WebsiteChannelCatalogService.showInSimpleMode(
+        sharedCatalogAvailable: true,
+        personalCollection: false,
+        providerId: 'hotel-myiptv-ipv4',
+      ),
+      isFalse,
+    );
+    expect(
+      WebsiteChannelCatalogService.showInSimpleMode(
+        sharedCatalogAvailable: true,
+        personalCollection: true,
+        providerId: 'hotel-myiptv-ipv4',
+      ),
+      isTrue,
+    );
   });
 
-  test('withdrawn shared routes leave every device, even when favorited', () async {
-    final database = db.AppDatabase.forTesting(NativeDatabase.memory());
-    final catalog = _catalog();
-    final routes = ((catalog['channels'] as List).single['routes'] as List);
-    routes.add({'id': 'route-two', 'url': 'https://media.example.org/alt.m3u8'});
-    final api = _CatalogApi(catalog);
-    final service = WebsiteChannelCatalogService(database: database, api: api);
-    addTearDown(() async {
-      service.dispose();
-      await database.close();
-    });
-    expect(await service.sync(), 2);
-    final original = (await database.getChannelsForProvider(
-        WebsiteChannelCatalogService.providerId)).firstWhere(
-        (route) => route.id.endsWith('route-one'));
-    await database.upsertChannels([db.ChannelsCompanion.insert(
-      id: original.id,
-      providerId: original.providerId,
-      name: original.name,
-      streamUrl: original.streamUrl,
-      favorite: const Value(true),
-    )]);
-    routes.removeAt(0);
-    api.version = '2026-09-28.2';
-    catalog['version'] = api.version;
-    expect(await service.sync(), 1);
-    final remaining = await database.getChannelsForProvider(
-        WebsiteChannelCatalogService.providerId);
-    expect(remaining.map((route) => route.id),
-        ['${WebsiteChannelCatalogService.providerId}:route-two']);
-  });
+  test(
+    'withdrawn shared routes leave every device, even when favorited',
+    () async {
+      final database = db.AppDatabase.forTesting(NativeDatabase.memory());
+      final catalog = _catalog();
+      final routes = ((catalog['channels'] as List).single['routes'] as List);
+      routes.add({
+        'id': 'route-two',
+        'url': 'https://media.example.org/alt.m3u8',
+      });
+      final api = _CatalogApi(catalog);
+      final service = WebsiteChannelCatalogService(
+        database: database,
+        api: api,
+      );
+      addTearDown(() async {
+        service.dispose();
+        await database.close();
+      });
+      expect(await service.sync(), 2);
+      final original = (await database.getChannelsForProvider(
+        WebsiteChannelCatalogService.providerId,
+      )).firstWhere((route) => route.id.endsWith('route-one'));
+      await database.upsertChannels([
+        db.ChannelsCompanion.insert(
+          id: original.id,
+          providerId: original.providerId,
+          name: original.name,
+          streamUrl: original.streamUrl,
+          favorite: const Value(true),
+        ),
+      ]);
+      routes.removeAt(0);
+      api.version = '2026-09-28.2';
+      catalog['version'] = api.version;
+      expect(await service.sync(), 1);
+      final remaining = await database.getChannelsForProvider(
+        WebsiteChannelCatalogService.providerId,
+      );
+      expect(remaining.map((route) => route.id), [
+        '${WebsiteChannelCatalogService.providerId}:route-two',
+      ]);
+    },
+  );
 
   test('locally blocked route stays blocked after website refresh', () async {
     final database = db.AppDatabase.forTesting(NativeDatabase.memory());
     const url = 'https://media.example.org/live.m3u8';
-    await database.blockAndDeleteStreamUrl(url,
-        reason: 'user_reported_wrong_content');
+    await database.blockAndDeleteStreamUrl(
+      url,
+      reason: 'user_reported_wrong_content',
+    );
     final api = _CatalogApi(_catalog());
     final service = WebsiteChannelCatalogService(database: database, api: api);
     addTearDown(() async {
@@ -235,39 +393,56 @@ void main() {
       await database.close();
     });
     expect(await service.sync(), 0);
-    expect(await database.getChannelsForProvider(
-        WebsiteChannelCatalogService.providerId), isEmpty);
+    expect(
+      await database.getChannelsForProvider(
+        WebsiteChannelCatalogService.providerId,
+      ),
+      isEmpty,
+    );
     expect(await service.sync(), 0);
     expect(service.state.value.error, isFalse);
   });
 
-  test('shared categories include routes without matching name keywords', () async {
-    final database = db.AppDatabase.forTesting(NativeDatabase.memory());
-    addTearDown(database.close);
-    await database.upsertProvider(db.ProvidersCompanion.insert(
-      id: WebsiteChannelCatalogService.providerId,
-      name: 'BobTV 网站频道',
-      type: 'catalog',
-    ));
-    await database.upsertChannels([
-      db.ChannelsCompanion.insert(
-        id: '${WebsiteChannelCatalogService.providerId}:regional-one',
-        providerId: WebsiteChannelCatalogService.providerId,
-        name: 'Morning Live',
-        streamUrl: 'https://media.example.org/morning.m3u8',
-        groupTitle: const Value('中国 / 广东'),
-      ),
-      db.ChannelsCompanion.insert(
-        id: '${WebsiteChannelCatalogService.providerId}:international-one',
-        providerId: WebsiteChannelCatalogService.providerId,
-        name: 'World One',
-        streamUrl: 'https://media.example.org/world.m3u8',
-        groupTitle: const Value('国际 / 美国 / 新闻'),
-      ),
-    ]);
-    expect((await database.getChannelCategoryCandidates('广东'))
-        .map((channel) => channel.name), contains('Morning Live'));
-    expect((await database.getChannelCategoryCandidates('国际'))
-        .map((channel) => channel.name), contains('World One'));
-  });
+  test(
+    'shared categories include routes without matching name keywords',
+    () async {
+      final database = db.AppDatabase.forTesting(NativeDatabase.memory());
+      addTearDown(database.close);
+      await database.upsertProvider(
+        db.ProvidersCompanion.insert(
+          id: WebsiteChannelCatalogService.providerId,
+          name: 'BobTV 网站频道',
+          type: 'catalog',
+        ),
+      );
+      await database.upsertChannels([
+        db.ChannelsCompanion.insert(
+          id: '${WebsiteChannelCatalogService.providerId}:regional-one',
+          providerId: WebsiteChannelCatalogService.providerId,
+          name: 'Morning Live',
+          streamUrl: 'https://media.example.org/morning.m3u8',
+          groupTitle: const Value('中国 / 广东'),
+        ),
+        db.ChannelsCompanion.insert(
+          id: '${WebsiteChannelCatalogService.providerId}:international-one',
+          providerId: WebsiteChannelCatalogService.providerId,
+          name: 'World One',
+          streamUrl: 'https://media.example.org/world.m3u8',
+          groupTitle: const Value('国际 / 美国 / 新闻'),
+        ),
+      ]);
+      expect(
+        (await database.getChannelCategoryCandidates(
+          '广东',
+        )).map((channel) => channel.name),
+        contains('Morning Live'),
+      );
+      expect(
+        (await database.getChannelCategoryCandidates(
+          '国际',
+        )).map((channel) => channel.name),
+        contains('World One'),
+      );
+    },
+  );
 }

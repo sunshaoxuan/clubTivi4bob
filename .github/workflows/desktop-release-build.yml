@@ -13,6 +13,24 @@ on:
         options: [all, windows, macos]
 
 jobs:
+  shared-sync:
+    name: Shared channel sync contract
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install -r website/requirements.txt pytest httpx
+      - run: flutter pub get
+      - run: python -m pytest website/tests -q
+      - name: Test real HTTP sync across independent clients
+        run: BOBTV_SYNC_E2E_PYTHON="$(command -v python)" flutter test test/shared_catalog_http_e2e_test.dart
   macos:
     if: inputs.platform != 'windows'
     name: macOS ${{ matrix.arch }}
@@ -48,6 +66,7 @@ jobs:
       - run: >-
           flutter test test/website_channel_catalog_service_test.dart
           test/channel_inventory_sync_service_test.dart test/manual_channel_category_test.dart test/update_manifest_test.dart
+          test/shared_catalog_events_test.dart test/shared_sync_badge_test.dart
           test/manual_category_move_test.dart test/channel_category_picker_interaction_test.dart
           test/desktop_update_feedback_test.dart
           test/desktop_fullscreen_session_test.dart
@@ -118,6 +137,7 @@ jobs:
       - run: >-
           flutter test test/website_channel_catalog_service_test.dart
           test/channel_inventory_sync_service_test.dart test/manual_channel_category_test.dart test/update_manifest_test.dart
+          test/shared_catalog_events_test.dart test/shared_sync_badge_test.dart
           test/manual_category_move_test.dart test/channel_category_picker_interaction_test.dart
           test/desktop_update_feedback_test.dart
           test/desktop_fullscreen_session_test.dart

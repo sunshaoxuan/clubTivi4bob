@@ -54,6 +54,7 @@ import 'channel_programme_strip.dart';
 import 'inline_expanded_channel_grid.dart';
 import 'channel_card_feedback.dart';
 import 'channel_card_playback_binding.dart';
+import 'shared_sync_badge.dart';
 
 class ChannelsScreen extends ConsumerStatefulWidget {
   const ChannelsScreen({super.key});
@@ -3698,6 +3699,10 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                   fontSize: 23, fontWeight: FontWeight.w800,
                   letterSpacing: -0.4)),
               const Spacer(),
+              SharedSyncBadge(
+                catalog:ref.read(sourceMaintenanceCoordinatorProvider).websiteCatalog.state,
+                upload:ref.read(sourceMaintenanceCoordinatorProvider).inventory.state),
+              const SizedBox(width:8),
               Flexible(child: Text(_regionTotalRoutes > 0
                   ? '${_filteredChannels.length} 个频道 · 正在核对线路 '
                       '$_regionCheckedRoutes/$_regionTotalRoutes'

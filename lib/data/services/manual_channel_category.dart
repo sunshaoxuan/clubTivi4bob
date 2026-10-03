@@ -97,4 +97,18 @@ class ManualChannelCategory {
       throw StateError('Could not save channel category');
     }
   }
+
+  static Future<void> remove(Iterable<String> urls) async {
+    final current = await load();
+    for (final url in urls) {
+      current.remove(url);
+    }
+    final prefs = await SharedPreferences.getInstance();
+    if (!await prefs.setString(
+      preferenceKey,
+      jsonEncode({for (final e in current.entries) e.key: e.value.path}),
+    )) {
+      throw StateError('Could not reconcile channel categories');
+    }
+  }
 }

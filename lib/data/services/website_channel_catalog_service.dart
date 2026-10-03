@@ -11,6 +11,7 @@ import '../../core/app_diagnostics.dart';
 import '../datasources/local/database.dart' as db;
 import 'bobtv_api_client.dart';
 import 'channel_category_classifier.dart';
+import 'manual_channel_category.dart';
 
 class WebsiteCatalogProgress {
   const WebsiteCatalogProgress({
@@ -29,8 +30,11 @@ class WebsiteCatalogProgress {
 
 /// Synchronizes an immutable website snapshot without modifying user sources.
 class WebsiteChannelCatalogService {
-  WebsiteChannelCatalogService({required this.database, BobTvApiClient? api})
-    : api = api ?? BobTvApiClient();
+  WebsiteChannelCatalogService({
+    required this.database,
+    BobTvApiClient? api,
+    this.onSharedScores,
+  }) : api = api ?? BobTvApiClient();
 
   static const providerId = 'bobtv-channel-catalog';
   static const _versionKey = 'bobtv_website_catalog_version_v1';
@@ -73,6 +77,7 @@ class WebsiteChannelCatalogService {
 
   final db.AppDatabase database;
   final BobTvApiClient api;
+  final Future<void> Function(Map<String, double>)? onSharedScores;
   final state = ValueNotifier(const WebsiteCatalogProgress());
   Future<int>? _running;
   bool _disposed = false;
@@ -95,9 +100,11 @@ class WebsiteChannelCatalogService {
       final localBlocked = await database.getBlockedStreamUrls();
       for (final url in globalBlocked) {
         if (!localBlocked.contains(url)) {
-          await database.blockAndDeleteStreamUrl(
-            url,
-            reason: 'shared_catalog_retired',
+          await database.withoutSharedReporting(
+            () => database.blockAndDeleteStreamUrl(
+              url,
+              reason: 'shared_catalog_retired',
+            ),
           );
         }
       }
@@ -107,9 +114,13 @@ class WebsiteChannelCatalogService {
         return 0;
       }
       final prefs = await SharedPreferences.getInstance();
-      final installed = (await database.getChannelsForProvider(
-        providerId,
-      )).isNotEmpty;
+      final installed = (await database.getAllProviders()).any(
+        (p) => p.id == providerId,
+      );
+      final oldTime = DateTime.tryParse(prefs.getString(_versionKey) ?? '');
+      final newTime = DateTime.tryParse(manifest.version);
+      if (oldTime != null && newTime != null && newTime.isBefore(oldTime))
+        throw const FormatException('Stale website snapshot');
       if (prefs.getString(_versionKey) == manifest.version && installed) {
         state.value = WebsiteCatalogProgress(
           phase: '网站频道已是最新',
@@ -136,7 +147,10 @@ class WebsiteChannelCatalogService {
         for (final channel in await database.getChannelsForProvider(providerId))
           channel.id: channel,
       };
-      final blockedUrls = await database.getBlockedStreamUrls();
+      final blockedUrls = {
+        ...await database.getBlockedStreamUrls(),
+        ...await database.pendingSharedRemovedUrls(),
+      };
       final existingByUrl = <String, List<db.Channel>>{};
       for (final channel in existing.values) {
         (existingByUrl[channel.streamUrl] ??= []).add(channel);
@@ -144,10 +158,23 @@ class WebsiteChannelCatalogService {
       final knownChecks = await database.getStreamChecksForChannels(
         existing.values.toList(),
       );
-      final knownUrls = knownChecks.map((check) => check.streamUrl).toSet();
+      final knownByUrl = {
+        for (final check in knownChecks) check.streamUrl: check,
+      };
       final keepIds = <String>{};
       var imported = 0;
-      await database.transaction(() async {
+      await database.withoutSharedReporting(() async {
+        final revisions = await database.sharedRouteRevisions();
+        final pending = await database.pendingSharedCategoryUrls();
+        final reconciled = <String>[];
+        for (final record in records) {
+          final url = record['url'] as String;
+          if (!pending.contains(url) &&
+              (record['revision'] as int) > 0 &&
+              (record['revision'] as int) >= (revisions[url] ?? 0))
+            reconciled.add(url);
+        }
+        await ManualChannelCategory.remove(reconciled);
         final providers = await database.getAllProviders();
         if (!providers.any((provider) => provider.id == providerId)) {
           await database.upsertProvider(
@@ -166,6 +193,9 @@ class WebsiteChannelCatalogService {
             final id = '$providerId:${record['routeId']}';
             final old = existing[id] ?? existingByUrl[record['url']]?.first;
             keepIds.add(id);
+            if (old != null &&
+                (record['revision'] as int) < (revisions[record['url']] ?? 0))
+              continue;
             batch.add(
               db.ChannelsCompanion.insert(
                 id: id,
@@ -187,7 +217,8 @@ class WebsiteChannelCatalogService {
             if (blockedUrls.contains(record['url'])) continue;
             final id = '$providerId:${record['routeId']}';
             for (final old in existingByUrl[record['url']] ?? <db.Channel>[]) {
-              if (old.id != id) await database.copyChannelReferences(old.id, id);
+              if (old.id != id)
+                await database.copyChannelReferences(old.id, id);
             }
           }
           final verified = <db.StreamChecksCompanion>[];
@@ -197,8 +228,9 @@ class WebsiteChannelCatalogService {
               record['lastPlayableAt'] as String? ?? '',
             );
             if (blockedUrls.contains(url) ||
-                knownUrls.contains(url) ||
                 success == null ||
+                (knownByUrl[url]?.lastCheckedAt != null &&
+                    !success.isAfter(knownByUrl[url]!.lastCheckedAt!)) ||
                 success.isAfter(
                   DateTime.now().add(const Duration(minutes: 5)),
                 ) ||
@@ -218,6 +250,7 @@ class WebsiteChannelCatalogService {
             );
           }
           await database.upsertStreamChecks(verified);
+          await database.setSharedRouteStates(records.skip(offset).take(400));
           imported += batch.length;
           if (!_disposed) {
             state.value = WebsiteCatalogProgress(
@@ -229,6 +262,10 @@ class WebsiteChannelCatalogService {
         }
         await database.deleteChannelsMissingFromProvider(providerId, keepIds);
         await database.markProviderRefreshed(providerId, DateTime.now());
+      });
+      await onSharedScores?.call({
+        for (final record in records)
+          record['url'] as String: record['healthScore'] as double,
       });
       await prefs.setString(_versionKey, manifest.version);
       if (!_disposed) {
@@ -390,6 +427,10 @@ Future<List<Map<String, Object?>>> _decodeCatalog(
         'logoUrl': channel['logoUrl'] as String?,
         'order': channel['sortOrder'] is int ? channel['sortOrder'] as int : 0,
         'lastPlayableAt': route['lastPlayableAt'] as String?,
+        'revision': route['revision'] is int ? route['revision'] as int : 0,
+        'healthScore': route['healthScore'] is num
+            ? (route['healthScore'] as num).toDouble().clamp(0, 1)
+            : .5,
       });
       if (result.length > routeCount) {
         throw const FormatException('Too many website routes');

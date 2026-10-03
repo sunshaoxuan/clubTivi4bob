@@ -11,6 +11,14 @@ import 'package:drift/drift.dart' show Value;
 class InventoryApi extends BobTvApiClient {
   final batches = <List<Map<String, Object?>>>[];
   @override
+  Future<List<Map<String, dynamic>>> uploadChannelEvents({
+    required String fingerprint,
+    required List<Map<String, Object?>> events,
+  }) async => [
+    for (final e in events)
+      {'id': e['id'], 'status': 'applied', 'revision': e['baseRevision'] ?? 0},
+  ];
+  @override
   Future<int> uploadChannelInventory({
     required String fingerprint,
     required List<Map<String, Object?>> routes,

@@ -36,7 +36,7 @@ def validate(payload):
         raise ValueError("Invalid catalog version")
     categories = payload["categories"]
     channels = payload["channels"]
-    if not isinstance(categories, list) or not isinstance(channels, list) or not 1 <= len(channels) <= MAX_CHANNELS:
+    if not isinstance(categories, list) or not isinstance(channels, list) or not 0 <= len(channels) <= MAX_CHANNELS:
         raise ValueError("Catalog needs reviewed channels")
     category_ids = set()
     for item in categories:
@@ -81,8 +81,10 @@ def validate(payload):
             validate_public_url(channel["logoUrl"])
         channel_ids.add(channel_id)
         for route in channel["routes"]:
-            if not isinstance(route, dict) or set(route) != {"id", "url", "source", "lastPlayableAt", "healthScore"}:
+            if not isinstance(route, dict) or set(route) - {'revision'} != {"id", "url", "source", "lastPlayableAt", "healthScore"}:
                 raise ValueError("Invalid route")
+            if 'revision' in route and (type(route['revision']) is not int or route['revision'] < 0):
+                raise ValueError('Invalid route revision')
             route_id = route["id"]
             if not isinstance(route_id, str) or not IDENTIFIER.fullmatch(route_id) or route_id in route_ids:
                 raise ValueError("Duplicate or invalid route ID")

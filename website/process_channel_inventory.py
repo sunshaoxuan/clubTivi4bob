@@ -151,8 +151,25 @@ def _television_media(name, url):
         '.bilivideo.com', '.acgvideo.com', '.kwimgs.com'))
 
 
+def _verify_pending(data_dir, limit, verifier):
+    now=int(time.time())
+    with database(data_dir) as conn:
+        pending=conn.execute("SELECT digest,url FROM routes WHERE blocked=0 AND deleted=0 AND (checked_at IS NULL OR checked_at<?) ORDER BY checked_at IS NULL DESC, group_name='中国 / 央视' DESC, playable_at IS NOT NULL DESC, failures ASC, checked_at ASC LIMIT ?",(now-6*3600,limit)).fetchall()
+    with concurrent.futures.ThreadPoolExecutor(max_workers=4) as pool:
+        results=list(pool.map(verifier,[row['url'] for row in pending]))
+    # A disconnected verifier must not mark the entire shared catalog dead.
+    if len(results)>=8 and not any(results): return len(pending)
+    with database(data_dir) as conn:
+        for row,success in zip(pending,results):
+            conn.execute("UPDATE routes SET checked_at=?,success_at=CASE WHEN ? THEN ? ELSE success_at END,failures=CASE WHEN ? THEN 0 ELSE failures+1 END WHERE digest=?",(now,success,now,success,row['digest']))
+    return len(pending)
+
+
 def process(data_dir=DATA, limit=120, verifier=probe):
     data_dir.mkdir(parents=True, exist_ok=True)
+    # Network verification never holds the publication lock. Metadata edits,
+    # weights and tombstones can publish while a slow route is being checked.
+    checked=_verify_pending(data_dir,limit,verifier) if limit else 0
     with (data_dir / "catalog-process.lock").open("a") as lock:
         fcntl.flock(lock, fcntl.LOCK_EX)
         current = _current(data_dir)
@@ -166,14 +183,8 @@ def process(data_dir=DATA, limit=120, verifier=probe):
                 conn.execute("UPDATE routes SET success_at=?,checked_at=?", (int(time.time()), int(time.time())))
         now = int(time.time())
         with database(data_dir) as conn:
-            pending = conn.execute("SELECT digest,url FROM routes WHERE blocked=0 AND (checked_at IS NULL OR checked_at<?) ORDER BY checked_at IS NULL DESC, group_name='中国 / 央视' DESC, playable_at IS NOT NULL DESC, failures ASC, checked_at ASC LIMIT ?", (now - 6 * 3600, limit)).fetchall()
-        with concurrent.futures.ThreadPoolExecutor(max_workers=4) as pool:
-            results = list(pool.map(verifier, [row["url"] for row in pending]))
-        with database(data_dir) as conn:
-            for row, success in zip(pending, results):
-                conn.execute("UPDATE routes SET checked_at=?,success_at=CASE WHEN ? THEN ? ELSE success_at END,failures=CASE WHEN ? THEN 0 ELSE failures+1 END WHERE digest=?", (now, success, now, success, row["digest"]))
-            rows = conn.execute("SELECT * FROM routes WHERE blocked=0 AND success_at>=? AND failures<3 ORDER BY group_name,name,digest", (now - 7 * 86400,)).fetchall()
-            blocked = {row[0] for row in conn.execute("SELECT url FROM routes WHERE blocked=1")}
+            rows = conn.execute("SELECT * FROM routes WHERE blocked=0 AND deleted=0 AND success_at>=? AND failures<3 ORDER BY group_name,name,digest", (now - 7 * 86400,)).fetchall()
+            blocked = {row[0] for row in conn.execute("SELECT url FROM routes WHERE blocked=1 OR deleted=1")}
         categories = {}
         channels = {}
         for row in rows:
@@ -190,7 +201,10 @@ def process(data_dir=DATA, limit=120, verifier=probe):
             channel = channels.setdefault(identity, {"id": identity, "name": name, "categoryId": parent, "countryCode": "CN" if path[0] == "中国" else None, "regionCode": None, "sortOrder": len(channels), "epgId": row["epg_id"], "logoUrl": _public_logo(row["logo_url"]), "routes": []})
             if not channel["logoUrl"]: channel["logoUrl"] = _public_logo(row["logo_url"])
             if not channel["epgId"]: channel["epgId"] = row["epg_id"]
-            channel["routes"].append({"id": "route-" + row["digest"][:24], "url": row["url"], "source": row["source"], "lastPlayableAt": datetime.fromtimestamp(row["success_at"], timezone.utc).isoformat().replace("+00:00", "Z"), "healthScore": max(.1, .8 - row["failures"] * .2)})
+            confidence = min(1, (row['success_votes'] + row['failure_votes']) / 10)
+            learned = (row['success_votes'] + 4) / (row['success_votes'] + row['failure_votes'] + 5)
+            score = max(.1, .8 - row['failures'] * .2) * (1-confidence) + learned * confidence
+            channel["routes"].append({"id": "route-" + row["digest"][:24], "url": row["url"], "source": row["source"], "lastPlayableAt": datetime.fromtimestamp(row["success_at"], timezone.utc).isoformat().replace("+00:00", "Z"), "healthScore": score, 'revision':row['revision']})
         # Keep prior reviewed routes until their inventory record is verified.
         if current:
             inventory_urls = {row["url"] for row in rows}
@@ -198,16 +212,23 @@ def process(data_dir=DATA, limit=120, verifier=probe):
                 routes = [route for route in channel["routes"] if _television_media(channel["name"], route["url"]) and route["url"] not in blocked and route["url"] not in inventory_urls]
                 if routes:
                     with database(data_dir) as conn:
-                        routes = [route for route in routes if not conn.execute("SELECT 1 FROM routes WHERE url=? AND failures>=3", (route["url"],)).fetchone()]
+                        routes = [route for route in routes if not conn.execute("SELECT 1 FROM routes WHERE url=? AND (failures>=3 OR (success_at IS NOT NULL AND success_at<?))", (route["url"],now-7*86400)).fetchone()]
                 if routes:
                     channels[channel["id"]] = {**channel, "routes": routes}
                     for item in current["categories"]: categories.setdefault(item["id"], item)
-        if not channels: return {"checked": len(pending), "published": False}
+        if not channels and not current: return {"checked": checked, "published": False}
+        used = {channel['categoryId'] for channel in channels.values()}
+        for identity in list(used):
+            parent = categories[identity]['parentId']
+            while parent:
+                used.add(parent)
+                parent = categories[parent]['parentId']
+        categories = {key:value for key,value in categories.items() if key in used}
         payload = {"schemaVersion": 1, "version": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%fZ"), "categories": list(categories.values()), "channels": list(channels.values())}
         if current and current["categories"] == payload["categories"] and current["channels"] == payload["channels"]:
-            return {"checked": len(pending), "published": False}
+            return {"checked": checked, "published": False}
         manifest = publish(payload, data_dir)
-        return {"checked": len(pending), "published": True, **manifest}
+        return {"checked": checked, "published": True, **manifest}
 
 
 if __name__ == "__main__":

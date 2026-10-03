@@ -15,6 +15,10 @@ Future<void> main() async {
   void record(String text) =>
       file.writeAsStringSync('$text\n', mode: FileMode.append, flush: true);
   final media = Platform.environment['BOBTV_NATIVE_DISPOSAL_MEDIA']!;
+  // Physical Macs can exercise OpenGL-to-Metal too. Virtual Mac runners
+  // deliberately keep this off because they have no accelerated CGL format.
+  final nativeHardware =
+      !Platform.isMacOS || Platform.environment['BOBTV_NATIVE_HARDWARE'] == '1';
   Future<void> prepare(Player player) async {
     record('prepare native audio sink');
     await (player.platform as native_player.NativePlayer)
@@ -75,7 +79,7 @@ Future<void> main() async {
           // GitHub's virtual Mac runners do not expose an accelerated CGL
           // pixel format. Exercise the software-to-Metal path there; Windows
           // still alternates both native texture backends.
-          enableHardwareAcceleration: !Platform.isMacOS && cycle.isEven,
+          enableHardwareAcceleration: nativeHardware && cycle.isEven,
         ),
       );
       visible.value = controller;
@@ -109,7 +113,7 @@ Future<void> main() async {
       }
       await player.dispose().timeout(const Duration(seconds: 25));
       record(
-        'disposed cycle=$cycle hardware=${!Platform.isMacOS && cycle.isEven}',
+        'disposed cycle=$cycle hardware=${nativeHardware && cycle.isEven}',
       );
     }
     // media_kit destroys native cores five seconds after Player.dispose.
@@ -133,7 +137,7 @@ Future<void> main() async {
         secondary.stream.error.listen(errors.add),
       ];
       final configuration = VideoControllerConfiguration(
-        enableHardwareAcceleration: !Platform.isMacOS,
+        enableHardwareAcceleration: nativeHardware,
       );
       visible.value = VideoController(primary, configuration: configuration);
       final secondaryController = VideoController(

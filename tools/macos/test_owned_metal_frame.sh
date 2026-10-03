@@ -11,7 +11,7 @@ if [[ $# -gt 0 ]]; then
     -Wl,-rpath,"$1/Contents/Frameworks")
   run_args=(--runtime)
   plugin="$1/Contents/Frameworks/media_kit_video.framework/media_kit_video"
-  if [[ -f "$plugin" ]] && nm -gU "$plugin" | grep -q '_BobTVCreateOwnedMetalView'; then
+  if [[ "${BOBTV_TEST_BUILD_ADAPTER:-}" != 1 && -f "$plugin" ]] && nm -gU "$plugin" | grep -q '_BobTVCreateOwnedMetalView'; then
     # Exercise the compiled plugin, including its actual dyld +load hook.
     sources=()
     framework_args+=(-framework media_kit_video)

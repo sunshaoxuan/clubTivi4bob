@@ -75,7 +75,10 @@ static_assert(sizeof(BobTVExternalTexture) == 56, "Unexpected Metal texture ABI"
 @property(nonatomic, readonly) CVMetalTextureCacheRef textureCache;
 @end
 
-static char frameKey;
+static NSString *const frameLeaseKey = @"com.briconbric.bobtv.metal-frame-lease";
+extern "C" void BobTVReleaseMetalFrameLease(void) {
+  [[NSThread currentThread].threadDictionary removeObjectForKey:frameLeaseKey];
+}
 static Ivar contextIvar, sourceIvar;
 static BOOL (*originalPopulate)(id, SEL, CVPixelBufferRef, BobTVExternalTexture *);
 static BOOL populateOwned(id self, SEL selector, CVPixelBufferRef buffer,
@@ -92,9 +95,12 @@ static BOOL populateOwned(id self, SEL selector, CVPixelBufferRef buffer,
   BobTVMetalFrame *frame = [BobTVMetalFrame new];
   frame.texture = view;
   frame->_handle = (__bridge const void *)view;
-  // Keep the callback's handle array valid until the next raster callback.
-  // Thereafter the engine/GPU retain the view and its backing independently.
-  objc_setAssociatedObject(self, &frameKey, frame, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+  // Unregister can destroy `self` as soon as its callback returns, before
+  // Flutter reads the handle array. Lease one frame on the raster thread,
+  // independent of that producer's lifetime. The next callback replaces it
+  // after the engine has retained the previous view for composition/GPU use.
+  // This is bounded to one frame per raster thread, not one per old channel.
+  [NSThread currentThread].threadDictionary[frameLeaseKey] = frame;
   out->width = CVPixelBufferGetWidth(buffer);
   out->height = CVPixelBufferGetHeight(buffer);
   out->pixel_format = 1; // kRGBA

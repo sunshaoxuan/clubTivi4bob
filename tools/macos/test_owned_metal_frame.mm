@@ -5,6 +5,7 @@
 #include <cstring>
 extern "C" id<MTLTexture> BobTVCreateOwnedMetalView(CVMetalTextureCacheRef, CVPixelBufferRef);
 extern "C" int BobTVLiveMetalBackings(void);
+extern "C" void BobTVReleaseMetalFrameLease(void);
 struct TestExternalTexture {
   size_t struct_size, width, height;
   int pixel_format;
@@ -40,33 +41,39 @@ int main(int argc, char **argv) {
       @autoreleasepool {
         TestMetalContext *context = [TestMetalContext new];
         context.textureCache = cache;
-        id<TestFlutterTexture> external = (id<TestFlutterTexture>)[cls alloc];
-        external = [external initWithFlutterTexture:[TestSafeResizableTexture new]
-                               darwinMetalContext:context];
+        id<TestFlutterTexture> external = nil;
         id<MTLTexture> heldFrame = nil;
         for (int i = 0; i < 500; ++i) {
+          TestExternalTexture out = {};
+          out.struct_size = sizeof(out);
           @autoreleasepool {
+            external = [(id<TestFlutterTexture>)[cls alloc]
+                initWithFlutterTexture:[TestSafeResizableTexture new]
+                darwinMetalContext:context];
             CVPixelBufferRef buffer = nullptr;
             NSDictionary *attrs = @{(id)kCVPixelBufferMetalCompatibilityKey: @YES,
               (id)kCVPixelBufferIOSurfacePropertiesKey: @{}};
             assert(CVPixelBufferCreate(nullptr, 128, 72, kCVPixelFormatType_32BGRA,
               (__bridge CFDictionaryRef)attrs, &buffer) == kCVReturnSuccess);
-            TestExternalTexture out = {};
-            out.struct_size = sizeof(out);
             assert([external populateTextureFromRGBAPixelBuffer:buffer textureOut:&out]);
             assert(out.width == 128 && out.num_textures == 1 && out.pixel_format == 1);
-            heldFrame = (__bridge id<MTLTexture>)out.textures[0];
+            // Unregister may destroy FlutterExternalTexture between returning
+            // from this callback and the engine retaining out.textures[0].
+            external = nil;
             CVPixelBufferRelease(buffer);
-            assert(heldFrame.width == 128);
-            assert(BobTVLiveMetalBackings() >= 1 && BobTVLiveMetalBackings() <= 2);
           }
+          assert(BobTVLiveMetalBackings() == (heldFrame ? 2 : 1));
+          heldFrame = (__bridge id<MTLTexture>)out.textures[0];
+          assert(heldFrame.width == 128);
+          assert(BobTVLiveMetalBackings() == 1);
         }
         external = nil;
         assert(heldFrame.width == 128 && BobTVLiveMetalBackings() == 1);
+        BobTVReleaseMetalFrameLease();
         heldFrame = nil;
       }
       assert(BobTVLiveMetalBackings() == 0);
-      NSLog(@"PASS: installed Flutter runtime adapter, 500 callbacks, release during retained frame");
+      NSLog(@"PASS: installed Flutter runtime adapter, 500 callbacks, unregister before engine retention");
     }
     // Two active streams, resizing and immediately dropping producer buffers.
     for (int frame = 0; frame < 2000; ++frame) {

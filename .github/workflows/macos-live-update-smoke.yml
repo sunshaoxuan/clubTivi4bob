@@ -7,6 +7,11 @@ on:
         description: Published website version to install
         required: true
         type: string
+      previous_version:
+        description: Previous published client version to upgrade
+        required: true
+        default: '0.9.1+72'
+        type: string
 
 permissions:
   contents: read
@@ -30,7 +35,8 @@ jobs:
         env:
           ARCH: ${{ matrix.arch }}
           EXPECTED_VERSION: ${{ inputs.expected_version }}
-        run: bash tools/macos/test_live_automatic_update.sh "$ARCH" "$EXPECTED_VERSION"
+          PREVIOUS_VERSION: ${{ inputs.previous_version }}
+        run: bash tools/macos/test_live_automatic_update.sh "$ARCH" "$EXPECTED_VERSION" '' false "$PREVIOUS_VERSION"
       - uses: actions/upload-artifact@v4
         if: always()
         with:

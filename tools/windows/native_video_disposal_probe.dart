@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:media_kit/media_kit.dart';
+import 'package:media_kit/src/player/native/player/real.dart' as native_player;
 import 'package:media_kit_video/media_kit_video.dart';
 
 // Isolated native regression runner. It does not load BobTV settings or data.
@@ -14,6 +15,14 @@ Future<void> main() async {
   void record(String text) =>
       file.writeAsStringSync('$text\n', mode: FileMode.append, flush: true);
   final media = Platform.environment['BOBTV_NATIVE_DISPOSAL_MEDIA']!;
+  Future<void> prepare(Player player) async {
+    record('prepare native audio sink');
+    await (player.platform as native_player.NativePlayer)
+        .setProperty('ao', 'null')
+        .timeout(const Duration(seconds: 20));
+    await player.setVolume(0).timeout(const Duration(seconds: 20));
+  }
+
   final visible = ValueNotifier<VideoController?>(null);
   final preview = ValueNotifier<VideoController?>(null);
   runApp(
@@ -54,6 +63,7 @@ Future<void> main() async {
   try {
     const channel = MethodChannel('com.alexmercerind/media_kit_video');
     for (var cycle = 0; cycle < 30; cycle++) {
+      record('begin cycle=$cycle');
       final player = Player(
         configuration: const PlayerConfiguration(logLevel: MPVLogLevel.error),
       );
@@ -66,9 +76,10 @@ Future<void> main() async {
           enableHardwareAcceleration: !Platform.isMacOS && cycle.isEven,
         ),
       );
-      await player.setVolume(0);
+      await prepare(player);
       visible.value = controller;
-      await player.open(Media(media));
+      record('open cycle=$cycle');
+      await player.open(Media(media)).timeout(const Duration(seconds: 20));
       final deadline = DateTime.now().add(const Duration(seconds: 10));
       while ((player.state.width ?? 0) == 0 &&
           DateTime.now().isBefore(deadline)) {
@@ -78,7 +89,9 @@ Future<void> main() async {
         throw StateError('No decoded fixture frame');
       await Future<void>.delayed(const Duration(milliseconds: 100));
       visible.value = null;
-      await WidgetsBinding.instance.endOfFrame;
+      await WidgetsBinding.instance.endOfFrame.timeout(
+        const Duration(seconds: 5),
+      );
       if (cycle % 3 == 0) {
         final handle = await player.handle;
         await Future.wait([
@@ -116,9 +129,9 @@ Future<void> main() async {
         secondary.stream.error.listen(errors.add),
       ];
       for (final player in [primary, secondary]) {
-        await player.setVolume(0);
+        await prepare(player);
         await player.setPlaylistMode(PlaylistMode.loop);
-        await player.open(Media(media));
+        await player.open(Media(media)).timeout(const Duration(seconds: 20));
       }
       final configuration = VideoControllerConfiguration(
         enableHardwareAcceleration: !Platform.isMacOS,
@@ -165,12 +178,14 @@ Future<void> main() async {
         throw StateError('Sustained memory growth: $growth');
       visible.value = null;
       preview.value = null;
-      await WidgetsBinding.instance.endOfFrame;
+      await WidgetsBinding.instance.endOfFrame.timeout(
+        const Duration(seconds: 5),
+      );
       for (final subscription in subscriptions) {
         await subscription.cancel();
       }
-      await primary.dispose();
-      await secondary.dispose();
+      await primary.dispose().timeout(const Duration(seconds: 25));
+      await secondary.dispose().timeout(const Duration(seconds: 25));
       await Future<void>.delayed(const Duration(seconds: 7));
       record(
         'PASS: $seconds second dual-player AV soak positionUpdates=$changes rssGrowth=$growth',

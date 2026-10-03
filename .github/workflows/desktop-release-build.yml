@@ -190,7 +190,11 @@ jobs:
           New-Item -ItemType Directory -Path $env:LOCALAPPDATA -Force | Out-Null
           $exe = Join-Path $PWD 'build/windows/x64/runner/Release/clubtivi.exe'
           $probe = Start-Process -FilePath $exe -WorkingDirectory (Split-Path $exe) -PassThru
-          if (!$probe.WaitForExit(780000)) { Stop-Process -Id $probe.Id -Force; throw 'Native fixture timeout' }
+          if (!$probe.WaitForExit(780000)) {
+            Get-Content -LiteralPath $env:BOBTV_NATIVE_DISPOSAL_LOG -ErrorAction SilentlyContinue
+            Stop-Process -Id $probe.Id -Force
+            throw 'Native fixture timeout'
+          }
           $probe.Refresh()
           $log = Get-Content -LiteralPath $env:BOBTV_NATIVE_DISPOSAL_LOG -Raw
           Write-Output $log

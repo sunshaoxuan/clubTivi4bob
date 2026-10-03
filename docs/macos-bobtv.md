@@ -50,6 +50,15 @@ code-signature integrity checks, and have a BobTV publisher signature over the
 exact ZIP bytes. The site's mirror verifies the same signature before it
 publishes the manifest. The worker downloads in the background and installs
 after BobTV closes.
+The shared update badge immediately shows preparation and download activity,
+with live percentage, byte counts and distinct verification and ready states.
+Before downloading, BobTV prepares a separate AppKit progress observer.
+When the player closes, that native window shows continued downloading,
+verification, backup, installation and explicit completion. It offers a button
+to open BobTV and closes after a 20-second completion countdown. Failure keeps
+the window open with its reason. Closing the progress window does not stop the
+worker. Reopening BobTV attaches to an existing live task without starting a
+duplicate download, and installation waits for all instances of that app to exit.
 The previous app is backed up. Startup health is counted when the channel
 browser becomes available; three consecutive unclean launches trigger a
 rollback and skip that version.

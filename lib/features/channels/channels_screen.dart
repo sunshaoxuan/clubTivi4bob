@@ -3909,6 +3909,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                               builder: (context, progress, _) =>
                                   _buildSimpleChannelTile(
                                 channel,
+                                joinedToProgramme: hasGuide && index == guideIndex,
                                 selected: selected,
                                 loading: ChannelListIdentity.matches(
                                   _pendingChannelId, channel.id) ||
@@ -3944,6 +3945,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
 
   Widget _buildSimpleChannelTile(
     db.Channel channel, {
+    required bool joinedToProgramme,
     required bool selected,
     required bool loading,
     required RouteSearchProgress? loadingProgress,
@@ -3964,38 +3966,29 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
     return GestureDetector(
       onSecondaryTapUp: onSecondaryTapUp,
       child: ChannelCardFeedback(
+      joinedToProgramme: joinedToProgramme,
       loading: loading,
       onTap: onTap,
       onDoubleTap: onDoubleTap,
       builder: (busy) => AnimatedScale(
-      scale: selected ? 1.008 : 1,
+      scale: selected && !joinedToProgramme ? 1.008 : 1,
       duration: const Duration(milliseconds: 180),
       curve: Curves.easeOutCubic,
       child: AnimatedContainer(
-        duration: const Duration(milliseconds: 180),
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [accent.withValues(alpha: selected ? 0.42 : 0.23),
-              const Color(0xFF172339), const Color(0xFF101827)],
-          ),
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(
-            color: selected ? const Color(0xFFB7CAFF) : Colors.white12,
-            width: selected ? 1.5 : 1,
-          ),
-          boxShadow: selected ? [BoxShadow(
-            color: const Color(0xFF879FFF).withValues(alpha: 0.18),
-            blurRadius: 20, offset: const Offset(0, 8),
-          )] : null,
+        duration: joinedToProgramme ? Duration.zero : const Duration(milliseconds: 180),
+        decoration: channelCardDecoration(
+          accent: accent,
+          selected: selected,
+          joinedToProgramme: joinedToProgramme,
         ),
         child: ClipRRect(
-          borderRadius: BorderRadius.circular(19),
+          borderRadius: joinedToProgramme
+              ? const BorderRadius.vertical(top: Radius.circular(19))
+              : BorderRadius.circular(19),
           child: Material(
             color: Colors.transparent,
             child: InkWell(
-              hoverColor: Colors.white.withValues(alpha: 0.12),
+              hoverColor: joinedToProgramme ? Colors.transparent : Colors.white.withValues(alpha: 0.12),
               // Immediate pointer activation is handled by the feedback shell.
               onTap: () {},
               canRequestFocus: false,

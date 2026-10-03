@@ -2,8 +2,10 @@ import 'dart:io';
 
 import 'package:clubtivi/data/datasources/local/database.dart' as db;
 import 'package:clubtivi/features/channels/channel_programme_strip.dart';
+import 'package:clubtivi/features/channels/channel_card_feedback.dart';
 import 'package:clubtivi/features/channels/inline_expanded_channel_grid.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -61,28 +63,33 @@ Future<void> _pumpStrip(
                           columns: previewChannelIds.length,
                           expandedChannelId: 'CCTV6',
                           expandedContent: strip,
-                          cardBuilder: (_, index) => Container(
-                            padding: const EdgeInsets.all(18),
-                            alignment: Alignment.bottomLeft,
-                            decoration: BoxDecoration(
-                              borderRadius: BorderRadius.circular(20),
-                              gradient: const LinearGradient(
-                                begin: Alignment.topLeft,
-                                end: Alignment.bottomRight,
-                                colors: [Color(0xFF334A63), Color(0xFF101C2C)],
+                          cardBuilder: (_, index) => ChannelCardFeedback(
+                            loading: false,
+                            joinedToProgramme:
+                                previewChannelIds[index] == 'CCTV6',
+                            onTap: () async {},
+                            onDoubleTap: () async {},
+                            builder: (_) => Container(
+                              padding: const EdgeInsets.all(18),
+                              alignment: Alignment.bottomLeft,
+                              decoration: channelCardDecoration(
+                                accent: const Color(0xFF6E9DDB),
+                                selected: previewChannelIds[index] == 'CCTV6',
+                                joinedToProgramme:
+                                    previewChannelIds[index] == 'CCTV6',
                               ),
-                            ),
-                            child: Text(
-                              const {
-                                'CCTV1': 'CCTV-1 综合',
-                                'CCTV6': 'CCTV-6 电影',
-                                'CCTV9': 'CCTV-9 纪录',
-                                'CCTV2': 'CCTV-2 财经',
-                                'CCTV3': 'CCTV-3 综艺',
-                              }[previewChannelIds[index]]!,
-                              style: const TextStyle(
-                                fontSize: 21,
-                                fontWeight: FontWeight.w700,
+                              child: Text(
+                                const {
+                                  'CCTV1': 'CCTV-1 综合',
+                                  'CCTV6': 'CCTV-6 电影',
+                                  'CCTV9': 'CCTV-9 纪录',
+                                  'CCTV2': 'CCTV-2 财经',
+                                  'CCTV3': 'CCTV-3 综艺',
+                                }[previewChannelIds[index]]!,
+                                style: const TextStyle(
+                                  fontSize: 21,
+                                  fontWeight: FontWeight.w700,
+                                ),
                               ),
                             ),
                           ),
@@ -370,6 +377,34 @@ void main() {
               '/tmp/bobtv-programme-$columns-columns-position-$selected.png',
             ),
           );
+          final expandedCard = find.byType(ChannelCardFeedback).at(selected);
+          final mouse = await tester.createGesture(
+            kind: PointerDeviceKind.mouse,
+          );
+          await mouse.addPointer(location: Offset.zero);
+          await mouse.moveTo(tester.getCenter(expandedCard));
+          await tester.pumpAndSettle();
+          expect(
+            tester
+                .widgetList<AnimatedContainer>(
+                  find.descendant(
+                    of: expandedCard,
+                    matching: find.byType(AnimatedContainer),
+                  ),
+                )
+                .every(
+                  (widget) =>
+                      (widget.decoration as BoxDecoration).border == null,
+                ),
+            isTrue,
+          );
+          await expectLater(
+            find.byKey(const ValueKey('programme-strip-preview')),
+            matchesGoldenFile(
+              '/tmp/bobtv-programme-$columns-columns-position-$selected-hover.png',
+            ),
+          );
+          await mouse.removePointer();
           expect(tester.takeException(), isNull);
         }
       }

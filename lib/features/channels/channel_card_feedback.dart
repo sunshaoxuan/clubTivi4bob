@@ -3,6 +3,42 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+/// Expanded cards share the grid's outer contour with their programme guide.
+/// Their own border must not create an internal bottom separator.
+BoxDecoration channelCardDecoration({
+  required Color accent,
+  required bool selected,
+  required bool joinedToProgramme,
+}) => BoxDecoration(
+  gradient: LinearGradient(
+    begin: joinedToProgramme ? Alignment.topCenter : Alignment.topLeft,
+    end: joinedToProgramme ? Alignment.bottomCenter : Alignment.bottomRight,
+    colors: [
+      accent.withValues(alpha: selected ? 0.42 : 0.23),
+      const Color(0xFF172339),
+      joinedToProgramme ? const Color(0xFF132338) : const Color(0xFF101827),
+    ],
+  ),
+  borderRadius: joinedToProgramme
+      ? const BorderRadius.vertical(top: Radius.circular(20))
+      : BorderRadius.circular(20),
+  border: joinedToProgramme
+      ? null
+      : Border.all(
+          color: selected ? const Color(0xFFB7CAFF) : Colors.white12,
+          width: selected ? 1.5 : 1,
+        ),
+  boxShadow: selected && !joinedToProgramme
+      ? [
+          BoxShadow(
+            color: const Color(0xFF879FFF).withValues(alpha: 0.18),
+            blurRadius: 20,
+            offset: const Offset(0, 8),
+          ),
+        ]
+      : null,
+);
+
 /// Acknowledge the pointer before route preparation can occupy the UI isolate.
 /// Single clicks are immediate; a second click is an explicit force-play action.
 class ChannelCardFeedback extends StatefulWidget {
@@ -12,11 +48,13 @@ class ChannelCardFeedback extends StatefulWidget {
     required this.onTap,
     required this.onDoubleTap,
     required this.builder,
+    this.joinedToProgramme = false,
   });
   final bool loading;
   final Future<void> Function() onTap;
   final Future<void> Function() onDoubleTap;
   final Widget Function(bool busy) builder;
+  final bool joinedToProgramme;
 
   @override
   State<ChannelCardFeedback> createState() => _ChannelCardFeedbackState();
@@ -128,9 +166,9 @@ class _ChannelCardFeedbackState extends State<ChannelCardFeedback>
                 borderRadius: BorderRadius.circular(20),
                 boxShadow: [
                   BoxShadow(
-                    color: const Color(
-                      0xFFAAC8FF,
-                    ).withValues(alpha: _hovered ? 0.24 : 0),
+                    color: const Color(0xFFAAC8FF).withValues(
+                      alpha: _hovered && !widget.joinedToProgramme ? 0.24 : 0,
+                    ),
                     blurRadius: 15,
                     spreadRadius: 1,
                   ),
@@ -143,15 +181,29 @@ class _ChannelCardFeedbackState extends State<ChannelCardFeedback>
                   Positioned.fill(
                     child: IgnorePointer(
                       child: AnimatedContainer(
-                        duration: const Duration(milliseconds: 160),
+                        duration: widget.joinedToProgramme
+                            ? Duration.zero
+                            : const Duration(milliseconds: 160),
                         decoration: BoxDecoration(
+                          gradient: widget.joinedToProgramme && _hovered
+                              ? LinearGradient(
+                                  begin: Alignment.topCenter,
+                                  end: Alignment.bottomCenter,
+                                  colors: [
+                                    Colors.white.withValues(alpha: .08),
+                                    Colors.transparent,
+                                  ],
+                                )
+                              : null,
                           borderRadius: BorderRadius.circular(20),
-                          border: Border.all(
-                            color: Colors.white.withValues(
-                              alpha: _hovered ? 0.48 : 0,
-                            ),
-                            width: 1.2,
-                          ),
+                          border: widget.joinedToProgramme
+                              ? null
+                              : Border.all(
+                                  color: Colors.white.withValues(
+                                    alpha: _hovered ? 0.48 : 0,
+                                  ),
+                                  width: 1.2,
+                                ),
                         ),
                       ),
                     ),

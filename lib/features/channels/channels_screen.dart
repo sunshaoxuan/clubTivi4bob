@@ -1838,16 +1838,17 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
 
     final hasActivePlayback = playerService.currentUrl != null &&
         (playerService.player.state.playing ||
-            playerService.player.state.buffering);
+            playerService.player.state.buffering ||
+            playerService.preparedChannelId == channel.id);
     final commitPreview = preferredUrl == null && !force && _simpleMode && hasActivePlayback &&
         _preparedChannelId == channel.id &&
         playerService.preparedChannelId == channel.id;
     final prepareOnly = !force && _simpleMode && hasActivePlayback &&
         !commitPreview;
-    if (hasActivePlayback && !commitPreview) {
+    if (hasActivePlayback) {
       setState(() {
         _pendingChannelId = channel.id;
-        _preparedChannelId = null;
+        if (!commitPreview) _preparedChannelId = null;
       });
     }
     // Paint the pending state before preparing potentially large route sets.
@@ -1918,6 +1919,27 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
             onlyRequestedRoute: onlyRequestedRoute,
           )
             : true;
+        if (commitPreview && !switched && mounted &&
+            selectionGeneration == _channelSelectionGeneration) {
+          // A brief interruption must not cancel the viewer's channel choice.
+          // Retry the same channel through its full candidate list.
+          final previewUrl = playerService.preparedChannelUrl;
+          switched = await playerService.switchChannel(
+            previewUrl ?? channel.streamUrl,
+            channelId: channel.id,
+            epgChannelId: _getEpgId(channel),
+            tvgId: channel.tvgId,
+            channelName: channel.name,
+            vanityName: _vanityNames[channel.id],
+            originalName: channel.tvgName,
+            failoverGroupUrls: <String>{
+              channel.streamUrl,
+              ...failoverUrls,
+            }.toList(),
+            allowAudioOnly: _allowsAudioOnly(channel),
+            preferRequestedRoute: previewUrl != null,
+          );
+        }
       }
     } catch (error, stackTrace) {
       AppDiagnostics.instance.recordError(
@@ -3924,7 +3946,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                                         mainProgress?.background != true),
                                 loadingProgress: ChannelListIdentity.matches(
                                   _pendingChannelId, channel.id)
-                                    ? progress : selected ? mainProgress : null,
+                                    ? progress ?? mainProgress : selected ? mainProgress : null,
                                 previewController:
                                     previewing ? previewController : null,
                                 onTap: () => _onSimpleChannelTap(channel),

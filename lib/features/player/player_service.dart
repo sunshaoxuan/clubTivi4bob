@@ -9,6 +9,7 @@ import 'package:media_kit_video/media_kit_video.dart';
 
 import '../../core/app_diagnostics.dart';
 import 'adaptive_buffer.dart';
+import 'prepared_channel_commit_gate.dart';
 import 'playback_stall_detector.dart';
 import 'stream_proxy.dart';
 import '../../data/services/channel_name_normalizer.dart';
@@ -88,6 +89,7 @@ class PlayerService {
   final ValueNotifier<AlternativePreviewState?> alternativePreviewState =
       ValueNotifier(null);
   _PreparedChannel? _preparedChannel;
+  final _preparedCommitGate = PreparedChannelCommitGate();
   Timer? _preparedChannelTimeout;
   String? get preparedChannelId => _preparedChannel?.channelId;
   String? get preparedChannelUrl => _preparedChannel?.url;
@@ -743,7 +745,6 @@ class PlayerService {
             }
             await candidate.setVolume(player.state.volume)
                 .timeout(const Duration(seconds: 2));
-            promoted = true;
             await _promotePreparedChannel(
               candidate,
               controller,
@@ -756,7 +757,11 @@ class PlayerService {
               originalName: originalName,
               failoverGroupUrls: failoverGroupUrls,
               allowAudioOnly: allowAudioOnly,
+              selectionRequest: request,
             );
+            promoted = true;
+            if (request != _channelSwitchGeneration ||
+                !identical(_player, candidate)) return false;
             _recordPlaybackReadyOnce(candidateUrl, _playGeneration);
             AppDiagnostics.instance.log('channel_preload_committed', {
               'channel': channelName,
@@ -770,7 +775,7 @@ class PlayerService {
             'error': error.toString(),
           });
         } finally {
-          if (!promoted) {
+          if (!promoted && !identical(_player, candidate)) {
             try {
               await candidate.dispose().timeout(const Duration(seconds: 2));
             } catch (_) {}
@@ -806,7 +811,7 @@ class PlayerService {
     _preparedChannel = null;
     previewVideoController.value = null;
     channelPreviewProgress.value = null;
-    if (prepared != null) {
+    if (prepared != null && !identical(_player, prepared.player)) {
       try {
         await prepared.player.dispose().timeout(const Duration(seconds: 2));
       } catch (error) {
@@ -820,60 +825,104 @@ class PlayerService {
   Future<bool> commitPreparedChannel(String? channelId) async {
     final prepared = _preparedChannel;
     if (prepared == null || prepared.channelId != channelId) return false;
-    final state = prepared.player.state;
-    final hasVideo = state.tracks.video.any(
-      (track) => track.id != 'auto' && track.id != 'no',
-    );
-    final hasAudio = state.tracks.audio.any(
-      (track) => track.id != 'auto' && track.id != 'no',
-    );
-    if (!state.playing || state.buffering ||
-        !(prepared.allowAudioOnly
-            ? hasAudio
-            : hasVideo && (state.width ?? 0) > 0 &&
-                (state.height ?? 0) > 0)) {
-      await discardPreparedChannel();
-      return false;
-    }
-    _preparedChannelTimeout?.cancel();
-    _preparedChannelTimeout = null;
-    _preparedChannel = null;
-    previewVideoController.value = null;
-    ++_channelSwitchGeneration;
-    _preparingChannelSwitch = true;
+    var request = 0;
+    bool current() => request == _channelSwitchGeneration &&
+        identical(_preparedChannel, prepared);
     try {
-      await prepared.player.setVolume(player.state.volume)
-          .timeout(const Duration(seconds: 2));
-      await _promotePreparedChannel(
-        prepared.player,
-        prepared.controller,
-        prepared.url,
-        channelId: prepared.channelId,
-        epgChannelId: prepared.epgChannelId,
-        tvgId: prepared.tvgId,
-        channelName: prepared.channelName,
-        vanityName: prepared.vanityName,
-        originalName: prepared.originalName,
-        failoverGroupUrls: prepared.failoverGroupUrls,
-        allowAudioOnly: prepared.allowAudioOnly,
+      return await _preparedCommitGate.run(
+        owner: prepared,
+        onStart: () {
+          request = ++_channelSwitchGeneration;
+          _preparingChannelSwitch = true;
+          channelSwitching.value = true;
+          _preparedChannelTimeout?.cancel();
+          _preparedChannelTimeout = null;
+        },
+        isCurrent: current,
+        readyNow: () {
+          final state = prepared.player.state;
+          return preparedMediaReady(
+            playing: state.playing, buffering: state.buffering,
+            hasVideoTrack: state.tracks.video.any((t) => t.id != 'auto' && t.id != 'no'),
+            hasAudioTrack: state.tracks.audio.any((t) => t.id != 'auto' && t.id != 'no'),
+            width: state.width ?? 0, height: state.height ?? 0,
+            advanced: true, allowAudioOnly: prepared.allowAudioOnly,
+          );
+        },
+        waitUntilReady: () {
+          AppDiagnostics.instance.log('channel_preview_commit_waiting', {
+            'channel': prepared.channelName,
+            'buffering': prepared.player.state.buffering,
+          });
+          channelPreviewProgress.value = const RouteSearchProgress(
+            stage: '正在等待预览恢复', index: 1, total: 1, active: true,
+          );
+          return _waitForPreparedChannel(
+            prepared.player, request,
+            allowAudioOnly: prepared.allowAudioOnly,
+            requireUltraHd: ChannelNameNormalizer.isUltraHd(prepared.channelName ?? '') ||
+                ChannelNameNormalizer.isUltraHd(prepared.originalName ?? '') ||
+                ChannelNameNormalizer.isUltraHd(prepared.tvgId ?? ''),
+            stillValid: current,
+          );
+        },
+        promote: () => _commitReadyPreparedChannel(prepared, request),
       );
-      _recordPlaybackReadyOnce(
-        prepared.url, _playGeneration, alreadyCredited: true);
-      AppDiagnostics.instance.log('channel_preview_committed', {
-        'channel': prepared.channelName,
-      });
-      return true;
     } catch (error) {
       AppDiagnostics.instance.log('channel_preview_commit_failed', {
-        'error': error.toString(),
+        'channel': prepared.channelName, 'error': error.toString(),
       });
-      if (!identical(_player, prepared.player)) {
-        unawaited(prepared.player.dispose());
-      }
       return false;
     } finally {
-      _preparingChannelSwitch = false;
+      if (request != 0 && request == _channelSwitchGeneration) {
+        _preparingChannelSwitch = false;
+        channelSwitching.value = false;
+        channelPreviewProgress.value = null;
+        if (identical(_preparedChannel, prepared)) {
+          _preparedChannelTimeout = Timer(const Duration(minutes: 2), () {
+            if (identical(_preparedChannel, prepared)) {
+              unawaited(discardPreparedChannel());
+            }
+          });
+        }
+      }
     }
+  }
+
+  Future<bool> _commitReadyPreparedChannel(
+    _PreparedChannel prepared,
+    int request,
+  ) async {
+    bool current() => request == _channelSwitchGeneration &&
+        identical(_preparedChannel, prepared);
+    await prepared.player.setVolume(player.state.volume)
+        .timeout(const Duration(seconds: 2));
+    if (!current()) return false;
+    await _promotePreparedChannel(
+      prepared.player,
+      prepared.controller,
+      prepared.url,
+      channelId: prepared.channelId,
+      epgChannelId: prepared.epgChannelId,
+      tvgId: prepared.tvgId,
+      channelName: prepared.channelName,
+      vanityName: prepared.vanityName,
+      originalName: prepared.originalName,
+      failoverGroupUrls: prepared.failoverGroupUrls,
+      allowAudioOnly: prepared.allowAudioOnly,
+      selectionRequest: request,
+    );
+    if (identical(_preparedChannel, prepared)) {
+      _preparedChannel = null;
+      previewVideoController.value = null;
+    }
+    if (!identical(_player, prepared.player)) return false;
+    _recordPlaybackReadyOnce(
+      prepared.url, _playGeneration, alreadyCredited: true);
+    AppDiagnostics.instance.log('channel_preview_committed', {
+      'channel': prepared.channelName,
+    });
+    return true;
   }
 
   Future<bool> _waitForPreparedChannel(
@@ -1031,11 +1080,19 @@ class PlayerService {
     String? originalName,
     List<String>? failoverGroupUrls,
     required bool allowAudioOnly,
+    int? selectionRequest,
   }) async {
+    if (selectionRequest != null && selectionRequest != _channelSwitchGeneration) {
+      throw StateError('Preview promotion was superseded');
+    }
     if (!identical(candidate, _alternativePreviewPlayer)) {
       await discardAlternativePreview();
     }
+    if (selectionRequest != null && selectionRequest != _channelSwitchGeneration) {
+      throw StateError('Preview promotion was superseded');
+    }
     final previous = player;
+    final previousVolume = previous.state.volume;
     final generation = ++_playGeneration;
     _qualityCheckTimer?.cancel();
     _videoCheckTimer?.cancel();
@@ -1055,6 +1112,15 @@ class PlayerService {
       AppDiagnostics.instance.log('previous_player_mute_failed', {
         'error': error.toString(),
       });
+    }
+    if (generation != _playGeneration ||
+        (selectionRequest != null && selectionRequest != _channelSwitchGeneration)) {
+      if (identical(_player, previous)) {
+        await previous.setVolume(previousVolume).timeout(const Duration(seconds: 2));
+        startBufferTracking();
+        _startFailoverMonitor();
+      }
+      throw StateError('Preview promotion was superseded');
     }
     _player = candidate;
     _videoController = controller;
@@ -1094,6 +1160,7 @@ class PlayerService {
     unawaited(_streamProxy.stop());
     unawaited(previous.dispose().timeout(const Duration(seconds: 3))
         .catchError((_) {}));
+    if (generation != _playGeneration || !identical(_player, candidate)) return;
     unawaited(_bufferManager.applyForStream(url, this).catchError((error) {
       AppDiagnostics.instance.log('prepared_player_buffer_error', {
         'error': error.toString(),

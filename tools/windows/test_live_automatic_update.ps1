@@ -55,14 +55,20 @@ try{
   Stop-TestApp
   $installed=$false
   for($n=0;$n -lt 120;$n++){
-    if((Get-Item $exe).VersionInfo.FileVersion -eq $manifest.version){$installed=$true;break}
+    $completed=if(Test-Path "$root\status.json"){Get-Content "$root\status.json" -Raw|ConvertFrom-Json}
+    if((Get-Item $exe).VersionInfo.FileVersion -eq $manifest.version -and
+       (!$FixtureExecutable -or $completed.phase -eq 'installed')){$installed=$true;break}
     Start-Sleep -Seconds 1
   }
   if(!$installed){throw 'New GUI was not installed after exit'}
   $finished=Get-Content "$root\status.json" -Raw|ConvertFrom-Json
   if($FixtureExecutable -and $finished.phase -ne 'installed'){throw 'Missing explicit installation-complete status'}
   if($FixtureExecutable){
-    $ui=Get-Content "$root\progress-ui.log" -Raw -ErrorAction SilentlyContinue
+    for($n=0;$n -lt 20;$n++){
+      $ui=Get-Content "$root\progress-ui.log" -Raw -ErrorAction SilentlyContinue
+      if($ui -match 'window_shown'){break}
+      Start-Sleep -Seconds 1
+    }
     if($ui -notmatch 'window_shown'){throw 'Independent update window did not report being shown'}
   }
   $backup=Get-ChildItem "$root\Backups" -Directory|Select-Object -First 1

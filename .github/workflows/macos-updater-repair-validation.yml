@@ -36,7 +36,9 @@ jobs:
           ARCH: ${{ matrix.arch }}
         run: |
           version=$(curl --fail --silent --show-error --user-agent 'BobTV/0.9.1 updater-test' "https://bobtv.briconbric.com/updates/macos-$ARCH/latest.json" | python3 -c 'import json,sys; print(json.load(sys.stdin)["version"])')
-          bash tools/macos/test_live_automatic_update.sh "$ARCH" "$version" "$PWD/build/macos/Build/Products/Release/BobTV.app"
+          close_early=false
+          [[ "$ARCH" == arm64 ]] && close_early=true
+          bash tools/macos/test_live_automatic_update.sh "$ARCH" "$version" "$PWD/build/macos/Build/Products/Release/BobTV.app" "$close_early"
       - uses: actions/upload-artifact@v4
         if: always()
         with:

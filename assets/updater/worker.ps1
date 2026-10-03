@@ -46,6 +46,10 @@ function Write-Log([string]$message) {
 
 function Write-Status([string]$phase, [string]$version, [int]$percent,
                       [string]$message) {
+  if($script:lastPhase -ne $phase){
+    $script:lastPhase=$phase
+    Write-Log ('Phase='+$phase+' version='+$version+' run='+$RunId)
+  }
   $json = @{
     phase = $phase
     version = $version

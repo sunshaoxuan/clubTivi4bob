@@ -3,6 +3,7 @@ set -euo pipefail
 arch="${1:?Pass x64 or arm64}"
 version="${2:?Pass the expected website version}"
 fixture_app="${3:-}"
+close_during_download="${4:-false}"
 [[ "${CI:-}" == true && "$arch" =~ ^(x64|arm64)$ ]]
 [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+\+[0-9]+$ ]]
 site='https://bobtv.briconbric.com'
@@ -56,23 +57,31 @@ launch_test_app() {
 launch_test_app
 echo "Launched previous app PID $app_pid; waiting for its own update discovery."
 ready=false
+closed_early=false
 for ((n=0; n<300; n++)); do
-  kill -0 "$app_pid"
+  [[ "$closed_early" == true ]] || kill -0 "$app_pid"
+  if [[ "$close_during_download" == true && "$closed_early" != true && -f "$root/status.json" ]] &&
+      grep -q '"phase":"downloading"' "$root/status.json"; then
+    stop_test_app
+    closed_early=true
+    echo 'Closed the player while the updater was downloading.'
+  fi
   if [[ -f "$root/status.json" ]] && python3 - "$root/status.json" "$version" <<'PY'
 import json, sys
 data = json.load(open(sys.argv[1]))
-raise SystemExit(0 if data.get('phase') == 'ready' and data.get('version') == sys.argv[2] else 1)
+raise SystemExit(0 if data.get('phase') in ('ready','installed') and data.get('version') == sys.argv[2] else 1)
 PY
   then ready=true; break; fi
   sleep 1
 done
 [[ "$ready" == true ]]
-[[ "$(app_version "$app")" == '0.9.1+68' ]]
+[[ "$closed_early" == true || "$(app_version "$app")" == '0.9.1+68' ]]
 echo 'Old application discovered and verified the update, without installing while running.'
 stop_test_app
 installed=false
 for ((n=0; n<120; n++)); do
-  if [[ -f "$app/Contents/Info.plist" && "$(app_version "$app")" == "$version" ]]; then
+  if [[ -f "$app/Contents/Info.plist" && "$(app_version "$app")" == "$version" ]] &&
+      { [[ -z "$fixture_app" ]] || grep -q '"phase":"installed"' "$root/status.json"; }; then
     installed=true; break
   fi
   sleep 1

@@ -32,6 +32,10 @@ skipped="$root/skipped_versions.txt"
 
 write_status() {
   local phase="$1" shown_version="$2" percent="$3" message="${4:-}" path
+  if [[ "${last_phase:-}" != "$phase" ]]; then
+    last_phase="$phase"
+    printf '%s phase=%s version=%s run=%s\n' "$(date -u +%FT%TZ)" "$phase" "$shown_version" "$run_id"
+  fi
   if [[ -z "$message" ]]; then
     case "$phase" in
       starting) message='正在准备更新' ;;

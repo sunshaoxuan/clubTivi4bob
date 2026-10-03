@@ -36,10 +36,26 @@ jobs:
           $previousVersion = $oldExe.VersionInfo.FileVersion
           if ($previousVersion -eq $manifest.version) { throw 'Previous package is already current' }
           $env:BOBTV_UPDATE_TESTING = '1'
+          # A previously upgraded client has an outstanding startup marker.
+          # Its healthy UI clears that marker after the startup delay. The
+          # updater must wait and resume instead of abandoning the download.
+          New-Item -ItemType Directory -Path $updateRoot -Force | Out-Null
+          $statePath = Join-Path $updateRoot 'candidate.ini'
+          $markerPath = Join-Path $updateRoot 'startup.marker'
+          [IO.File]::WriteAllText($statePath, "[Update]`nVersion=$previousVersion`nAttempts=0`n")
+          [IO.File]::WriteAllText($markerPath, '99999999')
+          $ack = Start-Job -ArgumentList $markerPath -ScriptBlock {
+            param($path)
+            Start-Sleep -Seconds 5
+            Remove-Item -LiteralPath $path -Force
+          }
           & powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File assets/updater/worker.ps1 `
             -Mode Update -AppDir $appDir -CurrentPid 99999999 -Version $manifest.version `
             -ArchiveUrl $manifest.archive -Sha256 $manifest.sha256 -Bytes $manifest.bytes `
             -TestRoot $updateRoot
+          Wait-Job $ack | Out-Null
+          Receive-Job $ack
+          Remove-Job $ack
           $status = Get-Content -LiteralPath (Join-Path $updateRoot 'status.json') -Raw | ConvertFrom-Json
           if ($status.phase -ne 'ready') {
             Get-Content -LiteralPath (Join-Path $updateRoot 'worker.log') -Tail 20

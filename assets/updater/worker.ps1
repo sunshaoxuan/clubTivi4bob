@@ -239,8 +239,17 @@ try {
   }
   if ((Test-Path -LiteralPath $statePath) -and
       (Test-Path -LiteralPath $markerPath)) {
-    Write-Log 'Previous update still starting'
-    return
+    Write-Log 'Waiting for previous update startup acknowledgement'
+    Write-Status 'waiting' $Version 0 '等待当前版本完成启动检查'
+    for($attempt=0; $attempt -lt 120 -and
+        (Test-Path -LiteralPath $markerPath); $attempt++) {
+      Start-Sleep -Seconds 1
+    }
+    if(Test-Path -LiteralPath $markerPath) {
+      Write-Status 'failed' $Version 0 '当前版本启动检查未完成，稍后重试'
+      Write-Log 'Previous update startup acknowledgement timed out'
+      return
+    }
   }
 
   $archive = Join-Path $root ('BobTV-' + $Version.Replace('+', '_') + '.zip')

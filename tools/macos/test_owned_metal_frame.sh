@@ -19,7 +19,7 @@ if [[ $# -gt 0 ]]; then
   fi
 fi
 clang++ -std=c++17 -fobjc-arc -framework Foundation -framework CoreVideo -framework Metal \
-  "${framework_args[@]}" \
-  "${sources[@]}" \
+  ${framework_args[@]+"${framework_args[@]}"} \
+  ${sources[@]+"${sources[@]}"} \
   "$root/tools/macos/test_owned_metal_frame.mm" -o "$test_dir/owned-metal-frame-test"
-"$test_dir/owned-metal-frame-test" "${run_args[@]}"
+"$test_dir/owned-metal-frame-test" ${run_args[@]+"${run_args[@]}"}

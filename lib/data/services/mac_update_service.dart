@@ -228,9 +228,13 @@ class MacUpdateService {
       final destination = p.join(_directory!.path, 'progress-$_runId');
       final copy = await Process.run('/usr/bin/ditto', [source, destination]);
       if (copy.exitCode != 0) throw StateError('无法准备独立更新窗口');
-      await Process.start(
-        destination,
+      final observer = await Process.start(
+        '/bin/bash',
         [
+          '-c',
+          r'exec "$@" >> "$BOBTV_PROGRESS_LOG" 2>&1',
+          'bobtv-update-progress',
+          destination,
           _directory!.path,
           _appPath,
           '$pid',
@@ -240,7 +244,17 @@ class MacUpdateService {
         ],
         mode: ProcessStartMode.detached,
         runInShell: false,
+        environment: {
+          'BOBTV_PROGRESS_LOG': p.join(
+            _directory!.path,
+            'progress-launcher.log',
+          ),
+        },
       );
+      AppDiagnostics.instance.log('mac_update_progress_started', {
+        'pid': observer.pid,
+        'runId': _runId,
+      });
     } catch (error, stack) {
       AppDiagnostics.instance.recordError(
         'mac_update_progress_window',

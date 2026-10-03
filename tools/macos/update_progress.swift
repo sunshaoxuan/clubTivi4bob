@@ -18,7 +18,7 @@ final class UpdateProgress: NSObject, NSApplicationDelegate, NSWindowDelegate {
     let version: String
     let runID: String
     let snapshotPath: String?
-    let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 480, height: 300),
+    lazy var window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 480, height: 300),
                           styleMask: [.titled, .closable, .miniaturizable], backing: .buffered, defer: false)
     let phase = NSTextField(labelWithString: "正在读取更新进度")
     let detail = NSTextField(wrappingLabelWithString: "请稍候，更新会在此窗口显示进度。")
@@ -166,7 +166,8 @@ let snapshot = arguments.count == 9 && arguments[7] == "--snapshot" &&
     arguments[8].hasPrefix(FileManager.default.temporaryDirectory.path + "/")
 guard arguments.count == 7 || snapshot,
       CommandLine.arguments[6].range(of: "^[A-Za-z0-9-]{1,100}$", options: .regularExpression) != nil else { exit(2) }
-let delegate = UpdateProgress(arguments: CommandLine.arguments)
 let application = NSApplication.shared
+let delegate = UpdateProgress(arguments: CommandLine.arguments)
 application.delegate = delegate
+if !snapshot { delegate.log("observer_started run=\(delegate.runID)") }
 application.run()

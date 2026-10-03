@@ -15,6 +15,11 @@ jobs:
             arch: arm64
     steps:
       - uses: actions/checkout@v4
+      - name: Verify native progress window lifecycle before building the player
+        run: |
+          xcrun swiftc -O tools/macos/update_progress.swift -o "$RUNNER_TEMP/BobTVUpdateProgress"
+          codesign --force --sign - "$RUNNER_TEMP/BobTVUpdateProgress"
+          bash tools/macos/test_update_progress.sh "$RUNNER_TEMP/BobTVUpdateProgress"
       - uses: subosito/flutter-action@v2
         with:
           channel: stable
@@ -48,3 +53,4 @@ jobs:
             ~/Library/Application Support/com.briconbric.bobtv/Update/*.json
             ~/Library/Application Support/com.briconbric.bobtv/logs/*.log
             ~/Library/Logs/DiagnosticReports/BobTV*.ips
+            ~/Library/Logs/DiagnosticReports/progress*.ips

@@ -44,7 +44,6 @@ class BobTvCommunityService {
   final state = ValueNotifier(const BobTvCatalogState());
   Map<String, BobTvReviewedSource> _sources = {};
   final Map<String, DateTime> _reportTimes = {};
-  Timer? _catalogTimer;
   Timer? _logTimer;
   Future<void>? _refreshing;
   bool _started = false;
@@ -90,14 +89,13 @@ class BobTvCommunityService {
         }
       }
     } catch (_) {}
-    _catalogTimer = Timer.periodic(const Duration(hours: 6),
-        (_) => unawaited(refreshCatalog()));
+    // The shared website catalog owns automatic channel synchronization.
+    // This legacy reviewed-source endpoint remains available on explicit refresh.
     _logTimer = Timer.periodic(const Duration(hours: 6), (_) {
       if (automaticLogsEnabled) {
         unawaited(_uploadAutomaticLogs());
       }
     });
-    unawaited(refreshCatalog());
   }
 
   Future<void> refreshCatalog() => _refreshing ??= _fetchAndApplyCatalog()
@@ -297,7 +295,6 @@ class BobTvCommunityService {
 
   void dispose() {
     _disposed = true;
-    _catalogTimer?.cancel();
     _logTimer?.cancel();
     api.close();
     state.dispose();

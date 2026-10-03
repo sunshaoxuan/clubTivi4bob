@@ -12,6 +12,7 @@ import '../datasources/local/database.dart' as db;
 import 'bobtv_api_client.dart';
 import 'channel_category_classifier.dart';
 import 'manual_channel_category.dart';
+import 'route_identity.dart';
 
 class WebsiteCatalogProgress {
   const WebsiteCatalogProgress({
@@ -149,11 +150,11 @@ class WebsiteChannelCatalogService {
       };
       final blockedUrls = {
         ...await database.getBlockedStreamUrls(),
-        ...await database.pendingSharedRemovedUrls(),
+        ...(await database.pendingSharedRemovedUrls()).map(canonicalRouteUrl),
       };
       final existingByUrl = <String, List<db.Channel>>{};
       for (final channel in existing.values) {
-        (existingByUrl[channel.streamUrl] ??= []).add(channel);
+        (existingByUrl[canonicalRouteUrl(channel.streamUrl)] ??= []).add(channel);
       }
       final knownChecks = await database.getStreamChecksForChannels(
         existing.values.toList(),
@@ -410,7 +411,7 @@ Future<List<Map<String, Object?>>> _decodeCatalog(
         throw const FormatException('Invalid website route');
       }
       final name = channel['name'] as String;
-      final url = route['url'] as String;
+      final url = canonicalRouteUrl(route['url'] as String);
       if (ChannelCategoryClassifier.isClearlyNonTelevisionRoute(
         name: name,
         groupTitle: group,
@@ -440,7 +441,8 @@ Future<List<Map<String, Object?>>> _decodeCatalog(
   if (result.length != routeCount) {
     throw const FormatException('Route count mismatch');
   }
-  return result;
+  final seenEndpoints = <String>{};
+  return result.where((record) => seenEndpoints.add(record['url'] as String)).toList();
 }
 
 String _catalogGroupFor(

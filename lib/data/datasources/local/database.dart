@@ -9,6 +9,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../services/channel_category_classifier.dart';
 import '../../services/public_inventory_policy.dart';
+import '../../services/route_identity.dart';
 import '../../services/manual_channel_category.dart';
 import 'tables.dart';
 
@@ -487,32 +488,43 @@ class AppDatabase extends _$AppDatabase {
       (select(channels)..where((t) => t.favorite.equals(true))).get();
 
   Future<void> upsertChannels(List<ChannelsCompanion> entries) async {
-    final manualCategories = await ManualChannelCategory.load();
-    final blockedUrls = {
-      for (final route in await select(blockedStreamRoutes).get())
-        route.streamUrl,
-      ...await pendingSharedRemovedUrls(),
-    };
-    entries = entries.where((entry) {
-      if (!entry.name.present || !entry.streamUrl.present) return true;
-      if (blockedUrls.contains(entry.streamUrl.value)) return false;
-      return !ChannelCategoryClassifier.isClearlyNonTelevisionRoute(
-        name: entry.name.value,
-        groupTitle: entry.groupTitle.present ? entry.groupTitle.value : null,
-        streamUrl: entry.streamUrl.value,
-      );
-    }).toList();
-    if (entries.isEmpty) return;
-    entries = entries.map((entry) {
-      final manual = entry.streamUrl.present
-          ? manualCategories[entry.streamUrl.value]
-          : null;
-      return manual == null
-          ? entry
-          : entry.copyWith(groupTitle: Value(manual.group));
-    }).toList();
-    await batch((b) {
-      b.insertAllOnConflictUpdate(channels, entries);
+    await transaction(() async {
+      entries = entries
+          .map(
+            (entry) => entry.streamUrl.present
+                ? entry.copyWith(
+                    streamUrl: Value(canonicalRouteUrl(entry.streamUrl.value)),
+                  )
+                : entry,
+          )
+          .toList();
+      final manualCategories = await ManualChannelCategory.load();
+      final blockedUrls = {
+        for (final route in await select(blockedStreamRoutes).get())
+          canonicalRouteUrl(route.streamUrl),
+        ...(await pendingSharedRemovedUrls()).map(canonicalRouteUrl),
+      };
+      entries = entries.where((entry) {
+        if (!entry.name.present || !entry.streamUrl.present) return true;
+        if (blockedUrls.contains(entry.streamUrl.value)) return false;
+        return !ChannelCategoryClassifier.isClearlyNonTelevisionRoute(
+          name: entry.name.value,
+          groupTitle: entry.groupTitle.present ? entry.groupTitle.value : null,
+          streamUrl: entry.streamUrl.value,
+        );
+      }).toList();
+      if (entries.isEmpty) return;
+      entries = entries.map((entry) {
+        final manual = entry.streamUrl.present
+            ? manualCategories[entry.streamUrl.value]
+            : null;
+        return manual == null
+            ? entry
+            : entry.copyWith(groupTitle: Value(manual.group));
+      }).toList();
+      await batch((b) {
+        b.insertAllOnConflictUpdate(channels, entries);
+      });
     });
   }
 
@@ -595,55 +607,70 @@ class AppDatabase extends _$AppDatabase {
     );
   }
 
-  /// Permanently rejects one exact address across providers and imports.
+  /// Rejects one endpoint and all equivalent URL spellings across providers.
   Future<int> blockAndDeleteStreamUrl(
     String streamUrl, {
     required String reason,
   }) async {
-    final matches = await (select(
-      channels,
-    )..where((table) => table.streamUrl.equals(streamUrl))).get();
-    final previous = await (select(
-      blockedStreamRoutes,
-    )..where((table) => table.streamUrl.equals(streamUrl))).getSingleOrNull();
-    final publicProviders = {
-      for (final provider in await getAllProviders())
-        if (isSharedInventoryProvider(
-          id: provider.id,
-          type: provider.type,
-          url: provider.url,
-          username: provider.username,
-          password: provider.password,
-        ))
-          provider.id,
-    };
-    final shared =
-        reason == 'shared_catalog_retired' ||
-        (previous != null && !previous.reason.startsWith('private:')) ||
-        matches.any((channel) => publicProviders.contains(channel.providerId));
-    await into(blockedStreamRoutes).insertOnConflictUpdate(
-      BlockedStreamRoutesCompanion.insert(
-        streamUrl: streamUrl,
-        reason: shared ? reason : 'private:$reason',
-      ),
-    );
-    return deleteChannelsByIds(matches.map((channel) => channel.id));
+    return transaction(() async {
+      streamUrl = canonicalRouteUrl(streamUrl);
+      // Legacy spellings are checked only during this explicit retirement action.
+      // Read IDs/URLs/provider IDs, without materializing full channel metadata.
+      final rows =
+          await (selectOnly(channels)..addColumns([
+                channels.id,
+                channels.streamUrl,
+                channels.providerId,
+              ]))
+              .get();
+      final matches = rows
+          .where(
+            (row) =>
+                canonicalRouteUrl(row.read(channels.streamUrl)!) == streamUrl,
+          )
+          .toList();
+      final previous = (await select(blockedStreamRoutes).get())
+          .where((route) => canonicalRouteUrl(route.streamUrl) == streamUrl)
+          .firstOrNull;
+      final publicProviders = {
+        for (final provider in await getAllProviders())
+          if (isSharedInventoryProvider(
+            id: provider.id,
+            type: provider.type,
+            url: provider.url,
+            username: provider.username,
+            password: provider.password,
+          ))
+            provider.id,
+      };
+      final shared =
+          reason == 'shared_catalog_retired' ||
+          (previous != null && !previous.reason.startsWith('private:')) ||
+          matches.any(
+            (row) => publicProviders.contains(row.read(channels.providerId)),
+          );
+      await into(blockedStreamRoutes).insertOnConflictUpdate(
+        BlockedStreamRoutesCompanion.insert(
+          streamUrl: streamUrl,
+          reason: shared ? reason : 'private:$reason',
+        ),
+      );
+      return deleteChannelsByIds(matches.map((row) => row.read(channels.id)!));
+    });
   }
 
   Future<bool> isStreamUrlBlocked(String streamUrl) async =>
-      await (select(blockedStreamRoutes)
-            ..where((table) => table.streamUrl.equals(streamUrl)))
-          .getSingleOrNull() !=
-      null;
+      (await getBlockedStreamUrls()).contains(canonicalRouteUrl(streamUrl));
 
   Future<Set<String>> getBlockedStreamUrls() async => {
     for (final route in await select(blockedStreamRoutes).get())
-      route.streamUrl,
+      canonicalRouteUrl(route.streamUrl),
   };
 
   Future<Set<String>> getSharedBlockedStreamUrls() async => {
     for (final route in await select(blockedStreamRoutes).get())
-      if (!route.reason.startsWith('private:')) route.streamUrl,
+      if (!route.reason.startsWith('private:'))
+        canonicalRouteUrl(route.streamUrl),
   };
 
   Future<int> deleteChannelsByIds(Iterable<String> channelIds) async {

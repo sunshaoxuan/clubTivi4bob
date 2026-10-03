@@ -6,6 +6,8 @@
 
 ## 0. 预分类频道快照
 
+公共线路使用规范化 URL 作为全局唯一标识，与客户端、来源仓库、台名和分类无关。统一协议及域名大小写、默认端口和空路径；保留实际路径、查询参数、HTTP/HTTPS 差异和非默认端口。重复来源分别记录，线路只入库一次。淘汰覆盖等价地址的所有副本，重新发现不能清除淘汰记录。重复淘汰不再递增版本。发布快照会拒绝地址等价的重复线路，客户端导入时也进行防御性去重。详见 `ROUTE_IDENTITY.md`。
+
 `GET /api/v1/channel-catalog/manifest` 返回 `schemaVersion`、`version`、`generatedAt`、`channelCount`、`routeCount`、`snapshotUrl`、`compressedBytes` 和 `sha256`。当前尚未发布频道快照时返回 `{"schemaVersion":1,"version":null,"channelCount":0,"routeCount":0}`，客户端应继续使用本地目录。响应支持 `ETag` 和 `If-None-Match`。
 
 有内容时，客户端从同一本站域名请求 `snapshotUrl`，路径格式为 `/api/v1/channel-catalog/snapshots/{sha256}.json.gz`。先核对压缩字节长度和 SHA-256，再解压、验证 `schemaVersion`、`version`、分类树及唯一的频道和线路 ID。快照的 `categories` 带有 `id`、`parentId`、`name`、`sortOrder`；`channels` 带有 `id`、`name`、`categoryId`、`countryCode`、`regionCode`、`sortOrder`、`epgId`、`logoUrl`、`routes`。每条 `routes` 包含 `id`、`url`、`source`、`lastPlayableAt`、`healthScore`。

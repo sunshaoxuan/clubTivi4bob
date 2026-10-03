@@ -703,6 +703,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
     }
     if (group == '国际' && await _countryAi.isEnabled()) {
       final unknown = loaded.where((channel) =>
+          channel.providerId != WebsiteChannelCatalogService.providerId &&
           _countryFor(channel) == '未识别地区').map((channel) =>
           CountryNameInput(channel.name, channel.groupTitle)).toList();
       unawaited(_countryAi.classifyUnknown(unknown, onBatch: (additions) {
@@ -721,6 +722,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
     }
     if (group == '其他') {
       final unresolved = loaded.where((channel) =>
+          channel.providerId != WebsiteChannelCatalogService.providerId &&
           _categoryFor(channel) == '其他').map((channel) => CategoryNameInput(
         id: channel.id,
         name: channel.name,
@@ -1422,6 +1424,9 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
     final retryBefore = DateTime.now().subtract(const Duration(hours: 2));
     final byChannel = <String, List<db.Channel>>{};
     for (final channel in channels) {
+      // Server-validated public routes need no second full scan on each client.
+      // Selected playback and preview still validate/retry their own routes.
+      if (channel.providerId == WebsiteChannelCatalogService.providerId) continue;
       if (_selectedGroup == '国际' &&
           (_countryFor(channel) != _selectedInternationalCountry ||
               (_selectedInternationalGenre != '全部' &&
@@ -2109,7 +2114,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
             _pendingManualCategories.remove(url);
           }
         }
-        unawaited(inventory.sync(refreshAfterRunning: true));
+        unawaited(inventory.flushEvents());
       } catch (error, stack) {
         AppDiagnostics.instance.recordError('manual_channel_category', error, stack);
         final saved = await ManualChannelCategory.load();

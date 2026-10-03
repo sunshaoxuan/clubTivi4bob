@@ -9,45 +9,68 @@ import '../../data/services/github_ai_crawler_service.dart';
 import '../../data/services/source_maintenance_service.dart';
 import '../../data/services/website_channel_catalog_service.dart';
 import '../../data/services/channel_inventory_sync_service.dart';
-import 'default_provider_bootstrap.dart';
 import 'provider_manager.dart';
 import '../../data/services/stream_alternatives_service.dart';
 
 class SourceMaintenanceCoordinator {
   final ProviderManager manager;
-  final GitHubSourceMonitor githubMonitor;
-  final SourceMaintenanceService maintenanceService;
-  final GitHubAiCrawlerService githubAiCrawler;
-  final BundledSourceSnapshotService bundledSourceSnapshot;
+  GitHubSourceMonitor? _githubMonitor;
+  SourceMaintenanceService? _maintenanceService;
+  GitHubAiCrawlerService? _githubAiCrawler;
+  BundledSourceSnapshotService? _bundledSourceSnapshot;
+  // Source-management tools allocate their HTTP clients only on explicit use.
+  GitHubSourceMonitor get githubMonitor =>
+      _githubMonitor ??= GitHubSourceMonitor(database: manager.database);
+  SourceMaintenanceService get maintenanceService => _maintenanceService ??=
+      SourceMaintenanceService(database: manager.database);
+  GitHubAiCrawlerService get githubAiCrawler =>
+      _githubAiCrawler ??= GitHubAiCrawlerService(database: manager.database);
+  BundledSourceSnapshotService get bundledSourceSnapshot =>
+      _bundledSourceSnapshot ??= BundledSourceSnapshotService(
+        database: manager.database,
+      );
   final WebsiteChannelCatalogService websiteCatalog;
-  late final inventory = ChannelInventorySyncService(
-    database: manager.database,
-  );
+  late final inventory =
+      _inventoryOverride ??
+      ChannelInventorySyncService(database: manager.database);
+  final ChannelInventorySyncService? _inventoryOverride;
+  bool get sourceManagementInitialized =>
+      _githubMonitor != null ||
+      _maintenanceService != null ||
+      _githubAiCrawler != null ||
+      _bundledSourceSnapshot != null;
 
-  Timer? _timer;
-  Timer? _startupTimer;
   Timer? _snapshotTimer;
   Timer? _catalogTimer;
-  Timer? _healthTimer;
   Timer? _changesTimer;
   bool _changesRunning = false;
-  bool _running = false;
-  bool _healthRunning = false;
+  bool _started = false;
+  bool _disposed = false;
 
   SourceMaintenanceCoordinator({
     required this.manager,
-    required this.githubMonitor,
-    required this.maintenanceService,
-    required this.githubAiCrawler,
-    required this.bundledSourceSnapshot,
     required this.websiteCatalog,
-  });
+    ChannelInventorySyncService? inventory,
+  }) : _inventoryOverride = inventory;
 
   void start() {
-    if (_timer != null) return;
+    if (_started || _disposed) return;
+    _started = true;
+    AppDiagnostics.instance.log('background_work_policy', {
+      'globalGithubScanning': false,
+      'globalRouteScanning': false,
+      'sourceManagement': 'on_demand',
+      'sharedCatalogPollSeconds': 60,
+      'sharedChangesPollSeconds': 15,
+    });
     _snapshotTimer = Timer(
       const Duration(seconds: 2),
-      () => unawaited(_importInitialSnapshot()),
+      () => unawaited(
+        _importInitialSnapshot().catchError(
+          (Object error, StackTrace stack) => AppDiagnostics.instance
+              .recordError('shared_catalog_bootstrap', error, stack),
+        ),
+      ),
     );
     // A catalog revision reaches running clients without waiting for the
     // slower provider discovery and health-maintenance cycle.
@@ -59,30 +82,26 @@ class SourceMaintenanceCoordinator {
       const Duration(seconds: 15),
       (_) => unawaited(_syncSharedChanges()),
     );
-    // Large source refreshes stay away from the first interactive frame.
-    _startupTimer = Timer(const Duration(minutes: 1), () => unawaited(_run()));
-    _timer = Timer.periodic(
-      DefaultProviderBootstrap.refreshInterval,
-      (_) => unawaited(_run()),
-    );
-    _healthTimer = Timer.periodic(
-      const Duration(hours: 1),
-      (_) => unawaited(_runHealthMaintenance()),
-    );
+    // Public discovery and full-catalog validation belong to the server.
+    // Entering advanced mode does not implicitly start those workloads either.
   }
 
   Future<void> _syncSharedChanges({bool pull = false}) async {
-    if (_changesRunning) return;
+    if (_changesRunning || _disposed) return;
     _changesRunning = true;
     try {
       final sent = await inventory.flushEvents();
       if (pull || sent > 0) await websiteCatalog.sync();
+      if (pull) await inventory.syncLegacyInventoryOnce();
+    } catch (error, stack) {
+      AppDiagnostics.instance.recordError('shared_catalog_sync', error, stack);
     } finally {
       _changesRunning = false;
     }
   }
 
   Future<void> _importInitialSnapshot() async {
+    if (_disposed) return;
     // A small preclassified starter is visible before the first network round trip.
     if (!(await manager.database.getAllProviders()).any(
       (p) => p.id == WebsiteChannelCatalogService.providerId,
@@ -95,7 +114,7 @@ class SourceMaintenanceCoordinator {
     )) {
       await _importBundledSnapshot();
     }
-    unawaited(inventory.sync());
+    await inventory.syncLegacyInventoryOnce();
   }
 
   Future<void> _importBundledSnapshot() async {
@@ -117,83 +136,14 @@ class SourceMaintenanceCoordinator {
     }
   }
 
-  Future<void> _runHealthMaintenance() async {
-    if (_running || _healthRunning) return;
-    _healthRunning = true;
-    try {
-      await maintenanceService.run();
-    } catch (error, stackTrace) {
-      AppDiagnostics.instance.recordError(
-        'source_health_maintenance',
-        error,
-        stackTrace,
-      );
-    } finally {
-      _healthRunning = false;
-    }
-  }
-
-  Future<void> _run() async {
-    if (_running) return;
-    _running = true;
-    final database = manager.database;
-    try {
-      try {
-        final purged = await database.purgeRejectedNonTelevisionChannels();
-        if (purged > 0) {
-          AppDiagnostics.instance.log('non_television_sources_purged', {
-            'deletedChannels': purged,
-          });
-        }
-        await websiteCatalog.sync();
-        final hasSharedCatalog = (await database.getAllProviders()).any(
-          (provider) => provider.id == WebsiteChannelCatalogService.providerId,
-        );
-        if (!hasSharedCatalog) {
-          await bundledSourceSnapshot.run();
-        }
-      } catch (error, stackTrace) {
-        AppDiagnostics.instance.recordError(
-          'bundled_source_snapshot',
-          error,
-          stackTrace,
-        );
-      }
-      final providers = await database.getAllProviders();
-      await githubMonitor.syncOrigins(providers);
-      await githubMonitor.scanForUpdates(manager);
-      if (!(await database.getAllProviders()).any(
-        (provider) => provider.id == WebsiteChannelCatalogService.providerId,
-      )) {
-        await DefaultProviderBootstrap(
-          database: database,
-          manager: manager,
-        ).run();
-      }
-      await maintenanceService.run();
-      await githubAiCrawler.run();
-      await inventory.sync();
-    } catch (error, stackTrace) {
-      AppDiagnostics.instance.recordError(
-        'source_maintenance_coordinator',
-        error,
-        stackTrace,
-      );
-    } finally {
-      _running = false;
-    }
-  }
-
   void dispose() {
+    _disposed = true;
     _snapshotTimer?.cancel();
     _catalogTimer?.cancel();
-    _startupTimer?.cancel();
-    _healthTimer?.cancel();
-    _timer?.cancel();
     _changesTimer?.cancel();
-    githubMonitor.dispose();
-    maintenanceService.dispose();
-    githubAiCrawler.dispose();
+    _githubMonitor?.dispose();
+    _maintenanceService?.dispose();
+    _githubAiCrawler?.dispose();
     websiteCatalog.dispose();
     inventory.dispose();
   }
@@ -218,10 +168,6 @@ final sourceMaintenanceCoordinatorProvider =
       };
       final coordinator = SourceMaintenanceCoordinator(
         manager: ref.watch(providerManagerProvider),
-        githubMonitor: GitHubSourceMonitor(database: database),
-        maintenanceService: SourceMaintenanceService(database: database),
-        githubAiCrawler: GitHubAiCrawlerService(database: database),
-        bundledSourceSnapshot: BundledSourceSnapshotService(database: database),
         websiteCatalog: WebsiteChannelCatalogService(
           database: database,
           onSharedScores: tracker.setSharedScores,

@@ -29,6 +29,46 @@ class ChannelInventorySyncService {
   bool _disposed = false;
   bool _refreshAfterRunning = false;
   Future<int>? _eventsRunning;
+  Future<void>? _legacyRunning;
+  bool _legacyComplete = false;
+
+  /// Existing installations need one inventory migration. New installations
+  /// already receive the website catalog and report subsequent edits via events.
+  Future<void> syncLegacyInventoryOnce() {
+    if (_disposed || _legacyComplete) return Future.value();
+    return _legacyRunning ??= _syncLegacyInventoryOnce().whenComplete(
+      () => _legacyRunning = null,
+    );
+  }
+
+  Future<void> _syncLegacyInventoryOnce() async {
+    final prefs = await SharedPreferences.getInstance();
+    if (_disposed) return;
+    const key = 'bobtv_legacy_inventory_migrated_v1';
+    if (prefs.getBool(key) == true) {
+      _legacyComplete = true;
+      return;
+    }
+    final providers = await database.getAllProviders();
+    if (_disposed) return;
+    final hasLegacy = providers.any(
+      (p) =>
+          p.id != WebsiteChannelCatalogService.providerId &&
+          isSharedInventoryProvider(
+            id: p.id,
+            type: p.type,
+            url: p.url,
+            username: p.username,
+            password: p.password,
+          ),
+    );
+    if (hasLegacy) {
+      await sync();
+      if (_disposed || !state.value.complete || state.value.error) return;
+    }
+    await prefs.setBool(key, true);
+    _legacyComplete = true;
+  }
 
   Future<int> flushEvents() => _eventsRunning ??= _flushEvents().whenComplete(
     () => _eventsRunning = null,

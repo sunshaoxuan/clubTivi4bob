@@ -1,6 +1,6 @@
 # BobTV website and API
 
-This directory is the canonical source for `https://bobtv.briconbric.com`: the public site, the local release mirror, the video-source APIs, and bounded diagnostic intake. The Flutter application lives in `lib/` in this same repository. Existing GitHub release assets are mirrored to the server; users download from the BobTV host.
+This directory is the canonical source for `https://bobtv.briconbric.com`: the public site, the local release mirror, the video-source APIs, and bounded diagnostic intake. The Flutter application lives in `lib/` in this same repository. Existing GitHub release assets are mirrored to the server; users download from the BobTV host. Deploy `route_identity.py` alongside the inventory and catalog publisher. [Route identity](ROUTE_IDENTITY.md) describes global deduplication and permanent retirement across rediscovery and URL spelling variants.
 
 The product page describes BobTV as a Windows and macOS desktop TV player. Windows 10 compatibility requires client-side validation before publishing a support claim.
 

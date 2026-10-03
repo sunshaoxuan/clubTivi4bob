@@ -15,6 +15,7 @@ from datetime import datetime, timezone
 from urllib.parse import urljoin, urlsplit
 
 from catalog_inventory import DATA, database, ingest, validate_media_url
+from route_identity import canonical_route_url
 from publish_channel_catalog import publish
 
 
@@ -184,7 +185,7 @@ def process(data_dir=DATA, limit=120, verifier=probe):
         now = int(time.time())
         with database(data_dir) as conn:
             rows = conn.execute("SELECT * FROM routes WHERE blocked=0 AND deleted=0 AND success_at>=? AND failures<3 ORDER BY group_name,name,digest", (now - 7 * 86400,)).fetchall()
-            blocked = {row[0] for row in conn.execute("SELECT url FROM routes WHERE blocked=1 OR deleted=1")}
+            blocked = {canonical_route_url(row[0]) for row in conn.execute("SELECT url FROM routes WHERE blocked=1 OR deleted=1")}
         categories = {}
         channels = {}
         for row in rows:
@@ -207,9 +208,16 @@ def process(data_dir=DATA, limit=120, verifier=probe):
             channel["routes"].append({"id": "route-" + row["digest"][:24], "url": row["url"], "source": row["source"], "lastPlayableAt": datetime.fromtimestamp(row["success_at"], timezone.utc).isoformat().replace("+00:00", "Z"), "healthScore": score, 'revision':row['revision']})
         # Keep prior reviewed routes until their inventory record is verified.
         if current:
-            inventory_urls = {row["url"] for row in rows}
+            inventory_urls = {canonical_route_url(row["url"]) for row in rows}
+            seen_urls = set(inventory_urls)
             for channel in current["channels"]:
-                routes = [route for route in channel["routes"] if _television_media(channel["name"], route["url"]) and route["url"] not in blocked and route["url"] not in inventory_urls]
+                routes = []
+                for route in channel['routes']:
+                    url = canonical_route_url(route['url'])
+                    if not _television_media(channel['name'], url) or url in blocked or url in seen_urls:
+                        continue
+                    seen_urls.add(url)
+                    routes.append({**route, 'url': url, 'id': 'route-' + hashlib.sha256(url.encode()).hexdigest()[:24]})
                 if routes:
                     with database(data_dir) as conn:
                         routes = [route for route in routes if not conn.execute("SELECT 1 FROM routes WHERE url=? AND (failures>=3 OR (success_at IS NOT NULL AND success_at<?))", (route["url"],now-7*86400)).fetchone()]

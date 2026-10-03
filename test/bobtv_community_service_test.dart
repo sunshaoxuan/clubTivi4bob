@@ -9,9 +9,11 @@ class _FakeApi extends BobTvApiClient {
   List<BobTvReviewedSource> sources = [];
   bool offline = false;
   int reportCount = 0;
+  int catalogFetches = 0;
 
   @override
   Future<List<BobTvReviewedSource>> fetchSources() async {
+    catalogFetches++;
     if (offline) throw const BobTvApiException('offline');
     return sources;
   }
@@ -24,6 +26,21 @@ class _FakeApi extends BobTvApiClient {
 }
 
 void main() {
+  test('community startup leaves catalog download to shared synchronization', () async {
+    SharedPreferences.setMockInitialValues({});
+    final database = db.AppDatabase.forTesting(NativeDatabase.memory());
+    final api = _FakeApi();
+    final service = BobTvCommunityService(database, api: api);
+    try {
+      await service.start();
+      expect(api.catalogFetches, 0);
+      await service.refreshCatalog();
+      expect(api.catalogFetches, 1);
+    } finally {
+      service.dispose();
+      await database.close();
+    }
+  });
   TestWidgetsFlutterBinding.ensureInitialized();
   SharedPreferences.setMockInitialValues({});
 

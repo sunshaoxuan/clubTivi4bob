@@ -80,9 +80,9 @@ This fork includes several changes for long running playback:
 
 ### Self-maintaining playlist catalogue
 
-The application checks HTTP and HTTPS routes in small background batches every six hours. A route is retired only after five consecutive failures spanning at least 24 hours. Previously failing routes are checked first, and a batch with no successful connections is discarded when it indicates a wider network outage. Retired routes stay excluded from later playlist imports. Channels with no remaining routes disappear automatically, along with categories that become empty.
+Public playlist discovery and full-catalog validation run on the website. Windows and macOS clients do not schedule local global route checks or GitHub crawls, including when advanced mode is opened. They retain current playback and preview retry/failover, shared catalog synchronization, durable edit uploads, EPG refresh, diagnostics, and automatic updates.
 
-For configured GitHub backed playlists, the local database records the source URL, repository owner, repository name, branch, file path, and last observed Git object version. Repository versions are checked every six hours through the public GitHub API. A changed playlist resets its retired route records, refreshes the provider, and submits the new routes to health checks again. No GitHub credential is embedded in the application.
+Management HTTP clients are allocated on demand for explicit source recovery or provider management. Browser category checks skip server-validated shared routes. Classification changes upload small durable events instead of rescanning the inventory. Legacy installations upload their existing public inventory once, retrying incomplete migrations; new website-only installations skip that full scan. No GitHub credential is embedded in the application.
 
 ### AI assisted GitHub crawler
 
@@ -90,7 +90,7 @@ An optional crawler can supplement the configured playlists with newly discovere
 
 M3U documents are expanded by the strict local parser after AI file selection. JSON, YAML, text, generated data, and other layouts are analyzed in bounded chunks with structured JSON Schema output. Repository content is treated as untrusted data and cannot supply instructions to the model. Only same repository GitHub document links are eligible for recursive fetching.
 
-Discovered routes are placed in the existing channel aggregation and failover system. Each route retains its repository, commit, file path, source document URL, confidence, and first and last discovery times. The crawler runs at most once per day, processes five repositories per pass, and prefers three configured repositories plus two newly discovered repositories.
+Discovered routes are placed in the existing channel aggregation and failover system. Each route retains its repository, commit, file path, source document URL, confidence, and first and last discovery times. Automatic client-wide crawler scheduling is disabled. Targeted recovery of an exhausted channel remains available on demand when AI is configured.
 
 The Settings screen accepts an OpenAI-compatible HTTPS endpoint, model ID, and API key for optional classification and source discovery. The key stays in platform secure storage. Process environment variables remain a fallback when no settings have been saved:
 
@@ -98,13 +98,19 @@ The Settings screen accepts an OpenAI-compatible HTTPS endpoint, model ID, and A
 * `OPENAI_API_KEY`
 * `OPENAI_MODEL`, optional and defaulting to `gpt-5.6-luna`
 
-If the AI configuration is incomplete or disabled, uncertain channel classifications remain in Other and AI source discovery stays off. Playback, the programme guide, normal provider refreshes, route health checks, and GitHub version monitoring continue to operate. Credentials are never written to the repository or application logs.
+If the AI configuration is incomplete or disabled, uncertain channel classifications remain in Other and AI source discovery stays off. Website-classified public channels need no repeated local AI classification. Personal channel classification and targeted recovery can still use the configured endpoint. Credentials are never written to the repository or application logs.
 
 Release builds include a sanitized bundled snapshot of the latest discovered routes. A new installation imports the snapshot automatically, so customers receive the release time channel candidates even when the optional AI endpoint is unavailable. The snapshot contains public stream metadata and GitHub provenance only. It excludes favorites, playback history, route health history, diagnostics, crash dumps, and API configuration. Later crawler passes update these candidates when runtime AI configuration is available.
 
 ### Website channel synchronization
 
 Windows and macOS share the website's versioned, preclassified public channel catalog. A new installation starts with local or packaged channels and imports the verified website snapshot in the background. Snapshots include route revisions and shared health scores, and clients check for changes every minute.
+
+Public routes are idempotent across providers and devices. Equivalent host/scheme
+case and default-port spellings share one endpoint identity; meaningful paths,
+queries, protocols and non-default ports stay separate. Retiring an endpoint
+removes all equivalent local copies and leaves a permanent shared tombstone.
+Rediscovery cannot restore it. Provenance is retained separately from route identity.
 
 Public additions, metadata and category edits, positive and negative health observations, deletions and retirements enter a durable SQLite outbox and upload asynchronously. Offline changes survive restart, acknowledgements remove only the exact event, and server deduplication prevents repeated scoring. Version checks protect newer classifications; retirement tombstones prevent stale clients from restoring removed URLs. New candidate routes require server verification before publication. A legitimate empty catalog removes the last retired channels and unused categories; network or validation failures preserve existing local data.
 

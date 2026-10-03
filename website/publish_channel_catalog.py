@@ -63,6 +63,7 @@ def validate(payload):
             current = parent_by_id[current]
     channel_ids = set()
     route_ids = set()
+    route_urls = set()
     for channel in channels:
         required = {"id", "name", "categoryId", "countryCode", "regionCode", "sortOrder", "epgId", "logoUrl", "routes"}
         if not isinstance(channel, dict) or set(channel) != required:
@@ -88,7 +89,10 @@ def validate(payload):
             route_id = route["id"]
             if not isinstance(route_id, str) or not IDENTIFIER.fullmatch(route_id) or route_id in route_ids:
                 raise ValueError("Duplicate or invalid route ID")
-            validate_media_url(route["url"])
+            canonical = validate_media_url(route["url"])
+            if canonical in route_urls:
+                raise ValueError('Duplicate route endpoint')
+            route_urls.add(canonical)
             if not isinstance(route["source"], str) or not 1 <= len(route["source"]) <= 128:
                 raise ValueError("Invalid route provenance")
             if route["lastPlayableAt"] is not None and not isinstance(route["lastPlayableAt"], str):

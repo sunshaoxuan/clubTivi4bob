@@ -16,6 +16,7 @@ import '../../data/services/channel_name_normalizer.dart';
 import '../../data/services/stream_alternatives_service.dart';
 import '../../data/services/stream_health_tracker.dart';
 import '../../data/services/bobtv_community_service.dart';
+import '../../data/services/route_identity.dart';
 import '../providers/provider_manager.dart';
 import '../casting/cast_service.dart';
 import '../casting/local_cast_mute.dart';
@@ -222,7 +223,7 @@ class PlayerService {
       // immediately returning to the skipped route.
       _healthTracker?.recordStall(current);
       _failedFailoverUrls.add(current);
-      _manuallyRejectedUrls.add(current);
+      _manuallyRejectedUrls.add(canonicalRouteUrl(current));
       AppDiagnostics.instance.log('manual_route_skipped', {
         'channel': _currentChannelName,
         'skippedStream': AppDiagnostics.summarizeStreamUrl(current),
@@ -239,7 +240,7 @@ class PlayerService {
   ) async {
     final candidates = _rankCandidateUrls([url, ...remainingAlternatives])
         .where((candidate) => candidate.isNotEmpty &&
-            !_manuallyRejectedUrls.contains(candidate))
+            !_manuallyRejectedUrls.contains(canonicalRouteUrl(candidate)))
         .toList();
     if (candidates.isEmpty) {
       routeSearchProgress.value = const RouteSearchProgress(
@@ -292,7 +293,7 @@ class PlayerService {
     if (url == null) return;
     _healthTracker?.recordStall(url);
     _failedFailoverUrls.add(url);
-    _manuallyRejectedUrls.add(url);
+    _manuallyRejectedUrls.add(canonicalRouteUrl(url));
   }
 
   void _setFailoverSwitching(bool value) {
@@ -2493,15 +2494,15 @@ class PlayerService {
 
     final results = <String>[];
     final seen = <String>{
-      _currentUrl!,
-      if (!includePreviouslyFailed) ..._failedFailoverUrls,
+      canonicalRouteUrl(_currentUrl!),
+      if (!includePreviouslyFailed) ..._failedFailoverUrls.map(canonicalRouteUrl),
     };
 
     void addUrls(Iterable<String> urls) {
       for (final url in urls) {
         if (url.isNotEmpty &&
-            !_manuallyRejectedUrls.contains(url) &&
-            seen.add(url)) {
+            !_manuallyRejectedUrls.contains(canonicalRouteUrl(url)) &&
+            seen.add(canonicalRouteUrl(url))) {
           results.add(url);
         }
       }
@@ -2544,7 +2545,9 @@ class PlayerService {
     double Function(String url) score, {
     String? preferredUrl,
   }) {
-    final distinct = urls.where((url) => url.isNotEmpty).toSet().toList();
+    final distinct = urls.where((url) => url.isNotEmpty)
+        .map(canonicalRouteUrl).toSet().toList();
+    if (preferredUrl != null) preferredUrl = canonicalRouteUrl(preferredUrl);
     final order = {for (var i = 0; i < distinct.length; i++) distinct[i]: i};
     distinct.sort((left, right) {
       if (left == preferredUrl) return -1;

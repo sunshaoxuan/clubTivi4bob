@@ -12,6 +12,7 @@ from urllib.parse import urlsplit, parse_qsl
 
 from fastapi import APIRouter, HTTPException, Request, BackgroundTasks
 from fastapi.responses import JSONResponse
+from route_identity import canonical_route_url
 
 DATA = Path(os.environ.get("BOBTV_DATA_DIR", Path(__file__).parent / "data"))
 router = APIRouter(prefix="/api/v1/channel-catalog")
@@ -40,7 +41,40 @@ def validate_media_url(url):
         raise ValueError("Account-bearing media URL")
     if parsed.port is not None and not 1 <= parsed.port <= 65535:
         raise ValueError("Invalid port")
-    return url
+    return canonical_route_url(url)
+
+
+def _migrate_route_identity(conn):
+    conn.execute('CREATE TABLE IF NOT EXISTS catalog_migrations (name TEXT PRIMARY KEY)')
+    if conn.execute("SELECT 1 FROM catalog_migrations WHERE name='route_identity_v1'").fetchone():
+        return
+    groups = {}
+    for row in conn.execute('SELECT * FROM routes').fetchall():
+        url = canonical_route_url(row['url'])
+        groups.setdefault(url, []).append(dict(row))
+    for url, rows in groups.items():
+        digest = hashlib.sha256(url.encode()).hexdigest()
+        if len(rows) == 1 and rows[0]['digest'] == digest and rows[0]['url'] == url:
+            conn.execute('INSERT OR IGNORE INTO route_origins VALUES (?,?)', (digest, rows[0]['source']))
+            continue
+        winner = max(rows, key=lambda r: (r['manual_category'], r['revision'], r['received'], r['digest']))
+        merged = {**winner, 'url': url, 'digest': digest}
+        for field in ('blocked', 'deleted', 'manual_category', 'received', 'failures'):
+            merged[field] = max(r[field] for r in rows)
+        for field in ('playable_at', 'checked_at', 'success_at'):
+            merged[field] = max((r[field] for r in rows if r[field] is not None), default=None)
+        for field in ('success_votes', 'failure_votes'):
+            merged[field] = sum(r[field] for r in rows)
+        merged['revision'] = max(r['revision'] for r in rows) + (len(rows) > 1)
+        for row in rows:
+            origins = conn.execute('SELECT source FROM route_origins WHERE digest=?', (row['digest'],)).fetchall()
+            conn.execute('DELETE FROM route_origins WHERE digest=?', (row['digest'],))
+            for source in {row['source'], *(r[0] for r in origins)}:
+                conn.execute('INSERT OR IGNORE INTO route_origins VALUES (?,?)', (digest, source))
+            conn.execute('DELETE FROM routes WHERE digest=?', (row['digest'],))
+        columns = list(merged)
+        conn.execute(f"INSERT INTO routes ({','.join(columns)}) VALUES ({','.join('?' for _ in columns)})", list(merged.values()))
+    conn.execute("INSERT INTO catalog_migrations VALUES ('route_identity_v1')")
 
 
 @contextmanager
@@ -62,8 +96,11 @@ def database(data_dir=None):
         if name not in columns:
             conn.execute(f'ALTER TABLE routes ADD COLUMN {name} {definition}')
     conn.execute('CREATE TABLE IF NOT EXISTS sync_receipts (reporter TEXT NOT NULL, event_id TEXT NOT NULL, receipt TEXT NOT NULL, PRIMARY KEY(reporter,event_id))')
+    conn.execute('CREATE TABLE IF NOT EXISTS route_origins (digest TEXT NOT NULL, source TEXT NOT NULL, PRIMARY KEY(digest,source))')
     try:
         with conn:
+            _migrate_route_identity(conn)
+            conn.execute('CREATE UNIQUE INDEX IF NOT EXISTS routes_url_unique ON routes(url)')
             yield conn
     finally:
         conn.close()
@@ -103,10 +140,13 @@ def ingest(rows, fingerprint, data_dir=None):
         if count > 2000: raise HTTPException(429, "Inventory rate limit", headers={"Retry-After": "3600"})
         conn.execute("INSERT INTO limits VALUES (?,?,?) ON CONFLICT(reporter) DO UPDATE SET hour=excluded.hour,count=excluded.count", (reporter, now // 3600, count))
         total = conn.execute("SELECT count(*) FROM routes").fetchone()[0]
-        if total + len(normalized) > 250000: raise HTTPException(503, "Inventory capacity reached")
         for item in normalized:
+            if not conn.execute('SELECT 1 FROM routes WHERE digest=?', (item[0],)).fetchone():
+                if total >= 250000: raise HTTPException(503, "Inventory capacity reached")
+                total += 1
             # Repeated discovery must not overwrite reviewed/manual metadata.
             conn.execute("INSERT INTO routes (digest,name,url,group_name,source,epg_id,logo_url,playable_at,blocked,received) VALUES (?,?,?,?,?,?,?,?,?,?) ON CONFLICT(digest) DO UPDATE SET playable_at=MAX(COALESCE(routes.playable_at,0),COALESCE(excluded.playable_at,0)),blocked=MAX(routes.blocked,excluded.blocked),received=excluded.received", item)
+            conn.execute('INSERT OR IGNORE INTO route_origins VALUES (?,?)', (item[0], item[4]))
             accepted += 1
         conn.execute("DELETE FROM batches WHERE received<?", (now - 7 * 86400,))
         conn.execute("INSERT OR REPLACE INTO batches VALUES (?,?,?)", (reporter, batch_digest, now))
@@ -181,6 +221,7 @@ def ingest_events(events, fingerprint, data_dir=None):
                         conn.execute('INSERT INTO routes(digest,name,url,group_name,source,received) VALUES(?,?,?,?,?,?)', (digest,name,url,group,source,int(time.time())))
                         row = conn.execute('SELECT * FROM routes WHERE digest=?', (digest,)).fetchone()
                         conn.execute('UPDATE routes SET epg_id=?,logo_url=? WHERE digest=?',(epg,logo,digest))
+                    conn.execute('INSERT OR IGNORE INTO route_origins VALUES (?,?)', (digest, source))
                 elif kind not in ('classify', 'health', 'delete', 'retire'):
                     raise ValueError('Unknown event')
                 if row is None:
@@ -208,8 +249,9 @@ def ingest_events(events, fingerprint, data_dir=None):
                     receipt.update(status='applied', revision=revision)
                 elif kind in ('delete','retire'):
                     column = 'blocked' if kind == 'retire' else 'deleted'
-                    conn.execute(f'UPDATE routes SET {column}=1,revision=revision+1 WHERE digest=?', (digest,))
-                    receipt.update(status='applied',revision=revision+1)
+                    changed = not row[column]
+                    conn.execute(f'UPDATE routes SET {column}=1,revision=revision+? WHERE digest=?', (int(changed),digest))
+                    receipt.update(status='applied',revision=revision+int(changed))
                 else:
                     group = row['group_name'] if row['manual_category'] else metadata['group']
                     changed=(name,group,epg,logo)!=(row['name'],row['group_name'],row['epg_id'],row['logo_url'])

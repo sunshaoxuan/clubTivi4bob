@@ -63,5 +63,17 @@ try{
   Write-Output "PASS: Windows old GUI discovered and downloaded $($manifest.version), installed after exit, preserved +68 and acknowledged healthy startup."
 }finally{
   Stop-TestApp
+  $diagnostics=Join-Path $env:GITHUB_WORKSPACE 'windows-live-update-diagnostics'
+  New-Item -ItemType Directory -Path $diagnostics -Force|Out-Null
+  foreach($directory in @($root,(Join-Path $env:LOCALAPPDATA 'HotelTV\Logs'))){
+    if(Test-Path $directory){
+      Get-ChildItem $directory -File | Where-Object Extension -in @('.log','.json','.ini','.txt') |
+        Copy-Item -Destination $diagnostics -Force
+    }
+  }
+  Get-ChildItem $diagnostics -File | ForEach-Object {
+    Write-Output $_.Name
+    Get-Content $_.FullName -Tail 30
+  }
   $env:LOCALAPPDATA=$savedLocalAppData
 }

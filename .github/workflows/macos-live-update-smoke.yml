@@ -39,6 +39,7 @@ jobs:
             ~/Library/Application Support/com.briconbric.bobtv/Update/live-update*.log
             ~/Library/Application Support/com.briconbric.bobtv/Update/live-update-result.json
             ~/Library/Application Support/com.briconbric.bobtv/Update/status.json
+            ~/Library/Application Support/com.briconbric.bobtv/Update/worker.log
             ~/Library/Application Support/com.briconbric.bobtv/logs/*.log
             ~/Library/Logs/DiagnosticReports/BobTV*.ips
           if-no-files-found: ignore

@@ -41,7 +41,8 @@ try{
         Select-Object ProcessId,ParentProcessId,CommandLine|Format-List
     }
     if(Test-Path "$root\status.json"){
-      $status=Get-Content "$root\status.json" -Raw|ConvertFrom-Json
+      $status=Get-Content "$root\status.json" -Raw -ErrorAction SilentlyContinue|ConvertFrom-Json
+      if(!$status){Start-Sleep -Milliseconds 100;continue}
       if($status.phase -eq 'ready' -and $status.version -eq $manifest.version){$ready=$true;break}
       if($status.phase -eq 'failed'){throw 'GUI update worker failed'}
       if($CloseWhileDownloading -and !$closedEarly -and $status.phase -eq 'downloading'){
@@ -58,7 +59,7 @@ try{
   Stop-TestApp
   $installed=$false
   for($n=0;$n -lt 120;$n++){
-    $completed=if(Test-Path "$root\status.json"){Get-Content "$root\status.json" -Raw|ConvertFrom-Json}
+    $completed=if(Test-Path "$root\status.json"){Get-Content "$root\status.json" -Raw -ErrorAction SilentlyContinue|ConvertFrom-Json}
     if((Get-Item $exe).VersionInfo.FileVersion -eq $manifest.version -and
        (!$FixtureExecutable -or $completed.phase -eq 'installed')){$installed=$true;break}
     Start-Sleep -Seconds 1
@@ -103,7 +104,7 @@ try{
       (Join-Path $savedLocalAppData 'HotelTV\Update'))){
     if(Test-Path $directory){
       Get-ChildItem $directory -File | Where-Object Extension -in @('.log','.json','.ini','.txt','.ps1') |
-        Copy-Item -Destination $diagnostics -Force
+        Copy-Item -Destination $diagnostics -Force -ErrorAction SilentlyContinue
     }
   }
   if(Test-Path $env:BOBTV_PROGRESS_CAPTURE_DIR){Copy-Item $env:BOBTV_PROGRESS_CAPTURE_DIR $diagnostics -Recurse -Force}

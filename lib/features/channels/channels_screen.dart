@@ -3841,16 +3841,21 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                                 service.preparedChannelId == channel.id &&
                                 previewController != null;
                             return ValueListenableBuilder<RouteSearchProgress?>(
+                              valueListenable: service.routeSearchProgress,
+                              builder: (context, mainProgress, _) =>
+                              ValueListenableBuilder<RouteSearchProgress?>(
                               valueListenable: service.channelPreviewProgress,
                               builder: (context, progress, _) =>
                                   _buildSimpleChannelTile(
                                 channel,
                                 selected: selected,
                                 loading: ChannelListIdentity.matches(
-                                  _pendingChannelId, channel.id),
+                                  _pendingChannelId, channel.id) ||
+                                    (selected && mainProgress?.active == true &&
+                                        mainProgress?.background != true),
                                 loadingProgress: ChannelListIdentity.matches(
                                   _pendingChannelId, channel.id)
-                                    ? progress : null,
+                                    ? progress : selected ? mainProgress : null,
                                 previewController:
                                     previewing ? previewController : null,
                                 onTap: () => _onSimpleChannelTap(channel),
@@ -3862,6 +3867,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                                             details.globalPosition)
                                         : _showCardRouteMenu(channel,
                                             details.globalPosition),
+                              ),
                               ),
                             );
                           },

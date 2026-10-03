@@ -93,8 +93,9 @@ class _ChannelCardFeedbackState extends State<ChannelCardFeedback>
           onExit: (_) => setState(() => _hovered = false),
           child: Listener(
             onPointerDown: (event) {
-              if (event.buttons != kPrimaryMouseButton || _pointer != null)
+              if (event.buttons != kPrimaryMouseButton || _pointer != null) {
                 return;
+              }
               _down = event.position;
               _pointer = event.pointer;
               setState(() => _acknowledged = true);

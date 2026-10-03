@@ -1167,6 +1167,10 @@ class PlayerService {
       'requiresUltraHd': _requiresUltraHd,
       'allowsAudioOnly': _allowsAudioOnly,
     });
+    routeSearchProgress.value = RouteSearchProgress(
+      stage: '正在准备播放器', index: 0, total: currentCandidateCount,
+      active: true,
+    );
     _qualityCheckTimer?.cancel();
     _videoCheckTimer?.cancel();
     _resetStaticFrameMonitor();
@@ -1204,7 +1208,15 @@ class PlayerService {
       step: 'ensure_player_ready',
       timeout: const Duration(seconds: 4),
     );
-    if (!ready) return;
+    if (!ready) {
+      if (playGeneration == _playGeneration) {
+        routeSearchProgress.value = RouteSearchProgress(
+          stage: '播放器准备失败，请重试', index: 0,
+          total: currentCandidateCount,
+        );
+      }
+      return;
+    }
     await _runPlayStep(
       _enableVideoOutput(),
       generation: playGeneration,

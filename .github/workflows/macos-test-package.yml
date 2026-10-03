@@ -58,8 +58,8 @@ jobs:
       - name: Verify owned Metal frame lifetime and render disposal
         run: |
           bash tools/macos/test_owned_metal_frame.sh "$PWD/build/macos/Build/Products/Release/BobTV.app"
-          bash tools/macos/test_native_video_disposal.sh "$PWD/build/macos/Build/Products/Release/BobTV.app"
-          BOBTV_TEST_HARDWARE=1 bash tools/macos/test_native_video_disposal.sh "$PWD/build/macos/Build/Products/Release/BobTV.app"
+          BOBTV_TEST_LIVE_FRAMES=1 bash tools/macos/test_native_video_disposal.sh "$PWD/build/macos/Build/Products/Release/BobTV.app"
+          BOBTV_TEST_LIVE_FRAMES=1 BOBTV_TEST_HARDWARE=1 bash tools/macos/test_native_video_disposal.sh "$PWD/build/macos/Build/Products/Release/BobTV.app"
 
       - name: Create test disk image
         run: |

@@ -98,6 +98,7 @@ int main(int argc, char **argv) {
             destinationOrigin:MTLOriginMake(0, 0, 0)];
           [blit endEncoding];
           view = nil;
+          assert(BobTVLiveMetalBackings() >= 1);
           CVMetalTextureCacheFlush(cache, 0);
           [command commit];
           [command waitUntilCompleted];

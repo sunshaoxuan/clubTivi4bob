@@ -92,8 +92,9 @@ area. A single final transaction makes the complete new catalog visible.
 
 The import preserves local favorites, hidden channels, retired routes and
 route weights. Website defaults never overwrite these local decisions. A
-network failure, invalid snapshot or empty publication leaves the last valid
-catalog usable. Progress reports include downloaded bytes and imported channel
+network failure or invalid snapshot leaves the last valid catalog usable.
+A valid empty snapshot removes the final retired channels and unused categories.
+Progress reports include downloaded bytes and imported channel
 count. Route verification starts after the catalog is visible and favors the
 currently viewed category. New channels appear without rebuilding the entire
 visible list on every result.

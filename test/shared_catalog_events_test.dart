@@ -14,6 +14,7 @@ const url = 'https://media.example.org/news.m3u8';
 
 class EventApi extends BobTvApiClient {
   bool offline = false;
+  bool retrySingleSuccess = false;
   final events = <Map<String, Object?>>[];
   @override
   Future<List<Map<String, dynamic>>> uploadChannelEvents({
@@ -26,7 +27,10 @@ class EventApi extends BobTvApiClient {
       for (final e in events)
         {
           'id': e['id'],
-          'status': 'applied',
+          'status':
+              retrySingleSuccess && e['kind'] == 'health' && e['success'] == 1
+              ? 'retry'
+              : 'applied',
           'revision': e['kind'] == 'classify'
               ? (e['baseRevision'] as int) + 1
               : e['baseRevision'] ?? 0,
@@ -57,6 +61,33 @@ Future<void> seed(db.AppDatabase database) async {
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   setUp(() => SharedPreferences.setMockInitialValues({}));
+  test('retry receipts cannot starve later health observations', () async {
+    final database = db.AppDatabase.forTesting(NativeDatabase.memory());
+    addTearDown(database.close);
+    await database.withoutSharedReporting(() => seed(database));
+    for (var i = 0; i < 100; i++) {
+      await database.queueSharedEvent(url, 'health', {
+        'success': 1,
+        'failure': 0,
+      });
+    }
+    await database.queueSharedEvent(url, 'health', {
+      'success': 2,
+      'failure': 0,
+    });
+    final api = EventApi()..retrySingleSuccess = true;
+    final service = ChannelInventorySyncService(
+      database: database,
+      api: api,
+      fingerprintOverride: 'a' * 64,
+    );
+    addTearDown(service.dispose);
+    expect(await service.flushEvents(), 1);
+    expect(api.events, hasLength(101));
+    expect(api.events.map((e) => e['id']).toSet(), hasLength(101));
+    expect(await database.pendingSharedEvents(), hasLength(100));
+    expect(service.state.value.error, isTrue);
+  });
   test('legacy health migration runs once outside database open', () async {
     SharedPreferences.setMockInitialValues({
       'stream_health_scores': jsonEncode({

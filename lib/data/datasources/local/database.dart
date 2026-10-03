@@ -265,10 +265,11 @@ class AppDatabase extends _$AppDatabase {
 
   Future<List<Map<String, Object?>>> pendingSharedEvents({
     int limit = 100,
+    Set<String> excludedIds = const {},
   }) async {
     final rows = await customSelect(
-      "SELECT id,url,kind,payload FROM shared_sync_outbox ORDER BY CASE kind WHEN 'retire' THEN 0 WHEN 'delete' THEN 1 WHEN 'upsert' THEN 2 WHEN 'classify' THEN 3 ELSE 4 END,rowid LIMIT ?",
-      variables: [Variable(limit)],
+      "SELECT id,url,kind,payload FROM shared_sync_outbox WHERE id NOT IN (SELECT value FROM json_each(?)) ORDER BY CASE kind WHEN 'retire' THEN 0 WHEN 'delete' THEN 1 WHEN 'upsert' THEN 2 WHEN 'classify' THEN 3 ELSE 4 END,rowid LIMIT ?",
+      variables: [Variable(jsonEncode(excludedIds.toList())), Variable(limit)],
     ).get();
     return [
       for (final row in rows)

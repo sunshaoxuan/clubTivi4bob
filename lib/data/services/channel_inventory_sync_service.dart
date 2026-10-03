@@ -45,8 +45,11 @@ class ChannelInventorySyncService {
           fingerprintOverride ??
           ClientFingerprintService.instance.apiFingerprint;
       if (fingerprint == null) return 0;
+      final attempted = <String>{};
       for (var page = 0; page < 20 && !_disposed; page++) {
-        final pending = await database.pendingSharedEvents();
+        final pending = await database.pendingSharedEvents(
+          excludedIds: attempted,
+        );
         if (pending.isEmpty) break;
         final batch = <Map<String, Object?>>[];
         for (final row in pending) {
@@ -96,6 +99,7 @@ class ChannelInventorySyncService {
           fingerprint: fingerprint,
           events: batch,
         );
+        attempted.addAll(batch.map((event) => event['id'] as String));
         var completed = 0;
         final receivedIds = <Object?>{};
         for (final receipt in receipts) {
@@ -136,7 +140,6 @@ class ChannelInventorySyncService {
           completed++;
         }
         acknowledged += completed;
-        if (completed == 0) break;
         await Future<void>.delayed(const Duration(milliseconds: 30));
       }
       final stillPending = (await database.pendingSharedEvents()).isNotEmpty;

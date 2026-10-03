@@ -58,6 +58,8 @@ The app-facing API contract is `API.md`. Implementation prompts for source integ
 
 ## Release mirror
 
+Current releases mirror Windows x64 ZIP packages and both macOS architectures' DMG installers and signed update ZIP archives. A single download row presents the three manual installers; automatic updates use separate platform feeds.
+
 Run `python mirror_releases.py` in this directory with `BOBTV_DATA_DIR=/var/lib/bobtv`. It reads public GitHub release metadata and downloads each matching BobTV Windows x64 ZIP into private staging. Size, ZIP signature, and GitHub's SHA-256 digest where present are verified before manual-download manifest publication. A release can additionally contain `BobTV-update-metadata.json` with `schema`, numeric `version` and `packages` entries containing `platform`, `filename`, `sha256` and `bytes`. Mac packages also require a base64 P-256 `signature` over the exact ZIP bytes. The mirror checks that signature with the bundled public key before publication. Each listed package is downloaded and verified before its platform's `latest.json` is atomically replaced. Older releases without this metadata stay manual downloads. Mac packages must be physically tested on their target architecture; CI test artifacts remain outside the release feed. Downloads are served from the local filesystem. The server needs outbound GitHub access for mirror refreshes; visitors do not. Deploy `update-signing-public.pem` with the website runtime files. Keep its matching private key outside the site and repository.
 
 ## Deployment

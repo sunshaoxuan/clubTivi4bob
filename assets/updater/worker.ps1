@@ -71,7 +71,8 @@ function Write-Status([string]$phase, [string]$version, [int]$percent,
     for($attempt=0;$attempt -lt 100;$attempt++){
       try{
         if([IO.File]::Exists($path)){
-          [IO.File]::Replace($temp,$path,$null,$true)
+          # Windows PowerShell 5.1 coerces $null to an empty string here.
+          [IO.File]::Replace($temp,$path,[NullString]::Value,$true)
         }else{[IO.File]::Move($temp,$path)}
         $published=$true
         break

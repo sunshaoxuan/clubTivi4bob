@@ -12,7 +12,7 @@ function Set-State([string]$phase,[int]$percent){
     percent=$percent;message='BobTV updater fixture';receivedBytes=25000000;totalBytes=68000000}|ConvertTo-Json -Compress
   $temporary=$file+'.tmp'
   [IO.File]::WriteAllText($temporary,$payload,(New-Object Text.UTF8Encoding($false)))
-  if(Test-Path $file){[IO.File]::Replace($temporary,$file,$null,$true)}else{[IO.File]::Move($temporary,$file)}
+  if(Test-Path $file){[IO.File]::Replace($temporary,$file,[NullString]::Value,$true)}else{[IO.File]::Move($temporary,$file)}
 }
 Set-State downloading 37
 $child=Start-Process powershell.exe -WindowStyle Hidden -PassThru -ArgumentList @(

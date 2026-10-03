@@ -114,7 +114,7 @@ final class UpdateProgress: NSObject, NSApplicationDelegate, NSWindowDelegate {
         guard let data = try? Data(contentsOf: file),
               let state = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any],
               state["runId"] as? String == runID, state["version"] as? String == version else {
-            if Date().timeIntervalSince(startedAt) > 30 || !alive(workerPID) {
+            if Date().timeIntervalSince(startedAt) > 30 || (workerPID > 0 && !alive(workerPID)) {
                 failure("更新助手未返回状态", "下载或安装尚未确认。请查看 worker.log，重新启动 BobTV 后重试。")
             }
             return
@@ -127,6 +127,9 @@ final class UpdateProgress: NSObject, NSApplicationDelegate, NSWindowDelegate {
                       "backingUp": "正在备份旧版", "installing": "正在安装更新",
                       "installed": "更新已完成", "failed": "更新未完成"]
         phase.stringValue = titles[status] ?? "正在处理更新"
+        if !["installed", "failed"].contains(status) {
+            spinner.isHidden = false; spinner.startAnimation(nil); launch.isEnabled = false
+        }
         detail.stringValue = state["message"] as? String ?? "更新正在进行中。"
         if status == "downloading", let received = state["receivedBytes"] as? NSNumber,
            let total = state["totalBytes"] as? NSNumber, total.int64Value > 0 {

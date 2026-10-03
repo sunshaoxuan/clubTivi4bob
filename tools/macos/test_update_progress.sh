@@ -14,7 +14,7 @@ state() {
 }
 state downloading
 if [[ -d "$helper" ]]; then
-  /usr/bin/open -n -a "$helper" --args "$fixture" "$fixture/BobTV.app" 99999999 "$$" '0.9.1+73' preview
+  /usr/bin/open -n -a "$helper" --stdout "$fixture/launcher.log" --stderr "$fixture/errors.log" --args "$fixture" "$fixture/BobTV.app" 99999999 "$$" '0.9.1+73' preview
 else
   "$helper" "$fixture" "$fixture/BobTV.app" 99999999 "$$" '0.9.1+73' preview > "$fixture/launcher.log" 2>&1 &
   observer=$!

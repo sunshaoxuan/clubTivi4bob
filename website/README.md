@@ -52,7 +52,7 @@ For faster first launch, prepare a separate preclassified channel JSON file with
 
 No client authentication material is embedded in a public application. The API is a public, rate-limited intake. Caller identity is not established by the returned digest. Uploaded logs are private on disk, have no public read route, and are pruned after 14 days when another upload arrives. Server storage is capped at 512 MiB. Schedule `prune.py` daily so retention also runs during idle periods.
 
-The browser strips fields before sending. A future BobTV build can call the same endpoint from its own automatic uploader. It should send a bounded snapshot on startup and periodically while running, retry `429` or `5xx` with backoff, and never send credentials, full stream URLs, arbitrary exception text, or dump files. The existing published binaries do not call this API.
+The browser and desktop client project local logs into the API's bounded summary schema before sending. Desktop users can upload a summary manually or enable optional automatic summaries, which are disabled by default and scheduled every six hours. Requests retry rate limits and transient server errors with bounded backoff. Credentials, full stream URLs, arbitrary exception text and dump files are excluded from these summaries. Shared channel synchronization is independent of this optional diagnostics setting.
 
 The app-facing API contract is `API.md`. Implementation prompts for source integration and diagnostics are `SOURCE_INTEGRATION_PROMPT.md` and `CLIENT_INTEGRATION_PROMPT.md`. Historical infrastructure verification is archived at `docs/operations-2026-09-27/receipt.md`.
 

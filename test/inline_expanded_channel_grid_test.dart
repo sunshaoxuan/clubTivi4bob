@@ -33,6 +33,28 @@ Widget grid(
 );
 
 void main() {
+  test('connected outline excludes every neighbouring channel', () {
+    for (var columns = 1; columns <= 5; columns++) {
+      for (var selected = 0; selected < columns; selected++) {
+        final painter = ChannelGuideOutline(column: selected, columns: columns);
+        final path = painter.outline(const Size(1000, 380));
+        final cardWidth = (1000 - (columns - 1) * 14) / columns;
+        for (var column = 0; column < columns; column++) {
+          expect(
+            path.contains(
+              Offset(column * (cardWidth + 14) + cardWidth / 2, 80),
+            ),
+            column == selected,
+          );
+        }
+        expect(path.contains(const Offset(20, 260)), isTrue);
+        expect(path.contains(const Offset(980, 260)), isTrue);
+        final animating = painter.outline(const Size(1000, 172));
+        expect(animating.getBounds().bottom, lessThanOrEqualTo(172));
+      }
+    }
+  });
+
   testWidgets('guide expands below the selected card row', (tester) async {
     await tester.pumpWidget(
       grid(['CCTV1', 'CCTV6', 'CCTV9'], selected: 'CCTV6'),

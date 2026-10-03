@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:clubtivi/data/datasources/local/database.dart' as db;
 import 'package:clubtivi/features/channels/channel_programme_strip.dart';
+import 'package:clubtivi/features/channels/inline_expanded_channel_grid.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -26,7 +27,15 @@ Future<void> _pumpStrip(
   int timeshiftHours = 0,
   DateTime? now,
   bool previewFont = false,
+  bool combined = false,
 }) async {
+  final strip = ChannelProgrammeStrip(
+    channelName: 'CCTV-6 电影',
+    programmes: programmes,
+    timeshiftHours: timeshiftHours,
+    now: now ?? _now,
+    embedded: combined,
+  );
   await tester.pumpWidget(
     MaterialApp(
       theme: ThemeData.dark(useMaterial3: true).copyWith(
@@ -43,12 +52,36 @@ Future<void> _pumpStrip(
               width: width,
               child: RepaintBoundary(
                 key: const ValueKey('programme-strip-preview'),
-                child: ChannelProgrammeStrip(
-                  channelName: 'CCTV-6 电影',
-                  programmes: programmes,
-                  timeshiftHours: timeshiftHours,
-                  now: now ?? _now,
-                ),
+                child: combined
+                    ? SizedBox(
+                        height: 490,
+                        child: InlineExpandedChannelGrid(
+                          channelIds: const ['CCTV1', 'CCTV6', 'CCTV9'],
+                          columns: 3,
+                          expandedChannelId: 'CCTV6',
+                          expandedContent: strip,
+                          cardBuilder: (_, index) => Container(
+                            padding: const EdgeInsets.all(18),
+                            alignment: Alignment.bottomLeft,
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(20),
+                              gradient: const LinearGradient(
+                                begin: Alignment.topLeft,
+                                end: Alignment.bottomRight,
+                                colors: [Color(0xFF334A63), Color(0xFF101C2C)],
+                              ),
+                            ),
+                            child: Text(
+                              ['CCTV-1 综合', 'CCTV-6 电影', 'CCTV-9 纪录'][index],
+                              style: const TextStyle(
+                                fontSize: 21,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ),
+                        ),
+                      )
+                    : strip,
               ),
             ),
           ),
@@ -82,6 +115,17 @@ void main() {
     expect(find.text('接下来'), findsOneWidget);
     expect(find.text('随后'), findsOneWidget);
     expect(find.text('08:00 ~ 09:00'), findsOneWidget);
+    expect(find.text('08:00'), findsOneWidget);
+    expect(find.text('09:00'), findsOneWidget);
+    expect(find.text('10:00'), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('programme-timeline-node-1')),
+      findsOneWidget,
+    );
+    expect(
+      tester.getTopLeft(find.text('08:00')).dx,
+      lessThan(tester.getTopLeft(find.text('09:00')).dx),
+    );
     expect(
       tester
           .widget<LinearProgressIndicator>(find.byType(LinearProgressIndicator))
@@ -271,6 +315,17 @@ void main() {
       await expectLater(
         find.byKey(const ValueKey('programme-strip-preview')),
         matchesGoldenFile('/tmp/bobtv-channel-programme-strip-narrow.png'),
+      );
+      await _pumpStrip(
+        tester,
+        programmes: programmes,
+        width: 790,
+        previewFont: true,
+        combined: true,
+      );
+      await expectLater(
+        find.byKey(const ValueKey('programme-strip-preview')),
+        matchesGoldenFile('/tmp/bobtv-channel-programme-timeline-framed.png'),
       );
     },
     skip: !const bool.fromEnvironment('BOBTV_PROGRAMME_STRIP_PREVIEW'),

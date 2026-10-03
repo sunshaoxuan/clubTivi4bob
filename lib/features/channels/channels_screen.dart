@@ -3819,6 +3819,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                                 channelName: _channelDisplayName(
                                   _filteredChannels[guideIndex],
                                 ),
+                                embedded: true,
                                 programmes: _inlineProgrammePreview.programmes,
                                 timeshiftHours:
                                     _inlineProgrammePreview.timeshiftHours,

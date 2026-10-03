@@ -16,12 +16,14 @@ class ChannelProgrammeStrip extends StatefulWidget {
     required this.programmes,
     this.timeshiftHours = 0,
     this.now,
+    this.embedded = false,
   });
 
   final String channelName;
   final List<db.EpgProgramme> programmes;
   final int timeshiftHours;
   final DateTime? now;
+  final bool embedded;
 
   @override
   State<ChannelProgrammeStrip> createState() => _ChannelProgrammeStripState();
@@ -113,20 +115,22 @@ class _ChannelProgrammeStripState extends State<ChannelProgrammeStrip> {
     return Container(
       key: const ValueKey('channel-programme-strip'),
       padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [Color(0xFF17263A), Color(0xFF0F1B2C)],
-        ),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: const Color(0xFF7183A0).withValues(alpha: .2),
-        ),
-      ),
+      decoration: widget.embedded
+          ? null
+          : BoxDecoration(
+              gradient: const LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [Color(0xFF17263A), Color(0xFF0F1B2C)],
+              ),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(
+                color: const Color(0xFF7183A0).withValues(alpha: .2),
+              ),
+            ),
       child: LayoutBuilder(
         builder: (context, constraints) {
-          const gap = 10.0;
+          const gap = 0.0;
           final available = constraints.maxWidth;
           final fits =
               available >=
@@ -166,7 +170,7 @@ class _ChannelProgrammeStripState extends State<ChannelProgrammeStrip> {
                             ),
                           ),
                           const TextSpan(
-                            text: '  ·  节目单',
+                            text: '  ·  节目时间轴',
                             style: TextStyle(color: Color(0xFF8FA2BF)),
                           ),
                         ],
@@ -226,6 +230,7 @@ class _ChannelProgrammeStripState extends State<ChannelProgrammeStrip> {
                                 index: i,
                                 followsCurrent: currentProgrammes.isNotEmpty,
                                 titleHeight: titleHeight,
+                                last: i == upcoming.length - 1,
                               ),
                             ),
                           ],
@@ -269,6 +274,7 @@ class _ChannelProgrammeStripState extends State<ChannelProgrammeStrip> {
     required int index,
     required bool followsCurrent,
     required double titleHeight,
+    required bool last,
   }) {
     final start = _effectiveTime(programme.start);
     final stop = _effectiveTime(programme.stop);
@@ -282,99 +288,128 @@ class _ChannelProgrammeStripState extends State<ChannelProgrammeStrip> {
               stop.difference(start).inMilliseconds
         : 0.0;
 
-    return Container(
+    return Column(
       key: ValueKey('programme-${programme.id}'),
-      padding: const EdgeInsets.fromLTRB(12, 11, 12, 11),
-      decoration: BoxDecoration(
-        gradient: current
-            ? const LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [Color(0xFF2D466B), Color(0xFF21324F)],
-              )
-            : null,
-        color: current ? null : const Color(0xFF1C2A3E),
-        borderRadius: BorderRadius.circular(13),
-        border: Border.all(
-          color: current
-              ? const Color(0xFF9ABBEF).withValues(alpha: .42)
-              : const Color(0xFF7183A0).withValues(alpha: .12),
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(left: 12, bottom: 5),
+          child: Text(
+            _time(start),
+            style: TextStyle(
+              color: current
+                  ? const Color(0xFFD6E6FF)
+                  : const Color(0xFF94ABC8),
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
         ),
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Wrap(
-            spacing: 7,
-            runSpacing: 2,
-            crossAxisAlignment: WrapCrossAlignment.center,
-            children: [
-              Text(
-                label,
-                style: TextStyle(
-                  fontSize: 11,
-                  height: 1.3,
-                  fontWeight: FontWeight.w600,
-                  color: current
-                      ? const Color(0xFFBED6FF)
-                      : const Color(0xFF98ABC6),
-                ),
+        SizedBox(
+          height: 16,
+          child: CustomPaint(
+            key: ValueKey('programme-timeline-node-${programme.id}'),
+            painter: _ProgrammeTimelineRail(current: current),
+          ),
+        ),
+        const SizedBox(height: 7),
+        Expanded(
+          child: Container(
+            margin: EdgeInsets.only(right: last ? 0 : 10),
+            padding: const EdgeInsets.fromLTRB(12, 11, 12, 11),
+            decoration: BoxDecoration(
+              gradient: current
+                  ? const LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [Color(0xFF2D466B), Color(0xFF21324F)],
+                    )
+                  : null,
+              color: current ? null : const Color(0xFF1C2A3E),
+              borderRadius: BorderRadius.circular(13),
+              border: Border.all(
+                color: current
+                    ? const Color(0xFF9ABBEF).withValues(alpha: .42)
+                    : const Color(0xFF7183A0).withValues(alpha: .12),
               ),
-              if (date != null)
-                Text(
-                  date,
-                  style: const TextStyle(
-                    fontSize: 10,
-                    height: 1.3,
-                    color: Color(0xFF98ABC6),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Wrap(
+                  spacing: 7,
+                  runSpacing: 2,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  children: [
+                    Text(
+                      label,
+                      style: TextStyle(
+                        fontSize: 11,
+                        height: 1.3,
+                        fontWeight: FontWeight.w600,
+                        color: current
+                            ? const Color(0xFFBED6FF)
+                            : const Color(0xFF98ABC6),
+                      ),
+                    ),
+                    if (date != null)
+                      Text(
+                        date,
+                        style: const TextStyle(
+                          fontSize: 10,
+                          height: 1.3,
+                          color: Color(0xFF98ABC6),
+                        ),
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 7),
+                SizedBox(
+                  height: titleHeight,
+                  child: Text(
+                    programme.title,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: Color(0xFFF0F4FD),
+                      fontSize: 14,
+                      height: 1.28,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
                 ),
-            ],
-          ),
-          const SizedBox(height: 7),
-          SizedBox(
-            height: titleHeight,
-            child: Text(
-              programme.title,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
-                color: Color(0xFFF0F4FD),
-                fontSize: 14,
-                height: 1.28,
-                fontWeight: FontWeight.w600,
-              ),
+                const SizedBox(height: 7),
+                Text(
+                  '${_time(start)} ~ ${_time(stop)}',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 11,
+                    height: 1.3,
+                    color: Color(0xFFA7B9D2),
+                  ),
+                ),
+                const SizedBox(height: 9),
+                SizedBox(
+                  height: 2,
+                  child: current
+                      ? ClipRRect(
+                          borderRadius: BorderRadius.circular(2),
+                          child: LinearProgressIndicator(
+                            value: progress.clamp(0.0, 1.0),
+                            minHeight: 2,
+                            color: const Color(0xFFB8D2FF),
+                            backgroundColor: const Color(0xFF506483),
+                          ),
+                        )
+                      : const SizedBox.shrink(),
+                ),
+              ],
             ),
           ),
-          const SizedBox(height: 7),
-          Text(
-            '${_time(start)} ~ ${_time(stop)}',
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(
-              fontSize: 11,
-              height: 1.3,
-              color: Color(0xFFA7B9D2),
-            ),
-          ),
-          const SizedBox(height: 9),
-          SizedBox(
-            height: 2,
-            child: current
-                ? ClipRRect(
-                    borderRadius: BorderRadius.circular(2),
-                    child: LinearProgressIndicator(
-                      value: progress.clamp(0.0, 1.0),
-                      minHeight: 2,
-                      color: const Color(0xFFB8D2FF),
-                      backgroundColor: const Color(0xFF506483),
-                    ),
-                  )
-                : const SizedBox.shrink(),
-          ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 
@@ -389,4 +424,37 @@ class _ChannelProgrammeStripState extends State<ChannelProgrammeStrip> {
     if (day == DateTime(now.year, now.month, now.day - 1)) return '昨天';
     return '${value.month}月${value.day}日';
   }
+}
+
+class _ProgrammeTimelineRail extends CustomPainter {
+  const _ProgrammeTimelineRail({required this.current});
+  final bool current;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    canvas.drawLine(
+      Offset(0, 8),
+      Offset(size.width, 8),
+      Paint()
+        ..color = const Color(0xFF536D90)
+        ..strokeWidth = 1.5,
+    );
+    if (current) {
+      canvas.drawCircle(
+        const Offset(12, 8),
+        8,
+        Paint()..color = const Color(0xFF8AB8FF).withValues(alpha: .18),
+      );
+    }
+    canvas.drawCircle(
+      const Offset(12, 8),
+      current ? 4 : 3,
+      Paint()
+        ..color = current ? const Color(0xFFC6DEFF) : const Color(0xFF819AB9),
+    );
+  }
+
+  @override
+  bool shouldRepaint(_ProgrammeTimelineRail oldDelegate) =>
+      current != oldDelegate.current;
 }

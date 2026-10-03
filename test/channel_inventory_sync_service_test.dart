@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:clubtivi/data/datasources/local/database.dart' as db;
 import 'package:clubtivi/data/services/bobtv_api_client.dart';
 import 'package:clubtivi/data/services/channel_inventory_sync_service.dart';
@@ -19,8 +20,75 @@ class InventoryApi extends BobTvApiClient {
   }
 }
 
+class PausedInventoryApi extends InventoryApi {
+  final entered = Completer<void>();
+  final resume = Completer<void>();
+  @override
+  Future<int> uploadChannelInventory({
+    required String fingerprint,
+    required List<Map<String, Object?>> routes,
+  }) async {
+    final result = await super.uploadChannelInventory(
+      fingerprint: fingerprint,
+      routes: routes,
+    );
+    if (batches.length == 1) {
+      entered.complete();
+      await resume.future;
+    }
+    return result;
+  }
+}
+
 void main() {
   setUp(() => SharedPreferences.setMockInitialValues({}));
+  test(
+    'manual edit during upload queues one fresh background report',
+    () async {
+      final database = db.AppDatabase.forTesting(NativeDatabase.memory());
+      final api = PausedInventoryApi();
+      final service = ChannelInventorySyncService(
+        database: database,
+        api: api,
+        fingerprintOverride: 'b' * 64,
+      );
+      addTearDown(() async {
+        service.dispose();
+        await database.close();
+      });
+      await database.upsertProvider(
+        db.ProvidersCompanion.insert(
+          id: 'bobtv-channel-catalog',
+          name: 'Website',
+          type: 'm3u',
+        ),
+      );
+      const url = 'https://media.example.org/news.m3u8';
+      await database.upsertChannels([
+        db.ChannelsCompanion.insert(
+          id: 'news',
+          providerId: 'bobtv-channel-catalog',
+          name: 'News',
+          streamUrl: url,
+          groupTitle: const Value('中国 / 北京'),
+        ),
+      ]);
+      final first = service.sync();
+      await api.entered.future;
+      await database.setManualChannelCategory([
+        url,
+      ], ChannelCategoryDestination(['美国', '新闻']));
+      final queued = service.sync(refreshAfterRunning: true);
+      expect(
+        identical(queued, service.sync(refreshAfterRunning: true)),
+        isTrue,
+      );
+      api.resume.complete();
+      await Future.wait([first, queued]);
+      expect(api.batches.length, 2);
+      expect(api.batches.last.single['group'], '国际 / 美国 / 新闻');
+    },
+  );
   test('manual country and genre are included in shared inventory', () async {
     final database = db.AppDatabase.forTesting(NativeDatabase.memory());
     final api = InventoryApi();

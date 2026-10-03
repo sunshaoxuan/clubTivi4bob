@@ -28,6 +28,7 @@ import '../../data/services/channel_country_ai_service.dart';
 import '../../data/services/channel_category_ai_service.dart';
 import '../../data/services/manual_channel_category.dart';
 import 'channel_category_picker.dart';
+import 'manual_category_move.dart';
 import '../../data/services/github_cctv5plus_recovery.dart';
 import '../../data/services/bobtv_community_service.dart';
 import '../../data/services/epg_refresh_service.dart';
@@ -96,6 +97,8 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
   Map<String, String> _aiCountryCache = {};
   Map<String, String> _aiCategoryCache = {};
   Map<String, ChannelCategoryDestination> _manualCategories = {};
+  final Map<String, ChannelCategoryDestination> _pendingManualCategories = {};
+  Future<void> _manualCategorySaveQueue = Future<void>.value();
   bool _simpleMode = true;
   bool _sharedCatalogAvailable = false;
   bool _showUnavailableSources = true;
@@ -265,10 +268,18 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
         .select(database.providers)
         .watch()
         .listen((_) => debouncedReload());
+    List<db.Channel>? previousChannelRows;
     _channelsSub = database
         .select(database.channels)
         .watch()
-        .listen((_) => debouncedReload());
+        .listen((rows) {
+          final retain = canRetainRowsAfterManualCategoryChange(
+            previousChannelRows, rows, _manualCategories,
+            pendingUrls: _pendingManualCategories.keys.toSet(),
+          );
+          previousChannelRows = rows;
+          if (!retain) debouncedReload();
+        });
     ref.read(sourceMaintenanceCoordinatorProvider);
     // Refresh now-playing every 60 seconds so the info panel stays current
     _nowPlayingTimer = Timer.periodic(
@@ -618,7 +629,10 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
 
     List<db.Channel> loaded;
     _aiCategoryCache = await _categoryAi.cachedCategories();
-    _manualCategories = await ManualChannelCategory.load();
+    _manualCategories = {
+      ...await ManualChannelCategory.load(),
+      ..._pendingManualCategories,
+    };
     if (group == 'Favorites') {
       loaded = _favoritedChannelIds.isEmpty
           ? const []
@@ -2039,26 +2053,56 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
       builder: (_) => ChannelCategoryPicker(channelName: _channelDisplayName(channel)),
     );
     if (!mounted || destination == null) return;
-    try {
-      await ref.read(databaseProvider).setManualChannelCategory(urls, destination);
-      if (!mounted) return;
-      _manualCategories = await ManualChannelCategory.load();
-      if (!mounted) return;
+    final database = ref.read(databaseProvider);
+    final inventory = ref.read(sourceMaintenanceCoordinatorProvider).inventory;
+    setState(() {
+      for (final url in urls) {
+        _manualCategories[url] = destination;
+        _pendingManualCategories[url] = destination;
+      }
       _pendingAutoplayGroup = null;
-      await _loadGroupChannels(_selectedGroup, preserveScroll: true);
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text('已移至 ${destination.path.join(' / ')}'),
-        duration: const Duration(seconds: 3),
-      ));
-      unawaited(ref.read(sourceMaintenanceCoordinatorProvider).inventory.sync());
-    } catch (error, stack) {
-      AppDiagnostics.instance.recordError('manual_channel_category', error, stack);
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('分类保存失败，请重试')),
-      );
-    }
+      _allChannels = moveChannelRows(_allChannels, urls, destination);
+      _rebuildInternationalCountries(_allChannels, _selectedGroup);
+      _applyFilters();
+    });
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text('已移至 ${destination.path.join(' / ')}'),
+      duration: const Duration(seconds: 3),
+    ));
+    // Paint the local move first. Serialize writes so rapid edits cannot race.
+    final painted = WidgetsBinding.instance.endOfFrame;
+    _manualCategorySaveQueue = _manualCategorySaveQueue.then((_) async {
+      await painted;
+      try {
+        await database.setManualChannelCategory(urls, destination);
+        for (final url in urls) {
+          if (identical(_pendingManualCategories[url], destination)) {
+            _pendingManualCategories.remove(url);
+          }
+        }
+        unawaited(inventory.sync(refreshAfterRunning: true));
+      } catch (error, stack) {
+        AppDiagnostics.instance.recordError('manual_channel_category', error, stack);
+        final saved = await ManualChannelCategory.load();
+        for (final url in urls) {
+          if (identical(_pendingManualCategories[url], destination)) {
+            _pendingManualCategories.remove(url);
+            final restored = saved[url];
+            if (restored == null) {
+              _manualCategories.remove(url);
+            } else {
+              _manualCategories[url] = restored;
+            }
+          }
+        }
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('分类保存失败，请重试')),
+        );
+        unawaited(_loadGroupChannels(_selectedGroup, preserveScroll: true));
+      }
+    });
+    await _manualCategorySaveQueue;
   }
 
   Future<void> _showCurrentRouteMenu(Offset position) async {

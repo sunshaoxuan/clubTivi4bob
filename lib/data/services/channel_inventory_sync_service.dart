@@ -27,9 +27,22 @@ class ChannelInventorySyncService {
   final state = ValueNotifier(const WebsiteCatalogProgress());
   Future<void>? _running;
   bool _disposed = false;
+  bool _refreshAfterRunning = false;
 
-  Future<void> sync() =>
-      _running ??= _sync().whenComplete(() => _running = null);
+  Future<void> sync({bool refreshAfterRunning = false}) {
+    if (_running != null) {
+      _refreshAfterRunning |= refreshAfterRunning;
+      return _running!;
+    }
+    return _running = _drainSyncRequests().whenComplete(() => _running = null);
+  }
+
+  Future<void> _drainSyncRequests() async {
+    do {
+      _refreshAfterRunning = false;
+      await _sync();
+    } while (_refreshAfterRunning && !_disposed);
+  }
 
   Future<void> _sync() async {
     if (_disposed) return;

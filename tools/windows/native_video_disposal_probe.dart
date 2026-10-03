@@ -60,7 +60,10 @@ Future<void> main() async {
       final controller = VideoController(
         player,
         configuration: VideoControllerConfiguration(
-          enableHardwareAcceleration: cycle.isEven,
+          // GitHub's virtual Mac runners do not expose an accelerated CGL
+          // pixel format. Exercise the software-to-Metal path there; Windows
+          // still alternates both native texture backends.
+          enableHardwareAcceleration: !Platform.isMacOS && cycle.isEven,
         ),
       );
       await player.setVolume(0);
@@ -88,7 +91,9 @@ Future<void> main() async {
         ]).timeout(const Duration(seconds: 25));
       }
       await player.dispose().timeout(const Duration(seconds: 25));
-      record('disposed cycle=$cycle hardware=${cycle.isEven}');
+      record(
+        'disposed cycle=$cycle hardware=${!Platform.isMacOS && cycle.isEven}',
+      );
     }
     // media_kit destroys native cores five seconds after Player.dispose.
     await Future<void>.delayed(const Duration(seconds: 7));
@@ -115,8 +120,14 @@ Future<void> main() async {
         await player.setPlaylistMode(PlaylistMode.loop);
         await player.open(Media(media));
       }
-      visible.value = VideoController(primary);
-      final secondaryController = VideoController(secondary);
+      final configuration = VideoControllerConfiguration(
+        enableHardwareAcceleration: !Platform.isMacOS,
+      );
+      visible.value = VideoController(primary, configuration: configuration);
+      final secondaryController = VideoController(
+        secondary,
+        configuration: configuration,
+      );
       final memory = <int>[];
       var changes = 0;
       var previous = Duration.zero;
@@ -134,8 +145,12 @@ Future<void> main() async {
       }
       if (changes < seconds * .7 || errors.isNotEmpty)
         throw StateError('Soak stalled or reported decoder errors: $errors');
-      if (!primary.state.tracks.audio.any((t) => t.id != 'auto' && t.id != 'no') ||
-          !secondary.state.tracks.audio.any((t) => t.id != 'auto' && t.id != 'no'))
+      if (!primary.state.tracks.audio.any(
+            (t) => t.id != 'auto' && t.id != 'no',
+          ) ||
+          !secondary.state.tracks.audio.any(
+            (t) => t.id != 'auto' && t.id != 'no',
+          ))
         throw StateError('Audio track missing');
       int median(List<int> values) {
         values.sort();

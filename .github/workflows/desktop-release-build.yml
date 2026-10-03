@@ -102,8 +102,15 @@ jobs:
             sleep 1
           done
           if kill -0 "$probe" 2>/dev/null; then kill "$probe"; exit 1; fi
-          wait "$probe"
-          cat "$BOBTV_NATIVE_DISPOSAL_LOG"
+          result=0
+          wait "$probe" || result=$?
+          cat "$BOBTV_NATIVE_DISPOSAL_LOG" || true
+          if [ "$result" != 0 ]; then
+            for report in "$HOME/Library/Logs/DiagnosticReports"/BobTV*.ips; do
+              if [ -f "$report" ]; then cat "$report"; fi
+            done
+            exit "$result"
+          fi
           grep -q 'PASS: 600 second dual-player AV soak' "$BOBTV_NATIVE_DISPOSAL_LOG"
           ditto "$RUNNER_TEMP/BobTV-release-preserved.app" "$app"
           codesign --verify --deep --strict "$app"

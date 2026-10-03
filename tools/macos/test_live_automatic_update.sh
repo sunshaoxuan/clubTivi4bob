@@ -87,6 +87,7 @@ if [[ "$ready" != true ]]; then
   [[ ! -f "$root/status.json" ]] || cat "$root/status.json" >&2
   exit 1
 fi
+[[ "$close_during_download" != true || "$closed_early" == true ]]
 [[ "$closed_early" == true || "$(app_version "$app")" == "$previous_version" ]]
 echo 'Old application discovered and verified the update, without installing while running.'
 stop_test_app
@@ -130,6 +131,6 @@ for ((n=0; n<120; n++)); do
 done
 [[ "$healthy" == true ]]
 for ((n=0; n<20; n++)); do kill -0 "$app_pid"; sleep 1; done
-printf '{"version":"%s","architecture":"%s","previousVersion":"%s","discoveredByOldApplication":true,"installedAfterExit":true,"backupVerified":true,"startupHealthy":true}\n' \
-  "$version" "$arch" "$previous_version" > "$root/live-update-result.json"
+printf '{"version":"%s","architecture":"%s","previousVersion":"%s","closedDuringDownload":%s,"discoveredByOldApplication":true,"installedAfterExit":true,"backupVerified":true,"startupHealthy":true}\n' \
+  "$version" "$arch" "$previous_version" "$closed_early" > "$root/live-update-result.json"
 echo "PASS: $arch old client discovered the website update, verified, installed $version after exit and acknowledged healthy startup."

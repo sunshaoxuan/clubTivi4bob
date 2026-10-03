@@ -53,6 +53,7 @@ try{
     Start-Sleep -Seconds 1
   }
   if(!$ready){throw 'Previous GUI did not automatically discover and download the website update'}
+  if($CloseWhileDownloading -and !$closedEarly){throw 'Test did not observe application exit during download'}
   if(!$closedEarly -and (Get-Item $exe).VersionInfo.FileVersion -ne $PreviousVersion){throw 'Installed before old app exited'}
   Stop-TestApp
   $installed=$false

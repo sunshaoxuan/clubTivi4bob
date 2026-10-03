@@ -45,7 +45,7 @@ jobs:
           "$RUNNER_TEMP/video-worker-test"
       - run: >-
           flutter test test/website_channel_catalog_service_test.dart
-          test/channel_inventory_sync_service_test.dart test/update_manifest_test.dart
+          test/channel_inventory_sync_service_test.dart test/manual_channel_category_test.dart test/update_manifest_test.dart
           test/desktop_fullscreen_session_test.dart
           test/window_manager_fullscreen_backend_test.dart
           test/fullscreen_return_navigation_test.dart
@@ -113,7 +113,7 @@ jobs:
       - run: flutter pub get
       - run: >-
           flutter test test/website_channel_catalog_service_test.dart
-          test/channel_inventory_sync_service_test.dart test/update_manifest_test.dart
+          test/channel_inventory_sync_service_test.dart test/manual_channel_category_test.dart test/update_manifest_test.dart
           test/desktop_fullscreen_session_test.dart
           test/window_manager_fullscreen_backend_test.dart
           test/fullscreen_return_navigation_test.dart

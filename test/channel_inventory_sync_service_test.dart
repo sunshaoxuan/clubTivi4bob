@@ -1,6 +1,7 @@
 import 'package:clubtivi/data/datasources/local/database.dart' as db;
 import 'package:clubtivi/data/services/bobtv_api_client.dart';
 import 'package:clubtivi/data/services/channel_inventory_sync_service.dart';
+import 'package:clubtivi/data/services/manual_channel_category.dart';
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -20,6 +21,44 @@ class InventoryApi extends BobTvApiClient {
 
 void main() {
   setUp(() => SharedPreferences.setMockInitialValues({}));
+  test('manual country and genre are included in shared inventory', () async {
+    final database = db.AppDatabase.forTesting(NativeDatabase.memory());
+    final api = InventoryApi();
+    final service = ChannelInventorySyncService(
+      database: database,
+      api: api,
+      fingerprintOverride: 'b' * 64,
+    );
+    addTearDown(() async {
+      service.dispose();
+      await database.close();
+    });
+    await database.upsertProvider(
+      db.ProvidersCompanion.insert(
+        id: 'bobtv-channel-catalog',
+        name: 'Website',
+        type: 'm3u',
+      ),
+    );
+    const url = 'https://media.example.org/nrbtv.m3u8';
+    await database.upsertChannels([
+      db.ChannelsCompanion.insert(
+        id: 'nrbtv',
+        providerId: 'bobtv-channel-catalog',
+        name: 'NRBTV',
+        streamUrl: url,
+        groupTitle: const Value('中国 / 北京'),
+      ),
+    ]);
+    await database.setManualChannelCategory([
+      url,
+    ], ChannelCategoryDestination(['美国', '宗教']));
+    await service.sync();
+    expect(
+      api.batches.expand((batch) => batch).single['group'],
+      '国际 / 美国 / 宗教',
+    );
+  });
   test('personal subscriptions and their retirements remain local', () async {
     final database = db.AppDatabase.forTesting(NativeDatabase.memory());
     final api = InventoryApi();

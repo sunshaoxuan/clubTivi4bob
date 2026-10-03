@@ -131,14 +131,72 @@ class ChannelGuideOutline extends CustomPainter {
         ),
       );
     if (size.height <= 186) return card;
-    final guide = Path()
-      ..addRRect(
-        RRect.fromRectAndRadius(
-          Rect.fromLTRB(1, 184, size.width - 1, size.height - 1),
-          const Radius.circular(20),
-        ),
+    final left = column * (width + 14) + 1;
+    final right = left + width - 2;
+    final bottom = size.height - 1;
+    const guideTop = 184.0;
+    final guideRadius = ((bottom - guideTop) / 2).clamp(0.0, 20.0);
+    final cardRadius = ((right - left) / 2).clamp(0.0, 20.0);
+    const shoulder = 12.0;
+    final path = Path()
+      ..moveTo(left + cardRadius, 1)
+      ..lineTo(right - cardRadius, 1)
+      ..arcToPoint(
+        Offset(right, 1 + cardRadius),
+        radius: Radius.circular(cardRadius),
       );
-    return Path.combine(PathOperation.union, card, guide);
+    // Draw one contour explicitly. Shared outside edges stay straight;
+    // inset card edges turn into the guide with a tangent circular shoulder.
+    if (column == columns - 1) {
+      path.lineTo(right, bottom - guideRadius);
+    } else {
+      path
+        ..lineTo(right, guideTop - shoulder)
+        ..arcToPoint(
+          Offset(right + shoulder, guideTop),
+          radius: const Radius.circular(shoulder),
+          clockwise: false,
+        )
+        ..lineTo(size.width - 1 - guideRadius, guideTop)
+        ..arcToPoint(
+          Offset(size.width - 1, guideTop + guideRadius),
+          radius: Radius.circular(guideRadius),
+        )
+        ..lineTo(size.width - 1, bottom - guideRadius);
+    }
+    path
+      ..arcToPoint(
+        Offset(size.width - 1 - guideRadius, bottom),
+        radius: Radius.circular(guideRadius),
+      )
+      ..lineTo(1 + guideRadius, bottom)
+      ..arcToPoint(
+        Offset(1, bottom - guideRadius),
+        radius: Radius.circular(guideRadius),
+      );
+    if (column == 0) {
+      path.lineTo(left, 1 + cardRadius);
+    } else {
+      path
+        ..lineTo(1, guideTop + guideRadius)
+        ..arcToPoint(
+          Offset(1 + guideRadius, guideTop),
+          radius: Radius.circular(guideRadius),
+        )
+        ..lineTo(left - shoulder, guideTop)
+        ..arcToPoint(
+          Offset(left, guideTop - shoulder),
+          radius: const Radius.circular(shoulder),
+          clockwise: false,
+        )
+        ..lineTo(left, 1 + cardRadius);
+    }
+    return path
+      ..arcToPoint(
+        Offset(left + cardRadius, 1),
+        radius: Radius.circular(cardRadius),
+      )
+      ..close();
   }
 
   @override

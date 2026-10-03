@@ -26,6 +26,8 @@ import '../../data/datasources/remote/tmdb_client.dart';
 import '../../data/services/channel_category_classifier.dart';
 import '../../data/services/channel_country_ai_service.dart';
 import '../../data/services/channel_category_ai_service.dart';
+import '../../data/services/manual_channel_category.dart';
+import 'channel_category_picker.dart';
 import '../../data/services/github_cctv5plus_recovery.dart';
 import '../../data/services/bobtv_community_service.dart';
 import '../../data/services/epg_refresh_service.dart';
@@ -93,6 +95,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
   final ChannelCategoryAiService _categoryAi = ChannelCategoryAiService();
   Map<String, String> _aiCountryCache = {};
   Map<String, String> _aiCategoryCache = {};
+  Map<String, ChannelCategoryDestination> _manualCategories = {};
   bool _simpleMode = true;
   bool _sharedCatalogAvailable = false;
   bool _showUnavailableSources = true;
@@ -615,6 +618,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
 
     List<db.Channel> loaded;
     _aiCategoryCache = await _categoryAi.cachedCategories();
+    _manualCategories = await ManualChannelCategory.load();
     if (group == 'Favorites') {
       loaded = _favoritedChannelIds.isEmpty
           ? const []
@@ -629,9 +633,14 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
           .toSet();
       final mapped = mappedIds.isEmpty
           ? <db.Channel>[] : await database.getChannelsByIds(mappedIds);
+      final manual = await database.getChannelsByStreamUrls(
+        _manualCategories.entries.where((entry) => entry.value.category == group)
+            .map((entry) => entry.key),
+      );
       loaded = {
         for (final channel in candidates) channel.id: channel,
         for (final channel in mapped) channel.id: channel,
+        for (final channel in manual) channel.id: channel,
       }.values.where((channel) => _categoryFor(channel) == group).toList();
     }
 
@@ -722,6 +731,8 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
   }
 
   String _countryFor(db.Channel channel) {
+    final manual = _manualCategories[channel.streamUrl];
+    if (manual != null) return manual.country;
     if (channel.providerId == WebsiteChannelCatalogService.providerId) {
       return WebsiteChannelCatalogService.countryForGroup(channel.groupTitle);
     }
@@ -738,6 +749,8 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
   }
 
   String _categoryFor(db.Channel channel) {
+    final manual = _manualCategories[channel.streamUrl];
+    if (manual != null) return manual.category;
     if (channel.providerId == WebsiteChannelCatalogService.providerId) {
       return WebsiteChannelCatalogService.categoryForGroup(channel.groupTitle);
     }
@@ -2016,9 +2029,42 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
     ));
   }
 
+  Future<void> _changeChannelCategory(db.Channel channel) async {
+    final urls = <String>{
+      channel.streamUrl,
+      ..._automaticAlternativeUrls(channel, includeUnverified: true),
+    };
+    final destination = await showDialog<ChannelCategoryDestination>(
+      context: context,
+      builder: (_) => ChannelCategoryPicker(channelName: _channelDisplayName(channel)),
+    );
+    if (!mounted || destination == null) return;
+    try {
+      await ref.read(databaseProvider).setManualChannelCategory(urls, destination);
+      if (!mounted) return;
+      _manualCategories = await ManualChannelCategory.load();
+      if (!mounted) return;
+      _pendingAutoplayGroup = null;
+      await _loadGroupChannels(_selectedGroup, preserveScroll: true);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text('已移至 ${destination.path.join(' / ')}'),
+        duration: const Duration(seconds: 3),
+      ));
+      unawaited(ref.read(sourceMaintenanceCoordinatorProvider).inventory.sync());
+    } catch (error, stack) {
+      AppDiagnostics.instance.recordError('manual_channel_category', error, stack);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('分类保存失败，请重试')),
+      );
+    }
+  }
+
   Future<void> _showCurrentRouteMenu(Offset position) async {
     final service = ref.read(playerServiceProvider);
     final currentUrl = service.currentUrl;
+    final menuChannel = _previewChannel;
     if (currentUrl == null) return;
     final alternatives = service.currentAlternativeUrls
         .where((url) => url != currentUrl)
@@ -2056,6 +2102,9 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                   ? '调整收藏夹' : '一键保存到我的收藏',
               favorite: true),
         const PopupMenuDivider(height: 14),
+        if (menuChannel != null)
+          _routeMenuAction(-5, Icons.folder_open_rounded, '变更分类',
+              '选择地区和子分类'),
         _routeMenuAction(-3, Icons.skip_next_rounded, '切换到下一条线路',
             '先检查线路，成功后切换',
             enabled: alternatives.isNotEmpty),
@@ -2070,7 +2119,12 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
             '立即停播并尝试下一条', danger: true),
       ],
     );
-    if (!mounted || choice == null || service.currentUrl != currentUrl) return;
+    if (!mounted || choice == null) return;
+    if (choice == -5 && menuChannel != null) {
+      await _changeChannelCategory(menuChannel);
+      return;
+    }
+    if (service.currentUrl != currentUrl) return;
     if (choice == -2) {
       final channel = _previewChannel;
       if (channel != null) await _handleRouteMenuFavorite(channel);
@@ -2149,6 +2203,8 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                 ? '调整收藏夹' : '一键保存到我的收藏',
             favorite: true),
         const PopupMenuDivider(height: 14),
+        _routeMenuAction(-5, Icons.folder_open_rounded, '变更分类',
+            '选择地区和子分类'),
         _routeMenuAction(-3, Icons.skip_next_rounded, '切换到下一条线路',
             '在卡片中预览下一条',
             enabled: alternatives.isNotEmpty),
@@ -2165,6 +2221,10 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
       ],
     );
     if (!mounted || choice == null) return;
+    if (choice == -5) {
+      await _changeChannelCategory(channel);
+      return;
+    }
     if (choice == -4) {
       final enabled = !service.compatibilityDecoding;
       final changed = await service.setCompatibilityDecoding(enabled);
@@ -5809,7 +5869,8 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
         return Material(
           color: Colors.transparent,
           child: GestureDetector(
-            onSecondaryTapUp: (_) => _showFavoriteListSheet(channel),
+            onSecondaryTapUp: (details) =>
+                _showCardRouteMenu(channel, details.globalPosition),
             child: Focus(
               focusNode: index == 0 ? _firstChannelFocusNode : null,
               autofocus: index == 0 && Platform.isAndroid,
@@ -8845,6 +8906,14 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
             ],
           ),
         ),
+        const PopupMenuItem(
+          value: 'category',
+          child: Row(children: [
+            Icon(Icons.folder_open_rounded, size: 18),
+            SizedBox(width: 8),
+            Text('变更分类'),
+          ]),
+        ),
         const PopupMenuDivider(),
         PopupMenuItem(
           value: 'reminder',
@@ -8920,6 +8989,8 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
           _showFavoriteListSheet(channel);
         case 'epg_map':
           _showInlineEpgMapping(channel);
+        case 'category':
+          unawaited(_changeChannelCategory(channel));
         case 'reminder':
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('Reminders coming soon')),

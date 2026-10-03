@@ -28,6 +28,7 @@ Future<void> _pumpStrip(
   DateTime? now,
   bool previewFont = false,
   bool combined = false,
+  List<String> previewChannelIds = const ['CCTV1', 'CCTV6', 'CCTV9'],
 }) async {
   final strip = ChannelProgrammeStrip(
     channelName: 'CCTV-6 电影',
@@ -56,8 +57,8 @@ Future<void> _pumpStrip(
                     ? SizedBox(
                         height: 490,
                         child: InlineExpandedChannelGrid(
-                          channelIds: const ['CCTV1', 'CCTV6', 'CCTV9'],
-                          columns: 3,
+                          channelIds: previewChannelIds,
+                          columns: previewChannelIds.length,
                           expandedChannelId: 'CCTV6',
                           expandedContent: strip,
                           cardBuilder: (_, index) => Container(
@@ -72,7 +73,13 @@ Future<void> _pumpStrip(
                               ),
                             ),
                             child: Text(
-                              ['CCTV-1 综合', 'CCTV-6 电影', 'CCTV-9 纪录'][index],
+                              const {
+                                'CCTV1': 'CCTV-1 综合',
+                                'CCTV6': 'CCTV-6 电影',
+                                'CCTV9': 'CCTV-9 纪录',
+                                'CCTV2': 'CCTV-2 财经',
+                                'CCTV3': 'CCTV-3 综艺',
+                              }[previewChannelIds[index]]!,
                               style: const TextStyle(
                                 fontSize: 21,
                                 fontWeight: FontWeight.w700,
@@ -327,6 +334,45 @@ void main() {
         find.byKey(const ValueKey('programme-strip-preview')),
         matchesGoldenFile('/tmp/bobtv-channel-programme-timeline-framed.png'),
       );
+      await _pumpStrip(
+        tester,
+        programmes: programmes,
+        width: 790,
+        previewFont: true,
+        combined: true,
+        previewChannelIds: const ['CCTV6', 'CCTV1', 'CCTV9'],
+      );
+      await expectLater(
+        find.byKey(const ValueKey('programme-strip-preview')),
+        matchesGoldenFile('/tmp/bobtv-channel-programme-timeline-left.png'),
+      );
+      for (var columns = 1; columns <= 5; columns++) {
+        for (var selected = 0; selected < columns; selected++) {
+          final ids = [
+            'CCTV6',
+            'CCTV1',
+            'CCTV9',
+            'CCTV2',
+            'CCTV3',
+          ].take(columns).toList()..remove('CCTV6');
+          ids.insert(selected, 'CCTV6');
+          await _pumpStrip(
+            tester,
+            programmes: programmes,
+            width: 790,
+            previewFont: true,
+            combined: true,
+            previewChannelIds: ids,
+          );
+          await expectLater(
+            find.byKey(const ValueKey('programme-strip-preview')),
+            matchesGoldenFile(
+              '/tmp/bobtv-programme-$columns-columns-position-$selected.png',
+            ),
+          );
+          expect(tester.takeException(), isNull);
+        }
+      }
     },
     skip: !const bool.fromEnvironment('BOBTV_PROGRAMME_STRIP_PREVIEW'),
   );

@@ -11,6 +11,7 @@ import 'channel_country_ai_service.dart';
 import 'client_fingerprint_service.dart';
 import 'public_inventory_policy.dart';
 import 'website_channel_catalog_service.dart';
+import 'manual_channel_category.dart';
 
 /// Uploads public television metadata in bounded pages. Server verification
 /// gates publication; a client success alone never publishes a route.
@@ -41,6 +42,7 @@ class ChannelInventorySyncService {
           ClientFingerprintService.instance.apiFingerprint;
       if (fingerprint == null) return;
       final categories = await ChannelCategoryAiService().cachedCategories();
+      final manualCategories = await ManualChannelCategory.load();
       final countries = await ChannelCountryAiService().cachedCountries();
       final blocked = await database.getSharedBlockedStreamUrls();
       final eligibleProviders = {
@@ -98,6 +100,7 @@ class ChannelInventorySyncService {
           if (channel.providerId == WebsiteChannelCatalogService.providerId) {
             group = channel.groupTitle ?? group;
           }
+          group = manualCategories[channel.streamUrl]?.group ?? group;
           final success = byUrl[channel.streamUrl]?.lastSuccessAt;
           batch.add({
             'name': channel.name,

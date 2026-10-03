@@ -7,6 +7,7 @@ import 'package:uuid/uuid.dart';
 
 import '../../services/channel_category_classifier.dart';
 import '../../services/public_inventory_policy.dart';
+import '../../services/manual_channel_category.dart';
 import 'tables.dart';
 
 part 'database.g.dart';
@@ -263,6 +264,7 @@ class AppDatabase extends _$AppDatabase {
       (select(channels)..where((t) => t.favorite.equals(true))).get();
 
   Future<void> upsertChannels(List<ChannelsCompanion> entries) async {
+    final manualCategories = await ManualChannelCategory.load();
     final blockedUrls = {
       for (final route in await select(blockedStreamRoutes).get())
         route.streamUrl,
@@ -277,8 +279,46 @@ class AppDatabase extends _$AppDatabase {
       );
     }).toList();
     if (entries.isEmpty) return;
+    entries = entries.map((entry) {
+      final manual = entry.streamUrl.present
+          ? manualCategories[entry.streamUrl.value]
+          : null;
+      return manual == null
+          ? entry
+          : entry.copyWith(groupTitle: Value(manual.group));
+    }).toList();
     await batch((b) {
       b.insertAllOnConflictUpdate(channels, entries);
+    });
+  }
+
+  Future<List<Channel>> getChannelsByStreamUrls(Iterable<String> urls) async {
+    final unique = urls.toSet().toList();
+    final result = <Channel>[];
+    for (var offset = 0; offset < unique.length; offset += 400) {
+      result.addAll(
+        await (select(channels)..where(
+              (row) => row.streamUrl.isIn(unique.skip(offset).take(400)),
+            ))
+            .get(),
+      );
+    }
+    return result;
+  }
+
+  Future<void> setManualChannelCategory(
+    Iterable<String> urls,
+    ChannelCategoryDestination destination,
+  ) async {
+    final unique = urls.where((url) => url.isNotEmpty).toSet().toList();
+    await ManualChannelCategory.save(unique, destination);
+    await transaction(() async {
+      for (var offset = 0; offset < unique.length; offset += 400) {
+        await (update(channels)..where(
+              (row) => row.streamUrl.isIn(unique.skip(offset).take(400)),
+            ))
+            .write(ChannelsCompanion(groupTitle: Value(destination.group)));
+      }
     });
   }
 

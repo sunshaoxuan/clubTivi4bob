@@ -19,6 +19,9 @@ jobs:
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
+      - name: Verify three-failure rollback and healthy acknowledgement
+        shell: pwsh
+        run: '& tools/windows/test_update_rollback.ps1'
       - name: Upgrade a previous Windows package from BobTV website
         shell: pwsh
         run: |

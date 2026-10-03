@@ -194,9 +194,15 @@ done
 wait "$download_pid"
 received_bytes="$(stat -f%z "$partial")"
 write_status verifying "$version" 100
-[[ "$(stat -f%z "$partial")" == "$expected_bytes" ]] || exit 6
-actual_hash="$(shasum -a 256 "$partial" | awk '{print tolower($1)}')"
+printf 'integrity bytes actual=%s expected=%s\n' "$received_bytes" "$expected_bytes"
+[[ "$received_bytes" == "$expected_bytes" ]] || exit 6
+# Use the system crypto binary, independent of the player's inherited PATH or
+# Perl environment. The same binary verifies the publisher signature below.
+digest_output="$(/usr/bin/openssl dgst -sha256 "$partial")"
+actual_hash="${digest_output##* }"
 expected_hash="$(printf '%s' "$expected_hash" | tr '[:upper:]' '[:lower:]')"
+printf 'integrity sha256 actual=%s expected=%s\n' "$actual_hash" "$expected_hash"
+[[ "$actual_hash" =~ ^[a-f0-9]{64}$ ]] || exit 6
 [[ "$actual_hash" == "$expected_hash" ]] || exit 6
 mv -f "$partial" "$archive"
 public_key="$root/update-signing-public.pem"

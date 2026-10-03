@@ -60,6 +60,12 @@ ready=false
 closed_early=false
 for ((n=0; n<300; n++)); do
   [[ "$closed_early" == true ]] || kill -0 "$app_pid"
+  if [[ -f "$root/status.json" ]] && grep -q '"phase":"failed"' "$root/status.json"; then
+    echo 'Updater failed before becoming ready:' >&2
+    cat "$root/status.json" >&2
+    tail -40 "$root/worker.log" >&2
+    exit 1
+  fi
   if [[ "$close_during_download" == true && "$closed_early" != true && -f "$root/status.json" ]] &&
       grep -q '"phase":"downloading"' "$root/status.json"; then
     stop_test_app
@@ -74,12 +80,21 @@ PY
   then ready=true; break; fi
   sleep 1
 done
-[[ "$ready" == true ]]
+if [[ "$ready" != true ]]; then
+  echo 'Timed out waiting for a verified update.' >&2
+  [[ ! -f "$root/status.json" ]] || cat "$root/status.json" >&2
+  exit 1
+fi
 [[ "$closed_early" == true || "$(app_version "$app")" == '0.9.1+68' ]]
 echo 'Old application discovered and verified the update, without installing while running.'
 stop_test_app
 installed=false
 for ((n=0; n<120; n++)); do
+  if [[ -f "$root/status.json" ]] && grep -q '"phase":"failed"' "$root/status.json"; then
+    cat "$root/status.json" >&2
+    tail -40 "$root/worker.log" >&2
+    exit 1
+  fi
   if [[ -f "$app/Contents/Info.plist" && "$(app_version "$app")" == "$version" ]] &&
       { [[ -z "$fixture_app" ]] || grep -q '"phase":"installed"' "$root/status.json"; }; then
     installed=true; break

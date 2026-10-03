@@ -96,6 +96,11 @@ int main(int argc, char **argv) {
             sourceOrigin:MTLOriginMake(0, 0, 0) sourceSize:MTLSizeMake(width, 72, 1)
             toTexture:target destinationSlice:0 destinationLevel:0
             destinationOrigin:MTLOriginMake(0, 0, 0)];
+          // Discrete Intel/AMD Macs need an explicit GPU-to-CPU transfer for
+          // managed textures before getBytes can validate the rendered data.
+          if (target.storageMode == MTLStorageModeManaged) {
+            [blit synchronizeResource:target];
+          }
           [blit endEncoding];
           view = nil;
           assert(BobTVLiveMetalBackings() >= 1);
@@ -105,7 +110,11 @@ int main(int argc, char **argv) {
           assert(command.status == MTLCommandBufferStatusCompleted);
           unsigned char pixel[4];
           [target getBytes:pixel bytesPerRow:4 fromRegion:MTLRegionMake2D(0, 0, 1, 1) mipmapLevel:0];
-          assert(pixel[0] == frame % 255);
+          if (pixel[0] != frame % 255) {
+            NSLog(@"Readback mismatch frame=%d actual=%u expected=%d device=%@ storage=%lu",
+              frame, pixel[0], frame % 255, device.name, (unsigned long)target.storageMode);
+            abort();
+          }
         }
       }
       assert(BobTVLiveMetalBackings() == 0);

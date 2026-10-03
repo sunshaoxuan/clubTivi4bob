@@ -55,6 +55,15 @@ jobs:
           test -x "$app/Contents/Resources/AirPlay/bobtv-airplay/fpsap-auth"
           plutil -lint "$app/Contents/Info.plist"
 
+      - name: Archive compiled application for physical hardware verification
+        run: ditto -c -k --norsrc --keepParent build/macos/Build/Products/Release/BobTV.app BobTV-native-validation.zip
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: BobTV-native-validation
+          path: BobTV-native-validation.zip
+          if-no-files-found: error
+
       - name: Verify owned Metal frame lifetime and render disposal
         run: |
           bash tools/macos/test_owned_metal_frame.sh "$PWD/build/macos/Build/Products/Release/BobTV.app"

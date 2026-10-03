@@ -62,6 +62,7 @@ struct BobTVExternalTexture {
   const void **textures;
   int yuv_color_space;
 };
+static_assert(sizeof(BobTVExternalTexture) == 56, "Unexpected Metal texture ABI");
 @interface BobTVMetalFrame : NSObject {
  @public
   const void *_handle;
@@ -126,8 +127,10 @@ static BOOL populateOwned(id self, SEL selector, CVPixelBufferRef buffer,
     method_getArgumentType(method, 2, argument, sizeof(argument));
     char outputArgument[128];
     method_getArgumentType(method, 3, outputArgument, sizeof(outputArgument));
+    const char *outputLayout = strchr(outputArgument, '=');
     if ((strcmp(result, "c") && strcmp(result, "B")) || argument[0] != '^' ||
-        outputArgument[0] != '^' || ivar_getTypeEncoding(contextIvar)[0] != '@' ||
+        outputArgument[0] != '^' || !outputLayout || strcmp(outputLayout, "=QQQiQ^^vi}") ||
+        ivar_getTypeEncoding(contextIvar)[0] != '@' ||
         ivar_getTypeEncoding(sourceIvar)[0] != '@') {
       NSLog(@"[BobTV] Metal lifetime adapter refused incompatible method ABI");
       return;

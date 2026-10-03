@@ -1,0 +1,17 @@
+name: Windows Native Update Progress Validation
+on:
+  workflow_dispatch:
+jobs:
+  progress:
+    runs-on: windows-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Render all independent update stages
+        shell: pwsh
+        run: '& tools/windows/test_update_progress_ui.ps1'
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: Windows-native-progress-diagnostics
+          path: windows-live-update-diagnostics

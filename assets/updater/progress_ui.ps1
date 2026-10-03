@@ -13,7 +13,7 @@ Add-Type -AssemblyName System.Drawing
 [Windows.Forms.Application]::EnableVisualStyles()
 $form=New-Object Windows.Forms.Form
 $form.Text='BobTV 更新'
-$form.Size=New-Object Drawing.Size(500,340)
+$form.ClientSize=New-Object Drawing.Size(500,340)
 $form.StartPosition='CenterScreen'
 $form.FormBorderStyle='FixedDialog'
 $form.MaximizeBox=$false
@@ -91,7 +91,7 @@ $timer.Add_Tick({
         if($folder.StartsWith($allowed,[StringComparison]::OrdinalIgnoreCase)){
           New-Item -ItemType Directory -Path $folder -Force|Out-Null
           $bitmap=New-Object Drawing.Bitmap($form.Width,$form.Height)
-          try{$form.DrawToBitmap($bitmap,$form.ClientRectangle);$bitmap.Save((Join-Path $folder ($status.phase+'.png')),[Drawing.Imaging.ImageFormat]::Png)}finally{$bitmap.Dispose()}
+          try{$form.DrawToBitmap($bitmap,(New-Object Drawing.Rectangle(0,0,$form.Width,$form.Height)));$bitmap.Save((Join-Path $folder ($status.phase+'.png')),[Drawing.Imaging.ImageFormat]::Png)}finally{$bitmap.Dispose()}
         }
       }
     }

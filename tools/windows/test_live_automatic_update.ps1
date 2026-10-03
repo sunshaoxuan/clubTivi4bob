@@ -1,6 +1,8 @@
-param([string]$FixtureExecutable, [switch]$CloseWhileDownloading)
+param([string]$FixtureExecutable, [switch]$CloseWhileDownloading,
+      [string]$PreviousVersion='0.9.1+68')
 $ErrorActionPreference='Stop'
 if($env:CI -ne 'true'){throw 'This clean-install GUI test is restricted to CI'}
+if($PreviousVersion -notmatch '^\d+\.\d+\.\d+\+\d+$'){throw 'Invalid previous version'}
 $site='https://bobtv.briconbric.com'
 $manifest=Invoke-RestMethod "$site/updates/windows-x64/latest.json"
 $fixture=Join-Path $env:TEMP ('BobTVUpdaterTests\gui-'+[guid]::NewGuid().ToString('N'))
@@ -8,11 +10,11 @@ New-Item -ItemType Directory -Path $fixture -Force|Out-Null
 if($FixtureExecutable){
   $exe=(Resolve-Path -LiteralPath $FixtureExecutable).Path
 }else{
-  Invoke-WebRequest "$site/downloads/BobTV-0.9.1+68-windows-x64.zip" -OutFile "$fixture\previous.zip"
+  Invoke-WebRequest "$site/downloads/BobTV-$PreviousVersion-windows-x64.zip" -OutFile "$fixture\previous.zip" -UserAgent 'BobTV/0.9.1 updater-test'
   Expand-Archive -LiteralPath "$fixture\previous.zip" -DestinationPath "$fixture\Previous"
   $exe=(Get-ChildItem "$fixture\Previous" -Recurse -File|Where-Object Name -eq 'BobTV.exe'|Select-Object -First 1).FullName
 }
-if(!$exe -or (Get-Item $exe).VersionInfo.FileVersion -ne '0.9.1+68'){throw 'Previous GUI missing'}
+if(!$exe -or (Get-Item $exe).VersionInfo.FileVersion -ne $PreviousVersion){throw 'Previous GUI missing'}
 $savedLocalAppData=$env:LOCALAPPDATA
 $env:LOCALAPPDATA=Join-Path $fixture 'LocalAppData'
 $env:BOBTV_PROGRESS_CAPTURE_DIR=Join-Path $fixture 'progress-screenshots'
@@ -51,7 +53,7 @@ try{
     Start-Sleep -Seconds 1
   }
   if(!$ready){throw 'Previous GUI did not automatically discover and download the website update'}
-  if(!$closedEarly -and (Get-Item $exe).VersionInfo.FileVersion -ne '0.9.1+68'){throw 'Installed before old app exited'}
+  if(!$closedEarly -and (Get-Item $exe).VersionInfo.FileVersion -ne $PreviousVersion){throw 'Installed before old app exited'}
   Stop-TestApp
   $installed=$false
   for($n=0;$n -lt 120;$n++){
@@ -73,7 +75,7 @@ try{
   }
   $backup=Get-ChildItem "$root\Backups" -Directory|Select-Object -First 1
   $previousExecutable=Split-Path $exe -Leaf
-  if(!$backup -or (Get-Item (Join-Path $backup.FullName $previousExecutable)).VersionInfo.FileVersion -ne '0.9.1+68'){
+  if(!$backup -or (Get-Item (Join-Path $backup.FullName $previousExecutable)).VersionInfo.FileVersion -ne $PreviousVersion){
     throw 'Previous GUI backup missing'
   }
   $appProcess=Start-Process $exe -WorkingDirectory (Split-Path $exe) -PassThru

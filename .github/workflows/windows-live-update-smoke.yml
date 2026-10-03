@@ -6,6 +6,12 @@ on:
       - agent/bobtv-windows-live-update-test
       - agent/bobtv-update-smoke-*
   workflow_dispatch:
+    inputs:
+      previous_version:
+        description: Previous published client version to upgrade
+        required: true
+        default: '0.9.1+76'
+        type: string
 
 jobs:
   update:
@@ -73,7 +79,9 @@ jobs:
           Write-Output "Windows website update installed $($manifest.version) and preserved $previousVersion"
       - name: Verify automatic discovery by an actual previous GUI
         shell: pwsh
-        run: '& tools/windows/test_live_automatic_update.ps1'
+        env:
+          PREVIOUS_VERSION: ${{ inputs.previous_version || '0.9.1+76' }}
+        run: '& tools/windows/test_live_automatic_update.ps1 -PreviousVersion $env:PREVIOUS_VERSION -CloseWhileDownloading'
       - uses: actions/upload-artifact@v4
         if: always()
         with:

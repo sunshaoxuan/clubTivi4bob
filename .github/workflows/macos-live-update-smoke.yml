@@ -1,0 +1,44 @@
+name: macOS Live Automatic Update
+
+on:
+  workflow_dispatch:
+    inputs:
+      expected_version:
+        description: Published website version to install
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  update:
+    name: Website automatic update ${{ matrix.arch }}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-15-intel
+            arch: x64
+          - runner: macos-15
+            arch: arm64
+    steps:
+      - uses: actions/checkout@v4
+      - name: Discover, download, install and acknowledge the website update
+        env:
+          ARCH: ${{ matrix.arch }}
+          EXPECTED_VERSION: ${{ inputs.expected_version }}
+        run: bash tools/macos/test_live_automatic_update.sh "$ARCH" "$EXPECTED_VERSION"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: BobTV-live-update-${{ matrix.arch }}-diagnostics
+          path: |
+            ~/Library/Application Support/com.briconbric.bobtv/Update/live-update*.log
+            ~/Library/Application Support/com.briconbric.bobtv/Update/live-update-result.json
+            ~/Library/Application Support/com.briconbric.bobtv/Update/status.json
+            ~/Library/Application Support/com.briconbric.bobtv/logs/*.log
+            ~/Library/Logs/DiagnosticReports/BobTV*.ips
+          if-no-files-found: ignore

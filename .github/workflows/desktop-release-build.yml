@@ -95,7 +95,7 @@ jobs:
           export BOBTV_NATIVE_DISPOSAL_MEDIA="$RUNNER_TEMP/playback.avi"
           export BOBTV_NATIVE_DISPOSAL_LOG="$RUNNER_TEMP/playback.log"
           export BOBTV_NATIVE_SOAK_SECONDS=600
-          "$app/Contents/MacOS/BobTV" &
+          lldb --batch -o run -k 'thread backtrace all' -- "$app/Contents/MacOS/BobTV" &
           probe=$!
           for ((n=0; n<780; n++)); do
             kill -0 "$probe" 2>/dev/null || break
@@ -119,6 +119,8 @@ jobs:
           ditto "$RUNNER_TEMP/BobTV-release-preserved.app" "$app"
           codesign --verify --deep --strict "$app"
       - name: Verify native MPV render-context release
+        env:
+          BOBTV_TEST_LIVE_FRAMES: '1'
         run: bash tools/macos/test_native_video_disposal.sh "$PWD/build/macos/Build/Products/Release/BobTV.app"
       - name: Verify owned Metal frame lifetime
         run: bash tools/macos/test_owned_metal_frame.sh "$PWD/build/macos/Build/Products/Release/BobTV.app"

@@ -60,9 +60,6 @@ public class TextureHW: NSObject, FlutterTexture, ResizableTextureProtocol {
       CGLSetCurrentContext(nil)
     }
 
-    let api = UnsafeMutableRawPointer(
-      mutating: (MPV_RENDER_API_TYPE_OPENGL as NSString).utf8String
-    )
     var procAddress = mpv_opengl_init_params(
       get_proc_address: {
         (ctx, name) in
@@ -71,23 +68,20 @@ public class TextureHW: NSObject, FlutterTexture, ResizableTextureProtocol {
       get_proc_address_ctx: nil
     )
 
-    var params: [mpv_render_param] = withUnsafeMutableBytes(of: &procAddress) {
-      procAddress in
-      return [
-        mpv_render_param(type: MPV_RENDER_PARAM_API_TYPE, data: api),
-        mpv_render_param(
-          type: MPV_RENDER_PARAM_OPENGL_INIT_PARAMS,
-          data: procAddress.baseAddress.map {
-            UnsafeMutableRawPointer($0)
-          }
-        ),
-        mpv_render_param(),
-      ]
+    MPV_RENDER_API_TYPE_OPENGL.withCString { api in
+      withUnsafeMutablePointer(to: &procAddress) { initialization in
+        var params: [mpv_render_param] = [
+          mpv_render_param(type: MPV_RENDER_PARAM_API_TYPE,
+            data: UnsafeMutableRawPointer(mutating: api)),
+          mpv_render_param(type: MPV_RENDER_PARAM_OPENGL_INIT_PARAMS,
+            data: initialization),
+          mpv_render_param(type: MPV_RENDER_PARAM_INVALID, data: nil),
+        ]
+        MPVHelpers.checkError(
+          mpv_render_context_create(&renderContext, handle, &params)
+        )
+      }
     }
-
-    MPVHelpers.checkError(
-      mpv_render_context_create(&renderContext, handle, &params)
-    )
 
     mpv_render_context_set_update_callback(
       renderContext,
@@ -157,6 +151,7 @@ public class TextureHW: NSObject, FlutterTexture, ResizableTextureProtocol {
   }
 
   public func render(_ size: CGSize) {
+    guard let renderContext = renderContext else { return }
     let textureContext = textureContexts.nextAvailable()
     if textureContext == nil {
       return
@@ -179,13 +174,13 @@ public class TextureHW: NSObject, FlutterTexture, ResizableTextureProtocol {
       h: Int32(size.height),
       internal_format: 0
     )
-    let fboPtr = withUnsafeMutablePointer(to: &fbo) { $0 }
-
-    var params: [mpv_render_param] = [
-      mpv_render_param(type: MPV_RENDER_PARAM_OPENGL_FBO, data: fboPtr),
-      mpv_render_param(type: MPV_RENDER_PARAM_INVALID, data: nil),
-    ]
-    mpv_render_context_render(renderContext, &params)
+    withUnsafeMutablePointer(to: &fbo) { fboPtr in
+      var params: [mpv_render_param] = [
+        mpv_render_param(type: MPV_RENDER_PARAM_OPENGL_FBO, data: fboPtr),
+        mpv_render_param(type: MPV_RENDER_PARAM_INVALID, data: nil),
+      ]
+      mpv_render_context_render(renderContext, &params)
+    }
 
     glFlush()
 

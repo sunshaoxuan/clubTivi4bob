@@ -10,7 +10,7 @@ flutter_framework="$flutter_sdk/bin/cache/artifacts/engine/darwin-x64-release/Fl
 while IFS= read -r source; do sources+=("$source"); done < <(
   find "$root/third_party/media_kit_video/macos/Classes/plugin" -name '*.swift' -type f
 )
-swiftc "${sources[@]}" "$root/tools/macos/test_native_video_disposal.swift" \
+swiftc -O "${sources[@]}" "$root/tools/macos/test_native_video_disposal.swift" \
   -F "$flutter_framework" -F "$app/Contents/Frameworks" \
   -framework FlutterMacOS -framework Mpv -framework OpenGL -framework CoreVideo \
   -I "$root/third_party/media_kit_video/macos/Headers" \

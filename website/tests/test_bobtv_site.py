@@ -58,7 +58,7 @@ def test_product_pages_reflect_published_releases():
     client = TestClient(module.app)
     home = client.get("/").text
     assert "v0.9.1-bob.16" in home and "WINDOWS · MACOS" in home
-    assert "时间轴节目单" in home and "频道与节目时间轴" in home
+    assert "即时分类交互" in home and "频道分类立即移动并后台同步" in home
     assert "静音预览" in home and "Mac AirPlay" in home and "纯音频电台" in home
     assert '/assets/product.png?v=3' in home
     assert 'class="home-page"' in home and 'class="container home-hero-layout"' in home

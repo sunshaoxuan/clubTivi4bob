@@ -2,11 +2,23 @@
 
 This directory is the canonical source for `https://bobtv.briconbric.com`: the public site, the local release mirror, the video-source APIs, and bounded diagnostic intake. The Flutter application lives in `lib/` in this same repository. Existing GitHub release assets are mirrored to the server; users download from the BobTV host.
 
-The product page describes BobTV as a Windows desktop TV player without claiming a specific supported Windows version. The upstream README currently lists Windows 11 for its build requirements; Windows 10 compatibility requires client-side validation before publishing a support claim.
+The product page describes BobTV as a Windows and macOS desktop TV player. Windows 10 compatibility requires client-side validation before publishing a support claim.
 
 The hero image is a user-provided crop of the BobTV simplified-mode interface with playback and channel listings visible. Product, downloads, and diagnostic uploads are separate pages. Source reporting is API-only.
 
-The product page reflects the published BobTV release notes: `v0.9.1-bob.9` covers simplified mode, silent card preview before switching, favorites, route feedback, fullscreen behavior, and compatible Mac AirPlay output; `v0.8.4-bob.8` covers regional organization and audio-only radio; `v0.8.0-bob.7` covers the BobTV rebrand and route maintenance. The site uses the supplied real player screenshot, a favicon cropped from its BobTV play mark, an unframed editorial layout, and a consistent light visual system across the three pages. Descriptions do not claim Windows 10 validation or guaranteed third-party stream availability. When publishing another release, review the static homepage and download-page version copy alongside the mirrored manifest.
+The product, download and diagnostic pages share a dark navy and peach visual system and the supplied real player screenshot. Build `0.9.1+76` adds durable public channel synchronization, shared route scoring, retirement propagation, offline retries and visible sync status. The download page explains initialization and both platform update flows; the diagnostic page describes optional, default-off summary uploads. Descriptions do not claim Windows 10 validation or guaranteed third-party stream availability.
+
+## Website maintenance with every release
+
+Publishing installation packages also requires a content review:
+
+1. Update the homepage feature descriptions, current version and version history against the implemented and tested behavior.
+2. Update installation, first-launch and update instructions for both Windows and macOS. Keep one release row with three platform downloads.
+3. Review diagnostic and privacy explanations; distinguish shared public channel records from personal local data and optional diagnostics.
+4. Update the API and synchronization documentation when the contract changes. Run `python -m pytest website/tests -q` and inspect desktop and mobile layouts.
+5. Back up and deploy the HTML/API runtime alongside the verified release mirror. Check live page copy, download links, all three update manifests and the channel catalog.
+
+The package mirror alone does not update the static feature descriptions.
 
 ## Endpoints
 
@@ -14,7 +26,10 @@ The shared installation inventory is implemented separately from the legacy
 opt-in reviewed-source directory. Every installation contributes public TV
 metadata in batches through `POST /api/v1/channel-catalog/inventory`.
 `GET /api/v1/channel-catalog/blocked` distributes durable global retirement
-records. Deploy `bobtv-catalog.service` and `bobtv-catalog.timer` to verify
+records. `POST /api/v1/channel-catalog/events` receives idempotent additions,
+metadata and category edits, health observations, deletions and retirements.
+Clients flush their durable queue every 15 seconds and check snapshot revisions
+every minute. Deploy `bobtv-catalog.service` and `bobtv-catalog.timer` to verify
 pending media and atomically publish fresh preclassified snapshots every five
 minutes. Client success reports prioritize verification but do not directly
 publish routes. The legacy `/source-candidates` workflow below remains private
@@ -24,7 +39,7 @@ and manual; it does not govern the new shared channel inventory.
 - `GET /api/v1/channel-catalog/snapshots/{sha256}.json.gz`: immutable compressed catalog. Previous snapshots remain readable while a client completes a download across a manifest change. The publisher validates stable category, channel, and route IDs, category parents, and reviewed public URLs before atomically replacing the manifest. Clients verify the byte count and SHA-256 before importing while preserving local favorites, retired routes, and subscriptions.
 - `GET /`: product view. `GET /downloads`: release downloads. `GET /diagnostics`: manual diagnostic upload. There is no public source-report page or contribution summary.
 - `GET /releases.json`: locally published manual-download manifest.
-- `GET /downloads/{filename}`: local ZIP bytes, with range support from `FileResponse`. Never redirects to GitHub.
+- `GET /downloads/{filename}`: local ZIP or DMG bytes, with range support from `FileResponse`. Never redirects to GitHub.
 - `GET /updates/{windows-x64|macos-x64|macos-arm64}/latest.json`: independently verified automatic-update manifest for one desktop platform, or 404 before its first approved package. `GET /updates/files/{filename}` serves current and previously approved archives so in-progress downloads survive a manifest change.
 - `POST /api/v1/logs`: `Content-Type: application/x-ndjson`, at most 1 MiB and 5000 lines. Every line is a JSON object with `time` and `event`; only `time`, `event`, `source`, `fatal`, `uptimeSeconds`, `rssBytes`, `maxRssBytes`, and `platform` are accepted. Successful responses return `201` and a SHA-256 `id`; repeated bodies return `200`. Invalid payloads return `415`, `422`, or `413`. Requests are capped at 300/hour per origin-visible IP with `429` and `Retry-After`. Behind Cloudflare this may group visitors by edge address; the proxy overwrites untrusted incoming `X-Forwarded-For`.
 - `GET /api/v1/sources`: reviewed public HTTPS playback URLs and counts of distinct anonymous reports received in the last 30 minutes. `Cache-Control: no-store`. An empty catalog is valid. Counts are untrusted client feedback, never independent availability verification.

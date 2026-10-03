@@ -165,7 +165,7 @@ footer { border-top: 1px solid #dce5df; background: #f9fbf8; color: #71857a; fon
 .downloads-page .brand span:last-child { color: #f3aa7b; }
 .downloads-page nav a { color: #b2c0c8; }
 .downloads-page nav a:hover, .downloads-page nav a:focus-visible, .downloads-page nav a[aria-current="page"] { color: #f3aa7b; border-bottom-color: #f3aa7b; }
-.download-hero { position: relative; isolation: isolate; overflow: hidden; padding: 50px 0 70px; background: radial-gradient(ellipse 55% 95% at 77% 22%, #35536b 0%, #1c3042 45%, transparent 100%), linear-gradient(132deg, #121d28, #192b3b 70%, #17232f); }
+.download-hero { position: relative; isolation: isolate; overflow: hidden; padding: 50px 0 120px; background: radial-gradient(ellipse 55% 95% at 77% 22%, #35536b 0%, #1c3042 45%, transparent 100%), linear-gradient(132deg, #121d28, #192b3b 70%, #17232f); }
 .download-hero::before { content: ""; position: absolute; z-index: -1; width: 580px; height: 580px; right: max(-80px, calc((100vw - 1240px) / 2)); top: -160px; border: 1px solid #ffffff13; border-radius: 50%; box-shadow: 0 0 0 92px #ffffff07, 0 0 0 184px #ffffff05; }
 .download-hero-inner { position: relative; }
 .download-kicker { display: flex; align-items: center; gap: 12px; margin: 0 0 15px; color: #ffc29d; font-size: 12px; font-weight: 800; letter-spacing: .22em; }

@@ -104,7 +104,11 @@ Release builds include a sanitized bundled snapshot of the latest discovered rou
 
 ### Website channel synchronization
 
-The website provides a versioned manifest and a compressed snapshot of preclassified channels. The app downloads and checks the snapshot in the background, validates its hash and records, then imports it in a database transaction. Stable route IDs preserve favorites and local route decisions across updates. An empty or unreachable website catalog leaves the packaged and locally saved channels available. The website catalog currently awaits reviewed channel data; the existence of the API alone does not populate it. See [`website/API.md`](website/API.md) for the contract and [`website/README.md`](website/README.md) for the publication command.
+Windows and macOS share the website's versioned, preclassified public channel catalog. A new installation starts with local or packaged channels and imports the verified website snapshot in the background. Snapshots include route revisions and shared health scores, and clients check for changes every minute.
+
+Public additions, metadata and category edits, positive and negative health observations, deletions and retirements enter a durable SQLite outbox and upload asynchronously. Offline changes survive restart, acknowledgements remove only the exact event, and server deduplication prevents repeated scoring. Version checks protect newer classifications; retirement tombstones prevent stale clients from restoring removed URLs. New candidate routes require server verification before publication. A legitimate empty catalog removes the last retired channels and unused categories; network or validation failures preserve existing local data.
+
+Favorites, playback history, private subscriptions and account-bearing URLs remain local. Sync progress appears beside the channel list. See [`docs/channel-catalog-sync.md`](docs/channel-catalog-sync.md) for the lifecycle and HTTP acceptance test, [`website/API.md`](website/API.md) for the contract, and [`website/README.md`](website/README.md) for publication and release-content maintenance.
 
 ## Included source bootstrap
 

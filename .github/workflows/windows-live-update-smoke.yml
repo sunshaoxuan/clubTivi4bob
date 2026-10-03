@@ -58,7 +58,9 @@ jobs:
             Start-Sleep -Seconds 5
             Remove-Item -LiteralPath $path -Force
           }
-          & powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File assets/updater/worker.ps1 `
+          $worker = Join-Path $fixture 'worker.ps1'
+          [IO.File]::WriteAllText($worker, [IO.File]::ReadAllText((Join-Path $PWD 'assets/updater/worker.ps1'), [Text.Encoding]::UTF8), [Text.UTF8Encoding]::new($true))
+          & powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File $worker `
             -Mode Update -AppDir $appDir -CurrentPid 99999999 -Version $manifest.version `
             -ArchiveUrl $manifest.archive -Sha256 $manifest.sha256 -Bytes $manifest.bytes `
             -TestRoot $updateRoot

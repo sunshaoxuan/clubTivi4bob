@@ -14,7 +14,10 @@ foreach ($directory in @("$app\data", "$backup\data")) {
 [IO.File]::WriteAllText("$root\new-files.txt", "new-only.txt`n")
 $version = '0.9.1+999'
 [IO.File]::WriteAllText("$root\candidate.ini", "[Update]`nVersion=$version`nAppDir=$app`nBackupDir=$backup`nAttempts=0`n")
-$worker = Join-Path $PSScriptRoot '..\..\assets\updater\worker.ps1'
+$worker = Join-Path $fixture 'worker.ps1'
+$workerSource = Join-Path $PSScriptRoot '..\..\assets\updater\worker.ps1'
+# Match the application's UTF-8 BOM staging for Windows PowerShell 5.1.
+[IO.File]::WriteAllText($worker, [IO.File]::ReadAllText($workerSource, [Text.Encoding]::UTF8), [Text.UTF8Encoding]::new($true))
 for ($attempt = 1; $attempt -le 3; $attempt++) {
   [IO.File]::WriteAllText("$root\startup.marker", '99999999')
   & powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File $worker -Mode Monitor -CurrentPid 99999999 -TestRoot $root

@@ -117,9 +117,20 @@ int main(int argc, char **argv) {
           }
         }
       }
-      assert(BobTVLiveMetalBackings() == 0);
+      // A completed Metal queue can retire its last resources asynchronously.
+      // An ownership cycle would accumulate across these 2,000 rounds.
+      assert(BobTVLiveMetalBackings() <= 4);
     }
+    queue = nil;
+    CVMetalTextureCacheFlush(cache, 0);
     CFRelease(cache);
+    for (int attempt = 0; BobTVLiveMetalBackings() != 0 && attempt < 5000; ++attempt) {
+      [NSThread sleepForTimeInterval:0.001];
+    }
+    if (BobTVLiveMetalBackings() != 0) {
+      NSLog(@"FAIL: GPU queue cleanup retained %d backing objects", BobTVLiveMetalBackings());
+    }
+    assert(BobTVLiveMetalBackings() == 0);
     NSLog(@"PASS: 4000 owned frames, two streams, resize, GPU readback, no retained backings");
   }
 }

@@ -31,6 +31,7 @@ final class UpdateProgress: NSObject, NSApplicationDelegate, NSWindowDelegate {
     var finishedAt: Date?
     var startedAt = Date()
     var lastPhase = ""
+    var initialized = false
 
     func log(_ message: String) {
         let file = root.appendingPathComponent("progress-ui.log")
@@ -53,6 +54,13 @@ final class UpdateProgress: NSObject, NSApplicationDelegate, NSWindowDelegate {
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        start()
+    }
+
+    func start() {
+        guard !initialized else { return }
+        initialized = true
+        if snapshotPath == nil { log("application_ready run=\(runID)") }
         NSApp.setActivationPolicy(.accessory)
         window.title = "BobTV 更新"
         window.appearance = NSAppearance(named: .darkAqua)
@@ -86,7 +94,10 @@ final class UpdateProgress: NSObject, NSApplicationDelegate, NSWindowDelegate {
             bar.widthAnchor.constraint(equalTo: stack.widthAnchor),
             detail.widthAnchor.constraint(equalTo: stack.widthAnchor),
         ])
-        if snapshotPath == nil { timer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { [weak self] _ in self?.refresh() } }
+        if snapshotPath == nil {
+            timer = Timer(timeInterval: 0.5, repeats: true) { [weak self] _ in self?.refresh() }
+            RunLoop.main.add(timer!, forMode: .common)
+        }
         refresh()
         if let path = snapshotPath, let content = window.contentView {
             content.layoutSubtreeIfNeeded()
@@ -170,4 +181,6 @@ let application = NSApplication.shared
 let delegate = UpdateProgress(arguments: CommandLine.arguments)
 application.delegate = delegate
 if !snapshot { delegate.log("observer_started run=\(delegate.runID)") }
+delegate.start()
+application.finishLaunching()
 application.run()

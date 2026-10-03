@@ -71,3 +71,6 @@ jobs:
           if ($backupExe.VersionInfo.FileVersion -ne $previousVersion) { throw 'Backup version changed' }
           if (!(Test-Path -LiteralPath (Join-Path $updateRoot 'candidate.ini'))) { throw 'Startup rollback marker missing' }
           Write-Output "Windows website update installed $($manifest.version) and preserved $previousVersion"
+      - name: Verify automatic discovery by an actual previous GUI
+        shell: pwsh
+        run: '& tools/windows/test_live_automatic_update.ps1'

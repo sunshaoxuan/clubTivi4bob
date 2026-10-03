@@ -57,7 +57,7 @@ jobs:
           Receive-Job $ack
           Remove-Job $ack
           $status = Get-Content -LiteralPath (Join-Path $updateRoot 'status.json') -Raw | ConvertFrom-Json
-          if ($status.phase -ne 'ready') {
+          if ($status.phase -ne 'installed') {
             Get-Content -LiteralPath (Join-Path $updateRoot 'worker.log') -Tail 20
             throw "Update worker stopped at $($status.phase)"
           }

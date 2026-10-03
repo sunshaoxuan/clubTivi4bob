@@ -1,0 +1,33 @@
+name: Windows Updater Repair Validation
+on:
+  workflow_dispatch:
+jobs:
+  actual-gui-update:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - name: Build an isolated previous-version GUI using the repaired launcher
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          (Get-Content pubspec.yaml -Raw) -replace 'version: 0.9.1\+\d+', 'version: 0.9.1+68' | Set-Content pubspec.yaml
+          (Get-Content lib/core/app_version.dart -Raw) -replace "const bobTvVersion = '0.9.1\+\d+';", "const bobTvVersion = '0.9.1+68';" | Set-Content lib/core/app_version.dart
+          flutter pub get
+          flutter test test/desktop_update_feedback_test.dart
+          flutter build windows --release
+          if($LASTEXITCODE -ne 0){throw 'Repair fixture build failed'}
+          $fixture=Join-Path $env:RUNNER_TEMP 'RepairedFixture'
+          Copy-Item build/windows/x64/runner/Release $fixture -Recurse
+      - name: Actual GUI discovery, download, close, backup, installation and healthy startup
+        shell: pwsh
+        run: '& tools/windows/test_live_automatic_update.ps1 -FixtureExecutable "$env:RUNNER_TEMP\RepairedFixture\clubtivi.exe" -CloseWhileDownloading'
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: Windows-repaired-updater-diagnostics
+          path: windows-live-update-diagnostics

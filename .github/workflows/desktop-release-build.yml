@@ -47,6 +47,7 @@ jobs:
           flutter test test/website_channel_catalog_service_test.dart
           test/channel_inventory_sync_service_test.dart test/manual_channel_category_test.dart test/update_manifest_test.dart
           test/manual_category_move_test.dart test/channel_category_picker_interaction_test.dart
+          test/desktop_update_feedback_test.dart
           test/desktop_fullscreen_session_test.dart
           test/window_manager_fullscreen_backend_test.dart
           test/fullscreen_return_navigation_test.dart
@@ -116,6 +117,7 @@ jobs:
           flutter test test/website_channel_catalog_service_test.dart
           test/channel_inventory_sync_service_test.dart test/manual_channel_category_test.dart test/update_manifest_test.dart
           test/manual_category_move_test.dart test/channel_category_picker_interaction_test.dart
+          test/desktop_update_feedback_test.dart
           test/desktop_fullscreen_session_test.dart
           test/window_manager_fullscreen_backend_test.dart
           test/fullscreen_return_navigation_test.dart

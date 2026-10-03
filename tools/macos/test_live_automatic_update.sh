@@ -2,6 +2,7 @@
 set -euo pipefail
 arch="${1:?Pass x64 or arm64}"
 version="${2:?Pass the expected website version}"
+fixture_app="${3:-}"
 [[ "${CI:-}" == true && "$arch" =~ ^(x64|arm64)$ ]]
 [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+\+[0-9]+$ ]]
 site='https://bobtv.briconbric.com'
@@ -12,12 +13,16 @@ mkdir -p "$root" "$HOME/Applications"
 fixture="$(mktemp -d)"
 mount="$fixture/old-image"
 mkdir -p "$mount"
-curl --fail --silent --show-error --max-time 300 \
-  "$site/downloads/BobTV-0.9.1+68-macos-$arch.dmg" -o "$fixture/old.dmg"
-hdiutil verify "$fixture/old.dmg"
-hdiutil attach -readonly -nobrowse -mountpoint "$mount" "$fixture/old.dmg"
-ditto "$mount/BobTV.app" "$app"
-hdiutil detach "$mount"
+if [[ -n "$fixture_app" ]]; then
+  ditto "$fixture_app" "$app"
+else
+  curl --fail --silent --show-error --max-time 300 \
+    "$site/downloads/BobTV-0.9.1+68-macos-$arch.dmg" -o "$fixture/old.dmg"
+  hdiutil verify "$fixture/old.dmg"
+  hdiutil attach -readonly -nobrowse -mountpoint "$mount" "$fixture/old.dmg"
+  ditto "$mount/BobTV.app" "$app"
+  hdiutil detach "$mount"
+fi
 codesign --verify --deep --strict "$app"
 app_version() {
   printf '%s+%s' "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$1/Contents/Info.plist")" \
@@ -73,6 +78,18 @@ for ((n=0; n<120; n++)); do
   sleep 1
 done
 [[ "$installed" == true && -f "$root/candidate.txt" ]]
+if [[ -n "$fixture_app" ]]; then
+  python3 - "$root/status.json" "$version" <<'PY'
+import json, sys
+data=json.load(open(sys.argv[1]))
+assert data['phase']=='installed' and data['version']==sys.argv[2],data
+PY
+  for ((n=0; n<20; n++)); do
+    [[ -f "$root/progress-ui.log" ]] && grep -q window_shown "$root/progress-ui.log" && break
+    sleep 1
+  done
+  grep -q window_shown "$root/progress-ui.log"
+fi
 backup="$(sed -n '2p' "$root/candidate.txt")"
 [[ "$backup" == "$root/Backups/"* && "$(app_version "$backup/BobTV.app")" == '0.9.1+68' ]]
 codesign --verify --deep --strict "$app"

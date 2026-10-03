@@ -19,6 +19,7 @@ class WindowsUpdateService {
   static final instance = WindowsUpdateService._();
   static const _mirrorHost = 'bobtv.briconbric.com';
   static const _maxManifestBytes = 64 * 1024;
+  static const _launcher = MethodChannel('bobtv/updater');
 
   final state = ValueNotifier<WindowsUpdateState>(
     const WindowsUpdateState(WindowsUpdatePhase.idle),
@@ -27,6 +28,10 @@ class WindowsUpdateService {
   bool _started = false;
   Directory? _updateDirectory;
   String? _workerLaunchedForVersion;
+  String? _runId;
+  int? _workerPid;
+  DateTime? _workerStartedAt;
+  bool _readingStatus = false;
 
   void start() {
     if (!Platform.isWindows || _started) return;
@@ -34,6 +39,7 @@ class WindowsUpdateService {
     final localAppData = Platform.environment['LOCALAPPDATA'];
     if (localAppData == null || localAppData.isEmpty) return;
     _updateDirectory = Directory(p.join(localAppData, 'HotelTV', 'Update'));
+    unawaited(_readInstalledStatus());
     if (kReleaseMode) unawaited(_ensureDesktopShortcut());
     Timer.periodic(
       const Duration(seconds: 3),
@@ -52,9 +58,9 @@ class WindowsUpdateService {
     try {
       final manifestUri = await _resolveManifestUri();
       if (manifestUri == null) return;
-      final request = await client.getUrl(manifestUri).timeout(
-        const Duration(seconds: 10),
-      );
+      final request = await client
+          .getUrl(manifestUri)
+          .timeout(const Duration(seconds: 10));
       request.followRedirects = false;
       request.headers.set(HttpHeaders.acceptHeader, 'application/json');
       final response = await request.close().timeout(
@@ -78,7 +84,9 @@ class WindowsUpdateService {
       if (UpdateManifest.compareVersions(manifest.version, bobTvVersion) <= 0) {
         return;
       }
-      final skipped = File(p.join(_updateDirectory!.path, 'skipped_versions.txt'));
+      final skipped = File(
+        p.join(_updateDirectory!.path, 'skipped_versions.txt'),
+      );
       if (await skipped.exists() &&
           (await skipped.readAsLines()).contains(manifest.version)) {
         AppDiagnostics.instance.log('update_skipped_bad_version', {
@@ -86,15 +94,25 @@ class WindowsUpdateService {
         });
         return;
       }
+      if (_workerLaunchedForVersion == manifest.version &&
+          _workerPid != null &&
+          await _isWorkerRunning()) {
+        await _readWorkerStatus();
+        return;
+      }
       state.value = WindowsUpdateState(
-        WindowsUpdatePhase.available,
+        WindowsUpdatePhase.starting,
         version: manifest.version,
+        message: '正在启动更新助手，尚未开始下载。',
       );
-      if (_workerLaunchedForVersion == manifest.version) return;
       await _launchWorker(manifest);
-      _workerLaunchedForVersion = manifest.version;
     } catch (error, stack) {
       AppDiagnostics.instance.recordError('update_check', error, stack);
+      state.value = WindowsUpdateState(
+        WindowsUpdatePhase.failed,
+        version: state.value.version,
+        message: '更新未完成：$error。当前版本可继续使用，点击重试更新。',
+      );
     } finally {
       client.close(force: true);
       _checking = false;
@@ -129,20 +147,28 @@ class WindowsUpdateService {
     await _writeShortcutScript();
     final script = File(p.join(directory.path, 'worker.ps1'));
     final source = await rootBundle.loadString('assets/updater/worker.ps1');
-    await script.writeAsBytes(
-      [0xef, 0xbb, 0xbf, ...utf8.encode(source)],
-      flush: true,
-    );
+    await script.writeAsBytes([
+      0xef,
+      0xbb,
+      0xbf,
+      ...utf8.encode(source),
+    ], flush: true);
+    final progressScript = File(p.join(directory.path, 'progress_ui.ps1'));
+    await progressScript.writeAsBytes([
+      0xef,
+      0xbb,
+      0xbf,
+      ...utf8.encode(
+        await rootBundle.loadString('assets/updater/progress_ui.ps1'),
+      ),
+    ], flush: true);
     final appDirectory = p.dirname(Platform.resolvedExecutable);
-    await Process.start(
-      'powershell.exe',
-      [
-        '-NoProfile',
-        '-NonInteractive',
-        '-WindowStyle',
-        'Hidden',
-        '-ExecutionPolicy',
-        'Bypass',
+    _runId = '${DateTime.now().microsecondsSinceEpoch}-$pid';
+    _workerStartedAt = DateTime.now();
+    _workerLaunchedForVersion = manifest.version;
+    _workerPid = await _launcher.invokeMethod<int>('launch', {
+      'logPath': p.join(directory.path, 'launcher.log'),
+      'arguments': [
         '-File',
         script.path,
         '-Mode',
@@ -159,13 +185,88 @@ class WindowsUpdateService {
         manifest.sha256,
         '-Bytes',
         '${manifest.bytes}',
+        '-RunId',
+        _runId!,
       ],
-      mode: ProcessStartMode.detached,
-      runInShell: false,
-    );
+    });
+    if (_workerPid == null || _workerPid! <= 0) {
+      throw StateError('更新助手未返回有效的进程编号');
+    }
     AppDiagnostics.instance.log('update_worker_started', {
       'version': manifest.version,
+      'pid': _workerPid,
+      'runId': _runId,
     });
+    // The independent progress window waits for this BobTV process to exit.
+    // It remains alive when Flutter exits and does not hold player files open.
+    try {
+      await _launcher.invokeMethod<int>('launch', {
+        'logPath': p.join(directory.path, 'progress-ui-launcher.log'),
+        'arguments': [
+          '-File',
+          progressScript.path,
+          '-CurrentPid',
+          '$pid',
+          '-Version',
+          manifest.version,
+          '-RunId',
+          _runId!,
+          '-WorkerPid',
+          '$_workerPid',
+          '-AppDir',
+          appDirectory,
+        ],
+      });
+    } catch (error, stack) {
+      AppDiagnostics.instance.recordError(
+        'update_progress_window',
+        error,
+        stack,
+      );
+      state.value = WindowsUpdateState(
+        WindowsUpdatePhase.starting,
+        version: manifest.version,
+        message: '更新助手已启动，但独立进度窗口启动失败。详情已写入更新日志。',
+      );
+    }
+    // Do not claim download has started merely because CreateProcess succeeded.
+    await _readWorkerStatus();
+  }
+
+  Future<bool> _isWorkerRunning() async =>
+      _workerPid != null &&
+      await _launcher.invokeMethod<bool>('isRunning', {'pid': _workerPid}) ==
+          true;
+
+  Future<void> _readInstalledStatus() async {
+    try {
+      final file = File(p.join(_updateDirectory!.path, 'status.json'));
+      if (!await file.exists()) return;
+      final data = jsonDecode(await file.readAsString());
+      if (data is! Map<String, dynamic> ||
+          data['phase'] != 'installed' ||
+          data['version'] != bobTvVersion ||
+          _workerPid != null ||
+          state.value.phase != WindowsUpdatePhase.idle) {
+        return;
+      }
+      state.value = WindowsUpdateState(
+        WindowsUpdatePhase.installed,
+        version: bobTvVersion,
+        message: '已成功升级至 $bobTvVersion，旧版备份已保留。',
+      );
+      Timer(const Duration(seconds: 40), () {
+        if (state.value.phase == WindowsUpdatePhase.installed) {
+          state.value = const WindowsUpdateState(WindowsUpdatePhase.idle);
+        }
+      });
+    } catch (error, stack) {
+      AppDiagnostics.instance.recordError(
+        'update_installed_status',
+        error,
+        stack,
+      );
+    }
   }
 
   Future<File> _writeShortcutScript() async {
@@ -175,72 +276,90 @@ class WindowsUpdateService {
     final source = await rootBundle.loadString(
       'assets/updater/ensure_shortcut.ps1',
     );
-    await script.writeAsBytes(
-      [0xef, 0xbb, 0xbf, ...utf8.encode(source)],
-      flush: true,
-    );
+    await script.writeAsBytes([
+      0xef,
+      0xbb,
+      0xbf,
+      ...utf8.encode(source),
+    ], flush: true);
     return script;
   }
 
   Future<void> _ensureDesktopShortcut() async {
     try {
       final script = await _writeShortcutScript();
-      final result = await Process.run(
-        'powershell.exe',
-        [
-          '-NoProfile',
-          '-NonInteractive',
-          '-ExecutionPolicy',
-          'Bypass',
-          '-File',
-          script.path,
-          '-ExecutablePath',
-          Platform.resolvedExecutable,
-        ],
-        runInShell: false,
-      ).timeout(const Duration(seconds: 20));
+      final result = await Process.run('powershell.exe', [
+        '-NoProfile',
+        '-NonInteractive',
+        '-ExecutionPolicy',
+        'Bypass',
+        '-File',
+        script.path,
+        '-ExecutablePath',
+        Platform.resolvedExecutable,
+      ], runInShell: false).timeout(const Duration(seconds: 20));
       if (result.exitCode != 0) {
-        throw StateError('Desktop shortcut creation failed: ${result.exitCode}');
+        throw StateError(
+          'Desktop shortcut creation failed: ${result.exitCode}',
+        );
       }
     } catch (error, stackTrace) {
       AppDiagnostics.instance.recordError(
-        'desktop_shortcut', error, stackTrace,
+        'desktop_shortcut',
+        error,
+        stackTrace,
       );
     }
   }
 
   Future<void> _readWorkerStatus() async {
     final directory = _updateDirectory;
-    if (directory == null) return;
-    final file = File(p.join(directory.path, 'status.json'));
-    if (!await file.exists()) return;
+    if (directory == null || _workerPid == null || _readingStatus) return;
+    _readingStatus = true;
+    final file = File(p.join(directory.path, 'status-$_runId.json'));
     try {
-      final decoded = jsonDecode(await file.readAsString());
-      if (decoded is! Map<String, dynamic>) return;
-      final version = decoded['version'];
-      if (version is! String ||
-          UpdateManifest.compareVersions(version, bobTvVersion) <= 0) {
+      WindowsUpdateState? reported;
+      if (await file.exists()) {
+        final decoded = jsonDecode(await file.readAsString());
+        if (decoded is Map<String, dynamic>) {
+          reported = WindowsUpdateState.fromWorkerStatus(
+            decoded,
+            version: _workerLaunchedForVersion!,
+            runId: _runId,
+            workerPid: _workerPid,
+          );
+        }
+      }
+      if (reported != null) state.value = reported;
+      if (reported?.phase == WindowsUpdatePhase.failed ||
+          reported?.phase == WindowsUpdatePhase.installed) {
         return;
       }
-      final phase = switch (decoded['phase']) {
-        'downloading' => WindowsUpdatePhase.downloading,
-        'ready' => WindowsUpdatePhase.ready,
-        'installing' => WindowsUpdatePhase.installing,
-        'failed' => WindowsUpdatePhase.failed,
-        _ => WindowsUpdatePhase.available,
-      };
-      if (phase == WindowsUpdatePhase.failed &&
-          _workerLaunchedForVersion == version) {
-        _workerLaunchedForVersion = null;
+      if (!await _isWorkerRunning()) {
+        state.value = WindowsUpdateState(
+          WindowsUpdatePhase.failed,
+          version: _workerLaunchedForVersion,
+          message: '更新助手意外退出，下载或安装尚未完成。点击重试；启动错误记录在 launcher.log。',
+        );
+        AppDiagnostics.instance.log('update_worker_exited', {
+          'version': _workerLaunchedForVersion,
+          'pid': _workerPid,
+          'runId': _runId,
+        });
+      } else if (reported == null &&
+          _workerStartedAt != null &&
+          DateTime.now().difference(_workerStartedAt!) >
+              const Duration(seconds: 30)) {
+        state.value = WindowsUpdateState(
+          WindowsUpdatePhase.failed,
+          version: _workerLaunchedForVersion,
+          message: '更新助手启动后 30 秒仍未返回工作状态，请查看 launcher.log 或重试。',
+        );
       }
-      state.value = WindowsUpdateState(
-        phase,
-        version: version,
-        percent: decoded['percent'] is int ? decoded['percent'] as int : null,
-        message: decoded['message'] is String ? decoded['message'] as String : null,
-      );
-    } catch (_) {
-      // The writer atomically replaces this file. A transient read can retry.
+    } catch (error, stack) {
+      AppDiagnostics.instance.recordError('update_status_read', error, stack);
+    } finally {
+      _readingStatus = false;
     }
   }
 

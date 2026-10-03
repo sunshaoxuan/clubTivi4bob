@@ -6,6 +6,7 @@ param(
   [string]$ArchiveUrl,
   [string]$Sha256,
   [long]$Bytes,
+  [string]$RunId,
   [string]$TestRoot
 )
 
@@ -24,6 +25,11 @@ if ($TestRoot) {
 }
 $statePath = Join-Path $root 'candidate.ini'
 $statusPath = Join-Path $root 'status.json'
+$runStatusPath = $null
+if($RunId) {
+  if($RunId -notmatch '^[A-Za-z0-9-]{1,100}$'){throw 'Invalid updater run ID'}
+  $runStatusPath=Join-Path $root ('status-'+$RunId+'.json')
+}
 $markerPath = Join-Path $root 'startup.marker'
 $healthyPath = Join-Path $root 'startup.healthy'
 $skippedPath = Join-Path $root 'skipped_versions.txt'
@@ -46,10 +52,19 @@ function Write-Status([string]$phase, [string]$version, [int]$percent,
     percent = $percent
     message = $message
     time = [DateTime]::UtcNow.ToString('o')
+    runId = $RunId
+    workerPid = $PID
+    receivedBytes = $script:receivedBytes
+    totalBytes = $Bytes
   } | ConvertTo-Json -Compress
-  $temp = $statusPath + '.tmp'
-  [IO.File]::WriteAllText($temp, $json, (New-Object Text.UTF8Encoding($false)))
-  Move-Item -LiteralPath $temp -Destination $statusPath -Force
+  $paths=@()
+  if(!$RunId -or $script:locked){$paths+=@($statusPath)}
+  if($runStatusPath){$paths+=@($runStatusPath)}
+  foreach($path in $paths){
+    $temp = $path + '.tmp'
+    [IO.File]::WriteAllText($temp, $json, (New-Object Text.UTF8Encoding($false)))
+    Move-Item -LiteralPath $temp -Destination $path -Force
+  }
 }
 
 function Read-State {
@@ -183,12 +198,21 @@ function Perform-Rollback {
 }
 
 $monitoring = $Mode -eq 'Monitor'
+if($Mode -eq 'Update') {
+  Write-Log ('Worker started for ' + $Version + '; PID=' + $PID + '; run=' + $RunId)
+  Write-Status 'starting' $Version 0 '更新助手已启动，正在准备下载'
+}
 if ($monitoring) { Wait-ForExit $CurrentPid }
 $mutex = New-Object Threading.Mutex($false, 'Local\BobTVUpdater')
 $locked = $false
 try {
   $locked = $mutex.WaitOne(0)
-  if (!$locked) { return }
+  if (!$locked) {
+    if($Mode -eq 'Update') {
+      Write-Status 'failed' $Version 0 '已有更新任务正在运行，请等待完成后再重试'
+    }
+    return
+  }
 
   if ($Mode -eq 'Rollback') {
     Wait-ForExit $CurrentPid
@@ -262,7 +286,8 @@ try {
     $handler = New-Object Net.Http.HttpClientHandler
     $handler.AllowAutoRedirect = $false
     $http = New-Object Net.Http.HttpClient($handler)
-    $http.Timeout = [TimeSpan]::FromHours(4)
+    $http.Timeout = [TimeSpan]::FromSeconds(45)
+    $http.DefaultRequestHeaders.UserAgent.ParseAdd('BobTV/0.9.1 updater')
     try {
       $response = $http.GetAsync(
         $uri, [Net.Http.HttpCompletionOption]::ResponseHeadersRead
@@ -276,9 +301,14 @@ try {
         $buffer = New-Object byte[] (1024 * 1024)
         [long]$received = 0
         $lastPercent = -1
-        while (($count = $stream.Read($buffer, 0, $buffer.Length)) -gt 0) {
+        while ($true) {
+          $read=$stream.ReadAsync($buffer,0,$buffer.Length)
+          if(!$read.Wait(30000)){throw '下载连接连续 30 秒没有收到数据，请重试'}
+          $count=$read.GetAwaiter().GetResult()
+          if($count -le 0){break}
           $output.Write($buffer, 0, $count)
           $received += $count
+          $script:receivedBytes = $received
           if ($received -gt $Bytes) { throw 'Downloaded file too large' }
           $percent = [int][Math]::Floor(100.0 * $received / $Bytes)
           if ($percent -ne $lastPercent) {
@@ -294,12 +324,15 @@ try {
       $http.Dispose()
       $handler.Dispose()
     }
+    Write-Status 'verifying' $Version 100 '下载完成，正在校验文件大小与完整性'
     if ((Get-Item -LiteralPath $partial).Length -ne $Bytes -or
         (Get-FileHash -LiteralPath $partial -Algorithm SHA256).Hash -ine $Sha256) {
       throw 'Download integrity check failed'
     }
     Move-Item -LiteralPath $partial -Destination $archive -Force
   }
+
+  Write-Status 'verifying' $Version 100 '正在检查安装包内容与版本'
 
   $stage = Join-Path $root ('Stage\' + $Version.Replace('+', '_') + '-' +
                              [guid]::NewGuid().ToString('N'))
@@ -340,7 +373,7 @@ try {
       !(Test-Path -LiteralPath (Join-Path $bundle 'data\app.so'))) {
     throw 'Package version or app data mismatch'
   }
-  Write-Status 'ready' $Version 100 '更新已下载，关闭 BobTV 后自动安装'
+  Write-Status 'ready' $Version 100 '更新已下载并校验通过，关闭 BobTV 后自动安装'
   Wait-ForExit $CurrentPid
   Wait-ForAppIdle $AppDir
   $exe = @('clubtivi.exe', 'BobTV.exe') |
@@ -356,6 +389,7 @@ try {
   $backup = Join-Path $root ('Backups\' + $Version.Replace('+', '_') + '-' +
                              [DateTime]::UtcNow.ToString('yyyyMMddHHmmss') + '-' +
                              [guid]::NewGuid().ToString('N'))
+  Write-Status 'backingUp' $Version 0 '正在备份旧版，完成后开始安装'
   Copy-Contents $AppDir $backup
   if ((Get-FileHash (Join-Path $AppDir 'data\app.so')).Hash -ne
       (Get-FileHash (Join-Path $backup 'data\app.so')).Hash) {
@@ -378,12 +412,15 @@ try {
            $newline + 'Attempts=0' + $newline
   [IO.File]::WriteAllText($statePath, $state, (New-Object Text.UTF8Encoding($false)))
   try {
+    $installedFiles=0
     foreach ($file in $files) {
       $relative = $file.FullName.Substring($bundle.Length).TrimStart('\')
       if ($relative -ieq 'BobTV.exe') { continue }
       $destination = Join-Path $AppDir $relative
       New-Item -ItemType Directory -Path (Split-Path $destination) -Force | Out-Null
       Copy-Item -LiteralPath $file.FullName -Destination $destination -Force
+      $installedFiles++
+      Write-Status 'installing' $Version ([int](100*$installedFiles/$files.Count)) '正在安装更新，请稍候'
     }
     Copy-Item -LiteralPath (Join-Path $bundle 'BobTV.exe') -Destination (
       Join-Path $AppDir $exe) -Force
@@ -405,14 +442,14 @@ try {
       }
     }
   }
-  Write-Status 'ready' $Version 100 '更新已安装，下次启动生效'
+  Write-Status 'installed' $Version 100 '安装完成，旧版已备份，下次启动即为新版本'
   Write-Log ('Installed ' + $Version)
   try { Remove-Item -LiteralPath $stage -Recurse -Force }
   catch { Write-Log ('Stage cleanup deferred: ' + $_.Exception.Message) }
 } catch {
   Write-Log $_.Exception.ToString()
   if ($Version -match '^\d+\.\d+\.\d+\+\d+$') {
-    Write-Status 'failed' $Version 0 '更新失败，当前版本保持不变'
+    Write-Status 'failed' $Version 0 ('更新未完成：' + $_.Exception.Message + '。详细记录见 worker.log 和 launcher.log。')
   }
 } finally {
   if ($locked) { $mutex.ReleaseMutex() }

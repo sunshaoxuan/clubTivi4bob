@@ -1,15 +1,21 @@
+param([string]$FixtureExecutable, [switch]$CloseWhileDownloading)
 $ErrorActionPreference='Stop'
 if($env:CI -ne 'true'){throw 'This clean-install GUI test is restricted to CI'}
 $site='https://bobtv.briconbric.com'
 $manifest=Invoke-RestMethod "$site/updates/windows-x64/latest.json"
 $fixture=Join-Path $env:TEMP ('BobTVUpdaterTests\gui-'+[guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory -Path $fixture -Force|Out-Null
-Invoke-WebRequest "$site/downloads/BobTV-0.9.1+68-windows-x64.zip" -OutFile "$fixture\previous.zip"
-Expand-Archive -LiteralPath "$fixture\previous.zip" -DestinationPath "$fixture\Previous"
-$exe=(Get-ChildItem "$fixture\Previous" -Recurse -File|Where-Object Name -eq 'BobTV.exe'|Select-Object -First 1).FullName
+if($FixtureExecutable){
+  $exe=(Resolve-Path -LiteralPath $FixtureExecutable).Path
+}else{
+  Invoke-WebRequest "$site/downloads/BobTV-0.9.1+68-windows-x64.zip" -OutFile "$fixture\previous.zip"
+  Expand-Archive -LiteralPath "$fixture\previous.zip" -DestinationPath "$fixture\Previous"
+  $exe=(Get-ChildItem "$fixture\Previous" -Recurse -File|Where-Object Name -eq 'BobTV.exe'|Select-Object -First 1).FullName
+}
 if(!$exe -or (Get-Item $exe).VersionInfo.FileVersion -ne '0.9.1+68'){throw 'Previous GUI missing'}
 $savedLocalAppData=$env:LOCALAPPDATA
 $env:LOCALAPPDATA=Join-Path $fixture 'LocalAppData'
+$env:BOBTV_PROGRESS_CAPTURE_DIR=Join-Path $fixture 'progress-screenshots'
 $root=Join-Path $env:LOCALAPPDATA 'HotelTV\Update'
 $appProcess=$null
 function Stop-TestApp {
@@ -22,9 +28,10 @@ function Stop-TestApp {
 try{
   $appProcess=Start-Process $exe -WorkingDirectory (Split-Path $exe) -PassThru
   $ready=$false
+  $closedEarly=$false
   for($n=0;$n -lt 300;$n++){
     $appProcess.Refresh()
-    if($appProcess.HasExited){throw 'Previous GUI exited before update discovery'}
+    if($appProcess.HasExited -and !$closedEarly){throw 'Previous GUI exited before update discovery'}
     if($n % 60 -eq 0){
       Write-Output "GUI PID $($appProcess.Id), update root $root, wait $n seconds"
       Get-ChildItem $root -ErrorAction SilentlyContinue|Select-Object Name,Length
@@ -35,11 +42,16 @@ try{
       $status=Get-Content "$root\status.json" -Raw|ConvertFrom-Json
       if($status.phase -eq 'ready' -and $status.version -eq $manifest.version){$ready=$true;break}
       if($status.phase -eq 'failed'){throw 'GUI update worker failed'}
+      if($CloseWhileDownloading -and !$closedEarly -and $status.phase -eq 'downloading'){
+        Stop-TestApp; $closedEarly=$true
+        Write-Output 'Closed the player while the actual updater was downloading.'
+      }
+      if($closedEarly -and $status.phase -eq 'installed'){$ready=$true;break}
     }
     Start-Sleep -Seconds 1
   }
   if(!$ready){throw 'Previous GUI did not automatically discover and download the website update'}
-  if((Get-Item $exe).VersionInfo.FileVersion -ne '0.9.1+68'){throw 'Installed before old app exited'}
+  if(!$closedEarly -and (Get-Item $exe).VersionInfo.FileVersion -ne '0.9.1+68'){throw 'Installed before old app exited'}
   Stop-TestApp
   $installed=$false
   for($n=0;$n -lt 120;$n++){
@@ -47,6 +59,12 @@ try{
     Start-Sleep -Seconds 1
   }
   if(!$installed){throw 'New GUI was not installed after exit'}
+  $finished=Get-Content "$root\status.json" -Raw|ConvertFrom-Json
+  if($FixtureExecutable -and $finished.phase -ne 'installed'){throw 'Missing explicit installation-complete status'}
+  if($FixtureExecutable){
+    $ui=Get-Content "$root\progress-ui.log" -Raw -ErrorAction SilentlyContinue
+    if($ui -notmatch 'window_shown'){throw 'Independent update window did not report being shown'}
+  }
   $backup=Get-ChildItem "$root\Backups" -Directory|Select-Object -First 1
   if(!$backup -or (Get-Item (Join-Path $backup.FullName 'BobTV.exe')).VersionInfo.FileVersion -ne '0.9.1+68'){
     throw 'Previous GUI backup missing'
@@ -78,6 +96,8 @@ try{
         Copy-Item -Destination $diagnostics -Force
     }
   }
+  if(Test-Path $env:BOBTV_PROGRESS_CAPTURE_DIR){Copy-Item $env:BOBTV_PROGRESS_CAPTURE_DIR $diagnostics -Recurse -Force}
+  Remove-Item Env:BOBTV_PROGRESS_CAPTURE_DIR -ErrorAction SilentlyContinue
   $worker=Join-Path $root 'worker.ps1'
   if(Test-Path $worker){
     & powershell.exe -NoProfile -NonInteractive -WindowStyle Hidden -ExecutionPolicy Bypass `

@@ -30,6 +30,10 @@ class MacUpdateService {
   bool _checking = false;
   String? _workerLaunchedForVersion;
   String? _reportedFailureVersion;
+  String? _runId;
+  int? _workerPid;
+  DateTime? _workerStartedAt;
+  bool _readingStatus = false;
   final Completer<void> _healthMonitorReady = Completer<void>();
 
   void start() {
@@ -43,6 +47,7 @@ class MacUpdateService {
       final support = await getApplicationSupportDirectory();
       _directory = Directory(p.join(support.path, 'Update'));
       await _directory!.create(recursive: true);
+      await _readInstalledStatus();
       await _startHealthMonitor();
       _healthMonitorReady.complete();
       Timer.periodic(const Duration(seconds: 3), (_) {
@@ -65,9 +70,9 @@ class MacUpdateService {
     try {
       final manifestUri = await _resolveManifestUri();
       if (manifestUri == null) return;
-      final request = await client.getUrl(manifestUri).timeout(
-        const Duration(seconds: 10),
-      );
+      final request = await client
+          .getUrl(manifestUri)
+          .timeout(const Duration(seconds: 10));
       request.followRedirects = false;
       request.headers.set(HttpHeaders.acceptHeader, 'application/json');
       final response = await request.close().timeout(
@@ -85,7 +90,8 @@ class MacUpdateService {
         buffer.add(chunk);
       }
       final manifest = UpdateManifest.parse(
-        utf8.decode(buffer.takeBytes()), manifestUri,
+        utf8.decode(buffer.takeBytes()),
+        manifestUri,
       );
       if (manifest.signature == null) {
         throw const FormatException('Mac update has no publisher signature');
@@ -98,14 +104,29 @@ class MacUpdateService {
           (await skipped.readAsLines()).contains(manifest.version)) {
         return;
       }
+      if (_workerLaunchedForVersion == manifest.version &&
+          _workerPid != null &&
+          await _isWorkerRunning()) {
+        await _readWorkerStatus();
+        return;
+      }
       state.value = WindowsUpdateState(
-        WindowsUpdatePhase.available, version: manifest.version,
+        WindowsUpdatePhase.starting,
+        version: manifest.version,
+        message: '正在启动更新助手，尚未开始下载。',
       );
-      if (_workerLaunchedForVersion == manifest.version) return;
       await _launchWorker(manifest);
-      _workerLaunchedForVersion = manifest.version;
     } catch (error, stackTrace) {
-      AppDiagnostics.instance.recordError('mac_update_check', error, stackTrace);
+      AppDiagnostics.instance.recordError(
+        'mac_update_check',
+        error,
+        stackTrace,
+      );
+      state.value = WindowsUpdateState(
+        WindowsUpdatePhase.failed,
+        version: state.value.version,
+        message: '更新未完成：$error。当前版本可继续使用，点击重试更新。',
+      );
     } finally {
       client.close(force: true);
       _checking = false;
@@ -113,21 +134,27 @@ class MacUpdateService {
   }
 
   Future<Uri?> _resolveManifestUri() async {
-    final configured = File(p.join(_directory!.path, 'update-manifest-url.txt'));
+    final configured = File(
+      p.join(_directory!.path, 'update-manifest-url.txt'),
+    );
     final machine = await Process.run('/usr/bin/uname', ['-m']);
     if (machine.exitCode != 0) {
       throw const FormatException('Cannot determine Mac architecture');
     }
     final architecture = machine.stdout.toString().trim() == 'arm64'
-        ? 'arm64' : 'x64';
+        ? 'arm64'
+        : 'x64';
     final address = await configured.exists()
         ? (await configured.readAsString()).trim()
         : 'https://$_mirrorHost/updates/macos-$architecture/latest.json';
     final candidate = Uri.tryParse(address);
-    if (candidate == null || candidate.scheme != 'https' ||
-        candidate.host != _mirrorHost || candidate.userInfo.isNotEmpty ||
+    if (candidate == null ||
+        candidate.scheme != 'https' ||
+        candidate.host != _mirrorHost ||
+        candidate.userInfo.isNotEmpty ||
         candidate.hasPort ||
-        candidate.hasQuery || candidate.hasFragment ||
+        candidate.hasQuery ||
+        candidate.hasFragment ||
         !candidate.path.startsWith('/updates/') ||
         !candidate.path.endsWith('.json')) {
       throw const FormatException('Invalid Mac update manifest URL');
@@ -135,9 +162,8 @@ class MacUpdateService {
     return candidate;
   }
 
-  String get _appPath => p.normalize(p.join(
-    p.dirname(Platform.resolvedExecutable), '..', '..',
-  ));
+  String get _appPath =>
+      p.normalize(p.join(p.dirname(Platform.resolvedExecutable), '..', '..'));
 
   Future<File> _writeWorker() async {
     final file = File(p.join(_directory!.path, 'mac_worker.sh'));
@@ -146,36 +172,132 @@ class MacUpdateService {
     final publicKey = await rootBundle.loadString(
       'assets/updater/update-signing-public.pem',
     );
-    await File(p.join(_directory!.path, 'update-signing-public.pem'))
-        .writeAsString(publicKey, flush: true);
+    await File(
+      p.join(_directory!.path, 'update-signing-public.pem'),
+    ).writeAsString(publicKey, flush: true);
     return file;
   }
 
   Future<void> _launchWorker(UpdateManifest manifest) async {
     final script = await _writeWorker();
-    await Process.start('/bin/bash', [
-      script.path, 'update', _directory!.path, _appPath, '$pid',
-      manifest.version, manifest.archive.toString(), manifest.sha256,
-      '${manifest.bytes}',
-      manifest.signature!,
-    ], mode: ProcessStartMode.detached, runInShell: false);
+    _runId = '${DateTime.now().microsecondsSinceEpoch}-$pid';
+    _workerStartedAt = DateTime.now();
+    _workerLaunchedForVersion = manifest.version;
+    final process = await Process.start(
+      '/bin/bash',
+      [
+        script.path,
+        'update',
+        _directory!.path,
+        _appPath,
+        '$pid',
+        manifest.version,
+        manifest.archive.toString(),
+        manifest.sha256,
+        '${manifest.bytes}',
+        manifest.signature!,
+        _runId!,
+      ],
+      mode: ProcessStartMode.detached,
+      runInShell: false,
+    );
+    _workerPid = process.pid;
     AppDiagnostics.instance.log('mac_update_worker_started', {
       'version': manifest.version,
+      'pid': _workerPid,
+      'runId': _runId,
     });
+    try {
+      final source = p.join(
+        _appPath,
+        'Contents',
+        'Resources',
+        'Updater',
+        'BobTVUpdateProgress',
+      );
+      final destination = p.join(_directory!.path, 'progress-$_runId');
+      final copy = await Process.run('/usr/bin/ditto', [source, destination]);
+      if (copy.exitCode != 0) throw StateError('无法准备独立更新窗口');
+      await Process.start(
+        destination,
+        [
+          _directory!.path,
+          _appPath,
+          '$pid',
+          '$_workerPid',
+          manifest.version,
+          _runId!,
+        ],
+        mode: ProcessStartMode.detached,
+        runInShell: false,
+      );
+    } catch (error, stack) {
+      AppDiagnostics.instance.recordError(
+        'mac_update_progress_window',
+        error,
+        stack,
+      );
+      state.value = WindowsUpdateState(
+        WindowsUpdatePhase.starting,
+        version: manifest.version,
+        message: '更新助手已启动，但独立进度窗口未能启动，详情已写入日志。',
+      );
+    }
+    await _readWorkerStatus();
+  }
+
+  Future<bool> _isWorkerRunning() async {
+    if (_workerPid == null) return false;
+    final result = await Process.run('/bin/kill', ['-0', '$_workerPid']);
+    return result.exitCode == 0;
+  }
+
+  Future<void> _readInstalledStatus() async {
+    try {
+      final file = File(p.join(_directory!.path, 'status.json'));
+      if (!await file.exists()) return;
+      final data = jsonDecode(await file.readAsString());
+      if (data is! Map<String, dynamic> ||
+          data['phase'] != 'installed' ||
+          data['version'] != bobTvVersion ||
+          state.value.phase != WindowsUpdatePhase.idle) {
+        return;
+      }
+      state.value = WindowsUpdateState(
+        WindowsUpdatePhase.installed,
+        version: bobTvVersion,
+        message: '已成功升级至 $bobTvVersion，旧版备份已保留。',
+      );
+      Timer(const Duration(seconds: 40), () {
+        if (state.value.phase == WindowsUpdatePhase.installed) {
+          state.value = const WindowsUpdateState(WindowsUpdatePhase.idle);
+        }
+      });
+    } catch (error, stack) {
+      AppDiagnostics.instance.recordError(
+        'mac_update_installed_status',
+        error,
+        stack,
+      );
+    }
   }
 
   Future<void> _startHealthMonitor() async {
     final candidate = File(p.join(_directory!.path, 'candidate.txt'));
     if (!await candidate.exists()) return;
     final marker = File(p.join(_directory!.path, 'startup.marker'));
-    if (await marker.exists() && (await marker.readAsString()).trim() == '$pid') {
+    if (await marker.exists() &&
+        (await marker.readAsString()).trim() == '$pid') {
       return;
     }
     await marker.writeAsString('$pid', flush: true);
     final script = await _writeWorker();
-    await Process.start('/bin/bash', [
-      script.path, 'monitor', _directory!.path, _appPath, '$pid',
-    ], mode: ProcessStartMode.detached, runInShell: false);
+    await Process.start(
+      '/bin/bash',
+      [script.path, 'monitor', _directory!.path, _appPath, '$pid'],
+      mode: ProcessStartMode.detached,
+      runInShell: false,
+    );
   }
 
   Future<void> markStartupHealthy() async {
@@ -187,44 +309,69 @@ class MacUpdateService {
     }
     final marker = File(p.join(_directory!.path, 'startup.marker'));
     if (!await marker.exists()) return;
-    await File(p.join(_directory!.path, 'startup.healthy'))
-        .writeAsString('$pid', flush: true);
+    await File(
+      p.join(_directory!.path, 'startup.healthy'),
+    ).writeAsString('$pid', flush: true);
     await marker.delete();
   }
 
   Future<void> _readWorkerStatus() async {
     final directory = _directory;
-    if (directory == null) return;
-    final file = File(p.join(directory.path, 'status.json'));
-    if (!await file.exists()) return;
+    if (directory == null || _workerPid == null || _readingStatus) return;
+    _readingStatus = true;
+    final file = File(p.join(directory.path, 'status-$_runId.json'));
     try {
-      final decoded = jsonDecode(await file.readAsString());
-      if (decoded is! Map<String, dynamic>) return;
-      final version = decoded['version'];
-      if (version is! String ||
-          UpdateManifest.compareVersions(version, bobTvVersion) <= 0) return;
-      final phase = switch (decoded['phase']) {
-        'downloading' => WindowsUpdatePhase.downloading,
-        'ready' => WindowsUpdatePhase.ready,
-        'installing' => WindowsUpdatePhase.installing,
-        'failed' => WindowsUpdatePhase.failed,
-        _ => WindowsUpdatePhase.available,
-      };
-      if (phase == WindowsUpdatePhase.failed &&
-          _workerLaunchedForVersion == version) {
-        _workerLaunchedForVersion = null;
+      WindowsUpdateState? reported;
+      if (await file.exists()) {
+        final decoded = jsonDecode(await file.readAsString());
+        if (decoded is Map<String, dynamic>) {
+          reported = WindowsUpdateState.fromWorkerStatus(
+            decoded,
+            version: _workerLaunchedForVersion!,
+            runId: _runId,
+          );
+        }
       }
-      if (phase == WindowsUpdatePhase.failed &&
-          _reportedFailureVersion != version) {
-        _reportedFailureVersion = version;
+      if (reported != null) state.value = reported;
+      if (reported?.phase == WindowsUpdatePhase.failed ||
+          reported?.phase == WindowsUpdatePhase.installed) {
+        if (_reportedFailureVersion != reported!.version &&
+            reported.phase == WindowsUpdatePhase.failed) {
+          _reportedFailureVersion = reported.version;
+          AppDiagnostics.instance.log('mac_update_failed', {
+            'version': reported.version,
+          });
+        }
+        return;
+      }
+      if (!await _isWorkerRunning()) {
+        state.value = WindowsUpdateState(
+          WindowsUpdatePhase.failed,
+          version: _workerLaunchedForVersion,
+          message: '更新助手意外退出，下载或安装尚未完成。请查看 worker.log 后重试。',
+        );
         AppDiagnostics.instance.log('mac_update_failed', {
-          'version': version,
+          'version': _workerLaunchedForVersion,
+          'pid': _workerPid,
         });
+      } else if (reported == null &&
+          _workerStartedAt != null &&
+          DateTime.now().difference(_workerStartedAt!) >
+              const Duration(seconds: 30)) {
+        state.value = WindowsUpdateState(
+          WindowsUpdatePhase.failed,
+          version: _workerLaunchedForVersion,
+          message: '更新助手启动后 30 秒仍未返回工作状态，请查看 worker.log 或重试。',
+        );
       }
-      state.value = WindowsUpdateState(phase, version: version,
-        percent: decoded['percent'] is int ? decoded['percent'] as int : null);
-    } catch (_) {
-      // A concurrent status replacement can be read again on the next tick.
+    } catch (error, stack) {
+      AppDiagnostics.instance.recordError(
+        'mac_update_status_read',
+        error,
+        stack,
+      );
+    } finally {
+      _readingStatus = false;
     }
   }
 }

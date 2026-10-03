@@ -37,9 +37,9 @@ import '../../data/services/manual_route_cycle.dart';
 import '../../data/services/channel_name_normalizer.dart';
 import '../../data/services/source_visibility.dart';
 import '../../data/services/source_maintenance_service.dart';
-import '../../data/services/desktop_update_state.dart';
 import '../../data/services/website_channel_catalog_service.dart';
 import '../../data/services/desktop_update_service.dart';
+import 'desktop_update_badge.dart';
 import '../player/player_service.dart';
 import '../player/alternative_preview_overlay.dart';
 import '../player/stream_info_badges.dart';
@@ -3137,46 +3137,9 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
   }
 
   Widget _buildUpdateBadge() {
-    return ValueListenableBuilder<WindowsUpdateState>(
-      valueListenable: DesktopUpdateService.instance.state,
-      builder: (context, update, _) {
-        if (!update.visible) return const SizedBox.shrink();
-        final label = switch (update.phase) {
-          WindowsUpdatePhase.downloading => '更新 ${update.percent ?? 0}%',
-          WindowsUpdatePhase.ready => '更新已就绪',
-          WindowsUpdatePhase.installing => '正在更新',
-          WindowsUpdatePhase.failed => '更新失败',
-          _ => '发现新版本',
-        };
-        return Padding(
-          padding: const EdgeInsets.only(right: 12),
-          child: Tooltip(
-            message: update.message ??
-                'BobTV ${update.version ?? ''}；关闭应用后自动安装',
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
-              decoration: BoxDecoration(
-                color: const Color(0xFF7D88DC).withValues(alpha: 0.22),
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: const Color(0xFF9DA8FF)),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Icon(Icons.system_update_alt_rounded,
-                      color: Color(0xFFCED5FF), size: 16),
-                  const SizedBox(width: 7),
-                  Text(label, style: const TextStyle(
-                    color: Color(0xFFE2E6FF), fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                  )),
-                ],
-              ),
-            ),
-          ),
-        );
-      },
-    );
+    return DesktopUpdateBadge(state: DesktopUpdateService.instance.state,
+      showPostExitProgress: Platform.isWindows || Platform.isMacOS,
+      onRetry: () => unawaited(DesktopUpdateService.instance.checkNow()));
   }
 
   Widget _buildSimpleHome(BuildContext context) {

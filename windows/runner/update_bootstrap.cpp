@@ -1,4 +1,5 @@
 #include "update_bootstrap.h"
+#include "updater_launcher.h"
 
 #include <windows.h>
 
@@ -31,27 +32,10 @@ bool SpawnWorker(const std::wstring& script, const wchar_t* mode) {
   if (GetFileAttributesW(script.c_str()) == INVALID_FILE_ATTRIBUTES) {
     return false;
   }
-  wchar_t windows_directory[MAX_PATH] = {};
-  if (GetWindowsDirectoryW(windows_directory, MAX_PATH) == 0) return false;
-  const std::wstring powershell = std::wstring(windows_directory) +
-      L"\\System32\\WindowsPowerShell\\v1.0\\powershell.exe";
-  const std::wstring command = L"\"" + powershell +
-      L"\" -NoProfile -NonInteractive -ExecutionPolicy Bypass -File \"" +
-      script + L"\" -Mode " + mode + L" -CurrentPid " +
-      std::to_wstring(GetCurrentProcessId());
-  std::wstring mutable_command = command;
-  STARTUPINFOW startup = {};
-  startup.cb = sizeof(startup);
-  PROCESS_INFORMATION process = {};
-  const BOOL started = CreateProcessW(
-      powershell.c_str(), mutable_command.data(), nullptr, nullptr, FALSE,
-      CREATE_NO_WINDOW | DETACHED_PROCESS, nullptr, nullptr, &startup,
-      &process);
-  if (started) {
-    CloseHandle(process.hThread);
-    CloseHandle(process.hProcess);
-  }
-  return started == TRUE;
+  DWORD error = 0;
+  return LaunchUpdaterProcess({L"-File", script, L"-Mode", mode, L"-CurrentPid",
+      std::to_wstring(GetCurrentProcessId())}, GetUpdateDirectory() +
+      L"\\bootstrap-launcher.log", &error) != 0;
 }
 
 DWORD ReadMarkerPid(const std::wstring& marker) {

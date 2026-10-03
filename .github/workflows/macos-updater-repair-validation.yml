@@ -1,0 +1,48 @@
+name: macOS Updater Repair Validation
+on:
+  workflow_dispatch:
+jobs:
+  actual-gui-update:
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 35
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-15-intel
+            arch: x64
+          - runner: macos-15
+            arch: arm64
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - name: Build an isolated previous-version GUI with repaired progress feedback
+        run: |
+          sed -i '' 's/^version: .*/version: 0.9.1+68/' pubspec.yaml
+          sed -i '' "s/const bobTvVersion = '.*';/const bobTvVersion = '0.9.1+68';/" lib/core/app_version.dart
+          flutter pub get
+          flutter test test/desktop_update_feedback_test.dart
+          flutter build macos --release
+          app=build/macos/Build/Products/Release/BobTV.app
+          mkdir -p "$app/Contents/Resources/Updater"
+          xcrun swiftc -O tools/macos/update_progress.swift -o "$app/Contents/Resources/Updater/BobTVUpdateProgress"
+          codesign --force --sign - "$app/Contents/Resources/Updater/BobTVUpdateProgress"
+          codesign --force --deep --sign - "$app"
+      - name: Actual GUI discovery, signed download, close, backup, installation and healthy startup
+        env:
+          ARCH: ${{ matrix.arch }}
+        run: |
+          version=$(curl --fail --silent --show-error --user-agent 'BobTV/0.9.1 updater-test' "https://bobtv.briconbric.com/updates/macos-$ARCH/latest.json" | python3 -c 'import json,sys; print(json.load(sys.stdin)["version"])')
+          bash tools/macos/test_live_automatic_update.sh "$ARCH" "$version" "$PWD/build/macos/Build/Products/Release/BobTV.app"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: Mac-repaired-updater-${{ matrix.arch }}-diagnostics
+          path: |
+            ~/Library/Application Support/com.briconbric.bobtv/Update/*.log
+            ~/Library/Application Support/com.briconbric.bobtv/Update/*.json
+            ~/Library/Application Support/com.briconbric.bobtv/logs/*.log
+            ~/Library/Logs/DiagnosticReports/BobTV*.ips

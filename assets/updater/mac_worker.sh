@@ -10,6 +10,8 @@ archive_url="${6:-}"
 expected_hash="${7:-}"
 expected_bytes="${8:-}"
 package_signature="${9:-}"
+run_id="${10:-}"
+[[ -z "$run_id" || "$run_id" =~ ^[A-Za-z0-9-]{1,100}$ ]] || exit 2
 
 if [[ "$root" != "$HOME/Library/Application Support/"* ||
       "$app" != *.app || "$app" == '/' ||
@@ -20,11 +22,8 @@ if [[ ! -f "$app/Contents/MacOS/BobTV" ]]; then
   exit 2
 fi
 mkdir -p "$root"
-if [[ "$mode" == 'update' ]]; then
-  exec /usr/bin/lockf -t 0 "$root/update.lock" /bin/bash "$0" \
-    update-locked "$root" "$app" "$watched_pid" "$version" \
-    "$archive_url" "$expected_hash" "$expected_bytes" "$package_signature"
-fi
+exec >> "$root/worker.log" 2>&1
+printf '%s worker mode=%s version=%s pid=%s run=%s\n' "$(date -u +%FT%TZ)" "$mode" "$version" "$$" "$run_id"
 status="$root/status.json"
 candidate="$root/candidate.txt"
 marker="$root/startup.marker"
@@ -32,11 +31,47 @@ healthy="$root/startup.healthy"
 skipped="$root/skipped_versions.txt"
 
 write_status() {
-  local phase="$1" shown_version="$2" percent="$3"
-  printf '{"phase":"%s","version":"%s","percent":%s}\n' \
-    "$phase" "$shown_version" "$percent" > "$status.tmp"
-  mv -f "$status.tmp" "$status"
+  local phase="$1" shown_version="$2" percent="$3" message="${4:-}" path
+  if [[ -z "$message" ]]; then
+    case "$phase" in
+      starting) message='正在准备更新' ;;
+      downloading) message='正在下载更新' ;;
+      verifying) message='正在校验文件、签章和安装包内容' ;;
+      ready) message='已下载并校验通过，关闭 BobTV 后自动安装' ;;
+      backingUp) message='正在备份旧版，请稍候' ;;
+      installing) message='正在安装更新，请稍候' ;;
+      installed) message='安装完成，旧版已备份，下次启动即为新版本' ;;
+      failed) message='更新未完成，请查看 worker.log 并重试' ;;
+    esac
+  fi
+  message="${message//\\/\\\\}"; message="${message//\"/\\\"}"
+  local payload
+  payload="$(printf '{"phase":"%s","version":"%s","percent":%s,"message":"%s","runId":"%s","workerPid":%s,"receivedBytes":%s,"totalBytes":%s}' \
+    "$phase" "$shown_version" "$percent" "$message" "$run_id" "$$" "${received_bytes:-0}" "${expected_bytes:-0}")"
+  if [[ -z "$run_id" || "$mode" != 'update' ]]; then
+    printf '%s\n' "$payload" > "$status.tmp"; mv -f "$status.tmp" "$status"
+  fi
+  if [[ -n "$run_id" ]]; then
+    path="$root/status-$run_id.json"
+    printf '%s\n' "$payload" > "$path.tmp"; mv -f "$path.tmp" "$path"
+  fi
 }
+
+if [[ "$mode" == 'update' ]]; then
+  write_status starting "$version" 0
+  if /usr/bin/lockf -t 0 "$root/update.lock" /bin/bash "$0" \
+    update-locked "$root" "$app" "$watched_pid" "$version" \
+    "$archive_url" "$expected_hash" "$expected_bytes" "$package_signature" "$run_id"; then
+    exit 0
+  else
+    code=$?
+    if [[ -n "$run_id" && ! -f "$root/status-$run_id.json" ]] ||
+        [[ -n "$run_id" && "$(cat "$root/status-$run_id.json")" == *'"phase":"starting"'* ]]; then
+      write_status failed "$version" 0 '更新任务未能启动，请查看 worker.log 后重试'
+    fi
+    exit "$code"
+  fi
+fi
 
 wait_for_exit() {
   local seconds=0
@@ -96,15 +131,36 @@ fi
 [[ "$archive_url" == https://bobtv.briconbric.com/updates/*.zip &&
    "$archive_url" != *'?'* && "$archive_url" != *'#'* ]] || exit 2
 if [[ -f "$skipped" ]] && grep -Fxq "$version" "$skipped"; then exit 0; fi
-[[ ! -f "$candidate" ]] || exit 0
-trap 'code=$?; if (( code != 0 )); then write_status failed "$version" 0; fi' EXIT
+trap 'code=$?; if (( code != 0 )); then write_status failed "$version" 0 "更新未完成（错误码 $code），请查看 worker.log 后重试"; fi' EXIT
+if [[ -f "$candidate" ]]; then
+  write_status starting "$version" 0 '等待当前版本完成启动检查'
+  for (( attempt=0; attempt<90; attempt++ )); do
+    [[ -f "$healthy" ]] && break
+    sleep 1
+  done
+  [[ -f "$healthy" && "$(cat "$healthy")" == "$watched_pid" &&
+      "$(sed -n '4p' "$candidate")" == "$app" ]] || exit 11
+  rm -f "$candidate" "$marker" "$healthy"
+fi
 [[ -w "$(dirname "$app")" ]] || exit 9
 
 archive="$root/BobTV-${version//+/_}-macos.zip"
 partial="$archive.part"
 write_status downloading "$version" 0
 curl --fail --silent --show-error --proto '=https' --max-redirs 0 \
-  --connect-timeout 10 --max-time 14400 --output "$partial" "$archive_url"
+  --user-agent 'BobTV/0.9.1 updater' --connect-timeout 10 --max-time 14400 \
+  --speed-time 30 --speed-limit 1 --output "$partial" "$archive_url" &
+download_pid=$!
+while kill -0 "$download_pid" 2>/dev/null; do
+  received_bytes="$(stat -f%z "$partial" 2>/dev/null || echo 0)"
+  percent=$(( received_bytes * 100 / expected_bytes ))
+  (( percent > 99 )) && percent=99
+  write_status downloading "$version" "$percent"
+  sleep 1
+done
+wait "$download_pid"
+received_bytes="$(stat -f%z "$partial")"
+write_status verifying "$version" 100
 [[ "$(stat -f%z "$partial")" == "$expected_bytes" ]] || exit 6
 actual_hash="$(shasum -a 256 "$partial" | awk '{print tolower($1)}')"
 expected_hash="$(printf '%s' "$expected_hash" | tr '[:upper:]' '[:lower:]')"
@@ -113,7 +169,7 @@ mv -f "$partial" "$archive"
 public_key="$root/update-signing-public.pem"
 [[ -f "$public_key" && ! -L "$public_key" ]] || exit 8
 signature_file="$root/package-signature-$$.der"
-trap 'code=$?; rm -f "$signature_file"; if (( code != 0 )); then write_status failed "$version" 0; fi' EXIT
+trap 'code=$?; rm -f "$signature_file"; if (( code != 0 )); then write_status failed "$version" 0 "更新未完成（错误码 $code），请查看 worker.log 后重试"; fi' EXIT
 printf '%s' "$package_signature" | /usr/bin/base64 -D > "$signature_file"
 /usr/bin/openssl dgst -sha256 -verify "$public_key" \
   -signature "$signature_file" "$archive" >/dev/null || exit 8
@@ -160,6 +216,7 @@ write_status ready "$version" 100
 wait_for_exit
 [[ -w "$(dirname "$app")" ]] || exit 9
 backup="$root/Backups/${version//+/_}-$(date +%s)-$$"
+write_status backingUp "$version" 0
 mkdir -p "$backup"
 ditto "$app" "$backup/BobTV.app"
 diff -qr "$app" "$backup/BobTV.app" >/dev/null || exit 9
@@ -174,4 +231,4 @@ fi
 printf '%s\n%s\n0\n%s\n' "$version" "$backup" "$app" > "$candidate.tmp"
 mv -f "$candidate.tmp" "$candidate"
 rm -rf "$old"
-write_status ready "$version" 100
+write_status installed "$version" 100

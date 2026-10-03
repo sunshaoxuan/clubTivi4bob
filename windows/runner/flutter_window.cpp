@@ -49,6 +49,7 @@ bool FlutterWindow::OnCreate() {
     return false;
   }
   RegisterPlugins(flutter_controller_->engine());
+  updater_channel_ = RegisterUpdaterLauncher(flutter_controller_->engine()->messenger());
   HWND flutter_view = flutter_controller_->view()->GetNativeWindow();
   SetWindowSubclass(flutter_view, FlutterViewSubclassProc,
                     kFlutterViewSubclassId, 0);
@@ -68,6 +69,7 @@ bool FlutterWindow::OnCreate() {
 
 void FlutterWindow::OnDestroy() {
   if (flutter_controller_) {
+    updater_channel_ = nullptr;
     RemoveWindowSubclass(flutter_controller_->view()->GetNativeWindow(),
                          FlutterViewSubclassProc, kFlutterViewSubclassId);
     flutter_controller_ = nullptr;

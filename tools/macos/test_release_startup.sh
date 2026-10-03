@@ -27,16 +27,27 @@ open -n --stdout "$root/startup-smoke-console.log" \
   --stderr "$root/startup-smoke-errors.log" "$app"
 app_pid=''
 for (( attempt=0; attempt<10; attempt++ )); do
-  app_pid="$(pgrep -f "$app/Contents/MacOS/BobTV" | head -1 || true)"
+  app_pid="$(pgrep -x BobTV | while read -r found; do
+    [[ "$(ps -p "$found" -o comm=)" == "$app/Contents/MacOS/BobTV" ]] && echo "$found"
+  done | head -1 || true)"
   [[ "$app_pid" =~ ^[1-9][0-9]*$ ]] && break
   sleep 1
 done
 [[ "$app_pid" =~ ^[1-9][0-9]*$ ]]
 echo "Waiting for startup health from PID $app_pid."
-trap 'kill -TERM "$app_pid" 2>/dev/null || true' EXIT
+ps -p "$app_pid" -o pid,ppid,comm
+cleanup_test_app() {
+  if [[ "$(ps -p "$app_pid" -o comm= 2>/dev/null || true)" == "$app/Contents/MacOS/BobTV" ]]; then
+    kill -TERM "$app_pid" 2>/dev/null || true
+  fi
+}
+trap cleanup_test_app EXIT
 healthy=false
 for (( attempt=0; attempt<90; attempt++ )); do
   kill -0 "$app_pid"
+  if (( attempt % 5 == 0 )); then
+    tail -n 8 "$root/startup-smoke-errors.log" 2>/dev/null || true
+  fi
   if [[ -f "$root/startup.healthy" && "$(cat "$root/startup.healthy")" == "$app_pid" ]]; then
     healthy=true
     break

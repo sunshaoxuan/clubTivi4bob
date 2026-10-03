@@ -40,7 +40,9 @@ launch_test_app() {
     --stderr "$root/live-update-errors.log" "$app"
   app_pid=''
   for ((n=0; n<15; n++)); do
-    app_pid="$(pgrep -f "$app/Contents/MacOS/BobTV" | head -1 || true)"
+    app_pid="$(pgrep -x BobTV | while read -r found; do
+      [[ "$(ps -p "$found" -o comm=)" == "$app/Contents/MacOS/BobTV" ]] && echo "$found"
+    done | head -1 || true)"
     [[ "$app_pid" =~ ^[1-9][0-9]*$ ]] && return 0
     sleep 1
   done

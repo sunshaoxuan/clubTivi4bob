@@ -13,10 +13,52 @@ class ChannelCategoryPicker extends StatefulWidget {
 class _ChannelCategoryPickerState extends State<ChannelCategoryPicker> {
   List<String> _path = [];
   String _query = '';
+  int _pathRevision = 0;
+  bool _finished = false;
+
+  void _selectOption(String option, int revision) {
+    if (!mounted ||
+        _finished ||
+        revision != _pathRevision ||
+        !ChannelCategoryDestination.children(_path).contains(option)) {
+      return;
+    }
+    setState(() {
+      _path = [..._path, option];
+      _query = '';
+      _pathRevision++;
+    });
+  }
+
+  void _backTo(int depth, int revision) {
+    if (!mounted ||
+        _finished ||
+        revision != _pathRevision ||
+        depth < 0 ||
+        depth >= _path.length) {
+      return;
+    }
+    setState(() {
+      _path = _path.take(depth).toList();
+      _query = '';
+      _pathRevision++;
+    });
+  }
+
+  void _finish({int? revision}) {
+    if (_finished || !mounted) return;
+    final destination = ChannelCategoryDestination(_path);
+    if (revision != null && (revision != _pathRevision || !destination.valid)) {
+      return;
+    }
+    _finished = true;
+    Navigator.pop(context, revision == null ? null : destination);
+  }
 
   @override
   Widget build(BuildContext context) {
     final destination = ChannelCategoryDestination(_path);
+    final revision = _pathRevision;
     final options = ChannelCategoryDestination.children(_path)
         .where((name) => name.toLowerCase().contains(_query.toLowerCase()))
         .toList();
@@ -51,7 +93,7 @@ class _ChannelCategoryPickerState extends State<ChannelCategoryPicker> {
                   ),
                   IconButton(
                     tooltip: '关闭',
-                    onPressed: () => Navigator.pop(context),
+                    onPressed: () => _finish(),
                     icon: const Icon(Icons.close_rounded),
                   ),
                 ],
@@ -62,10 +104,9 @@ class _ChannelCategoryPickerState extends State<ChannelCategoryPicker> {
                 child: Wrap(
                   children: [
                     TextButton(
-                      onPressed: () => setState(() {
-                        _path = [];
-                        _query = '';
-                      }),
+                      onPressed: _path.isEmpty
+                          ? null
+                          : () => _backTo(0, revision),
                       child: const Text('全部地区'),
                     ),
                     for (var index = 0; index < _path.length; index++) ...[
@@ -74,10 +115,9 @@ class _ChannelCategoryPickerState extends State<ChannelCategoryPicker> {
                         child: Icon(Icons.chevron_right_rounded, size: 18),
                       ),
                       TextButton(
-                        onPressed: () => setState(() {
-                          _path = _path.take(index + 1).toList();
-                          _query = '';
-                        }),
+                        onPressed: index == _path.length - 1
+                            ? null
+                            : () => _backTo(index + 1, revision),
                         child: Text(_path[index]),
                       ),
                     ],
@@ -85,8 +125,29 @@ class _ChannelCategoryPickerState extends State<ChannelCategoryPicker> {
                 ),
               ),
               if (ChannelCategoryDestination.children(_path).isNotEmpty) ...[
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: Padding(
+                    padding: const EdgeInsets.only(bottom: 12),
+                    child: Text(
+                      _path.isEmpty
+                          ? '选择国家或地区'
+                          : destination.valid
+                          ? '可应用当前分类，也可继续细分'
+                          : '选择下一级分类',
+                      style: const TextStyle(
+                        color: Color(0xFFADCFFF),
+                        fontSize: 13,
+                      ),
+                    ),
+                  ),
+                ),
                 TextField(
-                  onChanged: (value) => setState(() => _query = value),
+                  onChanged: (value) {
+                    if (!_finished && revision == _pathRevision) {
+                      setState(() => _query = value);
+                    }
+                  },
                   key: ValueKey(_path.join('/')),
                   decoration: const InputDecoration(
                     prefixIcon: Icon(Icons.search_rounded),
@@ -100,13 +161,80 @@ class _ChannelCategoryPickerState extends State<ChannelCategoryPicker> {
                       spacing: 8,
                       runSpacing: 8,
                       children: [
+                        if (options.isEmpty)
+                          const Padding(
+                            padding: EdgeInsets.symmetric(vertical: 20),
+                            child: Text(
+                              '没有匹配的分类',
+                              style: TextStyle(color: Colors.white60),
+                            ),
+                          ),
                         for (final option in options)
                           OutlinedButton(
-                            onPressed: () => setState(() {
-                              _path = [..._path, option];
-                              _query = '';
-                            }),
-                            child: Text(option),
+                            key: ValueKey('category-option-$revision-$option'),
+                            style: ButtonStyle(
+                              animationDuration: const Duration(
+                                milliseconds: 100,
+                              ),
+                              minimumSize: const WidgetStatePropertyAll(
+                                Size(96, 48),
+                              ),
+                              padding: const WidgetStatePropertyAll(
+                                EdgeInsets.symmetric(
+                                  horizontal: 16,
+                                  vertical: 12,
+                                ),
+                              ),
+                              shape: WidgetStatePropertyAll(
+                                RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(14),
+                                ),
+                              ),
+                              foregroundColor: const WidgetStatePropertyAll(
+                                Colors.white,
+                              ),
+                              backgroundColor: WidgetStateProperty.resolveWith(
+                                (states) => states.contains(WidgetState.pressed)
+                                    ? const Color(0xFF45688D)
+                                    : states.contains(WidgetState.hovered)
+                                    ? const Color(0xFF314D6D)
+                                    : const Color(0xFF1E3048),
+                              ),
+                              side: WidgetStateProperty.resolveWith(
+                                (states) => BorderSide(
+                                  color:
+                                      states.contains(WidgetState.pressed) ||
+                                          states.contains(
+                                            WidgetState.hovered,
+                                          ) ||
+                                          states.contains(WidgetState.focused)
+                                      ? const Color(0xFFB7D7FF)
+                                      : const Color(0xFF435A73),
+                                  width:
+                                      states.contains(WidgetState.hovered) ||
+                                          states.contains(WidgetState.focused)
+                                      ? 1.5
+                                      : 1,
+                                ),
+                              ),
+                            ),
+                            onPressed: () => _selectOption(option, revision),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text(option),
+                                const SizedBox(width: 8),
+                                Icon(
+                                  ChannelCategoryDestination.children([
+                                        ..._path,
+                                        option,
+                                      ]).isEmpty
+                                      ? Icons.check_rounded
+                                      : Icons.chevron_right_rounded,
+                                  size: 17,
+                                ),
+                              ],
+                            ),
                           ),
                       ],
                     ),
@@ -127,13 +255,13 @@ class _ChannelCategoryPickerState extends State<ChannelCategoryPicker> {
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [
                   TextButton(
-                    onPressed: () => Navigator.pop(context),
+                    onPressed: () => _finish(),
                     child: const Text('取消'),
                   ),
                   const SizedBox(width: 12),
                   FilledButton(
                     onPressed: destination.valid
-                        ? () => Navigator.pop(context, destination)
+                        ? () => _finish(revision: revision)
                         : null,
                     child: const Text('应用分类'),
                   ),

@@ -101,7 +101,11 @@ jobs:
             kill -0 "$probe" 2>/dev/null || break
             sleep 1
           done
-          if kill -0 "$probe" 2>/dev/null; then kill "$probe"; exit 1; fi
+          if kill -0 "$probe" 2>/dev/null; then
+            cat "$BOBTV_NATIVE_DISPOSAL_LOG" || true
+            kill "$probe"
+            exit 1
+          fi
           result=0
           wait "$probe" || result=$?
           cat "$BOBTV_NATIVE_DISPOSAL_LOG" || true

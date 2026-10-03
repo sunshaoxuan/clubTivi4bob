@@ -76,8 +76,10 @@ Future<void> main() async {
           enableHardwareAcceleration: !Platform.isMacOS && cycle.isEven,
         ),
       );
-      await prepare(player);
       visible.value = controller;
+      // VideoController attaches in a post-frame callback. Mount it before
+      // any Player operation that waits for that attachment to finish.
+      await prepare(player);
       record('open cycle=$cycle');
       await player.open(Media(media)).timeout(const Duration(seconds: 20));
       final deadline = DateTime.now().add(const Duration(seconds: 10));

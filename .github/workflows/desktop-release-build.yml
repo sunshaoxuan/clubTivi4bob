@@ -69,6 +69,7 @@ jobs:
           test/shared_catalog_events_test.dart test/shared_sync_badge_test.dart
           test/manual_category_move_test.dart test/channel_category_picker_interaction_test.dart
           test/desktop_update_feedback_test.dart
+          test/lightweight_background_test.dart test/route_identity_test.dart
           test/desktop_fullscreen_session_test.dart
           test/window_manager_fullscreen_backend_test.dart
           test/fullscreen_return_navigation_test.dart
@@ -85,6 +86,27 @@ jobs:
           bash tools/macos/build.sh "$RUNNER_TEMP/fpsap-source"
           codesign --verify --deep --strict build/macos/Build/Products/Release/BobTV.app
           plutil -lint build/macos/Build/Products/Release/BobTV.app/Contents/Info.plist
+      - name: Test sustained native audio/video playback and PiP memory
+        run: |
+          app=build/macos/Build/Products/Release/BobTV.app
+          ditto "$app" "$RUNNER_TEMP/BobTV-release-preserved.app"
+          flutter build macos --release --target tools/windows/native_video_disposal_probe.dart
+          python3 tools/windows/make_video_disposal_fixture.py "$RUNNER_TEMP/playback.avi"
+          export BOBTV_NATIVE_DISPOSAL_MEDIA="$RUNNER_TEMP/playback.avi"
+          export BOBTV_NATIVE_DISPOSAL_LOG="$RUNNER_TEMP/playback.log"
+          export BOBTV_NATIVE_SOAK_SECONDS=600
+          "$app/Contents/MacOS/BobTV" &
+          probe=$!
+          for ((n=0; n<780; n++)); do
+            kill -0 "$probe" 2>/dev/null || break
+            sleep 1
+          done
+          if kill -0 "$probe" 2>/dev/null; then kill "$probe"; exit 1; fi
+          wait "$probe"
+          cat "$BOBTV_NATIVE_DISPOSAL_LOG"
+          grep -q 'PASS: 600 second dual-player AV soak' "$BOBTV_NATIVE_DISPOSAL_LOG"
+          ditto "$RUNNER_TEMP/BobTV-release-preserved.app" "$app"
+          codesign --verify --deep --strict "$app"
       - name: Verify native MPV render-context release
         run: bash tools/macos/test_native_video_disposal.sh "$PWD/build/macos/Build/Products/Release/BobTV.app"
       - name: Verify owned Metal frame lifetime
@@ -140,6 +162,7 @@ jobs:
           test/shared_catalog_events_test.dart test/shared_sync_badge_test.dart
           test/manual_category_move_test.dart test/channel_category_picker_interaction_test.dart
           test/desktop_update_feedback_test.dart
+          test/lightweight_background_test.dart test/route_identity_test.dart
           test/desktop_fullscreen_session_test.dart
           test/window_manager_fullscreen_backend_test.dart
           test/fullscreen_return_navigation_test.dart
@@ -155,15 +178,16 @@ jobs:
           python tools/windows/make_video_disposal_fixture.py $fixture
           $env:BOBTV_NATIVE_DISPOSAL_MEDIA = $fixture
           $env:BOBTV_NATIVE_DISPOSAL_LOG = Join-Path $env:RUNNER_TEMP 'bobtv-disposal.log'
+          $env:BOBTV_NATIVE_SOAK_SECONDS = '600'
           $env:LOCALAPPDATA = Join-Path $env:RUNNER_TEMP 'BobTVNativeDisposal'
           New-Item -ItemType Directory -Path $env:LOCALAPPDATA -Force | Out-Null
           $exe = Join-Path $PWD 'build/windows/x64/runner/Release/clubtivi.exe'
           $probe = Start-Process -FilePath $exe -WorkingDirectory (Split-Path $exe) -PassThru
-          if (!$probe.WaitForExit(240000)) { Stop-Process -Id $probe.Id -Force; throw 'Native fixture timeout' }
+          if (!$probe.WaitForExit(780000)) { Stop-Process -Id $probe.Id -Force; throw 'Native fixture timeout' }
           $probe.Refresh()
           $log = Get-Content -LiteralPath $env:BOBTV_NATIVE_DISPOSAL_LOG -Raw
           Write-Output $log
-          if ($probe.ExitCode -ne 0 -or $log -notmatch 'PASS: 30 real video') { throw 'Native disposal regression' }
+          if ($probe.ExitCode -ne 0 -or $log -notmatch 'PASS: 600 second dual-player AV soak') { throw 'Native playback regression' }
       - run: flutter build windows --release --target lib/main.dart
       - name: Test Windows CRT bundling safeguards
         shell: pwsh

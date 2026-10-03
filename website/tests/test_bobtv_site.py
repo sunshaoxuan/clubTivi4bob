@@ -57,7 +57,8 @@ def test_site_download_is_local_and_manifest_gated(tmp_path, monkeypatch):
 def test_product_pages_reflect_published_releases():
     client = TestClient(module.app)
     home = client.get("/").text
-    assert "v0.9.1-bob.18" in home and "WINDOWS · MACOS" in home
+    assert "v0.9.1-bob.19" in home and "WINDOWS · MACOS" in home
+    assert "按需启动" in home and "淘汰覆盖来源副本" in home
     assert "公共频道持续同步" in home and "退出后继续显示备份、安装及完成状态" in home
     assert 'id="sync-title"' in home and "离线时保留修改" in home
     assert "每分钟检查清单版本" in home and "公共评分" in home
@@ -69,7 +70,7 @@ def test_product_pages_reflect_published_releases():
     downloads = client.get("/downloads").text
     assert 'id="release-list"' in downloads and "BobTV.exe" in downloads
     assert "Apple Silicon" in downloads and "下载最新版本" in downloads
-    assert 'id="first-launch-title"' in downloads and "0.9.1+76" in downloads
+    assert 'id="first-launch-title"' in downloads and "0.9.1+77" in downloads
     assert "通过校验后才显示可安装" in downloads and "只读磁盘映像" in downloads
     assert "v0.9.1-bob.11" not in downloads
     assert 'class="downloads-page"' in downloads

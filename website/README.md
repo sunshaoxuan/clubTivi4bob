@@ -6,7 +6,7 @@ The product page describes BobTV as a Windows and macOS desktop TV player. Windo
 
 The hero image is a user-provided crop of the BobTV simplified-mode interface with playback and channel listings visible. Product, downloads, and diagnostic uploads are separate pages. Source reporting is API-only.
 
-The product, download and diagnostic pages share a dark navy and peach visual system and the supplied real player screenshot. Build `0.9.1+76` adds durable public channel synchronization, shared route scoring, retirement propagation, offline retries and visible sync status. The download page explains initialization and both platform update flows; the diagnostic page describes optional, default-off summary uploads. Descriptions do not claim Windows 10 validation or guaranteed third-party stream availability.
+The product, download and diagnostic pages share a dark navy and peach visual system and the supplied real player screenshot. Build `0.9.1+77` retains durable shared synchronization and adds on-demand source management, canonical route deduplication and monotonic retirement across equivalent URLs. The download page explains initialization and both platform update flows; the diagnostic page describes optional, default-off summary uploads. Descriptions do not claim Windows 10 validation or guaranteed third-party stream availability.
 
 ## Website maintenance with every release
 

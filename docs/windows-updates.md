@@ -41,6 +41,21 @@ the player closes, then backs up the complete previous application directory
 under the user's LocalAppData/HotelTV/Update/Backups directory and installs the
 new files. Runtime preferences and playlists remain in the user data directory.
 
+The update badge immediately animates while preparing the download, then shows
+percentage and transferred bytes. Readiness is displayed only after package
+verification. On exit, an independent native window shows download, verification,
+backup, installation and completion. A completed update keeps that window visible
+for 20 seconds and offers an Open BobTV button. Failure leaves the window open
+with a readable error and a restart option. Closing this status window does not
+cancel the update worker. Reopening BobTV observes a live task without duplicating it.
+
+The native launcher supplies valid standard handles to the hidden PowerShell
+worker and captures launch errors in `launcher.log`. Per-run status files bind
+feedback to the version, run ID and process ID; missing acknowledgement and an
+exited worker are reported rather than leaving a permanent new-version badge.
+Installations affected by an older broken worker launcher need one manual
+installation of 0.9.1+73 or later before subsequent automatic updates can work.
+
 The Windows bootstrap records startup attempts before Flutter starts. After
 the channel browser loads and remains up for 30 seconds, the startup marker is
 cleared. A normal close also clears it. After three consecutive unclean

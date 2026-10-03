@@ -53,6 +53,7 @@ import 'channel_programme_preview.dart';
 import 'channel_programme_strip.dart';
 import 'inline_expanded_channel_grid.dart';
 import 'channel_card_feedback.dart';
+import 'channel_card_playback_binding.dart';
 
 class ChannelsScreen extends ConsumerStatefulWidget {
   const ChannelsScreen({super.key});
@@ -74,6 +75,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
   List<db.Channel> _filteredChannels = [];
   final Map<String, String> _automaticKeyByChannelId = {};
   final Map<String, List<String>> _automaticUrlsByKey = {};
+  final Map<String, Set<String>> _automaticUrlSetsByKey = {};
   Map<String, int> _verifiedRouteCounts = {};
   Set<String> _verifiedRouteUrls = {};
   bool _routeAvailabilityLoading = false;
@@ -1304,13 +1306,17 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
   void _rebuildAutomaticChannelIndex() {
     _automaticKeyByChannelId.clear();
     _automaticUrlsByKey.clear();
+    _automaticUrlSetsByKey.clear();
     for (final channel in _allChannels) {
       if (_hideIpv6Sources && _isIpv6Channel(channel)) continue;
       if (_hasInvalidStreamMetadata(channel)) continue;
       final key = _automaticChannelKey(channel);
       if (key.isEmpty || channel.streamUrl.isEmpty) continue;
-      final urls = _automaticUrlsByKey.putIfAbsent(key, () => <String>[]);
-      if (!urls.contains(channel.streamUrl)) urls.add(channel.streamUrl);
+      final urls = _automaticUrlSetsByKey.putIfAbsent(key, () => <String>{});
+      if (urls.add(channel.streamUrl)) {
+        _automaticUrlsByKey.putIfAbsent(key, () => <String>[])
+            .add(channel.streamUrl);
+      }
     }
   }
 
@@ -1347,9 +1353,9 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
 
   int _candidateRouteCount(db.Channel channel) {
     final key = _automaticChannelKey(channel);
-    final urls = _automaticUrlsByKey[key];
+    final urls = _automaticUrlSetsByKey[key];
     if (urls == null || urls.isEmpty) return 1;
-    return {...urls, channel.streamUrl}.length;
+    return urls.length + (urls.contains(channel.streamUrl) ? 0 : 1);
   }
 
   int _verifiedRouteCount(db.Channel channel) {
@@ -3246,8 +3252,8 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                 child: LayoutBuilder(
                   builder: (context, constraints) {
                     final wide = constraints.maxWidth >= 1050;
-                    final preview = _buildSimplePreview();
-                    final channels = _buildSimpleChannelPanel();
+                    final preview = RepaintBoundary(child: _buildSimplePreview());
+                    final channels = RepaintBoundary(child: _buildSimpleChannelPanel());
                     if (wide) {
                       return Padding(
                         padding: const EdgeInsets.fromLTRB(30, 18, 30, 30),
@@ -3660,11 +3666,11 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
     final initialController = service.videoController;
     return ValueListenableBuilder<VideoController?>(
       valueListenable: service.activeVideoController,
-      builder: (context, controller, _) => Video(
+      builder: (context, controller, _) => RepaintBoundary(child: Video(
         key: ValueKey(controller ?? initialController),
         controller: controller ?? initialController,
         controls: NoVideoControls,
-      ),
+      )),
     );
   }
 
@@ -3921,34 +3927,25 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                             ChannelListIdentity.matches(
                               _previewChannel?.id, channel.id);
                         final service = ref.read(playerServiceProvider);
-                        return ValueListenableBuilder<VideoController?>(
+                        return ChannelCardPlaybackBinding(
                           key: ValueKey('channel-card-${channel.id}'),
-                          valueListenable: service.previewVideoController,
-                          builder: (context, previewController, _) {
-                            final previewing =
-                                ChannelListIdentity.matches(
-                                  _preparedChannelId, channel.id) &&
-                                service.preparedChannelId == channel.id &&
-                                previewController != null;
-                            return ValueListenableBuilder<RouteSearchProgress?>(
-                              valueListenable: service.routeSearchProgress,
-                              builder: (context, mainProgress, _) =>
-                              ValueListenableBuilder<RouteSearchProgress?>(
-                              valueListenable: service.channelPreviewProgress,
-                              builder: (context, progress, _) =>
-                                  _buildSimpleChannelTile(
+                          channelId: channel.id,
+                          selected: selected,
+                          pending: ChannelListIdentity.matches(
+                            _pendingChannelId, channel.id),
+                          preparedChannelId: () => _preparedChannelId == channel.id
+                              ? service.preparedChannelId : null,
+                          previewController: service.previewVideoController,
+                          mainProgress: service.routeSearchProgress,
+                          previewProgress: service.channelPreviewProgress,
+                          builder: (previewController, progress, loading) =>
+                              _buildSimpleChannelTile(
                                 channel,
                                 joinedToProgramme: hasGuide && index == guideIndex,
                                 selected: selected,
-                                loading: ChannelListIdentity.matches(
-                                  _pendingChannelId, channel.id) ||
-                                    (selected && mainProgress?.active == true &&
-                                        mainProgress?.background != true),
-                                loadingProgress: ChannelListIdentity.matches(
-                                  _pendingChannelId, channel.id)
-                                    ? progress ?? mainProgress : selected ? mainProgress : null,
-                                previewController:
-                                    previewing ? previewController : null,
+                                loading: loading,
+                                loadingProgress: progress,
+                                previewController: previewController,
                                 onTap: () => _onSimpleChannelTap(channel),
                                 onDoubleTap: () =>
                                     _selectChannelById(channel.id, force: true),
@@ -3959,9 +3956,6 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                                         : _showCardRouteMenu(channel,
                                             details.globalPosition),
                               ),
-                              ),
-                            );
-                          },
                         );
                       },
                     );
@@ -4028,15 +4022,15 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                   if (previewController != null)
                     Positioned.fill(
                       child: IgnorePointer(
-                        child: Video(
+                        child: RepaintBoundary(child: Video(
                           controller: previewController,
                           controls: NoVideoControls,
                           fill: Colors.black,
-                        ),
+                        )),
                       ),
                     )
                   else Positioned.fill(
-                    child: ImageFiltered(
+                    child: RepaintBoundary(child: ImageFiltered(
                       imageFilter: ui.ImageFilter.blur(sigmaX: 7, sigmaY: 7),
                       child: Opacity(
                         opacity: 0.3,
@@ -4051,7 +4045,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                               : _buildSimpleChannelMonogram(name),
                         ),
                       ),
-                    ),
+                    )),
                   ),
                   const DecoratedBox(
                     decoration: BoxDecoration(

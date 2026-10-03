@@ -56,12 +56,12 @@ class AlternativePreviewOverlay extends StatelessWidget {
                                         color: Colors.white54, fontSize: 11)),
                             ],
                           ))
-                        : IgnorePointer(child: Video(
+                        : IgnorePointer(child: RepaintBoundary(child: Video(
                             key: ValueKey(state.controller),
                             controller: state.controller!,
                             controls: NoVideoControls,
                             fill: Colors.black,
-                          )),
+                          ))),
                   ),
                   Padding(
                     padding: const EdgeInsets.fromLTRB(10, 7, 5, 7),

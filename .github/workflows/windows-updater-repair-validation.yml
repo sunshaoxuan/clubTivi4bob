@@ -26,6 +26,9 @@ jobs:
       - name: Actual GUI discovery, download, close, backup, installation and healthy startup
         shell: pwsh
         run: '& tools/windows/test_live_automatic_update.ps1 -FixtureExecutable "$env:RUNNER_TEMP\RepairedFixture\clubtivi.exe" -CloseWhileDownloading'
+      - name: Render independent native update progress for every stage
+        shell: pwsh
+        run: '& tools/windows/test_update_progress_ui.ps1'
       - uses: actions/upload-artifact@v4
         if: always()
         with:

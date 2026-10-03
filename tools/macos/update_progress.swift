@@ -2,6 +2,13 @@ import AppKit
 import Foundation
 import Darwin
 
+final class UpdatePanel: NSView {
+    override func draw(_ dirtyRect: NSRect) {
+        NSColor(calibratedRed: 16/255, green: 25/255, blue: 42/255, alpha: 1).setFill()
+        dirtyRect.fill()
+    }
+}
+
 // Separate native status process. Closing this window never cancels the worker.
 final class UpdateProgress: NSObject, NSApplicationDelegate, NSWindowDelegate {
     let root: URL
@@ -10,6 +17,7 @@ final class UpdateProgress: NSObject, NSApplicationDelegate, NSWindowDelegate {
     let workerPID: Int32
     let version: String
     let runID: String
+    let snapshotPath: String?
     let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 480, height: 300),
                           styleMask: [.titled, .closable, .miniaturizable], backing: .buffered, defer: false)
     let phase = NSTextField(labelWithString: "正在读取更新进度")
@@ -40,6 +48,7 @@ final class UpdateProgress: NSObject, NSApplicationDelegate, NSWindowDelegate {
         workerPID = Int32(arguments[4]) ?? 0
         version = arguments[5]
         runID = arguments[6]
+        snapshotPath = arguments.count == 9 ? arguments[8] : nil
         super.init()
     }
 
@@ -49,15 +58,17 @@ final class UpdateProgress: NSObject, NSApplicationDelegate, NSWindowDelegate {
         window.appearance = NSAppearance(named: .darkAqua)
         window.isReleasedWhenClosed = false
         window.delegate = self
-        let panel = NSVisualEffectView()
-        panel.material = .hudWindow; panel.blendingMode = .behindWindow; panel.state = .active
+        let panel = UpdatePanel()
+        panel.appearance = NSAppearance(named: .darkAqua)
         window.contentView = panel
         let title = NSTextField(labelWithString: "BobTV \(version)")
         title.font = .systemFont(ofSize: 25, weight: .bold)
+        title.textColor = .white
         phase.font = .systemFont(ofSize: 17, weight: .semibold)
+        phase.textColor = NSColor(calibratedWhite: 0.94, alpha: 1)
         detail.font = .systemFont(ofSize: 13); detail.maximumNumberOfLines = 4
-        detail.textColor = .secondaryLabelColor
-        note.font = .systemFont(ofSize: 11); note.textColor = .secondaryLabelColor
+        detail.textColor = NSColor(calibratedWhite: 0.80, alpha: 1)
+        note.font = .systemFont(ofSize: 11); note.textColor = NSColor(calibratedWhite: 0.64, alpha: 1)
         bar.style = .bar; bar.isIndeterminate = true; bar.minValue = 0; bar.maxValue = 100
         spinner.style = .spinning; spinner.controlSize = .small
         spinner.startAnimation(nil)
@@ -75,18 +86,29 @@ final class UpdateProgress: NSObject, NSApplicationDelegate, NSWindowDelegate {
             bar.widthAnchor.constraint(equalTo: stack.widthAnchor),
             detail.widthAnchor.constraint(equalTo: stack.widthAnchor),
         ])
-        timer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { [weak self] _ in self?.refresh() }
+        if snapshotPath == nil { timer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { [weak self] _ in self?.refresh() } }
         refresh()
+        if let path = snapshotPath, let content = window.contentView {
+            content.layoutSubtreeIfNeeded()
+            guard let bitmap = content.bitmapImageRepForCachingDisplay(in: content.bounds) else { exit(3) }
+            content.cacheDisplay(in: content.bounds, to: bitmap)
+            guard let png = bitmap.representation(using: .png, properties: [:]) else { exit(3) }
+            do { try png.write(to: URL(fileURLWithPath: path)) } catch { exit(3) }
+            exit(0)
+        }
     }
 
     func alive(_ pid: Int32) -> Bool { pid > 0 && (kill(pid, 0) == 0 || errno == EPERM) }
 
     func refresh() {
-        guard !alive(playerPID) else { return }
+        guard snapshotPath != nil || !alive(playerPID) else { return }
         if !shown {
-            shown = true; startedAt = Date(); window.center(); window.makeKeyAndOrderFront(nil)
-            NSApp.activate(ignoringOtherApps: true)
-            log("window_shown run=\(runID)")
+            shown = true; startedAt = Date()
+            if snapshotPath == nil {
+                window.center(); window.makeKeyAndOrderFront(nil)
+                NSApp.activate(ignoringOtherApps: true)
+                log("window_shown run=\(runID)")
+            }
         }
         let file = root.appendingPathComponent("status-\(runID).json")
         guard let data = try? Data(contentsOf: file),
@@ -98,7 +120,7 @@ final class UpdateProgress: NSObject, NSApplicationDelegate, NSWindowDelegate {
             return
         }
         let status = state["phase"] as? String ?? "starting"
-        if status != lastPhase { lastPhase = status; log("phase=\(status) run=\(runID)") }
+        if status != lastPhase { lastPhase = status; if snapshotPath == nil { log("phase=\(status) run=\(runID)") } }
         let percent = min(100, max(0, (state["percent"] as? NSNumber)?.doubleValue ?? 0))
         let titles = ["starting": "正在准备下载", "downloading": "正在下载更新 \(Int(percent))%",
                       "verifying": "正在校验安装包", "ready": "下载完成，等待播放器退出",
@@ -120,7 +142,7 @@ final class UpdateProgress: NSObject, NSApplicationDelegate, NSWindowDelegate {
             if remaining == 0 { NSApp.terminate(nil) }
         } else if status == "failed" {
             failure(phase.stringValue, detail.stringValue)
-        } else if !alive(workerPID) {
+        } else if snapshotPath == nil && !alive(workerPID) {
             failure("更新助手意外退出", "更新尚未完成。请查看 worker.log，重新启动 BobTV 后重试。")
         }
     }
@@ -135,7 +157,11 @@ final class UpdateProgress: NSObject, NSApplicationDelegate, NSWindowDelegate {
     func windowWillClose(_ notification: Notification) { timer?.invalidate(); NSApp.terminate(nil) }
 }
 
-guard CommandLine.arguments.count == 7,
+let arguments = CommandLine.arguments
+let snapshot = arguments.count == 9 && arguments[7] == "--snapshot" &&
+    ProcessInfo.processInfo.environment["CI"] == "true" &&
+    arguments[8].hasPrefix(FileManager.default.temporaryDirectory.path + "/")
+guard arguments.count == 7 || snapshot,
       CommandLine.arguments[6].range(of: "^[A-Za-z0-9-]{1,100}$", options: .regularExpression) != nil else { exit(2) }
 let delegate = UpdateProgress(arguments: CommandLine.arguments)
 let application = NSApplication.shared

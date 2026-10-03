@@ -115,6 +115,7 @@ class MacUpdateService {
         version: manifest.version,
         message: '正在启动更新助手，尚未开始下载。',
       );
+      if (await _attachExistingWorker(manifest.version)) return;
       await _launchWorker(manifest);
     } catch (error, stackTrace) {
       AppDiagnostics.instance.recordError(
@@ -166,15 +167,17 @@ class MacUpdateService {
       p.normalize(p.join(p.dirname(Platform.resolvedExecutable), '..', '..'));
 
   Future<File> _writeWorker() async {
-    final file = File(p.join(_directory!.path, 'mac_worker.sh'));
+    final file = File(p.join(_directory!.path, 'mac_worker-$bobTvVersion.sh'));
     final source = await rootBundle.loadString('assets/updater/mac_worker.sh');
-    await file.writeAsString(source, flush: true);
+    await _writeAtomic(file, source);
+    await _writeAtomic(File(p.join(_directory!.path, 'mac_worker.sh')), source);
     final publicKey = await rootBundle.loadString(
       'assets/updater/update-signing-public.pem',
     );
-    await File(
-      p.join(_directory!.path, 'update-signing-public.pem'),
-    ).writeAsString(publicKey, flush: true);
+    await _writeAtomic(
+      File(p.join(_directory!.path, 'update-signing-public.pem')),
+      publicKey,
+    );
     return file;
   }
 
@@ -244,6 +247,55 @@ class MacUpdateService {
       );
     }
     await _readWorkerStatus();
+  }
+
+  Future<void> _writeAtomic(File file, String source) async {
+    if (await file.exists() && await file.readAsString() == source) return;
+    final temporary = File(
+      '${file.path}.tmp-$pid-${DateTime.now().microsecondsSinceEpoch}',
+    );
+    await temporary.writeAsString(source, flush: true);
+    await temporary.rename(file.path);
+  }
+
+  Future<bool> _attachExistingWorker(String version) async {
+    final file = File(p.join(_directory!.path, 'status.json'));
+    if (!await file.exists()) return false;
+    final data = jsonDecode(await file.readAsString());
+    if (data is! Map<String, dynamic> ||
+        data['version'] != version ||
+        data['runId'] is! String ||
+        !RegExp(r'^[A-Za-z0-9-]{1,100}$').hasMatch(data['runId'] as String) ||
+        data['workerPid'] is! int ||
+        (data['workerPid'] as int) <= 0) {
+      return false;
+    }
+    final reported = WindowsUpdateState.fromWorkerStatus(
+      data,
+      version: version,
+    );
+    if (reported == null ||
+        reported.phase == WindowsUpdatePhase.failed ||
+        reported.phase == WindowsUpdatePhase.installed) {
+      return false;
+    }
+    if ((await Process.run('/bin/kill', [
+          '-0',
+          '${data['workerPid']}',
+        ])).exitCode !=
+        0) {
+      return false;
+    }
+    _workerPid = data['workerPid'] as int;
+    _runId = data['runId'] as String;
+    _workerLaunchedForVersion = version;
+    _workerStartedAt = DateTime.now();
+    state.value = reported;
+    AppDiagnostics.instance.log('mac_update_worker_attached', {
+      'version': version,
+      'pid': _workerPid,
+    });
+    return true;
   }
 
   Future<bool> _isWorkerRunning() async {

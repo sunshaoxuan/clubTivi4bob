@@ -105,6 +105,7 @@ class WindowsUpdateService {
         version: manifest.version,
         message: '正在启动更新助手，尚未开始下载。',
       );
+      if (await _attachExistingWorker(manifest.version)) return;
       await _launchWorker(manifest);
     } catch (error, stack) {
       AppDiagnostics.instance.recordError('update_check', error, stack);
@@ -267,6 +268,45 @@ class WindowsUpdateService {
         stack,
       );
     }
+  }
+
+  Future<bool> _attachExistingWorker(String version) async {
+    final file = File(p.join(_updateDirectory!.path, 'status.json'));
+    if (!await file.exists()) return false;
+    final data = jsonDecode(await file.readAsString());
+    if (data is! Map<String, dynamic> ||
+        data['version'] != version ||
+        data['runId'] is! String ||
+        !RegExp(r'^[A-Za-z0-9-]{1,100}$').hasMatch(data['runId'] as String) ||
+        data['workerPid'] is! int ||
+        (data['workerPid'] as int) <= 0) {
+      return false;
+    }
+    final reported = WindowsUpdateState.fromWorkerStatus(
+      data,
+      version: version,
+    );
+    if (reported == null ||
+        reported.phase == WindowsUpdatePhase.failed ||
+        reported.phase == WindowsUpdatePhase.installed) {
+      return false;
+    }
+    if (await _launcher.invokeMethod<bool>('isRunning', {
+          'pid': data['workerPid'],
+        }) !=
+        true) {
+      return false;
+    }
+    _workerPid = data['workerPid'] as int;
+    _runId = data['runId'] as String;
+    _workerLaunchedForVersion = version;
+    _workerStartedAt = DateTime.now();
+    state.value = reported;
+    AppDiagnostics.instance.log('update_worker_attached', {
+      'version': version,
+      'pid': _workerPid,
+    });
+    return true;
   }
 
   Future<File> _writeShortcutScript() async {

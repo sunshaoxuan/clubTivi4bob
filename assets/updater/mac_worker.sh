@@ -86,6 +86,35 @@ wait_for_exit() {
   done
 }
 
+wait_for_app_idle() {
+  local active found
+  while true; do
+    active=false
+    while IFS= read -r found; do
+      [[ -z "$found" ]] && continue
+      if [[ "$(ps -p "$found" -o comm= 2>/dev/null || true)" == "$app/Contents/MacOS/BobTV" ]]; then active=true; fi
+    done < <(pgrep -x BobTV || true)
+    [[ "$active" == false ]] && return 0
+    sleep 2
+  done
+}
+
+failure_exit() {
+  local code=$? message
+  [[ -z "${signature_file:-}" ]] || rm -f "$signature_file"
+  (( code != 0 )) || return 0
+  case "$code" in
+    6) message='更新包完整性校验失败，请重新下载' ;;
+    7) message='安装包内容、版本或平台不匹配，已停止安装' ;;
+    8) message='更新签章校验未通过，已停止安装' ;;
+    9) message='安装目录无法写入，请将 BobTV 放到当前用户可写的应用程序目录' ;;
+    11) message='当前版本的启动检查未完成，请稍后重试' ;;
+    22|28|35|56) message='更新下载连接失败或超时，请检查网络后重试' ;;
+    *) message="更新未完成（错误码 $code），请查看 worker.log 后重试" ;;
+  esac
+  write_status failed "$version" 0 "$message"
+}
+
 if [[ "$mode" == 'monitor' ]]; then
   wait_for_exit
   [[ -f "$candidate" ]] || exit 0
@@ -135,7 +164,7 @@ fi
 [[ "$archive_url" == https://bobtv.briconbric.com/updates/*.zip &&
    "$archive_url" != *'?'* && "$archive_url" != *'#'* ]] || exit 2
 if [[ -f "$skipped" ]] && grep -Fxq "$version" "$skipped"; then exit 0; fi
-trap 'code=$?; if (( code != 0 )); then write_status failed "$version" 0 "更新未完成（错误码 $code），请查看 worker.log 后重试"; fi' EXIT
+trap failure_exit EXIT
 if [[ -f "$candidate" ]]; then
   write_status starting "$version" 0 '等待当前版本完成启动检查'
   for (( attempt=0; attempt<90; attempt++ )); do
@@ -173,7 +202,7 @@ mv -f "$partial" "$archive"
 public_key="$root/update-signing-public.pem"
 [[ -f "$public_key" && ! -L "$public_key" ]] || exit 8
 signature_file="$root/package-signature-$$.der"
-trap 'code=$?; rm -f "$signature_file"; if (( code != 0 )); then write_status failed "$version" 0 "更新未完成（错误码 $code），请查看 worker.log 后重试"; fi' EXIT
+trap failure_exit EXIT
 printf '%s' "$package_signature" | /usr/bin/base64 -D > "$signature_file"
 /usr/bin/openssl dgst -sha256 -verify "$public_key" \
   -signature "$signature_file" "$archive" >/dev/null || exit 8
@@ -219,6 +248,7 @@ write_status ready "$version" 100
 
 wait_for_exit
 [[ -w "$(dirname "$app")" ]] || exit 9
+wait_for_app_idle
 backup="$root/Backups/${version//+/_}-$(date +%s)-$$"
 write_status backingUp "$version" 0
 mkdir -p "$backup"

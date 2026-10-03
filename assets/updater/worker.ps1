@@ -67,7 +67,17 @@ function Write-Status([string]$phase, [string]$version, [int]$percent,
   foreach($path in $paths){
     $temp = $path + '.tmp'
     [IO.File]::WriteAllText($temp, $json, (New-Object Text.UTF8Encoding($false)))
-    Move-Item -LiteralPath $temp -Destination $path -Force
+    $published=$false
+    for($attempt=0;$attempt -lt 100;$attempt++){
+      try{
+        if([IO.File]::Exists($path)){
+          [IO.File]::Replace($temp,$path,$null,$true)
+        }else{[IO.File]::Move($temp,$path)}
+        $published=$true
+        break
+      }catch [IO.IOException]{Start-Sleep -Milliseconds 20}
+    }
+    if(!$published){throw ('Unable to publish updater status: '+$path)}
   }
 }
 

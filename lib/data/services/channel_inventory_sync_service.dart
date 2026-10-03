@@ -38,6 +38,7 @@ class ChannelInventorySyncService {
     if (_disposed) return 0;
     var acknowledged = 0;
     try {
+      await database.migrateLegacySharedEdits();
       if (fingerprintOverride == null)
         await ClientFingerprintService.instance.initialize();
       final fingerprint =
@@ -138,11 +139,13 @@ class ChannelInventorySyncService {
         if (completed == 0) break;
         await Future<void>.delayed(const Duration(milliseconds: 30));
       }
+      final stillPending = (await database.pendingSharedEvents()).isNotEmpty;
       if (!_disposed)
         state.value = WebsiteCatalogProgress(
-          phase: '频道变更已同步',
+          phase: stillPending ? '同步待重试，本机修改已保存' : '频道变更已同步',
           imported: acknowledged,
-          complete: true,
+          complete: !stillPending,
+          error: stillPending,
         );
     } catch (error, stack) {
       if (!_disposed)
@@ -306,7 +309,7 @@ class ChannelInventorySyncService {
         );
       }
       await flushEvents();
-      if (!_disposed) {
+      if (!_disposed && !state.value.error) {
         state.value = WebsiteCatalogProgress(
           phase: '频道上报完成，等待网站验证',
           imported: uploaded,

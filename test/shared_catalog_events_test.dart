@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:convert';
 import 'package:clubtivi/data/datasources/local/database.dart' as db;
 import 'package:clubtivi/data/services/channel_inventory_sync_service.dart';
 import 'package:clubtivi/data/services/bobtv_api_client.dart';
@@ -56,6 +57,46 @@ Future<void> seed(db.AppDatabase database) async {
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   setUp(() => SharedPreferences.setMockInitialValues({}));
+  test('legacy health migration runs once outside database open', () async {
+    SharedPreferences.setMockInitialValues({
+      'stream_health_scores': jsonEncode({
+        'news': {'url': url, 'ok': 2, 'fail': 1},
+      }),
+    });
+    final database = db.AppDatabase.forTesting(NativeDatabase.memory());
+    addTearDown(database.close);
+    await database.withoutSharedReporting(() => seed(database));
+    expect(await database.pendingSharedEvents(), isEmpty);
+    await database.migrateLegacySharedEdits();
+    final migrated = await database.pendingSharedEvents();
+    expect(migrated, hasLength(1));
+    expect(migrated.single['payload'], {'success': 2, 'failure': 1});
+    await database.acknowledgeSharedEvent(migrated.single['id'] as String);
+    await database.migrateLegacySharedEdits();
+    expect(await database.pendingSharedEvents(), isEmpty);
+  });
+  test('metadata and retirement are not starved by retryable health', () async {
+    final database = db.AppDatabase.forTesting(NativeDatabase.memory());
+    addTearDown(database.close);
+    await database.withoutSharedReporting(() => seed(database));
+    for (var i = 0; i < 101; i++) {
+      await database.queueSharedEvent(url, 'health', {
+        'success': 1,
+        'failure': 0,
+      });
+    }
+    await database.upsertChannels([
+      db.ChannelsCompanion.insert(
+        id: 'news',
+        providerId: 'bobtv-channel-catalog',
+        name: 'Updated',
+        streamUrl: url,
+      ),
+    ]);
+    expect((await database.pendingSharedEvents()).first['kind'], 'upsert');
+    await database.queueSharedEvent(url, 'retire', {});
+    expect((await database.pendingSharedEvents()).first['kind'], 'retire');
+  });
   test('durable queue survives offline failure and database restart', () async {
     final dir = await Directory.systemTemp.createTemp('bobtv-sync-test-');
     final file = File('${dir.path}/test.sqlite');

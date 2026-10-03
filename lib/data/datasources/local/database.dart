@@ -130,17 +130,22 @@ class AppDatabase extends _$AppDatabase {
     await customStatement(
       'CREATE TABLE IF NOT EXISTS shared_sync_migrations (name TEXT PRIMARY KEY)',
     );
+  }
+
+  /// Preference plugins belong to the application lifecycle, not database open.
+  /// A failed preference read leaves migration pending for the next sync attempt.
+  Future<void> migrateLegacySharedEdits() async {
     if ((await customSelect(
       "SELECT name FROM shared_sync_migrations WHERE name='legacy-v1'",
     ).get()).isEmpty) {
       await transaction(() async {
+        final prefs = await SharedPreferences.getInstance();
         for (final entry in (await ManualChannelCategory.load()).entries) {
           await queueSharedEvent(entry.key, 'classify', {
             'group': entry.value.group,
             'baseRevision': await sharedRouteRevision(entry.key),
           });
         }
-        final prefs = await SharedPreferences.getInstance();
         Object? old;
         try {
           old = jsonDecode(prefs.getString('stream_health_scores') ?? '{}');
@@ -262,7 +267,7 @@ class AppDatabase extends _$AppDatabase {
     int limit = 100,
   }) async {
     final rows = await customSelect(
-      'SELECT id,url,kind,payload FROM shared_sync_outbox ORDER BY rowid LIMIT ?',
+      "SELECT id,url,kind,payload FROM shared_sync_outbox ORDER BY CASE kind WHEN 'retire' THEN 0 WHEN 'delete' THEN 1 WHEN 'upsert' THEN 2 WHEN 'classify' THEN 3 ELSE 4 END,rowid LIMIT ?",
       variables: [Variable(limit)],
     ).get();
     return [

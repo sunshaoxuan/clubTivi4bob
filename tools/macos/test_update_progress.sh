@@ -13,10 +13,17 @@ state() {
   mv "$fixture/status-preview.json.tmp" "$fixture/status-preview.json"
 }
 state downloading
-"$helper" "$fixture" "$fixture/BobTV.app" 99999999 "$$" '0.9.1+73' preview > "$fixture/launcher.log" 2>&1 &
-observer=$!
+if [[ -d "$helper" ]]; then
+  /usr/bin/open -n -a "$helper" --args "$fixture" "$fixture/BobTV.app" 99999999 "$$" '0.9.1+73' preview
+else
+  "$helper" "$fixture" "$fixture/BobTV.app" 99999999 "$$" '0.9.1+73' preview > "$fixture/launcher.log" 2>&1 &
+  observer=$!
+fi
 for ((n=0; n<20; n++)); do
-  kill -0 "$observer"
+  if [[ -z "$observer" && -f "$fixture/progress-ui.log" ]]; then
+    observer="$(sed -n 's/.*observer_started .* pid=\([0-9]*\).*/\1/p' "$fixture/progress-ui.log" | head -1)"
+  fi
+  [[ -z "$observer" ]] || kill -0 "$observer"
   [[ -f "$fixture/progress-ui.log" ]] && grep -q window_shown "$fixture/progress-ui.log" && break
   sleep 1
 done

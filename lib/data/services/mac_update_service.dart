@@ -223,36 +223,33 @@ class MacUpdateService {
         'Contents',
         'Resources',
         'Updater',
-        'BobTVUpdateProgress',
+        'BobTVUpdateProgress.app',
       );
-      final destination = p.join(_directory!.path, 'progress-$_runId');
+      final destination = p.join(_directory!.path, 'Progress-$_runId.app');
       final copy = await Process.run('/usr/bin/ditto', [source, destination]);
       if (copy.exitCode != 0) throw StateError('无法准备独立更新窗口');
-      final observer = await Process.start(
-        '/bin/bash',
-        [
-          '-c',
-          r'exec "$@" >> "$BOBTV_PROGRESS_LOG" 2>&1',
-          'bobtv-update-progress',
-          destination,
-          _directory!.path,
-          _appPath,
-          '$pid',
-          '0', // The observer reads the real worker PID from its run status.
-          manifest.version,
-          _runId!,
-        ],
-        mode: ProcessStartMode.detached,
-        runInShell: false,
-        environment: {
-          'BOBTV_PROGRESS_LOG': p.join(
-            _directory!.path,
-            'progress-launcher.log',
-          ),
-        },
-      );
+      final observer = await Process.run('/usr/bin/open', [
+        '-n',
+        '-a',
+        destination,
+        '--args',
+        _directory!.path,
+        _appPath,
+        '$pid',
+        '0', // The observer reads the real worker PID from its run status.
+        manifest.version,
+        _runId!,
+      ], runInShell: false);
+      if (observer.exitCode != 0) {
+        throw ProcessException(
+          '/usr/bin/open',
+          [],
+          observer.stderr.toString(),
+          observer.exitCode,
+        );
+      }
       AppDiagnostics.instance.log('mac_update_progress_started', {
-        'pid': observer.pid,
+        'launcherExitCode': observer.exitCode,
         'runId': _runId,
       });
     } catch (error, stack) {

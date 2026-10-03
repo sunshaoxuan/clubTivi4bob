@@ -180,7 +180,7 @@ guard arguments.count == 7 || snapshot,
 let application = NSApplication.shared
 let delegate = UpdateProgress(arguments: CommandLine.arguments)
 application.delegate = delegate
-if !snapshot { delegate.log("observer_started run=\(delegate.runID)") }
+if !snapshot { delegate.log("observer_started run=\(delegate.runID) pid=\(ProcessInfo.processInfo.processIdentifier)") }
 delegate.start()
 application.finishLaunching()
 application.run()

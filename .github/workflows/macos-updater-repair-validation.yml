@@ -17,9 +17,12 @@ jobs:
       - uses: actions/checkout@v4
       - name: Verify native progress window lifecycle before building the player
         run: |
-          xcrun swiftc -O tools/macos/update_progress.swift -o "$RUNNER_TEMP/BobTVUpdateProgress"
-          codesign --force --sign - "$RUNNER_TEMP/BobTVUpdateProgress"
-          bash tools/macos/test_update_progress.sh "$RUNNER_TEMP/BobTVUpdateProgress"
+          helper="$RUNNER_TEMP/BobTVUpdateProgress.app"
+          mkdir -p "$helper/Contents/MacOS"
+          cp tools/macos/update_progress_info.plist "$helper/Contents/Info.plist"
+          xcrun swiftc -O tools/macos/update_progress.swift -o "$helper/Contents/MacOS/BobTVUpdateProgress"
+          codesign --force --sign - "$helper"
+          bash tools/macos/test_update_progress.sh "$helper"
       - uses: subosito/flutter-action@v2
         with:
           channel: stable
@@ -33,8 +36,11 @@ jobs:
           flutter build macos --release
           app=build/macos/Build/Products/Release/BobTV.app
           mkdir -p "$app/Contents/Resources/Updater"
-          xcrun swiftc -O tools/macos/update_progress.swift -o "$app/Contents/Resources/Updater/BobTVUpdateProgress"
-          codesign --force --sign - "$app/Contents/Resources/Updater/BobTVUpdateProgress"
+          helper="$app/Contents/Resources/Updater/BobTVUpdateProgress.app"
+          mkdir -p "$helper/Contents/MacOS"
+          cp tools/macos/update_progress_info.plist "$helper/Contents/Info.plist"
+          xcrun swiftc -O tools/macos/update_progress.swift -o "$helper/Contents/MacOS/BobTVUpdateProgress"
+          codesign --force --sign - "$helper"
           codesign --force --deep --sign - "$app"
       - name: Actual GUI discovery, signed download, close, backup, installation and healthy startup
         env:

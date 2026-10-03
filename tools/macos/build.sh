@@ -60,10 +60,13 @@ if [[ ! -d "$app/Contents/MacOS" ]]; then
 fi
 mkdir -p "$app/Contents/Resources/AirPlay"
 mkdir -p "$app/Contents/Resources/Updater"
+progress_app="$app/Contents/Resources/Updater/BobTVUpdateProgress.app"
+mkdir -p "$progress_app/Contents/MacOS"
+cp "$root/tools/macos/update_progress_info.plist" "$progress_app/Contents/Info.plist"
 deployment='10.15'
 [[ "$(uname -m)" == arm64 ]] && deployment='11.0'
 xcrun swiftc -target "$(uname -m)-apple-macos$deployment" -O "$root/tools/macos/update_progress.swift" \
-  -o "$app/Contents/Resources/Updater/BobTVUpdateProgress"
+  -o "$progress_app/Contents/MacOS/BobTVUpdateProgress"
 ditto "$helper" "$app/Contents/Resources/AirPlay/bobtv-airplay"
 if [[ -n "${BOBTV_FFMPEG_BIN:-}" ]]; then
   if [[ ! -f "$BOBTV_FFMPEG_BIN" || ! -f "${BOBTV_FFMPEG_LICENSE:-}" ||
@@ -82,7 +85,7 @@ if [[ -n "${BOBTV_FFMPEG_BIN:-}" ]]; then
 fi
 if [[ -n "${BOBTV_CODESIGN_IDENTITY:-}" ]]; then
   codesign --force --options runtime --sign "$BOBTV_CODESIGN_IDENTITY" \
-    "$app/Contents/Resources/Updater/BobTVUpdateProgress"
+    "$progress_app"
   if [[ -f "$app/Contents/Resources/Tools/ffmpeg" ]]; then
     codesign --force --options runtime --sign "$BOBTV_CODESIGN_IDENTITY" \
       "$app/Contents/Resources/Tools/ffmpeg"
@@ -95,7 +98,7 @@ if [[ -n "${BOBTV_CODESIGN_IDENTITY:-}" ]]; then
     --entitlements "$root/macos/Runner/Release.entitlements" \
     --sign "$BOBTV_CODESIGN_IDENTITY" "$app"
 else
-  codesign --force --sign - "$app/Contents/Resources/Updater/BobTVUpdateProgress"
+  codesign --force --sign - "$progress_app"
   # A local publisher-signed update still needs an internally valid app bundle.
   if [[ -f "$app/Contents/Resources/Tools/ffmpeg" ]]; then
     codesign --force --sign - "$app/Contents/Resources/Tools/ffmpeg"

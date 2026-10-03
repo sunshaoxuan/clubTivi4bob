@@ -44,6 +44,14 @@ function Write-Log([string]$message) {
     [DateTime]::UtcNow.ToString('o') + ' ' + $message) -Encoding utf8
 }
 
+function Get-Sha256([string]$path) {
+  # Do not depend on script-module discovery inherited from PowerShell 7 hosts.
+  $stream=[IO.File]::OpenRead($path)
+  $hash=[Security.Cryptography.SHA256]::Create()
+  try { return [BitConverter]::ToString($hash.ComputeHash($stream)).Replace('-','') }
+  finally { $hash.Dispose(); $stream.Dispose() }
+}
+
 function Write-Status([string]$phase, [string]$version, [int]$percent,
                       [string]$message) {
   if($script:lastPhase -ne $phase){
@@ -296,7 +304,7 @@ try {
   Write-Status 'downloading' $Version 0 '正在下载更新'
   if (!(Test-Path -LiteralPath $archive) -or
       (Get-Item -LiteralPath $archive).Length -ne $Bytes -or
-      (Get-FileHash -LiteralPath $archive -Algorithm SHA256).Hash -ine $Sha256) {
+      (Get-Sha256 $archive) -ine $Sha256) {
     Add-Type -AssemblyName System.Net.Http
     $handler = New-Object Net.Http.HttpClientHandler
     $handler.AllowAutoRedirect = $false
@@ -341,7 +349,7 @@ try {
     }
     Write-Status 'verifying' $Version 100 '下载完成，正在校验文件大小与完整性'
     if ((Get-Item -LiteralPath $partial).Length -ne $Bytes -or
-        (Get-FileHash -LiteralPath $partial -Algorithm SHA256).Hash -ine $Sha256) {
+        (Get-Sha256 $partial) -ine $Sha256) {
       throw 'Download integrity check failed'
     }
     Move-Item -LiteralPath $partial -Destination $archive -Force
@@ -406,8 +414,8 @@ try {
                              [guid]::NewGuid().ToString('N'))
   Write-Status 'backingUp' $Version 0 '正在备份旧版，完成后开始安装'
   Copy-Contents $AppDir $backup
-  if ((Get-FileHash (Join-Path $AppDir 'data\app.so')).Hash -ne
-      (Get-FileHash (Join-Path $backup 'data\app.so')).Hash) {
+  if ((Get-Sha256 (Join-Path $AppDir 'data\app.so')) -ne
+      (Get-Sha256 (Join-Path $backup 'data\app.so'))) {
     throw 'Backup verification failed'
   }
   Write-Status 'installing' $Version 100 '正在安装更新'

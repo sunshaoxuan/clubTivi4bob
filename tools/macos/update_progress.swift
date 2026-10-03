@@ -142,7 +142,7 @@ final class UpdateProgress: NSObject, NSApplicationDelegate, NSWindowDelegate {
             if remaining == 0 { NSApp.terminate(nil) }
         } else if status == "failed" {
             failure(phase.stringValue, detail.stringValue)
-        } else if snapshotPath == nil && !alive(workerPID) {
+        } else if snapshotPath == nil && !alive((state["workerPid"] as? NSNumber)?.int32Value ?? workerPID) {
             failure("更新助手意外退出", "更新尚未完成。请查看 worker.log，重新启动 BobTV 后重试。")
         }
     }

@@ -186,6 +186,9 @@ class MacUpdateService {
     _runId = '${DateTime.now().microsecondsSinceEpoch}-$pid';
     _workerStartedAt = DateTime.now();
     _workerLaunchedForVersion = manifest.version;
+    // Prepare the observer before downloading can reach ready. A fast download
+    // must not let app exit interrupt copying or launching the status window.
+    await _launchProgressWindow(manifest);
     final process = await Process.start(
       '/bin/bash',
       [
@@ -210,6 +213,10 @@ class MacUpdateService {
       'pid': _workerPid,
       'runId': _runId,
     });
+    await _readWorkerStatus();
+  }
+
+  Future<void> _launchProgressWindow(UpdateManifest manifest) async {
     try {
       final source = p.join(
         _appPath,
@@ -227,7 +234,7 @@ class MacUpdateService {
           _directory!.path,
           _appPath,
           '$pid',
-          '$_workerPid',
+          '0', // The observer reads the real worker PID from its run status.
           manifest.version,
           _runId!,
         ],
@@ -246,7 +253,6 @@ class MacUpdateService {
         message: '更新助手已启动，但独立进度窗口未能启动，详情已写入日志。',
       );
     }
-    await _readWorkerStatus();
   }
 
   Future<void> _writeAtomic(File file, String source) async {

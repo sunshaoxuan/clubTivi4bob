@@ -40,6 +40,7 @@ Future<void> main() async {
                         key: ValueKey(controller),
                         controller: controller,
                         controls: NoVideoControls,
+                        pauseUponEnteringBackgroundMode: false,
                       ),
                     ),
                     if (secondary != null)
@@ -52,6 +53,7 @@ Future<void> main() async {
                           key: ValueKey(secondary),
                           controller: secondary,
                           controls: NoVideoControls,
+                          pauseUponEnteringBackgroundMode: false,
                         ),
                       ),
                   ],
@@ -130,11 +132,6 @@ Future<void> main() async {
         primary.stream.error.listen(errors.add),
         secondary.stream.error.listen(errors.add),
       ];
-      for (final player in [primary, secondary]) {
-        await prepare(player);
-        await player.setPlaylistMode(PlaylistMode.loop);
-        await player.open(Media(media)).timeout(const Duration(seconds: 20));
-      }
       final configuration = VideoControllerConfiguration(
         enableHardwareAcceleration: !Platform.isMacOS,
       );
@@ -143,30 +140,62 @@ Future<void> main() async {
         secondary,
         configuration: configuration,
       );
+      // Attach both renderers before opening the streams, just as in the
+      // teardown phase. A late libmpv VO attachment can interrupt an already
+      // loaded stream. CI window focus must not pause either test player.
+      preview.value = secondaryController;
+      for (final player in [primary, secondary]) {
+        await prepare(player);
+        await player.setPlaylistMode(PlaylistMode.loop);
+        await player.open(Media(media)).timeout(const Duration(seconds: 20));
+      }
       final memory = <int>[];
       var changes = 0;
+      var secondaryChanges = 0;
+      var primaryAudioSamples = 0;
+      var secondaryAudioSamples = 0;
+      var primaryFrameSamples = 0;
+      var secondaryFrameSamples = 0;
       var previous = Duration.zero;
+      var secondaryPrevious = Duration.zero;
       for (var elapsed = 0; elapsed < seconds; elapsed++) {
         // Alternate single-player and PiP rendering without replacing cores.
         preview.value = elapsed % 60 >= 30 ? secondaryController : null;
         await Future<void>.delayed(const Duration(seconds: 1));
         if (primary.state.position != previous) changes++;
         previous = primary.state.position;
+        if (secondary.state.position != secondaryPrevious) secondaryChanges++;
+        secondaryPrevious = secondary.state.position;
+        bool hasAudio(Player player) => player.state.tracks.audio.any(
+          (track) => track.id != 'auto' && track.id != 'no',
+        );
+        if (hasAudio(primary)) primaryAudioSamples++;
+        if (hasAudio(secondary)) secondaryAudioSamples++;
+        if ((primary.state.width ?? 0) > 0) primaryFrameSamples++;
+        if ((secondary.state.width ?? 0) > 0) secondaryFrameSamples++;
         if (elapsed >= 30) memory.add(ProcessInfo.currentRss);
         if (elapsed % 30 == 0)
           record(
-            'soak elapsed=$elapsed rss=${ProcessInfo.currentRss} mainPosition=${primary.state.position.inMilliseconds} preview=${preview.value != null} errors=${errors.length}',
+            'soak elapsed=$elapsed rss=${ProcessInfo.currentRss} mainPosition=${primary.state.position.inMilliseconds} secondaryPosition=${secondary.state.position.inMilliseconds} preview=${preview.value != null} audioSamples=$primaryAudioSamples/$secondaryAudioSamples frameSamples=$primaryFrameSamples/$secondaryFrameSamples errors=${errors.length}',
           );
       }
-      if (changes < seconds * .7 || errors.isNotEmpty)
+      if (changes < seconds * .7 ||
+          secondaryChanges < seconds * .7 ||
+          errors.isNotEmpty)
         throw StateError('Soak stalled or reported decoder errors: $errors');
-      if (!primary.state.tracks.audio.any(
-            (t) => t.id != 'auto' && t.id != 'no',
-          ) ||
-          !secondary.state.tracks.audio.any(
-            (t) => t.id != 'auto' && t.id != 'no',
-          ))
-        throw StateError('Audio track missing');
+      // The short fixture loops every three seconds. Track lists may clear
+      // while MPV reloads it, so require sustained evidence from both streams
+      // instead of sampling only the final loop boundary.
+      if (primaryAudioSamples < seconds * .7 ||
+          secondaryAudioSamples < seconds * .7)
+        throw StateError(
+          'Audio coverage missing: $primaryAudioSamples/$secondaryAudioSamples',
+        );
+      if (primaryFrameSamples < seconds * .7 ||
+          secondaryFrameSamples < seconds * .7)
+        throw StateError(
+          'Video coverage missing: $primaryFrameSamples/$secondaryFrameSamples',
+        );
       int median(List<int> values) {
         values.sort();
         return values[values.length ~/ 2];
@@ -190,7 +219,7 @@ Future<void> main() async {
       await secondary.dispose().timeout(const Duration(seconds: 25));
       await Future<void>.delayed(const Duration(seconds: 7));
       record(
-        'PASS: $seconds second dual-player AV soak positionUpdates=$changes rssGrowth=$growth',
+        'PASS: $seconds second dual-player AV soak positionUpdates=$changes/$secondaryChanges audioSamples=$primaryAudioSamples/$secondaryAudioSamples frameSamples=$primaryFrameSamples/$secondaryFrameSamples rssGrowth=$growth',
       );
     }
     exit(0);

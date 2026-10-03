@@ -25,6 +25,12 @@ try{
   for($n=0;$n -lt 300;$n++){
     $appProcess.Refresh()
     if($appProcess.HasExited){throw 'Previous GUI exited before update discovery'}
+    if($n % 60 -eq 0){
+      Write-Output "GUI PID $($appProcess.Id), update root $root, wait $n seconds"
+      Get-ChildItem $root -ErrorAction SilentlyContinue|Select-Object Name,Length
+      Get-CimInstance Win32_Process -Filter "name='powershell.exe'"|
+        Select-Object ProcessId,ParentProcessId,CommandLine|Format-List
+    }
     if(Test-Path "$root\status.json"){
       $status=Get-Content "$root\status.json" -Raw|ConvertFrom-Json
       if($status.phase -eq 'ready' -and $status.version -eq $manifest.version){$ready=$true;break}
@@ -65,11 +71,17 @@ try{
   Stop-TestApp
   $diagnostics=Join-Path $env:GITHUB_WORKSPACE 'windows-live-update-diagnostics'
   New-Item -ItemType Directory -Path $diagnostics -Force|Out-Null
-  foreach($directory in @($root,(Join-Path $env:LOCALAPPDATA 'HotelTV\Logs'))){
+  foreach($directory in @($root,(Join-Path $env:LOCALAPPDATA 'HotelTV\Logs'),
+      (Join-Path $savedLocalAppData 'HotelTV\Update'))){
     if(Test-Path $directory){
-      Get-ChildItem $directory -File | Where-Object Extension -in @('.log','.json','.ini','.txt') |
+      Get-ChildItem $directory -File | Where-Object Extension -in @('.log','.json','.ini','.txt','.ps1') |
         Copy-Item -Destination $diagnostics -Force
     }
+  }
+  $worker=Join-Path $root 'worker.ps1'
+  if(Test-Path $worker){
+    & powershell.exe -NoProfile -NonInteractive -WindowStyle Hidden -ExecutionPolicy Bypass `
+      -File $worker -Mode Monitor -CurrentPid 99999999 2>&1 | Out-File "$diagnostics\worker-launch-probe.log"
   }
   Get-ChildItem $diagnostics -File | ForEach-Object {
     Write-Output $_.Name

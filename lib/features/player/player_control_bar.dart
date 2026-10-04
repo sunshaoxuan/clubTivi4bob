@@ -459,7 +459,7 @@ class _PlayerControlBarState extends ConsumerState<PlayerControlBar> {
                         onTap: widget.onCastTap,
                       ),
                       Tooltip(
-                        message: widget.isFullscreen ? '退出全屏' : '全屏',
+                        message: '返回频道，保持窗口全屏',
                         child: _iconBtn(
                           widget.isFullscreen
                               ? Icons.fullscreen_exit

@@ -607,9 +607,13 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     if (_leavingPlayer) return false;
     _leavingPlayer = true;
     try {
-      AppDiagnostics.instance.log('fullscreen_exit_requested');
-      await _fullscreenSession?.exit();
-      AppDiagnostics.instance.log('fullscreen_exit_completed');
+      AppDiagnostics.instance.log('fullscreen_exit_requested', {
+        'keepWindowFullscreen': true,
+      });
+      await _fullscreenSession?.exit(keepWindowFullscreen: true);
+      AppDiagnostics.instance.log('fullscreen_exit_completed', {
+        'keepWindowFullscreen': true,
+      });
     } catch (error, stack) {
       _leavingPlayer = false;
       AppDiagnostics.instance.recordError('fullscreen_exit', error, stack);

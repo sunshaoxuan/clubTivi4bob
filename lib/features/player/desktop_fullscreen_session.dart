@@ -64,6 +64,7 @@ class DesktopFullscreenSession {
   Future<void>? _exitFuture;
   bool _entered = false;
   bool _exitRequested = false;
+  bool _keepWindowFullscreen = false;
   bool _externalExitReported = false;
   bool _disposed = false;
 
@@ -74,14 +75,17 @@ class DesktopFullscreenSession {
 
   Future<void> _performEntry() async {
     _snapshot = await _backend.capture();
-    if (_exitRequested) return;
+    if (_exitRequested && !_keepWindowFullscreen) return;
     await _backend.prepareEntry();
     await _backend.setFullscreen(true);
     _entered = !_externalExitReported;
     if (!_disposed && !_exitRequested && _entered) _onChanged(true);
   }
 
-  Future<void> exit() {
+  Future<void> exit({bool keepWindowFullscreen = false}) {
+    final existingExit = _exitFuture;
+    if (existingExit != null) return existingExit;
+    _keepWindowFullscreen = keepWindowFullscreen;
     _exitRequested = true;
     return _exitFuture ??= _performExit().catchError((
       Object error,
@@ -99,14 +103,16 @@ class DesktopFullscreenSession {
     } catch (error, stack) {
       _onError?.call(error, stack);
     }
-    if (await _backend.isFullscreen()) {
+    if (!_keepWindowFullscreen && await _backend.isFullscreen()) {
       await _backend.setFullscreen(false);
     }
     final snapshot = _snapshot;
-    if (snapshot != null) {
+    if (snapshot != null && !_keepWindowFullscreen) {
       await _backend.restore(snapshot);
-      _snapshot = null;
     }
+    // Returning to the caller transfers the existing fullscreen window to
+    // that page. Disposal must not replay native exit or saved geometry.
+    _snapshot = null;
     _entered = false;
     if (!_disposed) _onChanged(false);
   }

@@ -36,7 +36,8 @@ fetch('/releases.json')
 
     const choices = element('div', 'release-choices');
     for (const platform of platforms) {
-      const release = current.find(item => item.platform === platform.name);
+      const release = current.find(item => item.platform === platform.name && item.filename.endsWith('-Setup.exe'))
+        || current.find(item => item.platform === platform.name);
       if (!release) continue;
       const link = element('a', 'release-choice');
       link.href = `/downloads/${encodeURIComponent(release.filename)}`;
@@ -45,7 +46,8 @@ fetch('/releases.json')
       link.append(element('span', 'release-choice-icon', platform.mark));
       link.append(element('span', 'release-choice-system', platform.system));
       link.append(element('strong', 'release-choice-title', platform.label));
-      link.append(element('span', 'release-choice-detail', `${platform.format} · ${release.size}`));
+      const format = release.filename.endsWith('-Setup.exe') ? 'EXE 安装程序' : platform.format;
+      link.append(element('span', 'release-choice-detail', `${format} · ${release.size}`));
       link.append(element('span', 'release-choice-action', '立即下载 ↗'));
       choices.append(link);
     }

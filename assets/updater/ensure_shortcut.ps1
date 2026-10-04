@@ -9,6 +9,15 @@ if (!(Test-Path -LiteralPath $exe -PathType Leaf) -or
   throw 'BobTV executable missing'
 }
 
+# A managed installation owns its shortcut choice. Do not undo an unchecked
+# installer task on first launch or during an automatic ZIP update.
+$policy=Join-Path ([IO.Path]::GetDirectoryName($exe)) 'installation.ini'
+if(Test-Path -LiteralPath $policy -PathType Leaf) {
+  $text=[IO.File]::ReadAllText($policy)
+  if($text -match '(?m)^\[BobTVInstallation\]\s*$' -and
+     $text -match '(?m)^Managed\s*=\s*1\s*$') { return }
+}
+
 $desktop = [Environment]::GetFolderPath('DesktopDirectory')
 if ([string]::IsNullOrWhiteSpace($desktop) -or
     !(Test-Path -LiteralPath $desktop -PathType Container)) {

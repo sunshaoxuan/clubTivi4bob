@@ -15,7 +15,7 @@ from pathlib import Path
 DATA = Path(os.environ.get("BOBTV_DATA_DIR", Path(__file__).resolve().parent / "data"))
 
 API = "https://api.github.com/repos/sunshaoxuan/clubTivi4bob/releases?per_page=100"
-NAME = re.compile(r"^BobTV-[A-Za-z0-9.+_-]+-(windows-x64\.zip|macos-(x64|arm64)\.dmg)$")
+NAME = re.compile(r"^BobTV-[A-Za-z0-9.+_-]+-(windows-x64(?:\.zip|-Setup\.exe)|macos-(x64|arm64)\.dmg)$")
 UPDATE_METADATA = "BobTV-update-metadata.json"
 UPDATE_VERSION = re.compile(r"^\d+\.\d+\.\d+\+\d+$")
 UPDATE_NAME = re.compile(r"^BobTV-[A-Za-z0-9.+_-]+\.zip$")
@@ -221,6 +221,16 @@ def mirror():
                             uploaded.seek(-512, os.SEEK_END)
                             signature = uploaded.read(4)
                             expected_signature = b"koly"
+                        elif name.endswith(".exe"):
+                            header = uploaded.read(64)
+                            if len(header) != 64 or header[:2] != b"MZ":
+                                raise ValueError(f"Installer header invalid: {name}")
+                            pe_offset = int.from_bytes(header[60:64], "little")
+                            if not 64 <= pe_offset <= size - 4:
+                                raise ValueError(f"Installer PE offset invalid: {name}")
+                            uploaded.seek(pe_offset)
+                            signature = uploaded.read(4)
+                            expected_signature = b"PE\x00\x00"
                         else:
                             signature = uploaded.read(4)
                             expected_signature = b"PK\x03\x04"
@@ -232,7 +242,7 @@ def mirror():
                     os.replace(temp, target)
                 finally:
                     temp.unlink(missing_ok=True)
-            platform = ("Windows x64" if name.endswith("windows-x64.zip") else
+            platform = ("Windows x64" if name.endswith(("windows-x64.zip", "windows-x64-Setup.exe")) else
                         "macOS Intel" if name.endswith("macos-x64.dmg") else
                         "macOS Apple Silicon")
             result.append({"version": release["tag_name"], "date": release["published_at"][:10],

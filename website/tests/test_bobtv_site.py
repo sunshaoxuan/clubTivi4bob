@@ -54,6 +54,21 @@ def test_site_download_is_local_and_manifest_gated(tmp_path, monkeypatch):
     assert client.head("/downloads/BobTV.zip").headers["content-length"] == "8"
 
 
+def test_setup_download_is_manifest_gated_and_has_binary_mime(tmp_path, monkeypatch):
+    monkeypatch.setattr(module, "DATA", tmp_path)
+    folder = tmp_path / "releases"
+    folder.mkdir()
+    name = "BobTV-0.9.1+80-windows-x64-Setup.exe"
+    (folder / name).write_bytes(b"MZsetup")
+    (tmp_path / "releases.json").write_text(json.dumps({"releases": [{"filename": name}]}))
+    client = TestClient(module.app)
+    response = client.get("/downloads/" + name)
+    assert response.status_code == 200
+    assert response.headers["content-type"] == "application/octet-stream"
+    assert response.content == b"MZsetup"
+    assert client.get("/downloads/unlisted-Setup.exe").status_code == 404
+
+
 def test_product_pages_reflect_published_releases():
     client = TestClient(module.app)
     home = client.get("/").text

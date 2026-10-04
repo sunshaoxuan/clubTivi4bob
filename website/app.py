@@ -84,7 +84,8 @@ def download(filename: str):
     path = DATA / "releases" / filename
     if not path.is_file():
         raise HTTPException(404)
-    media_type = "application/x-apple-diskimage" if filename.endswith(".dmg") else "application/zip"
+    media_type = ("application/x-apple-diskimage" if filename.endswith(".dmg") else
+                  "application/octet-stream" if filename.endswith(".exe") else "application/zip")
     return FileResponse(path, filename=filename, media_type=media_type)
 
 

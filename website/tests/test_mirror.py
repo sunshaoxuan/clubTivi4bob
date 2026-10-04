@@ -81,6 +81,28 @@ def test_mirror_publishes_mac_install_dmg(tmp_path, monkeypatch):
     assert (tmp_path / "releases" / name).read_bytes() == image
 
 
+def test_mirror_publishes_setup_and_rejects_invalid_executable(tmp_path, monkeypatch):
+    monkeypatch.setattr(module, "DATA", tmp_path)
+    image = bytearray(128)
+    image[:2] = b"MZ"
+    image[60:64] = (64).to_bytes(4, "little")
+    image[64:68] = b"PE\x00\x00"
+    name = "BobTV-0.9.1+80-windows-x64-Setup.exe"
+    asset = {"name": name, "size": len(image), "browser_download_url": "setup",
+             "digest": "sha256:" + hashlib.sha256(image).hexdigest()}
+    releases = [{"tag_name": "test", "published_at": "2026-10-04T00:00:00Z", "assets": [asset]}]
+    monkeypatch.setattr(module, "request", lambda url: io.BytesIO(
+        json.dumps(releases).encode() if url == module.API else image))
+    module.mirror()
+    row = json.loads((tmp_path / "releases.json").read_text())["releases"][0]
+    assert row["platform"] == "Windows x64"
+    assert row["filename"] == name
+    image[64:68] = b"fake"
+    asset["digest"] = "sha256:" + hashlib.sha256(image).hexdigest()
+    with pytest.raises(ValueError, match="Asset invalid"):
+        module.mirror()
+
+
 def test_mirror_publishes_platform_update_only_after_checksum_verification(tmp_path, monkeypatch):
     monkeypatch.setattr(module, "DATA", tmp_path)
     legacy = b"PK\x03\x04release"

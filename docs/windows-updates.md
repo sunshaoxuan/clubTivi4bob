@@ -1,10 +1,18 @@
 # Windows automatic updates
 
 Release builds check `https://bobtv.briconbric.com/updates/windows-x64/latest.json`
-on startup and every six hours. A missing manifest means that no approved
+on startup and every six hours. Foreground checks are additionally throttled
+to once per fifteen minutes. A missing manifest is reported explicitly and means that no approved
 automatic update has been published. The independent worker downloads a newer
 archive while BobTV runs and installs it after the app closes. Debug builds do
 not poll automatically. The installed application does not need GitHub access.
+
+Checking immediately shows a spinner. Settings retains the actual result,
+including up-to-date, network failure, and a skipped unhealthy version. Active
+download or installation progress is not overwritten by another check.
+Setup-managed installations show a separate administrator-required state and
+a link to the download page. They are upgraded by running the new Setup with
+administrator authorization; the portable ZIP updater does not elevate itself.
 
 ## Platform mirror contract
 

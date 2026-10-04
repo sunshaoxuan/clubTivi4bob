@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'desktop_update_check_tile.dart';
 
 import 'package:drift/drift.dart' show Value;
 import 'package:file_picker/file_picker.dart';
@@ -364,21 +365,14 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                     ListTile(
                       leading: const Icon(Icons.info_outline_rounded),
                       title: const Text('BobTV'),
-                      subtitle: const Text('v$bobTvVersion • 开源软件 • Apache 2.0'),
+                      subtitle: const Text(
+                        'v$bobTvVersion • 开源软件 • Apache 2.0',
+                      ),
                     ),
                     if (Platform.isWindows || Platform.isMacOS)
-                      ListTile(
-                        leading: const Icon(Icons.system_update_rounded),
-                        title: const Text('检查更新'),
-                        subtitle: const Text('自动下载，退出后安装'),
-                        onTap: () async {
-                          await DesktopUpdateService.instance.checkNow();
-                          if (context.mounted) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(content: Text('更新检查已完成')),
-                            );
-                          }
-                        },
+                      DesktopUpdateCheckTile(
+                        state: DesktopUpdateService.instance.state,
+                        onCheck: DesktopUpdateService.instance.checkNow,
                       ),
                     ListTile(
                       leading: const Icon(Icons.code_rounded),

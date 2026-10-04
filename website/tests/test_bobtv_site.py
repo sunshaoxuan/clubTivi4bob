@@ -72,7 +72,8 @@ def test_setup_download_is_manifest_gated_and_has_binary_mime(tmp_path, monkeypa
 def test_product_pages_reflect_published_releases():
     client = TestClient(module.app)
     home = client.get("/").text
-    assert "v1.0.1" in home and "WINDOWS · MACOS" in home
+    assert "v1.0.2" in home and "WINDOWS · MACOS" in home
+    assert "Mac 1.0.2 / Windows 1.0.1" in home
     assert "Setup 安装向导" in home and "Unicode" in home
     assert "正式安装版" in home and "退出后继续显示备份、安装及完成状态" in home
     assert 'id="sync-title"' in home and "离线时保留修改" in home
@@ -91,7 +92,8 @@ def test_product_pages_reflect_published_releases():
     assert "v0.9.1-bob.11" not in downloads
     assert 'class="downloads-page"' in downloads
     script = client.get("/assets/downloads.js").text
-    assert "release.version === latest.version" in script
+    assert "item.version === candidates[0]?.version" in script
+    assert "${release.version} · ${format}" in script
     assert script.count("{ name: '") == 3
     diagnostics = client.get("/diagnostics").text
     assert 'class="diagnostics-page"' in diagnostics

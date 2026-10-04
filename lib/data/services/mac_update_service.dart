@@ -35,6 +35,7 @@ class MacUpdateService {
   DateTime? _workerStartedAt;
   bool _readingStatus = false;
   final Completer<void> _healthMonitorReady = Completer<void>();
+  final Completer<void> _directoryReady = Completer<void>();
 
   void start() {
     if (!Platform.isMacOS || _started) return;
@@ -47,6 +48,7 @@ class MacUpdateService {
       final support = await getApplicationSupportDirectory();
       _directory = Directory(p.join(support.path, 'Update'));
       await _directory!.create(recursive: true);
+      _directoryReady.complete();
       await _readInstalledStatus();
       await _startHealthMonitor();
       _healthMonitorReady.complete();
@@ -60,12 +62,21 @@ class MacUpdateService {
     } catch (error, stackTrace) {
       if (!_healthMonitorReady.isCompleted) _healthMonitorReady.complete();
       AppDiagnostics.instance.recordError('mac_update_init', error, stackTrace);
+      if (!_directoryReady.isCompleted) _directoryReady.complete();
+      state.value = WindowsUpdateState(
+        WindowsUpdatePhase.failed,
+        message: '无法初始化更新助手：$error。当前版本可继续使用。',
+      );
     }
   }
 
   Future<void> checkNow() async {
-    if (!Platform.isMacOS || _checking || _directory == null) return;
+    if (!Platform.isMacOS) return;
+    if (!_started) start();
+    await _directoryReady.future;
+    if (_checking || !state.value.canCheck || _directory == null) return;
     _checking = true;
+    state.value = const WindowsUpdateState(WindowsUpdatePhase.checking);
     final client = HttpClient()..connectionTimeout = const Duration(seconds: 8);
     try {
       final manifestUri = await _resolveManifestUri();
@@ -78,7 +89,9 @@ class MacUpdateService {
       final response = await request.close().timeout(
         const Duration(seconds: 10),
       );
-      if (response.statusCode == HttpStatus.notFound) return;
+      if (response.statusCode == HttpStatus.notFound) {
+        throw const HttpException('更新服务尚未提供此平台的版本清单（404）');
+      }
       if (response.statusCode != HttpStatus.ok) {
         throw HttpException('Mirror returned ${response.statusCode}');
       }
@@ -97,11 +110,20 @@ class MacUpdateService {
         throw const FormatException('Mac update has no publisher signature');
       }
       if (UpdateManifest.compareVersions(manifest.version, bobTvVersion) <= 0) {
+        state.value = WindowsUpdateState(
+          WindowsUpdatePhase.upToDate,
+          version: bobTvVersion,
+        );
         return;
       }
       final skipped = File(p.join(_directory!.path, 'skipped_versions.txt'));
       if (await skipped.exists() &&
           (await skipped.readAsLines()).contains(manifest.version)) {
+        state.value = WindowsUpdateState(
+          WindowsUpdatePhase.failed,
+          version: manifest.version,
+          message: '版本 ${manifest.version} 曾启动失败，已跳过。等待后续修复版本，当前版本可继续使用。',
+        );
         return;
       }
       if (_workerLaunchedForVersion == manifest.version &&

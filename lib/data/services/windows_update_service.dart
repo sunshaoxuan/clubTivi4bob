@@ -37,7 +37,13 @@ class WindowsUpdateService {
     if (!Platform.isWindows || _started) return;
     _started = true;
     final localAppData = Platform.environment['LOCALAPPDATA'];
-    if (localAppData == null || localAppData.isEmpty) return;
+    if (localAppData == null || localAppData.isEmpty) {
+      state.value = const WindowsUpdateState(
+        WindowsUpdatePhase.failed,
+        message: '无法找到用户更新目录，请检查 LOCALAPPDATA 设置。',
+      );
+      return;
+    }
     _updateDirectory = Directory(p.join(localAppData, 'HotelTV', 'Update'));
     unawaited(_readInstalledStatus());
     if (kReleaseMode) unawaited(_ensureDesktopShortcut());
@@ -52,8 +58,12 @@ class WindowsUpdateService {
   }
 
   Future<void> checkNow() async {
-    if (_checking || _updateDirectory == null) return;
+    if (!Platform.isWindows || _checking || !state.value.canCheck) return;
+    if (!_started) start();
+    if (_checking) return;
+    if (_updateDirectory == null) return;
     _checking = true;
+    state.value = const WindowsUpdateState(WindowsUpdatePhase.checking);
     final client = HttpClient()..connectionTimeout = const Duration(seconds: 8);
     try {
       final manifestUri = await _resolveManifestUri();
@@ -66,7 +76,9 @@ class WindowsUpdateService {
       final response = await request.close().timeout(
         const Duration(seconds: 10),
       );
-      if (response.statusCode == HttpStatus.notFound) return;
+      if (response.statusCode == HttpStatus.notFound) {
+        throw const HttpException('更新服务尚未提供此平台的版本清单（404）');
+      }
       if (response.statusCode != HttpStatus.ok) {
         throw HttpException('Mirror returned ${response.statusCode}');
       }
@@ -82,6 +94,10 @@ class WindowsUpdateService {
         manifestUri,
       );
       if (UpdateManifest.compareVersions(manifest.version, bobTvVersion) <= 0) {
+        state.value = WindowsUpdateState(
+          WindowsUpdatePhase.upToDate,
+          version: bobTvVersion,
+        );
         return;
       }
       final installation = File(
@@ -89,9 +105,10 @@ class WindowsUpdateService {
       );
       if (await installation.exists()) {
         state.value = WindowsUpdateState(
-          WindowsUpdatePhase.failed,
+          WindowsUpdatePhase.manualRequired,
           version: manifest.version,
-          message: '发现新版本 ${manifest.version}。安装版需要管理员授权，请从 '
+          message:
+              '发现新版本 ${manifest.version}。安装版需要管理员授权，请从 '
               'https://bobtv.briconbric.com/downloads 下载并运行 Setup 升级。'
               '当前版本可继续使用。',
         );
@@ -105,6 +122,11 @@ class WindowsUpdateService {
         AppDiagnostics.instance.log('update_skipped_bad_version', {
           'version': manifest.version,
         });
+        state.value = WindowsUpdateState(
+          WindowsUpdatePhase.failed,
+          version: manifest.version,
+          message: '版本 ${manifest.version} 曾启动失败，已跳过。等待后续修复版本，当前版本可继续使用。',
+        );
         return;
       }
       if (_workerLaunchedForVersion == manifest.version &&

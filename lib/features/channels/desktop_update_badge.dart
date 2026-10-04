@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../data/services/desktop_update_state.dart';
 
 class DesktopUpdateBadge extends StatelessWidget {
@@ -157,6 +158,12 @@ class _UpdateDetails extends StatelessWidget {
         ),
       ),
       actions: [
+        if (update.phase == WindowsUpdatePhase.manualRequired)
+          FilledButton(
+            onPressed: () =>
+                launchUrl(Uri.parse('https://bobtv.briconbric.com/downloads')),
+            child: const Text('下载安装包'),
+          ),
         if (update.phase == WindowsUpdatePhase.failed)
           FilledButton(onPressed: onRetry, child: const Text('重试更新')),
         TextButton(

@@ -21,6 +21,8 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("directory", type=Path)
     parser.add_argument("version")
+    parser.add_argument("--platforms", nargs="+", choices=("windows-x64", "macos-x64", "macos-arm64"),
+                        default=["windows-x64", "macos-x64", "macos-arm64"])
     args = parser.parse_args()
     version_parts(args.version)
     root = args.directory.resolve()
@@ -32,7 +34,10 @@ def main():
     if set(entries) - {"macos-x64", "macos-arm64", "windows-x64"}:
         raise ValueError("Unexpected platform")
     assets = []
-    for platform in ("macos-x64", "macos-arm64", "windows-x64"):
+    selected = set(args.platforms)
+    if set(entries) - selected:
+        raise ValueError("Metadata contains a platform excluded from this publication")
+    for platform in (name for name in ("macos-x64", "macos-arm64", "windows-x64") if name in selected):
         filename = f"BobTV-{args.version}-{platform}.zip"
         archive = root / filename
         _inspect_update_archive(archive, platform)
@@ -53,18 +58,18 @@ def main():
             entries[platform] = {"platform": platform, "filename": filename,
                                  "sha256": checksum, "bytes": size}
         assets.append(archive)
-    payload["packages"] = [entries[name] for name in ("windows-x64", "macos-x64", "macos-arm64")]
+    payload["packages"] = [entries[name] for name in ("windows-x64", "macos-x64", "macos-arm64") if name in selected]
     metadata.write_text(json.dumps(payload, separators=(",", ":")), encoding="utf-8")
     assets.append(metadata)
     installer = root / f"BobTV-{args.version}-windows-x64-Setup.exe"
-    if installer.exists():
+    if "windows-x64" in selected and installer.exists():
         with installer.open("rb") as source:
             if source.read(2) != b"MZ":
                 raise ValueError("Invalid Windows installer")
         assets.append(installer)
     (root / "SHA256SUMS.txt").write_text(
         "".join(f"{digest(path)}  {path.name}\n" for path in sorted(assets)), encoding="utf-8")
-    print(f"Validated three platform updates and {len(assets)} release assets")
+    print(f"Validated {len(selected)} platform updates and {len(assets)} release assets")
 
 
 if __name__ == "__main__":

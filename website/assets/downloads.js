@@ -25,29 +25,31 @@ fetch('/releases.json')
     }
 
     const latest = releases[0];
-    const current = releases.filter(release => release.version === latest.version);
     const panel = element('div', 'release-panel');
     const version = element('div', 'release-version');
     version.append(element('span', 'release-version-label', '当前版本'));
     version.append(element('strong', 'release-version-number', latest.version));
     version.append(element('span', 'release-version-date', `发布于 ${latest.date}`));
-    version.append(element('span', 'release-version-caption', '同一版本，选择适合你的设备。'));
+    version.append(element('span', 'release-version-caption', '各平台最新安装包，下载按钮标明版本。'));
     panel.append(version);
 
     const choices = element('div', 'release-choices');
+    const selected = [];
     for (const platform of platforms) {
-      const release = current.find(item => item.platform === platform.name && item.filename.endsWith('-Setup.exe'))
-        || current.find(item => item.platform === platform.name);
+      const candidates = releases.filter(item => item.platform === platform.name);
+      const newest = candidates.filter(item => item.version === candidates[0]?.version);
+      const release = newest.find(item => item.filename.endsWith('-Setup.exe')) || newest[0];
       if (!release) continue;
+      selected.push(release);
       const link = element('a', 'release-choice');
       link.href = `/downloads/${encodeURIComponent(release.filename)}`;
       link.setAttribute('download', release.filename);
-      link.setAttribute('aria-label', `下载 ${platform.label}，${release.size}`);
+      link.setAttribute('aria-label', `下载 ${platform.label} ${release.version}，${release.size}`);
       link.append(element('span', 'release-choice-icon', platform.mark));
       link.append(element('span', 'release-choice-system', platform.system));
       link.append(element('strong', 'release-choice-title', platform.label));
       const format = release.filename.endsWith('-Setup.exe') ? 'EXE 安装程序' : platform.format;
-      link.append(element('span', 'release-choice-detail', `${format} · ${release.size}`));
+      link.append(element('span', 'release-choice-detail', `${release.version} · ${format} · ${release.size}`));
       link.append(element('span', 'release-choice-action', '立即下载 ↗'));
       choices.append(link);
     }
@@ -60,7 +62,7 @@ fetch('/releases.json')
 
     const checksums = element('details', 'release-checksums');
     checksums.append(element('summary', '', '查看安装包 SHA-256 校验值'));
-    for (const release of current) {
+    for (const release of selected) {
       const row = element('div', 'checksum-row');
       row.append(element('span', '', release.platform || release.filename));
       row.append(element('code', '', release.sha256));

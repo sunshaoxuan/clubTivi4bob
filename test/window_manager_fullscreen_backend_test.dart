@@ -126,10 +126,42 @@ void main() {
     backend.onWindowLeaveFullScreen();
     await leaving;
     expect(finished, isTrue);
+    expect(native.callsTo('setAlwaysOnTop').single.arguments, {
+      'isAlwaysOnTop': false,
+    });
     expect(native.callsTo('focus'), isEmpty);
     expect(native.callsTo('setBounds'), isEmpty);
     expect(native.callsTo('maximize'), isEmpty);
   });
+
+  test(
+    'Mac exit recovers when native state changes without a notification',
+    () async {
+      native.fullscreen = true;
+      createBackend(isMacOS: true);
+      final leaving = backend.setFullscreen(false);
+      await _advanceAsyncWork();
+      native.fullscreen = false;
+      await leaving;
+      expect(native.callsTo('setFullScreen'), hasLength(1));
+      expect(native.callsTo('setAlwaysOnTop').single.arguments, {
+        'isAlwaysOnTop': false,
+      });
+      expect(native.callsTo('setBounds'), isEmpty);
+    },
+  );
+
+  test(
+    'Mac entry recovers when its completion notification is missing',
+    () async {
+      createBackend(isMacOS: true);
+      final entering = backend.setFullscreen(true);
+      await _advanceAsyncWork();
+      native.fullscreen = true;
+      await entering;
+      expect(native.callsTo('focus'), hasLength(1));
+    },
+  );
 
   test(
     'Mac preparation and restore never rewrite native geometry or titlebar',

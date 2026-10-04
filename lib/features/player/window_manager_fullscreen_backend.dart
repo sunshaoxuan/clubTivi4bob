@@ -49,9 +49,14 @@ class WindowManagerFullscreenBackend extends WindowListener
       _transition = completion;
       _transitionTarget = value;
       try {
+        // Cocoa fullscreen windows must return to the normal window level
+        // before leaving their Space. Restore the saved level afterwards.
+        if (_isMacOS && !value) {
+          await windowManager.setAlwaysOnTop(false);
+        }
         await windowManager.setFullScreen(value);
         if (completion != null) {
-          await completion.future.timeout(const Duration(seconds: 10));
+          await _awaitNativeTransition(value, completion);
         }
       } finally {
         _transition = null;
@@ -65,6 +70,34 @@ class WindowManagerFullscreenBackend extends WindowListener
       if (!await windowManager.isMinimized() &&
           (!_isMacOS || await isFullscreen())) {
         await windowManager.focus();
+      }
+    }
+  }
+
+  Future<void> _awaitNativeTransition(
+    bool value,
+    Completer<void> completion,
+  ) async {
+    final deadline = DateTime.now().add(const Duration(seconds: 10));
+    var matchingSamples = 0;
+    while (!completion.isCompleted) {
+      await Future.any([
+        completion.future,
+        Future<void>.delayed(const Duration(milliseconds: 250)),
+      ]);
+      if (completion.isCompleted) return;
+      // Window delegate notifications may be lost after Cocoa restores a
+      // fullscreen window. Confirm stable native state before recovering.
+      matchingSamples = await isFullscreen() == value ? matchingSamples + 1 : 0;
+      if (matchingSamples >= 4) {
+        AppDiagnostics.instance.log('fullscreen_native_state_recovered', {
+          'fullscreen': value,
+        });
+        _completed(value);
+        return;
+      }
+      if (DateTime.now().isAfter(deadline)) {
+        throw TimeoutException('Native fullscreen state did not reach $value');
       }
     }
   }

@@ -6,7 +6,7 @@ import 'package:window_manager/window_manager.dart';
 import 'desktop_fullscreen_session.dart';
 import '../../core/app_diagnostics.dart';
 
-/// Cocoa owns saved geometry and completes fullscreen through native events.
+/// Cocoa completes fullscreen through native events or verified native state.
 /// Windows/Linux keep their explicit titlebar and geometry restoration.
 class WindowManagerFullscreenBackend extends WindowListener
     implements FullscreenWindowBackend {
@@ -29,6 +29,7 @@ class WindowManagerFullscreenBackend extends WindowListener
     bounds: await windowManager.getBounds(),
     maximized: await windowManager.isMaximized(),
     alwaysOnTop: await windowManager.isAlwaysOnTop(),
+    wasFullscreen: await windowManager.isFullScreen(),
   );
 
   @override
@@ -105,7 +106,22 @@ class WindowManagerFullscreenBackend extends WindowListener
   @override
   Future<void> restore(FullscreenWindowSnapshot snapshot) async {
     await windowManager.setAlwaysOnTop(snapshot.alwaysOnTop);
-    if (_isMacOS) return;
+    if (_isMacOS) {
+      if (await windowManager.isMinimized()) return;
+      // A caller already in a native fullscreen Space has no ordinary frame
+      // to restore. Otherwise repair only a changed post-animation frame.
+      if (snapshot.wasFullscreen) return;
+      if (snapshot.maximized) {
+        if (!await windowManager.isMaximized()) await windowManager.maximize();
+      } else if (await windowManager.getBounds() != snapshot.bounds) {
+        AppDiagnostics.instance.log('fullscreen_window_bounds_restored', {
+          'width': snapshot.bounds.width,
+          'height': snapshot.bounds.height,
+        });
+        await windowManager.setBounds(snapshot.bounds);
+      }
+      return;
+    }
     await windowManager.setTitleBarStyle(TitleBarStyle.normal);
     // Never unminimize or resize a window that the user sent to the taskbar.
     if (await windowManager.isMinimized()) return;

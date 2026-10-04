@@ -6,10 +6,12 @@ class FullscreenWindowSnapshot {
     required this.bounds,
     required this.maximized,
     required this.alwaysOnTop,
+    this.wasFullscreen = false,
   });
   final Rect bounds;
   final bool maximized;
   final bool alwaysOnTop;
+  final bool wasFullscreen;
 }
 
 abstract class FullscreenWindowBackend {

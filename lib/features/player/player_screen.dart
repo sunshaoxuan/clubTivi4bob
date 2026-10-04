@@ -121,7 +121,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
           .read(streamAlternativesProvider)
           .providerName(ch['providerId']?.toString() ?? '');
     }
-    SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
+    if (!_supportsNativeFullscreen) {
+      SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
+    }
     if (_supportsNativeFullscreen) {
       _fullscreenSession = DesktopFullscreenSession(
         backend: WindowManagerFullscreenBackend(),
@@ -1026,7 +1028,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     _tracksSubscription?.cancel();
     _bufferingSubscription?.cancel();
     _fullscreenSession?.dispose();
-    SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+    if (!_supportsNativeFullscreen) {
+      SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+    }
     super.dispose();
   }
 
@@ -1350,14 +1354,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                                 Row(
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
-                                    _mouseActionButton(
-                                      icon: _nativeFullscreen
-                                          ? Icons.fullscreen_exit
-                                          : Icons.fullscreen,
-                                      label: _nativeFullscreen ? '退出全屏' : '全屏',
-                                      onPressed: _toggleNativeFullscreen,
-                                    ),
-                                    const SizedBox(width: 8),
                                     _mouseActionButton(
                                       icon: Icons.arrow_back,
                                       label: '返回频道',

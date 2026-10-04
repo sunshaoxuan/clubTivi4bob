@@ -25,7 +25,9 @@ class _MultiViewScreenState extends ConsumerState<MultiViewScreen> {
   @override
   void initState() {
     super.initState();
-    SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
+    if (Platform.isAndroid || Platform.isIOS) {
+      SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
+    }
     _initPlayers();
   }
 
@@ -80,7 +82,9 @@ class _MultiViewScreenState extends ConsumerState<MultiViewScreen> {
     for (final cell in _cells) {
       cell.player.dispose();
     }
-    SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+    if (Platform.isAndroid || Platform.isIOS) {
+      SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+    }
     super.dispose();
   }
 

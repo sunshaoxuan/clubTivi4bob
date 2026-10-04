@@ -14,6 +14,7 @@ class _MockNativeWindow {
   bool minimized = false;
   bool maximized = false;
   bool alwaysOnTop = false;
+  Rect bounds = const Rect.fromLTWH(20, 40, 1280, 720);
 
   List<MethodCall> callsTo(String method) =>
       calls.where((call) => call.method == method).toList();
@@ -22,7 +23,12 @@ class _MockNativeWindow {
     calls.add(call);
     switch (call.method) {
       case 'getBounds':
-        return {'x': 20.0, 'y': 40.0, 'width': 1280.0, 'height': 720.0};
+        return {
+          'x': bounds.left,
+          'y': bounds.top,
+          'width': bounds.width,
+          'height': bounds.height,
+        };
       case 'isFullScreen':
         return fullscreen;
       case 'isMinimized':
@@ -164,9 +170,10 @@ void main() {
   );
 
   test(
-    'Mac preparation and restore never rewrite native geometry or titlebar',
+    'Mac preparation and restore preserve unchanged maximization and titlebar',
     () async {
       createBackend(isMacOS: true);
+      native.maximized = true;
       await backend.prepareEntry();
       await backend.restore(
         const FullscreenWindowSnapshot(
@@ -180,6 +187,40 @@ void main() {
       expect(native.callsTo('maximize'), isEmpty);
       expect(native.callsTo('unmaximize'), isEmpty);
       expect(native.callsTo('focus'), isEmpty);
+    },
+  );
+
+  test(
+    'Mac restore repairs a shrunken frame after native fullscreen exit',
+    () async {
+      createBackend(isMacOS: true);
+      final saved = await backend.capture();
+      native.bounds = const Rect.fromLTWH(20, 40, 140, 90);
+      await backend.restore(saved);
+      final arguments = native.callsTo('setBounds').single.arguments as Map;
+      expect(arguments['width'], 1280);
+      expect(arguments['height'], 720);
+      expect(native.callsTo('setTitleBarStyle'), isEmpty);
+    },
+  );
+
+  test('Mac restore leaves an unchanged ordinary frame alone', () async {
+    createBackend(isMacOS: true);
+    final saved = await backend.capture();
+    await backend.restore(saved);
+    expect(native.callsTo('setBounds'), isEmpty);
+  });
+
+  test(
+    'Mac restore never applies fullscreen bounds to ordinary window',
+    () async {
+      native.fullscreen = true;
+      createBackend(isMacOS: true);
+      final saved = await backend.capture();
+      native.fullscreen = false;
+      native.bounds = const Rect.fromLTWH(20, 40, 1024, 640);
+      await backend.restore(saved);
+      expect(native.callsTo('setBounds'), isEmpty);
     },
   );
 

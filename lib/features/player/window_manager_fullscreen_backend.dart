@@ -37,9 +37,8 @@ class WindowManagerFullscreenBackend extends WindowListener
 
   @override
   Future<void> prepareEntry() async {
-    if (!_isMacOS) {
-      await windowManager.setTitleBarStyle(TitleBarStyle.hidden);
-    }
+    // Native fullscreen owns temporary chrome suppression. Preserve the normal
+    // titlebar style so leaving fullscreen restores usable window controls.
   }
 
   @override

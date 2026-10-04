@@ -4,6 +4,7 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import '../core/platform_info.dart';
 import 'router.dart';
 import 'theme.dart';
+import 'windows_fullscreen_controls.dart';
 
 class ClubTiviApp extends StatelessWidget {
   const ClubTiviApp({super.key});
@@ -25,7 +26,9 @@ class ClubTiviApp extends StatelessWidget {
       builder: (context, child) {
         // Detect TV mode from the first MediaQuery context
         PlatformInfo.detectFromContext(context);
-        return child ?? const SizedBox.shrink();
+        return WindowsFullscreenControls(
+          child: child ?? const SizedBox.shrink(),
+        );
       },
     );
   }

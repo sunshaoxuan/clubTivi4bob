@@ -55,6 +55,7 @@ import 'inline_expanded_channel_grid.dart';
 import 'channel_card_feedback.dart';
 import 'channel_card_playback_binding.dart';
 import 'shared_sync_badge.dart';
+import '../player/desktop_exit_button.dart';
 
 class ChannelsScreen extends ConsumerStatefulWidget {
   const ChannelsScreen({super.key});
@@ -3224,6 +3225,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                     ),
                     const Spacer(),
                     _buildUpdateBadge(),
+                    const DesktopExitButton(),
                     TextButton.icon(
                       onPressed: () => _setSimpleMode(false),
                       icon: const Icon(Icons.tune_rounded),
@@ -4240,6 +4242,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
           ),
           const SizedBox(width: 10),
           _buildUpdateBadge(),
+          const DesktopExitButton(),
           OutlinedButton.icon(
             onPressed: () => _setSimpleMode(true),
             icon: const Icon(Icons.dashboard_rounded, size: 18),

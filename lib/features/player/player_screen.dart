@@ -27,6 +27,7 @@ import 'stream_info_badges.dart';
 import 'desktop_fullscreen_session.dart';
 import 'window_manager_fullscreen_backend.dart';
 import 'fullscreen_return_navigation.dart';
+import 'desktop_exit_button.dart';
 
 /// Full-screen video player with overlay controls and keyboard navigation.
 class PlayerScreen extends ConsumerStatefulWidget {
@@ -1363,6 +1364,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                                       label: '返回频道',
                                       onPressed: _leavePlayer,
                                     ),
+                                    const SizedBox(width: 8),
+                                    const DesktopExitButton(),
                                   ],
                                 ),
                               ],

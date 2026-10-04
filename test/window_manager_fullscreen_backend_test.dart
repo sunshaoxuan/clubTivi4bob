@@ -252,7 +252,7 @@ void main() {
   );
 
   test(
-    'Windows preparation hides titlebar and restores original bounds',
+    'Windows preparation preserves titlebar and restores original bounds',
     () async {
       createBackend(isMacOS: false);
       await backend.prepareEntry();
@@ -261,7 +261,7 @@ void main() {
         native
             .callsTo('setTitleBarStyle')
             .map((call) => (call.arguments as Map)['titleBarStyle']),
-        ['hidden', 'normal'],
+        ['normal'],
       );
       final bounds = native.callsTo('setBounds').single.arguments as Map;
       expect(bounds['x'], 30);

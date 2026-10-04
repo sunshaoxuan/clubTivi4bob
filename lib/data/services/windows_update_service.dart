@@ -84,6 +84,19 @@ class WindowsUpdateService {
       if (UpdateManifest.compareVersions(manifest.version, bobTvVersion) <= 0) {
         return;
       }
+      final installation = File(
+        p.join(p.dirname(Platform.resolvedExecutable), 'installation.ini'),
+      );
+      if (await installation.exists()) {
+        state.value = WindowsUpdateState(
+          WindowsUpdatePhase.failed,
+          version: manifest.version,
+          message: '发现新版本 ${manifest.version}。安装版需要管理员授权，请从 '
+              'https://bobtv.briconbric.com/downloads 下载并运行 Setup 升级。'
+              '当前版本可继续使用。',
+        );
+        return;
+      }
       final skipped = File(
         p.join(_updateDirectory!.path, 'skipped_versions.txt'),
       );

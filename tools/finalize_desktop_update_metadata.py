@@ -56,6 +56,12 @@ def main():
     payload["packages"] = [entries[name] for name in ("windows-x64", "macos-x64", "macos-arm64")]
     metadata.write_text(json.dumps(payload, separators=(",", ":")), encoding="utf-8")
     assets.append(metadata)
+    installer = root / f"BobTV-{args.version}-windows-x64-Setup.exe"
+    if installer.exists():
+        with installer.open("rb") as source:
+            if source.read(2) != b"MZ":
+                raise ValueError("Invalid Windows installer")
+        assets.append(installer)
     (root / "SHA256SUMS.txt").write_text(
         "".join(f"{digest(path)}  {path.name}\n" for path in sorted(assets)), encoding="utf-8")
     print(f"Validated three platform updates and {len(assets)} release assets")

@@ -100,9 +100,30 @@ class FullscreenProgrammeOverlay extends StatelessWidget {
               shadows: shadow,
             ),
           ),
-        ],
-        for (var i = 0; i < next.length; i++)
-          future(next[i], i == 0 ? '接下来' : '随后'),
+        ] else
+          const Text(
+            '当前节目：暂无节目单',
+            style: TextStyle(
+              color: Colors.white54,
+              fontSize: 11,
+              shadows: shadow,
+            ),
+          ),
+        for (var i = 0; i < 2; i++)
+          if (i < next.length)
+            future(next[i], i == 0 ? '接下来' : '随后')
+          else
+            Padding(
+              padding: const EdgeInsets.only(top: 3),
+              child: Text(
+                '${i == 0 ? '接下来' : '随后'}：暂无节目单',
+                style: const TextStyle(
+                  color: Colors.white54,
+                  fontSize: 11,
+                  shadows: shadow,
+                ),
+              ),
+            ),
       ],
     );
     final name = Text(
@@ -127,61 +148,67 @@ class FullscreenProgrammeOverlay extends StatelessWidget {
         const DesktopExitButton(),
       ],
     );
-    return Align(
-      alignment: Alignment.topLeft,
-      heightFactor: 1,
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 1100),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-          child: LayoutBuilder(
-            builder: (context, constraints) {
-              if (constraints.maxWidth < 680) {
-                return Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final textScale = MediaQuery.textScalerOf(context).scale(1);
+          final sideWidth = (constraints.maxWidth / 4)
+              .clamp(220 * textScale, double.infinity)
+              .toDouble();
+          if (constraints.maxWidth <
+              680 * MediaQuery.textScalerOf(context).scale(1)) {
+            return Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
                   children: [
-                    Row(
-                      children: [
-                        Expanded(child: name),
-                        controls,
-                      ],
-                    ),
-                    if (rows.isNotEmpty)
-                      Padding(
-                        padding: const EdgeInsets.only(top: 4),
-                        child: guide,
-                      ),
+                    Expanded(child: name),
+                    controls,
                   ],
-                );
-              }
-              return Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Expanded(
-                    flex: 2,
-                    child: Padding(
-                      padding: const EdgeInsets.only(top: 6),
-                      child: name,
+                ),
+                if (rows.isNotEmpty)
+                  Padding(padding: const EdgeInsets.only(top: 4), child: guide),
+              ],
+            );
+          }
+          return Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              SizedBox(
+                width: sideWidth,
+                child: Padding(
+                  key: const ValueKey('fullscreen-channel-region'),
+                  padding: const EdgeInsets.only(top: 6),
+                  child: name,
+                ),
+              ),
+              Expanded(
+                child: Padding(
+                  key: const ValueKey('fullscreen-programme-region'),
+                  padding: const EdgeInsets.fromLTRB(16, 6, 16, 0),
+                  child: Center(
+                    heightFactor: 1,
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 600),
+                      child: rows.isEmpty ? const SizedBox.shrink() : guide,
                     ),
                   ),
-                  if (rows.isNotEmpty) ...[
-                    const SizedBox(width: 24),
-                    Expanded(
-                      flex: 5,
-                      child: Padding(
-                        padding: const EdgeInsets.only(top: 6),
-                        child: guide,
-                      ),
-                    ),
-                  ],
-                  const SizedBox(width: 16),
-                  controls,
-                ],
-              );
-            },
-          ),
-        ),
+                ),
+              ),
+              SizedBox(
+                width: sideWidth,
+                child: Align(
+                  key: const ValueKey('fullscreen-actions-region'),
+                  heightFactor: 1,
+                  alignment: Alignment.topRight,
+                  child: controls,
+                ),
+              ),
+            ],
+          );
+        },
       ),
     );
   }

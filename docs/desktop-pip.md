@@ -34,6 +34,10 @@ On Windows and macOS, moving the pointer reveals a lightweight text guide over
 the video. The current programme has a cyan play icon, a white title, and its
 start/end time underneath. Two gray rows show the next programmes and their
 start/end times. There are no guide cards, panel borders, or timeline rails.
+The header spans the full window: channel name on the left, the guide centered,
+and return/exit actions on the right. Missing entries explicitly say that no
+programme data is available. Small windows use a second row to retain readable
+text and accessible mouse controls.
 The guide uses the channel's
 exact EPG identifier and configured time shift. Long-running programmes are
 included even when they began more than an hour ago.

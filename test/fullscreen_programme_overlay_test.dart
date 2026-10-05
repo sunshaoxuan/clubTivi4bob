@@ -23,6 +23,10 @@ void main() {
     double width = 752,
     double scale = 1,
   }) async {
+    tester.view.physicalSize = Size(width, 600);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
     await tester.pumpWidget(
       MaterialApp(
         theme: ThemeData.dark().copyWith(
@@ -138,6 +142,42 @@ void main() {
     expect(find.text('返回频道'), findsOneWidget);
     expect(find.textContaining('接下来：'), findsOneWidget);
     expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+  testWidgets(
+    'Fullscreen regions stay left, centered and right on wide screens',
+    (tester) async {
+      for (final width in [752.0, 1440.0, 3840.0]) {
+        await pump(tester, width: width);
+        final name = tester.getRect(find.text('CCTV-6 电影'));
+        final guide = tester.getRect(
+          find.byKey(const ValueKey('fullscreen-programme-region')),
+        );
+        final actions = tester.getRect(
+          find.byKey(const ValueKey('fullscreen-actions-region')),
+        );
+        expect(name.left, closeTo(12, 1));
+        expect(guide.center.dx, closeTo(width / 2, 1));
+        expect(actions.right, closeTo(width - 12, 1));
+        expect(guide.height, lessThan(150));
+        expect(tester.takeException(), isNull);
+      }
+      await tester.pumpWidget(const SizedBox.shrink());
+    },
+  );
+  testWidgets('Missing third entry is explicit without inventing a programme', (
+    tester,
+  ) async {
+    await pump(
+      tester,
+      rows: [
+        programme(1, now.subtract(const Duration(minutes: 30)), '当前电影'),
+        programme(2, now.add(const Duration(minutes: 30)), '下一部电影'),
+      ],
+    );
+    expect(find.text('当前电影'), findsOneWidget);
+    expect(find.textContaining('接下来：下一部电影'), findsOneWidget);
+    expect(find.text('随后：暂无节目单'), findsOneWidget);
     await tester.pumpWidget(const SizedBox.shrink());
   });
   testWidgets(

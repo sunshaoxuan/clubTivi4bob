@@ -357,3 +357,33 @@ footer { border-top: 1px solid #dce5df; background: #f9fbf8; color: #71857a; fon
   .diagnostics-panel h2 { font-size: 24px; }
   .diagnostics-icon { width: 43px; height: 43px; font-size: 25px; }
 }
+
+/* Language controls and translated text sizing. */
+html { scroll-padding-top: 110px; }
+body * { letter-spacing: 0 !important; }
+.header-inner { flex-wrap: wrap; gap: 16px; min-height: 80px; height: auto; padding-block: 12px; }
+.header-inner nav { margin-left: auto; flex-wrap: wrap; }
+.language-form { display: flex; align-items: center; gap: 5px; flex: 0 0 auto; }
+.language-form select, .language-form button { min-height: 36px; color: #f4f5f2; background: #213440; border: 1px solid #7a8c95; border-radius: 4px; font: inherit; font-size: 13px; }
+.language-form select { width: 116px; padding: 6px; }
+.language-form button { width: 36px; cursor: pointer; }
+.language-form :focus-visible { outline: 2px solid #f2b88f; outline-offset: 3px; }
+.home-page .hero-statement { font-size: 38px; line-height: 1.35; }
+.download-hero h1, .diagnostics-hero h1 { font-size: 46px; line-height: 1.3; overflow-wrap: anywhere; }
+h2, h3, p, .button { overflow-wrap: anywhere; }
+.button { white-space: normal; text-align: center; }
+.download-heading { flex-wrap: wrap; }
+.download-secure { white-space: normal; }
+.history-list > div { grid-template-columns: 100px minmax(0, 1fr); }
+.diagnostics-file { min-width: 0; }
+.diagnostics-content { margin-top: -52px; }
+.diagnostics-file:focus-within { outline: 2px solid #f2b88f; outline-offset: 3px; }
+.release-choice-title { overflow-wrap: anywhere; }
+@media (max-width: 640px) {
+  .header-inner { gap: 12px; }
+  .header-inner nav { order: 3; width: 100%; margin-left: 0; justify-content: space-between; gap: 12px; }
+  .language-form { margin-left: auto; }
+  .home-page .hero-statement { font-size: 30px; }
+  .download-hero h1, .diagnostics-hero h1 { font-size: 32px; }
+  .diagnostics-panel h2 { font-size: 23px; }
+}

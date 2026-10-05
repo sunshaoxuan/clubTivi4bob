@@ -1,0 +1,239 @@
+{
+  "nav_label": "Main navigation",
+  "nav": {
+    "index": "Product",
+    "downloads": "Downloads",
+    "diagnostics": "Diagnostics"
+  },
+  "language": "Language",
+  "language_apply": "Apply language",
+  "titles": {
+    "index": "BobTV | Desktop TV player",
+    "downloads": "Downloads | BobTV",
+    "diagnostics": "Diagnostics | BobTV"
+  },
+  "meta": {
+    "index": "BobTV is a desktop TV player for Windows and macOS with channel previews and a shared public channel catalog.",
+    "downloads": "Download BobTV for Windows and macOS, with version information and SHA-256 checksums.",
+    "diagnostics": "Submit a filtered JSONL diagnostic log to BobTV."
+  },
+  "footer": "BobTV · Open-source desktop player",
+  "disclaimer": "Check the availability and permissions of third-party streams before use.",
+  "download": "Download BobTV",
+  "features": "Features",
+  "home": {
+    "headline": "Watch TV on Windows and Mac.",
+    "intro": "Browse channels, preview another program without sound, and switch when ready. The public channel catalog is updated in the background.",
+    "image_alt": "BobTV running in simplified mode, with sports playback and a channel list.",
+    "mode": "BOBTV / Simplified mode",
+    "screenshot": "Actual app screenshot",
+    "sections": [
+      {
+        "id": "preview",
+        "label": "Playback",
+        "title": "Preview before switching channels.",
+        "text": "Click a channel to start a silent preview while your current program keeps playing. Click again when the preview is ready to switch, or double-click to switch directly.",
+        "items": [
+          [
+            "Program timeline",
+            "View the current program and upcoming schedule next to the selected channel."
+          ],
+          [
+            "Favorites and volume",
+            "Add channels to favorites from the menu and adjust volume in the player."
+          ],
+          [
+            "Fullscreen",
+            "Return to the channel list without leaving fullscreen. The cursor hides when idle."
+          ]
+        ]
+      },
+      {
+        "id": "catalog",
+        "label": "Channel list",
+        "title": "Channels grouped by country and region.",
+        "text": "Browse national, regional and international channels, plus radio stations. CCTV-5 and CCTV-5+ remain separate channels.",
+        "items": [
+          [
+            "Channel order",
+            "CCTV1 to CCTV17 are ordered numerically, followed by 4K, 8K and CGTN."
+          ],
+          [
+            "Categories",
+            "Pin countries and regions to navigation. Edit categories and subcategories from the channel menu."
+          ],
+          [
+            "Radio",
+            "Audio-only streams are handled as radio; a missing video track is not treated as a playback failure."
+          ]
+        ]
+      },
+      {
+        "id": "sync",
+        "label": "Shared catalog",
+        "title": "Public channels sync across Windows and Mac.",
+        "text": "At startup, BobTV shows the local or bundled catalog, then fetches a verified public catalog in the background.",
+        "items": [
+          [
+            "Shared records",
+            "Public channel changes, categories, ratings and retired routes are synchronized. Catalog revisions are checked every minute."
+          ],
+          [
+            "Offline edits",
+            "Changes are saved locally and retried when the connection returns. The channel list shows sync status."
+          ],
+          [
+            "Personal data",
+            "Favorites, viewing history and private subscriptions stay on the device and are not copied to other computers."
+          ]
+        ]
+      },
+      {
+        "id": "route",
+        "label": "Stream routes",
+        "title": "Alternative routes when a stream stops.",
+        "text": "Playback health influences route order. Unavailable routes can also be retired from the channel menu.",
+        "items": [
+          [
+            "Separate channels",
+            "Channel identities keep similar names such as CCTV-5 and CCTV-5+ distinct."
+          ],
+          [
+            "Playback health",
+            "Successful decoding improves a route’s record. Failures and manual skips affect its priority."
+          ],
+          [
+            "Route recovery",
+            "BobTV attempts an alternative when playback stops. If it cannot play, it returns to the original route."
+          ]
+        ],
+        "note": "Availability depends on the stream provider and your network. Some channels may be unavailable."
+      },
+      {
+        "id": "living",
+        "label": "Devices",
+        "title": "Desktop playback and Mac AirPlay.",
+        "text": "BobTV runs on Windows and macOS. Windows can send audio and video to a compatible Mac AirPlay receiver on the same network.",
+        "items": [
+          [
+            "Windows",
+            "Use the Setup installer or a portable ZIP package."
+          ],
+          [
+            "Mac",
+            "Choose the DMG for Intel or Apple Silicon."
+          ],
+          [
+            "AirPlay",
+            "A compatible receiver and a shared local network are required."
+          ]
+        ]
+      }
+    ],
+    "history_label": "Release notes",
+    "history_title": "Recent changes",
+    "history": [
+      [
+        "2026-10-05",
+        "v1.0.2 · Update status",
+        "Update checks show progress, connection failures and authorization requirements. macOS packages are available; Windows packages remain at 1.0.1."
+      ],
+      [
+        "2026-10-05",
+        "v1.0.1 · Fullscreen controls",
+        "On Windows, moving the mouse to the top reveals window controls. Returning to channels keeps the window in fullscreen."
+      ],
+      [
+        "2026-10-04",
+        "v1.0.0 · Installers",
+        "Windows Setup and macOS drag-and-drop DMG installers. Unified fullscreen return behavior and Unicode component-path fixes."
+      ]
+    ],
+    "closing": "Choose the installer for your computer.",
+    "closing_text": "Windows Setup, Intel Mac and Apple Silicon Mac packages are served directly from this site."
+  },
+  "downloads": {
+    "intro": "Choose Windows x64, Intel Mac or Apple Silicon Mac. Each button shows the latest available version for that platform.",
+    "latest": "Latest installers",
+    "local": "Downloads hosted on this site",
+    "sections": [
+      {
+        "id": "install",
+        "title": "Installation",
+        "text": "Choose the package for your operating system and processor.",
+        "items": [
+          [
+            "Windows",
+            "Run Setup to choose the installation folder and desktop shortcut. The default folder is BoB\\BoBTV under Program Files; administrator approval is required. For the portable ZIP, extract all files and run BobTV.exe. Personal channels and favorites are stored in your user data folder."
+          ],
+          [
+            "macOS",
+            "Open the DMG and drag BobTV.app to Applications. For unattended updates, install in a writable Applications folder in your home directory. Do not run the app long-term from the read-only disk image. This release has no Apple Developer ID signature or notarization; macOS may require manual approval to open it."
+          ],
+          [
+            "Updates",
+            "Version 1.0.2 checks at startup, every six hours, and on returning to the foreground, at most once every 15 minutes. Windows Setup installations require a new installer with administrator approval. Portable Windows and writable Mac installations download and verify updates in the background, then install after exit. After three failed starts, the app attempts rollback. Protected Mac locations require manual replacement."
+          ]
+        ]
+      },
+      {
+        "id": "first-launch",
+        "title": "First launch and channel sync",
+        "text": "Version 1.0.1 retains public channel sync. Source management runs on demand; playback checks only the active route.",
+        "items": [
+          [
+            "Initial catalog",
+            "BobTV shows local or bundled channels first, then fetches the categorized and verified public catalog. Channel counts change as sources are maintained."
+          ],
+          [
+            "Sync status",
+            "Pending retry means the network or service is temporarily unavailable. Local changes are saved and retried automatically."
+          ],
+          [
+            "Public and personal",
+            "Public categories, ratings and retirements sync across devices. Favorites, history and private subscriptions stay local."
+          ]
+        ]
+      }
+    ]
+  },
+  "diagnostics": {
+    "title": "Diagnostic logs",
+    "intro": "If playback or the app fails, you can submit a diagnostic log manually. The page filters allowed fields before upload.",
+    "submit": "Upload log",
+    "limit": "Choose a .log or .jsonl file, up to 1 MiB and 5,000 entries. A successful upload returns a diagnostic ID.",
+    "choose": "Choose log file",
+    "privacy": "What is uploaded",
+    "notes": [
+      "Only allowed summary fields, including time, event, source and runtime metrics, are sent. Raw exception text, paths and playback URLs are excluded.",
+      "Logs are stored privately for 14 days, with no public read endpoint. Automatic summary uploads are off by default and can be enabled in the app.",
+      "Channel sync and diagnostic uploads run independently. Keep the time, platform and app version when reporting sync, download or playback errors."
+    ]
+  },
+  "messages": {
+    "loading": "Loading release information…",
+    "empty": "No installer is available yet. Please check again later.",
+    "release_error": "Release information is unavailable. Please try again later.",
+    "current": "Latest release",
+    "published": "Released {date}",
+    "version_note": "Each download shows its platform version.",
+    "windows": "Windows",
+    "intel": "Intel Mac",
+    "silicon": "Apple Silicon Mac",
+    "zip": "Portable ZIP",
+    "dmg": "DMG installer",
+    "exe": "EXE installer",
+    "download": "Download",
+    "download_label": "Download {platform} {version}, {size}",
+    "checksum": "SHA-256 checksums",
+    "no_file": "No file selected",
+    "file_limit": "Choose a log up to 1 MiB.",
+    "checking": "Checking log…",
+    "entries": "Too many log entries",
+    "invalid": "Invalid JSONL log",
+    "processed_limit": "Filtered log exceeds 1 MiB",
+    "uploading": "Uploading…",
+    "success": "Upload complete. Diagnostic ID: {id}",
+    "failure": "Upload failed ({error}). Check the file and try again."
+  }
+}

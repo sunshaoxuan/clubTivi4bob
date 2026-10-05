@@ -8,7 +8,37 @@ The hero image is a user-provided crop of the BobTV simplified-mode interface wi
 
 The product, download and diagnostic pages share a dark navy and peach visual system and the supplied real player screenshot. Build `1.0.1+82` adds mouse-reveal Windows fullscreen window controls and dedicated desktop Exit buttons. It retains a Windows Setup installer with optional desktop shortcut, unified fullscreen return behavior, and Unicode DLL path support. Windows managed installations require administrator-authorized Setup upgrades; portable Windows and writable macOS installations retain automatic updates. It retains durable shared synchronization and adds on-demand source management, canonical route deduplication and monotonic retirement across equivalent URLs. The download page explains initialization and both platform update flows; the diagnostic page describes optional, default-off summary uploads. Descriptions do not claim Windows 10 validation or guaranteed third-party stream availability.
 
-## Website maintenance with every release
+## Website languages and copy (2026-10-05)
+
+Product, downloads and diagnostics use server-rendered Jinja templates in
+`templates/` and four complete copy dictionaries in `locales/`: `zh-CN`, `en`,
+`ja` and `zh-TW`. Copy describes verified behavior and installation limits
+directly. Keep all dictionary keys, message placeholders and product facts in sync
+when publishing a release. Dynamic download and upload messages are localized too.
+
+Language priority: valid `?lang=` choice, then the `bobtv_language` cookie,
+then trusted Cloudflare `CF-IPCountry`. CN selects Simplified Chinese; JP Japanese;
+TW/HK/MO Traditional Chinese. Every other country, missing/invalid country and
+untrusted peer selects English. Language choice is remembered for one year;
+the cookie is HttpOnly, SameSite=Lax, and Secure on HTTPS. No IP lookup service
+is called and this selector does not persist visitor IPs. HTML responses are
+`private, no-store` with Content-Language and Vary headers. All internal page links
+carry the selected locale; installation byte routes remain unchanged.
+
+Geolocation trust requires nginx to overwrite X-Forwarded-For with its remote
+peer, uvicorn to trust only the loopback nginx proxy, and that peer to be in
+`cloudflare_ranges.json`. Do not enable nginx real_ip rewriting without revisiting
+this contract. A direct-origin request cannot select a language by forging country
+headers. Local processes are within the existing trusted reverse-proxy boundary.
+
+Deploy `localization.py`, `templates/`, `locales/`, `cloudflare_ranges.json` and
+the changed assets/app, and install `requirements.txt` before restarting. The old
+root-level HTML files are removed. Back up the affected runtime files first.
+Acceptance covers all 12 page/language combinations, GET/HEAD, country mapping,
+spoofing rejection, cookie priority, dynamic success/error states, desktop/mobile
+layout, console/network errors and unchanged local download bytes.
+
+## Release content review
 
 Publishing installation packages also requires a content review:
 

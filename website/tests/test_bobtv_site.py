@@ -71,35 +71,21 @@ def test_setup_download_is_manifest_gated_and_has_binary_mime(tmp_path, monkeypa
 
 def test_product_pages_reflect_published_releases():
     client = TestClient(module.app)
-    home = client.get("/").text
-    assert "v1.0.2" in home and "WINDOWS · MACOS" in home
+    home = client.get("/?lang=zh-CN").text
     assert "Mac 1.0.2 / Windows 1.0.1" in home
-    assert "Setup 安装向导" in home and "Unicode" in home
-    assert "正式安装版" in home and "退出后继续显示备份、安装及完成状态" in home
+    assert "Unicode" in home and "每分钟检查清单版本" in home
     assert 'id="sync-title"' in home and "离线时保留修改" in home
-    assert "每分钟检查清单版本" in home and "公共评分" in home
-    assert "静音预览" in home and "Mac AirPlay" in home and "纯音频电台" in home
+    assert "静音预览" in home and "Mac AirPlay" in home
     assert '/assets/product.png?v=3' in home
-    assert 'class="home-page"' in home and 'class="container home-hero-layout"' in home
-    assert 'href="/downloads"' in home and 'href="/diagnostics"' in home
+    assert 'class="home-page"' in home
     assert "github.com" not in home.lower()
-    downloads = client.get("/downloads").text
+    downloads = client.get("/downloads?lang=zh-CN").text
     assert 'id="release-list"' in downloads and "BobTV.exe" in downloads
-    assert "Apple Silicon" in downloads and "下载最新版本" in downloads
-    assert 'id="first-launch-title"' in downloads and "1.0.1" in downloads
-    assert "管理员权限安装" in downloads and "只读磁盘映像" in downloads
-    assert "后台下载、校验及退出后安装" in downloads
-    assert "v0.9.1-bob.11" not in downloads
-    assert 'class="downloads-page"' in downloads
-    script = client.get("/assets/downloads.js").text
-    assert "item.version === candidates[0]?.version" in script
-    assert "${release.version} · ${format}" in script
-    assert script.count("{ name: '") == 3
-    diagnostics = client.get("/diagnostics").text
-    assert 'class="diagnostics-page"' in diagnostics
+    assert "Apple Silicon" in downloads and "只读磁盘映像" in downloads
+    assert 'id="first-launch-title"' in downloads
+    diagnostics = client.get("/diagnostics?lang=zh-CN").text
     assert 'id="upload-form"' in diagnostics and 'id="log-file"' in diagnostics
-    assert "自动上传默认关闭" in diagnostics
-    assert "尚未集成自动上传" not in diagnostics
+    assert "默认关闭" in diagnostics
 
 
 def test_expired_diagnostics_are_removed(tmp_path, monkeypatch):

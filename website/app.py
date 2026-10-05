@@ -17,6 +17,7 @@ from source_candidates import router as candidate_router
 from channel_catalog import router as catalog_router
 from update_delivery import router as update_router
 from catalog_inventory import router as inventory_router
+from localization import page
 
 BASE = Path(__file__).resolve().parent
 DATA = Path(os.environ.get("BOBTV_DATA_DIR", BASE / "data"))
@@ -51,18 +52,18 @@ def _prune(conn, now):
 
 
 @app.api_route("/", methods=["GET", "HEAD"])
-def home():
-    return FileResponse(BASE / "index.html")
+def home(request: Request):
+    return page(request, "index")
 
 
 @app.api_route("/downloads", methods=["GET", "HEAD"])
-def downloads_page():
-    return FileResponse(BASE / "downloads.html")
+def downloads_page(request: Request):
+    return page(request, "downloads")
 
 
 @app.api_route("/diagnostics", methods=["GET", "HEAD"])
-def diagnostics_page():
-    return FileResponse(BASE / "diagnostics.html")
+def diagnostics_page(request: Request):
+    return page(request, "diagnostics")
 
 
 @app.api_route("/releases.json", methods=["GET", "HEAD"])

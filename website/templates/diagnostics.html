@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+{% block content %}
+<main class="page">
+  <section class="diagnostics-hero" aria-labelledby="diagnostics-title"><div class="container"><p class="download-kicker">BOBTV / SUPPORT</p><h1 id="diagnostics-title">{{ t.diagnostics.title }}</h1><p>{{ t.diagnostics.intro }}</p></div></section>
+  <div class="container diagnostics-content">
+    <section class="diagnostics-panel" aria-labelledby="upload-title"><div class="diagnostics-panel-heading"><span class="diagnostics-icon" aria-hidden="true">↥</span><div><p class="section-index">JSONL</p><h2 id="upload-title">{{ t.diagnostics.submit }}</h2></div></div><p class="diagnostics-intro">{{ t.diagnostics.limit }}</p>
+      <form class="upload" id="upload-form"><div class="diagnostics-file"><input id="log-file" class="visually-hidden" type="file" accept=".log,.jsonl,application/x-ndjson" required aria-label="{{ t.diagnostics.choose }}"><label class="button secondary" for="log-file">{{ t.diagnostics.choose }}</label><span id="selected-file">{{ t.messages.no_file }}</span></div><button class="button primary" type="submit">{{ t.diagnostics.submit }} <span aria-hidden="true">↗</span></button><output id="upload-status" aria-live="polite"></output></form>
+    </section>
+    <aside class="diagnostics-privacy" aria-label="{{ t.diagnostics.privacy }}"><p class="section-index">JSONL</p><h2>{{ t.diagnostics.privacy }}</h2>{% for text in t.diagnostics.notes %}<div class="diagnostics-privacy-row"><span>0{{ loop.index }}</span><p>{{ text }}</p></div>{% endfor %}</aside>
+  </div>
+</main>
+{% endblock %}
+{% block scripts %}<script src="/assets/diagnostics.js?v=2" defer></script>{% endblock %}

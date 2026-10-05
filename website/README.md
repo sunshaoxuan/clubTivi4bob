@@ -58,7 +58,7 @@ The app-facing API contract is `API.md`. Implementation prompts for source integ
 
 ## Release mirror
 
-The download page selects the latest verified installer independently for each platform and labels its exact version. A platform-specific release does not remove another platform's previous installer or advance its update feed. Release 1.0.2 currently provides macOS packages; Windows remains at 1.0.1 pending its powered-off build host. Client checks now display a checking spinner, an explicit result, and an authorization-required state for protected Windows Setup installations. Foreground checks are throttled to 15 minutes in addition to startup and six-hour checks.
+The download page selects the latest verified installer independently for each platform and labels its exact version. A platform-specific release does not remove another platform's previous installer or advance its update feed. Release 1.0.3 provides Windows x64 Setup/portable packages and both macOS architectures. Desktop PiP and the centered fullscreen text guide are included. Windows updates pause application-scoped crash monitoring and enable launch only after completed-version verification. Client checks display a checking spinner, an explicit result, and an authorization-required state for protected Windows Setup installations. Foreground checks are throttled to 15 minutes in addition to startup and six-hour checks.
 
 Current releases mirror Windows x64 ZIP packages and both macOS architectures' DMG installers and signed update ZIP archives. A single download row presents the three manual installers; automatic updates use separate platform feeds.
 

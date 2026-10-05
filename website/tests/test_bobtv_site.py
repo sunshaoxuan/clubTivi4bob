@@ -72,8 +72,9 @@ def test_setup_download_is_manifest_gated_and_has_binary_mime(tmp_path, monkeypa
 def test_product_pages_reflect_published_releases():
     client = TestClient(module.app)
     home = client.get("/").text
-    assert "v1.0.2" in home and "WINDOWS · MACOS" in home
-    assert "Mac 1.0.2 / Windows 1.0.1" in home
+    assert "v1.0.3" in home and "WINDOWS · MACOS" in home
+    assert "1.0.3 · Windows 与 macOS" in home
+    assert "桌面画中画与全屏节目单" in home
     assert "Setup 安装向导" in home and "Unicode" in home
     assert "正式安装版" in home and "退出后继续显示备份、安装及完成状态" in home
     assert 'id="sync-title"' in home and "离线时保留修改" in home
@@ -86,7 +87,7 @@ def test_product_pages_reflect_published_releases():
     downloads = client.get("/downloads").text
     assert 'id="release-list"' in downloads and "BobTV.exe" in downloads
     assert "Apple Silicon" in downloads and "下载最新版本" in downloads
-    assert 'id="first-launch-title"' in downloads and "1.0.1" in downloads
+    assert 'id="first-launch-title"' in downloads and "1.0.3" in downloads
     assert "管理员权限安装" in downloads and "只读磁盘映像" in downloads
     assert "后台下载、校验及退出后安装" in downloads
     assert "v0.9.1-bob.11" not in downloads

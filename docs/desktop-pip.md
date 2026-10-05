@@ -26,7 +26,7 @@ This is an application-managed compact-window implementation. Minimizing the
 compact window itself hides it; there is no separate main window to minimize.
 The normal channel UI, controls and minimum dimensions return after leaving it.
 
-Version 1.0.3 build 86 is currently a local test build, not a formal release.
+Version 1.0.3 build 87 contains the desktop PiP and fullscreen text-guide features.
 
 ## Desktop fullscreen programme text overlay
 

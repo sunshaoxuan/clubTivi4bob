@@ -20,7 +20,12 @@ Language priority: valid `?lang=` choice, then the `bobtv_language` cookie,
 then trusted Cloudflare `CF-IPCountry`. CN selects Simplified Chinese; JP Japanese;
 TW/HK/MO Traditional Chinese. Every other country, missing/invalid country and
 untrusted peer selects English. Language choice is remembered for one year;
-the cookie is HttpOnly, SameSite=Lax, and Secure on HTTPS. No IP lookup service
+the cookie is HttpOnly, SameSite=Lax, and Secure on HTTPS.
+
+The navigation language control is plain text at the same font size as adjacent
+links. Its arrow appears on hover or keyboard focus. Selection submits immediately
+without a separate confirmation button. Mobile retains the native choice picker.
+No IP lookup service
 is called and this selector does not persist visitor IPs. HTML responses are
 `private, no-store` with Content-Language and Vary headers. All internal page links
 carry the selected locale; installation byte routes remain unchanged.

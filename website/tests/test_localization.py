@@ -68,6 +68,9 @@ def test_all_locales_render_and_head_matches(locale, path):
     assert head.headers["content-length"] == response.headers["content-length"]
     assert f'href="/downloads?lang={locale}"' in response.text
     assert 'name="lang"' in response.text
+    language_form = re.search(r'<form class="language-form".*?</form>', response.text, re.S).group(0)
+    assert '<button' not in language_form
+    assert '/assets/language.js?v=1' in response.text
     embedded = re.search(r'<script id="site-messages" type="application/json">(.*?)</script>', response.text, re.S)
     assert json.loads(embedded.group(1))["invalid"]
     if locale == "en":

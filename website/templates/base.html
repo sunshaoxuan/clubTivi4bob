@@ -6,7 +6,7 @@
   <meta name="description" content="{{ t.meta[page] }}">
   <title>{{ t.titles[page] }}</title>
   <link rel="icon" type="image/png" href="/assets/favicon.png?v=2">
-  <link rel="stylesheet" href="/assets/site.css?v=11">
+  <link rel="stylesheet" href="/assets/site.css?v=12">
   {% for code in languages %}<link rel="alternate" hreflang="{{ code }}" href="{{ path }}?lang={{ code }}">{% endfor %}
   <link rel="alternate" hreflang="x-default" href="{{ path }}?lang=en">
 </head>
@@ -23,12 +23,12 @@
       <select id="language" name="lang" aria-label="{{ t.language }}">
         {% for code, label in languages.items() %}<option value="{{ code }}"{% if code == locale %} selected{% endif %}>{{ label }}</option>{% endfor %}
       </select>
-      <button type="submit" title="{{ t.language_apply }}" aria-label="{{ t.language_apply }}">↵</button>
     </form>
   </div></header>
   {% block content %}{% endblock %}
   <footer><div class="container footer-inner"><span>{{ t.footer }}</span><span>{{ t.disclaimer }}</span></div></footer>
   <script id="site-messages" type="application/json">{{ t.messages | tojson }}</script>
+  <script src="/assets/language.js?v=1" defer></script>
   {% block scripts %}{% endblock %}
 </body>
 </html>

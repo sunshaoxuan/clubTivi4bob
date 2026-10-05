@@ -32,7 +32,6 @@ app.include_router(catalog_router)
 app.include_router(update_router)
 app.include_router(inventory_router)
 app.mount("/assets", StaticFiles(directory=BASE / "assets"), name="assets")
-app.mount("/new", StaticFiles(directory=BASE / "new", html=True), name="new-preview")
 
 
 def _database():

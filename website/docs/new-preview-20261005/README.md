@@ -90,10 +90,22 @@ the public browser independently returned HTTP 200 and loaded the 3D scene.
 
 Screenshots desktop.png and mobile.png show the public preview. Browser tests
 live in website/tests/new-preview.cjs and are also added to the website CI.
+The repository Actions permissions API returned enabled: false after push.
+Consequently no GitHub CI run was created. The repository-wide setting was left
+unchanged; the 47 Linux tests and browser results above were actually executed
+independently. Enabling Actions requires a separate repository-setting decision.
 For local execution supply Playwright and sharp through NODE_PATH and run
 node website/tests/new-preview.cjs. Set BOBTV_PREVIEW_URL for public verification.
 CHROME_PATH can select an installed Chromium executable. CI uses isolated npm
 test dependencies; the page itself does not need npm or an external CDN.
+
+The remote verification environment and upload archives were removed after
+validation, while the preview, rollback backup and activation receipt remain.
+Windows execution policy blocked both guarded and literal-path recursive
+cleanup attempts. Remaining ignored local directories: website/.test-output,
+website/.capture, .pytest_cache, website/__pycache__ and website/tests/__pycache__.
+These are within the task worktree; no temporary artifact was created in the
+C:/workspace root. The local preview server remains available on port 8924.
 
 ## Advisory limitations
 

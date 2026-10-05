@@ -32,6 +32,7 @@ import 'desktop_exit_button.dart';
 import 'desktop_pip_session.dart';
 import 'window_manager_pip_backend.dart';
 import 'desktop_pip_controls.dart';
+import 'fullscreen_programme_overlay.dart';
 
 /// Full-screen video player with overlay controls and keyboard navigation.
 class PlayerScreen extends ConsumerStatefulWidget {
@@ -92,6 +93,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
 
   // EPG state
   int _epgLoadGeneration = 0;
+  List<db.EpgProgramme> _fullscreenProgrammes = const [];
+  int _epgTimeshiftHours = 0;
+  DateTime? _lastEpgLoad;
+  Timer? _epgRefreshTimer;
   String? _nowPlayingTitle;
   String? _nowPlayingTime;
   String? _nowDescription;
@@ -164,6 +169,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     _autoHideOverlay();
     _scheduleCursorHide();
     _loadEpgInfo();
+    _epgRefreshTimer = Timer.periodic(const Duration(seconds: 30), (_) {
+      if (mounted && _showOverlay && !_pipMode) {
+        unawaited(_loadEpgInfo(clear: false));
+      }
+    });
     _loadFavoriteState();
   }
 
@@ -183,13 +193,23 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     }
   }
 
-  Future<void> _loadEpgInfo() async {
+  Future<void> _loadEpgInfo({bool clear = true}) async {
+    if (!clear &&
+        _lastEpgLoad != null &&
+        DateTime.now().difference(_lastEpgLoad!) <
+            const Duration(seconds: 30)) {
+      return;
+    }
+    _lastEpgLoad = DateTime.now();
     final generation = ++_epgLoadGeneration;
     if (widget.channels.isEmpty) return;
     final ch = widget.channels[_channelIndex];
+    final shift = (ch['epgTimeshift'] as num?)?.toInt() ?? 0;
     // Clear the old channel's guide before querying the new channel.
-    if (mounted) {
+    if (mounted && clear) {
       setState(() {
+        _fullscreenProgrammes = const [];
+        _epgTimeshiftHours = shift;
         _nowPlayingTitle = null;
         _nowPlayingTime = null;
         _nowDescription = null;
@@ -197,10 +217,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
         _nextTime = null;
       });
     }
-    final epgId = ch['epgId'] as String?;
+    final epgId = (ch['epgId'] ?? ch['epgChannelId']) as String?;
     if (epgId == null || epgId.isEmpty) {
       if (mounted) {
         setState(() {
+          _fullscreenProgrammes = const [];
           _nowPlayingTitle = null;
           _nowPlayingTime = null;
           _nowDescription = null;
@@ -213,20 +234,28 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
 
     final database = ref.read(databaseProvider);
     final now = DateTime.now();
-    final programmes = await database.getProgrammes(
-      epgChannelId: epgId,
-      start: now.subtract(const Duration(hours: 1)),
-      end: now.add(const Duration(hours: 6)),
-    );
+    late final List<db.EpgProgramme> programmes;
+    try {
+      programmes = await database.getUpcomingProgrammes(
+        epgChannelId: epgId,
+        at: now.subtract(Duration(hours: shift)),
+        limit: 3,
+      );
+    } catch (error, stack) {
+      AppDiagnostics.instance.recordError('fullscreen_epg_query', error, stack);
+      return;
+    }
 
     if (!mounted || generation != _epgLoadGeneration) return;
 
     db.EpgProgramme? current;
     db.EpgProgramme? next;
     for (final p in programmes) {
-      if (now.isAfter(p.start) && now.isBefore(p.stop)) {
+      final start = p.start.add(Duration(hours: shift));
+      final stop = p.stop.add(Duration(hours: shift));
+      if (!now.isBefore(start) && now.isBefore(stop)) {
         current = p;
-      } else if (current != null && next == null && now.isBefore(p.start)) {
+      } else if (next == null && now.isBefore(start)) {
         next = p;
         break;
       }
@@ -239,14 +268,16 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       'programme': current?.title,
     });
     setState(() {
+      _fullscreenProgrammes = programmes;
+      _epgTimeshiftHours = shift;
       _nowPlayingTitle = current?.title;
       _nowPlayingTime = current != null
-          ? '${_fmtTime(current.start)} – ${_fmtTime(current.stop)}'
+          ? '${_fmtTime(current.start.add(Duration(hours: shift)))} / ${_fmtTime(current.stop.add(Duration(hours: shift)))}'
           : null;
       _nowDescription = current?.description;
       _nextTitle = next?.title;
       _nextTime = next != null
-          ? '${_fmtTime(next.start)} – ${_fmtTime(next.stop)}'
+          ? '${_fmtTime(next.start.add(Duration(hours: shift)))} / ${_fmtTime(next.stop.add(Duration(hours: shift)))}'
           : null;
     });
   }
@@ -570,6 +601,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   }
 
   void _onPointerActivity() {
+    if (!_showOverlay && !_pipMode) unawaited(_loadEpgInfo(clear: false));
     if (!_showCursor && mounted) setState(() => _showCursor = true);
     if (!_showOverlay && mounted) setState(() => _showOverlay = true);
     _autoHideOverlay();
@@ -1051,6 +1083,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     _volumeTimer?.cancel();
     _tracksSubscription?.cancel();
     _bufferingSubscription?.cancel();
+    _epgRefreshTimer?.cancel();
     _fullscreenSession?.dispose();
     final pip = _pipSession;
     if (pip != null) {
@@ -1206,7 +1239,19 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                     ),
 
                   // Channel info overlay (top, shown alongside control bar)
-                  if (_showOverlay && !_pipMode) ...[
+                  if (_showOverlay && !_pipMode && Platform.isMacOS)
+                    Positioned(
+                      top: 52,
+                      left: 24,
+                      right: 24,
+                      child: FullscreenProgrammeOverlay(
+                        channelName: _currentChannelName,
+                        programmes: _fullscreenProgrammes,
+                        timeshiftHours: _epgTimeshiftHours,
+                        onReturn: () => unawaited(_leavePlayer()),
+                      ),
+                    ),
+                  if (_showOverlay && !_pipMode && !Platform.isMacOS) ...[
                     Positioned(
                       top: 0,
                       left: 0,

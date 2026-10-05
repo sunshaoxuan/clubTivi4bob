@@ -27,3 +27,16 @@ compact window itself hides it; there is no separate main window to minimize.
 The normal channel UI, controls and minimum dimensions return after leaving it.
 
 Version 1.0.3 build 84 is currently a local test build, not a formal release.
+
+## macOS fullscreen programme timeline
+
+Moving the pointer reveals a compact guide using the same timeline component as
+the channel browser. It shows the current programme and the next two entries,
+with start times and current-programme progress. The guide uses the channel's
+exact EPG identifier and configured time shift. Long-running programmes are
+included even when they began more than an hour ago.
+
+Guide queries are throttled to once per 30 seconds while controls are visible;
+channel changes invalidate earlier queries. Channels without guide data show
+only the channel header and navigation controls. Compact PiP does not display
+this timeline.

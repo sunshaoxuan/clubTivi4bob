@@ -2629,6 +2629,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
             'streamType': c.streamType,
             'epgId': _getEpgId(c),
             'epgChannelId': _getEpgId(c),
+            'epgTimeshift': _epgTimeshifts[c.id] ?? 0,
             'vanityName': _vanityNames[c.id],
             'alternativeUrls': _automaticAlternativeUrls(c),
           },

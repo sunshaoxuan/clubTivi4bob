@@ -17,6 +17,8 @@ class ChannelProgrammeStrip extends StatefulWidget {
     this.timeshiftHours = 0,
     this.now,
     this.embedded = false,
+    this.showHeader = true,
+    this.compact = false,
   });
 
   final String channelName;
@@ -24,6 +26,8 @@ class ChannelProgrammeStrip extends StatefulWidget {
   final int timeshiftHours;
   final DateTime? now;
   final bool embedded;
+  final bool showHeader;
+  final bool compact;
 
   @override
   State<ChannelProgrammeStrip> createState() => _ChannelProgrammeStripState();
@@ -108,13 +112,15 @@ class _ChannelProgrammeStripState extends State<ChannelProgrammeStrip> {
     if (upcoming.isEmpty) return const SizedBox.shrink();
 
     final textScaler = MediaQuery.textScalerOf(context);
-    final titleHeight = textScaler.scale(14) * 1.28 * 2;
+    final titleHeight = textScaler.scale(14) * 1.28 * (widget.compact ? 1 : 2);
     final minimumCardWidth =
         188.0 + math.max(0.0, textScaler.scale(14) - 14) * 4;
 
     return Container(
       key: const ValueKey('channel-programme-strip'),
-      padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
+      padding: widget.compact
+          ? const EdgeInsets.fromLTRB(12, 6, 12, 8)
+          : const EdgeInsets.fromLTRB(14, 12, 14, 14),
       decoration: widget.embedded
           ? null
           : BoxDecoration(
@@ -150,55 +156,56 @@ class _ChannelProgrammeStripState extends State<ChannelProgrammeStrip> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Row(
-                children: [
-                  const Icon(
-                    Icons.calendar_today_rounded,
-                    size: 14,
-                    color: Color(0xFFADC5EC),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text.rich(
-                      TextSpan(
-                        children: [
-                          TextSpan(
-                            text: widget.channelName,
-                            style: const TextStyle(
-                              color: Color(0xFFE7EEFC),
-                              fontWeight: FontWeight.w600,
+              if (widget.showHeader)
+                Row(
+                  children: [
+                    const Icon(
+                      Icons.calendar_today_rounded,
+                      size: 14,
+                      color: Color(0xFFADC5EC),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text.rich(
+                        TextSpan(
+                          children: [
+                            TextSpan(
+                              text: widget.channelName,
+                              style: const TextStyle(
+                                color: Color(0xFFE7EEFC),
+                                fontWeight: FontWeight.w600,
+                              ),
                             ),
-                          ),
-                          const TextSpan(
-                            text: '  ·  节目时间轴',
-                            style: TextStyle(color: Color(0xFF8FA2BF)),
-                          ),
-                        ],
+                            const TextSpan(
+                              text: '  ·  节目时间轴',
+                              style: TextStyle(color: Color(0xFF8FA2BF)),
+                            ),
+                          ],
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(fontSize: 12, height: 1.3),
                       ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(fontSize: 12, height: 1.3),
                     ),
-                  ),
-                  if (!fits) ...[
-                    const SizedBox(width: 4),
-                    _scrollButton(
-                      key: const ValueKey('programme-scroll-previous'),
-                      tooltip: '前面的节目',
-                      icon: Icons.chevron_left_rounded,
-                      onPressed: atStart ? null : () => _page(-1),
-                    ),
-                    const SizedBox(width: 3),
-                    _scrollButton(
-                      key: const ValueKey('programme-scroll-next'),
-                      tooltip: '后面的节目',
-                      icon: Icons.chevron_right_rounded,
-                      onPressed: atEnd ? null : () => _page(1),
-                    ),
+                    if (!fits) ...[
+                      const SizedBox(width: 4),
+                      _scrollButton(
+                        key: const ValueKey('programme-scroll-previous'),
+                        tooltip: '前面的节目',
+                        icon: Icons.chevron_left_rounded,
+                        onPressed: atStart ? null : () => _page(-1),
+                      ),
+                      const SizedBox(width: 3),
+                      _scrollButton(
+                        key: const ValueKey('programme-scroll-next'),
+                        tooltip: '后面的节目',
+                        icon: Icons.chevron_right_rounded,
+                        onPressed: atEnd ? null : () => _page(1),
+                      ),
+                    ],
                   ],
-                ],
-              ),
-              const SizedBox(height: 10),
+                ),
+              if (widget.showHeader) const SizedBox(height: 10),
               ScrollConfiguration(
                 behavior: ScrollConfiguration.of(
                   context,
@@ -316,7 +323,9 @@ class _ChannelProgrammeStripState extends State<ChannelProgrammeStrip> {
         Expanded(
           child: Container(
             margin: EdgeInsets.only(right: last ? 0 : 10),
-            padding: const EdgeInsets.fromLTRB(12, 11, 12, 11),
+            padding: widget.compact
+                ? const EdgeInsets.fromLTRB(10, 7, 10, 7)
+                : const EdgeInsets.fromLTRB(12, 11, 12, 11),
             decoration: BoxDecoration(
               gradient: current
                   ? const LinearGradient(
@@ -364,12 +373,12 @@ class _ChannelProgrammeStripState extends State<ChannelProgrammeStrip> {
                       ),
                   ],
                 ),
-                const SizedBox(height: 7),
+                SizedBox(height: widget.compact ? 4 : 7),
                 SizedBox(
                   height: titleHeight,
                   child: Text(
                     programme.title,
-                    maxLines: 2,
+                    maxLines: widget.compact ? 1 : 2,
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
                       color: Color(0xFFF0F4FD),
@@ -379,7 +388,7 @@ class _ChannelProgrammeStripState extends State<ChannelProgrammeStrip> {
                     ),
                   ),
                 ),
-                const SizedBox(height: 7),
+                SizedBox(height: widget.compact ? 4 : 7),
                 Text(
                   '${_time(start)} ~ ${_time(stop)}',
                   maxLines: 1,
@@ -390,7 +399,7 @@ class _ChannelProgrammeStripState extends State<ChannelProgrammeStrip> {
                     color: Color(0xFFA7B9D2),
                   ),
                 ),
-                const SizedBox(height: 9),
+                SizedBox(height: widget.compact ? 5 : 9),
                 SizedBox(
                   height: 2,
                   child: current

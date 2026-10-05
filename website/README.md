@@ -8,6 +8,23 @@ The hero image is a user-provided crop of the BobTV simplified-mode interface wi
 
 The product, download and diagnostic pages share a dark navy and peach visual system and the supplied real player screenshot. Build `1.0.1+82` adds mouse-reveal Windows fullscreen window controls and dedicated desktop Exit buttons. It retains a Windows Setup installer with optional desktop shortcut, unified fullscreen return behavior, and Unicode DLL path support. Windows managed installations require administrator-authorized Setup upgrades; portable Windows and writable macOS installations retain automatic updates. It retains durable shared synchronization and adds on-demand source management, canonical route deduplication and monotonic retirement across equivalent URLs. The download page explains initialization and both platform update flows; the diagnostic page describes optional, default-off summary uploads. Descriptions do not claim Windows 10 validation or guaranteed third-party stream availability.
 
+## Isolated product preview
+
+The redesigned product page lives in the self-contained new/ directory and is
+served at /new/. The existing homepage, downloads, diagnostics, release feeds
+and client remain unchanged. Local FastAPI mounts the preview; CCNODE serves it
+directly through the isolated nginx-bobtv-new.inc location without restarting
+the API. Runtime dependencies and real product images are self-hosted.
+
+The visual requirement is a physical black interface with red tactile feedback,
+inspired by the supplied six-second reference animation. The preview includes
+an interactive Three.js scene, GSAP press/rebound and scroll animations,
+keyboard-operable feature tabs, mobile framing, an animation pause control,
+reduced-motion support and a real-image WebGL fallback. Scene channel buttons
+are illustrative controls, with no stream playback or player API mutation.
+Subjective visual acceptance and replacing the main homepage require user review.
+See docs/new-preview-20261005/README.md for deployment, rollback and verification.
+
 ## Website maintenance with every release
 
 Publishing installation packages also requires a content review:

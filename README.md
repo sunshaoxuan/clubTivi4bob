@@ -54,6 +54,18 @@ Generic event slots such as numbered temporary sports feeds need a reliable exte
 
 ### Windows television mode
 
+### Desktop picture in picture (local 1.0.3 test build)
+
+The existing PiP toolbar icon now changes the playing desktop window into a
+compact, always-on-top window. The same player and video controller remain
+active. Drag the video/header between monitors, resize at native window edges,
+adjust volume, expand, return to channels, or exit BobTV. Bounds are remembered
+and recovered after monitor disconnection. This mode tucks away the channel UI;
+it does not create a second main window or decoder. See
+[desktop PiP behavior and test status](docs/desktop-pip.md). Windows and macOS
+native-window contracts have automated coverage; physical platform tests remain
+necessary before formal release.
+
 The channel browser remains a normal maximized Windows window with its title bar, minimize control, and close control. The player switches the window into a borderless fullscreen state that covers the current monitor, then restores the normal frame when playback is left.
 
 Additional Windows behavior includes:

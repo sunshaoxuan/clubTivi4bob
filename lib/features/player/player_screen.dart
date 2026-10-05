@@ -10,6 +10,7 @@ import 'package:media_kit/media_kit.dart';
 import 'package:media_kit_video/media_kit_video.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:window_manager/window_manager.dart';
 
 import '../../core/app_diagnostics.dart';
 import '../../data/datasources/local/database.dart' as db;
@@ -28,6 +29,9 @@ import 'desktop_fullscreen_session.dart';
 import 'window_manager_fullscreen_backend.dart';
 import 'fullscreen_return_navigation.dart';
 import 'desktop_exit_button.dart';
+import 'desktop_pip_session.dart';
+import 'window_manager_pip_backend.dart';
+import 'desktop_pip_controls.dart';
 
 /// Full-screen video player with overlay controls and keyboard navigation.
 class PlayerScreen extends ConsumerStatefulWidget {
@@ -61,6 +65,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   bool _nativeFullscreen = false;
   bool _leavingPlayer = false;
   DesktopFullscreenSession? _fullscreenSession;
+  DesktopPipSession? _pipSession;
+  bool _pipMode = false;
+  bool _pipTransition = false;
   bool _showCursor = true;
   Timer? _cursorTimer;
   final ManualRouteCycle _manualRouteCycle = ManualRouteCycle();
@@ -126,18 +133,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
     }
     if (_supportsNativeFullscreen) {
-      _fullscreenSession = DesktopFullscreenSession(
-        backend: WindowManagerFullscreenBackend(),
-        onChanged: (value) {
-          if (mounted) setState(() => _nativeFullscreen = value);
-        },
-        onExternalExit: () => unawaited(_leavePlayer()),
-        onError: (error, stack) => AppDiagnostics.instance.recordError(
-          'fullscreen_transition',
-          error,
-          stack,
-        ),
-      );
+      _createFullscreenSession();
     }
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) unawaited(_enterNativeFullscreen());
@@ -588,6 +584,23 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   bool get _supportsNativeFullscreen =>
       Platform.isWindows || Platform.isLinux || Platform.isMacOS;
 
+  void _createFullscreenSession() {
+    _fullscreenSession = DesktopFullscreenSession(
+      backend: WindowManagerFullscreenBackend(),
+      onChanged: (value) {
+        if (mounted) setState(() => _nativeFullscreen = value);
+      },
+      onExternalExit: () {
+        if (!_pipTransition && !_pipMode) unawaited(_leavePlayer());
+      },
+      onError: (error, stack) => AppDiagnostics.instance.recordError(
+        'fullscreen_transition',
+        error,
+        stack,
+      ),
+    );
+  }
+
   Future<void> _enterNativeFullscreen() async {
     try {
       AppDiagnostics.instance.log('fullscreen_enter_requested');
@@ -599,13 +612,19 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   }
 
   Future<void> _toggleNativeFullscreen() async {
+    if (_pipTransition) return;
+    if (_pipMode) {
+      await _restorePip();
+      return;
+    }
     // This route is the fullscreen presentation, including while entering.
     // Every exit control returns to the screen that opened it.
     await _leavePlayer();
   }
 
   Future<bool> _leavePlayer() async {
-    if (_leavingPlayer) return false;
+    if (_leavingPlayer || _pipTransition) return false;
+    if (_pipMode && !await _restorePip()) return false;
     _leavingPlayer = true;
     try {
       AppDiagnostics.instance.log('fullscreen_exit_requested', {
@@ -1033,6 +1052,14 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     _tracksSubscription?.cancel();
     _bufferingSubscription?.cancel();
     _fullscreenSession?.dispose();
+    final pip = _pipSession;
+    if (pip != null) {
+      unawaited(
+        pip.exit().catchError((Object error, StackTrace stack) {
+          AppDiagnostics.instance.recordError('pip_dispose', error, stack);
+        }),
+      );
+    }
     if (!_supportsNativeFullscreen) {
       SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
     }
@@ -1055,11 +1082,16 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
         child: Scaffold(
           backgroundColor: Colors.black,
           body: MouseRegion(
-            cursor: _showCursor ? MouseCursor.defer : SystemMouseCursors.none,
+            cursor: _pipMode || _showCursor
+                ? MouseCursor.defer
+                : SystemMouseCursors.none,
             onEnter: (_) => _onPointerActivity(),
             onHover: (_) => _onPointerActivity(),
             child: GestureDetector(
-              onTap: _toggleOverlay,
+              onTap: _pipMode ? null : _toggleOverlay,
+              onPanStart: _pipMode
+                  ? (_) => windowManager.startDragging()
+                  : null,
               onDoubleTap: _toggleNativeFullscreen,
               onSecondaryTapUp: (details) =>
                   _showRouteMenu(details.globalPosition),
@@ -1076,56 +1108,60 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                     ),
                   ),
 
-                  StreamBuilder<String?>(
-                    stream: playerService.currentUrlStream,
-                    initialData: playerService.currentUrl,
-                    builder: (context, _) =>
-                        ValueListenableBuilder<RouteSearchProgress?>(
-                          valueListenable: playerService.routeSearchProgress,
-                          builder: (context, progress, _) => IgnorePointer(
-                            child: Align(
-                              alignment: Alignment.topRight,
-                              child: SafeArea(
-                                child: Padding(
-                                  padding: const EdgeInsets.all(16),
-                                  child: DecoratedBox(
-                                    decoration: BoxDecoration(
-                                      color: const Color(0xBD000000),
-                                      borderRadius: BorderRadius.circular(10),
-                                    ),
-                                    child: Padding(
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 12,
-                                        vertical: 7,
+                  if (!_pipMode)
+                    StreamBuilder<String?>(
+                      stream: playerService.currentUrlStream,
+                      initialData: playerService.currentUrl,
+                      builder: (context, _) =>
+                          ValueListenableBuilder<RouteSearchProgress?>(
+                            valueListenable: playerService.routeSearchProgress,
+                            builder: (context, progress, _) => IgnorePointer(
+                              child: Align(
+                                alignment: Alignment.topRight,
+                                child: SafeArea(
+                                  child: Padding(
+                                    padding: const EdgeInsets.all(16),
+                                    child: DecoratedBox(
+                                      decoration: BoxDecoration(
+                                        color: const Color(0xBD000000),
+                                        borderRadius: BorderRadius.circular(10),
                                       ),
-                                      child: Row(
-                                        mainAxisSize: MainAxisSize.min,
-                                        children: [
-                                          if (progress?.active == true &&
-                                              progress?.background != true) ...[
-                                            const SizedBox(
-                                              width: 12,
-                                              height: 12,
-                                              child: CircularProgressIndicator(
-                                                strokeWidth: 2,
+                                      child: Padding(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 12,
+                                          vertical: 7,
+                                        ),
+                                        child: Row(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            if (progress?.active == true &&
+                                                progress?.background !=
+                                                    true) ...[
+                                              const SizedBox(
+                                                width: 12,
+                                                height: 12,
+                                                child:
+                                                    CircularProgressIndicator(
+                                                      strokeWidth: 2,
+                                                      color: Colors.white70,
+                                                    ),
+                                              ),
+                                              const SizedBox(width: 7),
+                                            ],
+                                            Text(
+                                              progress != null &&
+                                                      !progress.background
+                                                  ? progress.total > 0
+                                                        ? '${progress.stage} ${progress.index}/${progress.total} 路'
+                                                        : progress.stage
+                                                  : '候选 ${playerService.currentCandidateCount} 路',
+                                              style: const TextStyle(
                                                 color: Colors.white70,
+                                                fontSize: 12,
                                               ),
                                             ),
-                                            const SizedBox(width: 7),
                                           ],
-                                          Text(
-                                            progress != null &&
-                                                    !progress.background
-                                                ? progress.total > 0
-                                                      ? '${progress.stage} ${progress.index}/${progress.total} 路'
-                                                      : progress.stage
-                                                : '候选 ${playerService.currentCandidateCount} 路',
-                                            style: const TextStyle(
-                                              color: Colors.white70,
-                                              fontSize: 12,
-                                            ),
-                                          ),
-                                        ],
+                                        ),
                                       ),
                                     ),
                                   ),
@@ -1133,43 +1169,44 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                               ),
                             ),
                           ),
-                        ),
-                  ),
+                    ),
 
                   // TiviMate-style control bar overlay
-                  PlayerControlBar(
-                    isCasting: ref.read(castServiceProvider).isCasting,
-                    isFavorite: _isFavorite,
-                    hasSubtitles: _subtitleTracks.isNotEmpty,
-                    subtitlesEnabled: _subtitlesEnabled,
-                    onSubtitleToggle: _toggleSubtitles,
-                    onSubtitleSelect: _showSubtitlePicker,
-                    audioTrackCount: _audioTracks.length,
-                    onAudioSelect: _showAudioPicker,
-                    onCastTap: () => _showCastPicker(),
-                    onBackTap: () {
-                      _leavePlayer();
-                    },
-                    onScreenshot: _takeScreenshot,
-                    onFavorite: _toggleFavorite,
-                    onPip: _enterPip,
-                    onInfo: _showInfoDialog,
-                    onRename: _renameCurrentChannel,
-                    onSettings: _openSettings,
-                    onChannelList: () =>
-                        setState(() => _showChannelList = !_showChannelList),
-                    onFullscreenToggle: _toggleNativeFullscreen,
-                    isFullscreen: _nativeFullscreen,
-                  ),
+                  if (!_pipMode)
+                    PlayerControlBar(
+                      isCasting: ref.read(castServiceProvider).isCasting,
+                      isFavorite: _isFavorite,
+                      hasSubtitles: _subtitleTracks.isNotEmpty,
+                      subtitlesEnabled: _subtitlesEnabled,
+                      onSubtitleToggle: _toggleSubtitles,
+                      onSubtitleSelect: _showSubtitlePicker,
+                      audioTrackCount: _audioTracks.length,
+                      onAudioSelect: _showAudioPicker,
+                      onCastTap: () => _showCastPicker(),
+                      onBackTap: () {
+                        _leavePlayer();
+                      },
+                      onScreenshot: _takeScreenshot,
+                      onFavorite: _toggleFavorite,
+                      onPip: _enterPip,
+                      onInfo: _showInfoDialog,
+                      onRename: _renameCurrentChannel,
+                      onSettings: _openSettings,
+                      onChannelList: () =>
+                          setState(() => _showChannelList = !_showChannelList),
+                      onFullscreenToggle: _toggleNativeFullscreen,
+                      isFullscreen: _nativeFullscreen,
+                    ),
 
-                  Positioned(
-                    right: 24,
-                    bottom: _showOverlay ? 96 : 24,
-                    child: AlternativePreviewOverlay(service: playerService),
-                  ),
+                  if (!_pipMode)
+                    Positioned(
+                      right: 24,
+                      bottom: _showOverlay ? 96 : 24,
+                      child: AlternativePreviewOverlay(service: playerService),
+                    ),
 
                   // Channel info overlay (top, shown alongside control bar)
-                  if (_showOverlay) ...[
+                  if (_showOverlay && !_pipMode) ...[
                     Positioned(
                       top: 0,
                       left: 0,
@@ -1377,7 +1414,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                   ],
 
                   // Volume overlay
-                  if (_showVolumeOverlay)
+                  if (_showVolumeOverlay && !_pipMode)
                     Positioned(
                       top: 80,
                       right: 24,
@@ -1416,7 +1453,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                       ),
                     ),
                   // Channel list overlay
-                  if (_showChannelList && widget.channels.isNotEmpty)
+                  if (_showChannelList &&
+                      !_pipMode &&
+                      widget.channels.isNotEmpty)
                     Positioned(
                       right: 0,
                       top: 0,
@@ -1515,6 +1554,19 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                             ),
                           ],
                         ),
+                      ),
+                    ),
+                  if (_pipMode)
+                    Positioned.fill(
+                      child: DesktopPipControls(
+                        title: _currentChannelName,
+                        volume: _volume,
+                        busy: _pipTransition,
+                        onVolume: (value) => _adjustVolume(value - _volume),
+                        onExpand: () => unawaited(_restorePip()),
+                        onReturn: () => unawaited(_leavePlayer()),
+                        onClose: () => unawaited(windowManager.close()),
+                        onDrag: () => unawaited(windowManager.startDragging()),
                       ),
                     ),
                 ],
@@ -1726,13 +1778,70 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   }
 
   Future<void> _enterPip() async {
-    // PiP not yet available on desktop — show a message
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('画中画功能可在移动设备上使用'),
-        duration: Duration(seconds: 2),
-      ),
-    );
+    if (_pipMode || _pipTransition || _leavingPlayer) return;
+    if (!_supportsNativeFullscreen) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('当前平台尚未接入画中画')));
+      return;
+    }
+    _pipTransition = true;
+    try {
+      await _fullscreenSession?.exit();
+      _fullscreenSession?.dispose();
+      _fullscreenSession = null;
+      if (!mounted) return;
+      setState(() {
+        _pipMode = true;
+        _showChannelList = false;
+      });
+      final session = DesktopPipSession(WindowManagerPipBackend());
+      _pipSession = session;
+      await session.enter();
+      AppDiagnostics.instance.log('desktop_pip_entered');
+    } catch (error, stack) {
+      AppDiagnostics.instance.recordError('desktop_pip_enter', error, stack);
+      _pipSession = null;
+      if (mounted) {
+        setState(() => _pipMode = false);
+        _createFullscreenSession();
+        await _enterNativeFullscreen();
+        if (mounted) {
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(const SnackBar(content: Text('无法打开画中画，已恢复播放窗口')));
+        }
+      }
+    } finally {
+      if (mounted) setState(() => _pipTransition = false);
+    }
+  }
+
+  Future<bool> _restorePip() async {
+    if (_pipTransition) return false;
+    if (!_pipMode) return true;
+    setState(() => _pipTransition = true);
+    try {
+      await _pipSession?.exit();
+      _pipSession = null;
+      if (!mounted) return false;
+      _createFullscreenSession();
+      await _enterNativeFullscreen();
+      if (!mounted) return false;
+      setState(() => _pipMode = false);
+      AppDiagnostics.instance.log('desktop_pip_restored');
+      return true;
+    } catch (error, stack) {
+      AppDiagnostics.instance.recordError('desktop_pip_restore', error, stack);
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('恢复窗口失败，请再点击返回频道')));
+      }
+      return false;
+    } finally {
+      if (mounted) setState(() => _pipTransition = false);
+    }
   }
 
   Future<void> _renameCurrentChannel() async {

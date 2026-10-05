@@ -92,14 +92,16 @@ class _PlayerControlBarState extends ConsumerState<PlayerControlBar> {
     super.initState();
     _scheduleHide();
     _subscribeToPlayer();
-    _activePlayerSubscription = ref.read(playerServiceProvider)
-        .activePlayerStream.listen((_) {
-      for (final subscription in _subs) {
-        unawaited(subscription.cancel());
-      }
-      _subs.clear();
-      if (mounted) _subscribeToPlayer();
-    });
+    _activePlayerSubscription = ref
+        .read(playerServiceProvider)
+        .activePlayerStream
+        .listen((_) {
+          for (final subscription in _subs) {
+            unawaited(subscription.cancel());
+          }
+          _subs.clear();
+          if (mounted) _subscribeToPlayer();
+        });
     _startInfoPolling();
   }
 
@@ -449,9 +451,12 @@ class _PlayerControlBarState extends ConsumerState<PlayerControlBar> {
                         color: widget.isFavorite ? Colors.amber : Colors.white,
                         onTap: widget.onFavorite,
                       ),
-                      _iconBtn(
-                        Icons.picture_in_picture_alt,
-                        onTap: widget.onPip,
+                      Tooltip(
+                        message: '画中画',
+                        child: _iconBtn(
+                          Icons.picture_in_picture_alt,
+                          onTap: widget.onPip,
+                        ),
                       ),
                       _iconBtn(
                         widget.isCasting ? Icons.cast_connected : Icons.cast,

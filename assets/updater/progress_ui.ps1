@@ -45,9 +45,21 @@ $open.Location=New-Object Drawing.Point(300,265)
 $open.Size=New-Object Drawing.Size(165,30)
 $open.Enabled=$false
 $open.FlatStyle='Flat'; $form.Controls.Add($open)
+function Get-CompletedExecutable {
+  if(!(Test-Path -LiteralPath $statusPath)){return $null}
+  $completed=[IO.File]::ReadAllText($statusPath)|ConvertFrom-Json
+  if($completed.phase -ne 'installed' -or $completed.runId -ne $RunId -or
+     $completed.version -ne $Version -or [int]$completed.workerPid -ne $WorkerPid){return $null}
+  foreach($name in @('clubtivi.exe','BobTV.exe')){
+    $path=Join-Path $AppDir $name
+    if((Test-Path -LiteralPath $path -PathType Leaf) -and
+       (Get-Item -LiteralPath $path).VersionInfo.FileVersion -eq $Version -and
+       (Test-Path -LiteralPath (Join-Path $AppDir 'data\app.so'))){return $path}
+  }
+  return $null
+}
 $open.Add_Click({
-  $exe=@('clubtivi.exe','BobTV.exe') | ForEach-Object {Join-Path $AppDir $_} |
-    Where-Object {Test-Path -LiteralPath $_ -PathType Leaf} | Select-Object -First 1
+  $exe=Get-CompletedExecutable
   if($exe){Start-Process -FilePath $exe -WorkingDirectory $AppDir; $form.Close()}
 })
 $timer=New-Object Windows.Forms.Timer
@@ -56,6 +68,7 @@ $script:finishedAt=$null
 $script:statusWait=[DateTime]::UtcNow
 $script:lastPhase=''
 $timer.Add_Tick({
+  $open.Enabled=$false
   try {
     $status=if(Test-Path -LiteralPath $statusPath){
       [IO.File]::ReadAllText($statusPath)|ConvertFrom-Json
@@ -64,8 +77,8 @@ $timer.Add_Tick({
         [int]$status.workerPid -ne $WorkerPid){
       if(([DateTime]::UtcNow-$script:statusWait).TotalSeconds -gt 30){
         $phase.Text='更新助手未返回状态'
-        $detail.Text='下载或安装尚未确认。可查看更新日志，重新启动 BobTV 后重试。'
-        $bar.Style='Continuous'; $bar.Value=0; $open.Enabled=$true
+        $detail.Text='下载或安装尚未确认，启动按钮已禁用。请查看更新日志。'
+        $bar.Style='Continuous'; $bar.Value=0
       }
       return
     }
@@ -82,18 +95,10 @@ $timer.Add_Tick({
       default {'正在处理更新'}
     }
     $detail.Text=[string]$status.message
-    if($script:lastPhase -ne $status.phase){
+    $capture=$script:lastPhase -ne $status.phase
+    if($capture){
       $script:lastPhase=$status.phase
       Log ('phase='+$status.phase+' run='+$RunId)
-      if($env:CI -eq 'true' -and $env:BOBTV_PROGRESS_CAPTURE_DIR){
-        $folder=[IO.Path]::GetFullPath($env:BOBTV_PROGRESS_CAPTURE_DIR)
-        $allowed=[IO.Path]::GetFullPath((Join-Path $env:TEMP 'BobTVUpdaterTests'))+'\'
-        if($folder.StartsWith($allowed,[StringComparison]::OrdinalIgnoreCase)){
-          New-Item -ItemType Directory -Path $folder -Force|Out-Null
-          $bitmap=New-Object Drawing.Bitmap($form.Width,$form.Height)
-          try{$form.DrawToBitmap($bitmap,(New-Object Drawing.Rectangle(0,0,$form.Width,$form.Height)));$bitmap.Save((Join-Path $folder ($status.phase+'.png')),[Drawing.Imaging.ImageFormat]::Png)}finally{$bitmap.Dispose()}
-        }
-      }
     }
     if($status.phase -eq 'downloading' -and $status.totalBytes -gt 0){
       $detail.Text+=('  {0:N1} / {1:N1} MB' -f ($status.receivedBytes/1MB),($status.totalBytes/1MB))
@@ -102,21 +107,38 @@ $timer.Add_Tick({
       $bar.Style='Continuous'; $bar.Value=[Math]::Max(0,[Math]::Min(100,[int]$status.percent))
     }else{$bar.Style='Marquee'}
     if($status.phase -eq 'installed'){
-      if(!$script:finishedAt){$script:finishedAt=[DateTime]::UtcNow}
-      $open.Enabled=$true
-      $remaining=20-[int]([DateTime]::UtcNow-$script:finishedAt).TotalSeconds
-      $note.Text="安装完成，旧版备份已保留。此窗口将在 $remaining 秒后关闭。"
-      if($remaining -le 0){$form.Close()}
+      $open.Enabled=[bool](Get-CompletedExecutable)
+      if($open.Enabled){
+        if(!$script:finishedAt){$script:finishedAt=[DateTime]::UtcNow}
+        $remaining=20-[int]([DateTime]::UtcNow-$script:finishedAt).TotalSeconds
+        $note.Text="安装完成，旧版备份已保留。此窗口将在 $remaining 秒后关闭。"
+        if($remaining -le 0){$form.Close()}
+      }else{
+        $script:finishedAt=$null
+        $phase.Text='安装结果未通过检查'
+        $detail.Text='程序文件缺失或版本不符，启动按钮已禁用。请查看更新日志。'
+        $note.Text='旧版备份已保留，尚未确认安装成功。'
+      }
     }elseif($status.phase -eq 'failed'){
-      $open.Enabled=$true
-      $note.Text='可重新启动 BobTV 重试。旧版备份不会被删除。'
+      $note.Text='安装未完成，启动按钮已禁用。旧版备份不会被删除。'
     }elseif(!(Get-Process -Id $WorkerPid -ErrorAction SilentlyContinue)){
       $phase.Text='更新助手意外退出'
-      $detail.Text='更新尚未完成，请重新启动 BobTV 重试。启动错误记录在 launcher.log。'
-      $bar.Style='Continuous'; $open.Enabled=$true
+      $detail.Text='更新尚未完成，启动按钮已禁用。启动错误记录在 launcher.log。'
+      $bar.Style='Continuous'
+    }
+    if($capture -and $env:CI -eq 'true' -and $env:BOBTV_PROGRESS_CAPTURE_DIR){
+      $folder=[IO.Path]::GetFullPath($env:BOBTV_PROGRESS_CAPTURE_DIR)
+      $allowed=[IO.Path]::GetFullPath((Join-Path $env:TEMP 'BobTVUpdaterTests'))+'\'
+      if($folder.StartsWith($allowed,[StringComparison]::OrdinalIgnoreCase)){
+        New-Item -ItemType Directory -Path $folder -Force|Out-Null
+        $bitmap=New-Object Drawing.Bitmap($form.Width,$form.Height)
+        try{$form.DrawToBitmap($bitmap,(New-Object Drawing.Rectangle(0,0,$form.Width,$form.Height)));$bitmap.Save((Join-Path $folder ($status.phase+'.png')),[Drawing.Imaging.ImageFormat]::Png)}finally{$bitmap.Dispose()}
+        @{phase=$status.phase;launchEnabled=$open.Enabled;launchText=$open.Text}|ConvertTo-Json -Compress|Set-Content -LiteralPath (Join-Path $folder ($status.phase+'.json')) -Encoding UTF8
+      }
     }
   }catch{
     # Atomic status replacement can briefly fail a read; retry on the next tick.
+    Log ('status_read_failed: '+$_.Exception.Message)
   }
 })
 $form.Add_Shown({Log ('window_shown run='+$RunId);$timer.Start()})

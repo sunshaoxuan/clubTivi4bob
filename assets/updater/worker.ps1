@@ -54,6 +54,9 @@ function Get-Sha256([string]$path) {
 
 function Write-Status([string]$phase, [string]$version, [int]$percent,
                       [string]$message) {
+  if($script:lastWrittenPhase -eq $phase -and
+     $script:lastWrittenPercent -eq $percent -and
+     $script:lastWrittenMessage -eq $message){return}
   if($script:lastPhase -ne $phase){
     $script:lastPhase=$phase
     Write-Log ('Phase='+$phase+' version='+$version+' run='+$RunId)
@@ -88,6 +91,9 @@ function Write-Status([string]$phase, [string]$version, [int]$percent,
     }
     if(!$published){throw ('Unable to publish updater status: '+$path)}
   }
+  $script:lastWrittenPhase=$phase
+  $script:lastWrittenPercent=$percent
+  $script:lastWrittenMessage=$message
 }
 
 function Read-State {
@@ -147,10 +153,62 @@ function Wait-ForAppIdle([string]$path) {
   }
 }
 
+function Copy-AppFile([string]$source, [string]$destination) {
+  if((Test-Path -LiteralPath $destination -PathType Leaf) -and
+     (Get-Sha256 $source) -eq (Get-Sha256 $destination)){return}
+  New-Item -ItemType Directory -Path (Split-Path $destination) -Force | Out-Null
+  Copy-Item -LiteralPath $source -Destination $destination -Force
+  if((Get-Sha256 $source) -ne (Get-Sha256 $destination)){
+    throw ('Installed file verification failed: '+$destination)
+  }
+}
+
+function Suspend-AppCrashMonitor([string]$path) {
+  $script:crashMonitorDir=$path
+  $monitor=Join-Path $path 'Tools\hoteltv_crash_monitor.ps1'
+  $escaped=[regex]::Escape($monitor)
+  $script:resumeCrashMonitor=$false
+  $processes=@(Get-CimInstance Win32_Process)
+  foreach($process in $processes){
+    if($process.Name -ieq 'powershell.exe' -and
+       $process.CommandLine -match ('["\s]'+$escaped+'["\s]')){
+      Stop-Process -Id $process.ProcessId -Force -ErrorAction Stop
+      $script:resumeCrashMonitor=$true
+      Write-Log ('Paused BobTV crash monitor PID='+$process.ProcessId)
+    }
+  }
+  $toolsPrefix=[IO.Path]::GetFullPath((Join-Path $path 'Tools')).TrimEnd('\')+'\'
+  foreach($process in $processes){
+    if($process.Name -in @('procdump.exe','procdump64.exe') -and
+       $process.ExecutablePath -and $process.ExecutablePath.StartsWith($toolsPrefix,[StringComparison]::OrdinalIgnoreCase)){
+      $live=Get-Process -Id $process.ProcessId -ErrorAction SilentlyContinue
+      if($live){
+        Stop-Process -Id $live.Id -Force -ErrorAction Stop
+        if(!$live.WaitForExit(5000)){throw 'BobTV crash monitor did not release its executable'}
+        Write-Log ('Stopped BobTV ProcDump PID='+$process.ProcessId)
+      }
+    }
+  }
+}
+
+function Resume-AppCrashMonitor([string]$path) {
+  if(!$script:resumeCrashMonitor){return}
+  $path=$script:crashMonitorDir
+  $monitor=Join-Path $path 'Tools\hoteltv_crash_monitor.ps1'
+  $tool=Join-Path $path 'Tools\procdump64.exe'
+  if(!(Test-Path -LiteralPath $monitor) -or !(Test-Path -LiteralPath $tool)){return}
+  $dumps=Join-Path (Split-Path $root) 'CrashDumps'
+  Start-Process powershell.exe -WindowStyle Hidden -ArgumentList @(
+    '-NoProfile','-ExecutionPolicy','Bypass','-File',('"'+$monitor+'"'),
+    '-ProcDumpPath',('"'+$tool+'"'),'-DumpFolder',('"'+$dumps+'"')) | Out-Null
+  Write-Log 'Resumed BobTV crash monitor'
+}
+
 function Copy-Contents([string]$source, [string]$destination) {
   New-Item -ItemType Directory -Path $destination -Force | Out-Null
-  Get-ChildItem -LiteralPath $source -Force | ForEach-Object {
-    Copy-Item -LiteralPath $_.FullName -Destination $destination -Recurse -Force
+  Get-ChildItem -LiteralPath $source -Recurse -File -Force | ForEach-Object {
+    $relative=$_.FullName.Substring($source.TrimEnd('\').Length).TrimStart('\')
+    Copy-AppFile $_.FullName (Join-Path $destination $relative)
   }
 }
 
@@ -212,6 +270,7 @@ function Perform-Rollback {
     throw 'Invalid rollback state'
   }
   Wait-ForAppIdle $target
+  Suspend-AppCrashMonitor $target
   Restore-Backup $backup $target (Join-Path $root 'new-files.txt')
   Add-Content -LiteralPath $skippedPath -Value $badVersion -Encoding ascii
   Remove-Item -LiteralPath $statePath, $markerPath, $healthyPath -Force -ErrorAction SilentlyContinue
@@ -399,6 +458,7 @@ try {
   Write-Status 'ready' $Version 100 '更新已下载并校验通过，关闭 BobTV 后自动安装'
   Wait-ForExit $CurrentPid
   Wait-ForAppIdle $AppDir
+  Suspend-AppCrashMonitor $AppDir
   $exe = @('clubtivi.exe', 'BobTV.exe') |
     Where-Object { Test-Path -LiteralPath (Join-Path $AppDir $_) } |
     Select-Object -First 1
@@ -418,7 +478,7 @@ try {
       (Get-Sha256 (Join-Path $backup 'data\app.so'))) {
     throw 'Backup verification failed'
   }
-  Write-Status 'installing' $Version 100 '正在安装更新'
+  Write-Status 'installing' $Version 0 '正在安装更新'
   $newFileList = Join-Path $root 'new-files.txt'
   $files = @(Get-ChildItem -LiteralPath $bundle -Recurse -File -Force)
   $newFiles = @($files | ForEach-Object {
@@ -440,20 +500,20 @@ try {
       $relative = $file.FullName.Substring($bundle.Length).TrimStart('\')
       if ($relative -ieq 'BobTV.exe') { continue }
       $destination = Join-Path $AppDir $relative
-      New-Item -ItemType Directory -Path (Split-Path $destination) -Force | Out-Null
-      Copy-Item -LiteralPath $file.FullName -Destination $destination -Force
+      Copy-AppFile $file.FullName $destination
       $installedFiles++
       Write-Status 'installing' $Version ([int](100*$installedFiles/$files.Count)) '正在安装更新，请稍候'
     }
-    Copy-Item -LiteralPath (Join-Path $bundle 'BobTV.exe') -Destination (
-      Join-Path $AppDir $exe) -Force
+    Copy-AppFile (Join-Path $bundle 'BobTV.exe') (Join-Path $AppDir $exe)
     if ((Get-Item (Join-Path $AppDir $exe)).VersionInfo.FileVersion -ne $Version) {
       throw 'Installed executable version mismatch'
     }
   } catch {
-    Restore-Backup $backup $AppDir $newFileList
+    $installError=$_
+    try { Restore-Backup $backup $AppDir $newFileList }
+    catch { throw ('Installation failed: '+$installError.Exception.Message+'; rollback failed: '+$_.Exception.Message+'; backup retained at '+$backup) }
     Remove-Item -LiteralPath $statePath -Force -ErrorAction SilentlyContinue
-    throw
+    throw $installError
   }
   if (!$TestRoot) {
     $shortcutScript = Join-Path $root 'ensure_shortcut.ps1'
@@ -475,6 +535,8 @@ try {
     Write-Status 'failed' $Version 0 ('更新未完成：' + $_.Exception.Message + '。详细记录见 worker.log 和 launcher.log。')
   }
 } finally {
+  try { Resume-AppCrashMonitor $AppDir }
+  catch { Write-Log ('Crash monitor restart deferred: '+$_.Exception.Message) }
   if ($locked) { $mutex.ReleaseMutex() }
   $mutex.Dispose()
 }

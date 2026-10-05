@@ -73,14 +73,16 @@ void main() {
     );
   }
 
-  testWidgets('Fullscreen shows current, next and third in the same timeline', (
+  testWidgets('Fullscreen shows current, next and third as lightweight text', (
     tester,
   ) async {
     await pump(tester);
     expect(find.text('CCTV-6 电影'), findsOneWidget);
-    for (final title in ['当前电影', '下一部电影', '第三部电影', '正在播出', '接下来', '随后']) {
-      expect(find.text(title), findsOneWidget);
-    }
+    expect(find.text('当前电影'), findsOneWidget);
+    expect(find.textContaining('接下来：下一部电影'), findsOneWidget);
+    expect(find.textContaining('随后：第三部电影'), findsOneWidget);
+    expect(find.byType(Card), findsNothing);
+    expect(find.byKey(const ValueKey('channel-programme-strip')), findsNothing);
     expect(tester.takeException(), isNull);
     await tester.pumpWidget(const SizedBox.shrink());
   });
@@ -110,12 +112,34 @@ void main() {
           programme(3, now.subtract(const Duration(minutes: 30)), '第三节目'),
         ],
       );
-      expect(find.text('正在播出'), findsOneWidget);
       expect(find.text('时差后的当前节目'), findsOneWidget);
       expect(tester.takeException(), isNull);
       await tester.pumpWidget(const SizedBox.shrink());
     },
   );
+  testWidgets('Narrow window and long titles remain usable', (tester) async {
+    await pump(
+      tester,
+      width: 360,
+      scale: 1.5,
+      rows: [
+        programme(
+          1,
+          now.subtract(const Duration(minutes: 30)),
+          '当前节目标题较长，用于验证窄窗口中的文字换行与布局',
+        ),
+        programme(
+          2,
+          now.add(const Duration(minutes: 30)),
+          '下一个节目标题较长，用于验证时间与文字的显示',
+        ),
+      ],
+    );
+    expect(find.text('返回频道'), findsOneWidget);
+    expect(find.textContaining('接下来：'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
   testWidgets(
     'renders fullscreen programme visual preview',
     (tester) async {

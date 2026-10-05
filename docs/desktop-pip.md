@@ -26,17 +26,19 @@ This is an application-managed compact-window implementation. Minimizing the
 compact window itself hides it; there is no separate main window to minimize.
 The normal channel UI, controls and minimum dimensions return after leaving it.
 
-Version 1.0.3 build 84 is currently a local test build, not a formal release.
+Version 1.0.3 build 85 is currently a local test build, not a formal release.
 
-## Desktop fullscreen programme timeline
+## Desktop fullscreen programme text overlay
 
-On Windows and macOS, moving the pointer reveals a compact guide using the same timeline component as
-the channel browser. It shows the current programme and the next two entries,
-with start times and current-programme progress. The guide uses the channel's
+On Windows and macOS, moving the pointer reveals a lightweight text guide over
+the video. The current programme has a cyan play icon, a white title, and its
+start/end time underneath. Two gray rows show the next programmes and their
+start/end times. There are no guide cards, panel borders, or timeline rails.
+The guide uses the channel's
 exact EPG identifier and configured time shift. Long-running programmes are
 included even when they began more than an hour ago.
 
 Guide queries are throttled to once per 30 seconds while controls are visible;
 channel changes invalidate earlier queries. Channels without guide data show
 only the channel header and navigation controls. Compact PiP does not display
-this timeline.
+this overlay.

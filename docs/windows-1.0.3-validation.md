@@ -9,8 +9,8 @@ change the production update feed.
   navigation, mouse-accessible exit controls, programme timelines, update
   feedback, manifest validation and shared catalogue changes.
 - Physical Windows main playback and desktop PiP video/audio, confirmed by the
-  user. Returning from PiP and fullscreen guide interaction are checked
-  separately as the user completes each step.
+  user. The user also confirmed returning from PiP preserves playback and the
+  fullscreen guide shows the current programme and the next two entries.
 - Setup installation and uninstallation in Chinese/Japanese paths, with desktop
   shortcuts both enabled and disabled, start-menu entries and retained choices.
 - Unicode DLL loading in ASCII, Chinese, Japanese and mixed-language directories.
@@ -47,3 +47,14 @@ unchanged progress writes are suppressed.
 Multi-monitor dragging, other-app fullscreen interaction and a long-duration
 playback soak need separate physical checks. The installer and portable-package
 fixtures do not establish that every possible stream codec is supported.
+
+## Build 85 text-guide follow-up
+
+The fullscreen guide now follows the lightweight text reference: cyan current
+programme icon, current title/time, and two gray upcoming-programme rows.
+Five widget/visual tests pass, including narrow windows and large-font layouts;
+21 fullscreen/PiP regressions also pass. macOS x64 DMG and publisher-signed
+archive validation pass, including the packaged Metal frame-lifetime test.
+Windows release build, Setup and portable packages complete successfully.
+This remains a local test build; the formal release and production feed are
+unchanged.

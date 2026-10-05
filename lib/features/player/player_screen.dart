@@ -1239,9 +1239,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                     ),
 
                   // Channel info overlay (top, shown alongside control bar)
-                  if (_showOverlay && !_pipMode && Platform.isMacOS)
+                  if (_showOverlay &&
+                      !_pipMode &&
+                      (Platform.isMacOS || Platform.isWindows))
                     Positioned(
-                      top: 52,
+                      top: Platform.isMacOS ? 52 : 44,
                       left: 24,
                       right: 24,
                       child: FullscreenProgrammeOverlay(
@@ -1251,7 +1253,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                         onReturn: () => unawaited(_leavePlayer()),
                       ),
                     ),
-                  if (_showOverlay && !_pipMode && !Platform.isMacOS) ...[
+                  if (_showOverlay &&
+                      !_pipMode &&
+                      !Platform.isMacOS &&
+                      !Platform.isWindows) ...[
                     Positioned(
                       top: 0,
                       left: 0,

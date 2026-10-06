@@ -43,6 +43,28 @@ Acceptance covers all 12 page/language combinations, GET/HEAD, country mapping,
 spoofing rejection, cookie priority, dynamic success/error states, desktop/mobile
 layout, console/network errors and unchanged local download bytes.
 
+## Installed-device footer count (2026-10-06)
+
+The footer appends a parenthesized integer to the player label on every page and
+in every language. It counts rows in the existing channel inventory database's
+`limits` table, whose primary key is the SHA-256 hash of the client's existing
+application fingerprint. Inventory and event submissions upsert that row; repeated
+submissions by one fingerprint do not increase the count. These reporter rows are
+not pruned by the current writer, so the count is cumulative observed fingerprints,
+not recent activity. It updates on each HTML request. No browser fingerprinting,
+new client telemetry, public identifier endpoint or database migration is added.
+
+Only installations that have submitted public channel data/events are observable.
+Offline/unreported installations cannot be reconstructed. The client fingerprint
+is persisted with a random installation salt; identity reset, multiple OS users
+or cloned identities mean this is not an exact census of physical computers.
+Existing public intake has no installation attestation. Do not label this number
+as independently verified hardware installations or anonymous website visits.
+The statistic reads SQLite with `mode=ro` and emits only an aggregate. If the
+database is unavailable, omit the count and log a generic warning; never invent
+zero. A healthy empty registry correctly displays `(0)`. No installation record,
+raw hardware identifier, fingerprint or IP address is exposed in the HTML.
+
 ## Release content review
 
 Publishing installation packages also requires a content review:

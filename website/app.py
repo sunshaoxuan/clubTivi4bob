@@ -18,6 +18,7 @@ from channel_catalog import router as catalog_router
 from update_delivery import router as update_router
 from catalog_inventory import router as inventory_router
 from localization import page
+from device_registry import router as device_router
 
 BASE = Path(__file__).resolve().parent
 DATA = Path(os.environ.get("BOBTV_DATA_DIR", BASE / "data"))
@@ -32,6 +33,7 @@ app.include_router(candidate_router)
 app.include_router(catalog_router)
 app.include_router(update_router)
 app.include_router(inventory_router)
+app.include_router(device_router)
 app.mount("/assets", StaticFiles(directory=BASE / "assets"), name="assets")
 
 

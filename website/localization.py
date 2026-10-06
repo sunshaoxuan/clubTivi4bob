@@ -2,10 +2,7 @@
 
 import ipaddress
 import json
-import logging
 import os
-import sqlite3
-from contextlib import closing
 from pathlib import Path
 
 from fastapi import Request
@@ -14,7 +11,6 @@ from jinja2 import Environment, FileSystemLoader, StrictUndefined, select_autoes
 
 BASE = Path(__file__).resolve().parent
 DATA = Path(os.environ.get("BOBTV_DATA_DIR", BASE / "data"))
-LOGGER = logging.getLogger(__name__)
 LANGUAGES = {"zh-CN": "简体中文", "en": "English", "ja": "日本語", "zh-TW": "繁體中文"}
 COUNTRY_LANGUAGES = {"CN": "zh-CN", "JP": "ja", "TW": "zh-TW", "HK": "zh-TW", "MO": "zh-TW"}
 CF_RANGES = tuple(ipaddress.ip_network(value) for value in json.loads(
@@ -42,15 +38,8 @@ def language(request: Request) -> str:
 
 
 def installed_device_count():
-    """Count persistent, distinct client reporters without opening a writer."""
-    path = DATA / "channel_inventory.sqlite3"
-    try:
-        with closing(sqlite3.connect(path.resolve().as_uri() + "?mode=ro", uri=True, timeout=1)) as conn:
-            # The inventory writer upserts one permanent row per hashed fingerprint.
-            return conn.execute("SELECT COUNT(*) FROM limits").fetchone()[0]
-    except sqlite3.Error:
-        LOGGER.warning("Installed-device count unavailable")
-        return None
+    from device_registry import installed_device_count as host_count
+    return host_count(DATA)
 
 
 def page(request: Request, name: str) -> HTMLResponse:

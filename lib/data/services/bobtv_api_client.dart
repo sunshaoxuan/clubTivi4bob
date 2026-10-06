@@ -93,6 +93,30 @@ class BobTvApiClient {
 
   Uri _uri(String path) => baseUri.resolve(path);
 
+  Future<void> registerHost(String fingerprint) async {
+    if (!RegExp(r'^bth1_[a-f0-9]{64}$').hasMatch(fingerprint)) {
+      throw const FormatException('Invalid host fingerprint');
+    }
+    final response = await _request(
+      'POST',
+      '/api/v1/devices/register',
+      contentType: 'application/json',
+      body: utf8.encode(jsonEncode({'hostFingerprint': fingerprint})),
+      maxBytes: 256,
+    );
+    if (response.status != 200) {
+      throw BobTvApiException(
+        'host_registration_status',
+        statusCode: response.status,
+        retryAfter: response.retryAfter,
+      );
+    }
+    final payload = jsonDecode(utf8.decode(response.body));
+    if (payload is! Map || payload['registered'] != true) {
+      throw const FormatException('Invalid host registration response');
+    }
+  }
+
   static bool isSafeMediaUrl(String value, {bool candidate = false}) {
     if (value.isEmpty ||
         value.length > 2048 ||

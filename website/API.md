@@ -182,3 +182,27 @@ Windows 与 macOS 的共享频道接口与旧版 `/api/v1/sources` 独立。
 - 客户端每 15 秒分批上报变更，每分钟检查共享清单版本。修改、权重和删除在后台发布，不等待慢线路验证；新增线路仍需服务器验证。快照线路可包含 `revision`，共享 `healthScore` 参与线路排序。空清单和失去最后线路的分类都能同步移除。界面显示同步过程，网络失败不阻塞本地修改。
 
 服务器定时验证候选媒体并原子发布清单。客户端采用内置小型启动清单，后台下载网站清单及验证记录，按分类直接展示，通过本地检查继续更新可用性。线路上报采用分页与成功检查点，失败自动重试。全局淘汰记录应用到所有来源。频道清单不会夹带收藏、观看历史或私人源认证数据。详细快照结构与验收流程见 `docs/channel-catalog-sync.md`。
+## Hardware-host statistics (2026-10-06)
+
+`POST /api/v1/devices/register` accepts JSON with exactly
+`{"hostFingerprint":"bth1_<64 lowercase hexadecimal characters>"}`.
+Body limit: 256 bytes. Repeated registration is idempotent, including concurrent
+requests. Returns 200 with `{"registered":true}`. Invalid content type/body/schema
+returns 415/413/422. A 60-request hourly limit applies per origin-visible peer
+hash; exceeding it returns 429 with Retry-After 3600. Cloudflare can group clients
+by edge IP under the existing proxy contract. Registry capacity is 100000 hosts;
+new identities at capacity return 503 while existing identities still register.
+No raw hardware ID, install fingerprint, IP or additional field is accepted.
+
+`GET /api/v1/devices/count` returns only `{"count":integer}`, Cache-Control
+no-store. Missing/unmigrated/unreadable registry returns 503 with `{"count":null}`.
+Viewing a page or fetching a count never creates/migrates a database.
+Deployers explicitly run `device_registry.py` with BOBTV_DATA_DIR before enabling
+this route. Version 1 creates hosts and short-lived hashed-peer rate windows in
+a separate SQLite file, with unique host key and transactionally serialized
+writes. It has no join/backfill/link to channel-sync or historical salted IDs.
+
+The client algorithm, coverage limits, privacy boundary, startup retry and
+website refresh contract are specified in README. Client release is a separate
+deployment requirement. An accepted identity is untrusted pseudonymous telemetry,
+and does not prove a genuine installation or unique physical device.

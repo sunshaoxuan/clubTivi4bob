@@ -1,5 +1,9 @@
 # Device-count footer acceptance, 2026-10-06 JST
 
+Historical record, superseded by the hardware-host registry correction.
+The accepted 45 was a count of salted installation identities and must not be
+used as a physical-host count. See ../host-count-20261006.md and current README.
+
 Request: append parentheses containing only an integer to the footer player label.
 All pages/languages now include the server-side aggregate on each HTML request.
 Actual production text at acceptance: BobTV · 开源桌面播放器 (45).

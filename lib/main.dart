@@ -10,6 +10,7 @@ import 'package:window_manager/window_manager.dart';
 import 'app/app.dart';
 import 'core/app_diagnostics.dart';
 import 'data/services/client_fingerprint_service.dart';
+import 'data/services/host_fingerprint_service.dart';
 import 'data/services/legacy_preferences_migration.dart';
 import 'data/services/desktop_update_service.dart';
 
@@ -54,6 +55,7 @@ void main() {
       });
       runApp(const ProviderScope(child: ClubTiviApp()));
       unawaited(ClientFingerprintService.instance.initialize());
+      unawaited(HostFingerprintService.register());
       DesktopUpdateService.instance.start();
     },
     (error, stackTrace) {

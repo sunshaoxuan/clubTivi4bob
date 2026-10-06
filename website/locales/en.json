@@ -42,8 +42,8 @@
             "Add channels to favorites from the menu and adjust volume in the player."
           ],
           [
-            "Fullscreen",
-            "Return to the channel list without leaving fullscreen. The cursor hides when idle."
+            "Fullscreen and desktop PiP",
+            "The fullscreen header places the channel name on the left, the current and next two programmes in the center, and return/exit actions on the right. PiP stays on top and supports dragging and volume; returning to channels preserves playback."
           ]
         ]
       },
@@ -133,9 +133,14 @@
     "history_title": "Recent changes",
     "history": [
       [
+        "2026-10-06",
+        "v1.0.3 · Desktop PiP and fullscreen guide",
+        "Windows and Mac gain a floating player and a lightweight text programme guide. Windows updates handle locked helpers and enable launch only after installation verification."
+      ],
+      [
         "2026-10-05",
         "v1.0.2 · Update status",
-        "Update checks show progress, connection failures and authorization requirements. macOS packages are available; Windows packages remain at 1.0.1."
+        "Update checks show progress, connection failures and authorization requirements. Mac packages were published first; Windows improvements are available in 1.0.3."
       ],
       [
         "2026-10-05",
@@ -171,14 +176,14 @@
           ],
           [
             "Updates",
-            "Version 1.0.2 checks at startup, every six hours, and on returning to the foreground, at most once every 15 minutes. Windows Setup installations require a new installer with administrator approval. Portable Windows and writable Mac installations download and verify updates in the background, then install after exit. After three failed starts, the app attempts rollback. Protected Mac locations require manual replacement."
+            "Version 1.0.3 checks at startup, every six hours, and on returning to the foreground, at most once every 15 minutes. Windows Setup installations require a new installer with administrator approval. Portable Windows and writable Mac installations download and verify updates in the background, then install after exit. After three failed starts, the app attempts rollback. Protected Mac locations require manual replacement."
           ]
         ]
       },
       {
         "id": "first-launch",
         "title": "First launch and channel sync",
-        "text": "Version 1.0.1 retains public channel sync. Source management runs on demand; playback checks only the active route.",
+        "text": "Version 1.0.3 retains public channel sync. Source management runs on demand; playback checks only the active route.",
         "items": [
           [
             "Initial catalog",
@@ -206,7 +211,8 @@
     "notes": [
       "Only allowed summary fields, including time, event, source and runtime metrics, are sent. Raw exception text, paths and playback URLs are excluded.",
       "Logs are stored privately for 14 days, with no public read endpoint. Automatic summary uploads are off by default and can be enabled in the app.",
-      "Channel sync and diagnostic uploads run independently. Keep the time, platform and app version when reporting sync, download or playback errors."
+      "Channel sync and diagnostic uploads run independently. Keep the time, platform and app version when reporting sync, download or playback errors.",
+      "The app reports an app-specific hardware hash to count installed devices. Raw hardware IDs are not sent. Old or offline versions are unobserved; cloned device IDs may be counted together."
     ]
   },
   "messages": {

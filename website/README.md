@@ -45,25 +45,40 @@ layout, console/network errors and unchanged local download bytes.
 
 ## Installed-device footer count (2026-10-06)
 
-The footer appends a parenthesized integer to the player label on every page and
-in every language. It counts rows in the existing channel inventory database's
-`limits` table, whose primary key is the SHA-256 hash of the client's existing
-application fingerprint. Inventory and event submissions upsert that row; repeated
-submissions by one fingerprint do not increase the count. These reporter rows are
-not pruned by the current writer, so the count is cumulative observed fingerprints,
-not recent activity. It updates on each HTML request. No browser fingerprinting,
-new client telemetry, public identifier endpoint or database migration is added.
+The footer counts distinct registered hardware-host hashes in a separate
+`device_registry.sqlite3`, with an integer in parentheses in every language.
+`HostFingerprintService` reads Windows SMBIOS UUID via WMI or macOS
+IOPlatformUUID, trims and lowercases its canonical UUID string, then SHA-256 hashes
+`BobTV-host-v1|uuid` with prefix `bth1_`. No installation salt, platform salt, preferences,
+OS user ID or OS-specific MachineGuid participates. Repeat installs using the
+same firmware identity register the same key. Empty, malformed, zero, all-FF and
+the known default UUID `03000200-0400-0500-0006-000700080009` are unobserved.
+There is no random hardware fallback. Existing salted channel-sync identity
+and channel databases are unchanged. Raw hardware values are never uploaded.
+Hashes are pseudonymous persistent identifiers, not guaranteed anonymous data.
 
-Only installations that have submitted public channel data/events are observable.
-Offline/unreported installations cannot be reconstructed. The client fingerprint
-is persisted with a random installation salt; identity reset, multiple OS users
-or cloned identities mean this is not an exact census of physical computers.
-Existing public intake has no installation attestation. Do not label this number
-as independently verified hardware installations or anonymous website visits.
-The statistic reads SQLite with `mode=ro` and emits only an aggregate. If the
-database is unavailable, omit the count and log a generic warning; never invent
-zero. A healthy empty registry correctly displays `(0)`. No installation record,
-raw hardware identifier, fingerprint or IP address is exposed in the HTML.
+Startup registration runs independently of UI startup, with at most three
+attempts and 8-second hardware-process timeout. Public aggregate-only count reads
+are no-store; the footer refreshes every 30 seconds and on visibility/online
+return, with an 8-second request deadline and one request at a time. Failure
+removes the numeric suffix; a healthy empty registry displays `(0)`.
+
+Before enabling the API, run as bobtv:
+`BOBTV_DATA_DIR=/var/lib/bobtv /opt/bobtv/venv/bin/python /opt/bobtv/site/device_registry.py`.
+The explicit version-1 migration is transactional and idempotent, creates its
+own database and never backfills the 45 historical salted installation IDs.
+They cannot establish the number of distinct hosts. Deploy the new module,
+app/localization/template and `assets/device-count.js` together, then restart.
+Rollback restores those runtime files; old code ignores the new database.
+
+Coverage starts with clients containing this new registration code. Website
+deployment alone does not update existing desktop packages. Offline/old clients
+remain unobserved. The metric is cumulative observed firmware identities, with
+no uninstall detection or installation attestation. Duplicate vendor UUIDs and
+cloned VMs can merge hosts; changed motherboards or VM UUIDs can create new ones.
+SHA-256 collisions are a separate, negligible risk; hardware-source uniqueness
+cannot be guaranteed. Public registration is rate/capacity bounded, yet spoofable.
+Do not use this count for billing, authorization or an exact hardware census.
 
 ## Release content review
 

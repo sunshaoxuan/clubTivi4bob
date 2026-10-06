@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'desktop_update_check_tile.dart';
+import 'settings_design.dart';
 
 import 'package:drift/drift.dart' show Value;
 import 'package:file_picker/file_picker.dart';
@@ -28,7 +29,7 @@ import '../../data/datasources/remote/tmdb_client.dart';
 
 Future<void> _exportBackup(BuildContext context) async {
   try {
-    showDialog(
+    showSettingsDialog(
       context: context,
       barrierDismissible: false,
       builder: (_) => const Center(child: CircularProgressIndicator()),
@@ -37,7 +38,7 @@ Future<void> _exportBackup(BuildContext context) async {
     if (context.mounted) Navigator.of(context).pop();
     if (context.mounted) {
       // Offer to save to a user-chosen location or share
-      final action = await showDialog<String>(
+      final action = await showSettingsDialog<String>(
         context: context,
         builder: (ctx) => AlertDialog(
           title: const Text('备份已创建'),
@@ -100,7 +101,7 @@ Future<void> _importBackup(BuildContext context) async {
     if (filePath == null) return;
 
     if (!context.mounted) return;
-    final confirmed = await showDialog<bool>(
+    final confirmed = await showSettingsDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('恢复备份？'),
@@ -123,7 +124,7 @@ Future<void> _importBackup(BuildContext context) async {
     );
     if (confirmed != true || !context.mounted) return;
 
-    showDialog(
+    showSettingsDialog(
       context: context,
       barrierDismissible: false,
       builder: (_) => const Center(child: CircularProgressIndicator()),
@@ -131,7 +132,7 @@ Future<void> _importBackup(BuildContext context) async {
     final summary = await BackupService.importBackup(filePath);
     if (context.mounted) Navigator.of(context).pop();
     if (context.mounted) {
-      await showDialog(
+      await showSettingsDialog(
         context: context,
         builder: (ctx) => AlertDialog(
           title: const Text('备份已恢复'),
@@ -218,180 +219,164 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       },
       child: Focus(
         autofocus: !Platform.isAndroid,
-        child: Scaffold(
-          appBar: AppBar(
-            leading: IconButton(
-              icon: const Icon(Icons.arrow_back),
-              onPressed: () {
-                if (Navigator.of(context).canPop()) {
-                  Navigator.of(context).pop();
-                } else {
-                  context.go('/');
-                }
-              },
-            ),
-            title: const Text('设置'),
-          ),
-          body: FocusTraversalGroup(
-            child: ListView(
+        child: SettingsWorkspace(
+          onBack: () {
+            if (Navigator.of(context).canPop()) {
+              Navigator.of(context).pop();
+            } else {
+              context.go('/');
+            }
+          },
+          sections: [
+            SettingsPanel(
+              title: '电视源',
               children: [
-                _SettingsSection(
-                  title: '电视源',
-                  children: [
-                    ListTile(
-                      autofocus: true,
-                      leading: const Icon(Icons.dns_rounded),
-                      title: const Text('管理电视源'),
-                      subtitle: const Text('管理 M3U、Xtream 与免费电视源'),
-                      trailing: const Icon(Icons.chevron_right),
-                      onTap: () => context.push('/providers'),
-                    ),
-                  ],
+                ListTile(
+                  autofocus: true,
+                  leading: const Icon(Icons.dns_rounded),
+                  title: const Text('管理电视源'),
+                  subtitle: const Text('管理 M3U、Xtream 与免费电视源'),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () => context.push('/providers'),
                 ),
-                const BobTvServiceSettings(),
-                _SettingsSection(
-                  title: 'AI',
-                  children: [
-                    ListTile(
-                      leading: const Icon(Icons.auto_awesome_rounded),
-                      title: const Text('AI 分类设置'),
-                      subtitle: const Text('配置兼容端点、模型与 API Key'),
-                      trailing: const Icon(Icons.chevron_right),
-                      onTap: () => Navigator.of(context).push(
-                        MaterialPageRoute<void>(
-                          builder: (_) => const AiConfigurationScreen(),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                _SettingsSection(
-                  title: 'EPG',
-                  children: [
-                    ListTile(
-                      leading: const Icon(Icons.source_rounded),
-                      title: const Text('节目单来源'),
-                      subtitle: const Text('管理 XMLTV 节目单'),
-                      trailing: const Icon(Icons.chevron_right),
-                      onTap: () => _openEpgSourcesScreen(context, ref),
-                    ),
-                    ListTile(
-                      leading: const Icon(Icons.link_rounded),
-                      title: const Text('节目单映射'),
-                      subtitle: const Text('管理频道与节目单的对应关系'),
-                      trailing: const Icon(Icons.chevron_right),
-                      onTap: () => context.push('/epg-mapping'),
-                    ),
-                    _AutoRefreshTile(),
-                  ],
-                ),
-                _SettingsSection(
-                  title: '播放',
-                  children: [
-                    _UserAgentTile(),
-                    _BufferSizeTile(),
-                    _FailoverModeTile(),
-                  ],
-                ),
-                _SettingsSection(
-                  title: '显示',
-                  children: [_LocationTile(), _TimeFormatTile()],
-                ),
-                _SettingsSection(
-                  title: '遥控',
-                  children: [
-                    SwitchListTile(
-                      secondary: const Icon(Icons.web_rounded),
-                      title: const Text('网页遥控器'),
-                      subtitle: Text(
-                        webRemote.isRunning
-                            ? '运行中，请在手机打开 http://${_localIp.isNotEmpty ? _localIp : '<检测中…>'}:${webRemote.port}'
-                            : '允许通过手机浏览器遥控',
-                      ),
-                      value: webRemote.isRunning,
-                      onChanged: (value) async {
-                        if (value) {
-                          await webRemote.start();
-                        } else {
-                          await webRemote.stop();
-                        }
-                        setState(() {});
-                      },
-                    ),
-                    ListTile(
-                      leading: const Icon(Icons.gamepad_rounded),
-                      title: const Text('按键映射'),
-                      subtitle: const Text('自定义遥控器按键'),
-                      trailing: const Icon(Icons.chevron_right),
-                      onTap: () => _showButtonMappingInfo(context),
-                    ),
-                  ],
-                ),
-                _SettingsSection(
-                  title: '录像',
-                  children: [
-                    _RecordingsFolderTile(),
-                    ListTile(
-                      leading: const Icon(Icons.info_outline_rounded),
-                      title: const Text('使用说明'),
-                      subtitle: const Text('查看录像设置说明'),
-                      trailing: const Icon(Icons.chevron_right),
-                      onTap: () => _showRecordingHelp(context),
-                    ),
-                  ],
-                ),
-                _SettingsSection(
-                  title: '备份与恢复',
-                  children: [
-                    ListTile(
-                      leading: const Icon(Icons.upload_rounded),
-                      title: const Text('导出备份'),
-                      subtitle: const Text('保存电视源、节目单、收藏与密钥'),
-                      trailing: const Icon(Icons.chevron_right),
-                      onTap: () => _exportBackup(context),
-                    ),
-                    ListTile(
-                      leading: const Icon(Icons.download_rounded),
-                      title: const Text('导入备份'),
-                      subtitle: const Text('从 .clubtivi 文件恢复'),
-                      trailing: const Icon(Icons.chevron_right),
-                      onTap: () => _importBackup(context),
-                    ),
-                  ],
-                ),
-                _SettingsSection(
-                  title: '关于',
-                  children: [
-                    ListTile(
-                      leading: const Icon(Icons.info_outline_rounded),
-                      title: const Text('BobTV'),
-                      subtitle: const Text(
-                        'v$bobTvVersion • 开源软件 • Apache 2.0',
-                      ),
-                    ),
-                    if (Platform.isWindows || Platform.isMacOS)
-                      DesktopUpdateCheckTile(
-                        state: DesktopUpdateService.instance.state,
-                        onCheck: DesktopUpdateService.instance.checkNow,
-                      ),
-                    ListTile(
-                      leading: const Icon(Icons.code_rounded),
-                      title: const Text('源代码'),
-                      subtitle: const Text(
-                        'github.com/sunshaoxuan/clubTivi4bob',
-                      ),
-                      onTap: () => launchUrl(
-                        Uri.parse(
-                          'https://github.com/sunshaoxuan/clubTivi4bob',
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                _ShowsApiKeysSection(),
               ],
             ),
-          ),
+            const BobTvServiceSettings(),
+            SettingsPanel(
+              title: 'AI',
+              children: [
+                ListTile(
+                  leading: const Icon(Icons.auto_awesome_rounded),
+                  title: const Text('AI 分类设置'),
+                  subtitle: const Text('配置兼容端点、模型与 API Key'),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () => Navigator.of(context).push(
+                    MaterialPageRoute<void>(
+                      builder: (_) => const AiConfigurationScreen(),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            SettingsPanel(
+              title: 'EPG',
+              children: [
+                ListTile(
+                  leading: const Icon(Icons.source_rounded),
+                  title: const Text('节目单来源'),
+                  subtitle: const Text('管理 XMLTV 节目单'),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () => _openEpgSourcesScreen(context, ref),
+                ),
+                ListTile(
+                  leading: const Icon(Icons.link_rounded),
+                  title: const Text('节目单映射'),
+                  subtitle: const Text('管理频道与节目单的对应关系'),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () => context.push('/epg-mapping'),
+                ),
+                _AutoRefreshTile(),
+              ],
+            ),
+            SettingsPanel(
+              title: '播放',
+              children: [
+                _UserAgentTile(),
+                _BufferSizeTile(),
+                _FailoverModeTile(),
+              ],
+            ),
+            SettingsPanel(
+              title: '显示',
+              children: [_LocationTile(), _TimeFormatTile()],
+            ),
+            SettingsPanel(
+              title: '遥控',
+              children: [
+                SwitchListTile(
+                  secondary: const Icon(Icons.web_rounded),
+                  title: const Text('网页遥控器'),
+                  subtitle: Text(
+                    webRemote.isRunning
+                        ? '运行中，请在手机打开 http://${_localIp.isNotEmpty ? _localIp : '<检测中…>'}:${webRemote.port}'
+                        : '允许通过手机浏览器遥控',
+                  ),
+                  value: webRemote.isRunning,
+                  onChanged: (value) async {
+                    if (value) {
+                      await webRemote.start();
+                    } else {
+                      await webRemote.stop();
+                    }
+                    setState(() {});
+                  },
+                ),
+                ListTile(
+                  leading: const Icon(Icons.gamepad_rounded),
+                  title: const Text('按键映射'),
+                  subtitle: const Text('自定义遥控器按键'),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () => _showButtonMappingInfo(context),
+                ),
+              ],
+            ),
+            SettingsPanel(
+              title: '录像',
+              children: [
+                _RecordingsFolderTile(),
+                ListTile(
+                  leading: const Icon(Icons.info_outline_rounded),
+                  title: const Text('使用说明'),
+                  subtitle: const Text('查看录像设置说明'),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () => _showRecordingHelp(context),
+                ),
+              ],
+            ),
+            SettingsPanel(
+              title: '备份与恢复',
+              children: [
+                ListTile(
+                  leading: const Icon(Icons.upload_rounded),
+                  title: const Text('导出备份'),
+                  subtitle: const Text('保存电视源、节目单、收藏与密钥'),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () => _exportBackup(context),
+                ),
+                ListTile(
+                  leading: const Icon(Icons.download_rounded),
+                  title: const Text('导入备份'),
+                  subtitle: const Text('从 .clubtivi 文件恢复'),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () => _importBackup(context),
+                ),
+              ],
+            ),
+            SettingsPanel(
+              title: '关于',
+              children: [
+                ListTile(
+                  leading: const Icon(Icons.info_outline_rounded),
+                  title: const Text('BobTV'),
+                  subtitle: const Text('v$bobTvVersion • 开源软件 • Apache 2.0'),
+                ),
+                if (Platform.isWindows || Platform.isMacOS)
+                  DesktopUpdateCheckTile(
+                    state: DesktopUpdateService.instance.state,
+                    onCheck: DesktopUpdateService.instance.checkNow,
+                  ),
+                ListTile(
+                  leading: const Icon(Icons.code_rounded),
+                  title: const Text('源代码'),
+                  subtitle: const Text('github.com/sunshaoxuan/clubTivi4bob'),
+                  onTap: () => launchUrl(
+                    Uri.parse('https://github.com/sunshaoxuan/clubTivi4bob'),
+                  ),
+                ),
+              ],
+            ),
+            _ShowsApiKeysSection(),
+          ],
         ),
       ),
     );
@@ -404,7 +389,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   }
 
   void _showRecordingHelp(BuildContext context) {
-    showDialog(
+    showSettingsDialog(
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('录像设置'),
@@ -440,7 +425,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   }
 
   void _showButtonMappingInfo(BuildContext context) {
-    showDialog(
+    showSettingsDialog(
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('按键映射'),
@@ -545,7 +530,7 @@ class _EpgSourcesScreenState extends ConsumerState<_EpgSourcesScreen> {
   Future<void> _editSource(db.EpgSource source) async {
     final nameCtrl = TextEditingController(text: source.name);
     final urlCtrl = TextEditingController(text: source.url);
-    final result = await showDialog<bool>(
+    final result = await showSettingsDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('编辑节目单来源'),
@@ -596,7 +581,7 @@ class _EpgSourcesScreenState extends ConsumerState<_EpgSourcesScreen> {
   }
 
   Future<void> _showAddDialog() async {
-    final result = await showDialog<bool>(
+    final result = await showSettingsDialog<bool>(
       context: context,
       builder: (_) => const AddEpgSourceDialog(),
     );
@@ -639,17 +624,15 @@ class _EpgSourcesScreenState extends ConsumerState<_EpgSourcesScreen> {
       },
       child: FocusScope(
         autofocus: true,
-        child: Scaffold(
-          appBar: AppBar(
-            title: const Text('节目单来源'),
-            actions: [
-              TextButton.icon(
-                onPressed: _resetToDefaults,
-                icon: const Icon(Icons.restart_alt, size: 18),
-                label: const Text('恢复默认'),
-              ),
-            ],
-          ),
+        child: SettingsDetailPage(
+          title: '节目单来源',
+          actions: [
+            TextButton.icon(
+              onPressed: _resetToDefaults,
+              icon: const Icon(Icons.restart_alt, size: 18),
+              label: const Text('恢复默认'),
+            ),
+          ],
           floatingActionButton: FloatingActionButton(
             onPressed: _showAddDialog,
             child: const Icon(Icons.add),
@@ -801,12 +784,12 @@ class _ShowsApiKeysSectionState extends ConsumerState<_ShowsApiKeysSection> {
 
     final debridCount = keys.configuredDebridCount;
 
-    return _SettingsSection(
-      title: 'Shows & Movies',
+    return SettingsPanel(
+      title: '影视信息服务',
       children: [
         _ApiKeyCard(
           title: 'Trakt',
-          subtitle: keys.hasTraktKey ? 'Configured ✓' : 'Not configured',
+          subtitle: keys.hasTraktKey ? '已配置' : '未配置',
           isConfigured: keys.hasTraktKey,
           icon: Icons.tv_rounded,
           controller: _traktCtrl,
@@ -824,7 +807,7 @@ class _ShowsApiKeysSectionState extends ConsumerState<_ShowsApiKeysSection> {
         ),
         _ApiKeyCard(
           title: 'TMDB',
-          subtitle: keys.hasTmdbKey ? 'Configured ✓' : 'Not configured',
+          subtitle: keys.hasTmdbKey ? '已配置' : '未配置',
           isConfigured: keys.hasTmdbKey,
           icon: Icons.image_rounded,
           controller: _tmdbCtrl,
@@ -842,11 +825,9 @@ class _ShowsApiKeysSectionState extends ConsumerState<_ShowsApiKeysSection> {
         ),
         ListTile(
           leading: const Icon(Icons.cloud_download_rounded),
-          title: const Text('Debrid Services'),
+          title: const Text('Debrid 服务'),
           subtitle: Text(
-            debridCount > 0
-                ? '$debridCount service${debridCount > 1 ? 's' : ''} configured'
-                : 'Not configured',
+            debridCount > 0 ? '已配置 $debridCount 个服务' : '未配置',
             style: TextStyle(
               fontSize: 12,
               color: debridCount > 0 ? Colors.green : Colors.white38,
@@ -983,7 +964,6 @@ class _ApiKeyCardState extends State<_ApiKeyCard> {
 
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-      color: const Color(0xFF16213E),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: Column(
         children: [
@@ -991,7 +971,7 @@ class _ApiKeyCardState extends State<_ApiKeyCard> {
             leading: Icon(
               widget.icon,
               color: widget.isConfigured
-                  ? const Color(0xFF6C5CE7)
+                  ? SettingsDesign.accent
                   : Colors.white30,
             ),
             title: Text(
@@ -1040,6 +1020,7 @@ class _ApiKeyCardState extends State<_ApiKeyCard> {
                   children: [
                     TextFormField(
                       controller: widget.controller,
+                      onChanged: (_) => setState(() {}),
                       obscureText: true,
                       textInputAction: TextInputAction.done,
                       onFieldSubmitted: (_) {
@@ -1057,16 +1038,15 @@ class _ApiKeyCardState extends State<_ApiKeyCard> {
                       ),
                     ),
                     const SizedBox(height: 8),
-                    Row(
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
                       children: [
-                        Expanded(
-                          child: FilledButton.icon(
-                            onPressed: hasToken ? widget.onSave : null,
-                            icon: const Icon(Icons.save, size: 18),
-                            label: const Text('Save'),
-                          ),
+                        FilledButton.icon(
+                          onPressed: hasToken ? widget.onSave : null,
+                          icon: const Icon(Icons.save, size: 18),
+                          label: const Text('保存'),
                         ),
-                        const SizedBox(width: 8),
                         OutlinedButton.icon(
                           onPressed: hasToken && !widget.isVerifying
                               ? widget.onVerify
@@ -1080,9 +1060,8 @@ class _ApiKeyCardState extends State<_ApiKeyCard> {
                                   ),
                                 )
                               : const Icon(Icons.verified_outlined, size: 18),
-                          label: const Text('Verify'),
+                          label: const Text('验证'),
                         ),
-                        const SizedBox(width: 8),
                         OutlinedButton.icon(
                           onPressed: () {
                             final url = Uri.parse(widget.tokenUrl);
@@ -1092,7 +1071,7 @@ class _ApiKeyCardState extends State<_ApiKeyCard> {
                             );
                           },
                           icon: const Icon(Icons.open_in_new, size: 16),
-                          label: const Text('Get Key'),
+                          label: const Text('获取密钥'),
                         ),
                       ],
                     ),
@@ -1126,35 +1105,6 @@ class _ApiKeyCardState extends State<_ApiKeyCard> {
       return const Icon(Icons.check_circle, color: Colors.green, size: 20);
     }
     return null;
-  }
-}
-
-class _SettingsSection extends StatelessWidget {
-  final String title;
-  final List<Widget> children;
-
-  const _SettingsSection({required this.title, required this.children});
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 24, 16, 8),
-          child: Text(
-            title,
-            style: TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.w600,
-              color: Theme.of(context).colorScheme.primary,
-              letterSpacing: 0.5,
-            ),
-          ),
-        ),
-        ...children,
-      ],
-    );
   }
 }
 
@@ -1198,7 +1148,7 @@ class _UserAgentTileState extends State<_UserAgentTile> {
         final controller = TextEditingController(
           text: _userAgent == 'Default' ? '' : _userAgent,
         );
-        final picked = await showDialog<String>(
+        final picked = await showSettingsDialog<String>(
           context: context,
           builder: (ctx) => AlertDialog(
             title: const Text('用户代理'),
@@ -1295,7 +1245,7 @@ class _LocationTileState extends ConsumerState<_LocationTile> {
 
   Future<void> _showLocationDialog() async {
     final controller = TextEditingController(text: _zipcode);
-    final result = await showDialog<String>(
+    final result = await showSettingsDialog<String>(
       context: context,
       builder: (ctx) {
         String? error;
@@ -1486,7 +1436,7 @@ class _AutoRefreshTileState extends State<_AutoRefreshTile> {
       subtitle: Text('Every $_hours hours'),
       trailing: const Icon(Icons.chevron_right),
       onTap: () async {
-        final picked = await showDialog<int>(
+        final picked = await showSettingsDialog<int>(
           context: context,
           builder: (ctx) => SimpleDialog(
             title: const Text('自动刷新间隔'),
@@ -1545,7 +1495,7 @@ class _BufferSizeTileState extends State<_BufferSizeTile> {
       subtitle: Text(_buffer),
       trailing: const Icon(Icons.chevron_right),
       onTap: () async {
-        final picked = await showDialog<String>(
+        final picked = await showSettingsDialog<String>(
           context: context,
           builder: (ctx) => SimpleDialog(
             title: const Text('缓冲大小'),
@@ -1600,7 +1550,7 @@ class _FailoverModeTileState extends State<_FailoverModeTile> {
       subtitle: Text(_options[_mode] ?? _mode),
       trailing: const Icon(Icons.chevron_right),
       onTap: () async {
-        final picked = await showDialog<String>(
+        final picked = await showSettingsDialog<String>(
           context: context,
           builder: (ctx) => SimpleDialog(
             title: const Text('故障转移模式'),
@@ -1675,7 +1625,7 @@ class _RecordingsFolderTileState extends State<_RecordingsFolderTile> {
           ? _folder
           : '',
     );
-    final path = await showDialog<String>(
+    final path = await showSettingsDialog<String>(
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Network Storage'),
@@ -1774,7 +1724,7 @@ class _RecordingsFolderTileState extends State<_RecordingsFolderTile> {
         ],
       ),
       onTap: () async {
-        final choice = await showDialog<String>(
+        final choice = await showSettingsDialog<String>(
           context: context,
           builder: (ctx) => SimpleDialog(
             title: const Text('Recording Location'),

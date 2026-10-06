@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+{% block content %}
+<main class="page">
+  <section class="download-hero" aria-labelledby="download-title"><div class="container download-hero-inner"><p class="download-kicker">BOBTV / DESKTOP</p><h1 id="download-title">{{ t.download }}</h1><p>{{ t.downloads.intro }}</p></div></section>
+  <div class="container download-content">
+    <section class="download-primary" aria-labelledby="release-title"><div class="download-heading"><div><p class="section-index">BOBTV</p><h2 id="release-title">{{ t.downloads.latest }}</h2></div><span class="download-secure">{{ t.downloads.local }}</span></div><div class="release-list" id="release-list" aria-live="polite">{{ t.messages.loading }}</div></section>
+    {% for section in t.downloads.sections %}<section class="download-help" aria-labelledby="{{ section.id }}-title"><div class="download-help-title"><p class="section-index">0{{ loop.index }}</p><h2 id="{{ section.id }}-title">{{ section.title }}</h2><p>{{ section.text }}</p></div><div class="download-help-grid">{% for item in section['items'] %}<article><span class="help-number">0{{ loop.index }}</span><h3>{{ item[0] }}</h3><p>{{ item[1] }}</p></article>{% endfor %}</div></section>{% endfor %}
+  </div>
+</main>
+{% endblock %}
+{% block scripts %}<script src="/assets/downloads.js?v=6" defer></script>{% endblock %}

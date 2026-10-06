@@ -5,6 +5,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../../data/datasources/remote/debrid_service.dart';
 import '../shows/shows_providers.dart';
+import 'settings_design.dart';
 
 /// Sub-screen for managing debrid service API tokens.
 class DebridServicesScreen extends ConsumerStatefulWidget {
@@ -61,45 +62,36 @@ class _DebridServicesScreenState extends ConsumerState<DebridServicesScreen> {
       },
       child: Focus(
         autofocus: true,
-        child: Scaffold(
-      backgroundColor: const Color(0xFF0A0A1A),
-      appBar: AppBar(
-        backgroundColor: const Color(0xFF12122A),
-        title: const Text('Debrid Services'),
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          onPressed: () => Navigator.pop(context),
-        ),
-      ),
-      body: ListView(
-        padding: const EdgeInsets.symmetric(vertical: 8),
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-            child: Text(
-              'Configure one or more debrid services. '
-              'The first configured service will be used for stream resolution.',
-              style: TextStyle(
-                color: Colors.white54,
-                fontSize: 13,
-                height: 1.4,
+        child: SettingsDetailPage(
+          title: 'Debrid 服务',
+          body: ListView(
+            padding: const EdgeInsets.symmetric(vertical: 8),
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+                child: Text(
+                  '配置一个或多个 Debrid 服务，播放时将使用首个已配置的服务解析线路。',
+                  style: TextStyle(
+                    color: Colors.white54,
+                    fontSize: 13,
+                    height: 1.4,
+                  ),
+                ),
               ),
-            ),
+              for (final type in DebridType.values)
+                _DebridServiceCard(
+                  type: type,
+                  controller: _controllers[type]!,
+                  isConfigured: (keys.debridTokens[type] ?? '').isNotEmpty,
+                  isVerifying: _verifying[type] ?? false,
+                  verifyResult: _verified[type],
+                  onSave: () => _saveToken(type),
+                  onVerify: () => _verifyToken(type),
+                  onClear: () => _clearToken(type),
+                ),
+            ],
           ),
-          for (final type in DebridType.values)
-            _DebridServiceCard(
-              type: type,
-              controller: _controllers[type]!,
-              isConfigured: (keys.debridTokens[type] ?? '').isNotEmpty,
-              isVerifying: _verifying[type] ?? false,
-              verifyResult: _verified[type],
-              onSave: () => _saveToken(type),
-              onVerify: () => _verifyToken(type),
-              onClear: () => _clearToken(type),
-            ),
-        ],
-      ),
-      ),
+        ),
       ),
     );
   }
@@ -188,7 +180,6 @@ class _DebridServiceCardState extends State<_DebridServiceCard> {
 
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-      color: const Color(0xFF16213E),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: Column(
         children: [
@@ -196,7 +187,7 @@ class _DebridServiceCardState extends State<_DebridServiceCard> {
             leading: Icon(
               Icons.cloud_download_rounded,
               color: widget.isConfigured
-                  ? const Color(0xFF6C5CE7)
+                  ? SettingsDesign.accent
                   : Colors.white30,
             ),
             title: Text(
@@ -218,8 +209,11 @@ class _DebridServiceCardState extends State<_DebridServiceCard> {
               children: [
                 if (widget.isConfigured)
                   IconButton(
-                    icon: const Icon(Icons.delete_outline, size: 20,
-                        color: Colors.redAccent),
+                    icon: const Icon(
+                      Icons.delete_outline,
+                      size: 20,
+                      color: Colors.redAccent,
+                    ),
                     tooltip: 'Remove',
                     onPressed: widget.onClear,
                   ),
@@ -301,7 +295,8 @@ class _DebridServiceCardState extends State<_DebridServiceCard> {
       return const Padding(
         padding: EdgeInsets.all(12),
         child: SizedBox(
-          width: 18, height: 18,
+          width: 18,
+          height: 18,
           child: CircularProgressIndicator(strokeWidth: 2),
         ),
       );

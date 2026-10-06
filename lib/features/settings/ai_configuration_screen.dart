@@ -4,6 +4,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 
 import '../../data/services/ai_runtime_settings.dart';
+import 'settings_design.dart';
 
 class AiConfigurationScreen extends StatefulWidget {
   const AiConfigurationScreen({super.key});
@@ -47,9 +48,9 @@ class _AiConfigurationScreenState extends State<AiConfigurationScreen> {
 
   void _notice(String message) {
     if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(message)),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(message)));
     }
   }
 
@@ -67,12 +68,14 @@ class _AiConfigurationScreenState extends State<AiConfigurationScreen> {
       _hasKey = (await AiRuntimeSettings.instance.load()).apiKey.isNotEmpty;
       if (test && _enabled) {
         final values = await AiRuntimeSettings.instance.load();
-        final client = Dio(BaseOptions(
-          connectTimeout: const Duration(seconds: 8),
-          receiveTimeout: const Duration(seconds: 30),
-          followRedirects: false,
-          headers: {'Authorization': 'Bearer ${values.apiKey}'},
-        ));
+        final client = Dio(
+          BaseOptions(
+            connectTimeout: const Duration(seconds: 8),
+            receiveTimeout: const Duration(seconds: 30),
+            followRedirects: false,
+            headers: {'Authorization': 'Bearer ${values.apiKey}'},
+          ),
+        );
         try {
           final response = await client.post<Map<String, dynamic>>(
             '${values.baseUrl}/chat/completions',
@@ -137,23 +140,23 @@ class _AiConfigurationScreenState extends State<AiConfigurationScreen> {
   }
 
   @override
-  Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: const Text('AI 分类设置')),
+  Widget build(BuildContext context) => SettingsDetailPage(
+    title: 'AI 分类设置',
     body: Center(
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 620),
         child: ListView(
           padding: const EdgeInsets.all(20),
           children: [
-            const Text(
-              'AI 只处理无法根据明确台名或节目单标识判断的频道。关闭或连接失败时，未确认的地区会保持未识别。',
-            ),
+            const Text('AI 只处理无法根据明确台名或节目单标识判断的频道。关闭或连接失败时，未确认的地区会保持未识别。'),
             const SizedBox(height: 18),
             SwitchListTile(
               title: const Text('启用 AI 分类与源发现'),
               subtitle: const Text('配置完成后才能发送频道名称和分组信息'),
               value: _enabled,
-              onChanged: _busy ? null : (value) => setState(() => _enabled = value),
+              onChanged: _busy
+                  ? null
+                  : (value) => setState(() => _enabled = value),
             ),
             const SizedBox(height: 12),
             TextField(
@@ -189,7 +192,9 @@ class _AiConfigurationScreenState extends State<AiConfigurationScreen> {
                 border: const OutlineInputBorder(),
                 suffixIcon: IconButton(
                   tooltip: _showKey ? '隐藏密钥' : '显示密钥',
-                  icon: Icon(_showKey ? Icons.visibility_off : Icons.visibility),
+                  icon: Icon(
+                    _showKey ? Icons.visibility_off : Icons.visibility,
+                  ),
                   onPressed: () => setState(() => _showKey = !_showKey),
                 ),
               ),
@@ -206,12 +211,14 @@ class _AiConfigurationScreenState extends State<AiConfigurationScreen> {
                 ),
                 OutlinedButton(
                   onPressed: _busy || !_enabled
-                      ? null : () => unawaited(_save(test: true)),
+                      ? null
+                      : () => unawaited(_save(test: true)),
                   child: const Text('保存并测试连接'),
                 ),
                 TextButton(
                   onPressed: _busy || !_hasKey
-                      ? null : () => unawaited(_removeKey()),
+                      ? null
+                      : () => unawaited(_removeKey()),
                   child: const Text('删除密钥'),
                 ),
               ],

@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block content %}
+<main>
+  <section class="hero-band" aria-labelledby="hero-title"><div class="container home-hero-layout">
+    <div class="hero-copy"><p class="eyebrow"><span class="accent-line"></span> WINDOWS · MACOS</p>
+      <h1 id="hero-title">BobTV<span class="home-hero-period">.</span></h1>
+      <p class="hero-statement">{{ t.home.headline }}</p><p class="hero-description">{{ t.home.intro }}</p>
+      <div class="actions"><a class="button primary" href="/downloads?lang={{ locale }}">{{ t.download }} <span aria-hidden="true">↗</span></a><a class="button secondary" href="#preview-title">{{ t.features }}</a></div>
+      <p class="release-meta">Mac 1.0.4 / Windows 1.0.4</p>
+    </div>
+    <div class="hero-visual"><div class="home-visual-frame"><img class="product-image" src="/assets/product.png?v=3" width="1765" height="1056" alt="{{ t.home.image_alt }}"></div><div class="image-caption"><span>{{ t.home.mode }}</span><span>{{ t.home.screenshot }}</span></div></div>
+  </div></section>
+  {% for section in t.home.sections %}
+  <section class="{{ 'route-band' if section.id == 'route' else 'content-band' }}" aria-labelledby="{{ section.id }}-title"><div class="container">
+    <div class="section-heading"><p class="section-index">0{{ loop.index }} / {{ section.label }}</p><h2 id="{{ section.id }}-title">{{ section.title }}</h2><p>{{ section.text }}</p></div>
+    <div class="feature-grid">{% for item in section['items'] %}<article><span class="feature-number">0{{ loop.index }}</span><h3>{{ item[0] }}</h3><p>{{ item[1] }}</p></article>{% endfor %}</div>
+    {% if section.note is defined %}<p class="route-note">{{ section.note }}</p>{% endif %}
+  </div></section>
+  {% endfor %}
+  <section class="history-band" aria-labelledby="history-title"><div class="container history-layout"><div><p class="section-index">{{ t.home.history_label }}</p><h2 id="history-title">{{ t.home.history_title }}</h2><a class="text-link" href="/downloads?lang={{ locale }}">{{ t.download }} →</a></div><div class="history-list">
+    {% for item in t.home.history %}<div><time datetime="{{ item[0] }}">{{ item[0] }}</time><strong>{{ item[1] }}</strong><p>{{ item[2] }}</p></div>{% endfor %}
+  </div></div></section>
+  <section class="closing-band" aria-labelledby="closing-title"><div class="container closing-inner"><div><h2 id="closing-title">{{ t.home.closing }}</h2><p>{{ t.home.closing_text }}</p></div><a class="button primary" href="/downloads?lang={{ locale }}">{{ t.download }}</a></div></section>
+</main>
+{% endblock %}

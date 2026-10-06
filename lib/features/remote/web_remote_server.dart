@@ -53,14 +53,14 @@ class WebRemoteServer {
 
   /// Stop the server.
   Future<void> stop() async {
-    for (final client in _clients) {
+    for (final client in List<WebSocketChannel>.of(_clients)) {
       await client.sink.close();
     }
     _clients.clear();
     await (_server as dynamic)?.close();
     _server = null;
     _pin = null;
-    _clientCountController.add(0);
+    if (!_clientCountController.isClosed) _clientCountController.add(0);
   }
 
   FutureOr<shelf.Response> _router(shelf.Request request) {
@@ -93,7 +93,9 @@ class WebRemoteServer {
           if (data['pin'] == _pin) {
             authenticated = true;
             _clients.add(channel);
-            _clientCountController.add(_clients.length);
+            if (!_clientCountController.isClosed) {
+              _clientCountController.add(_clients.length);
+            }
             channel.sink.add(jsonEncode({'type': 'auth_ok'}));
           } else {
             channel.sink.add(jsonEncode({'type': 'auth_fail'}));
@@ -114,7 +116,9 @@ class WebRemoteServer {
       },
       onDone: () {
         _clients.remove(channel);
-        _clientCountController.add(_clients.length);
+        if (!_clientCountController.isClosed) {
+          _clientCountController.add(_clients.length);
+        }
       },
     );
   }

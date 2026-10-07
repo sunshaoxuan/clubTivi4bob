@@ -1,0 +1,10 @@
+[Unit]
+Description=Schedule BobTV %i worker
+
+[Timer]
+OnBootSec=30
+OnUnitInactiveSec=30
+Persistent=true
+
+[Install]
+WantedBy=timers.target

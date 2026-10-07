@@ -1,0 +1,24 @@
+[Unit]
+Description=BobTV %i background worker
+After=network-online.target
+
+[Service]
+Type=oneshot
+User=bobtv
+Group=bobtv
+WorkingDirectory=/opt/bobtv/site
+Environment=BOBTV_DATA_DIR=/var/lib/bobtv
+ExecStart=/opt/bobtv/venv/bin/python server_worker.py --lane %i --limit 4
+TimeoutStartSec=600
+Nice=10
+CPUQuota=40%
+MemoryHigh=192M
+MemoryMax=256M
+TasksMax=32
+UMask=0077
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ReadWritePaths=/var/lib/bobtv
+

@@ -182,3 +182,28 @@ Windows 与 macOS 的共享频道接口与旧版 `/api/v1/sources` 独立。
 - 客户端每 15 秒分批上报变更，每分钟检查共享清单版本。修改、权重和删除在后台发布，不等待慢线路验证；新增线路仍需服务器验证。快照线路可包含 `revision`，共享 `healthScore` 参与线路排序。空清单和失去最后线路的分类都能同步移除。界面显示同步过程，网络失败不阻塞本地修改。
 
 服务器定时验证候选媒体并原子发布清单。客户端采用内置小型启动清单，后台下载网站清单及验证记录，按分类直接展示，通过本地检查继续更新可用性。线路上报采用分页与成功检查点，失败自动重试。全局淘汰记录应用到所有来源。频道清单不会夹带收藏、观看历史或私人源认证数据。详细快照结构与验收流程见 `docs/channel-catalog-sync.md`。
+# Server-owned execution
+
+`GET /api/v1/server-tasks/status` reports worker and recently verified AI health.
+`POST /api/v1/server-tasks` accepts `{kind, inputs}` with `kind` one of
+`category`, `country`, `discover`. Each input contains `name` and optional
+`group`, `tvgId`; at most 20 inputs (one for discovery), body at most 16 KiB.
+Provider credentials, arbitrary prompts and URLs are rejected. Responses contain
+`id`, `state` (`queued`, `running`, `done`, `failed`) and `items`. A new task
+returns 202 without waiting for external execution; cached results return 200.
+`GET /api/v1/server-tasks/{id}` retrieves results. Discovery results report
+documents checked and published routes; actual route lists are delivered by the
+existing shared channel catalog. Unapproved discoveries remain quarantined.
+See `docs/server-execution.md` for deployment and budgets.
+
+Task responses additionally contain `attempts`, `updatedAt` (Unix seconds),
+`nextRetryAt` (Unix seconds or null) and `errorCode` (stable code or null).
+Supported error codes include `network_unavailable`, `tls_error`,
+`upstream_auth`, `upstream_rate_limit`, `upstream_http`, `invalid_response`,
+`internal_error`, `worker_interrupted`, and `budget_deferred`. No upstream
+response body, credentials or raw exception text is returned.
+
+Status includes `classificationAvailable`, aggregate `queue` counts for queued,
+running, done and failed jobs, and `oldestQueuedSeconds`. Background discovery
+and classification use separate workers. Failed requests retry with backoff;
+resource-budget deferral preserves jobs without consuming a failure attempt.

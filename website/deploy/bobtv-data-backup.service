@@ -1,0 +1,20 @@
+[Unit]
+Description=Verify online backups of BobTV server data
+
+[Service]
+Type=oneshot
+User=bobtv
+Group=bobtv
+WorkingDirectory=/opt/bobtv/site
+Environment=BOBTV_DATA_DIR=/var/lib/bobtv
+ExecStart=/opt/bobtv/venv/bin/python backup_server_data.py
+TimeoutStartSec=600
+Nice=15
+CPUQuota=25%
+MemoryMax=128M
+UMask=0077
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ReadWritePaths=/var/lib/bobtv

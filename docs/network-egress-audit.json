@@ -36,7 +36,7 @@
     "serverLogoRefresh": "daily",
     "epgCacheSeconds": 14400
   },
-  "releaseState": "Applies to desktop build 1.0.5+91 and the deployed server API. Installed-host validation is recorded in docs/releases/1.0.5-validation.md.",
+  "releaseState": "Applies to desktop build 1.0.6+92 and the deployed server API. Installed-host validation is recorded in docs/releases/1.0.6-validation.md.",
   "checks": [
     "tools/audit_network_egress.py", "tools/test_live_egress_api.py",
     "website/tests/test_egress_gateway.py", "website/tests/test_native_egress_policy.py",

@@ -6,7 +6,7 @@ The product page describes BobTV as a Windows and macOS desktop TV player. Windo
 
 The hero image is a user-provided crop of the BobTV simplified-mode interface with playback and channel listings visible. Product, downloads, and diagnostic uploads are separate pages. Source reporting is API-only.
 
-The product, download and diagnostic pages share a dark navy and peach visual system and the supplied real player screenshot. Build `1.0.5+90` moves source discovery and AI execution to the server and routes desktop media, guide and logo access through the HTTPS gateway. Regional rankings use observed playback feedback; relaying alone cannot guarantee Mainland China availability. It fixes Windows fullscreen window chrome and maximization restoration while retaining redesigned settings, desktop picture-in-picture, the three-programme text guide, mouse-accessible exit, Setup, Unicode paths and shared catalog synchronization. Protected Windows installations require administrator-authorized Setup upgrades; writable per-user installations support background updates. Diagnostic summaries remain optional and off by default.
+The product, download and diagnostic pages share a dark navy and peach visual system and the supplied real player screenshot. Build `1.0.6+90` moves source discovery and AI execution to the server and routes desktop media, guide and logo access through the HTTPS gateway. Regional rankings use observed playback feedback; relaying alone cannot guarantee Mainland China availability. It fixes Windows fullscreen window chrome and maximization restoration while retaining redesigned settings, desktop picture-in-picture, the three-programme text guide, mouse-accessible exit, Setup, Unicode paths and shared catalog synchronization. Protected Windows installations require administrator-authorized Setup upgrades; writable per-user installations support background updates. Diagnostic summaries remain optional and off by default.
 
 `templates/` and `locales/` preserve the four-language pages used by the deployed rendering runtime. Release content deployment updates these files and the static fallback pages while preserving the deployed API, localization and device-count services.
 
@@ -60,7 +60,7 @@ The app-facing API contract is `API.md`. Implementation prompts for source integ
 
 ## Release mirror
 
-Build 1.0.5+91 adds explicit cross-category channel merging from the channel
+Build 1.0.6+92 adds explicit cross-category channel merging from the channel
 context menu. Users choose an existing or new name and a destination category.
 Public routes synchronize as one compare-and-swap event across all members;
 duplicate endpoints are collapsed, and identity, provenance, health and
@@ -69,7 +69,7 @@ The selected category displays its own loading state. Whole-catalog record
 counts appear only in the sync badge. The catalog version checkpoint is stored
 with the local database so restored or fresh databases cannot skip initialization.
 
-The download page selects the latest verified installer independently for each platform and labels its exact version. A platform-specific release does not remove another platform's previous installer or advance its update feed. Release 1.0.5 provides Windows x64 Setup/portable packages and both macOS architectures, with server-side discovery, HTTPS media access, regional ranking and fullscreen fixes. Automatic update status is separate from the manual historical-release browser. Foreground update checks are throttled to 15 minutes in addition to startup and six-hour checks.
+The download page selects the latest verified installer independently for each platform and labels its exact version. A platform-specific release does not remove another platform's previous installer or advance its update feed. Release 1.0.6 provides Windows x64 Setup/portable packages and both macOS architectures, with server-side discovery, HTTPS media access, regional ranking and fullscreen fixes. Automatic update status is separate from the manual historical-release browser. Foreground update checks are throttled to 15 minutes in addition to startup and six-hour checks.
 
 Current releases mirror Windows x64 ZIP packages and both macOS architectures' DMG installers and signed update ZIP archives. A single download row presents the three manual installers; automatic updates use separate platform feeds.
 

@@ -3686,8 +3686,8 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                     borderRadius: BorderRadius.circular(12),
                     border: Border.all(color: Colors.white12),
                   ),
-                  child: Text('候选 ${_candidateRouteCount(channel)} 路 · '
-                      '已验证 ${_verifiedRouteCount(channel)} 路',
+                  child: Text(playingRouteCountLabel(
+                      ref.read(playerServiceProvider).currentCandidateCount),
                       style: const TextStyle(color: Colors.white70,
                           fontSize: 12)),
                 ),

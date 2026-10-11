@@ -3,6 +3,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  test('playing route label uses the player pool count', () {
+    expect(playingRouteCountLabel(7), '候选 7 路');
+    expect(playingRouteCountLabel(1), '候选 1 路');
+    expect(playingRouteCountLabel(0), '正在准备线路');
+  });
   testWidgets('category loading never displays global transfer counts', (tester) async {
     await tester.pumpWidget(MaterialApp(home: Scaffold(body: ChannelCatalogStatus(
       category: '台湾', loading: true, onRetry: () {}))));

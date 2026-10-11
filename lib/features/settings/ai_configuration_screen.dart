@@ -1,227 +1,100 @@
 import 'dart:async';
-
-import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
-
-import '../../data/services/ai_runtime_settings.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import '../../data/services/server_task_client.dart';
 import 'settings_design.dart';
 
 class AiConfigurationScreen extends StatefulWidget {
-  const AiConfigurationScreen({super.key});
-
+  const AiConfigurationScreen({super.key, this.client});
+  final ServerTaskClient? client;
   @override
   State<AiConfigurationScreen> createState() => _AiConfigurationScreenState();
 }
 
 class _AiConfigurationScreenState extends State<AiConfigurationScreen> {
-  final _url = TextEditingController();
-  final _model = TextEditingController();
-  final _key = TextEditingController();
-  bool _enabled = false;
-  bool _hasKey = false;
   bool _busy = true;
-  bool _showKey = false;
-
+  bool _personalAi = false;
+  Map<String, dynamic>? _status;
   @override
   void initState() {
     super.initState();
-    unawaited(_load());
+    unawaited(_refresh());
+    unawaited(_loadConsent());
   }
 
-  Future<void> _load() async {
+  Future<void> _loadConsent() async {
+    final prefs = await SharedPreferences.getInstance();
+    if (mounted) {
+      setState(
+        () => _personalAi = prefs.getBool('bobtv_ai_enabled_v1') == true,
+      );
+    }
+  }
+
+  Future<void> _saveConsent(bool value) async {
+    setState(() => _personalAi = value);
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('bobtv_ai_enabled_v1', value);
+  }
+
+  Future<void> _refresh() async {
+    setState(() => _busy = true);
+    Map<String, dynamic>? result;
     try {
-      final settings = await AiRuntimeSettings.instance.load();
-      if (!mounted) return;
+      result = await (widget.client ?? ServerTaskClient()).status();
+    } catch (_) {}
+    if (mounted) {
       setState(() {
-        _url.text = settings.baseUrl;
-        _model.text = settings.model;
-        _enabled = settings.enabled;
-        _hasKey = settings.apiKey.isNotEmpty;
+        _status = result;
         _busy = false;
       });
-    } catch (_) {
-      if (!mounted) return;
-      setState(() => _busy = false);
-      _notice('无法读取 AI 设置，请检查系统的安全存储');
-    }
-  }
-
-  void _notice(String message) {
-    if (mounted) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(message)));
-    }
-  }
-
-  Future<void> _save({bool test = false}) async {
-    if (_busy) return;
-    setState(() => _busy = true);
-    try {
-      await AiRuntimeSettings.instance.save(
-        baseUrl: _url.text,
-        model: _model.text,
-        enabled: _enabled,
-        replacementKey: _key.text.isEmpty ? null : _key.text,
-      );
-      _key.clear();
-      _hasKey = (await AiRuntimeSettings.instance.load()).apiKey.isNotEmpty;
-      if (test && _enabled) {
-        final values = await AiRuntimeSettings.instance.load();
-        final client = Dio(
-          BaseOptions(
-            connectTimeout: const Duration(seconds: 8),
-            receiveTimeout: const Duration(seconds: 30),
-            followRedirects: false,
-            headers: {'Authorization': 'Bearer ${values.apiKey}'},
-          ),
-        );
-        try {
-          final response = await client.post<Map<String, dynamic>>(
-            '${values.baseUrl}/chat/completions',
-            data: {
-              'model': values.model,
-              'messages': [
-                {'role': 'user', 'content': 'Reply with OK.'},
-              ],
-              'max_completion_tokens': 16,
-            },
-          );
-          final choices = response.data?['choices'];
-          if (choices is! List || choices.isEmpty) {
-            throw const FormatException('Missing model response');
-          }
-          _notice('连接成功，AI 分类可用');
-        } finally {
-          client.close();
-        }
-      } else {
-        _notice(_enabled ? 'AI 设置已保存' : 'AI 已关闭，未确认的频道将留在其他');
-      }
-    } on FormatException {
-      _notice('请填写模型和密钥。远程端点须使用 HTTPS，本机可使用 HTTP');
-    } catch (_) {
-      _notice('连接或安全存储失败，请检查设置后重试');
-    } finally {
-      if (mounted) setState(() => _busy = false);
-    }
-  }
-
-  @override
-  void dispose() {
-    _url.dispose();
-    _model.dispose();
-    _key.dispose();
-    super.dispose();
-  }
-
-  Future<void> _removeKey() async {
-    if (_busy) return;
-    setState(() => _busy = true);
-    try {
-      await AiRuntimeSettings.instance.removeKey();
-      await AiRuntimeSettings.instance.save(
-        baseUrl: _url.text,
-        model: _model.text,
-        enabled: false,
-      );
-      _key.clear();
-      if (!mounted) return;
-      setState(() {
-        _hasKey = false;
-        _enabled = false;
-      });
-      _notice('密钥已删除，AI 已关闭');
-    } catch (_) {
-      _notice('无法删除密钥，请检查系统的安全存储');
-    } finally {
-      if (mounted) setState(() => _busy = false);
     }
   }
 
   @override
   Widget build(BuildContext context) => SettingsDetailPage(
-    title: 'AI 分类设置',
+    title: '服务器智能服务',
     body: Center(
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 620),
         child: ListView(
-          padding: const EdgeInsets.all(20),
+          padding: const EdgeInsets.all(24),
           children: [
-            const Text('AI 只处理无法根据明确台名或节目单标识判断的频道。关闭或连接失败时，未确认的地区会保持未识别。'),
-            const SizedBox(height: 18),
-            SwitchListTile(
-              title: const Text('启用 AI 分类与源发现'),
-              subtitle: const Text('配置完成后才能发送频道名称和分组信息'),
-              value: _enabled,
-              onChanged: _busy
-                  ? null
-                  : (value) => setState(() => _enabled = value),
+            const Icon(Icons.cloud_outlined, size: 48),
+            const SizedBox(height: 20),
+            Text(
+              '线路发现与 AI 分类',
+              style: Theme.of(context).textTheme.headlineSmall,
             ),
             const SizedBox(height: 12),
-            TextField(
-              controller: _url,
-              enabled: !_busy,
-              decoration: const InputDecoration(
-                labelText: 'OpenAI 兼容端点',
-                hintText: 'https://example.com/v1',
-                helperText: '填写 API 基址，包含 /v1 或服务商要求的路径',
-                border: OutlineInputBorder(),
-              ),
+            const Text(
+              '由 BobTV 服务器统一查找、刷新和分析。客户端只接收结果，无需配置模型或密钥，也不会直接访问 GitHub 或 AI 服务。',
             ),
-            const SizedBox(height: 18),
-            TextField(
-              controller: _model,
-              enabled: !_busy,
-              decoration: const InputDecoration(
-                labelText: '模型名称',
-                hintText: '填写服务商提供的模型 ID',
-                border: OutlineInputBorder(),
+            const SizedBox(height: 24),
+            SwitchListTile.adaptive(
+              title: const Text('辅助识别个人频道'),
+              subtitle: const Text(
+                '开启后仅发送频道名称、分组和节目单标识到服务器，不发送订阅地址或密钥。默认关闭，公共频道同步不受影响。',
               ),
+              value: _personalAi,
+              onChanged: _saveConsent,
             ),
-            const SizedBox(height: 18),
-            TextField(
-              controller: _key,
-              enabled: !_busy,
-              obscureText: !_showKey,
-              autocorrect: false,
-              enableSuggestions: false,
-              decoration: InputDecoration(
-                labelText: 'API Key',
-                hintText: _hasKey ? '已保存，留空表示保持原密钥' : '输入 API Key',
-                border: const OutlineInputBorder(),
-                suffixIcon: IconButton(
-                  tooltip: _showKey ? '隐藏密钥' : '显示密钥',
-                  icon: Icon(
-                    _showKey ? Icons.visibility_off : Icons.visibility,
-                  ),
-                  onPressed: () => setState(() => _showKey = !_showKey),
-                ),
+            const SizedBox(height: 16),
+            if (_busy)
+              const LinearProgressIndicator()
+            else
+              Text(
+                _status == null
+                    ? '暂时无法连接服务器，已有频道仍可使用'
+                    : _status!['aiAvailable'] == true
+                    ? '服务器 AI 已就绪'
+                    : '服务器 AI 暂未就绪',
               ),
-            ),
-            const SizedBox(height: 10),
-            const Text('密钥保存在本机安全存储，不写入备份或诊断日志。'),
-            const SizedBox(height: 22),
-            Wrap(
-              spacing: 12,
-              children: [
-                FilledButton(
-                  onPressed: _busy ? null : () => unawaited(_save()),
-                  child: const Text('保存设置'),
-                ),
-                OutlinedButton(
-                  onPressed: _busy || !_enabled
-                      ? null
-                      : () => unawaited(_save(test: true)),
-                  child: const Text('保存并测试连接'),
-                ),
-                TextButton(
-                  onPressed: _busy || !_hasKey
-                      ? null
-                      : () => unawaited(_removeKey()),
-                  child: const Text('删除密钥'),
-                ),
-              ],
+            const SizedBox(height: 16),
+            FilledButton.tonalIcon(
+              onPressed: _busy ? null : _refresh,
+              icon: const Icon(Icons.refresh),
+              label: const Text('刷新服务状态'),
             ),
           ],
         ),

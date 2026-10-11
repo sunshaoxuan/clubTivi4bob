@@ -7,6 +7,7 @@ import 'package:palette_generator/palette_generator.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../data/models/show.dart';
+import '../../core/server_egress.dart';
 import 'shows_providers.dart';
 
 /// Detail screen for a show or movie — backdrop, info, seasons, episodes, play
@@ -86,7 +87,7 @@ class _ShowDetailScreenState extends ConsumerState<ShowDetailScreen> {
     if (url == null || url.isEmpty || url == _lastBackdropUrl) return;
     _lastBackdropUrl = url;
     PaletteGenerator.fromImageProvider(
-      CachedNetworkImageProvider(url),
+      CachedNetworkImageProvider(ServerEgress.imageUrl(url)),
       maximumColorCount: 8,
     ).then((palette) {
       if (!mounted) return;
@@ -205,7 +206,7 @@ class _ShowDetailScreenState extends ConsumerState<ShowDetailScreen> {
               children: [
                 if (show.backdropUrl != null && show.backdropUrl!.isNotEmpty)
                   CachedNetworkImage(
-                    imageUrl: show.backdropUrl!,
+                    imageUrl: ServerEgress.imageUrl(show.backdropUrl!),
                     fit: BoxFit.cover,
                     errorWidget: (_, __, ___) => Container(color: const Color(0xFF1A1A2E)),
                   )
@@ -727,7 +728,7 @@ class _EpisodeTile extends StatelessWidget {
                 height: 68,
                 child: episode.stillUrl != null && episode.stillUrl!.isNotEmpty
                     ? CachedNetworkImage(
-                        imageUrl: episode.stillUrl!,
+                        imageUrl: ServerEgress.imageUrl(episode.stillUrl!),
                         fit: BoxFit.cover,
                         errorWidget: (_, __, ___) => _placeholder(),
                       )

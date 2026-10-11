@@ -66,8 +66,10 @@ def validate(payload):
     route_urls = set()
     for channel in channels:
         required = {"id", "name", "categoryId", "countryCode", "regionCode", "sortOrder", "epgId", "logoUrl", "routes"}
-        if not isinstance(channel, dict) or set(channel) != required:
+        if not isinstance(channel, dict) or set(channel) - {'mergeId'} != required:
             raise ValueError("Invalid channel")
+        if 'mergeId' in channel and (not isinstance(channel['mergeId'],str) or not re.fullmatch(r'[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}',channel['mergeId'])):
+            raise ValueError('Invalid merged channel ID')
         channel_id = channel["id"]
         if not isinstance(channel_id, str) or not IDENTIFIER.fullmatch(channel_id) or channel_id in channel_ids:
             raise ValueError("Duplicate or invalid channel ID")

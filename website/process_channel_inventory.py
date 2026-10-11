@@ -184,7 +184,10 @@ def process(data_dir=DATA, limit=120, verifier=probe):
                 conn.execute("UPDATE routes SET success_at=?,checked_at=?", (int(time.time()), int(time.time())))
         now = int(time.time())
         with database(data_dir) as conn:
-            rows = conn.execute("SELECT * FROM routes WHERE blocked=0 AND deleted=0 AND success_at>=? AND failures<3 ORDER BY group_name,name,digest", (now - 7 * 86400,)).fetchall()
+            # An overseas verifier cannot revoke a reviewed route for every
+            # network. Keep the shared identity until explicit global retirement;
+            # regional availability and ranking are served separately.
+            rows = conn.execute("SELECT * FROM routes WHERE blocked=0 AND deleted=0 AND success_at IS NOT NULL ORDER BY group_name,name,digest").fetchall()
             blocked = {canonical_route_url(row[0]) for row in conn.execute("SELECT url FROM routes WHERE blocked=1 OR deleted=1")}
         categories = {}
         channels = {}
@@ -197,9 +200,10 @@ def process(data_dir=DATA, limit=120, verifier=probe):
                 identity = "category-" + hashlib.sha256(" / ".join(path[:depth+1]).encode()).hexdigest()[:24]
                 categories[identity] = {"id": identity, "parentId": parent, "name": name, "sortOrder": 0 if name == "中国" else 1 if name == "央视" else 10}
                 parent = identity
-            name = _identity(row["name"])
-            identity = "channel-" + hashlib.sha256((row["group_name"] + "\n" + name).encode()).hexdigest()[:24]
+            name = row['name'] if row['manual_name'] else _identity(row["name"])
+            identity = "channel-" + hashlib.sha256(((row['merge_id'] or '') + '\n' + row['group_name'] if row['merge_id'] else (row["group_name"] + "\n" + name)).encode()).hexdigest()[:24]
             channel = channels.setdefault(identity, {"id": identity, "name": name, "categoryId": parent, "countryCode": "CN" if path[0] == "中国" else None, "regionCode": None, "sortOrder": len(channels), "epgId": row["epg_id"], "logoUrl": _public_logo(row["logo_url"]), "routes": []})
+            if row['merge_id']: channel['mergeId'] = row['merge_id']
             if not channel["logoUrl"]: channel["logoUrl"] = _public_logo(row["logo_url"])
             if not channel["epgId"]: channel["epgId"] = row["epg_id"]
             confidence = min(1, (row['success_votes'] + row['failure_votes']) / 10)
@@ -218,9 +222,6 @@ def process(data_dir=DATA, limit=120, verifier=probe):
                         continue
                     seen_urls.add(url)
                     routes.append({**route, 'url': url, 'id': 'route-' + hashlib.sha256(url.encode()).hexdigest()[:24]})
-                if routes:
-                    with database(data_dir) as conn:
-                        routes = [route for route in routes if not conn.execute("SELECT 1 FROM routes WHERE url=? AND (failures>=3 OR (success_at IS NOT NULL AND success_at<?))", (route["url"],now-7*86400)).fetchone()]
                 if routes:
                     channels[channel["id"]] = {**channel, "routes": routes}
                     for item in current["categories"]: categories.setdefault(item["id"], item)

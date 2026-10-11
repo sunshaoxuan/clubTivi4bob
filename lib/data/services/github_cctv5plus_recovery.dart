@@ -6,6 +6,7 @@ import 'package:drift/drift.dart' show Value;
 
 import '../datasources/local/database.dart' as db;
 import 'github_ai_crawler_service.dart';
+import '../../core/server_egress.dart';
 
 /// Small, keyless fallback for a current public GitHub playlist. Every route
 /// must pass a media probe and an actual muted video decode before insertion.
@@ -65,7 +66,7 @@ class GitHubCctv5PlusRecovery {
   }) async {
     final client = HttpClient()..connectionTimeout = const Duration(seconds: 5);
     try {
-      final request = await client.getUrl(_rawUri)
+      final request = await client.getUrl(ServerEgress.resourceUri(_rawUri.toString(), 'playlist'))
           .timeout(const Duration(seconds: 8));
       request.followRedirects = false;
       final response = await request.close()

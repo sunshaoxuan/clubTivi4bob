@@ -1,3 +1,4 @@
+import '../../core/server_egress.dart';
 import 'dart:io';
 import 'dart:convert';
 
@@ -45,10 +46,11 @@ class EpgRefreshService {
     debugPrint('[EPG] Refreshing source: ${source.name} (${source.url})');
 
     // Download XMLTV data
-    final dio = Dio(
+    final dio = ServerEgress.dio(
       BaseOptions(
+        extra: {'egressKind': 'epg'},
         headers: {
-          'User-Agent': 'clubTivi/1.0 IPTV Player (compatible; XMLTV fetcher)',
+          'User-Agent': 'BobTV/1.0',
         },
       ),
     );

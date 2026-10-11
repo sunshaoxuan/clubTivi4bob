@@ -10,6 +10,7 @@ import sys
 import tempfile
 
 from aiohttp import web
+from egress_policy import server_or_local_url
 
 
 class VideoRelay:
@@ -36,6 +37,7 @@ class VideoRelay:
         return shutil.which('ffmpeg')
 
     async def start(self, url, receiver):
+        server_or_local_url(url)
         executable = self.ffmpeg_path()
         if not executable:
             raise FileNotFoundError('FFmpeg is required for relaying')

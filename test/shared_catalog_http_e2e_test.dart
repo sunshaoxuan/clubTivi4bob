@@ -5,6 +5,7 @@ import 'package:clubtivi/data/datasources/local/database.dart' as db;
 import 'package:clubtivi/data/services/bobtv_api_client.dart';
 import 'package:clubtivi/data/services/channel_inventory_sync_service.dart';
 import 'package:clubtivi/data/services/manual_channel_category.dart';
+import 'package:clubtivi/data/services/channel_merge.dart';
 import 'package:clubtivi/data/services/website_channel_catalog_service.dart';
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -140,6 +141,12 @@ void main() {
         ),
       ]);
       expect(await uploader.flushEvents(), 1);
+      expect(
+        uploader.state.value.error,
+        isFalse,
+        reason:
+            'Merge synchronization: ${uploader.state.value.phase}\n$messages',
+      );
       await runPython(
         'from process_channel_inventory import process; process(verifier=lambda _:True)',
       );
@@ -163,6 +170,43 @@ void main() {
       });
       await freshCatalog.sync();
       expect(scores![url], lessThan(.8));
+      await first.mergeChannels(
+        ChannelMergePlan(
+          name: 'Shared Unified TV',
+          group: '国际 / 美国 / 新闻',
+          urls: [url, added],
+        ),
+      );
+      expect(await uploader.flushEvents(), 1);
+      expect(
+        uploader.state.value.error,
+        isFalse,
+        reason: 'Merge result: ${uploader.state.value.phase}\n$messages',
+      );
+      for (var attempt = 0; attempt < 30; attempt++) {
+        await secondCatalog.sync();
+        if ((await second.getAllChannels()).every(
+          (c) => c.name == 'Shared Unified TV',
+        ))
+          break;
+        await Future<void>.delayed(const Duration(milliseconds: 50));
+      }
+      final mergedChannels = await second.getAllChannels();
+      expect(
+        mergedChannels.map((c) => c.name).toSet(),
+        {'Shared Unified TV'},
+        reason:
+            'Pull error: ${secondCatalog.lastError}\nState: ${secondCatalog.state.value.phase}\n$messages',
+      );
+      expect(
+        (await second.channelMergeIds([url, added])).values.toSet(),
+        hasLength(1),
+      );
+      expect(await second.sharedRouteRevision(url), 2);
+      await freshCatalog.sync();
+      expect((await fresh.getAllChannels()).map((c) => c.name).toSet(), {
+        'Shared Unified TV',
+      });
       await first.deleteChannelsByIds(
         (await first.getAllChannels()).map((c) => c.id),
       );

@@ -28,7 +28,7 @@ class SharedSyncBadge extends StatelessWidget {
           .where((s) => s.phase.isNotEmpty)
           .map(
             (s) =>
-                '${s.phase}${s.total > 0 ? ' ${s.imported}/${s.total}' : ''}',
+                '${s.phase}${s.total > 0 ? ' · 全库 ${s.imported}/${s.total} 条记录' : ''}',
           )
           .join('\n');
       return Tooltip(

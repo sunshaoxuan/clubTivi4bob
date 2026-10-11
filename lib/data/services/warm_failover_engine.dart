@@ -1,3 +1,4 @@
+import '../../core/server_egress.dart';
 import 'dart:async';
 
 import 'package:dio/dio.dart';
@@ -30,7 +31,7 @@ class WarmFailoverEngine {
     Dio? dio,
     this.probeIntervalSeconds = 30,
     this.probeSizeBytes = 65536, // 64KB
-  }) : _dio = dio ?? Dio();
+  }) : _dio = dio ?? ServerEgress.dio(BaseOptions(extra: {'egressKind': 'media'}));
 
   Map<String, StreamHealth> get health => Map.unmodifiable(_health);
   bool get isRunning => _running;

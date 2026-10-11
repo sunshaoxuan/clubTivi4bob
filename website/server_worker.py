@@ -109,6 +109,30 @@ def ai_healthy():
     return type(success) is int and type(failure) is int and 0 <= time.time() - success < 6 * 3600 and failure < success
 
 
+def refresh_ai_readiness(settings, log):
+    """Keep idle readiness evidence fresh without flooding an unavailable API."""
+    now = int(time.time())
+    health = read_state(DATA / 'server-ai-health.json')
+    success = health.get('lastSuccess', 0)
+    if type(success) is int and 0 <= now - success < 3 * 3600 and ai_healthy():
+        return
+    marker = DATA / 'server-ai-readiness-check.json'
+    checked = read_state(marker).get('time', 0)
+    if type(checked) is int and 0 <= now - checked < 15 * 60:
+        return
+    write_state(marker, {'time': now})
+    try:
+        answer = ai({'check': 'readiness'}, 'Reply with {"ok":true}.', settings)
+        if answer.get('ok') is not True:
+            write_state(DATA / 'server-ai-health.json', {
+                'lastSuccess': health.get('lastSuccess', 0), 'lastFailure': now,
+            })
+            raise ValueError('Invalid readiness response')
+        log.info('ai_readiness_verified')
+    except Exception as exc:
+        log.warning('ai_readiness_failed error=%s', error_code(exc))
+
+
 def ai(content, task, settings):
     if not all(settings.get(k) for k in ('baseUrl', 'apiKey', 'model')):
         raise RuntimeError('AI configuration unavailable')
@@ -328,6 +352,8 @@ def run(limit=8, lane='all'):
             if not available:
                 log.warning('configuration_unavailable')
                 return
+            if lane in ('all', 'classification'):
+                refresh_ai_readiness(settings, log)
             if lane in ('all','discovery'):
                 refresh = DATA / 'server-discovery-refresh.json'
                 if time.time() - read_state(refresh).get('time', 0) >= 6 * 3600:

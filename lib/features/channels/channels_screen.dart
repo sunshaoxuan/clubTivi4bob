@@ -1,3 +1,4 @@
+import '../../core/server_image.dart';
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io' show Directory, File, FileMode, Platform;
@@ -28,8 +29,11 @@ import '../../data/services/channel_country_ai_service.dart';
 import '../../data/services/channel_category_ai_service.dart';
 import '../../data/services/manual_channel_category.dart';
 import 'channel_category_picker.dart';
+import 'channel_merge_dialog.dart';
+import '../../data/services/channel_merge.dart';
+import 'channel_catalog_status.dart';
 import 'manual_category_move.dart';
-import '../../data/services/github_cctv5plus_recovery.dart';
+import '../../data/services/server_task_client.dart';
 import '../../data/services/bobtv_community_service.dart';
 import '../../data/services/epg_refresh_service.dart';
 import '../../data/services/stream_alternatives_service.dart';
@@ -76,6 +80,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
   List<db.Channel> _allChannels = [];
   List<db.Channel> _filteredChannels = [];
   final Map<String, String> _automaticKeyByChannelId = {};
+  Map<String, String> _channelMergeIds = {};
   final Map<String, List<String>> _automaticUrlsByKey = {};
   final Map<String, Set<String>> _automaticUrlSetsByKey = {};
   Map<String, int> _verifiedRouteCounts = {};
@@ -86,8 +91,8 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
   int _regionTotalRoutes = 0;
   final Map<String, String> _cardRouteSelection = {};
   final ManualRouteCycle _manualRouteCycle = ManualRouteCycle();
-  bool _cctv5PlusRecoveryRunning = false;
-  DateTime? _lastCctv5PlusRecovery;
+  bool _serverRecoveryRunning = false;
+  final Map<String, DateTime> _serverRecoveryTimes = {};
   List<String> _groups = List.of(ChannelCategoryClassifier.categories);
   String _selectedGroup = '央视';
   String _selectedInternationalCountry = '';
@@ -613,6 +618,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
     bool preserveScroll = false,
   }) async {
     final generation = ++_categoryLoadGeneration;
+    try {
     final database = ref.read(databaseProvider);
     final scrollAnchor = preserveScroll ? _captureScrollAnchor() : null;
     if (mounted) {
@@ -676,6 +682,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
     if (group == '国际') {
       _aiCountryCache = await _countryAi.cachedCountries();
     }
+    final mergeIds = await database.channelMergeIds(loaded.map((c) => c.streamUrl));
     if (!mounted || generation != _categoryLoadGeneration) return;
     final unchanged = _sameChannelSnapshot(_allChannels, loaded);
     setState(() {
@@ -690,11 +697,12 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
             )
           : {};
       _rebuildInternationalCountries(loaded, group);
+      _channelMergeIds = mergeIds;
       if (!unchanged) {
         _allChannels = loaded;
-        _rebuildAutomaticChannelIndex();
       }
-      if (!unchanged || group == '国际') _applyFilters();
+      _rebuildAutomaticChannelIndex();
+      _applyFilters();
       _loadStatus =
           '$group：载入 ${loaded.length} 条线路，合并为 ${_filteredChannels.length} 个频道';
       _categoryLoading = false;
@@ -748,6 +756,16 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
     await ref.read(streamAlternativesProvider).rebuildForChannels(loaded);
     if (!mounted || generation != _categoryLoadGeneration) return;
     _playFirstFilteredChannelForGroup(group);
+    } catch (error, stack) {
+      AppDiagnostics.instance.recordError('channel_category_load', error, stack);
+      if (mounted && generation == _categoryLoadGeneration) {
+        setState(() {
+          _categoryLoading = false;
+          _routeAvailabilityLoading = false;
+          _loadStatus = '分类读取失败，可点击重试';
+        });
+      }
+    }
   }
 
   String _countryFor(db.Channel channel) {
@@ -1094,6 +1112,11 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
     if ((_simpleMode || !_showUnavailableSources) &&
         _selectedGroup != 'Favorites') {
       channels = channels.where((channel) {
+        // A reviewed public route with no measurement in this network must
+        // remain selectable. Global retirement removes it from the database.
+        if (channel.providerId == WebsiteChannelCatalogService.providerId) {
+          return true;
+        }
         final key = _automaticChannelKey(channel);
         return (_verifiedRouteCounts[key.isEmpty ? channel.id : key] ?? 0) > 0;
       }).toList();
@@ -1200,6 +1223,8 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
   }
 
   String _automaticChannelKey(db.Channel channel) {
+    final merged = _channelMergeIds[channel.streamUrl];
+    if (merged != null) return 'manual:$merged';
     final cached = _automaticKeyByChannelId[channel.id];
     if (cached != null) return cached;
     final vanity = _vanityNames[channel.id];
@@ -1341,14 +1366,16 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
     final urls = (_automaticUrlsByKey[key] ?? const <String>[])
         .where((url) =>
             url != channel.streamUrl &&
-            (includeUnverified || !_simpleMode || _verifiedRouteUrls.contains(url)))
+            (includeUnverified || !_simpleMode ||
+                channel.providerId == WebsiteChannelCatalogService.providerId ||
+                _verifiedRouteUrls.contains(url)))
         .toList();
     final tracker = ref.read(streamHealthTrackerProvider);
     final order = {for (var i = 0; i < urls.length; i++) urls[i]: i};
     urls.sort((a, b) {
       final verified = (_verifiedRouteUrls.contains(b) ? 1 : 0) -
           (_verifiedRouteUrls.contains(a) ? 1 : 0);
-      if (verified != 0) return verified;
+      if (verified != 0 && channel.providerId != WebsiteChannelCatalogService.providerId) return verified;
       final health = tracker.getScore(b).compareTo(tracker.getScore(a));
       return health != 0 ? health : order[a]!.compareTo(order[b]!);
     });
@@ -1377,7 +1404,24 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
     int generation,
   ) async {
     final revision = ++_availabilityRevision;
-    final checks = await ref.read(databaseProvider).getStreamChecksForChannels(channels);
+    // A country tab only reads that country's checks. Other countries remain
+    // available for cross-category merge searches on explicit request.
+    if (_selectedGroup == '国际') {
+      channels = channels.where((c) => _countryFor(c) == _selectedInternationalCountry &&
+        (_selectedInternationalGenre == '全部' ||
+          ChannelCategoryClassifier.internationalGenreFor(c.groupTitle) == _selectedInternationalGenre)).toList();
+    }
+    List<db.StreamCheck> checks;
+    try {
+      checks = await ref.read(databaseProvider).getStreamChecksForChannels(channels)
+        .timeout(const Duration(seconds: 5));
+    } catch (error, stack) {
+      AppDiagnostics.instance.recordError('channel_availability_read', error, stack);
+      if (mounted && generation == _categoryLoadGeneration && revision == _availabilityRevision) {
+        setState(() { _routeAvailabilityLoading = false; _applyFilters(); });
+      }
+      return;
+    }
     if (!mounted || generation != _categoryLoadGeneration ||
         revision != _availabilityRevision) return;
     final checkByRoute = <String, db.StreamCheck>{
@@ -1928,7 +1972,8 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
             allowAudioOnly: _allowsAudioOnly(channel),
             previewOnly: prepareOnly,
             preferRequestedRoute: preferredUrl != null ||
-                (prepareOnly && _verifiedRouteUrls.contains(channel.streamUrl)),
+                (prepareOnly && channel.providerId != WebsiteChannelCatalogService.providerId &&
+                    _verifiedRouteUrls.contains(channel.streamUrl)),
             onlyRequestedRoute: onlyRequestedRoute,
           )
             : true;
@@ -2016,66 +2061,28 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
   }
 
   Future<void> _recoverChannelSources(String channelName) async {
-    final coordinator = ref.read(sourceMaintenanceCoordinatorProvider);
-    final playerService = ref.read(playerServiceProvider);
-    var imported = 0;
-    if (ChannelNameNormalizer.cctvSportsServiceKey(channelName) == 'cctv5plus' &&
-        !_cctv5PlusRecoveryRunning &&
-        (_lastCctv5PlusRecovery == null || DateTime.now()
-            .difference(_lastCctv5PlusRecovery!) >= const Duration(hours: 1))) {
-      _cctv5PlusRecoveryRunning = true;
-      _lastCctv5PlusRecovery = DateTime.now();
-      try {
-        imported += await GitHubCctv5PlusRecovery(
-          ref.read(databaseProvider),
-        ).recover(
-          probeRoute: coordinator.maintenanceService.probeRoute,
-          verifyVideo: (url) => playerService.verifyDiscoveredVideoRoute(
-              url, requireUltraHd: false),
-          onProgress: (checked, total) {
-            if (!mounted) return;
-            playerService.routeSearchProgress.value = RouteSearchProgress(
-              stage: '正在从 GitHub 验证新线路',
-              index: checked, total: total, active: true,
-              background: true,
-            );
-          },
+    if (_serverRecoveryRunning) return;
+    final now = DateTime.now();
+    final previous = _serverRecoveryTimes[channelName];
+    if (previous != null && now.difference(previous) < const Duration(minutes: 5)) return;
+    _serverRecoveryRunning = true;
+    _serverRecoveryTimes[channelName] = now;
+    try {
+      await ServerTaskClient().submit('discover', [{'name': channelName}]);
+      if (mounted) {
+        final service = ref.read(playerServiceProvider);
+        service.routeSearchProgress.value = RouteSearchProgress(
+          stage: '已请求服务器查找新线路，结果将自动同步',
+          index: 0, total: 0, active: false, background: true,
         );
-      } catch (error, stackTrace) {
-        AppDiagnostics.instance.recordError(
-            'cctv5plus_github_recovery', error, stackTrace);
-      } finally {
-        _cctv5PlusRecoveryRunning = false;
-        if (mounted && playerService.routeSearchProgress.value?.stage ==
-            '正在从 GitHub 验证新线路') {
-          playerService.routeSearchProgress.value = RouteSearchProgress(
-            stage: imported > 0
-                ? '新线路已加入，请重新选择频道'
-                : '本轮没有验证通过的新线路',
-            index: 0, total: 0, background: true,
-          );
-        }
+        await ref.read(sourceMaintenanceCoordinatorProvider).websiteCatalog.sync();
       }
+    } catch (_, stack) {
+      AppDiagnostics.instance.recordError('server_route_discovery',
+        StateError('Server discovery unavailable'), stack);
+    } finally {
+      _serverRecoveryRunning = false;
     }
-    if (coordinator.githubAiCrawler.config.enabled) {
-      imported += await coordinator.githubAiCrawler.recoverChannel(
-        channelName,
-        verifyRoute: (url) async {
-          if (!await coordinator.maintenanceService.probeRoute(url)) {
-            return false;
-          }
-          return playerService.verifyDiscoveredVideoRoute(
-            url,
-            requireUltraHd: ChannelNameNormalizer.isUltraHd(channelName),
-          );
-        },
-      );
-    }
-    if (!mounted || imported == 0) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      content: Text('$channelName：已找到并验证 $imported 条新线路'),
-      duration: const Duration(seconds: 4),
-    ));
   }
 
   Future<void> _changeChannelCategory(db.Channel channel) async {
@@ -2147,7 +2154,6 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
     if (currentUrl == null) return;
     final alternatives = service.currentAlternativeUrls
         .where((url) => url != currentUrl)
-        .take(12)
         .toList();
     final overlay = Overlay.of(context).context.findRenderObject() as RenderBox;
     final choice = await showMenu<int>(
@@ -2184,6 +2190,8 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
         if (menuChannel != null)
           _routeMenuAction(-5, Icons.folder_open_rounded, '变更分类',
               '选择地区和子分类'),
+        if (menuChannel != null)
+          _routeMenuAction(-6, Icons.merge_rounded, '合并频道', '跨分类选择同内容频道'),
         _routeMenuAction(-3, Icons.skip_next_rounded, '切换到下一条线路',
             '先检查线路，成功后切换',
             enabled: alternatives.isNotEmpty),
@@ -2199,6 +2207,10 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
       ],
     );
     if (!mounted || choice == null) return;
+    if (choice == -6 && menuChannel != null) {
+      await _mergeChannel(menuChannel);
+      return;
+    }
     if (choice == -5 && menuChannel != null) {
       await _changeChannelCategory(menuChannel);
       return;
@@ -2243,6 +2255,40 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
     ));
   }
 
+  Future<void> _mergeChannel(db.Channel channel) async {
+    final plan = await showDialog<ChannelMergePlan>(context: context,
+      barrierDismissible: false,
+      builder: (_) => ChannelMergeDialog(database: ref.read(databaseProvider),
+        channel: channel, seedUrls: [channel.streamUrl,
+          ..._automaticAlternativeUrls(channel, includeUnverified: true)]));
+    if (!mounted || plan == null) return;
+    ++_channelSelectionGeneration;
+    final service = ref.read(playerServiceProvider);
+    await service.discardPreparedChannel();
+    final main = _previewChannel;
+    setState(() {
+      _pendingChannelId = null;
+      _preparedChannelId = null;
+      for (final url in plan.urls) {
+        _manualCategories.remove(url);
+        _pendingManualCategories.remove(url);
+      }
+      if (main != null && plan.urls.contains(main.streamUrl)) {
+        _previewChannel = main.copyWith(name: plan.name,
+          groupTitle: Value(plan.group), tvgId: Value(plan.epgId), tvgName: Value(plan.name));
+      }
+    });
+    await _loadGroupChannels(_selectedGroup, preserveScroll: true);
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text('已合并为“${plan.name}”，公共线路在后台同步'),
+      duration: const Duration(seconds: 3)));
+    unawaited(ref.read(sourceMaintenanceCoordinatorProvider).inventory.flushEvents());
+    if (_previewChannel != null) {
+      await service.updateFailoverAlternatives(_automaticAlternativeUrls(_previewChannel!, includeUnverified: true));
+    }
+  }
+
   Future<void> _showCardRouteMenu(
       db.Channel channel, Offset position) async {
     final service = ref.read(playerServiceProvider);
@@ -2284,6 +2330,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
         const PopupMenuDivider(height: 14),
         _routeMenuAction(-5, Icons.folder_open_rounded, '变更分类',
             '选择地区和子分类'),
+        _routeMenuAction(-6, Icons.merge_rounded, '合并频道', '跨分类选择同内容频道'),
         _routeMenuAction(-3, Icons.skip_next_rounded, '切换到下一条线路',
             '在卡片中预览下一条',
             enabled: alternatives.isNotEmpty),
@@ -2300,6 +2347,10 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
       ],
     );
     if (!mounted || choice == null) return;
+    if (choice == -6) {
+      await _mergeChannel(channel);
+      return;
+    }
     if (choice == -5) {
       await _changeChannelCategory(channel);
       return;
@@ -3858,39 +3909,12 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        ValueListenableBuilder<WebsiteCatalogProgress>(
-                          valueListenable: ref.read(sourceMaintenanceCoordinatorProvider).websiteCatalog.state,
-                          builder: (context, progress, _) => Column(
-                            children: [
-                              Text(progress.phase.isEmpty ? '正在初始化共享频道' :
-                                '${progress.phase}${progress.total > 0 ? ' ${progress.imported}/${progress.total}' : ''}',
-                                textAlign: TextAlign.center,
-                                style: const TextStyle(color: Colors.white70)),
-                              if (progress.error) TextButton.icon(
-                                onPressed: () => ref.read(sourceMaintenanceCoordinatorProvider).websiteCatalog.sync(),
-                                icon: const Icon(Icons.refresh), label: const Text('重新同步频道')),
-                              const SizedBox(height: 12),
-                            ],
-                          ),
-                        ),
-                        ValueListenableBuilder<WebsiteCatalogProgress>(
-                          valueListenable: ref.read(sourceMaintenanceCoordinatorProvider).inventory.state,
-                          builder: (context, progress, _) => progress.phase.isEmpty
-                            ? const SizedBox.shrink()
-                            : Text('${progress.phase} · ${progress.imported} 条',
-                              style: const TextStyle(color: Colors.white54)),
-                        ),
-                        Text(
-                          _routeAvailabilityLoading
-                              ? '正在读取线路检查记录…'
-                              : _regionTotalRoutes > 0
-                                  ? '正在核对线路，已处理 $_regionCheckedRoutes/$_regionTotalRoutes，找到 ${_filteredChannels.length} 个频道'
-                              : _selectedGroup == 'Favorites'
-                                  ? '还没有收藏的频道'
-                                  : '当前分类暂无近期通过检查的频道',
-                          textAlign: TextAlign.center,
-                          style: const TextStyle(color: Colors.white54),
-                        ),
+                        ChannelCatalogStatus(category: _selectedGroup == '国际'
+                            ? _selectedInternationalCountry
+                            : _selectedGroup == 'Favorites' ? '我的收藏' : _selectedGroup,
+                          loading: _categoryLoading,
+                          checking: _routeAvailabilityLoading || _regionTotalRoutes > 0,
+                          onRetry: () => _loadGroupChannels(_selectedGroup)),
                         if (!_routeAvailabilityLoading && _regionTotalRoutes == 0) ...[
                           const SizedBox(height: 12),
                           TextButton(
@@ -4049,7 +4073,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                         opacity: 0.3,
                         child: Center(
                           child: hasLogo
-                              ? Image.network(logoUrl!,
+                              ? ServerImage.network(logoUrl!,
                                   width: 270, height: 160,
                                   fit: BoxFit.contain,
                                   cacheWidth: 320,
@@ -6159,7 +6183,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                               child:
                                   channel.tvgLogo != null &&
                                       channel.tvgLogo!.isNotEmpty
-                                  ? Image.network(
+                                  ? ServerImage.network(
                                       channel.tvgLogo!,
                                       fit: BoxFit.cover,
                                       errorBuilder: (_, e, s) => Container(
@@ -6442,7 +6466,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                               child:
                                   primary.tvgLogo != null &&
                                       primary.tvgLogo!.isNotEmpty
-                                  ? Image.network(
+                                  ? ServerImage.network(
                                       primary.tvgLogo!,
                                       width: 28,
                                       height: 28,
@@ -6636,7 +6660,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                               height: 22,
                               child:
                                   ch.tvgLogo != null && ch.tvgLogo!.isNotEmpty
-                                  ? Image.network(
+                                  ? ServerImage.network(
                                       ch.tvgLogo!,
                                       fit: BoxFit.contain,
                                       errorBuilder: (_, __, ___) => const Icon(
@@ -7071,7 +7095,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                           child:
                               primary?.tvgLogo != null &&
                                   primary!.tvgLogo!.isNotEmpty
-                              ? Image.network(
+                              ? ServerImage.network(
                                   primary.tvgLogo!,
                                   fit: BoxFit.cover,
                                   errorBuilder: (_, __, ___) => Container(
@@ -7249,7 +7273,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                                 height: 24,
                                 child:
                                     ch.tvgLogo != null && ch.tvgLogo!.isNotEmpty
-                                    ? Image.network(
+                                    ? ServerImage.network(
                                         ch.tvgLogo!,
                                         fit: BoxFit.cover,
                                         errorBuilder: (_, __, ___) =>
@@ -8730,7 +8754,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                                                       channel
                                                           .tvgLogo!
                                                           .isNotEmpty
-                                                  ? Image.network(
+                                                  ? ServerImage.network(
                                                       channel.tvgLogo!,
                                                       width: 28,
                                                       height: 28,

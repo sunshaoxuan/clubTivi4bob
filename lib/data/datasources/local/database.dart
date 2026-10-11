@@ -11,6 +11,8 @@ import '../../services/channel_category_classifier.dart';
 import '../../services/public_inventory_policy.dart';
 import '../../services/route_identity.dart';
 import '../../services/manual_channel_category.dart';
+import '../../services/channel_merge.dart';
+import '../../services/bobtv_api_client.dart';
 import 'tables.dart';
 
 part 'database.g.dart';
@@ -83,6 +85,15 @@ class AppDatabase extends _$AppDatabase {
   );
 
   Future<void> _initializeSharedSync() async {
+    await customStatement(
+      'CREATE TABLE IF NOT EXISTS catalog_sync_manifest '
+      '(id INTEGER PRIMARY KEY CHECK(id=1), version TEXT NOT NULL)',
+    );
+    await customStatement(
+      'CREATE TABLE IF NOT EXISTS channel_merge_overrides '
+      '(url TEXT PRIMARY KEY, merge_id TEXT NOT NULL, name TEXT NOT NULL, '
+      'group_name TEXT NOT NULL, epg_id TEXT, logo_url TEXT)',
+    );
     await customStatement(
       'CREATE TABLE IF NOT EXISTS shared_sync_control (id INTEGER PRIMARY KEY, suppressed INTEGER NOT NULL)',
     );
@@ -194,6 +205,25 @@ class AppDatabase extends _$AppDatabase {
         }
       });
 
+  Future<String?> sharedCatalogVersion() async {
+    final rows = await customSelect(
+      'SELECT version FROM catalog_sync_manifest WHERE id=1',
+    ).get();
+    return rows.firstOrNull?.read<String>('version');
+  }
+
+  Future<void> setSharedCatalogVersion(String? version) async {
+    if (version == null) {
+      await customStatement('DELETE FROM catalog_sync_manifest WHERE id=1');
+    } else {
+      await customStatement(
+        'INSERT INTO catalog_sync_manifest(id,version) VALUES(1,?) '
+        'ON CONFLICT(id) DO UPDATE SET version=excluded.version',
+        [version],
+      );
+    }
+  }
+
   Future<int> sharedRouteRevision(String url) async {
     final rows = await customSelect(
       'SELECT revision FROM shared_sync_state WHERE url=?',
@@ -301,6 +331,262 @@ class AppDatabase extends _$AppDatabase {
     ).get())
       row.read<String>('url'),
   };
+
+  Future<Map<String, String>> channelMergeIds(Iterable<String> urls) async {
+    final unique = urls.map(canonicalRouteUrl).toSet().toList();
+    final result = <String, String>{};
+    for (var offset = 0; offset < unique.length; offset += 300) {
+      final rows = await customSelect(
+        'SELECT url,merge_id FROM channel_merge_overrides WHERE url IN '
+        '(SELECT value FROM json_each(?))',
+        variables: [
+          Variable(jsonEncode(unique.skip(offset).take(300).toList())),
+        ],
+      ).get();
+      for (final row in rows)
+        result[row.read<String>('url')] = row.read<String>('merge_id');
+    }
+    return result;
+  }
+
+  Future<List<String>> channelMergeGroups() async => (await customSelect(
+    "SELECT DISTINCT COALESCE(group_title,'其他') AS g "
+    'FROM channels ORDER BY g',
+    readsFrom: {channels},
+  ).get()).map((row) => row.read<String>('g')).toList();
+
+  Future<List<ChannelMergeChoice>> searchChannelMergeChoices({
+    String query = '',
+    String? group,
+    int offset = 0,
+    int limit = 80,
+  }) async {
+    final pattern =
+        '%${query.toLowerCase().replaceAll('!', '!!').replaceAll('%', '!%').replaceAll('_', '!_')}%';
+    final rows = await customSelect(
+      'SELECT MIN(c.id) AS id,c.name,COALESCE(c.group_title,\'其他\') AS g,'
+      'm.merge_id,COUNT(DISTINCT c.stream_url) AS n FROM channels c '
+      'LEFT JOIN channel_merge_overrides m ON m.url=c.stream_url '
+      'WHERE c.hidden=0 AND lower(c.name) LIKE ? ESCAPE \'!\' '
+      '${group == null ? '' : "AND COALESCE(c.group_title,'其他')=? "}'
+      'GROUP BY c.name,g,m.merge_id ORDER BY c.name,g LIMIT ? OFFSET ?',
+      variables: [
+        Variable(pattern),
+        if (group != null) Variable(group),
+        Variable(limit.clamp(1, 80)),
+        Variable(offset),
+      ],
+      readsFrom: {channels},
+    ).get();
+    return rows
+        .map(
+          (row) => ChannelMergeChoice(
+            id: row.read<String>('id'),
+            name: row.read<String>('name'),
+            group: row.read<String>('g'),
+            routeCount: row.read<int>('n'),
+            mergeId: row.readNullable<String>('merge_id'),
+          ),
+        )
+        .toList();
+  }
+
+  Future<List<Channel>> channelsForMergeChoice(
+    ChannelMergeChoice choice,
+  ) async {
+    final rows = await customSelect(
+      choice.mergeId == null
+          ? "SELECT * FROM channels WHERE name=? AND COALESCE(group_title,'其他')=?"
+          : 'SELECT * FROM channels WHERE stream_url IN '
+                '(SELECT url FROM channel_merge_overrides WHERE merge_id=?)',
+      variables: choice.mergeId == null
+          ? [Variable(choice.name), Variable(choice.group)]
+          : [Variable(choice.mergeId!)],
+      readsFrom: {channels},
+    ).get();
+    return rows.map((row) => channels.map(row.data)).toList();
+  }
+
+  Future<Set<String>> pendingSharedMergeUrls() async {
+    final rows = await customSelect(
+      "SELECT payload FROM shared_sync_outbox WHERE kind='merge'",
+    ).get();
+    return {
+      for (final row in rows)
+        for (final route
+            in (jsonDecode(row.read<String>('payload'))['routes'] as List))
+          route['url'] as String,
+    };
+  }
+
+  Future<void> importChannelMerge(Map<String, Object?> record) async {
+    final url = record['url'] as String;
+    final mergeId = record['mergeId'] as String?;
+    if (mergeId == null) {
+      await customStatement('DELETE FROM channel_merge_overrides WHERE url=?', [
+        url,
+      ]);
+    } else {
+      await customStatement(
+        'INSERT INTO channel_merge_overrides VALUES(?,?,?,?,?,?) '
+        'ON CONFLICT(url) DO UPDATE SET merge_id=excluded.merge_id,name=excluded.name,'
+        'group_name=excluded.group_name,epg_id=excluded.epg_id,logo_url=excluded.logo_url',
+        [
+          url,
+          mergeId,
+          record['name'],
+          record['group'],
+          record['epgId'],
+          record['logoUrl'],
+        ],
+      );
+    }
+  }
+
+  Future<void> importChannelMergeBatch(
+    Iterable<Map<String, Object?>> records,
+  ) async {
+    final rows = records.toList();
+    final plain = rows
+        .where((r) => r['mergeId'] == null)
+        .map((r) => r['url'])
+        .toList();
+    if (plain.isNotEmpty)
+      await customStatement(
+        'DELETE FROM channel_merge_overrides WHERE url IN (SELECT value FROM json_each(?))',
+        [jsonEncode(plain)],
+      );
+    await batch((b) {
+      for (final row in rows.where((r) => r['mergeId'] != null)) {
+        b.customStatement(
+          'INSERT INTO channel_merge_overrides VALUES(?,?,?,?,?,?) '
+          'ON CONFLICT(url) DO UPDATE SET merge_id=excluded.merge_id,name=excluded.name,'
+          'group_name=excluded.group_name,epg_id=excluded.epg_id,logo_url=excluded.logo_url',
+          [
+            row['url'],
+            row['mergeId'],
+            row['name'],
+            row['group'],
+            row['epgId'],
+            row['logoUrl'],
+          ],
+        );
+      }
+    });
+  }
+
+  Future<void> advanceQueuedMergeRevision(
+    String url,
+    int oldRevision,
+    int revision,
+  ) async {
+    final rows = await customSelect(
+      "SELECT id,payload FROM shared_sync_outbox WHERE kind='merge'",
+    ).get();
+    for (final row in rows) {
+      final payload =
+          jsonDecode(row.read<String>('payload')) as Map<String, dynamic>;
+      var changed = false;
+      for (final route in payload['routes'] as List) {
+        if (route['url'] == url && route['baseRevision'] == oldRevision) {
+          route['baseRevision'] = revision;
+          changed = true;
+        }
+      }
+      if (changed)
+        await customStatement(
+          'UPDATE shared_sync_outbox SET payload=? WHERE id=?',
+          [jsonEncode(payload), row.read<String>('id')],
+        );
+    }
+  }
+
+  /// One local transaction plus one durable public event. No network request
+  /// blocks the dialog. Endpoint identities, checks and retirement stay intact.
+  Future<String> mergeChannels(ChannelMergePlan plan) async {
+    if (!plan.valid) throw ArgumentError('Invalid merge plan');
+    final mergeId = _uuid.v4();
+    await withoutSharedReporting(() async {
+      final owners = await getChannelsByStreamUrls(plan.urls);
+      if (owners.isEmpty) throw StateError('Selected channels no longer exist');
+      final ids = await channelMergeIds(plan.urls);
+      final related = ids.values.toSet();
+      final expanded = {...plan.urls};
+      for (final id in related) {
+        final rows = await customSelect(
+          'SELECT url FROM channel_merge_overrides WHERE merge_id=?',
+          variables: [Variable(id)],
+        ).get();
+        expanded.addAll(rows.map((row) => row.read<String>('url')));
+      }
+      if (expanded.length > 1000)
+        throw ArgumentError('Too many routes in one merge');
+      await ManualChannelCategory.remove(expanded);
+      final providers = {
+        for (final p in await getAllProviders())
+          if (isSharedInventoryProvider(
+            id: p.id,
+            type: p.type,
+            url: p.url,
+            username: p.username,
+            password: p.password,
+          ))
+            p.id,
+      };
+      final publicUrls = {
+        for (final c in await getChannelsByStreamUrls(expanded))
+          if (providers.contains(c.providerId) &&
+              BobTvApiClient.isPublicCatalogUrl(c.streamUrl))
+            c.streamUrl,
+      };
+      final event = <String, Object?>{
+        'mergeId': mergeId,
+        'name': plan.name,
+        'group': plan.group,
+        'epgId': plan.epgId,
+        'logoUrl': plan.logoUrl,
+        'routes': [
+          for (final url in publicUrls)
+            {'url': url, 'baseRevision': await sharedRouteRevision(url)},
+        ],
+      };
+      if (utf8.encode(jsonEncode(event)).length > 400 * 1024) {
+        throw ArgumentError('Merge request exceeds safe size');
+      }
+      for (final url in expanded) {
+        await importChannelMerge({
+          'url': url,
+          'mergeId': mergeId,
+          'name': plan.name,
+          'group': plan.group,
+          'epgId': plan.epgId,
+          'logoUrl': plan.logoUrl,
+        });
+      }
+      for (var offset = 0; offset < expanded.length; offset += 300) {
+        await (update(channels)
+              ..where((c) => c.streamUrl.isIn(expanded.skip(offset).take(300))))
+            .write(
+              ChannelsCompanion(
+                name: Value(plan.name),
+                groupTitle: Value(plan.group),
+                tvgId: Value(plan.epgId),
+                tvgName: Value(plan.name),
+                tvgLogo: Value(plan.logoUrl),
+              ),
+            );
+      }
+      // Old classification requests for these routes must not race the merge.
+      await customStatement(
+        "DELETE FROM shared_sync_outbox WHERE kind='classify' "
+        'AND url IN (SELECT value FROM json_each(?))',
+        [jsonEncode(expanded.toList())],
+      );
+      if (publicUrls.isNotEmpty)
+        await queueSharedEvent(publicUrls.first, 'merge', event);
+    });
+    return mergeId;
+  }
 
   // --- Provider queries ---
 
@@ -522,6 +808,36 @@ class AppDatabase extends _$AppDatabase {
             ? entry
             : entry.copyWith(groupTitle: Value(manual.group));
       }).toList();
+      final merges = {
+        for (final row in await customSelect(
+          'SELECT * FROM channel_merge_overrides WHERE url IN (SELECT value FROM json_each(?))',
+          variables: [
+            Variable(
+              jsonEncode(
+                entries
+                    .where((e) => e.streamUrl.present)
+                    .map((e) => e.streamUrl.value)
+                    .toList(),
+              ),
+            ),
+          ],
+        ).get())
+          row.read<String>('url'): row,
+      };
+      entries = entries.map((entry) {
+        final merge = entry.streamUrl.present
+            ? merges[entry.streamUrl.value]
+            : null;
+        return merge == null
+            ? entry
+            : entry.copyWith(
+                name: Value(merge.read<String>('name')),
+                groupTitle: Value(merge.read<String>('group_name')),
+                tvgName: Value(merge.read<String>('name')),
+                tvgId: Value(merge.readNullable<String>('epg_id')),
+                tvgLogo: Value(merge.readNullable<String>('logo_url')),
+              );
+      }).toList();
       await batch((b) {
         b.insertAllOnConflictUpdate(channels, entries);
       });
@@ -556,6 +872,10 @@ class AppDatabase extends _$AppDatabase {
             .write(ChannelsCompanion(groupTitle: Value(destination.group)));
       }
       for (final url in unique) {
+        await customStatement(
+          'UPDATE channel_merge_overrides SET group_name=? WHERE url=?',
+          [destination.group, url],
+        );
         await queueSharedEvent(url, 'classify', {
           'group': destination.group,
           'baseRevision': await sharedRouteRevision(url),
@@ -746,6 +1066,29 @@ class AppDatabase extends _$AppDatabase {
   }
 
   Future<List<StreamCheck>> getAllStreamChecks() => select(streamChecks).get();
+
+  /// Availability checks belong to the current network. Explicit blocks,
+  /// channel identities and favorites are stored separately and stay intact.
+  Future<bool> switchAvailabilityNetwork(String networkId) async {
+    if (networkId.startsWith('ZZ:')) return false;
+    return transaction(() async {
+      await customStatement(
+        'CREATE TABLE IF NOT EXISTS route_availability_network(id INTEGER PRIMARY KEY, network_id TEXT NOT NULL)',
+      );
+      final rows = await customSelect(
+        'SELECT network_id FROM route_availability_network WHERE id=1',
+      ).get();
+      if (rows.isNotEmpty &&
+          rows.single.read<String>('network_id') == networkId)
+        return false;
+      await delete(streamChecks).go();
+      await customStatement(
+        'INSERT INTO route_availability_network VALUES(1,?) ON CONFLICT(id) DO UPDATE SET network_id=excluded.network_id',
+        [networkId],
+      );
+      return true;
+    });
+  }
 
   /// Fetch availability for the active category without loading the entire
   /// maintenance history into the UI isolate.

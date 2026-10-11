@@ -129,6 +129,12 @@ Clients check revisions every minute. Initial server verification
 records seed local availability, so a fresh installation does not have to
 recheck every route before showing its cards.
 
+Network availability is separate from route identity and global retirement.
+See [regional route selection](regional-route-selection.md) for the profile and
+ranking APIs, regional health events and desktop integration. Previously
+reviewed routes survive a single verifier's network failures; one region's
+negative observations cannot remove a usable route in another country.
+
 `GET /api/v1/channel-catalog/blocked` returns `schemaVersion: 1` and `urls`.
 Retirement is monotonic: later inventory uploads cannot restore that URL.
 Clients apply these tombstones to all providers, including bundled sources.
@@ -183,6 +189,17 @@ inventory, additive weights, candidate validation, deletion and fresh-client
 bootstrap. No test route is written to the production catalog.
 
 ## Acceptance checks
+
+The `merge` event contains a UUID `mergeId`, `name`, `group`, optional `epgId`
+and `logoUrl`, and 1 to 1000 unique `routes` containing canonical `url` and
+`baseRevision`. The event's anchor `url` must be one of those members. Every
+revision and prior merged-set boundary is validated before any metadata changes.
+An applied receipt returns all member revisions. Conflicts change no member;
+unknown members remain retryable until their preceding inventory event arrives.
+Published channels may contain optional `mergeId`; old clients ignore that field.
+Route IDs, health and retirement remain independent of merged display identity.
+Client database writes and durable upload enqueue share one local transaction.
+The manifest checkpoint is stored inside that database and commits with imports.
 
 Verify an empty server, offline launch, interrupted download, hash mismatch,
 duplicate channel and route IDs, a removed channel with local favorites, a

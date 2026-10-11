@@ -1,0 +1,10 @@
+[Unit]
+Description=Refresh BobTV auxiliary resources daily
+
+[Timer]
+OnCalendar=*-*-* 05:30:00
+RandomizedDelaySec=1h
+Persistent=true
+
+[Install]
+WantedBy=timers.target

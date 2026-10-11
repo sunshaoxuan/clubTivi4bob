@@ -6,6 +6,7 @@ import 'package:logger/logger.dart';
 
 import 'lg_webos_client.dart';
 import 'airplay_bridge.dart';
+import '../../core/server_egress.dart';
 
 final _log = Logger(printer: SimplePrinter());
 
@@ -216,13 +217,14 @@ class CastService {
   }) async {
     lastError = null;
     try {
+      final transportUrl = ServerEgress.mediaUrl(url);
       if (device.unavailableReason != null) throw StateError(device.unavailableReason!);
       if (_activeDevice != null && _activeDevice!.id != device.id)
         await _stopActive();
       if (device.type == 'airplay') {
         await _airplay.request('play', {
           'device': device.id.substring(8),
-          'url': url,
+          'url': transportUrl,
           'relay': relayAirPlay,
         });
         _activeDevice = device;
@@ -231,14 +233,14 @@ class CastService {
         _status.add(null);
         return true;
       } else if (device.type == 'webos' && device.webosClient != null) {
-        await device.webosClient!.playMedia(url, title: title);
+        await device.webosClient!.playMedia(transportUrl, title: title);
         _activeDevice = device;
         _activeUrl = url;
         _isCasting = true;
         _log.i('Casting via WebOS');
         return true;
       } else if (device.dlnaDevice != null) {
-        await device.dlnaDevice!.setUrl(url, title: title);
+        await device.dlnaDevice!.setUrl(transportUrl, title: title);
         await device.dlnaDevice!.play();
         _activeDevice = device;
         _activeUrl = url;

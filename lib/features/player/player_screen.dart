@@ -1,3 +1,4 @@
+import '../../core/server_image.dart';
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io' show Platform;
@@ -1282,7 +1283,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                             if (_currentChannelLogo != null)
                               Padding(
                                 padding: const EdgeInsets.only(right: 8),
-                                child: Image.network(
+                                child: ServerImage.network(
                                   _currentChannelLogo!,
                                   width: 24,
                                   height: 24,
@@ -1562,7 +1563,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                                       0xFF6C5CE7,
                                     ).withValues(alpha: 0.3),
                                     leading: ch['tvgLogo'] != null
-                                        ? Image.network(
+                                        ? ServerImage.network(
                                             ch['tvgLogo'] as String,
                                             width: 28,
                                             height: 28,

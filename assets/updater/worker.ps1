@@ -335,6 +335,7 @@ try {
   $uri = [Uri]$ArchiveUrl
   if ($uri.Scheme -ne 'https' -or
       $uri.Host -ne 'bobtv.briconbric.com' -or
+      $uri.Port -ne 443 -or $uri.UserInfo -ne '' -or
       !$uri.AbsolutePath.StartsWith('/updates/') -or
       !$uri.AbsolutePath.EndsWith('.zip') -or
       $uri.Query -ne '' -or $uri.Fragment -ne '') {

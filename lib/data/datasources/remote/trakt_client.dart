@@ -1,3 +1,4 @@
+import '../../../core/server_egress.dart';
 import 'package:dio/dio.dart';
 import '../../models/show.dart';
 
@@ -12,7 +13,7 @@ class TraktClient {
   TraktClient({
     required this.clientId,
     Dio? dio,
-  }) : _dio = dio ?? Dio() {
+  }) : _dio = dio ?? ServerEgress.dio() {
     _dio.options
       ..baseUrl = _baseUrl
       ..connectTimeout = const Duration(seconds: 10)

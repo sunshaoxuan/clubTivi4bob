@@ -1,6 +1,3 @@
-import 'dart:async';
-import 'dart:ui';
-
 import 'package:clubtivi/features/player/desktop_fullscreen_session.dart';
 import 'package:clubtivi/features/player/window_manager_fullscreen_backend.dart';
 import 'package:flutter/services.dart';
@@ -14,6 +11,10 @@ class _MockNativeWindow {
   bool minimized = false;
   bool maximized = false;
   bool alwaysOnTop = false;
+  bool resizable = true;
+  bool maximizable = true;
+  bool synchronousFullscreen = false;
+  String titleBarStyle = 'normal';
   Rect bounds = const Rect.fromLTWH(20, 40, 1280, 720);
 
   List<MethodCall> callsTo(String method) =>
@@ -37,6 +38,28 @@ class _MockNativeWindow {
         return maximized;
       case 'isAlwaysOnTop':
         return alwaysOnTop;
+      case 'isResizable':
+        return resizable;
+      case 'isMaximizable':
+        return maximizable;
+      case 'setFullScreen':
+        if (synchronousFullscreen) {
+          fullscreen = (call.arguments as Map)['isFullScreen'] as bool;
+          if (fullscreen) maximizable = false;
+        }
+        return true;
+      case 'setTitleBarStyle':
+        titleBarStyle = (call.arguments as Map)['titleBarStyle'] as String;
+        return true;
+      case 'setResizable':
+        resizable = (call.arguments as Map)['isResizable'] as bool;
+        return true;
+      case 'setMaximizable':
+        maximizable = (call.arguments as Map)['isMaximizable'] as bool;
+        return true;
+      case 'maximize':
+        maximized = true;
+        return true;
       case 'setAlwaysOnTop':
         alwaysOnTop = (call.arguments as Map)['isAlwaysOnTop'] as bool;
         return true;
@@ -76,7 +99,11 @@ void main() {
 
   WindowManagerFullscreenBackend createBackend({required bool isMacOS}) {
     hasBackend = true;
-    backend = WindowManagerFullscreenBackend(isMacOS: isMacOS);
+    native.synchronousFullscreen = !isMacOS;
+    backend = WindowManagerFullscreenBackend(
+      isMacOS: isMacOS,
+      isWindows: !isMacOS,
+    );
     return backend;
   }
 
@@ -252,7 +279,7 @@ void main() {
   );
 
   test(
-    'Windows preparation preserves titlebar and restores original bounds',
+    'Windows preparation hides titlebar and restores original bounds',
     () async {
       createBackend(isMacOS: false);
       await backend.prepareEntry();
@@ -261,7 +288,7 @@ void main() {
         native
             .callsTo('setTitleBarStyle')
             .map((call) => (call.arguments as Map)['titleBarStyle']),
-        ['normal'],
+        ['hidden', 'normal'],
       );
       final bounds = native.callsTo('setBounds').single.arguments as Map;
       expect(bounds['x'], 30);
@@ -270,6 +297,8 @@ void main() {
       expect(bounds['height'], 640);
       expect(native.callsTo('maximize'), isEmpty);
       expect(native.callsTo('focus'), isEmpty);
+      expect(native.resizable, isTrue);
+      expect(native.maximizable, isTrue);
     },
   );
 
@@ -297,6 +326,105 @@ void main() {
     expect(native.callsTo('setAlwaysOnTop'), hasLength(1));
     expect(native.callsTo('focus'), hasLength(1));
   });
+
+  for (final maximized in [false, true]) {
+    test(
+      'Windows normal/maximized=$maximized survives repeated fullscreen',
+      () async {
+        native.maximized = maximized;
+        createBackend(isMacOS: false);
+        for (var cycle = 0; cycle < 3; cycle++) {
+          final saved = await backend.capture();
+          await backend.prepareEntry();
+          await backend.setFullscreen(true);
+          expect(native.fullscreen, isTrue);
+          expect(native.titleBarStyle, 'hidden');
+          expect(native.maximizable, isFalse);
+          await backend.setFullscreen(false);
+          await backend.restore(saved);
+          expect(native.fullscreen, isFalse);
+          expect(native.titleBarStyle, 'normal');
+          expect(native.maximizable, isTrue);
+          expect(native.resizable, isTrue);
+          expect(native.maximized, maximized);
+        }
+        final methods = native.calls.map((call) => call.method).toList();
+        expect(
+          methods.indexOf('setTitleBarStyle'),
+          lessThan(methods.indexOf('setFullScreen')),
+        );
+      },
+    );
+  }
+
+  test(
+    'Windows re-entry from channel fullscreen does not save disabled maximize',
+    () async {
+      native.fullscreen = true;
+      native.maximizable = false;
+      createBackend(isMacOS: false);
+      final saved = await backend.capture();
+      expect(saved.wasFullscreen, isTrue);
+      expect(saved.maximizable, isTrue);
+      await backend.prepareEntry();
+      await backend.setFullscreen(true);
+      expect(native.titleBarStyle, 'hidden');
+      await backend.setFullscreen(false);
+      await backend.restore(saved);
+      expect(native.maximizable, isTrue);
+      expect(native.titleBarStyle, 'normal');
+      expect(native.callsTo('setBounds'), isEmpty);
+      expect(native.callsTo('maximize'), isEmpty);
+    },
+  );
+
+  test(
+    'Windows keeps fullscreen chrome hidden when returning to channels',
+    () async {
+      native.maximized = true;
+      createBackend(isMacOS: false);
+      final session = DesktopFullscreenSession(
+        backend: backend,
+        onChanged: (_) {},
+        onExternalExit: () {},
+      );
+      await session.enter();
+      await session.exit(keepWindowFullscreen: true);
+      expect(native.fullscreen, isTrue);
+      expect(native.titleBarStyle, 'hidden');
+      expect(native.callsTo('setBounds'), isEmpty);
+      expect(native.callsTo('setMaximizable'), isEmpty);
+      session.dispose();
+      await _advanceAsyncWork();
+    },
+  );
+
+  test('Windows normal-window capability preferences are preserved', () async {
+    native.resizable = false;
+    native.maximizable = false;
+    createBackend(isMacOS: false);
+    final saved = await backend.capture();
+    await backend.prepareEntry();
+    await backend.setFullscreen(true);
+    await backend.setFullscreen(false);
+    await backend.restore(saved);
+    expect(native.resizable, isFalse);
+    expect(native.maximizable, isFalse);
+  });
+
+  test(
+    'Windows synthesizes both completion events when native events are missing',
+    () async {
+      createBackend(isMacOS: false);
+      final events = <bool>[];
+      final subscription = backend.fullscreenChanges.listen(events.add);
+      await backend.prepareEntry();
+      await backend.setFullscreen(true);
+      await backend.setFullscreen(false);
+      expect(events, [true, false]);
+      await subscription.cancel();
+    },
+  );
 
   test(
     'Windows restoration never unminimizes, focuses or resizes the window',

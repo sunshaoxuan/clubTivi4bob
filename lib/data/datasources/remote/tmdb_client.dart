@@ -1,3 +1,4 @@
+import '../../../core/server_egress.dart';
 import 'package:dio/dio.dart';
 
 /// Client for The Movie Database (TMDB) API v3
@@ -12,7 +13,7 @@ class TmdbClient {
   TmdbClient({
     required this.apiKey,
     Dio? dio,
-  }) : _dio = dio ?? Dio() {
+  }) : _dio = dio ?? ServerEgress.dio() {
     // Detect if user provided a v4 Bearer token (long JWT) vs v3 API key (short hex)
     final isBearerToken = apiKey.length > 40 || apiKey.startsWith('eyJ');
 

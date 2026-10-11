@@ -115,14 +115,17 @@ class WebsiteChannelCatalogService {
         return 0;
       }
       final prefs = await SharedPreferences.getInstance();
+      // Keep the checkpoint with the database it describes. A restored or new
+      // database must never inherit a newer checkpoint from app preferences.
+      final installedVersion = await database.sharedCatalogVersion();
       final installed = (await database.getAllProviders()).any(
         (p) => p.id == providerId,
       );
-      final oldTime = DateTime.tryParse(prefs.getString(_versionKey) ?? '');
+      final oldTime = DateTime.tryParse(installedVersion ?? '');
       final newTime = DateTime.tryParse(manifest.version);
       if (oldTime != null && newTime != null && newTime.isBefore(oldTime))
         throw const FormatException('Stale website snapshot');
-      if (prefs.getString(_versionKey) == manifest.version && installed) {
+      if (installedVersion == manifest.version && installed) {
         state.value = WebsiteCatalogProgress(
           phase: '网站频道已是最新',
           imported: manifest.routeCount,
@@ -154,7 +157,9 @@ class WebsiteChannelCatalogService {
       };
       final existingByUrl = <String, List<db.Channel>>{};
       for (final channel in existing.values) {
-        (existingByUrl[canonicalRouteUrl(channel.streamUrl)] ??= []).add(channel);
+        (existingByUrl[canonicalRouteUrl(channel.streamUrl)] ??= []).add(
+          channel,
+        );
       }
       final knownChecks = await database.getStreamChecksForChannels(
         existing.values.toList(),
@@ -167,6 +172,7 @@ class WebsiteChannelCatalogService {
       await database.withoutSharedReporting(() async {
         final revisions = await database.sharedRouteRevisions();
         final pending = await database.pendingSharedCategoryUrls();
+        final pendingMerges = await database.pendingSharedMergeUrls();
         final reconciled = <String>[];
         for (final record in records) {
           final url = record['url'] as String;
@@ -189,6 +195,18 @@ class WebsiteChannelCatalogService {
         for (var offset = 0; offset < records.length; offset += 400) {
           if (_disposed) throw StateError('Catalog sync canceled');
           final batch = <db.ChannelsCompanion>[];
+          await database.importChannelMergeBatch(
+            records
+                .skip(offset)
+                .take(400)
+                .where(
+                  (record) =>
+                      !pendingMerges.contains(record['url']) &&
+                      !blockedUrls.contains(record['url']) &&
+                      (record['revision'] as int) >=
+                          (revisions[record['url']] ?? 0),
+                ),
+          );
           for (final record in records.skip(offset).take(400)) {
             if (blockedUrls.contains(record['url'])) continue;
             final id = '$providerId:${record['routeId']}';
@@ -263,6 +281,7 @@ class WebsiteChannelCatalogService {
         }
         await database.deleteChannelsMissingFromProvider(providerId, keepIds);
         await database.markProviderRefreshed(providerId, DateTime.now());
+        await database.setSharedCatalogVersion(manifest.version);
       });
       await onSharedScores?.call({
         for (final record in records)
@@ -395,6 +414,13 @@ Future<List<Map<String, Object?>>> _decodeCatalog(
         !ids.add('channel:${channel['id']}')) {
       throw const FormatException('Invalid website channel');
     }
+    if (channel['mergeId'] != null &&
+        (channel['mergeId'] is! String ||
+            !RegExp(
+              r'^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$',
+            ).hasMatch(channel['mergeId'] as String))) {
+      throw const FormatException('Invalid merged channel identity');
+    }
     final category = categories[channel['categoryId']];
     if (category == null) throw const FormatException('Unknown category');
     final group = _catalogGroupFor(
@@ -422,6 +448,9 @@ Future<List<Map<String, Object?>>> _decodeCatalog(
       result.add({
         'routeId': route['id'] as String,
         'name': name,
+        'mergeId': channel['mergeId'] is String
+            ? channel['mergeId'] as String
+            : null,
         'url': url,
         'group': group,
         'epgId': channel['epgId'] as String?,
@@ -442,7 +471,9 @@ Future<List<Map<String, Object?>>> _decodeCatalog(
     throw const FormatException('Route count mismatch');
   }
   final seenEndpoints = <String>{};
-  return result.where((record) => seenEndpoints.add(record['url'] as String)).toList();
+  return result
+      .where((record) => seenEndpoints.add(record['url'] as String))
+      .toList();
 }
 
 String _catalogGroupFor(

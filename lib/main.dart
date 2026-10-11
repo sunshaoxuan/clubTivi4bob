@@ -9,11 +9,13 @@ import 'package:window_manager/window_manager.dart';
 
 import 'app/app.dart';
 import 'core/app_diagnostics.dart';
+import 'core/server_egress.dart';
 import 'data/services/client_fingerprint_service.dart';
 import 'data/services/legacy_preferences_migration.dart';
 import 'data/services/desktop_update_service.dart';
 
 void main() {
+  ServerEgress.installGuard();
   final diagnostics = AppDiagnostics.instance;
   runZonedGuarded(
     () async {

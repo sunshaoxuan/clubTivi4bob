@@ -1,0 +1,11 @@
+[Unit]
+Description=BobTV monthly local network geography database update
+
+[Timer]
+OnCalendar=*-*-03 03:10:00
+Persistent=true
+RandomizedDelaySec=2h
+Unit=bobtv-network-db.service
+
+[Install]
+WantedBy=timers.target

@@ -1,3 +1,4 @@
+import '../../../core/server_egress.dart';
 import 'package:dio/dio.dart';
 import '../../models/show.dart';
 import 'debrid_service.dart';
@@ -13,7 +14,7 @@ class DebridClient implements DebridService {
   DebridClient({
     required this.apiToken,
     Dio? dio,
-  }) : _dio = dio ?? Dio() {
+  }) : _dio = dio ?? ServerEgress.dio() {
     _dio.options
       ..baseUrl = _baseUrl
       ..connectTimeout = const Duration(seconds: 10)
@@ -226,7 +227,7 @@ class AllDebridService implements DebridService {
   static const _agent = 'clubTivi';
 
   AllDebridService({required this.apiToken, Dio? dio})
-      : _dio = dio ?? Dio() {
+      : _dio = dio ?? ServerEgress.dio() {
     _dio.options
       ..baseUrl = _baseUrl
       ..connectTimeout = const Duration(seconds: 10)
@@ -346,7 +347,7 @@ class PremiumizeService implements DebridService {
   static const _baseUrl = 'https://www.premiumize.me';
 
   PremiumizeService({required this.apiToken, Dio? dio})
-      : _dio = dio ?? Dio() {
+      : _dio = dio ?? ServerEgress.dio() {
     _dio.options
       ..baseUrl = _baseUrl
       ..connectTimeout = const Duration(seconds: 10)
@@ -477,7 +478,7 @@ class DebridLinkService implements DebridService {
   static const _baseUrl = 'https://debrid-link.com/api/v2';
 
   DebridLinkService({required this.apiToken, Dio? dio})
-      : _dio = dio ?? Dio() {
+      : _dio = dio ?? ServerEgress.dio() {
     _dio.options
       ..baseUrl = _baseUrl
       ..connectTimeout = const Duration(seconds: 10)
@@ -590,7 +591,7 @@ class OffcloudService implements DebridService {
   static const _baseUrl = 'https://offcloud.com/api';
 
   OffcloudService({required this.apiToken, Dio? dio})
-      : _dio = dio ?? Dio() {
+      : _dio = dio ?? ServerEgress.dio() {
     _dio.options
       ..baseUrl = _baseUrl
       ..connectTimeout = const Duration(seconds: 10)
@@ -692,7 +693,7 @@ class PutioService implements DebridService {
   static const _baseUrl = 'https://api.put.io/v2';
 
   PutioService({required this.apiToken, Dio? dio})
-      : _dio = dio ?? Dio() {
+      : _dio = dio ?? ServerEgress.dio() {
     _dio.options
       ..baseUrl = _baseUrl
       ..connectTimeout = const Duration(seconds: 10)

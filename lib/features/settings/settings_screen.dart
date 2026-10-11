@@ -247,8 +247,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               children: [
                 ListTile(
                   leading: const Icon(Icons.auto_awesome_rounded),
-                  title: const Text('AI 分类设置'),
-                  subtitle: const Text('配置兼容端点、模型与 API Key'),
+                  title: const Text('服务器智能服务'),
+                  subtitle: const Text('线路发现与 AI 分类由服务器统一执行'),
                   trailing: const Icon(Icons.chevron_right),
                   onTap: () => Navigator.of(context).push(
                     MaterialPageRoute<void>(

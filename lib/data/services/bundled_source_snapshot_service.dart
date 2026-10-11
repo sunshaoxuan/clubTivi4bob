@@ -9,9 +9,14 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../core/app_diagnostics.dart';
 import '../datasources/local/database.dart' as db;
 import 'channel_category_classifier.dart';
-import 'github_ai_crawler_service.dart';
 
 typedef SnapshotBytesLoader = Future<Uint8List> Function();
+
+bool _isSupportedStreamUrl(String value) {
+  final uri = Uri.tryParse(value.trim());
+  return uri != null &&
+      const {'http', 'https', 'rtmp', 'rtsp', 'udp'}.contains(uri.scheme);
+}
 
 /// Imports the sanitized GitHub route snapshot shipped with a release.
 ///
@@ -54,11 +59,11 @@ class BundledSourceSnapshotService {
 
     final providers = await database.getAllProviders();
     if (!providers.any(
-      (provider) => provider.id == GitHubAiCrawlerService.providerId,
+      (provider) => provider.id == 'github-ai-crawler',
     )) {
       await database.upsertProvider(
         db.ProvidersCompanion.insert(
-          id: GitHubAiCrawlerService.providerId,
+          id: 'github-ai-crawler',
           name: 'GitHub 智慧来源',
           type: 'crawler',
         ),
@@ -67,7 +72,7 @@ class BundledSourceSnapshotService {
 
     final existingChannels = {
       for (final channel in await database.getChannelsForProvider(
-        GitHubAiCrawlerService.providerId,
+        'github-ai-crawler',
       ))
         channel.id: channel,
     };
@@ -100,7 +105,7 @@ class BundledSourceSnapshotService {
             ref.isEmpty ||
             path.isEmpty ||
             documentUrl.isEmpty ||
-            !isSupportedStreamUrl(streamUrl)) {
+            !_isSupportedStreamUrl(streamUrl)) {
           continue;
         }
         final groupTitle = _nullableText(raw['groupTitle']);
@@ -116,7 +121,7 @@ class BundledSourceSnapshotService {
         channelEntries.add(
           db.ChannelsCompanion.insert(
             id: id,
-            providerId: GitHubAiCrawlerService.providerId,
+            providerId: 'github-ai-crawler',
             name: name,
             tvgId: Value(_nullableText(raw['tvgId'])),
             tvgName: Value(_nullableText(raw['tvgName']) ?? name),
@@ -151,7 +156,7 @@ class BundledSourceSnapshotService {
     }
 
     await database.markProviderRefreshed(
-      GitHubAiCrawlerService.providerId,
+      'github-ai-crawler',
       DateTime.now(),
     );
     await preferences.setString(_preferenceKey, snapshotId);

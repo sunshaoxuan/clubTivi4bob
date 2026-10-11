@@ -46,7 +46,7 @@ class BridgeTests(unittest.IsolatedAsyncioTestCase):
                 await self.bridge.command({'action': 'pair_start', 'device': 'test-tv'})
             pair.assert_not_awaited()
         with self.assertRaises(ReceiverUnsupportedError):
-            await self.bridge.command({'action': 'play', 'device': 'test-tv', 'url': 'https://example.com/live'})
+            await self.bridge.command({'action': 'play', 'device': 'test-tv', 'url': 'https://bobtv.briconbric.com/api/v1/egress/resource?kind=media&url=live'})
 
     def test_mac_model_families_and_apple_tv(self):
         for model in ('MacBookPro16,2', 'Mac14,2', 'Macmini9,1', 'iMac20,1', 'MacBookAir10,1'):
@@ -84,13 +84,13 @@ class BridgeTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_real_airplay_http_and_channel_switch(self):
         result = await self.bridge.command({'action': 'play', 'device': 'test-tv',
-                                           'url': 'https://example.com/one.m3u8'})
+                                           'url': 'https://bobtv.briconbric.com/api/v1/egress/resource?kind=media&url=one.m3u8'})
         self.assertEqual(result['status'], 'sent')
         first_task = self.bridge.play_task
         await self.bridge.command({'action': 'play', 'device': 'test-tv',
-                                  'url': 'https://example.com/two.m3u8'})
+                                  'url': 'https://bobtv.briconbric.com/api/v1/egress/resource?kind=media&url=two.m3u8'})
         self.assertTrue(first_task.done())
-        self.assertEqual(self.urls, ['https://example.com/one.m3u8', 'https://example.com/two.m3u8'])
+        self.assertEqual(self.urls, ['https://bobtv.briconbric.com/api/v1/egress/resource?kind=media&url=one.m3u8', 'https://bobtv.briconbric.com/api/v1/egress/resource?kind=media&url=two.m3u8'])
         await self.bridge.command({'action': 'stop'})
         self.assertIsNone(self.bridge.atv)
         self.assertIsNone(self.bridge.play_task)

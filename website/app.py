@@ -18,6 +18,8 @@ from channel_catalog import router as catalog_router
 from update_delivery import router as update_router
 from catalog_inventory import router as inventory_router
 from server_jobs import router as server_task_router
+from network_routes import router as network_router
+from egress_gateway import router as egress_router
 
 BASE = Path(__file__).resolve().parent
 DATA = Path(os.environ.get("BOBTV_DATA_DIR", BASE / "data"))
@@ -33,6 +35,8 @@ app.include_router(catalog_router)
 app.include_router(update_router)
 app.include_router(inventory_router)
 app.include_router(server_task_router)
+app.include_router(network_router)
+app.include_router(egress_router)
 app.mount("/assets", StaticFiles(directory=BASE / "assets"), name="assets")
 
 

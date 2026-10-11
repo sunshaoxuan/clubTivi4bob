@@ -8,18 +8,23 @@ import 'package:window_manager/window_manager.dart';
 
 import 'desktop_fullscreen_session.dart';
 import 'desktop_pip_session.dart';
+import 'windows_window_chrome.dart';
 
 class WindowManagerPipBackend implements DesktopPipBackend {
-  WindowManagerPipBackend({bool? isMacOS})
-    : _isMacOS = isMacOS ?? Platform.isMacOS;
+  WindowManagerPipBackend({bool? isMacOS, bool? isWindows})
+    : _isMacOS = isMacOS ?? Platform.isMacOS,
+      _isWindows = isWindows ?? Platform.isWindows;
   final bool _isMacOS;
+  final bool _isWindows;
   static const _boundsKey = 'desktop_pip_bounds_v1';
   bool _allWorkspaces = false;
   bool _resizable = true;
+  bool _maximizable = true;
 
   @override
   Future<FullscreenWindowSnapshot> capture() async {
     _resizable = await windowManager.isResizable();
+    if (_isWindows) _maximizable = await windowManager.isMaximizable();
     if (_isMacOS) {
       _allWorkspaces = await windowManager.isVisibleOnAllWorkspaces();
     }
@@ -95,10 +100,17 @@ class WindowManagerPipBackend implements DesktopPipBackend {
     if (_isMacOS) {
       await windowManager.setVisibleOnAllWorkspaces(_allWorkspaces);
     }
-    await windowManager.setTitleBarStyle(
-      TitleBarStyle.normal,
-      windowButtonVisibility: true,
-    );
+    if (_isWindows) {
+      await restoreWindowsWindowChrome(
+        resizable: _resizable,
+        maximizable: _maximizable,
+      );
+    } else {
+      await windowManager.setTitleBarStyle(
+        TitleBarStyle.normal,
+        windowButtonVisibility: true,
+      );
+    }
     await windowManager.setMinimumSize(
       _isMacOS ? const Size(800, 500) : Size.zero,
     );

@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:clubtivi/core/server_egress.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:clubtivi/features/casting/airplay_bridge.dart';
 import 'package:clubtivi/features/casting/cast_service.dart';
@@ -31,17 +32,24 @@ class FakeAirPlay extends AirPlayBridge {
 }
 
 void main() {
-  test('unsupported receiver cannot send pairing or playback requests', () async {
-    final bridge = FakeAirPlay();
-    final service = CastService(airplay: bridge);
-    final mac = CastDevice(id: 'airplay_mac', name: 'Mac', type: 'airplay',
-      unavailableReason: 'Mac 原生接收端目前不受支援');
-    await expectLater(service.beginPairing(mac), throwsStateError);
-    expect(await service.castTo(mac, 'https://example.com/live'), false);
-    expect(bridge.calls, isEmpty);
-    expect(service.lastError, contains('Mac'));
-    service.dispose();
-  });
+  test(
+    'unsupported receiver cannot send pairing or playback requests',
+    () async {
+      final bridge = FakeAirPlay();
+      final service = CastService(airplay: bridge);
+      final mac = CastDevice(
+        id: 'airplay_mac',
+        name: 'Mac',
+        type: 'airplay',
+        unavailableReason: 'Mac 原生接收端目前不受支援',
+      );
+      await expectLater(service.beginPairing(mac), throwsStateError);
+      expect(await service.castTo(mac, 'https://example.com/live'), false);
+      expect(bridge.calls, isEmpty);
+      expect(service.lastError, contains('Mac'));
+      service.dispose();
+    },
+  );
   final tv = CastDevice(id: 'airplay_test', name: 'TV', type: 'airplay');
   test('stop queued during connect cannot leave a cast active', () async {
     final bridge = FakeAirPlay();
@@ -55,7 +63,10 @@ void main() {
     await play;
     await stop;
     expect(service.isCasting, false);
-    expect(bridge.calls, ['play:https://example.com/1', 'stop:']);
+    expect(bridge.calls, [
+      'play:${ServerEgress.mediaUrl("https://example.com/1")}',
+      'stop:',
+    ]);
     service.dispose();
   });
 
@@ -73,8 +84,8 @@ void main() {
     expect(await second, false);
     expect(await third, true);
     expect(bridge.calls, [
-      'play:https://example.com/1',
-      'play:https://example.com/3',
+      'play:${ServerEgress.mediaUrl("https://example.com/1")}',
+      'play:${ServerEgress.mediaUrl("https://example.com/3")}',
     ]);
     await service.switchChannel('https://example.com/3');
     expect(bridge.calls.length, 2);

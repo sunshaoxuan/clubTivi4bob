@@ -1,7 +1,7 @@
 $ErrorActionPreference='Stop'
 $tokens=$null;$errors=$null
 $source=Join-Path $PSScriptRoot '..\..\assets\updater\worker.ps1'
-$ast=[Management.Automation.Language.Parser]::ParseFile($source,[ref]$tokens,[ref]$errors)
+$ast=[Management.Automation.Language.Parser]::ParseInput([IO.File]::ReadAllText($source,[Text.Encoding]::UTF8),[ref]$tokens,[ref]$errors)
 if($errors.Count){throw ($errors|Out-String)}
 $names=@('Get-Sha256','Copy-AppFile','Copy-Contents','Suspend-AppCrashMonitor')
 $definitions=$ast.FindAll({param($node) $node -is [Management.Automation.Language.FunctionDefinitionAst]},$true)

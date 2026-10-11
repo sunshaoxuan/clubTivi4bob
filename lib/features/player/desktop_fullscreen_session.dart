@@ -7,11 +7,15 @@ class FullscreenWindowSnapshot {
     required this.maximized,
     required this.alwaysOnTop,
     this.wasFullscreen = false,
+    this.resizable = true,
+    this.maximizable = true,
   });
   final Rect bounds;
   final bool maximized;
   final bool alwaysOnTop;
   final bool wasFullscreen;
+  final bool resizable;
+  final bool maximizable;
 }
 
 abstract class FullscreenWindowBackend {

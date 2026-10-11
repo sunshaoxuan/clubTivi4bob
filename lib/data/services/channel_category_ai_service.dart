@@ -5,6 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../core/app_diagnostics.dart';
 import 'ai_runtime_settings.dart';
+import 'server_task_client.dart';
 import 'channel_category_classifier.dart';
 
 class CategoryNameInput {
@@ -20,7 +21,8 @@ class CategoryNameInput {
   final String? groupTitle;
   final String? tvgId;
 
-  String get key => '$id\u0000${name.trim().toLowerCase()}\u0000'
+  String get key =>
+      '$id\u0000${name.trim().toLowerCase()}\u0000'
       '${(groupTitle ?? '').trim().toLowerCase()}\u0000'
       '${(tvgId ?? '').trim().toLowerCase()}';
 }
@@ -28,16 +30,13 @@ class CategoryNameInput {
 /// AI only supplements conservative deterministic classification. A missing
 /// configuration, request failure or low confidence never changes a category.
 class ChannelCategoryAiService {
-  ChannelCategoryAiService({Dio? dio, AiRuntimeValues? settings})
-      : _dio = dio,
-        _settings = settings;
+  ChannelCategoryAiService({Dio? dio, AiRuntimeValues? settings}) : _dio = dio;
 
   static const _cacheKey = 'bobtv_category_ai_cache_v1';
   static const _batchSize = 20;
   static const _maximumPerLoad = 120;
 
   final Dio? _dio;
-  final AiRuntimeValues? _settings;
   Map<String, String>? _cache;
   bool _running = false;
 
@@ -49,7 +48,8 @@ class ChannelCategoryAiService {
       _cache = decoded is Map
           ? {
               for (final entry in decoded.entries)
-                if (entry.key is String && entry.value is String &&
+                if (entry.key is String &&
+                    entry.value is String &&
                     ChannelCategoryClassifier.categories.contains(entry.value))
                   entry.key as String: entry.value as String,
             }
@@ -65,98 +65,60 @@ class ChannelCategoryAiService {
     required void Function(Map<String, String>) onBatch,
   }) async {
     if (_running) return;
-    final settings = _settings ?? await AiRuntimeSettings.instance.load();
-    if (!settings.ready) return;
+    final prefs = await SharedPreferences.getInstance();
+    if (prefs.getBool('bobtv_ai_enabled_v1') != true) return;
     _running = true;
     try {
       await cachedCategories();
-      final unique = <String, CategoryNameInput>{};
-      for (final input in inputs) {
-        if (_cache!.containsKey(input.key)) continue;
-        unique.putIfAbsent(input.key, () => input);
-        if (unique.length >= _maximumPerLoad) break;
-      }
-      final pending = unique.values.toList();
-      if (pending.isEmpty) return;
-      final client = _dio ?? Dio(BaseOptions(
-        connectTimeout: const Duration(seconds: 8),
-        receiveTimeout: const Duration(seconds: 45),
-        followRedirects: false,
-        headers: {'Authorization': 'Bearer ${settings.apiKey}'},
-      ));
-      try {
-        for (var start = 0; start < pending.length; start += _batchSize) {
-          final batch = pending.skip(start).take(_batchSize).toList();
-          try {
-            final response = await client.post<Map<String, dynamic>>(
-              '${settings.baseUrl}/chat/completions',
-              data: {
-                'model': settings.model,
-                'messages': [
-                  {
-                    'role': 'system',
-                    'content': '根据电视频道台名、来源分组和节目单标识判断中国省份'
-                        '或国际地区。只依据明确可靠的地理线索，不根据字母片段、'
-                        '语言、节目类型或网址猜测。NRBTV 不等于 BTV。'
-                        '无法确定时返回“其他”。仅返回 JSON 对象，格式为'
-                        '{"items":[{"index":0,"category":"其他",'
-                        '"confidence":0.0}]}。',
-                  },
-                  {
-                    'role': 'user',
-                    'content': jsonEncode([
-                      for (var index = 0; index < batch.length; index++)
-                        {
-                          'index': index,
-                          'name': batch[index].name,
-                          'group': batch[index].groupTitle ?? '',
-                          'tvgId': batch[index].tvgId ?? '',
-                        },
-                    ]),
-                  },
-                ],
-                'max_completion_tokens': 1800,
+      final pending = {
+        for (final input in inputs)
+          if (!_cache!.containsKey(input.key)) input.key: input,
+      }.values.take(_maximumPerLoad).toList();
+      for (var start = 0; start < pending.length; start += _batchSize) {
+        final batch = pending.skip(start).take(_batchSize).toList();
+        final response = await ServerTaskClient(dio: _dio).classify(
+          'category',
+          [
+            for (final input in batch)
+              {
+                'name': input.name,
+                'group': input.groupTitle ?? '',
+                'tvgId': input.tvgId ?? '',
               },
-            );
-            final choices = response.data?['choices'];
-            final message = choices is List && choices.isNotEmpty &&
-                    choices.first is Map
-                ? (choices.first as Map)['message'] : null;
-            final content = message is Map ? message['content'] : null;
-            final parsed = jsonDecode(content?.toString() ?? '{}');
-            final items = parsed is Map ? parsed['items'] : null;
-            if (items is! List) throw const FormatException('Invalid AI result');
-            final additions = <String, String>{};
-            for (final item in items.whereType<Map>()) {
-              final index = item['index'];
-              final category = item['category'];
-              final confidence = item['confidence'];
-              if (index is! int || index < 0 || index >= batch.length ||
-                  category is! String || confidence is! num ||
-                  confidence < 0.9 || category == '其他' ||
-                  !ChannelCategoryClassifier.categories.contains(category)) {
-                continue;
-              }
-              additions[batch[index].key] = category;
-            }
-            if (additions.isNotEmpty) {
-              _cache!.addAll(additions);
-              final prefs = await SharedPreferences.getInstance();
-              await prefs.setString(_cacheKey, jsonEncode(_cache));
-              onBatch(additions);
-            }
-          } catch (error, stackTrace) {
-            AppDiagnostics.instance.recordError(
-              'channel_category_ai',
-              StateError('AI classification failed'),
-              stackTrace,
-            );
-            break;
+          ],
+        );
+        final additions = <String, String>{};
+        for (final item
+            in (response['items'] as List? ?? []).whereType<Map>()) {
+          final index = item['index'],
+              category = item['category'],
+              confidence = item['confidence'];
+          if (index is int &&
+              index >= 0 &&
+              index < batch.length &&
+              category is String &&
+              confidence is num &&
+              confidence >= .9 &&
+              category != '其他' &&
+              ChannelCategoryClassifier.categories.contains(category)) {
+            additions[batch[index].key] = category;
           }
         }
-      } finally {
-        if (_dio == null) client.close();
+        if (additions.isNotEmpty) {
+          _cache!.addAll(additions);
+          await (await SharedPreferences.getInstance()).setString(
+            _cacheKey,
+            jsonEncode(_cache),
+          );
+          onBatch(additions);
+        }
       }
+    } catch (_, stack) {
+      AppDiagnostics.instance.recordError(
+        'server_category_lookup',
+        StateError('Server classification unavailable'),
+        stack,
+      );
     } finally {
       _running = false;
     }

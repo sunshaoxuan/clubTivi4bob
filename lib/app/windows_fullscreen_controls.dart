@@ -4,6 +4,8 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:window_manager/window_manager.dart';
 
+import '../features/player/windows_window_chrome.dart';
+
 /// Mouse-accessible window chrome across every Windows fullscreen route.
 /// macOS continues to use its native, edge-reveal titlebar.
 class WindowsFullscreenControls extends StatefulWidget {
@@ -26,6 +28,8 @@ class _WindowsFullscreenControlsState extends State<WindowsFullscreenControls>
   bool _hovered = false;
   bool _shown = false;
   Timer? _hide;
+  bool _restoring = false;
+  int _stateReadGeneration = 0;
   bool get _enabled => widget.enabled ?? Platform.isWindows;
 
   @override
@@ -38,8 +42,11 @@ class _WindowsFullscreenControlsState extends State<WindowsFullscreenControls>
   }
 
   Future<void> _readState() async {
+    final generation = ++_stateReadGeneration;
     final value = await windowManager.isFullScreen();
-    if (mounted) _changed(value);
+    if (mounted && generation == _stateReadGeneration && value != _fullscreen) {
+      _changed(value);
+    }
   }
 
   void _changed(bool value) {
@@ -56,14 +63,36 @@ class _WindowsFullscreenControlsState extends State<WindowsFullscreenControls>
   }
 
   @override
-  void onWindowEnterFullScreen() => _changed(true);
+  void onWindowEnterFullScreen() {
+    ++_stateReadGeneration;
+    _changed(true);
+  }
+
   @override
-  void onWindowLeaveFullScreen() => _changed(false);
+  void onWindowLeaveFullScreen() {
+    ++_stateReadGeneration;
+    _changed(false);
+  }
+
+  @override
+  void onWindowResize() => unawaited(_readState());
+
+  @override
+  void onWindowFocus() => unawaited(_readState());
 
   Future<void> _restoreWindow() async {
-    await windowManager.setAlwaysOnTop(false);
-    await windowManager.setFullScreen(false);
-    await windowManager.setTitleBarStyle(TitleBarStyle.normal);
+    if (_restoring) return;
+    _restoring = true;
+    try {
+      await windowManager.setAlwaysOnTop(false);
+      await windowManager.setFullScreen(false);
+      await restoreWindowsWindowChrome();
+      // Windows may not emit a leave event when the previous placement was
+      // maximized. Read the native flag after restoration instead of waiting.
+      if (mounted) await _readState();
+    } finally {
+      _restoring = false;
+    }
   }
 
   @override

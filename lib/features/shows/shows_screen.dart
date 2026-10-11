@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:go_router/go_router.dart';
 import '../../data/models/show.dart';
+import '../../core/server_egress.dart';
 import 'shows_providers.dart';
 
 /// Main shows screen with poster grid organized by category
@@ -408,7 +409,7 @@ class _ShowPosterCard extends ConsumerWidget {
                           borderRadius: BorderRadius.circular(8),
                           child: show.posterUrl != null && show.posterUrl!.isNotEmpty
                               ? CachedNetworkImage(
-                                  imageUrl: show.posterUrl!,
+                                  imageUrl: ServerEgress.imageUrl(show.posterUrl!),
                                   fit: BoxFit.cover,
                                   width: double.infinity,
                                   height: double.infinity,

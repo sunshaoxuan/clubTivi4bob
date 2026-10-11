@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:media_kit/media_kit.dart';
 import 'package:media_kit/src/player/native/player/real.dart' as native_player;
 import 'package:media_kit_video/media_kit_video.dart';
+import '../../core/server_egress.dart';
 
 /// Multi-view player — shows 1-9 streams in a flexible grid.
 /// Free feature. Tap a cell to focus audio; long-press to fullscreen.
@@ -43,7 +44,7 @@ class _MultiViewScreenState extends ConsumerState<MultiViewScreen> {
       ));
       // Mute all except the focused one
       player.setVolume(i == _audioFocusIndex ? 100.0 : 0.0);
-      player.open(Media(widget.channels[i].url));
+      player.open(Media(ServerEgress.mediaUrl(widget.channels[i].url)));
     }
   }
 

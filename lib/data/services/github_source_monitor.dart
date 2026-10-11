@@ -1,3 +1,4 @@
+import '../../core/server_egress.dart';
 import 'package:dio/dio.dart';
 import 'package:drift/drift.dart';
 
@@ -74,7 +75,7 @@ class GitHubSourceMonitor {
   GitHubSourceMonitor({required this.database, Dio? dio})
     : _dio =
           dio ??
-          Dio(
+          ServerEgress.dio(
             BaseOptions(
               connectTimeout: const Duration(seconds: 8),
               receiveTimeout: const Duration(seconds: 12),

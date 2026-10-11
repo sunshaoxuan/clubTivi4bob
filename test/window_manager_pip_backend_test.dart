@@ -17,28 +17,32 @@ void main() {
             TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
         messenger.setMockMethodCallHandler(window, (call) async {
           calls.add(call);
-          if (call.method == 'getBounds')
+          if (call.method == 'getBounds') {
             return {'x': 100.0, 'y': 100.0, 'width': 1000.0, 'height': 650.0};
+          }
           if (call.method == 'isResizable') return true;
+          if (call.method == 'isMaximizable') return true;
           if (call.method.startsWith('is')) return false;
           return true;
         });
         messenger.setMockMethodCallHandler(
           screens,
-          (_) async => {'displays': [
-            {
-              'id': '1',
-              'size': {'width': 1920.0, 'height': 1080.0},
-              'visiblePosition': {'dx': 0.0, 'dy': 0.0},
-              'visibleSize': {'width': 1920.0, 'height': 1040.0},
-            },
-          ]},
+          (_) async => {
+            'displays': [
+              {
+                'id': '1',
+                'size': {'width': 1920.0, 'height': 1080.0},
+                'visiblePosition': {'dx': 0.0, 'dy': 0.0},
+                'visibleSize': {'width': 1920.0, 'height': 1040.0},
+              },
+            ],
+          },
         );
         addTearDown(() {
           messenger.setMockMethodCallHandler(window, null);
           messenger.setMockMethodCallHandler(screens, null);
         });
-        final backend = WindowManagerPipBackend(isMacOS: mac);
+        final backend = WindowManagerPipBackend(isMacOS: mac, isWindows: !mac);
         final snapshot = await backend.capture();
         await backend.compact();
         await backend.rememberBounds();
@@ -69,6 +73,19 @@ void main() {
           ),
           isNotNull,
         );
+        expect(
+          calls.where((call) => call.method == 'setMaximizable').length,
+          mac ? 0 : 1,
+        );
+        if (!mac) {
+          expect(
+            calls
+                .where((call) => call.method == 'setMaximizable')
+                .single
+                .arguments,
+            {'isMaximizable': true},
+          );
+        }
       },
     );
   }

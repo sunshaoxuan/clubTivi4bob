@@ -253,6 +253,29 @@ def test_ambiguous_country_below_strict_threshold_remains_unknown(tmp_path, monk
     assert api.get('/api/v1/server-tasks/'+row['id']).json()['items'] == []
 
 
+def test_idle_ai_readiness_rechecks_stale_evidence_with_backoff(tmp_path, monkeypatch):
+    import time
+    client(tmp_path, monkeypatch)
+    calls = []
+    monkeypatch.setattr(worker, 'ai', lambda *_: calls.append(True) or {'ok': True})
+    log = worker.logger('classification')
+    worker.refresh_ai_readiness({}, log)
+    worker.refresh_ai_readiness({}, log)
+    assert len(calls) == 1
+    worker.write_state(tmp_path/'server-ai-health.json', {'lastSuccess':int(time.time())})
+    worker.refresh_ai_readiness({}, log)
+    assert len(calls) == 1
+
+
+def test_idle_ai_readiness_failure_logs_only_safe_error_code(tmp_path, monkeypatch):
+    client(tmp_path, monkeypatch)
+    def broken(*_): raise ValueError('SECRET_PROVIDER_RESPONSE')
+    monkeypatch.setattr(worker, 'ai', broken)
+    worker.refresh_ai_readiness({}, worker.logger('classification'))
+    log = (tmp_path/'server-worker-classification.log').read_text()
+    assert 'invalid_response' in log and 'SECRET_PROVIDER_RESPONSE' not in log
+
+
 def test_broken_repository_does_not_abort_other_discovery(tmp_path, monkeypatch):
     client(tmp_path, monkeypatch)
     def github(path):

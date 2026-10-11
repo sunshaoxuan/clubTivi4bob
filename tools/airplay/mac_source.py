@@ -11,6 +11,7 @@ import sys
 
 from mac_audio import PCM_BYTES
 from cast_diagnostics import record
+from egress_policy import server_or_local_url
 
 
 class AnnexBFrames:
@@ -111,7 +112,7 @@ class FFmpegFrames:
             # Keep demuxer defaults: forcing the newest HLS segment together
             # with nobuffer can discard the available keyframe and delay first
             # output beyond the sender's startup deadline.
-            inputs = ['-rw_timeout', '15000000', '-i', self.url]
+            inputs = ['-rw_timeout', '15000000', '-i', server_or_local_url(self.url)]
             record({'stage': 'source-start', 'hlsLiveEdge': False})
             audio_map = '0:a:0'
         options = {'creationflags': subprocess.CREATE_NO_WINDOW} if sys.platform == 'win32' else {}

@@ -2,9 +2,9 @@
 
 ## BobTV website and API
 
-The source for [bobtv.briconbric.com](https://bobtv.briconbric.com), including its frontend, Python backend, deployment configuration, and tests, lives in [`website/`](website/README.md). The [application API contract](website/API.md) is maintained alongside the site. The Windows app remains under `lib/` and `windows/`. Published packages are mirrored to the BobTV host so visitors download from that host.
+The source for [bobtv.briconbric.com](https://bobtv.briconbric.com), including its frontend, Python backend, deployment configuration, and tests, lives in [`website/`](website/README.md). The [application API contract](website/API.md) is maintained alongside the site. Shared desktop code lives in `lib/`, with isolated Windows and macOS integrations. Published packages are mirrored to the BobTV host so visitors download from that host.
 
-BobTV is a Windows-focused IPTV player built from the open source [clubTivi](https://github.com/clubanderson/clubTivi) project. It provides a Chinese interface, automatic stream selection, silent failover, programme guide support, and borderless fullscreen playback on a computer connected to a television.
+BobTV is a Windows and macOS IPTV player built from the open source [clubTivi](https://github.com/clubanderson/clubTivi) project. It provides a Chinese interface, automatic stream selection, background previews, programme guide support, and borderless fullscreen playback.
 
 The application is built with Flutter and uses `media_kit`, libmpv, FFmpeg, Riverpod, Drift, and SQLite.
 
@@ -52,7 +52,7 @@ The fork includes bootstrap configuration for Chinese XMLTV sources and supports
 
 Generic event slots such as numbered temporary sports feeds need a reliable external mapping before they can receive accurate event names.
 
-### Desktop picture in picture (local 1.0.3 test build)
+### Desktop picture in picture
 
 The existing PiP toolbar icon now changes the playing desktop window into a
 compact, always-on-top window. The same player and video controller remain
@@ -66,7 +66,7 @@ necessary before formal release.
 
 ### Windows television mode
 
-The channel browser remains a normal maximized Windows window with its title bar, minimize control, and close control. The player switches the window into a borderless fullscreen state that covers the current monitor, then restores the normal frame when playback is left.
+The player switches the window into a borderless fullscreen state that covers the current monitor. Returning to channels restores the split browser layout while retaining fullscreen window mode. The separate window-fullscreen control restores native window chrome and resize/maximize controls. Mouse-accessible return and exit controls remain available during playback.
 
 Additional Windows behavior includes:
 
@@ -98,21 +98,15 @@ Management HTTP clients are allocated on demand for explicit source recovery or 
 
 ### AI assisted GitHub crawler
 
-An optional crawler can supplement the configured playlists with newly discovered GitHub sources. It asks an OpenAI compatible Chat Completions endpoint to generate repository searches, inspect complete repository tree metadata, select arbitrary candidate documents, classify their storage format, extract stream records, and identify child documents for recursive traversal. Repository trees that exceed the recursive Git API response are traversed directory by directory. Selection does not depend on a fixed playlist path or filename extension.
+The website runs the optional crawler and its OpenAI-compatible HTTPS requests. It generates repository searches, inspects repository tree metadata, selects candidate documents, classifies their storage format, extracts stream records, and identifies child documents for recursive traversal. Repository trees that exceed the recursive Git API response are traversed directory by directory. Selection does not depend on a fixed playlist path or filename extension.
 
-M3U documents are expanded by the strict local parser after AI file selection. JSON, YAML, text, generated data, and other layouts are analyzed in bounded chunks with structured JSON Schema output. Repository content is treated as untrusted data and cannot supply instructions to the model. Only same repository GitHub document links are eligible for recursive fetching.
+M3U documents are expanded by the strict server parser after AI file selection. JSON, YAML, text, generated data, and other layouts are analyzed in bounded chunks with structured JSON Schema output. Repository content is treated as untrusted data and cannot supply instructions to the model. Only same repository GitHub document links are eligible for recursive fetching.
 
-Discovered routes are placed in the existing channel aggregation and failover system. Each route retains its repository, commit, file path, source document URL, confidence, and first and last discovery times. Automatic client-wide crawler scheduling is disabled. Targeted recovery of an exhausted channel remains available on demand when AI is configured.
+Discovered routes are verified before entering the shared catalog. Each route retains its repository, commit, file path, source document URL, confidence, and first and last discovery times. Clients submit targeted recovery tasks to BobTV and receive results without contacting GitHub or the AI provider directly.
 
-The Settings screen accepts an OpenAI-compatible HTTPS endpoint, model ID, and API key for optional classification and source discovery. The key stays in platform secure storage. Process environment variables remain a fallback when no settings have been saved:
+The Settings screen shows server AI readiness. Optional personal-channel classification requires consent and sends only channel names, groups and EPG identifiers, excluding subscription addresses and credentials. Endpoint, model and key configuration stay on the server. If AI is unavailable, uncertain classifications remain unresolved and existing playback continues. Credentials are never packaged or written to application logs.
 
-* `OPENAI_BASE_URL`
-* `OPENAI_API_KEY`
-* `OPENAI_MODEL`, optional and defaulting to `gpt-5.6-luna`
-
-If the AI configuration is incomplete or disabled, uncertain channel classifications remain in Other and AI source discovery stays off. Website-classified public channels need no repeated local AI classification. Personal channel classification and targeted recovery can still use the configured endpoint. Credentials are never written to the repository or application logs.
-
-Release builds include a sanitized bundled snapshot of the latest discovered routes. A new installation imports the snapshot automatically, so customers receive the release time channel candidates even when the optional AI endpoint is unavailable. The snapshot contains public stream metadata and GitHub provenance only. It excludes favorites, playback history, route health history, diagnostics, crash dumps, and API configuration. Later crawler passes update these candidates when runtime AI configuration is available.
+Release builds include a sanitized bundled snapshot for initialization. It contains public stream metadata and provenance, excluding favorites, playback history, diagnostics, crash dumps and API credentials. The website's versioned catalog subsequently supplies verified additions, corrections and retirements. Public playback, EPG, logo and metadata requests use the BobTV HTTPS gateway; LAN control and loopback helpers remain local.
 
 ### Website channel synchronization
 
@@ -123,6 +117,15 @@ case and default-port spellings share one endpoint identity; meaningful paths,
 queries, protocols and non-default ports stay separate. Retiring an endpoint
 removes all equivalent local copies and leaves a permanent shared tombstone.
 Rediscovery cannot restore it. Provenance is retained separately from route identity.
+
+The channel context menu includes **Merge channels**. Search the current category
+or all categories, select multiple channels, choose an existing or custom name
+and destination category, then confirm. Canonical route URLs are deduplicated;
+health history, provenance and retirement records are retained. The local change
+is immediate and one durable event uploads in the background. Concurrent edits
+use route revision checks. A fresh client receives the same merged identity.
+Global sync progress stays in the sync badge; category counts and empty states
+describe only the selected category.
 
 Public additions, metadata and category edits, positive and negative health observations, deletions and retirements enter a durable SQLite outbox and upload asynchronously. Offline changes survive restart, acknowledgements remove only the exact event, and server deduplication prevents repeated scoring. Version checks protect newer classifications; retirement tombstones prevent stale clients from restoring removed URLs. New candidate routes require server verification before publication. A legitimate empty catalog removes the last retired channels and unused categories; network or validation failures preserve existing local data.
 
@@ -231,7 +234,7 @@ Windows release builds should also be tested on the target display because GPU d
 
 ## Privacy and updates
 
-Version 1.0.4 provides a shared seven-category desktop settings workspace with lazy loading, retained drafts, responsive panels and matching AI/EPG detail screens. Both Windows and macOS packages are available. Update checks show immediate feedback, real download progress and explicit failure or authorization-required states. Protected Windows Setup installations require administrator-authorized upgrades; writable per-user installations retain background updates. See [release details](docs/releases/1.0.4.md).
+Version 1.0.5+91 adds server-managed discovery and AI, regional route ranking, a shared HTTPS resource gateway, explicit channel merging, category-specific status and Windows fullscreen fixes. The modern desktop settings workspace is retained on both platforms. Update checks show immediate feedback, real download progress and explicit failure or authorization-required states. Protected Windows Setup installations require administrator-authorized upgrades; writable per-user installations retain background updates. See [release details](docs/releases/1.0.5.md) and [validation results](docs/releases/1.0.5-validation.md).
 
 The original upstream update check and notifications remain disabled. Windows and macOS use the BobTV-owned HTTPS mirror, verify package size and SHA-256, install after the player exits, and retain a previous-version backup for startup rollback. macOS also verifies a BobTV publisher signature. The player shows preparation, live download progress, verification and readiness separately. After exit, a native progress window reports backup, installation, completion or failure, with a button to open BobTV again. Reopening the player observes an existing update task instead of starting a duplicate. See [Windows automatic updates](docs/windows-updates.md) and [macOS support](docs/macos-bobtv.md) for the contracts and release procedures. Older Windows installations affected by the updater launch failure need one manual installation of version 0.9.1+73 or later. Playlist and EPG refreshes remain available independently.
 
@@ -239,7 +242,7 @@ Stream health metrics and application configuration are stored locally by the ap
 
 ## Legal notice
 
-BobTV is a media player. It does not host, retransmit, sell, or guarantee access to television content. Repository maintainers do not control third party playlists, streams, logos, metadata, or programme guides.
+BobTV is a media player with a server resource gateway that relays configured streams and metadata. It does not guarantee availability or grant content rights. Repository maintainers do not control third party playlists, streams, logos, metadata, or programme guides.
 
 Users and deployers are responsible for verifying that they have permission to access and display every configured source and for complying with applicable copyright, contract, network, and broadcasting rules.
 

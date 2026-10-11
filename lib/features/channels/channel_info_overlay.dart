@@ -1,3 +1,4 @@
+import '../../core/server_image.dart';
 import 'dart:async';
 import 'dart:ui';
 
@@ -217,7 +218,7 @@ class _ChannelInfoOverlayState extends State<ChannelInfoOverlay>
                         padding: const EdgeInsets.only(right: 10),
                         child: ClipRRect(
                           borderRadius: BorderRadius.circular(4),
-                          child: Image.network(
+                          child: ServerImage.network(
                             widget.channelLogo!,
                             width: 28,
                             height: 28,

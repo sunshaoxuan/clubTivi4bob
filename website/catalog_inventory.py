@@ -92,11 +92,15 @@ def database(data_dir=None):
             'deleted': 'INTEGER NOT NULL DEFAULT 0',
             'success_votes': 'INTEGER NOT NULL DEFAULT 0',
             'failure_votes': 'INTEGER NOT NULL DEFAULT 0',
-            'manual_category': 'INTEGER NOT NULL DEFAULT 0'}.items():
+            'manual_category': 'INTEGER NOT NULL DEFAULT 0',
+            'manual_name': 'INTEGER NOT NULL DEFAULT 0',
+            'merge_id': 'TEXT'}.items():
         if name not in columns:
             conn.execute(f'ALTER TABLE routes ADD COLUMN {name} {definition}')
     conn.execute('CREATE TABLE IF NOT EXISTS sync_receipts (reporter TEXT NOT NULL, event_id TEXT NOT NULL, receipt TEXT NOT NULL, PRIMARY KEY(reporter,event_id))')
     conn.execute('CREATE TABLE IF NOT EXISTS route_origins (digest TEXT NOT NULL, source TEXT NOT NULL, PRIMARY KEY(digest,source))')
+    from network_routes import migrate
+    migrate(conn)
     try:
         with conn:
             _migrate_route_identity(conn)
@@ -204,6 +208,12 @@ def ingest_events(events, fingerprint, data_dir=None):
                 kind = event.get('kind')
                 digest = hashlib.sha256(url.encode()).hexdigest()
                 row = conn.execute('SELECT * FROM routes WHERE digest=?', (digest,)).fetchone()
+                if kind == 'merge':
+                    receipt = _merge_event(conn, event, receipt)
+                    if receipt['status'] != 'retry':
+                        conn.execute('INSERT INTO sync_receipts VALUES(?,?,?)', (reporter,event_id,json.dumps(receipt)))
+                    receipts.append(receipt)
+                    continue
                 if kind == 'upsert':
                     metadata = event.get('metadata')
                     if not isinstance(metadata, dict): raise ValueError('Missing metadata')
@@ -245,7 +255,12 @@ def ingest_events(events, fingerprint, data_dir=None):
                 elif kind == 'health':
                     success, failure = event.get('success',0), event.get('failure',0)
                     if not all(type(v) is int and 0 <= v <= 10 for v in (success,failure)) or not success+failure: raise ValueError('Invalid health observation')
-                    conn.execute('UPDATE routes SET success_votes=success_votes+?,failure_votes=failure_votes+? WHERE digest=?', (success,failure,digest))
+                    from network_routes import record_health
+                    record_health(conn, digest, reporter, event, Path(data_dir or DATA))
+                    if not event.get('networkToken'):
+                        # Preserve legacy accounting without exporting newly
+                        # attributed regional failures into the global score.
+                        conn.execute('UPDATE routes SET success_votes=success_votes+?,failure_votes=failure_votes+? WHERE digest=?', (success,failure,digest))
                     receipt.update(status='applied', revision=revision)
                 elif kind in ('delete','retire'):
                     column = 'blocked' if kind == 'retire' else 'deleted'
@@ -253,6 +268,9 @@ def ingest_events(events, fingerprint, data_dir=None):
                     conn.execute(f'UPDATE routes SET {column}=1,revision=revision+? WHERE digest=?', (int(changed),digest))
                     receipt.update(status='applied',revision=revision+int(changed))
                 else:
+                    # Upstream refreshes cannot undo a manual content merge.
+                    if row['manual_name']:
+                        name, epg, logo = row['name'], row['epg_id'], row['logo_url']
                     group = row['group_name'] if row['manual_category'] else metadata['group']
                     changed=(name,group,epg,logo)!=(row['name'],row['group_name'],row['epg_id'],row['logo_url'])
                     if changed and not row['blocked'] and not row['deleted']:
@@ -268,6 +286,54 @@ def ingest_events(events, fingerprint, data_dir=None):
             conn.execute('INSERT INTO sync_receipts VALUES(?,?,?)',(reporter,event_id,json.dumps(receipt)))
             receipts.append(receipt)
     return {'schemaVersion':1, 'receipts':receipts}
+
+
+def _merge_event(conn, event, receipt):
+    """Validate all members before writing. Preserve endpoint identity,
+    provenance, retirement and per-network weights.
+    """
+    name, group, merge_id = event.get('name'), event.get('group'), event.get('mergeId')
+    if not all(isinstance(v,str) and 1 <= len(v) <= maximum and
+               v == v.strip() and not any(ord(c)<32 for c in v)
+               for v,maximum in ((name,128),(group,192))):
+        raise ValueError('Invalid merge metadata')
+    if not isinstance(merge_id,str) or not re.fullmatch(r'[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}',merge_id):
+        raise ValueError('Invalid merge ID')
+    epg, logo = event.get('epgId'),event.get('logoUrl')
+    if epg is not None and (not isinstance(epg,str) or len(epg)>128):
+        raise ValueError('Invalid merged EPG')
+    if logo is not None: validate_media_url(logo)
+    members=event.get('routes')
+    if not isinstance(members,list) or not 1 <= len(members) <= 1000:
+        raise ValueError('Invalid merge members')
+    rows={}
+    for member in members:
+        if not isinstance(member,dict): raise ValueError('Invalid merge member')
+        url=validate_media_url(member.get('url'))
+        if url in rows or type(member.get('baseRevision')) is not int:
+            raise ValueError('Duplicate or invalid merge member')
+        row=conn.execute('SELECT * FROM routes WHERE url=?',(url,)).fetchone()
+        if row is None: return {**receipt,'status':'retry'}
+        rows[url]=(row,member['baseRevision'])
+    anchor=validate_media_url(event['url'])
+    if anchor not in rows: raise ValueError('Merge anchor is not a member')
+    revisions=[{'url':url,'revision':row['revision']} for url,(row,_) in rows.items()]
+    if any(row['revision'] != base for row,base in rows.values()):
+        return {**receipt,'status':'conflict','revision':rows[anchor][0]['revision'],'routes':revisions}
+    old_ids={row['merge_id'] for row,_ in rows.values() if row['merge_id']}
+    for old_id in old_ids:
+        if any(row['url'] not in rows for row in conn.execute(
+                'SELECT url FROM routes WHERE merge_id=? AND blocked=0 AND deleted=0',(old_id,))):
+            return {**receipt,'status':'conflict','revision':rows[anchor][0]['revision'],'routes':revisions}
+    for url,(row,_) in rows.items():
+        if row['blocked'] or row['deleted']: continue
+        conn.execute('UPDATE routes SET name=?,group_name=?,epg_id=?,logo_url=?, '
+                     'manual_category=1,manual_name=1,merge_id=?,revision=revision+1 WHERE url=?',
+                     (name,group,epg,logo,merge_id,url))
+    revisions=[{'url':url,'revision':conn.execute('SELECT revision FROM routes WHERE url=?',(url,)).fetchone()[0]}
+               for url in rows]
+    return {**receipt,'status':'applied','revision':next(r['revision'] for r in revisions if r['url']==anchor),
+            'routes':revisions,'mergeId':merge_id}
 
 
 @router.post('/events')

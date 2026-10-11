@@ -1,0 +1,19 @@
+[Unit]
+Description=BobTV local network geography database refresh
+After=network-online.target
+
+[Service]
+Type=oneshot
+User=bobtv
+Group=bobtv
+WorkingDirectory=/opt/bobtv/site
+Environment=BOBTV_DATA_DIR=/var/lib/bobtv
+ExecStart=/opt/bobtv/venv/bin/python update_network_databases.py
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ReadWritePaths=/var/lib/bobtv/network-db
+MemoryMax=256M
+CPUQuota=40%
+TimeoutStartSec=10min

@@ -4,27 +4,20 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/app_diagnostics.dart';
 import '../../data/services/bundled_source_snapshot_service.dart';
-import '../../data/services/github_source_monitor.dart';
-import '../../data/services/github_ai_crawler_service.dart';
 import '../../data/services/source_maintenance_service.dart';
 import '../../data/services/website_channel_catalog_service.dart';
 import '../../data/services/channel_inventory_sync_service.dart';
 import 'provider_manager.dart';
 import '../../data/services/stream_alternatives_service.dart';
+import '../../data/services/regional_route_service.dart';
 
 class SourceMaintenanceCoordinator {
   final ProviderManager manager;
-  GitHubSourceMonitor? _githubMonitor;
   SourceMaintenanceService? _maintenanceService;
-  GitHubAiCrawlerService? _githubAiCrawler;
   BundledSourceSnapshotService? _bundledSourceSnapshot;
   // Source-management tools allocate their HTTP clients only on explicit use.
-  GitHubSourceMonitor get githubMonitor =>
-      _githubMonitor ??= GitHubSourceMonitor(database: manager.database);
   SourceMaintenanceService get maintenanceService => _maintenanceService ??=
       SourceMaintenanceService(database: manager.database);
-  GitHubAiCrawlerService get githubAiCrawler =>
-      _githubAiCrawler ??= GitHubAiCrawlerService(database: manager.database);
   BundledSourceSnapshotService get bundledSourceSnapshot =>
       _bundledSourceSnapshot ??= BundledSourceSnapshotService(
         database: manager.database,
@@ -34,10 +27,9 @@ class SourceMaintenanceCoordinator {
       _inventoryOverride ??
       ChannelInventorySyncService(database: manager.database);
   final ChannelInventorySyncService? _inventoryOverride;
+  final RegionalRouteService? regionalRoutes;
   bool get sourceManagementInitialized =>
-      _githubMonitor != null ||
       _maintenanceService != null ||
-      _githubAiCrawler != null ||
       _bundledSourceSnapshot != null;
 
   Timer? _snapshotTimer;
@@ -51,11 +43,13 @@ class SourceMaintenanceCoordinator {
     required this.manager,
     required this.websiteCatalog,
     ChannelInventorySyncService? inventory,
+    this.regionalRoutes,
   }) : _inventoryOverride = inventory;
 
   void start() {
     if (_started || _disposed) return;
     _started = true;
+    unawaited(regionalRoutes?.initialize() ?? Future<void>.value());
     AppDiagnostics.instance.log('background_work_policy', {
       'globalGithubScanning': false,
       'globalRouteScanning': false,
@@ -90,6 +84,7 @@ class SourceMaintenanceCoordinator {
     if (_changesRunning || _disposed) return;
     _changesRunning = true;
     try {
+      if (pull) await regionalRoutes?.refresh();
       final sent = await inventory.flushEvents();
       if (pull || sent > 0) await websiteCatalog.sync();
       if (pull) await inventory.syncLegacyInventoryOnce();
@@ -141,11 +136,10 @@ class SourceMaintenanceCoordinator {
     _snapshotTimer?.cancel();
     _catalogTimer?.cancel();
     _changesTimer?.cancel();
-    _githubMonitor?.dispose();
     _maintenanceService?.dispose();
-    _githubAiCrawler?.dispose();
     websiteCatalog.dispose();
     inventory.dispose();
+    regionalRoutes?.dispose();
   }
 }
 
@@ -153,13 +147,14 @@ final sourceMaintenanceCoordinatorProvider =
     Provider<SourceMaintenanceCoordinator>((ref) {
       final database = ref.watch(databaseProvider);
       final tracker = ref.read(streamHealthTrackerProvider);
-      tracker.onSharedObservation = (url, success, failure) {
+      final regional = RegionalRouteService(tracker: tracker,
+          onNetworkChanged: (networkId) async {
+            await database.switchAvailabilityNetwork(networkId);
+          });
+      tracker.onRegionalObservation = (url, observation) {
         unawaited(
           database
-              .queueSharedEvent(url, 'health', {
-                'success': success,
-                'failure': failure,
-              })
+              .queueSharedEvent(url, 'health', regional.observation(observation))
               .catchError(
                 (Object error, StackTrace stack) => AppDiagnostics.instance
                     .recordError('queue_shared_health', error, stack),
@@ -168,6 +163,7 @@ final sourceMaintenanceCoordinatorProvider =
       };
       final coordinator = SourceMaintenanceCoordinator(
         manager: ref.watch(providerManagerProvider),
+        regionalRoutes: regional,
         websiteCatalog: WebsiteChannelCatalogService(
           database: database,
           onSharedScores: tracker.setSharedScores,
@@ -175,7 +171,7 @@ final sourceMaintenanceCoordinatorProvider =
       );
       coordinator.start();
       ref.onDispose(() {
-        tracker.onSharedObservation = null;
+        tracker.onRegionalObservation = null;
         coordinator.dispose();
       });
       return coordinator;

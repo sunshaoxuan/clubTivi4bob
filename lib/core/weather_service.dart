@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'server_egress.dart';
 
 const weatherZipKey = 'weather_zipcode';
 const weatherCityKey = 'weather_city_name';
@@ -39,9 +40,12 @@ String _weatherCodeToIcon(int code) {
 /// Returns {lat, lon, city} or null on failure.
 Future<Map<String, dynamic>?> geocodeZipcode(String zip) async {
   try {
-    final resp = await http.get(Uri.parse(
-      'https://geocoding-api.open-meteo.com/v1/search?name=$zip&count=1&language=en&format=json',
-    ));
+    final resp = await http.get(
+      ServerEgress.resourceUri(
+        'https://geocoding-api.open-meteo.com/v1/search?name=$zip&count=1&language=en&format=json',
+        'weather',
+      ),
+    );
     if (resp.statusCode != 200) return null;
     final data = jsonDecode(resp.body);
     final results = data['results'] as List?;
@@ -86,7 +90,9 @@ class WeatherNotifier extends StateNotifier<WeatherData?> {
 
       // Fallback to IP-based geolocation
       if (lat == null || lon == null) {
-        final locResp = await http.get(Uri.parse('https://ipapi.co/json/'));
+        final locResp = await http.get(
+          Uri.parse('${ServerEgress.origin}/api/v1/egress/weather-location'),
+        );
         if (locResp.statusCode != 200) return;
         final loc = jsonDecode(locResp.body);
         lat = (loc['latitude'] as num).toDouble();
@@ -101,12 +107,15 @@ class WeatherNotifier extends StateNotifier<WeatherData?> {
         }
       }
 
-      final wxResp = await http.get(Uri.parse(
-        'https://api.open-meteo.com/v1/forecast'
-        '?latitude=$lat&longitude=$lon'
-        '&current=temperature_2m,weather_code'
-        '&temperature_unit=fahrenheit',
-      ));
+      final wxResp = await http.get(
+        ServerEgress.resourceUri(
+          'https://api.open-meteo.com/v1/forecast'
+              '?latitude=$lat&longitude=$lon'
+              '&current=temperature_2m,weather_code'
+              '&temperature_unit=fahrenheit',
+          'weather',
+        ),
+      );
       if (wxResp.statusCode != 200) return;
       final wx = jsonDecode(wxResp.body);
       final current = wx['current'];
@@ -129,7 +138,8 @@ class WeatherNotifier extends StateNotifier<WeatherData?> {
   }
 }
 
-final weatherProvider =
-    StateNotifierProvider<WeatherNotifier, WeatherData?>((ref) {
+final weatherProvider = StateNotifierProvider<WeatherNotifier, WeatherData?>((
+  ref,
+) {
   return WeatherNotifier();
 });

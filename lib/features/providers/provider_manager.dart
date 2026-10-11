@@ -1,3 +1,4 @@
+import '../../core/server_egress.dart';
 import 'package:drift/drift.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -139,7 +140,12 @@ class ProviderManager {
   }
 
   Future<List<Channel>> _refreshM3u(db.Provider provider) async {
-    final dio = Dio();
+    final host = Uri.tryParse(provider.url ?? '')?.host.toLowerCase() ?? '';
+    if (host == 'github.com' || host == 'raw.githubusercontent.com' ||
+        host == 'api.github.com' || host.endsWith('.github.io')) {
+      throw StateError('GitHub 公共线路由服务器统一刷新，请使用公共频道库；已有频道会保留');
+    }
+    final dio = ServerEgress.dio(BaseOptions(extra: {'egressKind': 'playlist'}));
     try {
       final response = await dio.get<String>(provider.url!);
       final result = _m3uParser.parse(response.data!, providerId: provider.id);

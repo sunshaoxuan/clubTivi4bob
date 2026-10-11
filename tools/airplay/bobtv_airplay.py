@@ -14,6 +14,7 @@ from pyatv.const import PairingRequirement, Protocol
 from pyatv.protocols.airplay.utils import AirPlayFlags, parse_features
 from pyatv.storage.file_storage import FileStorage
 from video_relay import VideoRelay
+from egress_policy import server_or_local_url
 import mac_sender
 from transport_cleanup import install as install_transport_cleanup
 
@@ -78,6 +79,7 @@ def video_capable(service):
 
 
 def validate_url(url, allow_loopback=False):
+    server_or_local_url(url)
     parsed = urlsplit(url)
     if parsed.scheme not in ('http', 'https') or not parsed.hostname:
         raise ValueError('Only HTTP(S) video URLs are supported')

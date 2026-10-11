@@ -49,6 +49,8 @@ class StreamAlternativesService {
 
   /// All channels cached for fuzzy fallback.
   List<Channel> _allChannels = [];
+  Map<String, String> _mergeIds = {};
+  final Map<String, List<Channel>> _mergeIndex = {};
   final Set<String> _hiddenProviderIds = {};
   bool _hideIpv6Sources = false;
 
@@ -92,6 +94,8 @@ class StreamAlternativesService {
       channels.map((channel) => channel.id).toSet(),
     );
     _allChannels = channels.map(_dbToChannel).toList();
+    _mergeIds = await _db.channelMergeIds(channels.map((c) => c.streamUrl));
+    _mergeIndex.clear();
 
     // Build provider name cache and identify IPv6 playlist providers.
     final ipv6ProviderIds = <String>{};
@@ -132,6 +136,10 @@ class StreamAlternativesService {
     for (final ch in _allChannels) {
       if (ch.streamUrl.isEmpty) continue;
       if (_shouldHideChannel(ch)) continue;
+      final mergeId = _mergeIds[ch.streamUrl];
+      if (mergeId != null) {
+        _mergeIndex.putIfAbsent(mergeId, () => []).add(ch);
+      }
       if (_hasInvalidStreamMetadata(ch)) continue;
 
       // 1. Vanity name index (user-confirmed grouping — highest trust)
@@ -209,6 +217,14 @@ class StreamAlternativesService {
     String? originalName,
     required String excludeUrl,
   }) {
+    final merged = _mergeIds[excludeUrl];
+    if (merged != null) {
+      final routes = (_mergeIndex[merged] ?? [])
+          .where((c) => !_shouldHideChannel(c) && c.streamUrl != excludeUrl)
+          .map((c) => c.streamUrl)
+          .toSet();
+      return _health.rankUrls(routes.toList()).map((e) => e.key).toList();
+    }
     final seen = <String>{excludeUrl};
     final results = <String>[];
     final requestedSportsService =

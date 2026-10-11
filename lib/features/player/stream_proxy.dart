@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
+import '../../core/server_egress.dart';
 
 /// Proxies an MPEG-TS stream through system ffmpeg to fix codec detection.
 ///
@@ -53,7 +54,7 @@ class StreamProxy {
         '-reconnect_delay_max',
         '5',
         '-i',
-        remoteUrl,
+        ServerEgress.mediaUrl(remoteUrl),
         '-c',
         'copy',
         '-f',

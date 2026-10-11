@@ -212,6 +212,48 @@ class BobTvApiClient {
     return receipt['accepted'] as int;
   }
 
+  Future<Map<String, dynamic>> fetchNetworkProfile() async {
+    final response = await _request(
+      'GET',
+      '/api/v1/channel-catalog/network-profile',
+      maxBytes: 4096,
+    );
+    if (response.status != 200)
+      throw BobTvApiException(
+        'network_profile_http_status',
+        statusCode: response.status,
+      );
+    final result = jsonDecode(utf8.decode(response.body));
+    if (result is! Map<String, dynamic>)
+      throw const FormatException('Invalid network profile');
+    return result;
+  }
+
+  Future<Map<String, dynamic>> rankRegionalRoutes(List<String> urls) async {
+    if (urls.isEmpty ||
+        urls.length > 200 ||
+        urls.any((url) => !isPublicCatalogUrl(url))) {
+      throw const FormatException('Invalid regional candidates');
+    }
+    final response = await _request(
+      'POST',
+      '/api/v1/channel-catalog/rank',
+      contentType: 'application/json',
+      body: utf8.encode(jsonEncode({'schemaVersion': 1, 'urls': urls,
+        'transport': 'server-relay'})),
+      maxBytes: 1024 * 1024,
+    );
+    if (response.status != 200)
+      throw BobTvApiException(
+        'regional_ranking_http_status',
+        statusCode: response.status,
+      );
+    final result = jsonDecode(utf8.decode(response.body));
+    if (result is! Map<String, dynamic> || result['schemaVersion'] != 1)
+      throw const FormatException('Invalid regional rankings');
+    return result;
+  }
+
   Future<List<Map<String, dynamic>>> uploadChannelEvents({
     required String fingerprint,
     required List<Map<String, Object?>> events,
@@ -631,6 +673,7 @@ class BobTvApiClient {
         .openUrl(method, _uri(path))
         .timeout(const Duration(seconds: 10));
     request.followRedirects = false;
+    request.headers.set(HttpHeaders.userAgentHeader, 'BobTV/1.0');
     request.headers.set(HttpHeaders.acceptHeader, 'application/json');
     if (contentType != null)
       request.headers.set(HttpHeaders.contentTypeHeader, contentType);

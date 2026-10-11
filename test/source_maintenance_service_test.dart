@@ -1,7 +1,55 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:clubtivi/data/services/source_maintenance_service.dart';
+import 'package:clubtivi/data/datasources/local/database.dart' as db;
+import 'package:drift/native.dart';
+import 'package:drift/drift.dart' show Value;
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+  test(
+    'local network retirement never deletes a shared public route',
+    () async {
+      final database = db.AppDatabase.forTesting(NativeDatabase.memory());
+      final service = SourceMaintenanceService(database: database);
+      try {
+        await database.upsertProvider(
+          db.ProvidersCompanion.insert(
+            id: 'bobtv-channel-catalog',
+            name: 'Public',
+            type: 'm3u',
+          ),
+        );
+        await database.upsertChannels([
+          db.ChannelsCompanion.insert(
+            id: 'news',
+            providerId: 'bobtv-channel-catalog',
+            name: 'News',
+            streamUrl: 'https://media.example.org/news.m3u8',
+          ),
+        ]);
+        await database.upsertStreamChecks([
+          db.StreamChecksCompanion.insert(
+            streamUrl: 'https://media.example.org/news.m3u8',
+            providerId: 'bobtv-channel-catalog',
+            channelId: 'news',
+            retired: const Value(true),
+            consecutiveFailures: const Value(5),
+          ),
+        ]);
+        await service.run();
+        expect(await database.getAllChannels(), hasLength(1));
+        expect(
+          (await database.pendingSharedEvents()).where(
+            (e) => e['kind'] == 'delete',
+          ),
+          isEmpty,
+        );
+      } finally {
+        service.dispose();
+        await database.close();
+      }
+    },
+  );
   group('SourceMaintenancePolicy', () {
     final now = DateTime.utc(2026, 7, 19, 12);
 

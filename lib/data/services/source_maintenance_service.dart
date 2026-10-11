@@ -1,3 +1,4 @@
+import '../../core/server_egress.dart';
 import 'dart:async';
 
 import 'package:dio/dio.dart';
@@ -5,6 +6,7 @@ import 'package:drift/drift.dart';
 
 import '../../core/app_diagnostics.dart';
 import '../datasources/local/database.dart' as db;
+import 'public_inventory_policy.dart';
 
 class StreamCheckDecision {
   final int consecutiveFailures;
@@ -64,11 +66,12 @@ class SourceMaintenanceService {
   SourceMaintenanceService({required this.database, Dio? dio})
     : _dio =
           dio ??
-          Dio(
+          ServerEgress.dio(
             BaseOptions(
+              extra: {'egressKind': 'media'},
               connectTimeout: const Duration(seconds: 6),
               receiveTimeout: const Duration(seconds: 6),
-              followRedirects: true,
+              followRedirects: false,
               maxRedirects: 4,
               responseType: ResponseType.stream,
               headers: const {'User-Agent': 'HotelTV/0.5'},
@@ -82,7 +85,24 @@ class SourceMaintenanceService {
   Future<void> run() async {
     final now = DateTime.now();
     final checkBefore = now.subtract(checkInterval);
-    final previouslyRetiredIds = await database.getRetiredChannelIds();
+    final publicProviders = {
+      for (final provider in await database.getAllProviders())
+        if (isSharedInventoryProvider(
+          id: provider.id,
+          type: provider.type,
+          url: provider.url,
+          username: provider.username,
+          password: provider.password,
+        ))
+          provider.id,
+    };
+    final retired = await database.getChannelsByIds(
+      await database.getRetiredChannelIds(),
+    );
+    final previouslyRetiredIds = {
+      for (final channel in retired)
+        if (!publicProviders.contains(channel.providerId)) channel.id,
+    };
     final previouslyDeleted = await database.deleteChannelsByIds(
       previouslyRetiredIds,
     );
@@ -148,7 +168,9 @@ class SourceMaintenanceService {
           retired: Value(decision.retired),
         ),
       );
-      if (decision.retired && !(saved?.retired ?? false)) {
+      if (decision.retired &&
+          !(saved?.retired ?? false) &&
+          !publicProviders.contains(channel.providerId)) {
         retiredRoutes++;
         retiredChannelIds.addAll(entry.value.map((item) => item.id));
       }
@@ -190,13 +212,19 @@ class SourceMaintenanceService {
       }
       final body = response.data;
       if (body == null) return false;
-      final contentType = response.headers.value(Headers.contentTypeHeader) ?? '';
-      var playlist = uri.path.toLowerCase().endsWith('.m3u8') ||
+      final contentType =
+          response.headers.value(Headers.contentTypeHeader) ?? '';
+      var playlist =
+          uri.path.toLowerCase().endsWith('.m3u8') ||
           contentType.toLowerCase().contains('mpegurl');
       final prefix = <int>[];
-      await for (final chunk in body.stream.timeout(const Duration(seconds: 6))) {
+      await for (final chunk in body.stream.timeout(
+        const Duration(seconds: 6),
+      )) {
         if (prefix.isEmpty) {
-          playlist = playlist || String.fromCharCodes(chunk.take(16)).startsWith('#EXTM3U');
+          playlist =
+              playlist ||
+              String.fromCharCodes(chunk.take(16)).startsWith('#EXTM3U');
         }
         prefix.addAll(chunk);
         if (!playlist || prefix.length >= 65536) break;
@@ -213,8 +241,10 @@ class SourceMaintenanceService {
           }
         }
         if (mediaPath == null) return false;
-        return _probe(uri.resolve(mediaPath).toString(),
-            playlistDepth: playlistDepth + 1);
+        return _probe(
+          uri.resolve(mediaPath).toString(),
+          playlistDepth: playlistDepth + 1,
+        );
       }
       return prefix.isNotEmpty && !_looksLikeWebDocument(prefix);
     } on DioException catch (error) {

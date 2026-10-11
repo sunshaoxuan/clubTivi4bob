@@ -4,18 +4,21 @@ import 'dart:io';
 import 'package:window_manager/window_manager.dart';
 
 import 'desktop_fullscreen_session.dart';
+import 'windows_window_chrome.dart';
 import '../../core/app_diagnostics.dart';
 
 /// Cocoa completes fullscreen through native events or verified native state.
 /// Windows/Linux keep their explicit titlebar and geometry restoration.
 class WindowManagerFullscreenBackend extends WindowListener
     implements FullscreenWindowBackend {
-  WindowManagerFullscreenBackend({bool? isMacOS})
-    : _isMacOS = isMacOS ?? Platform.isMacOS {
+  WindowManagerFullscreenBackend({bool? isMacOS, bool? isWindows})
+    : _isMacOS = isMacOS ?? Platform.isMacOS,
+      _isWindows = isWindows ?? Platform.isWindows {
     windowManager.addListener(this);
   }
 
   final bool _isMacOS;
+  final bool _isWindows;
   final _changes = StreamController<bool>.broadcast(sync: true);
   Completer<void>? _transition;
   bool? _transitionTarget;
@@ -25,20 +28,35 @@ class WindowManagerFullscreenBackend extends WindowListener
   Stream<bool> get fullscreenChanges => _changes.stream;
 
   @override
-  Future<FullscreenWindowSnapshot> capture() async => FullscreenWindowSnapshot(
-    bounds: await windowManager.getBounds(),
-    maximized: await windowManager.isMaximized(),
-    alwaysOnTop: await windowManager.isAlwaysOnTop(),
-    wasFullscreen: await windowManager.isFullScreen(),
-  );
+  Future<FullscreenWindowSnapshot> capture() async {
+    final fullscreen = await windowManager.isFullScreen();
+    return FullscreenWindowSnapshot(
+      bounds: await windowManager.getBounds(),
+      maximized: await windowManager.isMaximized(),
+      alwaysOnTop: await windowManager.isAlwaysOnTop(),
+      wasFullscreen: fullscreen,
+      resizable: _isWindows ? await windowManager.isResizable() : true,
+      // The Windows plugin temporarily removes WS_MAXIMIZEBOX in fullscreen.
+      // It must not become the saved normal-window capability on re-entry.
+      maximizable: _isWindows && !fullscreen
+          ? await windowManager.isMaximizable()
+          : true,
+    );
+  }
 
   @override
   Future<bool> isFullscreen() => windowManager.isFullScreen();
 
   @override
   Future<void> prepareEntry() async {
-    // Native fullscreen owns temporary chrome suppression. Preserve the normal
-    // titlebar style so leaving fullscreen restores usable window controls.
+    // Cocoa owns titlebar suppression. Windows' native plugin only removes the
+    // caption from an already-maximized window when this style is hidden.
+    if (_isWindows) {
+      await windowManager.setTitleBarStyle(
+        TitleBarStyle.hidden,
+        windowButtonVisibility: false,
+      );
+    }
   }
 
   @override
@@ -62,6 +80,14 @@ class WindowManagerFullscreenBackend extends WindowListener
         _transition = null;
         _transitionTarget = null;
       }
+    }
+    if (_isWindows) {
+      if (await isFullscreen() != value) {
+        throw StateError('Windows fullscreen state did not reach $value');
+      }
+      // Windows omits fullscreen notifications for some normal/maximized
+      // placements. A verified method result still completes this session.
+      _completed(value);
     }
     if (value) {
       // A user may have exited natively while the method reply was pending.
@@ -121,7 +147,15 @@ class WindowManagerFullscreenBackend extends WindowListener
       }
       return;
     }
-    await windowManager.setTitleBarStyle(TitleBarStyle.normal);
+    if (_isWindows) {
+      await restoreWindowsWindowChrome(
+        resizable: snapshot.resizable,
+        maximizable: snapshot.maximizable,
+      );
+    } else {
+      await windowManager.setTitleBarStyle(TitleBarStyle.normal);
+    }
+    if (_isWindows && snapshot.wasFullscreen) return;
     // Never unminimize or resize a window that the user sent to the taskbar.
     if (await windowManager.isMinimized()) return;
     if (snapshot.maximized) {

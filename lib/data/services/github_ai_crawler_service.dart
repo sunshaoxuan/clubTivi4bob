@@ -1,3 +1,4 @@
+import '../../core/server_egress.dart';
 import 'dart:collection';
 import 'dart:convert';
 import 'dart:io';
@@ -130,7 +131,7 @@ class GitHubAiCrawlerService {
   }) : config = config ?? OpenAiRuntimeConfig.fromEnvironment(),
        _github =
            githubDio ??
-           Dio(
+           ServerEgress.dio(
              BaseOptions(
                baseUrl: 'https://api.github.com',
                connectTimeout: const Duration(seconds: 10),
@@ -144,7 +145,7 @@ class GitHubAiCrawlerService {
            ),
        _openAi =
            openAiDio ??
-           Dio(
+           ServerEgress.dio(
              BaseOptions(
                baseUrl: _normalizedBaseUrl(
                  config ?? OpenAiRuntimeConfig.fromEnvironment(),

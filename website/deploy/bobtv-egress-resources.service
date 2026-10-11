@@ -1,0 +1,19 @@
+[Unit]
+Description=BobTV server auxiliary resources
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=bobtv
+Group=bobtv
+WorkingDirectory=/opt/bobtv/site
+Environment=BOBTV_DATA_DIR=/var/lib/bobtv
+ExecStart=/opt/bobtv/venv/bin/python /opt/bobtv/site/refresh_egress_resources.py
+TimeoutStartSec=180
+MemoryMax=128M
+CPUQuota=40%
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/bobtv

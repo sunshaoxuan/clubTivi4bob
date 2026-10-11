@@ -77,6 +77,7 @@ class ChannelInventorySyncService {
   Future<int> _flushEvents() async {
     if (_disposed) return 0;
     var acknowledged = 0;
+    var mergeConflict = false;
     try {
       await database.migrateLegacySharedEdits();
       if (fingerprintOverride == null)
@@ -93,6 +94,11 @@ class ChannelInventorySyncService {
         if (pending.isEmpty) break;
         final batch = <Map<String, Object?>>[];
         for (final row in pending) {
+          // A merge has a multi-route revision vector. Serialize it after
+          // earlier metadata and before another merge, then re-read the queue.
+          if (batch.any((e) => e['kind'] == 'merge') ||
+              (row['kind'] == 'merge' && batch.isNotEmpty))
+            break;
           final url = row['url'] as String;
           if (row['kind'] == 'classify' &&
               batch.any((e) => e['url'] == url && e['kind'] == 'upsert'))
@@ -157,10 +163,38 @@ class ChannelInventorySyncService {
             throw const FormatException('Invalid sync event receipt');
           final event = matches.single;
           if (receipt['status'] == 'retry') continue;
+          if (event['kind'] == 'merge') {
+            final expected = {
+              for (final route in event['routes'] as List)
+                route['url'] as String,
+            };
+            final routes = receipt['routes'];
+            if (receipt['status'] == 'applied' ||
+                receipt['status'] == 'conflict') {
+              if (routes is! List ||
+                  routes.length != expected.length ||
+                  routes.any(
+                    (r) =>
+                        r is! Map ||
+                        !expected.contains(r['url']) ||
+                        r['revision'] is! int ||
+                        (r['revision'] as int) < 0,
+                  ) ||
+                  routes.map((r) => r['url']).toSet().length !=
+                      expected.length) {
+                throw const FormatException('Invalid merge receipt');
+              }
+            }
+          }
           await database.transaction(() async {
             if (receipt['status'] == 'applied' &&
                 (event['kind'] == 'classify' || event['kind'] == 'upsert')) {
               await database.advanceQueuedCategoryRevision(
+                event['url'] as String,
+                event['baseRevision'] as int,
+                receipt['revision'] as int,
+              );
+              await database.advanceQueuedMergeRevision(
                 event['url'] as String,
                 event['baseRevision'] as int,
                 receipt['revision'] as int,
@@ -170,6 +204,36 @@ class ChannelInventorySyncService {
               event['url'] as String,
               receipt['revision'] as int,
             );
+            if (event['kind'] == 'merge') {
+              for (final route in receipt['routes'] as List? ?? []) {
+                await database.setSharedRouteState(
+                  route['url'] as String,
+                  route['revision'] as int,
+                );
+                if (receipt['status'] == 'applied') {
+                  final original = (event['routes'] as List).firstWhere(
+                    (r) => r['url'] == route['url'],
+                  );
+                  await database.advanceQueuedMergeRevision(
+                    route['url'] as String,
+                    original['baseRevision'] as int,
+                    route['revision'] as int,
+                  );
+                }
+              }
+              if (receipt['status'] != 'applied') {
+                mergeConflict = true;
+                for (final route in event['routes'] as List) {
+                  await database.customStatement(
+                    'DELETE FROM channel_merge_overrides WHERE url=?',
+                    [route['url']],
+                  );
+                }
+                final prefs = await SharedPreferences.getInstance();
+                await prefs.remove('bobtv_website_catalog_version_v1');
+                await database.setSharedCatalogVersion(null);
+              }
+            }
             await database.acknowledgeSharedEvent(event['id'] as String);
           });
           if (receipt['status'] != 'applied')
@@ -185,10 +249,14 @@ class ChannelInventorySyncService {
       final stillPending = (await database.pendingSharedEvents()).isNotEmpty;
       if (!_disposed)
         state.value = WebsiteCatalogProgress(
-          phase: stillPending ? '同步待重试，本机修改已保存' : '频道变更已同步',
+          phase: mergeConflict
+              ? '合并未同步，公共库已变化，请重新选择'
+              : stillPending
+              ? '同步待重试，本机修改已保存'
+              : '频道变更已同步',
           imported: acknowledged,
           complete: !stillPending,
-          error: stillPending,
+          error: stillPending || mergeConflict,
         );
     } catch (error, stack) {
       if (!_disposed)

@@ -1,3 +1,4 @@
+import '../../../core/server_egress.dart';
 import 'package:dio/dio.dart';
 
 /// Searches for torrent hashes by IMDB ID using the Torrentio addon API
@@ -8,7 +9,7 @@ class TorrentSearchClient {
 
   static const _torrentioBase = 'https://torrentio.strem.fun';
 
-  TorrentSearchClient({Dio? dio}) : _dio = dio ?? Dio() {
+  TorrentSearchClient({Dio? dio}) : _dio = dio ?? ServerEgress.dio() {
     _dio.options
       ..connectTimeout = const Duration(seconds: 10)
       ..receiveTimeout = const Duration(seconds: 15);

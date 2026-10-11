@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'package:clubtivi/data/services/server_task_client.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -12,6 +13,11 @@ import 'package:clubtivi/features/settings/debrid_services_screen.dart';
 import 'package:clubtivi/features/providers/provider_manager.dart';
 import 'package:clubtivi/data/datasources/local/database.dart';
 import 'package:drift/native.dart';
+
+class _ServerStatus extends ServerTaskClient {
+  @override
+  Future<Map<String, dynamic>> status() async => {'aiAvailable': true};
+}
 
 class _RetainedForm extends StatefulWidget {
   const _RetainedForm({required this.onMount});
@@ -47,25 +53,16 @@ void main() {
       return database;
     }),
   ];
-  testWidgets('AI detail saves safely and masks the key', (tester) async {
-    SharedPreferences.setMockInitialValues({'bobtv_ai_enabled_v1': false});
-    FlutterSecureStorage.setMockInitialValues({});
-    await tester.pumpWidget(const MaterialApp(home: AiConfigurationScreen()));
-    await tester.pumpAndSettle();
-    final fields = find.byType(TextField);
-    expect(fields, findsNWidgets(3));
-    await tester.enterText(fields.at(0), 'https://example.com/v1');
-    await tester.enterText(fields.at(1), 'test-model');
-    await tester.enterText(fields.at(2), 'dummy-test-key');
-    expect(tester.widget<TextField>(fields.at(2)).obscureText, isTrue);
-    await tester.ensureVisible(find.text('保存设置'));
-    await tester.tap(find.text('保存设置'));
-    await tester.pumpAndSettle();
-    expect(
-      (await SharedPreferences.getInstance()).getString('bobtv_ai_model_v1'),
-      'test-model',
+  testWidgets('AI detail shows server state without credential inputs', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(home: AiConfigurationScreen(client: _ServerStatus())),
     );
-    expect(find.text('dummy-test-key'), findsNothing);
+    await tester.pumpAndSettle();
+    expect(find.byType(TextField), findsNothing);
+    expect(find.text('服务器 AI 已就绪'), findsOneWidget);
+    expect(find.text('刷新服务状态'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 

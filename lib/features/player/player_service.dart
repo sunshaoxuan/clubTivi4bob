@@ -8,6 +8,7 @@ import 'package:media_kit/src/player/native/player/real.dart' as native_player;
 import 'package:media_kit_video/media_kit_video.dart';
 
 import '../../core/app_diagnostics.dart';
+import '../../core/server_egress.dart';
 import 'adaptive_buffer.dart';
 import 'prepared_channel_commit_gate.dart';
 import 'playback_stall_detector.dart';
@@ -638,6 +639,8 @@ class PlayerService {
         excludeUrl: url,
       ));
     }
+    await _healthTracker?.prepare(candidateUrls);
+    if (request != _channelSwitchGeneration) return false;
     final candidates = _rankCandidateUrls(
       candidateUrls.where((route) => route.isNotEmpty &&
           (!preferRequestedRoute || route != _currentUrl)),
@@ -697,7 +700,7 @@ class PlayerService {
           }
           await candidate.setVolume(0);
           final controller = _createVideoController(candidate);
-          await candidate.open(Media(candidateUrl))
+          await candidate.open(Media(ServerEgress.mediaUrl(candidateUrl)))
               .timeout(const Duration(seconds: 6));
           final ready = await _waitForPreparedChannel(
             candidate,
@@ -1034,7 +1037,7 @@ class PlayerService {
       }
       await candidate.setVolume(0);
       _createVideoController(candidate);
-      await candidate.open(Media(url)).timeout(const Duration(seconds: 6));
+      await candidate.open(Media(ServerEgress.mediaUrl(url))).timeout(const Duration(seconds: 6));
       return await _waitForPreparedChannel(
         candidate,
         null,
@@ -1317,7 +1320,7 @@ class PlayerService {
       'changedFromRequested': selectedUrl != url,
     });
     final opened = await _runPlayStep(
-      player.open(Media(activeUrl)),
+      player.open(Media(ServerEgress.mediaUrl(activeUrl))),
       generation: playGeneration,
       step: 'open_media',
       timeout: const Duration(seconds: 5),
@@ -1374,7 +1377,7 @@ class PlayerService {
           'restoredStream': AppDiagnostics.summarizeStreamUrl(activeUrl),
         });
         final restored = await _runPlayStep(
-          player.open(Media(activeUrl)),
+          player.open(Media(ServerEgress.mediaUrl(activeUrl))),
           generation: playGeneration,
           step: 'restore_requested_media',
           timeout: const Duration(seconds: 5),
@@ -1710,6 +1713,9 @@ class PlayerService {
   /// Tests a small, bounded set of equivalent streams in parallel and returns
   /// the quickest usable route. The original URL remains the fallback.
   Future<String> _selectFastestStream(String originalUrl) async {
+    final generation = _playGeneration;
+    await _healthTracker?.prepare([originalUrl, ..._getFailoverAlternatives()]);
+    if (generation != _playGeneration) return originalUrl;
     final candidates = <String>[originalUrl];
     for (final url in _getFailoverAlternatives()) {
       if (_failedFailoverUrls.contains(url)) continue;
@@ -1764,9 +1770,9 @@ class PlayerService {
     final prefix = <int>[];
     try {
       final request = await client
-          .getUrl(uri)
+          .getUrl(ServerEgress.resourceUri(url, 'media'))
           .timeout(const Duration(milliseconds: 1400));
-      request.followRedirects = true;
+      request.followRedirects = false;
       request.maxRedirects = 4;
       request.headers.set('Range', 'bytes=0-65535');
       request.headers.set('User-Agent', 'HotelTV/0.4');
@@ -1777,7 +1783,7 @@ class PlayerService {
       final contentType = response.headers.contentType?.mimeType.toLowerCase() ?? '';
       if (contentType.contains('text/html') ||
           contentType.contains('application/json') ||
-          contentType.contains('text/xml')) {
+          (contentType.contains('text/xml') && !contentType.contains('dash+xml'))) {
         statusOk = false;
       }
       if (!statusOk) {
@@ -1829,7 +1835,8 @@ class PlayerService {
   static bool looksLikeMediaPrefix(List<int> bytes) {
     if (bytes.isEmpty) return false;
     final text = String.fromCharCodes(bytes.take(16));
-    if (text.startsWith('#EXTM3U') || text.startsWith('FLV') ||
+    if (text.startsWith('#EXTM3U') || text.startsWith('<?xml') ||
+        text.startsWith('<MPD') || text.startsWith('FLV') ||
         text.startsWith('ID3') || text.startsWith('OggS')) return true;
     if (bytes[0] == 0x47) return true;
     if (bytes.length >= 8 &&
@@ -1895,7 +1902,7 @@ class PlayerService {
       await _streamProxy.stop();
       return;
     }
-    await player.open(Media(proxyUrl));
+    await player.open(Media(ServerEgress.mediaUrl(proxyUrl)));
     if (playGeneration != _playGeneration || _currentUrl != originalUrl) {
       if (_currentUrl == originalUrl) await player.stop();
       await _streamProxy.stop();
@@ -2237,7 +2244,7 @@ class PlayerService {
         }
         await candidate.setVolume(0);
         final controller = _createVideoController(candidate);
-        await candidate.open(Media(url)).timeout(const Duration(seconds: 6));
+        await candidate.open(Media(ServerEgress.mediaUrl(url))).timeout(const Duration(seconds: 6));
         final ready = await _waitForPreparedChannel(
           candidate, null,
           allowAudioOnly: false,
@@ -2626,7 +2633,7 @@ class PlayerService {
       }
       if (_warmGeneration != generation || _warmPlayer != warmPlayer) return;
       openStarted = true;
-      await warmPlayer.open(Media(warmUrl));
+      await warmPlayer.open(Media(ServerEgress.mediaUrl(warmUrl)));
     }
 
     var setupFailed = false;
@@ -2842,7 +2849,7 @@ class PlayerService {
       );
       if (playGeneration != _playGeneration) return false;
       final opened = await _runPlayStep(
-        player.open(Media(candidateUrl)),
+        player.open(Media(ServerEgress.mediaUrl(candidateUrl))),
         generation: playGeneration,
         step: 'failover_open_media',
         timeout: const Duration(seconds: 5),
@@ -2905,7 +2912,7 @@ class PlayerService {
     );
     if (playGeneration != _playGeneration) return;
     final restored = await _runPlayStep(
-      player.open(Media(previousUrl)),
+      player.open(Media(ServerEgress.mediaUrl(previousUrl))),
       generation: playGeneration,
       step: 'failover_restore_media',
       timeout: const Duration(seconds: 5),

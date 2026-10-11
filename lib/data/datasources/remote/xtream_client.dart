@@ -1,3 +1,4 @@
+import '../../../core/server_egress.dart';
 import 'package:dio/dio.dart';
 import '../../models/channel.dart';
 
@@ -17,7 +18,7 @@ class XtreamClient {
     required this.username,
     required this.password,
     Dio? dio,
-  }) : _dio = dio ?? Dio() {
+  }) : _dio = dio ?? ServerEgress.dio() {
     _dio.options
       ..connectTimeout = const Duration(seconds: 10)
       ..receiveTimeout = const Duration(seconds: 30);

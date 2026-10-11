@@ -7,14 +7,19 @@ import 'package:flutter_test/flutter_test.dart';
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   final calls = <MethodCall>[];
+  var fullscreen = true;
   setUp(() {
     calls.clear();
+    fullscreen = true;
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(const MethodChannel('window_manager'), (
           call,
         ) async {
           calls.add(call);
-          return call.method == 'isFullScreen' ? true : null;
+          if (call.method == 'setFullScreen') {
+            fullscreen = (call.arguments as Map)['isFullScreen'] as bool;
+          }
+          return call.method == 'isFullScreen' ? fullscreen : null;
         });
   });
   tearDown(() {
@@ -68,8 +73,43 @@ void main() {
       isTrue,
     );
     expect(calls.any((call) => call.method == 'close'), isFalse);
+    expect(
+      calls.where((call) => call.method == 'setMaximizable').single.arguments,
+      {'isMaximizable': true},
+    );
+    expect(
+      calls.where((call) => call.method == 'setResizable').single.arguments,
+      {'isResizable': true},
+    );
+    expect(find.byTooltip('恢复窗口'), findsNothing);
     await tester.pumpWidget(const SizedBox());
   });
+
+  testWidgets(
+    'Resize discovers fullscreen when native enter event is missing',
+    (tester) async {
+      fullscreen = false;
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: WindowsFullscreenControls(enabled: true, child: Scaffold()),
+        ),
+      );
+      await tester.pump();
+      expect(find.byTooltip('关闭 BobTV'), findsNothing);
+      fullscreen = true;
+      final dynamic state = tester.state(
+        find.byType(WindowsFullscreenControls),
+      );
+      state.onWindowResize();
+      await tester.pumpAndSettle();
+      expect(find.byTooltip('恢复窗口'), findsOneWidget);
+      fullscreen = false;
+      state.onWindowFocus();
+      await tester.pumpAndSettle();
+      expect(find.byTooltip('恢复窗口'), findsNothing);
+      await tester.pumpWidget(const SizedBox());
+    },
+  );
   testWidgets('Native Mac chrome is left untouched', (tester) async {
     await tester.pumpWidget(
       const MaterialApp(

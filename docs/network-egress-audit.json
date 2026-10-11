@@ -1,0 +1,45 @@
+{
+  "schemaVersion": 1,
+  "publicClientOrigin": "https://bobtv.briconbric.com",
+  "clientRuntimeGuard": "lib/core/server_egress.dart",
+  "serverGateway": "website/egress_gateway.py",
+  "coveredPaths": [
+    "main playback", "card preview", "warm failover", "byte-range probes",
+    "multi-view", "recording", "ffmpeg codec bridge", "AirPlay/DLNA/WebOS media",
+    "channel logos", "EPG icons", "XMLTV", "TMDB posters/backdrops",
+    "TMDB/Trakt/debrid metadata", "weather", "source refresh", "AI tasks",
+    "Windows/macOS update feeds and downloads"
+  ],
+  "hls": ["variants", "segments", "audio", "subtitles", "keys", "maps", "LL-HLS hints"],
+  "dash": ["clear SegmentTemplate", "SegmentList", "SegmentBase", "inherited BaseURL"],
+  "failClosed": [
+    "unreviewed public resources", "arbitrary private-account providers",
+    "client GitHub crawling", "client AI endpoint calls",
+    "RTSP/UDP internet playback", "DRM", "manifest steering/XLink"
+  ],
+  "intentionalLocalExceptions": [
+    "loopback codec bridge", "LAN cast/control", "local recordings"
+  ],
+  "explicitExternalNavigation": "User-initiated external-browser links are outside the background fetch policy.",
+  "upstreamProtection": [
+    "approved route identity", "global tombstones", "DNS-pinned public sockets",
+    "normal TLS verification", "signed child URLs", "bounded concurrency",
+    "request/manifest byte budgets", "no upstream Location header to client",
+    "credentials only in TLS POST bodies for named integrations"
+  ],
+  "operationalLimits": {
+    "activeMediaRequests": 16,
+    "activeSmallDataRequests": 4,
+    "manifestBytes": 2097152,
+    "memoryResourceCacheBytes": 33554432,
+    "epgBytesPerReviewedFeed": 67108864,
+    "serverLogoRefresh": "daily",
+    "epgCacheSeconds": 14400
+  },
+  "releaseState": "Applies to desktop build 1.0.5+91 and the deployed server API. Installed-host validation is recorded in docs/releases/1.0.5-validation.md.",
+  "checks": [
+    "tools/audit_network_egress.py", "tools/test_live_egress_api.py",
+    "website/tests/test_egress_gateway.py", "website/tests/test_native_egress_policy.py",
+    "test/server_egress_test.dart"
+  ]
+}

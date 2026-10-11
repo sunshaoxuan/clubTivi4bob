@@ -59,7 +59,7 @@
           ],
           [
             "Categories",
-            "Pin countries and regions to navigation. Edit categories and subcategories from the channel menu."
+            "Pin countries and regions or edit categories and subcategories. Right-click Merge channels to select across categories, choose a shared name and category, and combine deduplicated routes."
           ],
           [
             "Radio",
@@ -75,7 +75,7 @@
         "items": [
           [
             "Shared records",
-            "Public channel changes, categories, ratings and retired routes are synchronized. Catalog revisions are checked every minute."
+            "Public changes, categories, merges, ratings and retired routes are synchronized. Revisions are checked every minute. Category loading stays local to that category; whole-catalog counts appear in the sync badge."
           ],
           [
             "Offline edits",
@@ -107,6 +107,26 @@
           ]
         ],
         "note": "Availability depends on the stream provider and your network. Some channels may be unavailable."
+      },
+      {
+        "id": "server",
+        "label": "Server connectivity",
+        "title": "Source discovery and AI run on the server.",
+        "text": "The client receives channels, categories and route results from BobTV. Playback, programme guides and logos use the HTTPS service gateway. Clients do not directly contact GitHub or AI providers.",
+        "items": [
+          [
+            "Regional ranking",
+            "Routes are ranked using the access region and observed playback feedback. Routes without regional measurements still require validation."
+          ],
+          [
+            "On-demand maintenance",
+            "The server handles discovery, refresh and AI classification. Clients check routes only for the selected channel."
+          ],
+          [
+            "Network limits",
+            "Relaying does not guarantee availability in every region. Mainland China downloads and playback still require local network measurements."
+          ]
+        ]
       },
       {
         "id": "living",
@@ -152,6 +172,11 @@
     "history_label": "Release notes",
     "history_title": "Recent changes",
     "history": [
+      [
+        "2026-10-12",
+        "v1.0.5 · Server connectivity, channel merging and fullscreen",
+        "Moves discovery and AI to the server with HTTPS media access and regional ranking. Adds cross-category channel merging, name selection and deduplicated route sync; fixes category loading feedback. Repairs Windows fullscreen chrome and maximization, retaining the three-programme guide."
+      ],
       [
         "2026-10-07",
         "v1.0.4 · Redesigned settings",
@@ -201,14 +226,14 @@
           ],
           [
             "Updates",
-            "Version 1.0.4 checks at startup, every six hours, and on returning to the foreground, at most once every 15 minutes. Windows Setup installations require a new installer with administrator approval. Portable Windows and writable Mac installations download and verify updates in the background, then install after exit. After three failed starts, the app attempts rollback. Protected Mac locations require manual replacement."
+            "Version 1.0.5 checks at startup, every six hours, and on returning to the foreground, at most once every 15 minutes. Windows Setup installations require a new installer with administrator approval. Portable Windows and writable Mac installations download and verify updates in the background, then install after exit. After three failed starts, the app attempts rollback. Protected Mac locations require manual replacement."
           ]
         ]
       },
       {
         "id": "first-launch",
         "title": "First launch and channel sync",
-        "text": "Version 1.0.4 retains public channel sync. Source management runs on demand; playback checks only the active route.",
+        "text": "Version 1.0.5 syncs channels and categories from BobTV. Discovery and AI classification run on the server. Clients avoid scheduled full scans and check the selected channel on demand.",
         "items": [
           [
             "Initial catalog",

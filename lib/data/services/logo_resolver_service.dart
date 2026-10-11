@@ -1,3 +1,4 @@
+import '../../core/server_egress.dart';
 import 'dart:convert';
 import 'package:dio/dio.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -5,16 +6,11 @@ import 'package:shared_preferences/shared_preferences.dart';
 /// Resolves missing channel logos using tv-logo/tv-logos GitHub repository
 /// and EPG channel icons as fallback sources.
 class LogoResolverService {
-  static const _baseUrl =
-      'https://raw.githubusercontent.com/tv-logo/tv-logos/main/countries';
-  static const _apiBase =
-      'https://api.github.com/repos/tv-logo/tv-logos/contents/countries';
-  static const _cacheKey = 'logo_resolver_index';
+  static const _cacheKey = 'logo_resolver_server_index';
   static const _cacheTimestampKey = 'logo_resolver_timestamp';
   static const _cacheDuration = Duration(hours: 24);
 
   // Directories to scan for logos
-  static const _directories = ['united-states', 'international', 'canada', 'united-kingdom'];
 
   /// Cached map: normalized-name → raw GitHub URL
   static Map<String, String>? _index;
@@ -40,58 +36,31 @@ class LogoResolverService {
     try {
       await prefs.setString(_cacheKey, jsonEncode(_index));
       await prefs.setInt(
-          _cacheTimestampKey, DateTime.now().millisecondsSinceEpoch);
+        _cacheTimestampKey,
+        DateTime.now().millisecondsSinceEpoch,
+      );
     } catch (_) {}
 
     return _index!;
   }
 
   static Future<Map<String, String>> _fetchIndex() async {
-    final dio = Dio();
-    final index = <String, String>{};
-
-    for (final dir in _directories) {
-      try {
-        final resp = await dio.get<List<dynamic>>(
-          '$_apiBase/$dir',
-          options: Options(
-            headers: {'Accept': 'application/vnd.github.v3+json'},
-            receiveTimeout: const Duration(seconds: 15),
-          ),
-        );
-        if (resp.data == null) continue;
-
-        for (final item in resp.data!) {
-          final name = item['name'] as String?;
-          if (name == null || !name.endsWith('.png')) continue;
-          // Skip mosaic/readme files
-          if (name.startsWith('0_')) continue;
-
-          final key = _normalizeFilename(name);
-          final url = '$_baseUrl/$dir/$name';
-          // Don't overwrite — first match wins (US priority)
-          index.putIfAbsent(key, () => url);
-        }
-      } catch (e) {
-        // Silently skip on network error
-        continue;
-      }
+    final dio = ServerEgress.dio();
+    try {
+      final response = await dio.get<Map<String, dynamic>>(
+        '${ServerEgress.origin}/api/v1/egress/logo-index',
+        options: Options(receiveTimeout: const Duration(seconds: 8)),
+      );
+      final values = response.data?['logos'];
+      if (values is! Map) return {};
+      return {
+        for (final entry in values.entries)
+          if (entry.key is String && entry.value is String)
+            entry.key as String: entry.value as String,
+      };
+    } finally {
+      dio.close();
     }
-
-    return index;
-  }
-
-  /// Normalize a filename like "abc-us.png" → "abc"
-  static String _normalizeFilename(String filename) {
-    var name = filename.replaceAll('.png', '');
-    // Remove country suffixes
-    for (final suffix in ['-us', '-uk', '-ca', '-int']) {
-      if (name.endsWith(suffix)) {
-        name = name.substring(0, name.length - suffix.length);
-        break;
-      }
-    }
-    return name.toLowerCase().trim();
   }
 
   /// Normalize a channel name for matching.
@@ -109,7 +78,10 @@ class LogoResolverService {
     if (n.isEmpty) n = name.toLowerCase().trim();
 
     // Remove quality tags
-    n = n.replaceAll(RegExp(r'\s*(hd|fhd|uhd|4k|sd|hevc|h\.?265)\s*$', caseSensitive: false), '');
+    n = n.replaceAll(
+      RegExp(r'\s*(hd|fhd|uhd|4k|sd|hevc|h\.?265)\s*$', caseSensitive: false),
+      '',
+    );
     // Remove parenthesized suffixes like "(East)", "(West)"
     n = n.replaceAll(RegExp(r'\s*\([^)]*\)\s*$'), '');
     // Replace spaces/special chars with hyphens
@@ -145,32 +117,38 @@ class LogoResolverService {
         .toList();
     if (prefixMatches.isNotEmpty) {
       // Prefer: exact+"-logo" variants > shortest non-variant match
-      final logoVariant = prefixMatches
-          .where((k) => k.startsWith('$normalized-logo'))
-          .toList()
-        ..sort((a, b) => a.length.compareTo(b.length));
+      final logoVariant =
+          prefixMatches.where((k) => k.startsWith('$normalized-logo')).toList()
+            ..sort((a, b) => a.length.compareTo(b.length));
       if (logoVariant.isNotEmpty) return index[logoVariant.first];
       // Otherwise prefer the plain network logo (skip sport/news variants)
-      final plain = prefixMatches
-          .where((k) => !k.contains('-news') && !k.contains('-sport') &&
-                        !k.contains('-nfl') && !k.contains('-nba'))
-          .toList()
-        ..sort((a, b) => a.length.compareTo(b.length));
+      final plain =
+          prefixMatches
+              .where(
+                (k) =>
+                    !k.contains('-news') &&
+                    !k.contains('-sport') &&
+                    !k.contains('-nfl') &&
+                    !k.contains('-nba'),
+              )
+              .toList()
+            ..sort((a, b) => a.length.compareTo(b.length));
       if (plain.isNotEmpty) return index[plain.first];
       prefixMatches.sort((a, b) => a.length.compareTo(b.length));
       return index[prefixMatches.first];
     }
 
     // Strategy 4: Check if any key contains our name or vice versa
-    final containsMatches = index.keys
-        .where((k) => k.contains(normalized) || normalized.contains(k))
-        .where((k) => k.length > 2)
-        .toList()
-      ..sort((a, b) {
-        final diffA = (a.length - normalized.length).abs();
-        final diffB = (b.length - normalized.length).abs();
-        return diffA.compareTo(diffB);
-      });
+    final containsMatches =
+        index.keys
+            .where((k) => k.contains(normalized) || normalized.contains(k))
+            .where((k) => k.length > 2)
+            .toList()
+          ..sort((a, b) {
+            final diffA = (a.length - normalized.length).abs();
+            final diffB = (b.length - normalized.length).abs();
+            return diffA.compareTo(diffB);
+          });
     if (containsMatches.isNotEmpty) return index[containsMatches.first];
 
     return null;

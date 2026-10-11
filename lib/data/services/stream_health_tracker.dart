@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:shared_preferences/shared_preferences.dart';
+import 'route_identity.dart';
 
 /// Tracks per-stream health metrics for ranking failover alternatives.
 ///
@@ -9,6 +10,12 @@ import 'package:shared_preferences/shared_preferences.dart';
 /// weighs more than old data.
 class StreamHealthTracker {
   void Function(String url, int success, int failure)? onSharedObservation;
+  void Function(String url, Map<String, Object?> observation)?
+  onRegionalObservation;
+  Future<void> Function(Iterable<String> urls)? prepareCandidates;
+  String _networkId = 'ZZ:*:*';
+  bool _networkAware = false;
+  final Map<String, double> _regionalScores = {};
   Map<String, double> _sharedScores = {};
   static const _prefsKey = 'stream_health_scores';
   static const _maxEntries = 300;
@@ -16,10 +23,15 @@ class StreamHealthTracker {
 
   Map<String, _StreamMetrics> _metrics = {};
   bool _loaded = false;
+  Future<void>? _loading;
 
   /// Load persisted metrics from disk.
-  Future<void> load() async {
-    if (_loaded) return;
+  Future<void> load() {
+    if (_loaded) return Future.value();
+    return _loading ??= _load().whenComplete(() => _loading = null);
+  }
+
+  Future<void> _load() async {
     try {
       final prefs = await SharedPreferences.getInstance();
       final shared =
@@ -37,7 +49,9 @@ class StreamHealthTracker {
         for (final value in map.values) {
           if (value is! Map<String, dynamic>) continue;
           final metrics = _StreamMetrics.fromJson(value);
-          if (metrics.url.isNotEmpty) _metrics[_urlKey(metrics.url)] = metrics;
+          if (metrics.url.isNotEmpty) {
+            _metrics[_metricsKey(metrics.url, metrics.networkId)] = metrics;
+          }
         }
       }
     } catch (_) {}
@@ -50,7 +64,7 @@ class StreamHealthTracker {
     m.stallCount++;
     m.failureCount += 2;
     m.currentWindow.recordFailure(weight: 2);
-    onSharedObservation?.call(url, 0, 2);
+    _observe(url, 0, 2, 'stall');
     m.lastUpdated = DateTime.now();
     _scheduleSave();
   }
@@ -59,7 +73,14 @@ class StreamHealthTracker {
   void recordProbeSuccess(String url, int firstByteMs, double bytesPerSecond) {
     final m = _getOrCreate(url);
     m.successCount++;
-    onSharedObservation?.call(url, 1, 0);
+    _observe(
+      url,
+      1,
+      0,
+      'probe',
+      firstByteMs: firstByteMs,
+      bytesPerSecond: bytesPerSecond,
+    );
     m.ttffMs = _ewma(m.ttffMs.toDouble(), firstByteMs.toDouble()).round();
     m.bytesPerSecond = _ewma(m.bytesPerSecond, bytesPerSecond);
     m.currentWindow.recordSuccess(firstByteMs, bytesPerSecond);
@@ -71,7 +92,7 @@ class StreamHealthTracker {
   void recordProbeFailure(String url) {
     final m = _getOrCreate(url);
     m.failureCount++;
-    onSharedObservation?.call(url, 0, 1);
+    _observe(url, 0, 1, 'probe');
     m.currentWindow.recordFailure();
     m.lastUpdated = DateTime.now();
     _scheduleSave();
@@ -79,13 +100,20 @@ class StreamHealthTracker {
 
   /// A viewer intentionally left this route. This is one negative vote,
   /// lighter than a measured playback stall.
-  void recordManualSkip(String url) => recordProbeFailure(url);
+  void recordManualSkip(String url) {
+    final m = _getOrCreate(url);
+    m.failureCount++;
+    m.currentWindow.recordFailure();
+    m.lastUpdated = DateTime.now();
+    _observe(url, 0, 1, 'manual');
+    _scheduleSave();
+  }
 
   /// Reward a route only after the player has decoded moving media.
   void recordPlaybackSuccess(String url) {
     final m = _getOrCreate(url);
     m.successCount += 2;
-    onSharedObservation?.call(url, 2, 0);
+    _observe(url, 2, 0, 'playback');
     m.currentWindow.successCount += 2;
     m.lastUpdated = DateTime.now();
     _scheduleSave();
@@ -113,7 +141,10 @@ class StreamHealthTracker {
   double getScore(String url) {
     final key = _urlKey(url);
     final m = _metrics[key];
-    if (m == null) return _sharedScores[url] ?? 0.5;
+    final shared = _networkAware
+        ? _regionalScores[canonicalRouteUrl(url)]
+        : _sharedScores[url];
+    if (m == null) return shared ?? 0.5;
 
     // Old observations fade toward neutral so a recovered route can be tried
     // again after enough time has passed.
@@ -143,9 +174,54 @@ class StreamHealthTracker {
     final learned =
         overall * (1.0 - windowConfidence) + windowScore * windowConfidence;
     final local = (0.5 + (learned - 0.5) * decay).clamp(0.0, 1.0);
-    return _sharedScores.containsKey(url)
-        ? local * .75 + _sharedScores[url]! * .25
-        : local;
+    return shared != null ? local * .75 + shared * .25 : local;
+  }
+
+  void setNetworkContext(String networkId) {
+    _networkAware = true;
+    if (_networkId == networkId) return;
+    _networkId = networkId;
+    _regionalScores.clear();
+  }
+
+  void setRegionalScores(String networkId, Map<String, double> scores) {
+    if (networkId != _networkId) return;
+    _regionalScores.addAll({
+      for (final entry in scores.entries)
+        if (entry.value.isFinite)
+          canonicalRouteUrl(entry.key): entry.value.clamp(0, 1),
+    });
+  }
+
+  /// Network lookup must never hold playback hostage to a slow website.
+  Future<void> prepare(Iterable<String> urls) async {
+    try {
+      await prepareCandidates
+          ?.call(urls)
+          .timeout(const Duration(milliseconds: 600));
+    } catch (_) {
+      // Existing local rankings remain usable. The request may fill the cache
+      // later, but a new playback generation still controls the actual player.
+    }
+  }
+
+  void _observe(
+    String url,
+    int success,
+    int failure,
+    String kind, {
+    int? firstByteMs,
+    double? bytesPerSecond,
+  }) {
+    onSharedObservation?.call(url, success, failure);
+    onRegionalObservation?.call(url, {
+      'success': success,
+      'failure': failure,
+      'observation': kind,
+      if (firstByteMs != null) 'firstByteMs': firstByteMs,
+      if (bytesPerSecond != null && bytesPerSecond.isFinite)
+        'bytesPerSecond': bytesPerSecond,
+    });
   }
 
   Future<void> setSharedScores(Map<String, double> scores) async {
@@ -190,10 +266,16 @@ class StreamHealthTracker {
 
   _StreamMetrics _getOrCreate(String url) {
     final key = _urlKey(url);
-    return _metrics.putIfAbsent(key, () => _StreamMetrics(url: url));
+    return _metrics.putIfAbsent(
+      key,
+      () => _StreamMetrics(url: canonicalRouteUrl(url), networkId: _networkId),
+    );
   }
 
-  String _urlKey(String url) => url;
+  String _metricsKey(String url, String networkId) => networkId == 'ZZ:*:*'
+      ? canonicalRouteUrl(url)
+      : '$networkId\n${canonicalRouteUrl(url)}';
+  String _urlKey(String url) => _metricsKey(url, _networkId);
 
   bool _saveScheduled = false;
 
@@ -228,6 +310,7 @@ class StreamHealthTracker {
 
 class _StreamMetrics {
   final String url;
+  final String networkId;
   int stallCount;
   double bufferSum;
   int bufferSamples;
@@ -240,6 +323,7 @@ class _StreamMetrics {
 
   _StreamMetrics({
     required this.url,
+    this.networkId = 'ZZ:*:*',
     this.stallCount = 0,
     this.bufferSum = 0,
     this.bufferSamples = 0,
@@ -259,6 +343,7 @@ class _StreamMetrics {
 
   Map<String, dynamic> toJson() => {
     'url': url,
+    'network': networkId,
     'stalls': stallCount,
     'bufSum': bufferSum,
     'bufN': bufferSamples,
@@ -272,6 +357,7 @@ class _StreamMetrics {
 
   factory _StreamMetrics.fromJson(Map<String, dynamic> j) => _StreamMetrics(
     url: j['url'] ?? '',
+    networkId: j['network'] as String? ?? 'ZZ:*:*',
     stallCount: j['stalls'] ?? 0,
     bufferSum: (j['bufSum'] ?? 0).toDouble(),
     bufferSamples: j['bufN'] ?? 0,

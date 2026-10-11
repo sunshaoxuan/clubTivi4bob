@@ -1,3 +1,4 @@
+import '../../core/server_egress.dart';
 import 'dart:async';
 import 'dart:io';
 
@@ -23,7 +24,7 @@ class RecordingService {
   final Dio _dio;
   final List<ActiveRecording> _active = [];
 
-  RecordingService({Dio? dio}) : _dio = dio ?? Dio();
+  RecordingService({Dio? dio}) : _dio = dio ?? ServerEgress.dio(BaseOptions(extra: {'egressKind': 'media'}));
 
   List<ActiveRecording> get activeRecordings => List.unmodifiable(_active);
 

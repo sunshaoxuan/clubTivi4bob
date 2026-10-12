@@ -112,7 +112,7 @@
         "id": "server",
         "label": "Server connectivity",
         "title": "Source discovery and AI run on the server.",
-        "text": "The client receives channels, categories and route results from BobTV. Playback, programme guides and logos use the HTTPS service gateway. Clients do not directly contact GitHub or AI providers.",
+        "text": "Clients receive channels, categories and routes from BobTV. Packages, guides, logos and sync resources compare the primary site with the cndrp cache. Video connects directly to its original source. Discovery and AI run on the server.",
         "items": [
           [
             "Regional ranking",
@@ -124,7 +124,7 @@
           ],
           [
             "Network limits",
-            "Relaying does not guarantee availability in every region. Mainland China downloads and playback still require local network measurements."
+            "The cache handles resource uploads and downloads, never video streams. Mainland China throughput and source availability still require local network measurements."
           ]
         ]
       },
@@ -195,6 +195,11 @@
     "history": [
       [
         "2026-10-12",
+        "v1.1.1 · Resource mirrors, route transfers and window sizing",
+        "Adds cndrp resource-node comparison and failure fallback while keeping video direct. Individual routes move between channels with public-catalog sync. Desktop startup and restoration fit the display work area."
+      ],
+      [
+        "2026-10-12",
         "v1.1.0 · Native Windows ARM64 packages added",
         "Cross-built on x64 Windows. Choose ARM64 within the Windows download group. App, Dart AOT and DLL architectures were validated; Surface hardware tests remain pending."
       ],
@@ -262,7 +267,7 @@
           ],
           [
             "Updates",
-            "Version 1.1.0 checks at startup, every six hours, and on returning to the foreground, at most once every 15 minutes. Windows Setup installations require a new installer with administrator approval. Portable Windows and writable Mac installations download and verify updates in the background, then install after exit. After three failed starts, the app attempts rollback. Protected Mac locations require manual replacement."
+            "Version 1.1.1 checks at startup, every six hours, and on returning to the foreground, at most once every 15 minutes. Windows Setup installations require a new installer with administrator approval. Portable Windows and writable Mac installations download and verify updates in the background, then install after exit. After three failed starts, the app attempts rollback. Protected Mac locations require manual replacement."
           ],
           [
             "Android",
@@ -273,7 +278,7 @@
       {
         "id": "first-launch",
         "title": "First launch and channel sync",
-        "text": "Version 1.1.0 syncs channels and categories from BobTV. Discovery and AI classification run on the server. Clients avoid scheduled full scans and check the selected channel on demand.",
+        "text": "Version 1.1.1 syncs channels and categories from BobTV and compares the primary site with cndrp for resource delivery. Discovery and AI run on the server; video connects directly to its source. Clients check the selected channel on demand.",
         "items": [
           [
             "Initial catalog",
@@ -285,7 +290,7 @@
           ],
           [
             "Public and personal",
-            "Public categories, ratings and retirements sync across devices. Favorites, history and private subscriptions stay local."
+            "Public categories, ratings, retirements and route transfers sync across devices. Favorites, history and private subscriptions stay local."
           ]
         ]
       }

@@ -8,6 +8,14 @@ BobTV is a Windows and macOS IPTV player built from the open source [clubTivi](h
 
 The application is built with Flutter and uses `media_kit`, libmpv, FFmpeg, Riverpod, Drift, and SQLite.
 
+### Latest release
+
+`1.1.1+94` adds adaptive resource delivery through the BobTV primary site and
+the cndrp cache, individual route transfers with public-catalog synchronization,
+and desktop startup/restore frames bounded by the display work area and a
+1920 by 1280 physical-pixel cap. Video streams connect directly to their sources;
+the resource cache never relays video. See [release details](docs/releases/1.1.1.md).
+
 ### Android tablets and Windows ARM64
 
 `1.1.0+93` adds signed Android 7+ tablet APKs with the shared simple UI,
@@ -116,7 +124,7 @@ Discovered routes are verified before entering the shared catalog. Each route re
 
 The Settings screen shows server AI readiness. Optional personal-channel classification requires consent and sends only channel names, groups and EPG identifiers, excluding subscription addresses and credentials. Endpoint, model and key configuration stay on the server. If AI is unavailable, uncertain classifications remain unresolved and existing playback continues. Credentials are never packaged or written to application logs.
 
-Release builds include a sanitized bundled snapshot for initialization. It contains public stream metadata and provenance, excluding favorites, playback history, diagnostics, crash dumps and API credentials. The website's versioned catalog subsequently supplies verified additions, corrections and retirements. Public playback, EPG, logo and metadata requests use the BobTV HTTPS gateway; LAN control and loopback helpers remain local.
+Release builds include a sanitized bundled snapshot for initialization. It contains public stream metadata and provenance, excluding favorites, playback history, diagnostics, crash dumps and API credentials. The website's versioned catalog subsequently supplies verified additions, corrections and retirements. Resource requests use the BobTV HTTPS service or its cndrp resource cache. Video connects directly to its original source; LAN control and loopback helpers remain local.
 
 ### Website channel synchronization
 
@@ -252,7 +260,7 @@ Stream health metrics and application configuration are stored locally by the ap
 
 ## Legal notice
 
-BobTV is a media player with a server resource gateway that relays configured streams and metadata. It does not guarantee availability or grant content rights. Repository maintainers do not control third party playlists, streams, logos, metadata, or programme guides.
+BobTV is a media player with server-managed discovery and metadata delivery. Video connects to the original source. It does not guarantee availability or grant content rights. Repository maintainers do not control third party playlists, streams, logos, metadata, or programme guides.
 
 Users and deployers are responsible for verifying that they have permission to access and display every configured source and for complying with applicable copyright, contract, network, and broadcasting rules.
 

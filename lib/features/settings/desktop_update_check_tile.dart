@@ -1,6 +1,5 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 import '../../data/services/desktop_update_state.dart';
 
@@ -33,15 +32,19 @@ class DesktopUpdateCheckTile extends StatelessWidget {
             update.visible ? update.description : '连接 BobTV 更新服务，检查适用于当前平台的版本',
           ),
           trailing:
-              update.phase == WindowsUpdatePhase.ready && onInstall != null
-              ? TextButton(onPressed: onInstall, child: const Text('安装更新'))
-              : update.phase == WindowsUpdatePhase.manualRequired
+              (update.phase == WindowsUpdatePhase.ready ||
+                      update.phase == WindowsUpdatePhase.awaitingExit) &&
+                  onInstall != null
               ? TextButton(
-                  onPressed: () => launchUrl(
-                    Uri.parse('https://bobtv.briconbric.com/downloads'),
+                  onPressed: onInstall,
+                  child: Text(
+                    update.phase == WindowsUpdatePhase.awaitingExit
+                        ? '退出并安装'
+                        : '安装更新',
                   ),
-                  child: const Text('下载安装包'),
                 )
+              : update.phase == WindowsUpdatePhase.manualRequired
+              ? TextButton(onPressed: onCheck, child: const Text('重试更新'))
               : null,
           onTap: update.canCheck
               ? () async {

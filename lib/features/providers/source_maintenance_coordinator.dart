@@ -10,6 +10,7 @@ import '../../data/services/channel_inventory_sync_service.dart';
 import 'provider_manager.dart';
 import '../../data/services/stream_alternatives_service.dart';
 import '../../data/services/regional_route_service.dart';
+import '../../data/services/device_favorites_sync_service.dart';
 
 class SourceMaintenanceCoordinator {
   final ProviderManager manager;
@@ -28,9 +29,12 @@ class SourceMaintenanceCoordinator {
       ChannelInventorySyncService(database: manager.database);
   final ChannelInventorySyncService? _inventoryOverride;
   final RegionalRouteService? regionalRoutes;
+  late final privateFavorites =
+      _privateFavoritesOverride ??
+      DeviceFavoritesSyncService(database: manager.database);
+  final DeviceFavoritesSyncService? _privateFavoritesOverride;
   bool get sourceManagementInitialized =>
-      _maintenanceService != null ||
-      _bundledSourceSnapshot != null;
+      _maintenanceService != null || _bundledSourceSnapshot != null;
 
   Timer? _snapshotTimer;
   Timer? _catalogTimer;
@@ -44,7 +48,9 @@ class SourceMaintenanceCoordinator {
     required this.websiteCatalog,
     ChannelInventorySyncService? inventory,
     this.regionalRoutes,
-  }) : _inventoryOverride = inventory;
+    DeviceFavoritesSyncService? privateFavorites,
+  }) : _inventoryOverride = inventory,
+       _privateFavoritesOverride = privateFavorites;
 
   void start() {
     if (_started || _disposed) return;
@@ -72,12 +78,13 @@ class SourceMaintenanceCoordinator {
       const Duration(minutes: 1),
       (_) => unawaited(_syncSharedChanges(pull: true)),
     );
-    _changesTimer = Timer.periodic(
-      const Duration(seconds: 15),
-      (_) => unawaited(_syncSharedChanges()),
-    );
+    _changesTimer = Timer.periodic(const Duration(seconds: 15), (_) {
+      unawaited(_syncSharedChanges());
+      unawaited(privateFavorites.sync());
+    });
     // Public discovery and full-catalog validation belong to the server.
     // Entering advanced mode does not implicitly start those workloads either.
+    unawaited(privateFavorites.sync());
   }
 
   Future<void> _syncSharedChanges({bool pull = false}) async {
@@ -139,6 +146,7 @@ class SourceMaintenanceCoordinator {
     _maintenanceService?.dispose();
     websiteCatalog.dispose();
     inventory.dispose();
+    privateFavorites.dispose();
     regionalRoutes?.dispose();
   }
 }
@@ -147,14 +155,20 @@ final sourceMaintenanceCoordinatorProvider =
     Provider<SourceMaintenanceCoordinator>((ref) {
       final database = ref.watch(databaseProvider);
       final tracker = ref.read(streamHealthTrackerProvider);
-      final regional = RegionalRouteService(tracker: tracker,
-          onNetworkChanged: (networkId) async {
-            await database.switchAvailabilityNetwork(networkId);
-          });
+      final regional = RegionalRouteService(
+        tracker: tracker,
+        onNetworkChanged: (networkId) async {
+          await database.switchAvailabilityNetwork(networkId);
+        },
+      );
       tracker.onRegionalObservation = (url, observation) {
         unawaited(
           database
-              .queueSharedEvent(url, 'health', regional.observation(observation))
+              .queueSharedEvent(
+                url,
+                'health',
+                regional.observation(observation),
+              )
               .catchError(
                 (Object error, StackTrace stack) => AppDiagnostics.instance
                     .recordError('queue_shared_health', error, stack),

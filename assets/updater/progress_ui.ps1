@@ -48,12 +48,16 @@ $open.FlatStyle='Flat'; $form.Controls.Add($open)
 function Get-CompletedExecutable {
   if(!(Test-Path -LiteralPath $statusPath)){return $null}
   $completed=[IO.File]::ReadAllText($statusPath)|ConvertFrom-Json
-  if($completed.phase -ne 'installed' -or $completed.runId -ne $RunId -or
+  $cancelled=$completed.phase -eq 'ready' -and $completed.authorizationCancelled -eq $true
+  $restored=$completed.phase -eq 'failed' -and $completed.restored -eq $true
+  if(($completed.phase -ne 'installed' -and !$cancelled -and !$restored) -or $completed.runId -ne $RunId -or
      $completed.version -ne $Version -or [int]$completed.workerPid -ne $WorkerPid){return $null}
+  $expected=if($cancelled -or $restored){[string]$completed.oldVersion}else{$Version}
+  if($expected -notmatch '^\d+\.\d+\.\d+\+\d+$'){return $null}
   foreach($name in @('clubtivi.exe','BobTV.exe')){
     $path=Join-Path $AppDir $name
     if((Test-Path -LiteralPath $path -PathType Leaf) -and
-       (Get-Item -LiteralPath $path).VersionInfo.FileVersion -eq $Version -and
+       (Get-Item -LiteralPath $path).VersionInfo.FileVersion -eq $expected -and
        (Test-Path -LiteralPath (Join-Path $AppDir 'data\app.so'))){return $path}
   }
   return $null
@@ -88,8 +92,10 @@ $timer.Add_Tick({
       'downloading' {"正在下载更新 $($status.percent)%"}
       'verifying' {'正在校验安装包'}
       'ready' {'下载完成，正在等待播放器退出'}
+      'authorizing' {'请确认 Windows 授权提示'}
+      'awaitingExit' {'已授权，正在等待 BobTV 退出'}
       'backingUp' {'正在备份旧版'}
-      'installing' {"正在安装更新 $($status.percent)%"}
+      'installing' {if($null -ne $status.percent){"正在安装更新 $($status.percent)%"}else{'正在安装更新'}}
       'installed' {'更新已完成'}
       'failed' {'更新未完成'}
       default {'正在处理更新'}
@@ -103,10 +109,21 @@ $timer.Add_Tick({
     if($status.phase -eq 'downloading' -and $status.totalBytes -gt 0){
       $detail.Text+=('  {0:N1} / {1:N1} MB' -f ($status.receivedBytes/1MB),($status.totalBytes/1MB))
     }
-    if($status.phase -in @('downloading','installing','installed','failed','ready')){
+    if($status.phase -in @('downloading','installing','installed','failed','ready') -and $null -ne $status.percent){
       $bar.Style='Continuous'; $bar.Value=[Math]::Max(0,[Math]::Min(100,[int]$status.percent))
     }else{$bar.Style='Marquee'}
-    if($status.phase -eq 'installed'){
+    if($status.phase -eq 'ready' -and $status.authorizationCancelled -eq $true){
+      $phase.Text='授权已取消，当前版本保留'
+      $open.Text='继续使用当前版本'
+      $open.Enabled=[bool](Get-CompletedExecutable)
+      $note.Text='更新包已保留，下次打开 BobTV 后可以重试安装。'
+    }elseif($status.phase -eq 'failed' -and $status.restored -eq $true){
+      $phase.Text='更新未完成，旧版已恢复'
+      $open.Text='启动已恢复的旧版'
+      $open.Enabled=[bool](Get-CompletedExecutable)
+      $note.Text='已跳过本次失败版本，用户数据和故障记录已保留。'
+    }elseif($status.phase -eq 'installed'){
+      $open.Text='立即启动 BobTV'
       $open.Enabled=[bool](Get-CompletedExecutable)
       if($open.Enabled){
         if(!$script:finishedAt){$script:finishedAt=[DateTime]::UtcNow}

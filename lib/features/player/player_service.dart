@@ -19,6 +19,7 @@ import '../../data/services/stream_alternatives_service.dart';
 import '../../data/services/stream_health_tracker.dart';
 import '../../data/services/bobtv_community_service.dart';
 import '../../data/services/route_identity.dart';
+import '../../data/services/retired_route_guard.dart';
 import '../providers/provider_manager.dart';
 import '../casting/cast_service.dart';
 import '../casting/local_cast_mute.dart';
@@ -58,6 +59,95 @@ class AlternativePreviewState {
 
 /// Manages video playback with stream failover support.
 class PlayerService {
+  PlayerService({RetiredRouteGuard? retirementGuard})
+      : _retirementGuard = retirementGuard {
+    _retirementSubscription = retirementGuard?.changes.listen((_) {
+      _retirementCleanup = _retirementCleanup.then((_) async {
+        if (!_disposed) await _removeRetiredPlayback();
+      }).catchError((Object error, StackTrace stack) {
+        AppDiagnostics.instance.recordError('retired_playback_cleanup', error, stack);
+      });
+    });
+  }
+
+  final RetiredRouteGuard? _retirementGuard;
+  StreamSubscription<Set<String>>? _retirementSubscription;
+  Future<void> _retirementCleanup = Future.value();
+  bool _disposed = false;
+
+  bool _routeAllowed(String url) =>
+      !_disposed && (_retirementGuard?.allowsCached(url) ?? true);
+
+  Future<void> _openAllowedMedia(Player target, String url, {
+    String? originalUrl,
+  }) async {
+    if (_disposed) throw const RetiredRouteException();
+    Future<void> open() => target.open(Media(
+      ServerEgress.mediaUrl(url), httpHeaders: ServerEgress.mediaHeaders(url),
+    ));
+    final guard = _retirementGuard;
+    if (guard == null) {
+      await open();
+    } else {
+      final endpoint = originalUrl ?? url;
+      await guard.open(endpoint, open, stop: () async {
+        // An old asynchronous open must not stop a newer channel that reused
+        // the main player while the durable exclusion check was completing.
+        if (!identical(target, _player) || (_currentUrl != null &&
+            canonicalRouteUrl(_currentUrl!) == canonicalRouteUrl(endpoint))) {
+          await target.stop();
+        }
+      });
+    }
+  }
+
+  Future<void> _removeRetiredPlayback() async {
+    final active = _currentUrl;
+    final activeRetired = active != null && !_routeAllowed(active);
+    final generation = _playGeneration;
+    final alternatives = retirementAlternativeUrls;
+    _failoverGroupUrls = _failoverGroupUrls?.where(_routeAllowed).toList();
+    if (activeRetired && !_disposed && generation == _playGeneration) {
+      // Stop the main signal first. stop() also releases all preview slots.
+      final stoppedGeneration = _playGeneration + 1;
+      await stop();
+      if (_disposed || _playGeneration != stoppedGeneration || _currentUrl != null) return;
+      if (castService?.isCasting == true) await castService!.stopCasting();
+      if (_disposed || _playGeneration != stoppedGeneration || _currentUrl != null) return;
+      AppDiagnostics.instance.log('retired_active_route_stopped', {
+        'stream': AppDiagnostics.summarizeStreamUrl(active),
+        'remainingCandidates': alternatives.length,
+      });
+      if (alternatives.isNotEmpty) {
+        await playRetirementReplacement(alternatives.first, alternatives.skip(1).toList(),
+            stage: '线路已淘汰，正在寻找替代线路');
+      } else {
+        routeSearchProgress.value = const RouteSearchProgress(
+            stage: '线路已永久淘汰，暂无其他候选线路', index: 0, total: 0);
+      }
+      return;
+    }
+    // In-flight card opens own their decoder. Their guard and readiness checks
+    // abandon a retired candidate and continue with the remaining routes.
+    if (preparedChannelUrl != null && !_routeAllowed(preparedChannelUrl!)) {
+      await discardPreparedChannel();
+    }
+    if (_disposed) return;
+    if (_warmUrl != null && !_routeAllowed(_warmUrl!)) {
+      await _disposeWarmPlayer();
+    }
+    if (_disposed) return;
+    if (_alternativePreviewUrl != null && !_routeAllowed(_alternativePreviewUrl!)) {
+      if (alternativePreviewState.value?.ready == true) {
+        await discardAlternativePreview();
+      } else {
+        // The search owns an in-flight native open and disposes it on return.
+        ++_alternativePreviewGeneration;
+        alternativePreviewState.value = null;
+      }
+    }
+  }
+
   CastService? castService;
   LocalCastMute? _localCastMute;
 
@@ -250,6 +340,8 @@ class PlayerService {
   }) async {
     final current = _currentUrl;
     if (current == null || url.isEmpty) return false;
+    await _retirementGuard?.refresh();
+    if (!_routeAllowed(url)) return false;
     if (current == url) return true;
     final switched = await switchChannel(
       url,
@@ -540,7 +632,7 @@ class PlayerService {
   void _recordPlaybackReadyOnce(String url, int generation, {
     bool alreadyCredited = false,
   }) {
-    if (generation != _playGeneration || _currentUrl != url) return;
+    if (generation != _playGeneration || _currentUrl != url || !_routeAllowed(url)) return;
     if (_rewardedPlaybackGeneration != generation) {
       _rewardedPlaybackGeneration = generation;
       _rewardedPlaybackUrls.clear();
@@ -649,6 +741,8 @@ class PlayerService {
     bool onlyRequestedRoute = false,
   }) async {
     final request = ++_channelSwitchGeneration;
+    await _retirementGuard?.refresh();
+    if (request != _channelSwitchGeneration || _disposed) return false;
     await discardAlternativePreview();
     await discardPreparedChannel(invalidateRequest: false);
     if (request != _channelSwitchGeneration) return false;
@@ -703,6 +797,7 @@ class PlayerService {
           candidateIndex++) {
         if (request != _channelSwitchGeneration) return false;
         final candidateUrl = candidates[candidateIndex];
+        if (!_routeAllowed(candidateUrl)) continue;
         AppDiagnostics.instance.log('channel_preload_candidate_started', {
           'channel': channelName,
           'index': candidateIndex + 1,
@@ -745,7 +840,7 @@ class PlayerService {
           }
           await candidate.setVolume(0);
           final controller = _createVideoController(candidate);
-          await candidate.open(Media(ServerEgress.mediaUrl(candidateUrl), httpHeaders: ServerEgress.mediaHeaders(candidateUrl)))
+          await _openAllowedMedia(candidate, candidateUrl)
               .timeout(const Duration(seconds: 6));
           final ready = await _waitForPreparedChannel(
             candidate,
@@ -755,8 +850,9 @@ class PlayerService {
                     channelName ?? '') ||
                 ChannelNameNormalizer.isUltraHd(originalName ?? '') ||
                 ChannelNameNormalizer.isUltraHd(tvgId ?? ''),
+            stillValid: () => _routeAllowed(candidateUrl),
           );
-          if (ready && request == _channelSwitchGeneration) {
+          if (ready && request == _channelSwitchGeneration && _routeAllowed(candidateUrl)) {
             if (previewOnly) {
               _healthTracker?.recordPlaybackSuccess(candidateUrl);
               // Ownership passes to the service while the preview is visible.
@@ -830,7 +926,7 @@ class PlayerService {
             } catch (_) {}
           }
         }
-        _healthTracker?.recordProbeFailure(candidateUrl);
+        if (_routeAllowed(candidateUrl)) _healthTracker?.recordProbeFailure(candidateUrl);
       }
       if (request == _channelSwitchGeneration) {
         AppDiagnostics.instance.log('channel_preload_failed', {
@@ -874,9 +970,14 @@ class PlayerService {
   Future<bool> commitPreparedChannel(String? channelId) async {
     final prepared = _preparedChannel;
     if (prepared == null || prepared.channelId != channelId) return false;
+    await _retirementGuard?.refresh();
+    if (!_routeAllowed(prepared.url)) {
+      await discardPreparedChannel();
+      return false;
+    }
     var request = 0;
     bool current() => request == _channelSwitchGeneration &&
-        identical(_preparedChannel, prepared);
+        identical(_preparedChannel, prepared) && _routeAllowed(prepared.url);
     try {
       return await _preparedCommitGate.run(
         owner: prepared,
@@ -943,7 +1044,7 @@ class PlayerService {
     int request,
   ) async {
     bool current() => request == _channelSwitchGeneration &&
-        identical(_preparedChannel, prepared);
+        identical(_preparedChannel, prepared) && _routeAllowed(prepared.url);
     await prepared.player.setVolume(player.state.volume)
         .timeout(const Duration(seconds: 2));
     if (!current()) return false;
@@ -1064,6 +1165,8 @@ class PlayerService {
     String url, {
     bool requireUltraHd = false,
   }) async {
+    await _retirementGuard?.refresh();
+    if (!_routeAllowed(url)) return false;
     final candidate = Player(
       configuration: PlayerConfiguration(
         bufferSize: PlaybackMemoryBudget(tablet: Platform.isAndroid).discovery,
@@ -1082,12 +1185,13 @@ class PlayerService {
       }
       await candidate.setVolume(0);
       _createVideoController(candidate);
-      await candidate.open(Media(ServerEgress.mediaUrl(url), httpHeaders: ServerEgress.mediaHeaders(url))).timeout(const Duration(seconds: 6));
+      await _openAllowedMedia(candidate, url).timeout(const Duration(seconds: 6));
       return await _waitForPreparedChannel(
         candidate,
         null,
         allowAudioOnly: false,
         requireUltraHd: requireUltraHd,
+        stillValid: () => _routeAllowed(url),
       );
     } catch (error) {
       AppDiagnostics.instance.log('discovered_video_probe_failed', {
@@ -1131,6 +1235,7 @@ class PlayerService {
     required bool allowAudioOnly,
     int? selectionRequest,
   }) async {
+    await _retirementGuard?.requireAllowed(url);
     if (selectionRequest != null && selectionRequest != _channelSwitchGeneration) {
       throw StateError('Preview promotion was superseded');
     }
@@ -1162,7 +1267,7 @@ class PlayerService {
         'error': error.toString(),
       });
     }
-    if (generation != _playGeneration ||
+    if (!_routeAllowed(url) || generation != _playGeneration ||
         (selectionRequest != null && selectionRequest != _channelSwitchGeneration)) {
       if (identical(_player, previous)) {
         await previous.setVolume(previousVolume).timeout(const Duration(seconds: 2));
@@ -1243,6 +1348,27 @@ class PlayerService {
     List<String>? failoverGroupUrls,
     bool allowAudioOnly = false,
   }) async {
+    final request = ++_channelSwitchGeneration;
+    await _retirementGuard?.refresh();
+    if (_disposed || request != _channelSwitchGeneration) return;
+    if (!_routeAllowed(url)) {
+      final remaining = _rankCandidateUrls([
+        ...?failoverGroupUrls,
+        ...?_alternatives?.getAlternatives(
+          channelId: channelId ?? '', epgChannelId: epgChannelId,
+          tvgId: tvgId, channelName: channelName, vanityName: vanityName,
+          originalName: originalName, excludeUrl: url,
+        ),
+      ]);
+      if (remaining.isEmpty) {
+        routeSearchProgress.value = const RouteSearchProgress(
+          stage: '线路已永久淘汰，暂无其他候选线路', index: 0, total: 0,
+        );
+        return;
+      }
+      url = remaining.first;
+      failoverGroupUrls = remaining.skip(1).toList();
+    }
     ++_channelSwitchGeneration;
     unawaited(discardPreparedChannel());
     unawaited(discardAlternativePreview());
@@ -1365,7 +1491,7 @@ class PlayerService {
       'changedFromRequested': selectedUrl != url,
     });
     final opened = await _runPlayStep(
-      player.open(Media(ServerEgress.mediaUrl(activeUrl), httpHeaders: ServerEgress.mediaHeaders(activeUrl))),
+      _openAllowedMedia(player, activeUrl),
       generation: playGeneration,
       step: 'open_media',
       timeout: const Duration(seconds: 5),
@@ -1422,7 +1548,7 @@ class PlayerService {
           'restoredStream': AppDiagnostics.summarizeStreamUrl(activeUrl),
         });
         final restored = await _runPlayStep(
-          player.open(Media(ServerEgress.mediaUrl(activeUrl), httpHeaders: ServerEgress.mediaHeaders(activeUrl))),
+          _openAllowedMedia(player, activeUrl),
           generation: playGeneration,
           step: 'restore_requested_media',
           timeout: const Duration(seconds: 5),
@@ -1516,7 +1642,7 @@ class PlayerService {
     var observedPosition = player.state.position;
     var positionAdvanced = false;
     while (stopwatch.elapsed < timeout) {
-      if (_currentUrl != expectedUrl) return false;
+      if (_currentUrl != expectedUrl || !_routeAllowed(expectedUrl)) return false;
       final buffering = player.state.buffering;
       if (buffering) sawBuffering = true;
 
@@ -1557,7 +1683,7 @@ class PlayerService {
           );
           return false;
         }
-        return true;
+        return _routeAllowed(expectedUrl);
       }
       await Future<void>.delayed(const Duration(milliseconds: 250));
     }
@@ -1930,6 +2056,7 @@ class PlayerService {
   /// Re-open the stream through the local ffmpeg proxy.
   Future<void> _retryWithProxy(String originalUrl) async {
     if (_proxyActive) return; // Avoid recursive retry
+    await _retirementGuard?.requireAllowed(originalUrl);
     final playGeneration = _playGeneration;
     final proxyUrl = await _streamProxy.start(originalUrl);
     if (proxyUrl == null) {
@@ -1948,7 +2075,7 @@ class PlayerService {
       await _streamProxy.stop();
       return;
     }
-    await player.open(Media(ServerEgress.mediaUrl(proxyUrl), httpHeaders: ServerEgress.mediaHeaders(proxyUrl)));
+    await _openAllowedMedia(player, proxyUrl, originalUrl: originalUrl);
     if (playGeneration != _playGeneration || _currentUrl != originalUrl) {
       if (_currentUrl == originalUrl) await player.stop();
       await _streamProxy.stop();
@@ -2009,6 +2136,8 @@ class PlayerService {
 
   /// Resume playback.
   Future<void> resume() async {
+    if (_currentUrl == null) return;
+    await _retirementGuard?.requireAllowed(_currentUrl!);
     if (castService?.isCasting == true) unawaited(castService!.resume());
     await player.play();
   }
@@ -2267,6 +2396,8 @@ class PlayerService {
     for (var index = 0; index < candidates.length; index++) {
       if (!valid()) return;
       final url = candidates[index];
+      if (!_routeAllowed(url)) continue;
+      _alternativePreviewUrl = url;
       _alternativeTriedUrls.add(url);
       alternativePreviewState.value = AlternativePreviewState(
         stage: '正在尝试备用线路', index: index + 1,
@@ -2290,15 +2421,15 @@ class PlayerService {
         }
         await candidate.setVolume(0);
         final controller = _createVideoController(candidate);
-        await candidate.open(Media(ServerEgress.mediaUrl(url), httpHeaders: ServerEgress.mediaHeaders(url))).timeout(const Duration(seconds: 6));
+        await _openAllowedMedia(candidate, url).timeout(const Duration(seconds: 6));
         final ready = await _waitForPreparedChannel(
           candidate, null,
           allowAudioOnly: false,
           requireUltraHd: _requiresUltraHd,
-          stillValid: valid,
+          stillValid: () => valid() && _routeAllowed(url),
         );
-        if (ready && valid() &&
-            await _waitForStableAlternative(candidate, valid)) {
+        if (ready && valid() && _routeAllowed(url) &&
+            await _waitForStableAlternative(candidate, () => valid() && _routeAllowed(url))) {
           if (!valid()) return;
           _alternativePreviewUrl = url;
           _healthTracker?.recordPlaybackSuccess(url);
@@ -2325,6 +2456,7 @@ class PlayerService {
         if (!keepPlayer) {
           if (identical(_alternativePreviewPlayer, candidate)) {
             _alternativePreviewPlayer = null;
+            _alternativePreviewUrl = null;
           }
           try {
             await candidate.dispose().timeout(const Duration(seconds: 2));
@@ -2427,6 +2559,11 @@ class PlayerService {
     final url = _alternativePreviewUrl;
     if (candidate == null || controller == null || url == null ||
         !candidate.state.playing || candidate.state.buffering) return false;
+    await _retirementGuard?.refresh();
+    if (!_routeAllowed(url)) {
+      await discardAlternativePreview();
+      return false;
+    }
     final playGeneration = _playGeneration;
     final mainUrl = _currentUrl;
     ++_alternativePreviewGeneration;
@@ -2556,6 +2693,7 @@ class PlayerService {
         if (url.isNotEmpty &&
             !(_transferredRouteExclusions[_transferScope]?.contains(canonicalRouteUrl(url)) ?? false) &&
             !_manuallyRejectedUrls.contains(canonicalRouteUrl(url)) &&
+            _routeAllowed(url) &&
             seen.add(canonicalRouteUrl(url))) {
           results.add(url);
         }
@@ -2588,7 +2726,7 @@ class PlayerService {
     Iterable<String> urls, {
     String? preferredUrl,
   }) => prioritizeCandidateUrls(
-    urls,
+    urls.where(_routeAllowed),
     (url) => _healthTracker?.getScore(url) ?? 0.5,
     preferredUrl: preferredUrl,
   );
@@ -2680,7 +2818,7 @@ class PlayerService {
       }
       if (_warmGeneration != generation || _warmPlayer != warmPlayer) return;
       openStarted = true;
-      await warmPlayer.open(Media(ServerEgress.mediaUrl(warmUrl), httpHeaders: ServerEgress.mediaHeaders(warmUrl)));
+      await _openAllowedMedia(warmPlayer, warmUrl);
     }
 
     var setupFailed = false;
@@ -2875,7 +3013,7 @@ class PlayerService {
     String candidateUrl,
     int playGeneration,
   ) async {
-    if (playGeneration != _playGeneration) return false;
+    if (playGeneration != _playGeneration || !_routeAllowed(candidateUrl)) return false;
     try {
       _currentUrl = candidateUrl;
       _proxyActive = false;
@@ -2896,7 +3034,7 @@ class PlayerService {
       );
       if (playGeneration != _playGeneration) return false;
       final opened = await _runPlayStep(
-        player.open(Media(ServerEgress.mediaUrl(candidateUrl), httpHeaders: ServerEgress.mediaHeaders(candidateUrl))),
+        _openAllowedMedia(player, candidateUrl),
         generation: playGeneration,
         step: 'failover_open_media',
         timeout: const Duration(seconds: 5),
@@ -2921,7 +3059,7 @@ class PlayerService {
       final ready = await _waitForPlayable(
           candidateUrl, timeout: const Duration(seconds: 10));
       if (playGeneration != _playGeneration) return false;
-      if (ready) {
+      if (ready && _routeAllowed(candidateUrl)) {
         _recordPlaybackReadyOnce(candidateUrl, playGeneration);
         _scheduleAudioCheck(candidateUrl);
         _scheduleVideoCheck(candidateUrl, playGeneration);
@@ -2948,6 +3086,14 @@ class PlayerService {
     int playGeneration,
   ) async {
     if (playGeneration != _playGeneration) return;
+    await _retirementGuard?.refresh();
+    if (playGeneration != _playGeneration) return;
+    if (!_routeAllowed(previousUrl)) {
+      await stop();
+      routeSearchProgress.value = const RouteSearchProgress(
+          stage: '原线路已永久淘汰，禁止恢复', index: 0, total: 0);
+      return;
+    }
     debugPrint('[Failover] Restoring previous stream: $previousUrl');
     _currentUrl = previousUrl;
     await _runPlayStep(
@@ -2959,7 +3105,7 @@ class PlayerService {
     );
     if (playGeneration != _playGeneration) return;
     final restored = await _runPlayStep(
-      player.open(Media(ServerEgress.mediaUrl(previousUrl), httpHeaders: ServerEgress.mediaHeaders(previousUrl))),
+      _openAllowedMedia(player, previousUrl),
       generation: playGeneration,
       step: 'failover_restore_media',
       timeout: const Duration(seconds: 5),
@@ -2979,8 +3125,11 @@ class PlayerService {
   }
 
   Future<void> dispose() async {
+    _disposed = true;
     ++_playGeneration;
     ++_channelSwitchGeneration;
+    await _retirementSubscription?.cancel();
+    await _retirementCleanup;
     await discardPreparedChannel();
     await discardAlternativePreview();
     alternativePreviewState.dispose();
@@ -3066,7 +3215,15 @@ class _PreparedChannel {
 
 /// Riverpod provider for the player service (singleton).
 final playerServiceProvider = Provider<PlayerService>((ref) {
-  final service = PlayerService();
+  final database = ref.read(databaseProvider);
+  final retirementGuard = RetiredRouteGuard(
+    read: database.getBlockedStreamUrls,
+    updates: database.select(database.blockedStreamRoutes).watch().map(
+      (rows) => rows.map((row) => row.streamUrl).toSet(),
+    ),
+  );
+  final service = PlayerService(retirementGuard: retirementGuard);
+  ref.onDispose(() => unawaited(retirementGuard.dispose()));
   final casting = ref.read(castServiceProvider);
   service.castService = casting;
   final muteSubscription = casting.statusStream.listen((_) {
@@ -3089,7 +3246,6 @@ final playerServiceProvider = Provider<PlayerService>((ref) {
     final alternatives = ref.read(streamAlternativesProvider);
     final health = ref.read(streamHealthTrackerProvider);
     service.configureFailover(alternatives, health);
-    final database = ref.read(databaseProvider);
     service.onStaticStreamDetected = database.blockAndDeleteChannelRoute;
     final community = ref.read(bobTvCommunityProvider);
     service.onReviewedPlaybackVerdict = (channelId, url, playable) {

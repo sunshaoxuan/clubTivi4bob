@@ -25,9 +25,9 @@ MAX_UPDATE_BYTES = 2_000_000_000
 UPDATE_PUBLIC_KEY = Path(__file__).resolve().parent / "update-signing-public.pem"
 
 
-def _verify_mac_signature(archive, encoded):
+def _verify_publisher_signature(archive, encoded):
     if not isinstance(encoded, str) or not re.fullmatch(r"[A-Za-z0-9+/]{80,120}={0,2}", encoded):
-        raise ValueError("Mac update signature is missing or invalid")
+        raise ValueError("Update signature is missing or invalid")
     try:
         signature = base64.b64decode(encoded, validate=True)
     except ValueError as exc:
@@ -39,7 +39,10 @@ def _verify_mac_signature(archive, encoded):
                                  str(UPDATE_PUBLIC_KEY), "-signature", str(path),
                                  str(archive)], capture_output=True, check=False)
     if result.returncode != 0:
-        raise ValueError("Mac update publisher signature mismatch")
+        raise ValueError("Update publisher signature mismatch")
+
+
+_verify_mac_signature = _verify_publisher_signature
 
 
 def version_parts(version):
@@ -77,7 +80,7 @@ def _download_verified(asset, target, expected_hash=None):
                 output.write(chunk)
         with temporary.open("rb") as downloaded:
             signature = downloaded.read(4)
-        if total != size or signature != b"PK\x03\x04":
+        if total != size or (signature != b"PK\x03\x04" if not target.name.endswith('.exe') else signature[:2] != b'MZ'):
             raise ValueError("Invalid update archive")
         actual_hash = digest.hexdigest()
         if actual_hash != expected_hash or (github_hash and github_hash != f"sha256:{actual_hash}"):
@@ -168,7 +171,7 @@ def _mirror_updates(release, selected):
         raise ValueError("Update metadata has no packages")
     seen = set()
     for package in packages:
-        if not isinstance(package, dict) or not {"platform", "filename", "sha256", "bytes"} <= set(package) or set(package) - {"platform", "filename", "sha256", "bytes", "signature"}:
+        if not isinstance(package, dict) or not {"platform", "filename", "sha256", "bytes"} <= set(package) or set(package) - {"platform", "filename", "sha256", "bytes", "signature", "installer"}:
             raise ValueError("Invalid update package entry")
         platform = package["platform"]
         filename = package["filename"]
@@ -193,6 +196,30 @@ def _mirror_updates(release, selected):
             _verify_mac_signature(target, package.get("signature"))
         elif "signature" in package:
             raise ValueError("Unexpected non-Mac update signature")
+        installer_entry = None
+        if 'installer' in package:
+            item = package['installer']
+            if not platform.startswith('windows-') or not isinstance(item,dict) or set(item) != {'filename','sha256','bytes','signature'}:
+                raise ValueError('Invalid installer metadata')
+            installer_name = f'BobTV-{version}-{platform}-Setup.exe'
+            installer_asset = assets.get(installer_name)
+            if item['filename'] != installer_name or installer_asset is None or type(item['bytes']) is not int or item['bytes'] != installer_asset['size'] or not isinstance(item['sha256'],str) or not re.fullmatch('[a-f0-9]{64}', item['sha256']):
+                raise ValueError('Installer missing or changed')
+            installer_path = DATA / 'updates/files' / installer_name
+            _download_verified(installer_asset, installer_path, item['sha256'])
+            _verify_publisher_signature(installer_path, item['signature'])
+            installer_entry = {'archive':f'https://bobtv.briconbric.com/updates/files/{installer_name}',
+                               'sha256':item['sha256'],'bytes':item['bytes'],'signature':item['signature']}
+        historical = {'schema':1,'version':version,
+            'archive':f'https://bobtv.briconbric.com/updates/files/{filename}',
+            'sha256':checksum,'bytes':package['bytes'],'publishedAt':release['published_at']}
+        if platform.startswith('macos-'): historical['signature'] = package['signature']
+        if installer_entry: historical['installer'] = installer_entry
+        history_path = DATA / 'updates' / platform / 'versions' / f'{version}.json'
+        history_path.parent.mkdir(parents=True,exist_ok=True)
+        history_tmp = history_path.with_name(f'.{version}.{os.getpid()}.tmp')
+        history_tmp.write_text(json.dumps(historical,separators=(',',':')),encoding='utf-8')
+        os.replace(history_tmp,history_path)
         current = selected.get(platform)
         if current is None or version_parts(version) > version_parts(current["version"]):
             selected[platform] = {
@@ -203,6 +230,7 @@ def _mirror_updates(release, selected):
             }
             if platform.startswith("macos-"):
                 selected[platform]["signature"] = package["signature"]
+            if installer_entry: selected[platform]['installer'] = installer_entry
 
 
 def request(url):
@@ -296,9 +324,15 @@ def mirror():
                 raise ValueError("Invalid approved update registry")
         else:
             approved = {}
-        for entry in updates.values():
+        historical_entries = list(updates.values())
+        for platform in UPDATE_PLATFORMS:
+            for history in (DATA/'updates'/platform/'versions').glob('*.json'):
+                historical_entries.append(json.loads(history.read_text(encoding='utf-8')))
+        for entry in historical_entries:
             filename = entry["archive"].rsplit("/", 1)[-1]
             approved[filename] = entry["sha256"]
+            if entry.get('installer'):
+                approved[entry['installer']['archive'].rsplit('/',1)[-1]] = entry['installer']['sha256']
         temporary = approved_path.with_name(f".approved.{os.getpid()}.tmp")
         temporary.write_text(json.dumps(approved, separators=(",", ":")), encoding="utf-8")
         os.replace(temporary, approved_path)
@@ -311,7 +345,7 @@ def mirror():
                 previous = json.loads(path.read_text(encoding="utf-8"))
             except ValueError:
                 pass
-        if previous and version_parts(previous["version"]) >= version_parts(entry["version"]):
+        if previous and (version_parts(previous["version"]) > version_parts(entry["version"]) or previous == entry):
             continue
         temporary = path.with_name(f".latest.{os.getpid()}.tmp")
         temporary.write_text(json.dumps(entry, separators=(",", ":")), encoding="utf-8")

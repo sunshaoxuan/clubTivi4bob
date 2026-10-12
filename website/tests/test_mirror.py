@@ -179,6 +179,34 @@ def test_mac_update_rejects_missing_or_wrong_publisher_signature(tmp_path, monke
         module._verify_mac_signature(path, valid)
 
 
+def test_mirror_authenticates_windows_setup_and_retains_rollback_history(tmp_path,monkeypatch):
+    monkeypatch.setattr(module,'DATA',tmp_path)
+    archive=update_zip('windows-x64')
+    setup=b'MZ'+b'installer'*150000
+    signature=sign_test_archive(tmp_path,monkeypatch,setup)
+    version='1.1.2+95'
+    zip_name=f'BobTV-{version}-windows-x64.zip'
+    setup_name=f'BobTV-{version}-windows-x64-Setup.exe'
+    entry={'platform':'windows-x64','filename':zip_name,'sha256':hashlib.sha256(archive).hexdigest(),'bytes':len(archive),
+        'installer':{'filename':setup_name,'sha256':hashlib.sha256(setup).hexdigest(),'bytes':len(setup),'signature':signature}}
+    metadata=json.dumps({'schema':1,'version':version,'packages':[entry]}).encode()
+    release={'published_at':'2026-10-12T00:00:00Z','assets':[
+        {'name':module.UPDATE_METADATA,'size':len(metadata),'browser_download_url':'metadata'},
+        {'name':zip_name,'size':len(archive),'browser_download_url':'zip'},
+        {'name':setup_name,'size':len(setup),'browser_download_url':'setup'}]}
+    responses={'metadata':metadata,'zip':archive,'setup':setup}
+    monkeypatch.setattr(module,'request',lambda url:io.BytesIO(responses[url]))
+    selected={}
+    module._mirror_updates(release,selected)
+    assert selected['windows-x64']['installer']['signature']==signature
+    assert json.loads((tmp_path/'updates/windows-x64/versions'/f'{version}.json').read_text())==selected['windows-x64']
+    entry['installer']['signature']='A'*96
+    responses['metadata']=json.dumps({'schema':1,'version':version,'packages':[entry]}).encode()
+    release['assets'][0]['size']=len(responses['metadata'])
+    with pytest.raises(ValueError,match='signature'):
+        module._mirror_updates(release,{})
+
+
 def test_update_archive_rejects_path_escape(tmp_path):
     path = tmp_path / "unsafe.zip"
     with zipfile.ZipFile(path, "w") as package:

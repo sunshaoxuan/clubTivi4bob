@@ -63,6 +63,7 @@ import 'inline_expanded_channel_grid.dart';
 import 'channel_card_feedback.dart';
 import 'channel_card_playback_binding.dart';
 import 'shared_sync_badge.dart';
+import 'simple_channel_panel_header.dart';
 import '../player/desktop_exit_button.dart';
 
 class ChannelsScreen extends ConsumerStatefulWidget {
@@ -98,6 +99,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
   bool _serverRecoveryRunning = false;
   final Map<String, DateTime> _serverRecoveryTimes = {};
   List<String> _groups = List.of(ChannelCategoryClassifier.categories);
+  List<String> _structuredCategoryGroups = [];
   String _selectedGroup = '央视';
   String _selectedInternationalCountry = '';
   String _selectedInternationalGenre = '全部';
@@ -179,10 +181,14 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
   final _sidebarAllItemFocusNode = FocusNode(debugLabel: 'sidebar-all');
   final _firstChannelFocusNode = FocusNode(debugLabel: 'channel-first');
   final _provinceButtonKey = GlobalKey();
+  final _customCategoryButtonKey = GlobalKey();
   String _sidebarSearchQuery = '';
 
   StreamSubscription<List<db.Provider>>? _providersSub;
   StreamSubscription<List<db.Channel>>? _channelsSub;
+  StreamSubscription<List<db.FavoriteList>>? _favoriteListsSub;
+  StreamSubscription<List<db.FavoriteListChannel>>? _favoriteMembersSub;
+  Timer? _favoritesReloadTimer;
 
   // Provider list for sidebar
   List<db.Provider> _providers = [];
@@ -293,12 +299,50 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
           previousChannelRows = rows;
           if (!retain) debouncedReload();
         });
+    void reloadFavorites() {
+      _favoritesReloadTimer?.cancel();
+      _favoritesReloadTimer = Timer(const Duration(milliseconds: 120), () {
+        unawaited(_reloadFavoriteSelections());
+      });
+    }
+    _favoriteListsSub = database.select(database.favoriteLists).watch()
+        .listen((_) => reloadFavorites());
+    _favoriteMembersSub = database.select(database.favoriteListChannels).watch()
+        .listen((_) => reloadFavorites());
     ref.read(sourceMaintenanceCoordinatorProvider);
     // Refresh now-playing every 60 seconds so the info panel stays current
     _nowPlayingTimer = Timer.periodic(
       const Duration(seconds: 60),
       (_) => _refreshNowPlaying(),
     );
+  }
+
+  Future<void> _reloadFavoriteSelections() async {
+    if (!mounted) return;
+    try {
+      final database = ref.read(databaseProvider);
+      final lists = await database.getAllFavoriteLists();
+      final ids = await database.getAllFavoritedChannelIds();
+      if (!mounted) return;
+      setState(() {
+        _favoriteLists = lists;
+        _favoritedChannelIds = ids;
+        if (_selectedGroup.startsWith('fav:') &&
+            !lists.any((list) => 'fav:${list.id}' == _selectedGroup)) {
+          _selectedGroup = 'Favorites';
+        }
+        _applyFilters();
+      });
+      if (_selectedGroup == 'Favorites' || _selectedGroup.startsWith('fav:')) {
+        await _loadGroupChannels(_selectedGroup, preserveScroll: true);
+      }
+    } catch (error) {
+      if (mounted) {
+        AppDiagnostics.instance.log('favorite_selection_reload_failed', {
+          'type': error.runtimeType.toString(),
+        });
+      }
+    }
   }
 
   Future<void> _refreshNowPlaying() async {
@@ -500,6 +544,9 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
     _activePlayerSubscription?.cancel();
     _providersSub?.cancel();
     _channelsSub?.cancel();
+    _favoriteListsSub?.cancel();
+    _favoriteMembersSub?.cancel();
+    _favoritesReloadTimer?.cancel();
     _longPressTimer?.cancel();
     _focusNode.dispose();
     super.dispose();
@@ -522,11 +569,20 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
         database.getAllFavoriteLists(),
         database.getAllFavoritedChannelIds(),
         SharedPreferences.getInstance(),
+        database.getStructuredCategoryGroups(),
       ]);
       final providers = results[0] as List<db.Provider>;
       final favLists = results[1] as List<db.FavoriteList>;
       final favChannelIds = results[2] as Set<String>;
       final prefs = results[3] as SharedPreferences;
+      final categoryGroups = <String>{
+        ...results[4] as List<String>,
+        ..._pendingManualCategories.values.map((d) => d.group),
+      }.toList();
+      final navigationGroups = ChannelCategoryDestination.navigationCategories(
+        categoryGroups.map(ChannelCategoryDestination.fromGroup)
+            .whereType<ChannelCategoryDestination>(),
+      );
       _sharedCatalogAvailable = providers.any((provider) =>
           provider.id == WebsiteChannelCatalogService.providerId);
       _simpleMode = prefs.getBool(_simpleModePreferenceKey) ?? true;
@@ -558,7 +614,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
         final savedGroup = prefs.getString(_kLastGroup);
         if (savedGroup == 'Favorites' ||
             (savedGroup?.startsWith('fav:') ?? false) ||
-            ChannelCategoryClassifier.categories.contains(savedGroup)) {
+            navigationGroups.contains(savedGroup)) {
           selectedGroup = savedGroup!;
         } else {
           selectedGroup = ChannelCategoryClassifier.categories.first;
@@ -570,7 +626,8 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
         _providers = providers;
         _favoriteLists = favLists;
         _favoritedChannelIds = favChannelIds;
-        _groups = List.of(ChannelCategoryClassifier.categories);
+        _structuredCategoryGroups = categoryGroups;
+        _groups = navigationGroups;
         _selectedGroup = selectedGroup;
       });
 
@@ -775,6 +832,8 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
   String _countryFor(db.Channel channel) {
     final manual = _manualCategories[channel.streamUrl];
     if (manual != null) return manual.country;
+    final explicit = ChannelCategoryDestination.fromGroup(channel.groupTitle);
+    if (explicit != null) return explicit.country;
     if (channel.providerId == WebsiteChannelCatalogService.providerId) {
       return WebsiteChannelCatalogService.countryForGroup(channel.groupTitle);
     }
@@ -793,6 +852,8 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
   String _categoryFor(db.Channel channel) {
     final manual = _manualCategories[channel.streamUrl];
     if (manual != null) return manual.category;
+    final explicit = ChannelCategoryDestination.fromGroup(channel.groupTitle);
+    if (explicit != null) return explicit.category;
     if (channel.providerId == WebsiteChannelCatalogService.providerId) {
       return WebsiteChannelCatalogService.categoryForGroup(channel.groupTitle);
     }
@@ -1127,7 +1188,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
     }
 
     _filteredChannels = _deduplicateChannels(channels);
-    if (ChannelCategoryClassifier.categories.contains(_selectedGroup)) {
+    if (_groups.contains(_selectedGroup)) {
       _filteredChannels.sort((a, b) {
         final aKey = ChannelCategoryClassifier.sortKeyForCategory(
           category: _selectedGroup,
@@ -1455,7 +1516,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
       _applyFilters();
     });
     _playFirstFilteredChannelForGroup(_selectedGroup);
-    if (ChannelCategoryClassifier.categories.contains(_selectedGroup)) {
+    if (_groups.contains(_selectedGroup)) {
       unawaited(_verifyActiveCategory(channels, checks, generation, revision));
     }
   }
@@ -1710,6 +1771,8 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
     return [
       '全部',
       ...ChannelCategoryClassifier.internationalGenres.where(found.contains),
+      ...(found.difference(ChannelCategoryClassifier.internationalGenres.toSet())
+          .toList()..sort()),
     ];
   }
 
@@ -2096,7 +2159,13 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
     };
     final destination = await showDialog<ChannelCategoryDestination>(
       context: context,
-      builder: (_) => ChannelCategoryPicker(channelName: _channelDisplayName(channel)),
+      builder: (_) => ChannelCategoryPicker(
+        channelName: _channelDisplayName(channel),
+        existingGroups: [
+          ..._structuredCategoryGroups,
+          ..._manualCategories.values.map((d) => d.group),
+        ],
+      ),
     );
     if (!mounted || destination == null) return;
     final database = ref.read(databaseProvider);
@@ -2107,6 +2176,11 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
         _pendingManualCategories[url] = destination;
       }
       _pendingAutoplayGroup = null;
+      _structuredCategoryGroups = {..._structuredCategoryGroups, destination.group}.toList();
+      _groups = ChannelCategoryDestination.navigationCategories(
+        _structuredCategoryGroups.map(ChannelCategoryDestination.fromGroup)
+            .whereType<ChannelCategoryDestination>(),
+      );
       _allChannels = moveChannelRows(_allChannels, urls, destination);
       _rebuildInternationalCountries(_allChannels, _selectedGroup);
       _applyFilters();
@@ -3302,7 +3376,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
     return DesktopUpdateBadge(
       state: DesktopUpdateService.instance.state,
       showPostExitProgress: Platform.isWindows || Platform.isMacOS,
-      onInstall: Platform.isAndroid
+      onInstall: (Platform.isAndroid || Platform.isWindows || Platform.isMacOS)
           ? () => unawaited(DesktopUpdateService.instance.installReady())
           : null,
       onRetry: () => unawaited(DesktopUpdateService.instance.checkNow()),
@@ -3523,12 +3597,15 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Text(
-                  label,
-                  style: TextStyle(
-                    color: selected ? const Color(0xFF122039) : Colors.white70,
-                    fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
-                    fontSize: 14,
+                Flexible(
+                  child: Text(
+                    label,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: selected ? const Color(0xFF122039) : Colors.white70,
+                      fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+                      fontSize: 14,
+                    ),
                   ),
                 ),
                 if (trailing != null) ...[
@@ -3547,8 +3624,10 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
     );
   }
 
-  Future<void> _showProvincePicker() async {
-    final buttonContext = _provinceButtonKey.currentContext;
+  Future<void> _showProvincePicker({List<String>? groups, GlobalKey? anchorKey}) async {
+    final choices = groups ?? ChannelCategoryClassifier.provinceCategories;
+    final custom = groups != null;
+    final buttonContext = (anchorKey ?? _provinceButtonKey).currentContext;
     final buttonBox = buttonContext?.findRenderObject();
     if (buttonBox is! RenderBox) return;
     final buttonPosition = buttonBox.localToGlobal(Offset.zero);
@@ -3580,16 +3659,16 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Row(children: [
-                  const Expanded(child: Column(
+                  Expanded(child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text('选择地区', style: TextStyle(
+                      Text(custom ? '选择分类' : '选择地区', style: const TextStyle(
                         color: Colors.white,
                         fontSize: 25,
                         fontWeight: FontWeight.w700,
                       )),
-                      SizedBox(height: 4),
-                      Text('探索各地电视频道', style: TextStyle(
+                      const SizedBox(height: 4),
+                      Text(custom ? '浏览新增分类与子分类' : '探索各地电视频道', style: const TextStyle(
                         color: Colors.white60,
                         fontSize: 13,
                       )),
@@ -3604,7 +3683,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                 const SizedBox(height: 14),
                 Expanded(
                   child: GridView.builder(
-                    itemCount: ChannelCategoryClassifier.provinceCategories.length,
+                    itemCount: choices.length,
                     gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                       crossAxisCount: columns,
                       mainAxisExtent: 94,
@@ -3612,8 +3691,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                       crossAxisSpacing: 11,
                     ),
                     itemBuilder: (context, index) {
-                      final province =
-                          ChannelCategoryClassifier.provinceCategories[index];
+                      final province = choices[index];
                       return _buildProvinceCard(
                         province,
                         index,
@@ -3680,12 +3758,15 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                     )),
                   ),
                 ),
-                Center(child: Text(province, style: const TextStyle(
+                Center(child: Padding(
+                  padding: const EdgeInsets.all(12),
+                  child: Text(province, maxLines: 2, overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.center, style: const TextStyle(
                   color: Colors.white,
                   fontSize: 21,
                   fontWeight: FontWeight.w700,
                   shadows: [Shadow(color: Colors.black38, blurRadius: 8)],
-                ))),
+                )))),
                 if (selected)
                   const Positioned(
                     top: 8,
@@ -3921,10 +4002,10 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
   Widget _buildSimpleChannelPanel() {
     final selectedProvince = ChannelCategoryClassifier.provinceCategories
         .contains(_selectedGroup);
-    final mainlandSelected =
-        _selectedGroup == '央视' ||
-        selectedProvince ||
-        const ['广播', '数字', '其他'].contains(_selectedGroup);
+    final customGroups = _groups.where((group) =>
+        !ChannelCategoryClassifier.categories.contains(group)).toList();
+    final mainlandSelected = _groups.contains(_selectedGroup) &&
+        _selectedGroup != '国际' && _selectedGroup != '网络直播';
     final internationalGenres = _internationalGenresForSelectedCountry();
     return Container(
       decoration: _simpleSurfaceDecoration(),
@@ -3932,52 +4013,23 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              Container(
-                width: 4,
-                height: 28,
-                decoration: BoxDecoration(
-                  color: const Color(0xFFA8BFFF),
-                  borderRadius: BorderRadius.circular(3),
-                ),
-              ),
-              const SizedBox(width: 11),
-              const Text(
-                '选台',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 23,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: -0.4,
-                ),
-              ),
-              const Spacer(),
-              SharedSyncBadge(
-                catalog: ref
-                    .read(sourceMaintenanceCoordinatorProvider)
-                    .websiteCatalog
-                    .state,
-                upload: ref
-                    .read(sourceMaintenanceCoordinatorProvider)
-                    .inventory
-                    .state,
-              ),
-              const SizedBox(width: 8),
-              Flexible(
-                child: Text(
-                  _regionTotalRoutes > 0
-                      ? '${_filteredChannels.length} 个频道 · 正在核对线路 '
-                            '$_regionCheckedRoutes/$_regionTotalRoutes'
-                      : _routeAvailabilityLoading
-                      ? '正在核对线路…'
-                      : '${_filteredChannels.length} 个频道',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(color: Colors.white60, fontSize: 12),
-                ),
-              ),
-            ],
+          SimpleChannelPanelHeader(
+            syncBadge: SharedSyncBadge(
+              catalog: ref
+                  .read(sourceMaintenanceCoordinatorProvider)
+                  .websiteCatalog
+                  .state,
+              upload: ref
+                  .read(sourceMaintenanceCoordinatorProvider)
+                  .inventory
+                  .state,
+            ),
+            summary: _regionTotalRoutes > 0
+                ? '${_filteredChannels.length} 个频道 · 正在核对线路 '
+                      '$_regionCheckedRoutes/$_regionTotalRoutes'
+                : _routeAvailabilityLoading
+                ? '正在核对线路…'
+                : '${_filteredChannels.length} 个频道',
           ),
           const SizedBox(height: 18),
           Wrap(
@@ -4047,6 +4099,19 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                     onTap: _showProvincePicker,
                   ),
                 ),
+                if (customGroups.isNotEmpty)
+                  KeyedSubtree(
+                    key: _customCategoryButtonKey,
+                    child: _buildSimpleCategoryTab(
+                      customGroups.contains(_selectedGroup) ? _selectedGroup : '更多分类',
+                      selected: customGroups.contains(_selectedGroup),
+                      trailing: Icons.grid_view_rounded,
+                      onTap: () => _showProvincePicker(
+                        groups: customGroups,
+                        anchorKey: _customCategoryButtonKey,
+                      ),
+                    ),
+                  ),
               ],
             ),
           ],

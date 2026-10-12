@@ -121,3 +121,25 @@ def test_browser_upload_preflight_is_restricted_to_bobtv(client):
     headers['Origin'] = 'https://unrelated.example.org'
     assert test.options('/bobtv/api/v1/logs', headers=headers).status_code == 400
     assert seen == []
+
+
+def test_device_favorites_keep_device_headers_and_bypass_every_shared_cache(client):
+    test, seen = client
+    response = test.get('/bobtv/api/v1/device-favorites', headers={
+        'Authorization': 'Bearer btvf1_' + 'f' * 64,
+        'X-BobTV-Device-Fingerprint': 'a' * 64,
+        'If-None-Match': '"favorites-v1-2"',
+    })
+    assert seen[0].headers['authorization'] == 'Bearer btvf1_' + 'f' * 64
+    assert seen[0].headers['x-bobtv-device-fingerprint'] == 'a' * 64
+    assert seen[0].headers['if-none-match'] == '"favorites-v1-2"'
+    assert response.headers['cache-control'] == 'private, no-store'
+    assert {'authorization', 'x-bobtv-device-fingerprint'} <= {
+        field.strip().lower() for field in response.headers['vary'].split(',')}
+    nginx = (Path(__file__).parents[1] / 'deploy/bobtv-resource-relay-cache.conf').read_text()
+    assert '/device-favorites' not in nginx
+    assert "map $http_authorization $bobtv_private_request { default 1; '' 0; }" in nginx
+    assert '"$bobtv_resource_bypass:$bobtv_private_request" $bobtv_if_none_match' in nginx
+    location = (Path(__file__).parents[1] / 'deploy/bobtv-resource-relay-location.conf').read_text()
+    assert 'proxy_set_header If-None-Match $bobtv_if_none_match;' in location
+    assert 'proxy_set_header If-Modified-Since $bobtv_if_modified_since;' in location

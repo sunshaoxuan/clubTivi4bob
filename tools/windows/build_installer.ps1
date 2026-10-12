@@ -3,6 +3,8 @@ param(
   [Parameter(Mandatory=$true)][string]$OutputDirectory,
   [string]$CompilerPath,
   [string]$Version,
+  [string]$SignToolPath,
+  [string]$CertificateThumbprint=$env:BOBTV_CODESIGN_CERT_THUMBPRINT,
   [ValidateSet('auto','x64','arm64')][string]$Architecture='auto'
 )
 $ErrorActionPreference='Stop'
@@ -44,4 +46,14 @@ $output=(Get-Item -LiteralPath $OutputDirectory).FullName
 if($LASTEXITCODE -ne 0){throw "Installer compiler failed: $LASTEXITCODE"}
 $setup=Join-Path $output "BobTV-$Version-windows-$Architecture-Setup.exe"
 if(!(Test-Path -LiteralPath $setup)){throw 'Compiler did not produce installer'}
+if($CertificateThumbprint){
+  if($CertificateThumbprint -notmatch '^[a-fA-F0-9]{40}$'){throw 'Invalid code-signing certificate thumbprint'}
+  if(!$SignToolPath){$SignToolPath=(Get-Command signtool.exe -ErrorAction Stop).Source}
+  & $SignToolPath sign /sha1 $CertificateThumbprint /fd SHA256 /tr 'http://timestamp.digicert.com' /td SHA256 $setup
+  if($LASTEXITCODE -ne 0){throw 'Installer Authenticode signing failed'}
+  & $SignToolPath verify /pa /all $setup
+  if($LASTEXITCODE -ne 0){throw 'Installer Authenticode verification failed'}
+}else{
+  Write-Warning 'Installer has no trusted Windows code-signing certificate. Browser security-reputation warnings may still appear on first installation.'
+}
 Get-FileHash -LiteralPath $setup -Algorithm SHA256|Select-Object Path,Hash

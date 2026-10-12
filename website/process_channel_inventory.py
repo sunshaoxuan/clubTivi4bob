@@ -193,8 +193,16 @@ def process(data_dir=DATA, limit=120, verifier=probe):
         channels = {}
         for row in rows:
             if not _television_media(row["name"], row["url"]): continue
-            path = row["group_name"].split(" / ")[:4]
-            if path[0] not in ("中国", "国际", "其他", "广播", "数字"): path = ["其他"]
+            # Keep the complete explicit hierarchy. The former four-level cap
+            # silently discarded user-created subcategories during publication.
+            path = row["group_name"].split(" / ")
+            # Legacy and external contributors may bypass the editor's limits.
+            # An invalid tree must not make the entire client snapshot unusable.
+            if (path[0] not in ("中国", "国际", "其他", "广播", "数字")
+                    or len(path) > 8
+                    or any(not name.strip() or len(name) > 64
+                           or any(ord(c) < 32 for c in name) for name in path)):
+                path = ["其他"]
             parent = None
             for depth, name in enumerate(path):
                 identity = "category-" + hashlib.sha256(" / ".join(path[:depth+1]).encode()).hexdigest()[:24]

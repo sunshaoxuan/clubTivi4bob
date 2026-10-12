@@ -173,6 +173,8 @@ Mac 测试 DMG 不会进入自动更新清单。正式更新包必须用 BobTV �
 Windows 与 macOS 的共享频道接口与旧版 `/api/v1/sources` 独立。
 
 - `GET /api/v1/channel-catalog/manifest` 返回已分类清单版本、频道数、线路数、快照地址、压缩字节数和 SHA-256。
+
+人工变更分类可创建缺少的国家、地区或子分类，仍通过 `classify` 事件的 `group` 与 `baseRevision` 同步。客户端每级名称最多 48 字，最多六级，完整路径最多 192 字；采用 ` / ` 分隔，不允许名称内含斜杠或控制字符。服务器发布完整分类树，保留超过四级的路径。分类随已分配的公开频道进入公共清单，无需单独创建空分类。
 - `GET /api/v1/channel-catalog/snapshots/{sha256}.json.gz` 下载不可变快照。
 - `POST /api/v1/channel-catalog/inventory` 分批上报公开频道、分类、线路和淘汰记录。正文包含 `schemaVersion: 1`、64 位十六进制 `fingerprint`、最多 200 项的 `routes`，最多 512 KiB。线路字段为 `name`、`url`、`group`、`source`、`blocked`，可选 `epgId`、`logoUrl`、Unix 秒数 `playableAt`。响应 `202` 包含 `accepted`、`skipped`、`storedRoutes`、`blockedRoutes`、`verifiedRoutes`。
 - `GET /api/v1/channel-catalog/blocked` 返回 `schemaVersion: 1` 与已淘汰地址数组 `urls`。后续上报不能解除淘汰状态。
@@ -209,3 +211,26 @@ Status includes `classificationAvailable`, aggregate `queue` counts for queued,
 running, done and failed jobs, and `oldestQueuedSeconds`. Background discovery
 and classification use separate workers. Failed requests retry with backoff;
 resource-budget deferral preserves jobs without consuming a failure attempt.
+
+## Device-private favorites (requires the matching client/server deployment)
+
+`GET` and `PUT /api/v1/device-favorites` require `Authorization: Bearer` with
+an independent `btvf1_` device secret and `X-BobTV-Device-Fingerprint` with the
+original 64-character fingerprint. Neither credential belongs in a URL or body.
+The OS credential store retains the secret; the server retains only hashes for
+namespace ownership and fingerprint binding. There is no public enumeration API.
+
+PUT is JSON `{schemaVersion:1, baseRevision, snapshot:{lists,legacyRoutes}}`.
+Each list has `id`, `name`, `icon`, `sortOrder`, and ordered `routes` of lowercase
+SHA-256 canonical route references. Raw URLs, passwords and unknown fields are
+rejected. Limits are 512 KiB, 100 lists and 5000 total references. Success returns
+`{revision,duplicate}`; an identical retry is idempotent and stale edits return
+409. GET returns `{schemaVersion:1,revision,updatedAt,snapshot}`, or 404 for no
+backup owned by this credential. Reusing a secret with another fingerprint is
+403. Conditional `If-None-Match: "favorites-v1-N"` reads return 304 when unchanged.
+
+All replies are `private, no-store` and vary on authorization and fingerprint.
+The cndrp resource relay forwards the fingerprint header without caching private
+payloads. Public inventories, public events, catalog snapshots and release/starter
+packages never contain favorites. See `docs/channel-catalog-sync.md` for recovery,
+credential-loss boundaries and the real HTTP cross-device acceptance test.

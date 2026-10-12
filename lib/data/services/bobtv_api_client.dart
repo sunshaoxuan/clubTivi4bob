@@ -4,6 +4,8 @@ import 'dart:io';
 
 import 'package:crypto/crypto.dart';
 import 'package:path/path.dart' as p;
+import '../models/device_favorites_snapshot.dart';
+import 'device_favorites_identity.dart';
 
 class BobTvApiException implements Exception {
   const BobTvApiException(this.reason, {this.statusCode, this.retryAfter});
@@ -92,6 +94,117 @@ class BobTvApiClient {
   }
 
   Uri _uri(String path) => baseUri.resolve(path);
+
+  Map<String, String> _favoriteHeaders(DeviceFavoritesCredential credential) {
+    final safeOrigin =
+        baseUri.scheme == 'https' &&
+        baseUri.host == 'bobtv.briconbric.com' &&
+        baseUri.port == 443;
+    final testOrigin =
+        baseUri.scheme == 'http' &&
+        (InternetAddress.tryParse(baseUri.host)?.isLoopback ?? false);
+    if ((!safeOrigin && !testOrigin) ||
+        baseUri.userInfo.isNotEmpty ||
+        baseUri.hasQuery ||
+        baseUri.hasFragment ||
+        !fingerprintPattern.hasMatch(credential.fingerprint) ||
+        !DeviceFavoritesIdentity.tokenFormat.hasMatch(credential.token)) {
+      throw const FormatException('Invalid private favorite connection');
+    }
+    return {
+      HttpHeaders.authorizationHeader: 'Bearer ${credential.token}',
+      'X-BobTV-Device-Fingerprint': credential.fingerprint,
+    };
+  }
+
+  Future<DeviceFavoritesBackup?> fetchDeviceFavorites({
+    required DeviceFavoritesCredential credential,
+    int? ifRevision,
+  }) async {
+    final response = await _request(
+      'GET',
+      '/api/v1/device-favorites',
+      headers: {
+        ..._favoriteHeaders(credential),
+        if (ifRevision != null && ifRevision > 0)
+          HttpHeaders.ifNoneMatchHeader: '"favorites-v1-$ifRevision"',
+      },
+      maxBytes: 512 * 1024,
+      requirePrivate: true,
+    );
+    if (response.status == 404) {
+      final missing = jsonDecode(utf8.decode(response.body));
+      if (missing is Map && missing['detail'] == 'No backup for this device') {
+        return null;
+      }
+      throw const BobTvApiException(
+        'private_favorites_unavailable',
+        statusCode: 404,
+      );
+    }
+    if (response.status == 304 && ifRevision != null && ifRevision > 0) {
+      return DeviceFavoritesBackup(revision: ifRevision, snapshot: null);
+    }
+    if (response.status != 200) {
+      throw BobTvApiException(
+        'private_favorites_fetch',
+        statusCode: response.status,
+        retryAfter: response.retryAfter,
+      );
+    }
+    final value = jsonDecode(utf8.decode(response.body));
+    if (value is! Map ||
+        value['schemaVersion'] != 1 ||
+        value['revision'] is! int ||
+        (value['revision'] as int) < 1) {
+      throw const FormatException('Invalid private favorite backup');
+    }
+    return DeviceFavoritesBackup(
+      revision: value['revision'] as int,
+      snapshot: DeviceFavoritesSnapshot.parse(value['snapshot']),
+    );
+  }
+
+  Future<int> saveDeviceFavorites({
+    required DeviceFavoritesCredential credential,
+    required DeviceFavoritesSnapshot snapshot,
+    required int baseRevision,
+  }) async {
+    if (baseRevision < 0 || baseRevision > 9007199254740991) {
+      throw const FormatException('Invalid private favorite revision');
+    }
+    final validated = DeviceFavoritesSnapshot.parse(snapshot.toJson());
+    final response = await _request(
+      'PUT',
+      '/api/v1/device-favorites',
+      headers: _favoriteHeaders(credential),
+      contentType: 'application/json',
+      body: utf8.encode(
+        jsonEncode({
+          'schemaVersion': 1,
+          'baseRevision': baseRevision,
+          'snapshot': validated.toJson(),
+        }),
+      ),
+      maxBytes: 4096,
+      requirePrivate: true,
+    );
+    if (response.status != 200) {
+      throw BobTvApiException(
+        'private_favorites_save',
+        statusCode: response.status,
+        retryAfter: response.retryAfter,
+      );
+    }
+    final value = jsonDecode(utf8.decode(response.body));
+    if (value is! Map ||
+        value['revision'] is! int ||
+        (value['revision'] as int) < 1 ||
+        value['duplicate'] is! bool) {
+      throw const FormatException('Invalid private favorite receipt');
+    }
+    return value['revision'] as int;
+  }
 
   static bool isSafeMediaUrl(String value, {bool candidate = false}) {
     if (value.isEmpty ||
@@ -239,8 +352,9 @@ class BobTvApiClient {
       'POST',
       '/api/v1/channel-catalog/rank',
       contentType: 'application/json',
-      body: utf8.encode(jsonEncode({'schemaVersion': 1, 'urls': urls,
-        'transport': 'direct'})),
+      body: utf8.encode(
+        jsonEncode({'schemaVersion': 1, 'urls': urls, 'transport': 'direct'}),
+      ),
       maxBytes: 1024 * 1024,
     );
     if (response.status != 200)
@@ -666,6 +780,8 @@ class BobTvApiClient {
     String path, {
     String? contentType,
     List<int>? body,
+    Map<String, String> headers = const {},
+    bool requirePrivate = false,
     required int maxBytes,
   }) async {
     if (_closed) throw const BobTvApiException('client_closed');
@@ -675,6 +791,7 @@ class BobTvApiClient {
     request.followRedirects = false;
     request.headers.set(HttpHeaders.userAgentHeader, 'BobTV/1.0');
     request.headers.set(HttpHeaders.acceptHeader, 'application/json');
+    headers.forEach(request.headers.set);
     if (contentType != null)
       request.headers.set(HttpHeaders.contentTypeHeader, contentType);
     if (body != null) request.add(body);
@@ -685,6 +802,22 @@ class BobTvApiClient {
         throw const FormatException('API response exceeds limit');
       }
       collected.addAll(chunk);
+    }
+    if (requirePrivate) {
+      final cache =
+          response.headers.value('cache-control')?.toLowerCase() ?? '';
+      final vary = (response.headers.value('vary') ?? '')
+          .toLowerCase()
+          .split(',')
+          .map((field) => field.trim())
+          .toSet();
+      if (!cache.split(',').map((field) => field.trim()).contains('no-store') ||
+          !vary.containsAll({'authorization', 'x-bobtv-device-fingerprint'})) {
+        throw BobTvApiException(
+          'private_favorites_cache_policy',
+          statusCode: response.statusCode,
+        );
+      }
     }
     return _ApiResponse(
       response.statusCode,

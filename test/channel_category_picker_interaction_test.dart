@@ -7,6 +7,7 @@ import 'package:flutter_test/flutter_test.dart';
 Future<void> openPicker(
   WidgetTester tester, {
   ValueChanged<ChannelCategoryDestination?>? onResult,
+  List<String> existingGroups = const [],
 }) async {
   await tester.pumpWidget(
     MaterialApp(
@@ -17,8 +18,10 @@ Future<void> openPicker(
             onPressed: () async {
               final result = await showDialog<ChannelCategoryDestination>(
                 context: context,
-                builder: (_) =>
-                    const ChannelCategoryPicker(channelName: '测试频道'),
+                builder: (_) => ChannelCategoryPicker(
+                  channelName: '测试频道',
+                  existingGroups: existingGroups,
+                ),
               );
               onResult?.call(result);
             },
@@ -36,6 +39,182 @@ OutlinedButton option(WidgetTester tester, String label) =>
     tester.widget<OutlinedButton>(find.widgetWithText(OutlinedButton, label));
 
 void main() {
+  testWidgets(
+    'input creates a missing country and continues into custom subcategories',
+    (tester) async {
+      ChannelCategoryDestination? selected;
+      await openPicker(tester, onResult: (value) => selected = value);
+      for (final name in ['科威特', '自然科学', '生态']) {
+        await tester.enterText(find.byType(TextField), name);
+        await tester.pumpAndSettle();
+        expect(find.text('创建“$name”'), findsOneWidget);
+        await tester.tap(find.byKey(const ValueKey('category-create')));
+        await tester.pumpAndSettle();
+        expect(
+          tester.widget<TextField>(find.byType(TextField)).controller!.text,
+          isEmpty,
+        );
+      }
+      expect(find.text('科威特 / 自然科学 / 生态'), findsOneWidget);
+      await tester.tap(find.widgetWithText(FilledButton, '应用分类'));
+      await tester.pumpAndSettle();
+      expect(selected!.path, ['科威特', '自然科学', '生态']);
+      expect(selected!.group, '国际 / 科威特 / 自然科学 / 生态');
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
+    'saved custom countries and children are selectable after reopening',
+    (tester) async {
+      await openPicker(
+        tester,
+        existingGroups: ['国际 / 科威特 / 自然科学 / 生态', '中国 / 文化 / 戏曲'],
+      );
+      option(tester, '科威特').onPressed!();
+      await tester.pumpAndSettle();
+      option(tester, '自然科学').onPressed!();
+      await tester.pumpAndSettle();
+      option(tester, '生态').onPressed!();
+      await tester.pumpAndSettle();
+      expect(find.text('科威特 / 自然科学 / 生态'), findsOneWidget);
+      tester
+          .widget<TextButton>(find.widgetWithText(TextButton, '全部地区'))
+          .onPressed!();
+      await tester.pumpAndSettle();
+      option(tester, '中国').onPressed!();
+      await tester.pumpAndSettle();
+      option(tester, '文化').onPressed!();
+      await tester.pumpAndSettle();
+      expect(find.widgetWithText(OutlinedButton, '戏曲'), findsOneWidget);
+    },
+  );
+
+  testWidgets(
+    'normalized existing input reuses one option and return selects it',
+    (tester) async {
+      await openPicker(tester, existingGroups: ['国际 / 科威特 / Science']);
+      option(tester, '科威特').onPressed!();
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byType(TextField), '  science  ');
+      await tester.pumpAndSettle();
+      expect(find.byKey(const ValueKey('category-create')), findsNothing);
+      expect(find.widgetWithText(OutlinedButton, 'Science'), findsOneWidget);
+      await tester.testTextInput.receiveAction(TextInputAction.done);
+      await tester.pumpAndSettle();
+      expect(find.text('科威特 / Science'), findsOneWidget);
+    },
+  );
+
+  testWidgets('invalid input cannot create or accidentally apply the parent', (
+    tester,
+  ) async {
+    await openPicker(tester);
+    option(tester, '美国').onPressed!();
+    await tester.pumpAndSettle();
+    for (final name in ['A/B', r'A\B', '字' * 49, '全部']) {
+      await tester.enterText(find.byType(TextField), name);
+      await tester.pumpAndSettle();
+      expect(find.byKey(const ValueKey('category-create')), findsNothing);
+      expect(
+        tester
+            .widget<FilledButton>(find.widgetWithText(FilledButton, '应用分类'))
+            .onPressed,
+        isNull,
+      );
+      expect(
+        tester.widget<TextField>(find.byType(TextField)).decoration!.errorText,
+        isNotNull,
+      );
+      await tester.testTextInput.receiveAction(TextInputAction.done);
+      await tester.pumpAndSettle();
+      expect(find.text('美国'), findsNWidgets(2));
+    }
+    await tester.tap(find.byTooltip('清空输入'));
+    await tester.pumpAndSettle();
+    expect(
+      tester
+          .widget<FilledButton>(find.widgetWithText(FilledButton, '应用分类'))
+          .onPressed,
+      isNotNull,
+    );
+  });
+
+  testWidgets(
+    'repeated create callbacks and old callbacks cannot duplicate paths',
+    (tester) async {
+      await openPicker(tester);
+      await tester.enterText(find.byType(TextField), '科威特');
+      await tester.pumpAndSettle();
+      final create = tester
+          .widget<FilledButton>(find.byKey(const ValueKey('category-create')))
+          .onPressed!;
+      for (var i = 0; i < 8; i++) {
+        create();
+      }
+      await tester.pumpAndSettle();
+      expect(find.text('科威特'), findsNWidgets(2)); // breadcrumb and path summary
+      expect(find.textContaining('科威特 / 科威特'), findsNothing);
+      tester
+          .widget<TextButton>(find.widgetWithText(TextButton, '全部地区'))
+          .onPressed!();
+      create();
+      await tester.pumpAndSettle();
+      expect(find.widgetWithText(OutlinedButton, '中国'), findsOneWidget);
+      expect(find.widgetWithText(OutlinedButton, '科威特'), findsOneWidget);
+    },
+  );
+
+  testWidgets('canceling a draft creation does not return a destination', (
+    tester,
+  ) async {
+    ChannelCategoryDestination? selected;
+    var results = 0;
+    await openPicker(
+      tester,
+      onResult: (value) {
+        selected = value;
+        results++;
+      },
+    );
+    await tester.enterText(find.byType(TextField), '科威特');
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('category-create')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(TextButton, '取消'));
+    await tester.pumpAndSettle();
+    expect(results, 1);
+    expect(selected, isNull);
+  });
+
+  for (final size in [
+    const Size(360, 640),
+    const Size(640, 480),
+    const Size(900, 700),
+  ]) {
+    testWidgets('creation remains usable at $size', (tester) async {
+      tester.view.physicalSize = size;
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      await openPicker(tester);
+      for (final name in ['科威特', '自然科学', '生态']) {
+        await tester.enterText(find.byType(TextField), name);
+        await tester.pumpAndSettle();
+        expect(tester.takeException(), isNull);
+        await tester.tap(find.byKey(const ValueKey('category-create')));
+        await tester.pumpAndSettle();
+        expect(tester.takeException(), isNull);
+      }
+      await tester.enterText(find.byType(TextField), '字' * 48);
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull);
+      await tester.tap(find.byKey(const ValueKey('category-create')));
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull);
+    });
+  }
+
   testWidgets('queued option callbacks are harmless after outside dismissal', (
     tester,
   ) async {
@@ -202,6 +381,22 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.byType(ChannelCategoryPicker), findsOneWidget);
     expect(find.text('美国 / 新闻'), findsOneWidget);
+  });
+
+  testWidgets('a queued apply cannot discard a newly typed category name', (
+    tester,
+  ) async {
+    await openPicker(tester);
+    option(tester, '美国').onPressed!();
+    await tester.pumpAndSettle();
+    final oldApply = tester
+        .widget<FilledButton>(find.widgetWithText(FilledButton, '应用分类'))
+        .onPressed!;
+    await tester.enterText(find.byType(TextField), '自然科学');
+    oldApply();
+    await tester.pumpAndSettle();
+    expect(find.byType(ChannelCategoryPicker), findsOneWidget);
+    expect(find.byKey(const ValueKey('category-create')), findsOneWidget);
   });
 
   testWidgets('search reports no results and navigation resets the query', (

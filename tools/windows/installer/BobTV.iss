@@ -142,6 +142,33 @@ Type: files; Name: "{app}\installation.ini"
 Filename: "{app}\BobTV.exe"; WorkingDir: "{app}"; Description: "{cm:LaunchBobTV}"; Flags: nowait postinstall skipifsilent runasoriginaluser
 
 [Code]
+function OpenProcess(DesiredAccess: LongWord; InheritHandle: Boolean; ProcessId: LongWord): THandle;
+  external 'OpenProcess@kernel32.dll stdcall';
+function WaitForSingleObject(Handle: THandle; Milliseconds: LongWord): LongWord;
+  external 'WaitForSingleObject@kernel32.dll stdcall';
+function CloseHandle(Handle: THandle): Boolean;
+  external 'CloseHandle@kernel32.dll stdcall';
+
+function PrepareToInstall(var NeedsRestart: Boolean): String;
+var
+  ProcessId: Integer;
+  Handle: THandle;
+begin
+  Result := '';
+  ProcessId := StrToIntDef(ExpandConstant('{param:BOBTVWAITPID|0}'), 0);
+  if ProcessId <= 0 then Exit;
+  Handle := OpenProcess($00100000, False, ProcessId);
+  if Handle = 0 then Exit;
+  try
+    { Authorization is complete at this point. The ordinary updater now asks
+      BobTV to close, so cancelling UAC never interrupts playback. }
+    if WaitForSingleObject(Handle, 120000) <> 0 then
+      Result := 'BobTV 仍在运行，请关闭 BobTV 后重试。当前程序不会被强制关闭。';
+  finally
+    CloseHandle(Handle);
+  end;
+end;
+
 function DesktopShortcutChoice(Param: String): String;
 begin
   if WizardIsTaskSelected('desktopicon') then Result := '1'

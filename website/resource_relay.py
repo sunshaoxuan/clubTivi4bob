@@ -69,7 +69,7 @@ async def lifespan(app):
 
 app = FastAPI(docs_url=None, redoc_url=None, openapi_url=None, lifespan=lifespan)
 app.add_middleware(CORSMiddleware, allow_origins=[ORIGIN],
-    allow_methods=['GET','HEAD','POST'], allow_headers=['Content-Type','Authorization','Range','If-Range','Idempotency-Key'],
+    allow_methods=['GET','HEAD','POST','PUT'], allow_headers=['Content-Type','Authorization','Range','If-Range','Idempotency-Key','X-BobTV-Device-Fingerprint','If-None-Match'],
     expose_headers=['X-BobTV-Probe','X-BobTV-Node','X-BobTV-Cache','Content-Length'])
 
 
@@ -114,7 +114,8 @@ async def relay(path: str, request: Request):
     # Do not trust forwarding/authentication fields provided by the caller.
     headers = {key: value for key, value in request.headers.items() if key.lower() in {
         'accept', 'content-type', 'authorization', 'user-agent', 'range', 'if-range',
-        'if-none-match', 'if-modified-since', 'idempotency-key'}}
+        'if-none-match', 'if-modified-since', 'idempotency-key',
+        'x-bobtv-device-fingerprint'}}
     headers.update({'Accept-Encoding': 'identity', 'Host': 'bobtv.briconbric.com',
         'X-BobTV-Relay-Node': 'cndrp', 'X-BobTV-Relay-Client': address,
         'X-BobTV-Relay-Time': stamp,
@@ -136,6 +137,9 @@ async def relay(path: str, request: Request):
         'accept-ranges', 'content-disposition', 'etag', 'last-modified', 'retry-after',
         'cache-control', 'vary'}}
     kept['X-BobTV-Node'] = 'cndrp'
+    if path == '/api/v1/device-favorites':
+        kept['cache-control'] = 'private, no-store'
+        kept['vary'] = 'Authorization, X-BobTV-Device-Fingerprint'
     # Public response bodies retain canonical origins and publisher signatures.
     # Transport rewriting belongs to the client, not inside signed manifests.
     return StreamingResponse(upstream.aiter_raw(), status_code=upstream.status_code,

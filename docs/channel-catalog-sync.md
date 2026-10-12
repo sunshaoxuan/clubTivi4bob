@@ -138,6 +138,14 @@ negative observations cannot remove a usable route in another country.
 `GET /api/v1/channel-catalog/blocked` returns `schemaVersion: 1` and `urls`.
 Retirement is monotonic: later inventory uploads cannot restore that URL.
 Clients apply these tombstones to all providers, including bundled sources.
+Health penalties and manual route skips are recoverable ranking observations.
+They never create global tombstones, so another device can still try the route.
+An explicit retirement is permanent for the canonical endpoint. Neither a
+successful playback observation, stale inventory nor rediscovery can clear it.
+The player checks durable exclusions before every native open and again after
+connection, including previews, warm failover, proxy retries and restoration.
+New local or remote tombstones invalidate cached candidates and prepared
+previews; an affected active stream stops and attempts remaining allowed routes.
 The old manifest remains available if generation fails. Deploy the timer and
 service files under `website/deploy` alongside the updated website runtime.
 
@@ -146,6 +154,23 @@ service files under `website/deploy` alongside the updated website runtime.
 `POST /api/v1/channel-catalog/events` accepts `schemaVersion: 1`, an
 application fingerprint, and at most 200 events. Each event has a unique `id`,
 public `url`, and `kind`: `upsert`, `classify`, `merge`, `transfer`, `health`, `delete`, or `retire`.
+Manual classification accepts explicit, user-created countries, regions and
+subcategories. The picker searches existing choices and offers creation for a
+missing name at the current level. Suggestions include catalog paths and local
+pending edits. Creation stays a draft until **Apply category**; cancellation
+does not create an empty public category. Names are normalized, bounded to 48
+characters, and cannot contain path separators, control characters or reserved
+navigation labels. A destination has at most six levels and its serialized
+group is bounded to 192 characters.
+
+The local move is painted first and then saved to the existing durable classify
+outbox. Public catalog routes upload asynchronously; private subscriptions stay
+local. Publication preserves the complete category tree rather than truncating
+it at four levels. Clients restore explicit countries and all subcategory names
+without keyword reclassification. Newly created Chinese categories are exposed
+in both navigation modes; international custom types appear under their country.
+Category suggestions and navigation read distinct paths, not every route row.
+
 Classification includes `group` and `baseRevision`; health observations include
 bounded positive `success` and negative `failure` counts. Upserts include
 `metadata` (name, group, source, optional EPG ID and logo) and `baseRevision`.
@@ -225,3 +250,48 @@ retired route reappearing in a later snapshot, and a large catalog on a fresh
 installation. The first usable category should appear before background route
 verification completes. Measure time to first frame and time to first playable
 channel separately.
+
+## Device-private favorites
+
+Favorite lists and membership never enter inventory, shared events, the public
+channel snapshot, starter resources, or release packages. They use a separate
+`GET`/`PUT /api/v1/device-favorites` API and `device_favorites.sqlite3` database.
+Each request requires both the original fingerprint and an independent 256-bit
+device secret in `Authorization`. The secret is stored in the operating system
+credential store, never in preferences, SQLite exports, diagnostics, or URLs.
+The server stores its namespace hash and a fingerprint hash, not the raw secret.
+A different device/key cannot enumerate or retrieve another backup, including
+when it knows the other device's public fingerprint.
+
+The snapshot contains list names, icons, ordering, and canonical route hashes.
+It contains no stream URLs or provider credentials. Restore matches existing
+local routes by hash, so catalog route-ID changes do not lose favorites. Unknown
+references wait for catalog loading; restoration cannot create a video source
+or revive a retired one. Ordinary local changes are immediate. A transactional
+revision records offline edits, while compare-and-set revisions and idempotent
+PUT retries prevent stale snapshots from restoring a removed favorite.
+
+The existing 15-second background tick checks local changes without starting
+full source scanning or an additional timer. Remote revisions are checked at
+most once a minute. Settings shows a separate private-backup status and retry
+action, independent of the public-catalog synchronization indicator.
+
+All responses, including errors and conditional reads, carry
+`Cache-Control: private, no-store` and vary on authorization and fingerprint.
+The cndrp relay forwards the device header and never caches this endpoint.
+Deploy the primary private API and upgraded relay header policy together before
+releasing its client. Server backups include the protected private SQLite file,
+but no public catalog publication reads it.
+
+Recovery requires the original device/user credential store to remain available.
+Uninstalling only the app preserves it. Wiping that store or the installation
+identity cannot be recovered through a public fingerprint alone. This boundary
+also prevents a copied database/export file from authenticating another host
+to the original device's cloud backup. Manual local backup import remains an
+explicit user action; it does not share a cloud credential.
+
+Real HTTP privacy acceptance test:
+
+```sh
+BOBTV_SYNC_E2E_PYTHON=/path/to/python flutter test test/device_favorites_http_e2e_test.dart
+```

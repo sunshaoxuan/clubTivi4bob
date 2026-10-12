@@ -24,8 +24,16 @@ directories. Uninstall only removes its tracked application files and shortcuts.
 The isolated tests do not start BobTV or touch its live database. They use a
 unique application ID, private shortcut directories, and a Chinese/Japanese path.
 
-The ZIP remains the update payload; Setup is the initial installation interface.
-Program Files is protected: the current per-user ZIP updater does not acquire
-administrator rights. A controlled update service or explicit administrator
-authorization is required before deploying unattended updates to this location.
+Portable installs use the ZIP updater. Managed installations download the
+publisher-signed Setup within BobTV, then request explicit Windows authorization.
+Setup's `/BOBTVWAITPID` hook waits for the original player process to close after
+consent. Cancelling consent must not interrupt playback or modify program files.
+Both the new and previous Setup packages are authenticated before installation;
+the previous package supports authorized rollback after three failed startups.
+See `docs/windows-updates.md` for the manifest and historical-feed contract.
 Do not grant ordinary users write access to Program Files to bypass this boundary.
+
+The optional `CertificateThumbprint`/`SignToolPath` build arguments use an already
+provisioned Windows Authenticode certificate. Without one, first-time browser
+downloads can still display SmartScreen reputation warnings. The pinned BobTV
+update signature does not replace a trusted Windows code-signing certificate.

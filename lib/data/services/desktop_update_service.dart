@@ -26,8 +26,9 @@ class DesktopUpdateService with WidgetsBindingObserver, WindowListener {
 
   void start() {
     if (_started ||
-        !(Platform.isMacOS || Platform.isWindows || Platform.isAndroid))
+        !(Platform.isMacOS || Platform.isWindows || Platform.isAndroid)) {
       return;
+    }
     _started = true;
     _lastForegroundCheck = DateTime.now();
     WidgetsBinding.instance.addObserver(this);
@@ -68,6 +69,10 @@ class DesktopUpdateService with WidgetsBindingObserver, WindowListener {
 
   Future<void> installReady() => Platform.isAndroid
       ? AndroidUpdateService.instance.installReady()
+      : Platform.isWindows
+      ? WindowsUpdateService.instance.installReady()
+      : Platform.isMacOS
+      ? windowManager.close()
       : Future.value();
 
   Future<void> markStartupHealthy() => Platform.isAndroid

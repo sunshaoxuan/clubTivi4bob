@@ -54,6 +54,36 @@ def test_classification_cas_and_stale_inventory(tmp_path):
     assert data['channels'][0]['routes'][0]['revision']==1
     assert all(c['name']!='北京' for c in data['categories'])
 
+def test_created_country_and_full_subcategory_hierarchy_publish_idempotently(tmp_path):
+    seed(tmp_path)
+    group = '国际 / 科威特 / 生活 / 饮食 / 烘焙 / 面包 / 技巧'
+    edit = event('classify', group=group, baseRevision=0)
+    first = ingest_events([edit], 'b'*64, tmp_path)
+    assert first['receipts'][0]['status'] == 'applied'
+    assert ingest_events([edit], 'b'*64, tmp_path) == first
+    process(tmp_path, limit=0)
+    data = snapshot(tmp_path)
+    categories = {item['id']: item for item in data['categories']}
+    current = data['channels'][0]['categoryId']
+    path = []
+    while current:
+        item = categories[current]
+        path.insert(0, item['name'])
+        current = item['parentId']
+    assert ' / '.join(path) == group
+    assert len(categories) == 7
+    assert data['channels'][0]['routes'][0]['revision'] == 1
+    ingest([{'url':URL,'name':'NRBTV','group':'中国 / 北京','source':'old','blocked':False}], 'c'*64,tmp_path)
+    process(tmp_path, limit=0)
+    assert snapshot(tmp_path)['categories'] == data['categories']
+
+def test_external_overdeep_group_does_not_break_catalog_publication(tmp_path):
+    seed(tmp_path)
+    group = '国际 / ' + ' / '.join(f'级别{i}' for i in range(9))
+    ingest_events([event('classify', group=group, baseRevision=0)], 'b'*64, tmp_path)
+    assert process(tmp_path, limit=0)['published']
+    assert [item['name'] for item in snapshot(tmp_path)['categories']] == ['其他']
+
 def test_last_route_deletion_publishes_empty_catalog(tmp_path):
     seed(tmp_path)
     ingest_events([event('delete')],'b'*64,tmp_path)
@@ -73,3 +103,22 @@ def test_new_route_requires_server_verification(tmp_path):
     e=event('upsert',metadata={'name':'NRBTV','group':'国际 / 美国 / 宗教','source':'github'})
     assert ingest_events([e],'a'*64,tmp_path)['receipts'][0]['status']=='applied'
     assert not process(tmp_path,verifier=lambda _:False)['published']
+
+def test_retirement_cannot_be_reversed_by_other_device_success_or_discovery(tmp_path):
+    seed(tmp_path)
+    receipt = ingest_events([event('retire')], 'b'*64, tmp_path)
+    assert receipt['receipts'][0]['status'] == 'applied'
+    assert receipt['receipts'][0]['revision'] == 1
+    # Another device can improve an ordinary route's score, but a success
+    # observation never clears an explicit global content retirement.
+    assert ingest_events([event('health', 2, success=10)], 'c'*64, tmp_path)['receipts'][0]['status'] == 'applied'
+    ingest([{'url':'https://MEDIA.EXAMPLE.ORG:443/news.m3u8','name':'NRBTV',
+             'group':'国际 / 美国 / 宗教','source':'stale-discovery',
+             'blocked':False,'playableAt':1}], 'd'*64, tmp_path)
+    e=event('upsert', 3, metadata={'name':'NRBTV','group':'国际 / 美国 / 宗教','source':'old-client'},baseRevision=0)
+    assert ingest_events([e], 'e'*64, tmp_path)['receipts'][0]['status'] == 'applied'
+    process(tmp_path,verifier=lambda _:True)
+    with database(tmp_path) as conn:
+        rows=conn.execute('SELECT blocked,revision FROM routes').fetchall()
+        assert [tuple(row) for row in rows] == [(1,1)]
+    assert snapshot(tmp_path)['channels'] == []

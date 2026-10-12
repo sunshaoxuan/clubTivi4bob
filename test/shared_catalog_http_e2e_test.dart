@@ -6,6 +6,8 @@ import 'package:clubtivi/data/services/bobtv_api_client.dart';
 import 'package:clubtivi/data/services/channel_inventory_sync_service.dart';
 import 'package:clubtivi/data/services/manual_channel_category.dart';
 import 'package:clubtivi/data/services/channel_merge.dart';
+import 'package:clubtivi/data/services/channel_category_classifier.dart';
+import 'package:clubtivi/data/services/retired_route_guard.dart';
 import 'package:clubtivi/data/services/website_channel_catalog_service.dart';
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -131,6 +133,58 @@ void main() {
       );
       await secondCatalog.sync();
       expect((await second.getAllChannels()).single.groupTitle, '国际 / 美国 / 宗教');
+      for (final path in [
+        ['科威特', '生活', '饮食', '烘焙', '面包', '技巧'],
+        ['中国', '文化', '戏曲', '地方戏', '剧种'],
+      ]) {
+        final destination = ChannelCategoryDestination(path);
+        await first.setManualChannelCategory([url], destination);
+        expect(await uploader.flushEvents(), 1);
+        for (var attempt = 0; attempt < 30; attempt++) {
+          await secondCatalog.sync();
+          if ((await second.getAllChannels()).single.groupTitle ==
+              destination.group)
+            break;
+          await Future<void>.delayed(const Duration(milliseconds: 50));
+        }
+        final synced = (await second.getAllChannels()).single;
+        expect(
+          synced.groupTitle,
+          destination.group,
+          reason:
+              'Custom hierarchy lost: ${secondCatalog.lastError}\n$messages',
+        );
+        expect(
+          WebsiteChannelCatalogService.categoryForGroup(synced.groupTitle),
+          destination.category,
+        );
+        expect(
+          WebsiteChannelCatalogService.countryForGroup(synced.groupTitle),
+          destination.country,
+        );
+        final groups = await second.getStructuredCategoryGroups();
+        expect(groups, [destination.group]);
+        if (destination.country == '中国') {
+          expect(
+            ChannelCategoryDestination.navigationCategories(
+              groups
+                  .map(ChannelCategoryDestination.fromGroup)
+                  .whereType<ChannelCategoryDestination>(),
+            ),
+            contains(destination.category),
+          );
+          expect(
+            await second.getChannelCategoryCandidates(destination.category),
+            hasLength(1),
+          );
+        } else {
+          expect(
+            ChannelCategoryClassifier.internationalGenreFor(synced.groupTitle),
+            path.skip(1).join(' / '),
+          );
+        }
+        expect(await second.pendingSharedEvents(), isEmpty);
+      }
       const added = 'https://media.example.org/second.m3u8';
       await first.upsertChannels([
         db.ChannelsCompanion.insert(
@@ -190,7 +244,7 @@ void main() {
       expect((await second.getAllChannels()).map((c) => c.name).toSet(), {
         'New TV',
       });
-      expect(await second.sharedRouteRevision(url), 2);
+      expect(await second.sharedRouteRevision(url), 4);
       await freshCatalog.sync();
       expect((await fresh.getAllChannels()).map((c) => c.name).toSet(), {
         'New TV',
@@ -248,15 +302,67 @@ void main() {
         (await second.channelMergeIds([url, added])).values.toSet(),
         hasLength(1),
       );
-      expect(await second.sharedRouteRevision(url), 3);
+      expect(await second.sharedRouteRevision(url), 5);
       await freshCatalog.sync();
       expect((await fresh.getAllChannels()).map((c) => c.name).toSet(), {
         'Shared Unified TV',
       });
+      final retirementGuard = RetiredRouteGuard(
+        read: second.getBlockedStreamUrls,
+        updates: second
+            .select(second.blockedStreamRoutes)
+            .watch()
+            .map((rows) => rows.map((row) => row.streamUrl).toSet()),
+      );
+      addTearDown(retirementGuard.dispose);
+      await retirementGuard.requireAllowed(url);
+      await first.blockAndDeleteStreamUrl(
+        url,
+        reason: 'user_reported_wrong_content',
+      );
+      expect(await uploader.flushEvents(), 2); // retire and last-route deletion
+      await secondCatalog.sync();
+      await retirementGuard.refresh();
+      expect(retirementGuard.allowsCached(url), isFalse);
+      expect(await second.getChannelsByStreamUrls([url]), isEmpty);
+      await probe.uploadChannelInventory(
+        fingerprint: 'f' * 64,
+        routes: [
+          {
+            'url': url,
+            'name': 'Old TV',
+            'group': '其他',
+            'source': 'old-client',
+            'blocked': false,
+          },
+        ],
+      );
+      await probe.uploadChannelEvents(
+        fingerprint: 'f' * 64,
+        events: [
+          {
+            'id': '1234567890abcdef1234567890abcdef',
+            'url': url,
+            'kind': 'health',
+            'success': 10,
+            'failure': 0,
+          },
+        ],
+      );
+      await runPython(
+        'from process_channel_inventory import process; process(verifier=lambda _:True)',
+      );
+      await secondCatalog.sync();
+      await freshCatalog.sync();
+      expect(await second.getChannelsByStreamUrls([url]), isEmpty);
+      expect(await fresh.getChannelsByStreamUrls([url]), isEmpty);
+      expect(await fresh.isStreamUrlBlocked(url), isTrue);
+      expect(await probe.fetchCatalogBlockedRoutes(), contains(url));
+      expect(retirementGuard.filter([url, added]), [added]);
       await first.deleteChannelsByIds(
         (await first.getAllChannels()).map((c) => c.id),
       );
-      expect(await uploader.flushEvents(), 2);
+      expect(await uploader.flushEvents(), 1);
       for (var attempt = 0; attempt < 30; attempt++) {
         await secondCatalog.sync();
         if ((await second.getAllChannels()).isEmpty) break;

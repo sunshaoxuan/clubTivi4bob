@@ -37,3 +37,24 @@ def test_update_delivery_requires_published_manifest(tmp_path, monkeypatch):
     assert client.get("/updates/files/other.zip").status_code == 404
     manifest_file.unlink()
     assert client.get(f"/updates/files/{filename}").content == target.read_bytes()
+
+
+def test_signed_setup_and_historical_rollback_feed(tmp_path,monkeypatch):
+    monkeypatch.setattr(update_delivery,'DATA',tmp_path)
+    client=TestClient(module.app)
+    name='BobTV-1.1.2+95-windows-arm64-Setup.exe'
+    file=tmp_path/'updates/files'/name
+    file.parent.mkdir(parents=True)
+    file.write_bytes(b'MZsetup')
+    assert client.get('/updates/files/'+name).status_code==404
+    (tmp_path/'updates/approved.json').write_text(json.dumps({name:'a'*64}))
+    response=client.get('/updates/files/'+name)
+    assert response.status_code==200
+    assert response.headers['content-type']=='application/vnd.microsoft.portable-executable'
+    path=tmp_path/'updates/windows-arm64/versions/1.1.2+95.json'
+    path.parent.mkdir(parents=True)
+    value={'version':'1.1.2+95','installer':{'signature':'A'*96}}
+    path.write_text(json.dumps(value))
+    assert client.get('/updates/windows-arm64/versions/1.1.2+95.json').json()==value
+    assert client.get('/updates/windows-arm64/versions/1.1.2+96.json').status_code==404
+    assert client.get('/updates/unknown/versions/1.1.2+95.json').status_code==404

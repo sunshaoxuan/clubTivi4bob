@@ -6,8 +6,34 @@ import 'channel_category_classifier.dart';
 
 class ChannelCategoryDestination {
   ChannelCategoryDestination(List<String> path)
-    : path = List.unmodifiable(path);
+    : _safeInput = path.every((name) => nameError(name) == null),
+      path = List.unmodifiable(path.map(normalizeName));
   final List<String> path;
+  final bool _safeInput;
+
+  static const maxDepth = 6;
+  static const maxNameLength = 48;
+
+  static String normalizeName(String name) =>
+      name.trim().replaceAll(RegExp(r' +'), ' ');
+
+  static String? nameError(String name) {
+    if (RegExp(
+      r'[\x00-\x1f\x7f/\\\u200b-\u200f\u202a-\u202e\u2060-\u206f]',
+    ).hasMatch(name)) {
+      return '名称不能包含斜杠、换行或隐藏控制字符';
+    }
+    final normalized = normalizeName(name);
+    if (normalized.isEmpty) return '请输入名称';
+    if (normalized.runes.length > maxNameLength) return '名称最多 48 个字';
+    if (normalized == '全部' ||
+        normalized == '全部地区' ||
+        normalized.toLowerCase() == 'favorites' ||
+        normalized.toLowerCase().startsWith('fav:')) {
+      return '请使用具体的分类名称';
+    }
+    return null;
+  }
 
   static List<String> get countries => [
     '中国',
@@ -18,35 +44,99 @@ class ChannelCategoryDestination {
     '未识别地区',
   ];
 
-  static List<String> children(List<String> path) {
-    if (path.isEmpty) return countries;
+  /// Suggestions include the catalog and locally pending edits. They are not
+  /// a whitelist: an explicit user choice can introduce a new hierarchy.
+  static List<String> children(
+    List<String> path, {
+    Iterable<ChannelCategoryDestination> existing = const [],
+  }) {
+    if (path.length >= maxDepth) return [];
+    final suggestions = <String>[];
+    if (path.isEmpty) suggestions.addAll(countries);
     if (path.length == 1) {
-      return path.first == '中国'
-          ? ['央视', '地方', '数字', '广播', '其他']
-          : ChannelCategoryClassifier.internationalGenres;
+      suggestions.addAll(
+        path.first == '中国'
+            ? ['央视', '地方', '数字', '广播', '其他']
+            : ChannelCategoryClassifier.internationalGenres,
+      );
     }
     if (path.length == 2 && path.first == '中国' && path[1] == '地方') {
-      return ChannelCategoryClassifier.provinceCategories;
+      suggestions.addAll(ChannelCategoryClassifier.provinceCategories);
     }
-    return [];
+    for (final destination in existing) {
+      if (!destination.valid || destination.path.length <= path.length) {
+        continue;
+      }
+      if (path.asMap().entries.every(
+        (entry) => destination.path[entry.key] == entry.value,
+      )) {
+        suggestions.add(destination.path[path.length]);
+      }
+    }
+    final seen = <String>{};
+    return suggestions.where((name) => seen.add(name.toLowerCase())).toList();
+  }
+
+  static ChannelCategoryDestination? fromGroup(String? group) {
+    final parts = (group ?? '').split(' / ');
+    if (parts.length < 2) return null;
+    List<String> path;
+    if (parts.first == '中国') {
+      path = [
+        '中国',
+        if (ChannelCategoryClassifier.provinceCategories.contains(parts[1]))
+          '地方',
+        ...parts.skip(1),
+      ];
+    } else if (parts.first == '国际' && parts[1] != '中国') {
+      path = parts.skip(1).toList();
+    } else {
+      return null;
+    }
+    final destination = ChannelCategoryDestination(path);
+    return destination.valid ? destination : null;
+  }
+
+  static List<String> navigationCategories(
+    Iterable<ChannelCategoryDestination> existing,
+  ) {
+    final custom =
+        existing
+            .where((d) => d.valid && d.country == '中国')
+            .map((d) => d.category)
+            .toSet()
+            .difference(ChannelCategoryClassifier.categories.toSet())
+            .toList()
+          ..sort();
+    return [...ChannelCategoryClassifier.categories, ...custom];
   }
 
   bool get valid {
-    if (path.isEmpty) return false;
-    for (var depth = 0; depth < path.length; depth++) {
-      if (!children(path.take(depth).toList()).contains(path[depth])) {
-        return false;
-      }
+    if (!_safeInput ||
+        path.isEmpty ||
+        path.length > maxDepth ||
+        path.first == '国际') {
+      return false;
     }
-    return path.first != '中国' ||
-        (path.length == 2 && path[1] != '地方') ||
-        path.length == 3;
+    if (path.first == '中国' &&
+        (path.length < 2 || (path[1] == '地方' && path.length < 3))) {
+      return false;
+    }
+    if (path.first == '中国' && path[1] == '国际') return false;
+    return group.runes.length <= 192;
   }
 
-  String get category => path.first == '中国' ? path.last : '国际';
+  List<String> get _chinaPath =>
+      path.length >= 3 &&
+          path[1] == '地方' &&
+          ChannelCategoryClassifier.provinceCategories.contains(path[2])
+      ? path.skip(2).toList()
+      : path.skip(1).toList();
+  String get category => path.first == '中国' ? _chinaPath.join(' / ') : '国际';
   String get country => path.first;
-  String get group =>
-      path.first == '中国' ? '中国 / ${path.last}' : '国际 / ${path.join(' / ')}';
+  String get group => path.first == '中国'
+      ? '中国 / ${_chinaPath.join(' / ')}'
+      : '国际 / ${path.join(' / ')}';
 }
 
 /// Route URLs survive provider refreshes and website channel-ID replacements.

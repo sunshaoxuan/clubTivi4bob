@@ -19,6 +19,7 @@ import '../../data/services/backup_service.dart';
 import '../../data/services/epg_refresh_service.dart';
 import '../../data/services/desktop_update_service.dart';
 import '../providers/provider_manager.dart';
+import '../providers/source_maintenance_coordinator.dart';
 import '../remote/web_remote_server.dart';
 import 'add_epg_source_dialog.dart';
 import 'bobtv_service_settings.dart';
@@ -336,6 +337,24 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             SettingsPanel(
               title: '备份与恢复',
               children: [
+                ValueListenableBuilder(
+                  valueListenable: ref.watch(sourceMaintenanceCoordinatorProvider)
+                      .privateFavorites.state,
+                  builder: (context, status, _) => ListTile(
+                    leading: const Icon(Icons.lock_person_rounded),
+                    title: const Text('本机收藏云备份'),
+                    subtitle: Text(status.phase.isEmpty
+                        ? '后台自动备份，仅允许原设备恢复，不进入公共频道库'
+                        : status.phase),
+                    trailing: !status.complete && !status.error && status.phase.startsWith('正在')
+                        ? const SizedBox(width: 20, height: 20,
+                            child: CircularProgressIndicator(strokeWidth: 2))
+                        : IconButton(tooltip: '同步本机收藏',
+                            icon: const Icon(Icons.sync_rounded),
+                            onPressed: () => ref.read(sourceMaintenanceCoordinatorProvider)
+                                .privateFavorites.sync(force: true)),
+                  ),
+                ),
                 ListTile(
                   leading: const Icon(Icons.upload_rounded),
                   title: const Text('导出备份'),
@@ -364,7 +383,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   DesktopUpdateCheckTile(
                     state: DesktopUpdateService.instance.state,
                     onCheck: DesktopUpdateService.instance.checkNow,
-                    onInstall: Platform.isAndroid ? DesktopUpdateService.instance.installReady : null,
+                    onInstall: DesktopUpdateService.instance.installReady,
                   ),
                 ListTile(
                   leading: const Icon(Icons.code_rounded),

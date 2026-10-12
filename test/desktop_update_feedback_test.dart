@@ -69,6 +69,8 @@ void main() {
         'downloading': WindowsUpdatePhase.downloading,
         'verifying': WindowsUpdatePhase.verifying,
         'ready': WindowsUpdatePhase.ready,
+        'authorizing': WindowsUpdatePhase.authorizing,
+        'awaitingExit': WindowsUpdatePhase.awaitingExit,
         'backingUp': WindowsUpdatePhase.backingUp,
         'installing': WindowsUpdatePhase.installing,
         'installed': WindowsUpdatePhase.installed,
@@ -82,6 +84,30 @@ void main() {
           entry.value,
         );
       }
+    },
+  );
+
+  test(
+    'authorization cancellation is distinct from installation completion',
+    () {
+      final cancelled = WindowsUpdateState.fromWorkerStatus({
+        'version': 'v',
+        'phase': 'ready',
+        'requiresAuthorization': true,
+        'authorizationCancelled': true,
+      }, version: 'v')!;
+      expect(cancelled.phase, WindowsUpdatePhase.ready);
+      expect(cancelled.authorizationCancelled, isTrue);
+      expect(cancelled.description, contains('授权'));
+      expect(cancelled.description, isNot(contains('关闭 BobTV 后自动安装')));
+      expect(
+        const WindowsUpdateState(WindowsUpdatePhase.authorizing).busy,
+        isTrue,
+      );
+      expect(
+        const WindowsUpdateState(WindowsUpdatePhase.awaitingExit).canCheck,
+        isFalse,
+      );
     },
   );
 

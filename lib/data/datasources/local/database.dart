@@ -783,6 +783,12 @@ class AppDatabase extends _$AppDatabase {
   /// channel rows from being materialized on the Flutter isolate at startup.
   Future<List<Channel>> getChannelCategoryCandidates(String category) async {
     final terms = ChannelCategoryClassifier.candidateTermsForCategory(category);
+    if (category != '其他' && terms == null) {
+      // Explicit custom hierarchies are matched exactly. Never run the broad
+      // "Other" name heuristic for a newly created category.
+      return (select(channels)..where((row) =>
+          row.groupTitle.equals('中国 / $category'))).get();
+    }
     if (terms == null) {
       // "Other" is evaluated only when selected. SQL removes every row that
       // is an obvious member of another category before Dart sees the result.
@@ -901,6 +907,22 @@ class AppDatabase extends _$AppDatabase {
       readsFrom: {channels},
     ).get();
     return rows.map((row) => channels.map(row.data)).toList();
+  }
+
+  /// Reads only distinct explicit paths, without loading channel objects.
+  Future<List<String>> getStructuredCategoryGroups() async {
+    final rows = await customSelect(
+      'SELECT DISTINCT group_title FROM channels '
+      'WHERE group_title LIKE ? OR group_title LIKE ? ORDER BY group_title',
+      variables: [
+        Variable.withString('中国 / %'),
+        Variable.withString('国际 / %'),
+      ],
+      readsFrom: {channels},
+    ).get();
+    return rows.map((row) => row.read<String>('group_title'))
+        .where((group) => ChannelCategoryDestination.fromGroup(group) != null)
+        .toList();
   }
 
   /// Get distinct group names per provider without loading channel objects.

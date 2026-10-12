@@ -6,6 +6,7 @@ import 'dart:typed_data';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:path/path.dart' as p;
+import 'package:window_manager/window_manager.dart';
 
 import '../../core/app_diagnostics.dart';
 import '../../core/app_version.dart';
@@ -34,6 +35,9 @@ class WindowsUpdateService {
   int? _workerPid;
   DateTime? _workerStartedAt;
   bool _readingStatus = false;
+  bool _managed = false;
+  bool _installRequested = false;
+  String? _installRequestId;
 
   void start() {
     if (!Platform.isWindows || _started) return;
@@ -105,16 +109,47 @@ class WindowsUpdateService {
       final installation = File(
         p.join(p.dirname(Platform.resolvedExecutable), 'installation.ini'),
       );
-      if (await installation.exists()) {
+      _managed = await installation.exists();
+      WindowsInstallerPackage? previousInstaller;
+      if (_managed && manifest.installer == null) {
         state.value = WindowsUpdateState(
           WindowsUpdatePhase.manualRequired,
           version: manifest.version,
           message:
-              '发现新版本 ${manifest.version}。安装版需要管理员授权，请从 '
-              'https://bobtv.briconbric.com/downloads 下载并运行 Setup 升级。'
-              '当前版本可继续使用。',
+              '发现新版本 ${manifest.version}，更新服务尚未提供已签章的安装包。'
+              '稍后会自动重试，当前版本可继续使用，无需到浏览器下载。',
         );
         return;
+      }
+      if (_managed) {
+        final previousUri = manifestUri.resolve('versions/$bobTvVersion.json');
+        final previousRequest = await client
+            .getUrl(previousUri)
+            .timeout(const Duration(seconds: 10));
+        previousRequest.followRedirects = false;
+        final previousResponse = await previousRequest.close().timeout(
+          const Duration(seconds: 10),
+        );
+        if (previousResponse.statusCode != 200) {
+          throw const FormatException('当前版本的安全回退安装包尚未提供，升级已暂停，当前版本可继续使用');
+        }
+        final previousBytes = BytesBuilder();
+        await for (final chunk in previousResponse.timeout(
+          const Duration(seconds: 10),
+        )) {
+          if (previousBytes.length + chunk.length > _maxManifestBytes) {
+            throw const FormatException('Rollback manifest too large');
+          }
+          previousBytes.add(chunk);
+        }
+        final previous = UpdateManifest.parse(
+          utf8.decode(previousBytes.takeBytes()),
+          previousUri,
+        );
+        if (previous.version != bobTvVersion || previous.installer == null) {
+          throw const FormatException('安全回退安装包不匹配，升级已暂停');
+        }
+        previousInstaller = previous.installer;
       }
       final skipped = File(
         p.join(_updateDirectory!.path, 'skipped_versions.txt'),
@@ -143,7 +178,7 @@ class WindowsUpdateService {
         message: '正在启动更新助手，尚未开始下载。',
       );
       if (await _attachExistingWorker(manifest.version)) return;
-      await _launchWorker(manifest);
+      await _launchWorker(manifest, previousInstaller: previousInstaller);
     } catch (error, stack) {
       AppDiagnostics.instance.recordError('update_check', error, stack);
       state.value = WindowsUpdateState(
@@ -179,7 +214,10 @@ class WindowsUpdateService {
     return candidate;
   }
 
-  Future<void> _launchWorker(UpdateManifest manifest) async {
+  Future<void> _launchWorker(
+    UpdateManifest manifest, {
+    WindowsInstallerPackage? previousInstaller,
+  }) async {
     final directory = _updateDirectory!;
     await directory.create(recursive: true);
     await _writeShortcutScript();
@@ -191,6 +229,18 @@ class WindowsUpdateService {
       0xbf,
       ...utf8.encode(source),
     ], flush: true);
+    if (_managed) {
+      for (final name in [
+        'installer_worker.ps1',
+        'publisher_signature.ps1',
+        'update-signing-public.pem',
+      ]) {
+        await File(p.join(directory.path, name)).writeAsBytes([
+          if (name.endsWith('.ps1')) ...[0xef, 0xbb, 0xbf],
+          ...utf8.encode(await rootBundle.loadString('assets/updater/$name')),
+        ], flush: true);
+      }
+    }
     final progressScript = File(p.join(directory.path, 'progress_ui.ps1'));
     await progressScript.writeAsBytes([
       0xef,
@@ -204,11 +254,13 @@ class WindowsUpdateService {
     _runId = '${DateTime.now().microsecondsSinceEpoch}-$pid';
     _workerStartedAt = DateTime.now();
     _workerLaunchedForVersion = manifest.version;
+    _installRequested = false;
+    _installRequestId = null;
     _workerPid = await _launcher.invokeMethod<int>('launch', {
       'logPath': p.join(directory.path, 'launcher.log'),
       'arguments': [
         '-File',
-        script.path,
+        _managed ? p.join(directory.path, 'installer_worker.ps1') : script.path,
         '-Mode',
         'Update',
         '-AppDir',
@@ -217,12 +269,30 @@ class WindowsUpdateService {
         '$pid',
         '-Version',
         manifest.version,
+        if (_managed) ...[
+          '-OldVersion',
+          bobTvVersion,
+          '-Signature',
+          manifest.installer!.signature,
+          '-PreviousUrl',
+          (await ServerEgress.nodes.resolve(
+            previousInstaller!.archive,
+          )).toString(),
+          '-PreviousSha256',
+          previousInstaller.sha256,
+          '-PreviousBytes',
+          '${previousInstaller.bytes}',
+          '-PreviousSignature',
+          previousInstaller.signature,
+        ],
         '-ArchiveUrl',
-        (await ServerEgress.nodes.resolve(manifest.archive)).toString(),
+        (await ServerEgress.nodes.resolve(
+          _managed ? manifest.installer!.archive : manifest.archive,
+        )).toString(),
         '-Sha256',
-        manifest.sha256,
+        _managed ? manifest.installer!.sha256 : manifest.sha256,
         '-Bytes',
-        '${manifest.bytes}',
+        '${_managed ? manifest.installer!.bytes : manifest.bytes}',
         '-RunId',
         _runId!,
       ],
@@ -396,9 +466,12 @@ class WindowsUpdateService {
     final file = File(p.join(directory.path, 'status-$_runId.json'));
     try {
       WindowsUpdateState? reported;
+      String? reportedRequestId;
       if (await file.exists()) {
         final decoded = jsonDecode(await file.readAsString());
         if (decoded is Map<String, dynamic>) {
+          final requestId = decoded['authorizationRequestId'];
+          reportedRequestId = requestId is String ? requestId : null;
           reported = WindowsUpdateState.fromWorkerStatus(
             decoded,
             version: _workerLaunchedForVersion!,
@@ -407,7 +480,27 @@ class WindowsUpdateService {
           );
         }
       }
-      if (reported != null) state.value = reported;
+      if (reported != null) {
+        // A poll may still read the previous ready/cancelled state immediately
+        // after a new request. Keep the consent UI busy until this request is
+        // acknowledged, and never close for an older authorization attempt.
+        if (_installRequested &&
+            reportedRequestId != _installRequestId &&
+            const {
+              WindowsUpdatePhase.ready,
+              WindowsUpdatePhase.authorizing,
+              WindowsUpdatePhase.awaitingExit,
+            }.contains(reported.phase)) {
+          return;
+        }
+        state.value = reported;
+        if (_installRequested &&
+            reported.phase == WindowsUpdatePhase.awaitingExit) {
+          _installRequested = false;
+          _installRequestId = null;
+          await windowManager.close();
+        }
+      }
       if (reported?.phase == WindowsUpdatePhase.failed ||
           reported?.phase == WindowsUpdatePhase.installed) {
         return;
@@ -438,6 +531,60 @@ class WindowsUpdateService {
     } finally {
       _readingStatus = false;
     }
+  }
+
+  /// Request consent without closing playback before Windows authorization.
+  Future<void> installReady() async {
+    final current = state.value;
+    if (current.phase == WindowsUpdatePhase.awaitingExit) {
+      await windowManager.close();
+      return;
+    }
+    if (current.phase != WindowsUpdatePhase.ready || _updateDirectory == null) {
+      return;
+    }
+    if (!current.requiresAuthorization) {
+      await windowManager.close();
+      return;
+    }
+    if (_runId == null || !await _isWorkerRunning()) {
+      state.value = WindowsUpdateState(
+        WindowsUpdatePhase.failed,
+        version: current.version,
+        message: '更新助手未运行，请点击重试。当前版本保留。',
+      );
+      return;
+    }
+    _installRequested = true;
+    _installRequestId = '${DateTime.now().microsecondsSinceEpoch}-$pid';
+    try {
+      await File(
+        p.join(_updateDirectory!.path, 'install-request-$_runId.txt'),
+      ).writeAsString(
+        jsonEncode({'runId': _runId, 'requestId': _installRequestId}),
+        flush: true,
+      );
+    } catch (error, stack) {
+      _installRequested = false;
+      _installRequestId = null;
+      AppDiagnostics.instance.recordError(
+        'update_install_request',
+        error,
+        stack,
+      );
+      state.value = WindowsUpdateState(
+        WindowsUpdatePhase.failed,
+        version: current.version,
+        message: '未能提交安装请求，当前版本保留。请重试或查看更新日志。',
+      );
+      return;
+    }
+    state.value = WindowsUpdateState(
+      WindowsUpdatePhase.authorizing,
+      version: current.version,
+      requiresAuthorization: true,
+      message: '请在 Windows 授权窗口中确认。授权成功后 BobTV 会自动关闭并安装；取消后可继续使用。',
+    );
   }
 
   /// A visible channel browser is the earliest reliable startup-health signal.

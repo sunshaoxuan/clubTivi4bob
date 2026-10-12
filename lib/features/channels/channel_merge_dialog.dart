@@ -134,7 +134,10 @@ class _ChannelMergeDialogState extends State<ChannelMergeDialog> {
   Future<void> _chooseDestination() async {
     final destination = await showDialog<ChannelCategoryDestination>(
       context: context,
-      builder: (_) => ChannelCategoryPicker(channelName: _name.text),
+      builder: (_) => ChannelCategoryPicker(
+        channelName: _name.text,
+        existingGroups: _groups,
+      ),
     );
     if (mounted && destination != null)
       setState(() => _destination = destination.group);

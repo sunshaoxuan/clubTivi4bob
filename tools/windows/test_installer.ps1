@@ -14,7 +14,13 @@ if($LASTEXITCODE -ne 0){throw 'Fixture compilation failed'}
 $setup=Join-Path $fixture 'BobTV-Setup-fixture.exe'
 foreach($selected in @($false,$true)) {
  $tasks=if($selected){'desktopicon'}else{''}
- $process=Start-Process -FilePath $setup -ArgumentList @('/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART',('/DIR="'+$app+'"'),('/TASKS="'+$tasks+'"'),('/LOG="'+$fixture+'\install-'+$selected+'.log"')) -Wait -PassThru
+ # A dedicated sleeping fixture represents BobTV closing after authorization.
+ # Never use or terminate an installed BobTV process during this test.
+ $waiting=Start-Process powershell.exe -ArgumentList @('-NoProfile','-NonInteractive','-Command','"Start-Sleep -Seconds 6"') -PassThru -WindowStyle Hidden
+ $clock=[Diagnostics.Stopwatch]::StartNew()
+ $process=Start-Process -FilePath $setup -ArgumentList @('/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART',('/BOBTVWAITPID='+$waiting.Id),('/DIR="'+$app+'"'),('/TASKS="'+$tasks+'"'),('/LOG="'+$fixture+'\install-'+$selected+'.log"')) -Wait -PassThru
+ $clock.Stop();$waiting.Refresh()
+ if(!$waiting.HasExited -or $clock.Elapsed.TotalSeconds -lt 4){throw 'Installer did not wait for the authorized player exit'}
  if($process.ExitCode -ne 0){throw "Fixture installation failed: $($process.ExitCode)"}
  if((Get-Item -LiteralPath "$app\BobTV.exe").VersionInfo.FileVersion -ne $version){throw 'Installed version mismatch'}
  $choice=if($selected){'1'}else{'0'}
@@ -31,6 +37,6 @@ foreach($selected in @($false,$true)) {
  if($uninstall.ExitCode -ne 0){throw 'Fixture uninstall failed'}
  if(Test-Path -LiteralPath "$app\BobTV.exe"){throw 'Uninstall left executable behind'}
  if(Test-Path -LiteralPath "$desktop\BobTV.lnk"){throw 'Uninstall left desktop shortcut behind'}
- Write-Output "PASS: installer Unicode path, desktop=$selected, start menu, launch shortcut policy, uninstall"
+ Write-Output "PASS: installer waits for player exit, Unicode path, desktop=$selected, start menu, launch shortcut policy, uninstall"
 }
 Write-Output ('Fixture retained: '+$fixture)

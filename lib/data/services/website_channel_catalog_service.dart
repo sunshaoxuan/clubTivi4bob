@@ -52,6 +52,8 @@ class WebsiteChannelCatalogService {
       providerId == WebsiteChannelCatalogService.providerId;
 
   static String categoryForGroup(String? group) {
+    final destination = ChannelCategoryDestination.fromGroup(group);
+    if (destination != null) return destination.category;
     final parts = (group ?? '').split(' / ');
     if (parts.first == '中国' && parts.length > 1) {
       return ChannelCategoryClassifier.categories.contains(parts[1])
@@ -65,15 +67,7 @@ class WebsiteChannelCatalogService {
   }
 
   static String countryForGroup(String? group) {
-    final parts = (group ?? '').split(' / ');
-    if (parts.length > 1 &&
-        parts.first == '国际' &&
-        ChannelCategoryClassifier.internationalCountryNames.containsValue(
-          parts[1],
-        )) {
-      return parts[1];
-    }
-    return '未识别地区';
+    return ChannelCategoryDestination.fromGroup(group)?.country ?? '未识别地区';
   }
 
   final db.AppDatabase database;
@@ -521,6 +515,8 @@ String _catalogGroupFor(
   final root = chain.first;
   final leaf = chain.last;
   if (root == '中国') {
+    final explicit = ChannelCategoryDestination.fromGroup(chain.join(' / '));
+    if (explicit != null) return explicit.group;
     final categoryName = ChannelCategoryClassifier.categories.contains(leaf)
         ? leaf
         : '其他';

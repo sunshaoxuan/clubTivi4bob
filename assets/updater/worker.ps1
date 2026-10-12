@@ -115,7 +115,7 @@ function Read-State {
   $result = @{}
   if (!(Test-Path -LiteralPath $statePath)) { return $result }
   foreach ($line in [IO.File]::ReadAllLines($statePath)) {
-    if ($line -match '^([A-Za-z]+)=(.*)$') {
+    if ($line -match '^([A-Za-z][A-Za-z0-9]*)=(.*)$') {
       $result[$matches[1]] = $matches[2]
     }
   }
@@ -277,6 +277,20 @@ function Perform-Rollback {
   $badVersion = [string]$candidate.Version
   $backup = [string]$candidate.BackupDir
   $target = Assert-AppDir ([string]$candidate.AppDir)
+  if($candidate.InstallMethod -eq 'Setup') {
+    # Protected installations are restored through the publisher-authenticated
+    # official Setup. Never elevate a script or copy untrusted backup files as admin.
+    $installerWorker=Join-Path $PSScriptRoot 'installer_worker.ps1'
+    if(!(Test-Path -LiteralPath $installerWorker)){throw 'Setup rollback helper missing'}
+    if($script:locked){$script:mutex.ReleaseMutex();$script:locked=$false}
+    Report-Failure $badVersion
+    $rollbackArguments=@{Mode='Rollback';CurrentPid=$CurrentPid}
+    if($TestRoot){$rollbackArguments.TestRoot=$TestRoot}
+    $global:LASTEXITCODE=0
+    & $installerWorker @rollbackArguments
+    if($LASTEXITCODE -ne 0){throw 'Windows authorization or Setup rollback failed; backup retained'}
+    return
+  }
   $backupPrefix = [IO.Path]::GetFullPath((Join-Path $root 'Backups')).TrimEnd('\') + '\'
   if ($badVersion -notmatch '^\d+\.\d+\.\d+\+\d+$' -or
       !$backup -or

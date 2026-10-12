@@ -1,6 +1,7 @@
 import 'package:clubtivi/data/datasources/local/database.dart' as db;
 import 'package:clubtivi/data/services/channel_inventory_sync_service.dart';
 import 'package:clubtivi/data/services/website_channel_catalog_service.dart';
+import 'package:clubtivi/data/services/device_favorites_sync_service.dart';
 import 'package:clubtivi/features/providers/provider_manager.dart';
 import 'package:clubtivi/features/providers/source_maintenance_coordinator.dart';
 import 'package:drift/native.dart';
@@ -20,6 +21,15 @@ class MigrationInventory extends ChannelInventorySyncService {
   }
 }
 
+class LightweightFavorites extends DeviceFavoritesSyncService {
+  LightweightFavorites(db.AppDatabase database) : super(database: database);
+  int calls = 0;
+  @override
+  Future<void> sync({bool force = false}) async {
+    calls++;
+  }
+}
+
 void main() {
   setUp(() => SharedPreferences.setMockInitialValues({}));
 
@@ -28,15 +38,18 @@ void main() {
     () async {
       final database = db.AppDatabase.forTesting(NativeDatabase.memory());
       final catalog = WebsiteChannelCatalogService(database: database);
+      final favorites = LightweightFavorites(database);
       final coordinator = SourceMaintenanceCoordinator(
         manager: ProviderManager(database),
         websiteCatalog: catalog,
+        privateFavorites: favorites,
       );
       fakeAsync((clock) {
         coordinator.start();
         coordinator.start();
         expect(clock.periodicTimerCount, 2);
         expect(clock.nonPeriodicTimerCount, 1);
+        expect(favorites.calls, 1);
         expect(coordinator.sourceManagementInitialized, false);
         coordinator.dispose();
         expect(clock.pendingTimers, isEmpty);

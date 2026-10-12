@@ -92,6 +92,12 @@ class ChannelCategoryClassifier {
   }
 
   static String internationalGenreFor(String? groupTitle) {
+    final parts = (groupTitle ?? '').split(' / ');
+    if (parts.first == '国际') {
+      // Preserve explicit catalog choices, including user-created names and
+      // subcategories. Keyword inference is only for unstructured providers.
+      return parts.length > 2 ? parts.skip(2).join(' / ') : '综合';
+    }
     final group = (groupTitle ?? '').toLowerCase();
     if (_containsAny(group, const ['news', '新闻', '資訊', '资讯'])) return '新闻';
     if (_containsAny(group, const ['sport', '体育', '體育'])) return '体育';

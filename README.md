@@ -10,11 +10,12 @@ The application is built with Flutter and uses `media_kit`, libmpv, FFmpeg, Rive
 
 ### Latest release
 
-`1.1.1+94` adds adaptive resource delivery through the BobTV primary site and
-the cndrp cache, individual route transfers with public-catalog synchronization,
-and desktop startup/restore frames bounded by the display work area and a
-1920 by 1280 physical-pixel cap. Video streams connect directly to their sources;
-the resource cache never relays video. See [release details](docs/releases/1.1.1.md).
+`1.1.2+95` adds direct creation of missing countries and nested categories,
+device-private favorite backups, permanent retired-route guards, and clearer
+managed Windows updates with in-app Setup downloads and installation progress.
+The sync badge stays at the channel panel's right edge. Shared categories retain
+their complete hierarchy across clients. Video still connects directly to its
+source. See [release details](docs/releases/1.1.2.md).
 
 ### Android tablets and Windows ARM64
 

@@ -4,6 +4,10 @@ import hashlib
 import json
 from pathlib import Path
 import sys
+import base64
+import subprocess
+import tempfile
+import os
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "website"))
 from mirror_releases import _inspect_update_archive, _verify_mac_signature, version_parts, UPDATE_PLATFORMS
@@ -24,6 +28,8 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("directory", type=Path)
     parser.add_argument("version")
+    parser.add_argument('--signing-key', type=Path,
+                        default=os.environ.get('BOBTV_UPDATE_SIGNING_KEY'))
     parser.add_argument("--platforms", nargs="+", choices=PLATFORMS,
                         default=["windows-x64", "macos-x64", "macos-arm64"])
     args = parser.parse_args()
@@ -64,6 +70,26 @@ def main():
         else:
             entries[platform] = {"platform": platform, "filename": filename,
                                  "sha256": checksum, "bytes": size}
+            installer = root / f'BobTV-{args.version}-{platform}-Setup.exe'
+            if platform.startswith('windows-') and installer.exists():
+                if not args.signing_key:
+                    raise ValueError('Windows automatic Setup updates require the BobTV publisher signing key')
+                with installer.open('rb') as source:
+                    header=source.read(64)
+                    offset=int.from_bytes(header[60:64],'little') if len(header)==64 else 0
+                    if header[:2] != b'MZ' or not 64 <= offset <= installer.stat().st_size-4:
+                        raise ValueError('Invalid Windows installer')
+                    source.seek(offset)
+                    if source.read(4) != b'PE\x00\x00':
+                        raise ValueError('Invalid Windows installer PE signature')
+                with tempfile.TemporaryDirectory() as folder:
+                    signature_path=Path(folder)/'signature.der'
+                    subprocess.run(['openssl','dgst','-sha256','-sign',str(args.signing_key),
+                                    '-out',str(signature_path),str(installer)],check=True,capture_output=True)
+                    signature=base64.b64encode(signature_path.read_bytes()).decode('ascii')
+                _verify_mac_signature(installer,signature)
+                entries[platform]['installer']={'filename':installer.name,'sha256':digest(installer),
+                                               'bytes':installer.stat().st_size,'signature':signature}
         assets.append(archive)
     payload["packages"] = [entries[name] for name in PLATFORMS if name in selected]
     metadata.write_text(json.dumps(payload, separators=(",", ":")), encoding="utf-8")

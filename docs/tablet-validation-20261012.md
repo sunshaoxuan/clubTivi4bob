@@ -1,6 +1,9 @@
 # Tablet development validation, 2026-10-12
 
-Test version: 1.1.0+93. Not published. Existing desktop apps were left running.
+Initial development snapshot for test version 1.1.0+93, recorded before
+publication. Existing desktop apps were left running. Subsequent publication
+and final delivery checks are recorded in
+[1.1.0 publication validation](releases/1.1.0-validation.md).
 
 ## Automated checks
 

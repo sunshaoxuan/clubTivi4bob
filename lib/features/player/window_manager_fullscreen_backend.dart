@@ -6,23 +6,30 @@ import 'package:window_manager/window_manager.dart';
 import 'desktop_fullscreen_session.dart';
 import 'windows_window_chrome.dart';
 import '../../core/app_diagnostics.dart';
+import '../../core/desktop_window_sizing.dart';
 
 /// Cocoa completes fullscreen through native events or verified native state.
 /// Windows/Linux keep their explicit titlebar and geometry restoration.
 class WindowManagerFullscreenBackend extends WindowListener
     implements FullscreenWindowBackend {
-  WindowManagerFullscreenBackend({bool? isMacOS, bool? isWindows})
-    : _isMacOS = isMacOS ?? Platform.isMacOS,
-      _isWindows = isWindows ?? Platform.isWindows {
+  WindowManagerFullscreenBackend({
+    bool? isMacOS,
+    bool? isWindows,
+    DesktopWindowSizing? sizing,
+  }) : _isMacOS = isMacOS ?? Platform.isMacOS,
+       _isWindows = isWindows ?? Platform.isWindows,
+       _sizing = sizing ?? DesktopWindowSizing.instance {
     windowManager.addListener(this);
   }
 
   final bool _isMacOS;
   final bool _isWindows;
+  final DesktopWindowSizing _sizing;
   final _changes = StreamController<bool>.broadcast(sync: true);
   Completer<void>? _transition;
   bool? _transitionTarget;
   bool _disposed = false;
+  void Function()? _releaseSizing;
 
   @override
   Stream<bool> get fullscreenChanges => _changes.stream;
@@ -49,6 +56,7 @@ class WindowManagerFullscreenBackend extends WindowListener
 
   @override
   Future<void> prepareEntry() async {
+    _releaseSizing ??= _sizing.suspend();
     // Cocoa owns titlebar suppression. Windows' native plugin only removes the
     // caption from an already-maximized window when this style is hidden.
     if (_isWindows) {
@@ -130,6 +138,15 @@ class WindowManagerFullscreenBackend extends WindowListener
 
   @override
   Future<void> restore(FullscreenWindowSnapshot snapshot) async {
+    try {
+      await _restore(snapshot);
+    } finally {
+      _releaseSizing?.call();
+      _releaseSizing = null;
+    }
+  }
+
+  Future<void> _restore(FullscreenWindowSnapshot snapshot) async {
     await windowManager.setAlwaysOnTop(snapshot.alwaysOnTop);
     if (_isMacOS) {
       if (await windowManager.isMinimized()) return;
@@ -138,12 +155,15 @@ class WindowManagerFullscreenBackend extends WindowListener
       if (snapshot.wasFullscreen) return;
       if (snapshot.maximized) {
         if (!await windowManager.isMaximized()) await windowManager.maximize();
-      } else if (await windowManager.getBounds() != snapshot.bounds) {
+      } else {
+        final bounds = await _sizing.constrain(snapshot.bounds);
+        await _sizing.restoreMinimumSize(bounds);
+        if (await windowManager.getBounds() == bounds) return;
         AppDiagnostics.instance.log('fullscreen_window_bounds_restored', {
-          'width': snapshot.bounds.width,
-          'height': snapshot.bounds.height,
+          'width': bounds.width,
+          'height': bounds.height,
         });
-        await windowManager.setBounds(snapshot.bounds);
+        await windowManager.setBounds(bounds);
       }
       return;
     }
@@ -161,7 +181,9 @@ class WindowManagerFullscreenBackend extends WindowListener
     if (snapshot.maximized) {
       await windowManager.maximize();
     } else {
-      await windowManager.setBounds(snapshot.bounds);
+      final bounds = await _sizing.constrain(snapshot.bounds);
+      await _sizing.restoreMinimumSize(bounds);
+      await windowManager.setBounds(bounds);
     }
   }
 
@@ -190,6 +212,8 @@ class WindowManagerFullscreenBackend extends WindowListener
   void dispose() {
     if (_disposed) return;
     _disposed = true;
+    _releaseSizing?.call();
+    _releaseSizing = null;
     windowManager.removeListener(this);
     unawaited(_changes.close());
   }

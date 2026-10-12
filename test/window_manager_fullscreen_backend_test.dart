@@ -1,5 +1,6 @@
 import 'package:clubtivi/features/player/desktop_fullscreen_session.dart';
 import 'package:clubtivi/features/player/window_manager_fullscreen_backend.dart';
+import 'package:clubtivi/core/desktop_window_sizing.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -78,13 +79,14 @@ const _snapshot = FullscreenWindowSnapshot(
 );
 
 void main() {
-  TestWidgetsFlutterBinding.ensureInitialized();
+  final binding = TestWidgetsFlutterBinding.ensureInitialized();
   const channel = MethodChannel('window_manager');
   late _MockNativeWindow native;
   late WindowManagerFullscreenBackend backend;
   var hasBackend = false;
 
   setUp(() {
+    binding.platformDispatcher.implicitView!.devicePixelRatio = 1;
     native = _MockNativeWindow();
     hasBackend = false;
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
@@ -92,6 +94,7 @@ void main() {
   });
 
   tearDown(() {
+    binding.platformDispatcher.implicitView!.resetDevicePixelRatio();
     if (hasBackend) backend.dispose();
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(channel, null);
@@ -103,6 +106,7 @@ void main() {
     backend = WindowManagerFullscreenBackend(
       isMacOS: isMacOS,
       isWindows: !isMacOS,
+      sizing: DesktopWindowSizing(isWindows: !isMacOS, pixelRatio: () => 1),
     );
     return backend;
   }
@@ -237,6 +241,51 @@ void main() {
     await backend.restore(saved);
     expect(native.callsTo('setBounds'), isEmpty);
   });
+
+  for (final mac in [true, false]) {
+    test(
+      'oversized saved ordinary frame fits a 1080p work area on ${mac ? 'Mac' : 'Windows'}',
+      () async {
+        const screens = MethodChannel(
+          'dev.leanflutter.plugins/screen_retriever',
+        );
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+            .setMockMethodCallHandler(
+              screens,
+              (_) async => {
+                'displays': [
+                  {
+                    'id': '1',
+                    'size': {'width': 1920.0, 'height': 1080.0},
+                    'visiblePosition': {'dx': 0.0, 'dy': 24.0},
+                    'visibleSize': {'width': 1920.0, 'height': 1016.0},
+                    'scaleFactor': 1,
+                  },
+                ],
+              },
+            );
+        addTearDown(
+          () => TestDefaultBinaryMessengerBinding
+              .instance
+              .defaultBinaryMessenger
+              .setMockMethodCallHandler(screens, null),
+        );
+        createBackend(isMacOS: mac);
+        await backend.restore(
+          const FullscreenWindowSnapshot(
+            bounds: Rect.fromLTWH(100, 100, 4000, 2200),
+            maximized: false,
+            alwaysOnTop: false,
+          ),
+        );
+        final rect = native.callsTo('setBounds').single.arguments as Map;
+        expect(rect['width'], 1920);
+        expect(rect['height'], 1016);
+        expect(rect['x'], 0);
+        expect(rect['y'], 24);
+      },
+    );
+  }
 
   test(
     'Mac restore never applies fullscreen bounds to ordinary window',

@@ -2,6 +2,7 @@
 
 #include <dwmapi.h>
 #include <flutter_windows.h>
+#include <algorithm>
 
 #include "resource.h"
 
@@ -134,10 +135,26 @@ bool Win32Window::Create(const std::wstring& title,
   UINT dpi = FlutterDesktopGetDpiForMonitor(monitor);
   double scale_factor = dpi / 96.0;
 
+  // Create an outer frame within the physical cap and monitor work area.
+  // The first native frame must already fit, before Dart's sizing policy runs.
+  int width = (std::min)(static_cast<int>(Scale(size.width, scale_factor)), 1920);
+  int height = (std::min)(static_cast<int>(Scale(size.height, scale_factor)), 1280);
+  int x = Scale(origin.x, scale_factor);
+  int y = Scale(origin.y, scale_factor);
+  MONITORINFO info = {};
+  info.cbSize = sizeof(info);
+  if (GetMonitorInfo(monitor, &info)) {
+    width = (std::min)(width, static_cast<int>(info.rcWork.right - info.rcWork.left));
+    height = (std::min)(height, static_cast<int>(info.rcWork.bottom - info.rcWork.top));
+    x = (std::max)(static_cast<int>(info.rcWork.left),
+        (std::min)(x, static_cast<int>(info.rcWork.right) - width));
+    y = (std::max)(static_cast<int>(info.rcWork.top),
+        (std::min)(y, static_cast<int>(info.rcWork.bottom) - height));
+  }
+
   HWND window = CreateWindow(
       window_class, title.c_str(), WS_OVERLAPPEDWINDOW,
-      Scale(origin.x, scale_factor), Scale(origin.y, scale_factor),
-      Scale(size.width, scale_factor), Scale(size.height, scale_factor),
+      x, y, width, height,
       nullptr, nullptr, GetModuleHandle(nullptr), this);
 
   if (!window) {
@@ -150,7 +167,7 @@ bool Win32Window::Create(const std::wstring& title,
 }
 
 bool Win32Window::Show() {
-  return ShowWindow(window_handle_, SW_SHOWMAXIMIZED);
+  return ShowWindow(window_handle_, SW_SHOWNORMAL);
 }
 
 // static

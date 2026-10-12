@@ -2,9 +2,14 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:clubtivi/features/player/window_manager_pip_backend.dart';
+import 'package:clubtivi/core/desktop_window_sizing.dart';
 
 void main() {
-  TestWidgetsFlutterBinding.ensureInitialized();
+  final binding = TestWidgetsFlutterBinding.ensureInitialized();
+  setUp(() => binding.platformDispatcher.implicitView!.devicePixelRatio = 1);
+  tearDown(
+    () => binding.platformDispatcher.implicitView!.resetDevicePixelRatio(),
+  );
   const window = MethodChannel('window_manager');
   const screens = MethodChannel('dev.leanflutter.plugins/screen_retriever');
   for (final mac in [false, true]) {
@@ -42,7 +47,11 @@ void main() {
           messenger.setMockMethodCallHandler(window, null);
           messenger.setMockMethodCallHandler(screens, null);
         });
-        final backend = WindowManagerPipBackend(isMacOS: mac, isWindows: !mac);
+        final backend = WindowManagerPipBackend(
+          isMacOS: mac,
+          isWindows: !mac,
+          sizing: DesktopWindowSizing(isWindows: !mac, pixelRatio: () => 1),
+        );
         final snapshot = await backend.capture();
         await backend.compact();
         await backend.rememberBounds();
@@ -51,7 +60,7 @@ void main() {
             .where((call) => call.method == 'setMinimumSize')
             .toList();
         expect((sizes.first.arguments as Map)['width'], 320);
-        expect((sizes.last.arguments as Map)['width'], mac ? 800 : 0);
+        expect((sizes.last.arguments as Map)['width'], 800);
         final tops = calls
             .where((call) => call.method == 'setAlwaysOnTop')
             .toList();

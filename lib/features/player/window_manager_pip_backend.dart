@@ -9,17 +9,24 @@ import 'package:window_manager/window_manager.dart';
 import 'desktop_fullscreen_session.dart';
 import 'desktop_pip_session.dart';
 import 'windows_window_chrome.dart';
+import '../../core/desktop_window_sizing.dart';
 
 class WindowManagerPipBackend implements DesktopPipBackend {
-  WindowManagerPipBackend({bool? isMacOS, bool? isWindows})
-    : _isMacOS = isMacOS ?? Platform.isMacOS,
-      _isWindows = isWindows ?? Platform.isWindows;
+  WindowManagerPipBackend({
+    bool? isMacOS,
+    bool? isWindows,
+    DesktopWindowSizing? sizing,
+  }) : _isMacOS = isMacOS ?? Platform.isMacOS,
+       _isWindows = isWindows ?? Platform.isWindows,
+       _sizing = sizing ?? DesktopWindowSizing.instance;
   final bool _isMacOS;
   final bool _isWindows;
+  final DesktopWindowSizing _sizing;
   static const _boundsKey = 'desktop_pip_bounds_v1';
   bool _allWorkspaces = false;
   bool _resizable = true;
   bool _maximizable = true;
+  void Function()? _releaseSizing;
 
   @override
   Future<FullscreenWindowSnapshot> capture() async {
@@ -37,6 +44,7 @@ class WindowManagerPipBackend implements DesktopPipBackend {
 
   @override
   Future<void> compact() async {
+    _releaseSizing ??= _sizing.suspend();
     final displays = await screenRetriever.getAllDisplays();
     final areas = displays
         .map(
@@ -97,6 +105,15 @@ class WindowManagerPipBackend implements DesktopPipBackend {
 
   @override
   Future<void> restore(FullscreenWindowSnapshot snapshot) async {
+    try {
+      await _restore(snapshot);
+    } finally {
+      _releaseSizing?.call();
+      _releaseSizing = null;
+    }
+  }
+
+  Future<void> _restore(FullscreenWindowSnapshot snapshot) async {
     if (_isMacOS) {
       await windowManager.setVisibleOnAllWorkspaces(_allWorkspaces);
     }
@@ -111,12 +128,11 @@ class WindowManagerPipBackend implements DesktopPipBackend {
         windowButtonVisibility: true,
       );
     }
-    await windowManager.setMinimumSize(
-      _isMacOS ? const Size(800, 500) : Size.zero,
-    );
+    final bounds = await _sizing.constrain(snapshot.bounds);
+    await _sizing.restoreMinimumSize(bounds);
     await windowManager.setResizable(_resizable);
     await windowManager.setAlwaysOnTop(snapshot.alwaysOnTop);
-    await windowManager.setBounds(snapshot.bounds);
+    await windowManager.setBounds(bounds);
     if (snapshot.maximized) await windowManager.maximize();
   }
 }

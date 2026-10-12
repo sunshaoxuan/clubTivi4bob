@@ -161,7 +161,8 @@ fi
    "$expected_bytes" =~ ^[0-9]+$ &&
    "$package_signature" =~ ^[A-Za-z0-9+/]{80,120}={0,2}$ ]] || exit 2
 (( expected_bytes >= 1000000 && expected_bytes <= 2000000000 )) || exit 2
-[[ "$archive_url" == https://bobtv.briconbric.com/updates/*.zip &&
+[[ ( "$archive_url" == https://bobtv.briconbric.com/updates/*.zip ||
+     "$archive_url" == https://cndrp.com/bobtv/updates/*.zip ) &&
    "$archive_url" != *'?'* && "$archive_url" != *'#'* ]] || exit 2
 if [[ -f "$skipped" ]] && grep -Fxq "$version" "$skipped"; then exit 0; fi
 trap failure_exit EXIT

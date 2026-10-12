@@ -1,5 +1,7 @@
 {
   "schemaVersion": 1,
+  "historical": true,
+  "supersededBy": "docs/resource-relay.md",
   "publicClientOrigin": "https://bobtv.briconbric.com",
   "clientRuntimeGuard": "lib/core/server_egress.dart",
   "serverGateway": "website/egress_gateway.py",

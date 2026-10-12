@@ -20,6 +20,7 @@ from catalog_inventory import router as inventory_router
 from server_jobs import router as server_task_router
 from network_routes import router as network_router
 from egress_gateway import router as egress_router
+from resource_nodes import router as resource_node_router, trusted_client
 
 BASE = Path(__file__).resolve().parent
 DATA = Path(os.environ.get("BOBTV_DATA_DIR", BASE / "data"))
@@ -37,6 +38,18 @@ app.include_router(inventory_router)
 app.include_router(server_task_router)
 app.include_router(network_router)
 app.include_router(egress_router)
+app.include_router(resource_node_router)
+
+
+@app.middleware('http')
+async def resource_relay_attribution(request: Request, call_next):
+    try:
+        address = trusted_client(request)
+    except HTTPException as exc:
+        return JSONResponse({'detail': exc.detail}, status_code=exc.status_code)
+    if address:
+        request.scope['client'] = (address, 0)
+    return await call_next(request)
 app.mount("/assets", StaticFiles(directory=BASE / "assets"), name="assets")
 
 

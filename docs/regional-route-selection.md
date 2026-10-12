@@ -7,13 +7,12 @@ of truth. Categories, provenance and explicit retirement are shared globally.
 `route_network_health` stores observations by route ID, country, subdivision,
 ASN, day and reporter. It does not create regional copies of a route.
 
-The server gateway introduces `transport: server-relay`. Its observations live
-in `relay_route_network_health`, separate from historical direct-connection
-measurements. The ranking request includes that transport, and the desktop local
-score context ends with `|server-relay`. Original route URLs and global
-retirement identities stay unchanged. Server relay scores describe the complete
-client-to-gateway-to-origin path. Mainland reachability still needs measurements
-from an actual mainland network and a reachable gateway.
+Video playback uses `transport: direct`. Historical server gateway observations
+remain in `relay_route_network_health`, separate from direct measurements. The
+desktop local score context ends with `|direct`. Resource API transport through
+cndrp does not change the video transport. Original route URLs and global
+retirement identities stay unchanged. Mainland reachability still requires
+measurements from an actual mainland network.
 
 Network failures are regional observations, not retirement. A verifier running
 in one network can no longer remove previously reviewed routes from the public

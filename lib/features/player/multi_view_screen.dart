@@ -44,7 +44,7 @@ class _MultiViewScreenState extends ConsumerState<MultiViewScreen> {
       ));
       // Mute all except the focused one
       player.setVolume(i == _audioFocusIndex ? 100.0 : 0.0);
-      player.open(Media(ServerEgress.mediaUrl(widget.channels[i].url)));
+      player.open(Media(ServerEgress.mediaUrl(widget.channels[i].url), httpHeaders: ServerEgress.mediaHeaders(widget.channels[i].url)));
     }
   }
 

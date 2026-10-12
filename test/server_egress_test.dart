@@ -33,6 +33,11 @@ class CaptureAdapter implements HttpClientAdapter {
 }
 
 void main() {
+  test('direct video headers preserve needed values and reject injection', () {
+    expect(ServerEgress.mediaHeaders('https://media.example.org/live|Referer=https%3A%2F%2Ftv.example.org%2F&Authorization=private'),
+      {'referer': 'https://tv.example.org/'});
+    expect(() => ServerEgress.mediaHeaders('https://media.example.org/live|Referer=a%0D%0AX-Injected%3A%20yes'), throwsFormatException);
+  });
   test(
     'legacy GitHub and AI calls are blocked before credentials leave',
     () async {
@@ -56,23 +61,38 @@ void main() {
       dio.close();
     },
   );
-  test('all remote media becomes a server URL without changing identity', () {
-    const source = 'https://raw.githubusercontent.com/a/b/live.m3u8';
-    final gateway = Uri.parse(ServerEgress.mediaUrl(source));
-    expect(gateway.host, 'bobtv.briconbric.com');
-    expect(gateway.queryParameters['url'], source);
-    expect(ServerEgress.mediaUrl(gateway.toString()), gateway.toString());
-    expect(
-      ServerEgress.mediaUrl('http://127.0.0.1:8080/'),
-      'http://127.0.0.1:8080/',
-    );
-    expect(ServerEgress.mediaUrl('/tmp/recording.ts'), '/tmp/recording.ts');
-    expect(ServerEgress.mediaUrl(r'C:\TV\recording.ts'), r'C:\TV\recording.ts');
-    expect(
-      () => ServerEgress.mediaUrl('rtsp://public.example.org/live'),
-      throwsFormatException,
-    );
-  });
+  test(
+    'video origins are direct and legacy gateway identities are unwrapped',
+    () {
+      const source = 'https://raw.githubusercontent.com/a/b/live.m3u8';
+      final gateway = Uri.parse(ServerEgress.mediaUrl(source));
+      expect(gateway.host, 'raw.githubusercontent.com');
+      expect(
+        ServerEgress.mediaUrl(
+          'https://bobtv.briconbric.com/api/v1/egress/resource?kind=media&url=${Uri.encodeComponent(source)}',
+        ),
+        source,
+      );
+      expect(ServerEgress.mediaUrl(gateway.toString()), gateway.toString());
+      expect(
+        ServerEgress.mediaUrl('http://127.0.0.1:8080/'),
+        'http://127.0.0.1:8080/',
+      );
+      expect(ServerEgress.mediaUrl('/tmp/recording.ts'), '/tmp/recording.ts');
+      expect(
+        ServerEgress.mediaUrl(r'C:\TV\recording.ts'),
+        r'C:\TV\recording.ts',
+      );
+      expect(
+        ServerEgress.mediaUrl('rtsp://public.example.org/live'),
+        'rtsp://public.example.org/live',
+      );
+      expect(
+        () => ServerEgress.mediaUrl('https://cndrp.com/bobtv/video/live.m3u8'),
+        throwsFormatException,
+      );
+    },
+  );
 
   test('image and EPG routes include only the server origin', () {
     expect(
@@ -98,7 +118,7 @@ void main() {
   test('required media headers are carried without unrelated secrets', () {
     final uri = ServerEgress.resourceUri(
       'https://media.example.org/a|Referer=https%3A%2F%2Ftv.example.org%2F&Authorization=secret',
-      'media',
+      'epg',
     );
     expect(jsonDecode(uri.queryParameters['headers']!), {
       'referer': 'https://tv.example.org/',
@@ -133,7 +153,7 @@ void main() {
     },
   );
 
-  test('media byte probes preserve Range and use the same gateway', () async {
+  test('media byte probes preserve Range and connect directly', () async {
     final capture = CaptureAdapter();
     final dio = Dio(BaseOptions(extra: {'egressKind': 'media'}));
     dio.httpClientAdapter = ServerEgressAdapter(capture);
@@ -141,45 +161,40 @@ void main() {
       'https://media.example.org/live.ts',
       options: Options(headers: {'Range': 'bytes=0-65535'}),
     );
-    expect(capture.last!.uri.host, 'bobtv.briconbric.com');
-    expect(capture.last!.uri.queryParameters['kind'], 'media');
+    expect(capture.last!.uri.host, 'media.example.org');
+    expect(capture.last!.uri.queryParameters.containsKey('kind'), false);
     expect(capture.last!.headers['Range'], 'bytes=0-65535');
     dio.close();
   });
 
-  test(
-    'media probes retain required origin headers inside the gateway',
-    () async {
-      final capture = CaptureAdapter();
-      final dio = Dio(BaseOptions(extra: {'egressKind': 'media'}));
-      dio.httpClientAdapter = ServerEgressAdapter(capture);
-      await dio.head(
-        'https://media.example.org/live.ts',
-        options: Options(
-          headers: {
-            'Referer': 'https://tv.example.org/',
-            'Origin': 'https://tv.example.org',
-            'User-Agent': 'Required-TV-Agent',
-            'Authorization': 'private-account-secret',
-            'If-Range': 'known-etag',
-          },
-        ),
-      );
-      expect(capture.last!.method, 'HEAD');
-      expect(jsonDecode(capture.last!.uri.queryParameters['headers']!), {
-        'referer': 'https://tv.example.org/',
-        'origin': 'https://tv.example.org',
-        'user-agent': 'Required-TV-Agent',
-      });
-      expect(capture.last!.headers['If-Range'], 'known-etag');
-      expect(
-        capture.last!.uri.toString(),
-        isNot(contains('private-account-secret')),
-      );
-      expect(capture.last!.headers.containsKey('Authorization'), false);
-      dio.close();
-    },
-  );
+  test('direct media probes retain required origin headers', () async {
+    final capture = CaptureAdapter();
+    final dio = Dio(BaseOptions(extra: {'egressKind': 'media'}));
+    dio.httpClientAdapter = ServerEgressAdapter(capture);
+    await dio.head(
+      'https://media.example.org/live.ts',
+      options: Options(
+        headers: {
+          'Referer': 'https://tv.example.org/',
+          'Origin': 'https://tv.example.org',
+          'User-Agent': 'Required-TV-Agent',
+          'Authorization': 'private-account-secret',
+          'If-Range': 'known-etag',
+        },
+      ),
+    );
+    expect(capture.last!.method, 'HEAD');
+    expect(capture.last!.uri.host, 'media.example.org');
+    expect(capture.last!.headers['Referer'], 'https://tv.example.org/');
+    expect(capture.last!.headers['Origin'], 'https://tv.example.org');
+    expect(capture.last!.headers['If-Range'], 'known-etag');
+    expect(
+      capture.last!.uri.toString(),
+      isNot(contains('private-account-secret')),
+    );
+    expect(capture.last!.headers['Authorization'], 'private-account-secret');
+    dio.close();
+  });
 
   test(
     'last-resort guard blocks public direct connections before any socket',

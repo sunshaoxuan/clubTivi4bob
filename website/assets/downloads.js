@@ -26,13 +26,16 @@ function element(tag, className, value) {
 function downloadLink(release, label, secondary = false) {
   const link = element('a', secondary ? 'release-secondary' : 'release-download');
   link.href = `/downloads/${encodeURIComponent(release.filename)}`;
+  if (globalThis.BobTVResources) {
+    globalThis.BobTVResources.resolve(link.href).then(url => { link.href = url; }).catch(() => {});
+  }
   link.setAttribute('download', release.filename);
   link.setAttribute('aria-label', `${text('download', '下载')} ${release.platform} ${release.version}, ${release.size}`);
   link.append(element('span', '', label));
   link.append(element('span', '', secondary ? '↗' : '↓'));
   return link;
 }
-fetch('/releases.json')
+(globalThis.BobTVResources ? globalThis.BobTVResources.fetch('/releases.json') : fetch('/releases.json'))
   .then(response => {
     if (!response.ok) throw new Error('Release list unavailable');
     return response.json();

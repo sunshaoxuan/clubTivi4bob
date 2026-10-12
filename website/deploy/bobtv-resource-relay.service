@@ -1,0 +1,22 @@
+[Unit]
+Description=BobTV fixed-origin resource upload and download relay
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=bobtv-relay
+Group=bobtv-relay
+WorkingDirectory=/opt/bobtv-relay
+EnvironmentFile=/etc/bobtv-relay/relay.env
+ExecStart=/opt/bobtv-relay/venv/bin/uvicorn resource_relay:app --host 127.0.0.1 --port 8927 --proxy-headers --forwarded-allow-ips 127.0.0.1 --no-access-log
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+MemoryMax=256M
+CPUQuota=60%
+
+[Install]
+WantedBy=multi-user.target

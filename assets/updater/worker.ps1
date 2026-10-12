@@ -348,10 +348,13 @@ try {
     throw 'Invalid update metadata'
   }
   $uri = [Uri]$ArchiveUrl
+  $validNode = ($uri.Host -eq 'bobtv.briconbric.com' -and
+                $uri.AbsolutePath.StartsWith('/updates/')) -or
+               ($uri.Host -eq 'cndrp.com' -and
+                $uri.AbsolutePath.StartsWith('/bobtv/updates/'))
   if ($uri.Scheme -ne 'https' -or
-      $uri.Host -ne 'bobtv.briconbric.com' -or
+      !$validNode -or
       $uri.Port -ne 443 -or $uri.UserInfo -ne '' -or
-      !$uri.AbsolutePath.StartsWith('/updates/') -or
       !$uri.AbsolutePath.EndsWith('.zip') -or
       $uri.Query -ne '' -or $uri.Fragment -ne '') {
     throw 'Invalid archive URL'

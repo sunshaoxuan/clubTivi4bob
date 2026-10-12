@@ -240,7 +240,7 @@ class BobTvApiClient {
       '/api/v1/channel-catalog/rank',
       contentType: 'application/json',
       body: utf8.encode(jsonEncode({'schemaVersion': 1, 'urls': urls,
-        'transport': 'server-relay'})),
+        'transport': 'direct'})),
       maxBytes: 1024 * 1024,
     );
     if (response.status != 200)

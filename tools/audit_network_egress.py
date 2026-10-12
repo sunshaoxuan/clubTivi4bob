@@ -28,7 +28,7 @@ def audit():
     if 'ServerEgress.installGuard();' not in (ROOT / 'lib' / 'main.dart').read_text(): failures.append('runtime guard missing')
     if failures: raise RuntimeError('\n'.join(failures))
     return {'auditedDartFiles': len(files), 'rawPublicConstructors': 0,
-        'nativePlayback': 'server gateway', 'directPublicFallback': False,
+        'nativePlayback': 'direct video origin; resource relay excluded', 'directPublicFallback': False,
         'intentionalExceptions': ['loopback codec bridge', 'LAN cast/control',
             'local recordings', 'explicit external-browser navigation']}
 

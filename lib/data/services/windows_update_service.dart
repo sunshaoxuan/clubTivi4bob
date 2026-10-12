@@ -9,6 +9,7 @@ import 'package:path/path.dart' as p;
 
 import '../../core/app_diagnostics.dart';
 import '../../core/app_version.dart';
+import '../../core/server_egress.dart';
 import '../../core/windows_binary_architecture.dart';
 import 'desktop_update_state.dart';
 import 'update_manifest.dart';
@@ -217,7 +218,7 @@ class WindowsUpdateService {
         '-Version',
         manifest.version,
         '-ArchiveUrl',
-        manifest.archive.toString(),
+        (await ServerEgress.nodes.resolve(manifest.archive)).toString(),
         '-Sha256',
         manifest.sha256,
         '-Bytes',

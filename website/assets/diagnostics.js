@@ -19,7 +19,8 @@ document.querySelector('#upload-form').addEventListener('submit', async event =>
     }).join('\n') + '\n';
     if (new TextEncoder().encode(safe).length > 1024 * 1024) throw new Error('处理后日志超过 1 MiB');
     status.textContent = '正在上传…';
-    const response = await fetch('/api/v1/logs', { method: 'POST', headers: { 'Content-Type': 'application/x-ndjson' }, body: safe });
+    const transport = globalThis.BobTVResources ? globalThis.BobTVResources.fetch : fetch;
+    const response = await transport('/api/v1/logs', { method: 'POST', headers: { 'Content-Type': 'application/x-ndjson' }, body: safe });
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     const result = await response.json();
     status.textContent = `上传完成。诊断编号：${result.id.slice(0, 12)}`;

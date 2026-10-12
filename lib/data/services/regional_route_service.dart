@@ -29,10 +29,10 @@ class RegionalRouteService {
   DateTime? _retryAfter;
   bool _disposed = false;
 
-  String get networkId => '${_profile?['networkId'] as String? ?? 'ZZ:*:*'}|server-relay';
+  String get networkId => '${_profile?['networkId'] as String? ?? 'ZZ:*:*'}|direct';
 
   Map<String, Object?> observation(Map<String, Object?> values) => {
-    'transport': 'server-relay',
+    'transport': 'direct',
     ...values,
     if (_validProfile(_profile)) 'networkToken': _profile!['token'],
   };
@@ -90,7 +90,7 @@ class RegionalRouteService {
         profile['issuedAt'] is int &&
         (profile['issuedAt'] as int) < (_profile!['issuedAt'] as int))
       return;
-    final changed = networkId != '${profile['networkId']}|server-relay';
+    final changed = networkId != '${profile['networkId']}|direct';
     _profile = profile;
     tracker.setNetworkContext(networkId);
     await onNetworkChanged?.call(networkId);
@@ -157,7 +157,7 @@ class RegionalRouteService {
         scores[entry['url'] as String] = (entry['score'] as num).toDouble();
       }
       await _applyProfile(profile);
-      if (networkId != '${profile['networkId']}|server-relay') return;
+      if (networkId != '${profile['networkId']}|direct') return;
       tracker.setRegionalScores(networkId, scores);
       final now = DateTime.now();
       for (final url in urls) {

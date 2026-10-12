@@ -53,6 +53,10 @@ class StreamProxy {
         '1',
         '-reconnect_delay_max',
         '5',
+        if (ServerEgress.mediaHeaders(remoteUrl).isNotEmpty) ...[
+          '-headers',
+          ServerEgress.mediaHeaders(remoteUrl).entries.map((e) => '${e.key}: ${e.value}\r\n').join(),
+        ],
         '-i',
         ServerEgress.mediaUrl(remoteUrl),
         '-c',

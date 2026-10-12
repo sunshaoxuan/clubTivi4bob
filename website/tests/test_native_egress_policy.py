@@ -12,8 +12,13 @@ def test_native_inputs_accept_gateway_or_local(url):
     assert server_or_local_url(url) == url
 
 
-@pytest.mark.parametrize('url', ['https://raw.githubusercontent.com/a/b/live.m3u8',
-    'https://example.org/live.mp4', 'http://bobtv.briconbric.com/video',
-    'https://bobtv.briconbric.com:49531/video', 'https://user:password@bobtv.briconbric.com/'])
-def test_native_inputs_reject_public_direct_and_wrong_server(url):
+@pytest.mark.parametrize('url', ['https://cndrp.com/bobtv/video/live.m3u8',
+    'https://user:password@bobtv.briconbric.com/', 'ftp://example.org/video'])
+def test_native_inputs_reject_resource_node_and_invalid_video(url):
     with pytest.raises(ValueError): server_or_local_url(url)
+
+
+@pytest.mark.parametrize('url', ['https://media.example.org/live.mp4',
+    'http://media.example.org:8080/live.m3u8'])
+def test_native_video_uses_direct_origin(url):
+    assert server_or_local_url(url) == url

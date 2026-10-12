@@ -4,10 +4,19 @@ import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
 import 'package:dio/io.dart';
+import 'resource_node_router.dart';
+import 'resource_routing_http_client.dart';
 
 /// One public network boundary. Stored route identities are never rewritten.
 class ServerEgress {
   static const origin = 'https://bobtv.briconbric.com';
+  static final nodes = ResourceNodeRouter(
+    probe: (base) {
+      final client = _ServerOnlyHttpOverrides().rawClient(null);
+      client.connectionTimeout = const Duration(seconds: 2);
+      return ResourceNodeRouter.measure(client, base);
+    },
+  );
   static const integrationHosts = {
     'api.themoviedb.org',
     'api.trakt.tv',
@@ -22,11 +31,7 @@ class ServerEgress {
     'torrentio.strem.fun',
   };
 
-  static bool isServer(Uri uri) =>
-      uri.scheme == 'https' &&
-      uri.host == 'bobtv.briconbric.com' &&
-      uri.port == 443 &&
-      uri.userInfo.isEmpty;
+  static bool isServer(Uri uri) => ResourceNodeRouter.isNode(uri);
 
   static bool isLocal(Uri uri) {
     if (uri.userInfo.isNotEmpty) return false;
@@ -60,6 +65,7 @@ class ServerEgress {
     if (uri == null || uri.userInfo.isNotEmpty) {
       throw const FormatException('无效的网络资源地址');
     }
+    if (kind == 'media') return Uri.parse(mediaUrl(parts.first.trim()));
     if (canConnect(uri)) return uri;
     if (uri.scheme != 'http' && uri.scheme != 'https') {
       throw const FormatException('此线路协议尚未接入服务器转发');
@@ -98,7 +104,48 @@ class ServerEgress {
             RegExp(r'^[A-Za-z]:[\\/]').hasMatch(url))) {
       return url;
     }
-    return resourceUri(url, 'media').toString();
+    if (uri == null || uri.userInfo.isNotEmpty) {
+      throw const FormatException('无效的视频地址');
+    }
+    // Unwrap previously stored gateway URLs before handing them to decoders.
+    final canonical = ResourceNodeRouter.canonical(uri);
+    if (canonical?.path == '/api/v1/egress/resource' &&
+        canonical?.queryParameters['kind'] == 'media') {
+      return mediaUrl(canonical!.queryParameters['url'] ?? '');
+    }
+    if (uri.host == ResourceNodeRouter.relay.host &&
+        uri.path.startsWith('/bobtv/')) {
+      throw const FormatException('资源缓存节点不能作为视频源');
+    }
+    if (!const {
+      'http',
+      'https',
+      'rtsp',
+      'rtmp',
+      'rtmps',
+      'udp',
+      'rtp',
+    }.contains(uri.scheme)) {
+      throw const FormatException('不支持的视频协议');
+    }
+    return url.split('|').first.trim();
+  }
+
+  static Map<String, String> mediaHeaders(String url) {
+    final values = <String, String>{};
+    for (final part in url.split('|').skip(1).join('|').split('&')) {
+      final index = part.indexOf('=');
+      if (index <= 0) continue;
+      final key = part.substring(0, index).toLowerCase();
+      if (const {'user-agent', 'referer', 'origin'}.contains(key)) {
+        final value = Uri.decodeComponent(part.substring(index + 1));
+        if (value.length > 2048 || RegExp(r'[\r\n\x00]').hasMatch(value)) {
+          throw const FormatException('无效的视频请求头');
+        }
+        values[key] = value;
+      }
+    }
+    return values;
   }
 
   static String imageUrl(String url) {
@@ -117,10 +164,17 @@ class ServerEgress {
   static HttpClient createClient() =>
       _ServerOnlyHttpOverrides().createHttpClient(null);
 
+  static HttpClient createMediaClient() =>
+      _ServerOnlyHttpOverrides().rawClient(null, media: true);
+
   static Dio dio([BaseOptions? options]) {
     final client = Dio(options);
     client.httpClientAdapter = ServerEgressAdapter(
-      IOHttpClientAdapter(createHttpClient: createClient),
+      IOHttpClientAdapter(
+        createHttpClient: options?.extra['egressKind'] == 'media'
+            ? createMediaClient
+            : createClient,
+      ),
     );
     return client;
   }
@@ -129,9 +183,13 @@ class ServerEgress {
 class _ServerOnlyHttpOverrides extends HttpOverrides {
   @override
   HttpClient createHttpClient(SecurityContext? context) {
+    return ResourceRoutingHttpClient(rawClient(context), ServerEgress.nodes);
+  }
+
+  HttpClient rawClient(SecurityContext? context, {bool media = false}) {
     final client = super.createHttpClient(context);
     client.findProxy = (uri) {
-      if (!ServerEgress.canConnect(uri)) {
+      if (!ServerEgress.canConnect(uri) && !media) {
         throw const SocketException('公共网络请求必须通过 BobTV 服务器');
       }
       return 'DIRECT';
@@ -153,6 +211,20 @@ class ServerEgressAdapter implements HttpClientAdapter {
     Future<void>? cancelFuture,
   ) async {
     final target = options.uri;
+    final kind = options.extra['egressKind'] as String? ?? 'data';
+    if (kind == 'media') {
+      final direct = Uri.parse(ServerEgress.mediaUrl(target.toString()));
+      return inner.fetch(
+        options.copyWith(
+          path: direct.toString(),
+          baseUrl: '',
+          queryParameters: {},
+          followRedirects: true,
+        ),
+        requestStream,
+        cancelFuture,
+      );
+    }
     if (ServerEgress.canConnect(target)) {
       return inner.fetch(
         options.copyWith(followRedirects: false),
@@ -163,7 +235,6 @@ class ServerEgressAdapter implements HttpClientAdapter {
     if (target.scheme != 'http' && target.scheme != 'https') {
       throw const FormatException('此网络调用尚未接入服务器');
     }
-    final kind = options.extra['egressKind'] as String? ?? 'data';
     if (kind != 'data' &&
         (options.method == 'GET' || options.method == 'HEAD')) {
       final gateway = ServerEgress.resourceUri(

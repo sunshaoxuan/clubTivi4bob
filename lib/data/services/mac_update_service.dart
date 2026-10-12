@@ -10,6 +10,7 @@ import 'package:path_provider/path_provider.dart';
 
 import '../../core/app_diagnostics.dart';
 import '../../core/app_version.dart';
+import '../../core/server_egress.dart';
 import 'desktop_update_state.dart';
 import 'update_manifest.dart';
 
@@ -220,7 +221,7 @@ class MacUpdateService {
         _appPath,
         '$pid',
         manifest.version,
-        manifest.archive.toString(),
+        (await ServerEgress.nodes.resolve(manifest.archive)).toString(),
         manifest.sha256,
         '${manifest.bytes}',
         manifest.signature!,

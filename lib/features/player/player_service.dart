@@ -1,5 +1,5 @@
 import 'dart:async';
-import 'dart:io' show HttpClient, Platform;
+import 'dart:io' show Platform;
 import '../../core/playback_memory_budget.dart';
 
 import 'package:flutter/foundation.dart';
@@ -698,7 +698,7 @@ class PlayerService {
           }
           await candidate.setVolume(0);
           final controller = _createVideoController(candidate);
-          await candidate.open(Media(ServerEgress.mediaUrl(candidateUrl)))
+          await candidate.open(Media(ServerEgress.mediaUrl(candidateUrl), httpHeaders: ServerEgress.mediaHeaders(candidateUrl)))
               .timeout(const Duration(seconds: 6));
           final ready = await _waitForPreparedChannel(
             candidate,
@@ -1035,7 +1035,7 @@ class PlayerService {
       }
       await candidate.setVolume(0);
       _createVideoController(candidate);
-      await candidate.open(Media(ServerEgress.mediaUrl(url))).timeout(const Duration(seconds: 6));
+      await candidate.open(Media(ServerEgress.mediaUrl(url), httpHeaders: ServerEgress.mediaHeaders(url))).timeout(const Duration(seconds: 6));
       return await _waitForPreparedChannel(
         candidate,
         null,
@@ -1318,7 +1318,7 @@ class PlayerService {
       'changedFromRequested': selectedUrl != url,
     });
     final opened = await _runPlayStep(
-      player.open(Media(ServerEgress.mediaUrl(activeUrl))),
+      player.open(Media(ServerEgress.mediaUrl(activeUrl), httpHeaders: ServerEgress.mediaHeaders(activeUrl))),
       generation: playGeneration,
       step: 'open_media',
       timeout: const Duration(seconds: 5),
@@ -1375,7 +1375,7 @@ class PlayerService {
           'restoredStream': AppDiagnostics.summarizeStreamUrl(activeUrl),
         });
         final restored = await _runPlayStep(
-          player.open(Media(ServerEgress.mediaUrl(activeUrl))),
+          player.open(Media(ServerEgress.mediaUrl(activeUrl), httpHeaders: ServerEgress.mediaHeaders(activeUrl))),
           generation: playGeneration,
           step: 'restore_requested_media',
           timeout: const Duration(seconds: 5),
@@ -1760,7 +1760,7 @@ class PlayerService {
       return _StreamProbe.unusable(url);
     }
 
-    final client = HttpClient()..connectionTimeout = const Duration(seconds: 1);
+    final client = ServerEgress.createMediaClient()..connectionTimeout = const Duration(seconds: 1);
     final stopwatch = Stopwatch()..start();
     var firstByteMs = 3200;
     var bytes = 0;
@@ -1770,10 +1770,11 @@ class PlayerService {
       final request = await client
           .getUrl(ServerEgress.resourceUri(url, 'media'))
           .timeout(const Duration(milliseconds: 1400));
-      request.followRedirects = false;
+      request.followRedirects = true;
       request.maxRedirects = 4;
       request.headers.set('Range', 'bytes=0-65535');
       request.headers.set('User-Agent', 'HotelTV/0.4');
+      ServerEgress.mediaHeaders(url).forEach(request.headers.set);
       final response = await request.close().timeout(
         const Duration(milliseconds: 1600),
       );
@@ -1900,7 +1901,7 @@ class PlayerService {
       await _streamProxy.stop();
       return;
     }
-    await player.open(Media(ServerEgress.mediaUrl(proxyUrl)));
+    await player.open(Media(ServerEgress.mediaUrl(proxyUrl), httpHeaders: ServerEgress.mediaHeaders(proxyUrl)));
     if (playGeneration != _playGeneration || _currentUrl != originalUrl) {
       if (_currentUrl == originalUrl) await player.stop();
       await _streamProxy.stop();
@@ -2242,7 +2243,7 @@ class PlayerService {
         }
         await candidate.setVolume(0);
         final controller = _createVideoController(candidate);
-        await candidate.open(Media(ServerEgress.mediaUrl(url))).timeout(const Duration(seconds: 6));
+        await candidate.open(Media(ServerEgress.mediaUrl(url), httpHeaders: ServerEgress.mediaHeaders(url))).timeout(const Duration(seconds: 6));
         final ready = await _waitForPreparedChannel(
           candidate, null,
           allowAudioOnly: false,
@@ -2631,7 +2632,7 @@ class PlayerService {
       }
       if (_warmGeneration != generation || _warmPlayer != warmPlayer) return;
       openStarted = true;
-      await warmPlayer.open(Media(ServerEgress.mediaUrl(warmUrl)));
+      await warmPlayer.open(Media(ServerEgress.mediaUrl(warmUrl), httpHeaders: ServerEgress.mediaHeaders(warmUrl)));
     }
 
     var setupFailed = false;
@@ -2847,7 +2848,7 @@ class PlayerService {
       );
       if (playGeneration != _playGeneration) return false;
       final opened = await _runPlayStep(
-        player.open(Media(ServerEgress.mediaUrl(candidateUrl))),
+        player.open(Media(ServerEgress.mediaUrl(candidateUrl), httpHeaders: ServerEgress.mediaHeaders(candidateUrl))),
         generation: playGeneration,
         step: 'failover_open_media',
         timeout: const Duration(seconds: 5),
@@ -2910,7 +2911,7 @@ class PlayerService {
     );
     if (playGeneration != _playGeneration) return;
     final restored = await _runPlayStep(
-      player.open(Media(ServerEgress.mediaUrl(previousUrl))),
+      player.open(Media(ServerEgress.mediaUrl(previousUrl), httpHeaders: ServerEgress.mediaHeaders(previousUrl))),
       generation: playGeneration,
       step: 'failover_restore_media',
       timeout: const Duration(seconds: 5),

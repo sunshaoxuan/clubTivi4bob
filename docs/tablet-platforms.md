@@ -1,7 +1,8 @@
 # Android tablets and Windows ARM64
 
 Release version: `1.1.0+93`. Windows x64, both Mac CPU variants and Android
-APKs are distributed together. Native Windows ARM64 is still under development.
+APKs are distributed together. Windows ARM64 packages use a validated x64
+cross-build; Surface hardware validation remains pending.
 
 ## Android
 
@@ -76,17 +77,26 @@ continues using the x64 feed. Installer and update workers reject root DLLs
 from the other architecture. Software-rendering frame size calculations now
 use a uniform scale for landscape, portrait, 4:3, ultrawide and 4K video.
 
-`tools/windows/build_arm64.ps1` requires a Windows 11 ARM64 host, an ARM64
-Dart runtime in its Flutter SDK, ARM64 Visual Studio release CRT files and
+`tools/windows/build_arm64.ps1` supports native Windows ARM64 builds and the
+version-pinned x64 cross-build prepared by `prepare_cross_arm64.ps1`.
+The adapter copies the normal Flutter SDK into a separate directory, changes
+only that copy's Windows build target, and downloads SHA-256-verified official
+ARM64 engine artifacts. The official ARM64 `gen_snapshot.exe` runs on x64;
+the generated Dart AOT, app and in-process DLLs must all target ARM64.
+The default SDK and its normal x64 build behavior remain unchanged.
+
+Both paths require ARM64 Visual Studio release CRT files and
 the independently built support components. Existing x64 AirPlay helper
 processes can run under Windows 11 emulation; their libraries remain inside
 the helper directory and are never loaded into the ARM64 app process. This
 helper compatibility still needs actual Surface testing. Third-party binary
 licenses and source notices must accompany the first native ARM64 release.
 
-No Windows ARM64 host is available for this task. The native application,
-Setup installer, automatic update/rollback and GPU behavior remain uncompiled
-and unverified on actual ARM hardware. No x64 package is labeled as ARM64.
+No Windows ARM64 host is available for this task. Compilation is performed on
+sunsx-pc with x64-to-ARM64 MSVC tools. Native Setup installation, automatic
+update/rollback and GPU behavior remain unverified on actual ARM hardware.
+The download page states this hardware-testing limitation. No x64 package is
+labeled as ARM64.
 
 ## Mainland China validation
 

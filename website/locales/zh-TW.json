@@ -13,7 +13,7 @@
   },
   "meta": {
     "index": "BobTV 是 Windows 與 macOS 桌面電視播放器，支援頻道預覽和公開頻道目錄同步。",
-    "downloads": "Windows、macOS、Android 各自一欄，再依 CPU 選擇安裝包。Windows ARM 原生版仍待編譯驗證。",
+    "downloads": "Windows、macOS、Android 各自一欄，再依 CPU 選擇安裝包。提供 Windows ARM64 原生安裝包，Surface 實機仍待驗證。",
     "diagnostics": "提交經過欄位篩選的 BobTV JSONL 診斷記錄。"
   },
   "footer": "BobTV · 開源桌面播放器",
@@ -167,7 +167,7 @@
             "從本站下載，驗證完整性與發布者簽章後，由 Android 系統確認安裝。"
           ]
         ],
-        "note": "Android 實機與中國大陸網路仍待當地測試。Surface ARM 原生包待編譯驗證，目前不提供下載。"
+        "note": "Android 實機、中國大陸網路與 Surface ARM64 實機仍待當地測試。Windows ARM64 原生包已通過交叉建置與架構校驗。"
       },
       {
         "id": "settings",
@@ -193,6 +193,11 @@
     "history_label": "版本記錄",
     "history_title": "近期更新",
     "history": [
+      [
+        "2026-10-12",
+        "v1.1.0 · 補充 Windows ARM64 原生包",
+        "於 x64 Windows 主機交叉建置，Windows 下載欄可選 ARM64。已校驗程式、Dart AOT 與 DLL 架構，Surface 實機測試待完成。"
+      ],
       [
         "2026-10-12",
         "v1.1.0 · Android 平板與 CPU 下載分欄",
@@ -235,10 +240,10 @@
       ]
     ],
     "closing": "選擇適合電腦的安裝程式。",
-    "closing_text": "Windows、macOS、Android 各自一欄，再依 CPU 選擇安裝包。Windows ARM 原生版仍待編譯驗證。"
+    "closing_text": "Windows、macOS、Android 各自一欄，再依 CPU 選擇安裝包。提供 Windows ARM64 原生安裝包，Surface 實機仍待驗證。"
   },
   "downloads": {
-    "intro": "Windows、macOS、Android 各自一欄，再依 CPU 選擇安裝包。Windows ARM 原生版仍待編譯驗證。",
+    "intro": "Windows、macOS、Android 各自一欄，再依 CPU 選擇安裝包。提供 Windows ARM64 原生安裝包，Surface 實機仍待驗證。",
     "latest": "最新安裝程式",
     "local": "安裝程式由本站提供",
     "sections": [
@@ -332,6 +337,7 @@
     "surface_pending": "Surface ARM 原生版待編譯驗證",
     "windows_note": "Setup 需要管理員授權，ZIP 可完整解壓縮使用。",
     "macos_note": "選擇正確晶片，開啟 DMG 後拖至 Applications。",
-    "android_note": "Android 7+；更新安裝需系統確認。實機與大陸網路待驗證。"
+    "android_note": "Android 7+；更新安裝需系統確認。實機與大陸網路待驗證。",
+    "windows_arm64_note": "ARM64 原生包已通過建置與架構校驗；Surface 實機播放、AirPlay 與更新仍待驗證。"
   }
 }

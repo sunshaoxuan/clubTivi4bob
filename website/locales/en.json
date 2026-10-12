@@ -13,7 +13,7 @@
   },
   "meta": {
     "index": "BobTV is a desktop TV player for Windows and macOS with channel previews and a shared public channel catalog.",
-    "downloads": "One column each for Windows, macOS and Android. Choose the CPU within your system. Native Windows ARM packages are awaiting build validation.",
+    "downloads": "One column each for Windows, macOS and Android, with CPU choices inside. Native Windows ARM64 packages are available; Surface hardware tests are pending.",
     "diagnostics": "Submit a filtered JSONL diagnostic log to BobTV."
   },
   "footer": "BobTV · Open-source desktop player",
@@ -167,7 +167,7 @@
             "Downloads come from this site. Integrity and publisher signatures are checked before the Android system asks to install."
           ]
         ],
-        "note": "Physical Android playback and Mainland China throughput still need local testing. Native Surface ARM packages are not yet available."
+        "note": "Android devices, Mainland China throughput and Surface ARM64 hardware still need local tests. The native Windows ARM64 packages passed cross-build and architecture checks."
       },
       {
         "id": "settings",
@@ -193,6 +193,11 @@
     "history_label": "Release notes",
     "history_title": "Recent changes",
     "history": [
+      [
+        "2026-10-12",
+        "v1.1.0 · Native Windows ARM64 packages added",
+        "Cross-built on x64 Windows. Choose ARM64 within the Windows download group. App, Dart AOT and DLL architectures were validated; Surface hardware tests remain pending."
+      ],
       [
         "2026-10-12",
         "v1.1.0 · Android tablets and CPU download groups",
@@ -235,10 +240,10 @@
       ]
     ],
     "closing": "Choose the installer for your computer.",
-    "closing_text": "One column each for Windows, macOS and Android. Choose the CPU within your system. Native Windows ARM packages are awaiting build validation."
+    "closing_text": "One column each for Windows, macOS and Android, with CPU choices inside. Native Windows ARM64 packages are available; Surface hardware tests are pending."
   },
   "downloads": {
-    "intro": "One column each for Windows, macOS and Android. Choose the CPU within your system. Native Windows ARM packages are awaiting build validation.",
+    "intro": "One column each for Windows, macOS and Android, with CPU choices inside. Native Windows ARM64 packages are available; Surface hardware tests are pending.",
     "latest": "Latest installers",
     "local": "Downloads hosted on this site",
     "sections": [
@@ -332,6 +337,7 @@
     "surface_pending": "Native Surface ARM build validation pending",
     "windows_note": "Setup needs administrator approval. Extract the complete ZIP for portable use.",
     "macos_note": "Choose your chip, open the DMG and drag the app to Applications.",
-    "android_note": "Android 7+. Updates require system confirmation. Device and Mainland China tests pending."
+    "android_note": "Android 7+. Updates require system confirmation. Device and Mainland China tests pending.",
+    "windows_arm64_note": "Native ARM64 packages passed build and architecture checks. Surface playback, AirPlay and update installation still need hardware tests."
   }
 }

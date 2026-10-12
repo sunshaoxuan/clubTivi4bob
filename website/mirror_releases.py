@@ -130,6 +130,10 @@ def _inspect_update_archive(path, platform):
                         if len(header) != 20 or header[:4] != b'\x7fELF' or header[5] != 1 or struct.unpack_from('<H', header, 18)[0] != {'android-arm':40,'android-arm64':183,'android-x64':62}[platform]:
                             raise ValueError('APK native library architecture mismatch')
             if platform == 'windows-arm64':
+                with package.open('BobTV/data/app.so') as binary:
+                    header = binary.read(20)
+                if len(header) != 20 or header[:6] != b'\x7fELF\x02\x01' or struct.unpack_from('<H', header, 18)[0] != 183:
+                    raise ValueError('Windows ARM64 archive contains wrong-architecture Dart AOT')
                 for name in names:
                     if name == 'BobTV/BobTV.exe' or (name.startswith('BobTV/') and name.count('/') == 1 and name.endswith('.dll')):
                         with package.open(name) as binary:

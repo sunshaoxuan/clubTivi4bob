@@ -88,6 +88,9 @@ fetch('/releases.json')
         content.append(downloadLink(release, text('download_package', '下载安装包')));
         const portable = variant.files.find(item => item.filename.endsWith('.zip'));
         if (portable && portable !== release) content.append(downloadLink(portable, text('portable_download', '下载 ZIP 便携包'), true));
+        if (family.id === 'windows' && variant.id === 'arm64') {
+          content.append(element('p', 'release-family-note', text('windows_arm64_note', 'ARM64 原生包已通过构建与架构校验；Surface 实机播放与更新仍待验证。')));
+        }
       }
       for (const cpu of variants) {
         if (!cpu.release) {

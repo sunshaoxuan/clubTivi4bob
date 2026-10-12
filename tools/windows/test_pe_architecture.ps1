@@ -1,7 +1,7 @@
 $ErrorActionPreference='Stop'
 . (Join-Path $PSScriptRoot 'pe_architecture.ps1')
 $root=(Get-Item -LiteralPath (Join-Path $PSScriptRoot '../..')).FullName
-foreach($relative in @('tools/windows/build_arm64.ps1','tools/windows/build_installer.ps1',
+foreach($relative in @('tools/windows/build_arm64.ps1','tools/windows/prepare_cross_arm64.ps1','tools/windows/build_installer.ps1',
   'tools/windows/pe_architecture.ps1','assets/updater/worker.ps1')) {
   $tokens=$null;$errors=$null
   $source=[IO.File]::ReadAllText((Join-Path $root $relative),[Text.Encoding]::UTF8)
@@ -43,6 +43,20 @@ try {
   Make-PE $exe 0x14c
   Must-Throw {Get-BobTvPEMachine $exe}
   Must-Throw {Get-UpdateMachine $exe}
+  $aot=Join-Path $fixture 'app.so'
+  $elf=New-Object byte[] 64
+  $elf[0]=0x7f;$elf[1]=0x45;$elf[2]=0x4c;$elf[3]=0x46;$elf[4]=2;$elf[5]=1
+  [BitConverter]::GetBytes([uint16]183).CopyTo($elf,18)
+  [IO.File]::WriteAllBytes($aot,$elf)
+  Assert-BobTvAotArchitecture $aot 'arm64'
+  Must-Throw {Assert-BobTvAotArchitecture $aot 'x64'}
+  [BitConverter]::GetBytes([uint16]62).CopyTo($elf,18)
+  [IO.File]::WriteAllBytes($aot,$elf)
+  Assert-BobTvAotArchitecture $aot 'x64'
+  Must-Throw {Assert-BobTvAotArchitecture $aot 'arm64'}
+  $elf[5]=2
+  [IO.File]::WriteAllBytes($aot,$elf)
+  Must-Throw {Assert-BobTvAotArchitecture $aot 'x64'}
   [IO.File]::WriteAllBytes($exe,(New-Object byte[] 20))
   Must-Throw {Get-BobTvPEMachine $exe}
   Must-Throw {Get-UpdateMachine $exe}

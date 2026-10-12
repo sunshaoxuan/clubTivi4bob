@@ -20,4 +20,6 @@ when packaging the first verified native ARM64 release.
 
 The binaries are fetched at build time, checked with SHA-256 and TLS, and
 bundled into the app. End users do not fetch them from GitHub during playback.
-No native ARM64 release has been compiled or hardware-tested as of this change.
+The ARM64 packager includes `third_party/windows_arm64_notices`, together with
+the wrapper MIT license and ARM64 CRT manifest. The app can be cross-built on
+x64 Windows; hardware-specific playback and update tests remain pending.

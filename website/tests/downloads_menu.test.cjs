@@ -59,4 +59,5 @@ test('A real ARM64 Windows asset enables its CPU choice',async()=>{
  const windows=list.children[0].children[1].children[0];
  assert.equal(button(windows,'x64'),undefined);
  assert.match(links(windows)[0].href,/windows-arm64-Setup\.exe$/);
+ assert.ok(walk(windows).some(item=>item.textContent.includes('Surface 实机')));
 });

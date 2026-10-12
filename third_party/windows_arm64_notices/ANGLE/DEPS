@@ -1,0 +1,2157 @@
+Warning: truncated output (original token count: 51488)
+Total output lines: 5903
+
+# This file is used to manage the dependencies of the ANGLE git repo. It is
+# used by gclient to determine what version of each dependency to check out, and
+# where.
+
+# Avoids the need for a custom root variable.
+use_relative_paths = True
+
+gclient_gn_args_file = 'build/config/gclient_args.gni'
+
+git_dependencies = "SYNC"
+
+gclient_gn_args = [
+  'android_ndk_version',
+  'checkout_angle_cl_deps',
+  'checkout_angle_dawn_deps',
+  'checkout_angle_internal',
+  'checkout_angle_mesa',
+  'checkout_angle_partition_alloc',
+  'checkout_angle_restricted_traces',
+  'checkout_extra_traces',
+  'generate_location_tags',
+]
+
+vars = {
+  'android_git': 'https://android.googlesource.com',
+  'chromium_git': 'https://chromium.googlesource.com',
+  'chrome_internal_git': 'https://chrome-internal.googlesource.com',
+  'swiftshader_git': 'https://swiftshader.googlesource.com',
+  'dawn_git': 'https://dawn.googlesource.com',
+
+  # The version of the NDK. Set here, to allow the autoroller to update this
+  # value when updating the CIPD hash.
+  'android_ndk_version': Str('2@30.0.16248370'),
+
+  # This variable is overrided in Chromium's DEPS file.
+  'build_with_chromium': False,
+
+  # By default, download the fuchsia sdk from the public sdk directory.
+  'fuchsia_sdk_cipd_prefix': 'fuchsia/sdk/core/',
+
+  # We don't use location metadata in our test isolates.
+  'generate_location_tags': False,
+
+  # Only check out public sources by default. This can be overridden with custom_vars.
+  'checkout_angle_internal': False,
+
+  # Pull in Android native toolchain dependencies for Chrome OS too, so we can
+  # build ARC++ support libraries.
+  'checkout_android_native_support': 'checkout_android or checkout_chromeos',
+
+  # Check out Mesa and libdrm in ANGLE's third_party folder.
+  'checkout_angle_mesa': False,
+
+  # Check out PartitionAlloc in ANGLE's third_party folder.
+  'checkout_angle_partition_alloc': False,
+
+  # Version of Chromium our Chromium-based DEPS are mirrored from.
+  'chromium_revision': '758f937f32cf5dcea05973eacef84803a66fb30e',
+  # We never want to checkout chromium,
+  # but need a dummy DEPS entry for the autoroller
+  'dummy_checkout_chromium': False,
+
+  # Current revision of VK-GL-CTS (a.k.a dEQP).
+  'vk_gl_cts_revision': '9335a4e4e455ed600cb7fa486999e3ed6c2a0dbf',
+
+  # Current revision of googletest.
+  'googletest_revision': '4fe3307fb2d9f86d19777c7eb0e4809e9694dde7',
+
+  # Current revision of jsoncpp.
+  # Note: this dep cannot be auto-rolled b/c of nesting.
+  'jsoncpp_revision': '42e892d96e47b1f6e29844cc705e148ec4856448',
+
+  # Current revision of Chrome's third_party jsoncpp directory. This repository
+  # is mirrored as a separate repository, with separate git hashes that
+  # don't match the external JsonCpp repository or Chrome. Mirrored patches
+  # will have a different git hash associated with them.
+  # To roll, first get the new hash for chromium_jsoncpp_revision from the
+  # mirror of third_party/jsoncpp located here:
+  # https://chromium.googlesource.com/chromium/src/third_party/jsoncpp/
+  # Then get the new hash for jsoncpp_revision from the root Chrome DEPS file:
+  # https://source.chromium.org/chromium/chromium/src/+/main:DEPS
+  'chromium_jsoncpp_revision': 'f62d44704b4da6014aa231cfc116e7fd29617d2a',
+
+  # Current revision of patched-yasm.
+  # Note: this dep cannot be auto-rolled b/c of nesting.
+  'patched_yasm_revision': '720b70524a4424b15fc57e82263568c8ba0496ad',
+
+  # Three lines of non-changing comments so that
+  # the commit queue can handle CLs rolling catapult
+  # and whatever else without interference from each other.
+  'catapult_revision': '3d4673f57764ba5f999699abf34a52a3584e8b6c',
+
+  # the commit queue can handle CLs rolling Fuchsia sdk
+  # and whatever else without interference from each other.
+  'fuchsia_version': 'version:33.20261003.1.1',
+
+  # Three lines of non-changing comments so that
+  # the commit queue can handle CLs rolling luci-go
+  # and whatever else without interference from each other.
+  'luci_go': 'git_revision:b5ab8c6e7688d99a5702022cfaa95e9f8ce464f2',
+
+  # Three lines of non-changing comments so that
+  # the commit queue can handle CLs rolling android_sdk_build-tools_version
+  # and whatever else without interference from each other.
+  'android_sdk_build-tools_version': 'version_37.0.0',
+  # Three lines of non-changing comments so that
+  # the commit queue can handle CLs rolling android_sdk_emulator_version
+  # and whatever else without interference from each other.
+  'android_sdk_emulator_version': '9lGp8nTUCRRWGMnI_96HcKfzjnxEJKUcfvfwmA3wXNkC',
+  # Three lines of non-changing comments so that
+  # the commit queue can handle CLs rolling android_sdk_platform-tools_version
+  # and whatever else without interference from each other.
+  'android_sdk_platform-tools_version': 'qTD9QdBlBf3dyHsN1lJ0RH6AhHxR42Hmg2Ih-Vj4zIEC',
+  # Three lines of non-changing comments so that
+  # the commit queue can handle CLs rolling android_sdk_platforms_version
+  # and whatever else without interference from each other.
+  'android_sdk_platforms_version': 'JsUGMsJK2pkQxVKr7EcJbxbwjJEIWjEPLqcbv7ifdmcC',
+
+  # ninja CIPD package version.
+  # https://chrome-infra-packages.appspot.com/p/infra/3pp/tools/ninja
+  'ninja_version': 'version:3@1.12.1.chromium.4',
+
+  # Three lines of non-changing comments so that
+  # the commit queue can handle CLs rolling libexpat
+  # and whatever else without interference from each other.
+  'libexpat_revision': 'a851869e111c06fbcdc89edf639abf5fc2b6deba',
+
+  # Fetch configuration files required for the 'use_remoteexec' gn arg
+  'download_remoteexec_cfg': False,
+  # RBE instance to use for running remote builds
+  'rbe_instance': Str('projects/rbe-chrome-untrusted/instances/default_instance'),
+  # RBE project to download rewrapper config files for. Only needed if
+  # different from the project used in 'rbe_instance'
+  'rewrapper_cfg_project': Str(''),
+  # reclient CIPD package
+  'reclient_package': 'infra/rbe/client/',
+  # reclient CIPD package version
+  'reclient_version': 're_client_version:0.185.0.db415f21-gomaip',
+
+  # siso CIPD package version.
+  'siso_version': 'git_revision:7062c4f8a81f14ed840f6c6d1bbef63be5fabaae',
+
+  # CPython 3 CIPD package version for Siso hermetic toolchain.
+  'cpython3_version': 'version:3@3.11.9.chromium.38',
+
+  # 'magic' text to tell depot_tools that git submodules should be accepted but
+  # but parity with DEPS file is expected.
+  'SUBMODULE_MIGRATION': 'True',
+
+  # condition to allowlist deps to be synced in Cider. Allowlisting is needed
+  # because not all deps are compatible with Cider. Once we migrate everything
+  # to be compatible we can get rid of this allowlisting mecahnism and remove
+  # this condition. Tracking bug for removing this condition: b/349365433
+  'non_git_source': 'True',
+
+  # Clang tools that are included in DEPS to be consistent with Chromium, but
+  # not actually used by ANGLE.
+  'checkout_clang_tidy': 'False',
+  'checkout_clang_coverage_tools': 'False',
+
+   # Make Dawn skip its standalone dependencies
+  'dawn_standalone': False,
+  'dawn_revision': 'a83897a02e49609b802d622528bae370fe0e9778',
+
+  # All of the restricted traces (large).
+  'checkout_angle_restricted_traces': 'checkout_angle_internal',
+
+  # Control checkout of extra (non-representative) traces.
+  'checkout_extra_traces': 'checkout_angle_internal',
+
+  # Individual vars to enable/disable checkout of only specific traces.
+  # === ANGLE Restricted Trace Generated Var Start ===
+  'checkout_angle_restricted_trace_1945_air_force': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_20_minutes_till_dawn': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_2_3_4_player_mini_games': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_3d_pool_ball': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_88_fortunes_casino_slot': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_ace_racer': 'checkout_angle_restricted_traces',
+  'checkout_angle_restricted_trace_afk_arena': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_age_of_origins_z': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_agent_a': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_aliexpress': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_altos_odyssey': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_among_us': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_angry_birds_2_1500': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_angry_birds_2_launch': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_animal_crossing': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_antistress': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_antutu_refinery': 'checkout_angle_restricted_traces',
+  'checkout_angle_restricted_trace_apex_girl': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_archero_2': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_arena_breakout': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_arena_of_valor': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_arknights': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_asphalt_8': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_asphalt_9': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_asphalt_9_2024': 'checkout_angle_restricted_traces',
+  'checkout_angle_restricted_trace_avakin_life': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_avatar_world': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_aztec_ruins': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_aztec_ruins_high': 'checkout_angle_restricted_traces',
+  'checkout_angle_restricted_trace_badland': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_balatro': 'checkout_angle_restricted_traces',
+  'checkout_angle_restricted_trace_basemark_gpu': 'checkout_angle_restricted_traces',
+  'checkout_angle_restricted_trace_batman_telltale': 'checkout_angle_restricted_traces',
+  'checkout_angle_restricted_trace_battle_of_polytopia': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_beach_buggy_racing': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_billiards_city': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_bingo_bash': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_bingo_blitz': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_black_beacon': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_black_clover_m': 'checkout_angle_restricted_traces',
+  'checkout_angle_restricted_trace_black_desert_mobile': 'checkout_angle_restricted_traces',
+  'checkout_angle_restricted_trace_blade_and_soul_revolution': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_block_blast': 'checkout_angle_restricted_traces',
+  'checkout_angle_restricted_trace_block_craft_3d': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_blockman_go': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_blood_strike': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_botworld_adventure': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_brain_test_tricky_puzzles': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_brawl_stars': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_brawlhalla': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_bricks_breaker_quest': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_bridge_constructor_portal': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_brotato': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_bubble_shooter': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_bubble_shooter_and_friends': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_bubble_shooter_pop_bubbles': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_bubble_shooter_relaxing': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_bullet_echo': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_bus_simulator_indonesia': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_call_break_offline_card_game': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_call_of_dragons': 'checkout_angle_restricted_traces',
+  'checkout_angle_restricted_trace_callbreak': 'checkout_angle_restricted_traces',
+  'checkout_angle_restricted_trace_candy_crush_500': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_candy_crush_soda_saga': 'checkout_angle_restricted_traces',
+  'checkout_angle_restricted_trace_car_chase': 'checkout_angle_restricted_traces',
+  'checkout_angle_restricted_trace_car_parking_multiplayer': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_car_race_3d': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_carrom_pool_disc_game': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_cash_frenzy_casino_slots': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_cashman_casino': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_castlevania_sotn': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_cat_runner': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_catalyst_black': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_chess_offline': 'checkout_angle_restricted_traces',
+  'checkout_angle_restricted_trace_chrono_trigger': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_clash_of_clans': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_clash_royale': 'checkout_angle_restricted_traces',
+  'checkout_angle_restricted_trace_club_vegas_casino_slots': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_cod_mobile': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_coin_master': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_color_block_combo_blast': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_command_and_conquer_rivals': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_cookie_run_kingdom': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_cookie_run_oven_break': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_critical_ops': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_csr2_drag_racing': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_cut_the_rope': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_dark_war_survival': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_darkness_rises': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_dc_dark_legion': 'checkout_angle_restricted_traces',
+  'checkout_angle_restricted_trace_dead_by_daylight': 'checkout_angle_restricted_traces',
+  'checkout_angle_restricted_trace_dead_cells': 'checkout_angle_restricted_traces',
+  'checkout_angle_restricted_trace_dead_trigger_2': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_diablo_immortal': 'checkout_angle_restricted_traces',
+  'checkout_angle_restricted_trace_dice_dreams': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_disney_mirrorverse': 'checkout_angle_restricted_traces',
+  'checkout_angle_restricted_trace_disney_solitaire': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_disney_tsum_tsum': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_domino_dreams': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_dont_starve': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_dota_underlords': 'checkout_angle_restricted_traces',
+  'checkout_angle_restricted_trace_doubleu_casino': 'checkout_angle_restricted_traces',
+  'checkout_angle_restricted_trace_downwell': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_dr_driving': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_dr_parking_4': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_dragon_ball_legends': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_dragon_ball_z_dokkan_battle': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_dragon_mania_legends': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_dragon_raja': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_driver_overhead_2': 'checkout_angle_restricted_traces',
+  'checkout_angle_restricted_trace_durak_online': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_efootball_pes_2021': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_egypt_1500': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_eight_ball_pool': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_empires_and_puzzles': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_eve_echoes': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_evony_the_kings_return': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_extreme_car_driving_simulator': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_fallout_shelter_online': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_family_island': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_farm_heroes_saga': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_fashion_show': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_fate_grand_order': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_fifa_mobile': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_final_fantasy': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_final_fantasy_brave_exvius': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_fire_emblem_heroes': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_fishdom': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_five_nights_at_freddys': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_football_league_2025': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_free_fire': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_free_fire_max': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_frost_and_flame': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_gacha_club': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_gacha_life': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_gangstar_vegas': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_gardenscapes': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_garena_rov_abyssal_rift': 'checkout_angle_restricted_traces',
+  'checkout_angle_restricted_trace_genshin_impact': 'checkout_angle_restricted_traces',
+  'checkout_angle_restricted_trace_geometry_dash': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_goddess_of_victory_nikke': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_going_balls': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_google_maps': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_gossip_harbor': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_grand_mountain_adventure': 'checkout_angle_restricted_traces',
+  'checkout_angle_restricted_trace_grimvalor': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_guns_of_glory_lost_island': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_gwent_witcher_card_game': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_happy_color': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_harry_potter_hogwarts_mystery': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_harry_potter_magic_awakened': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_hay_day': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_hearthstone': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_hero_wars': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_higgs_domino_island': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_hill_climb_racing': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_hole_io': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_homescapes': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_honkai_impact_3rd': 'checkout_angle_restricted_traces',
+  'checkout_angle_restricted_trace_honkai_star_rail': 'checkout_angle_restricted_traces',
+  'checkout_angle_restricted_trace_hungry_shark_evolution': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_hunter_assassin': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_huuuge_casino': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_i9_inferno_nine': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_identity_v': 'checkout_angle_restricted_traces',
+  'checkout_angle_restricted_trace_idle_heroes': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_idle_zombie_miner': 'checkout_angle_restricted_traces',
+  'checkout_angle_restricted_trace_indian_bikes_driving_3d': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_infinity_ops': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_injustice_2': 'checkout_angle_restricted_traces',
+  'checkout_angle_restricted_trace_into_the_dead_2': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_jackpot_party': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_jackpot_world': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_jetpack_joyride': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_junes_journey': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_kartrider_rush': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_kentucky_route_zero': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_kingshot': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_klondike_adventures': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_knives_out': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_lands_of_jail': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_last_shelter_survival': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_last_war_survival_game': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_last_z_survival_shooter': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_league_of_legends_wild_rift': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_lego_legacy': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_life_after': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_life_is_strange': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_lightning_link': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_lilys_garden': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_limbo': 'checkout_angle_restricted_traces',
+  'checkout_angle_restricted_trace_lineage_2m': 'checkout_angle_restricted_traces',
+  'checkout_angle_restricted_trace_lineage_m': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_loop_hero': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_lords_mobile': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_lost_light': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_lotsa_slots': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_love_and_deepspace': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_ludo_king': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_lumino_city': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_magic_rush_heroes': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_magic_tiles_3': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_manhattan_10': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_manhattan_31': 'checkout_angle_restricted_traces',
+  'checkout_angle_restricted_trace_mario_kart_tour': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_marvel_contest_of_champions': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_marvel_snap': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_marvel_strike_force': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_match_factory': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_match_masters': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_matching_story': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_merge_dragons': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_merge_mansion': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_messenger_lite': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_minecraft': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_minecraft_bedrock': 'checkout_angle_restricted_traces',
+  'checkout_angle_restricted_trace_minecraft_vibrant_visuals': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_minetest': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_mini_block_craft': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_mini_games_calm_and_relax': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_mini_world': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_mob_control': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_mobile_legends': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_modern_combat_5': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_monopoly_go': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_monster_hunter_stories': 'checkout_angle_restricted_traces',
+  'checkout_angle_restricted_trace_monster_strike': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_monument_valley': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_mortal_kombat': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_mu_origin_3': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_my_friend_pedro': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_my_talking_angela': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_my_talking_angela_2': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_my_talking_tom': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_my_talking_tom2': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_my_talking_tom_friends': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_nba2k20_800': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_need_for_speed_no_limits': 'checkout_angle_restricted_traces',
+  'checkout_angle_restricted_trace_new_legend_of_the_condor_heroes': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_ni_no_kuni': 'checkout_angle_restricted_traces',
+  'checkout_angle_restricted_trace_nier_reincarnation': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_octopath_traveler': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_odin_valhalla_rising': 'checkout_angle_restricted_traces',
+  'checkout_angle_restricted_trace_off_the_road': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_offline_games': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_one_piece_bounty_rush': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_one_piece_treasure_cruise': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_one_punch_man': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_onmyoji': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_oxenfree': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_paper_io2': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_passmark_complex': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_passmark_simple': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_passmark_simple_multiview': 'checkout_angle_restricted_traces',
+  'checkout_angle_restricted_trace_passmark_unity': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_piano_fire': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_piano_kids': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_plague_inc': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_plants_vs_zombies': 'checkout_angle_restricted_traces',
+  'checkout_angle_restricted_trace_plants_vs_zombies_2': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_plants_vs_zombies_heroes': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_pokemon_go': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_pokemon_go_combat': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_pokemon_masters_ex': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_pokemon_unite': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_poppy_playtime': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_portal_knights': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_professional_baseball_spirits': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_pubg_mobile_battle_royale': 'checkout_angle_restricted_traces',
+  'checkout_angle_restricted_trace_pubg_mobile_launch': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_pubg_mobile_lite': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_pubg_mobile_skydive': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_puzzle_and_dragons': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_puzzles_and_survival': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_qblock_wood_block_puzzle_game': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_quick_hit_casino_slots': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_race_master_3d': 'checkout_angle_restricted_traces',
+  'checkout_angle_restricted_trace_ragnarok_m_eternal_love': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_raid_shadow_legends': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_raising_a_goblin': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_real_commando_secret_mission': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_real_cricket_20': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_real_gangster_crime': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_real_racing3': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_respawnables': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_retro_bowl': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_return_to_monkey_island': 'checkout_angle_restricted_traces',
+  'checkout_angle_restricted_trace_riptide_gp2': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_rise_of_empires': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_rise_of_kingdoms': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_romancing_saga': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_rope_hero_vice_town': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_royal_kingdom': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_royal_match': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_rush_royale': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_saint_seiya_awakening': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_sakura_school_simulator': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_scary_teacher_3d': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_school_party_craft': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_scrabble_go': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_seaside_escape': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_shadow_fight_2': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_shadow_fight_3': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_shadowgun_legends': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_shooting_ball': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_shovel_knight_pocket_dungeon': 'checkout_angle_restricted_traces',
+  'checkout_angle_restricted_trace_simcity_buildit': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_sky_force_reloaded': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_slam_dunk_from_tv_animation': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_slay_the_spire': 'checkout_angle_restricted_traces',
+  'checkout_angle_restricted_trace_slingshot_test1': 'checkout_angle_restricted_traces',
+  'checkout_angle_restricted_trace_slingshot_test2': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_slotomania': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_snake_io': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_snake_lite': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_sniper_3d': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_soccer_superstar': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_solar_smash': 'checkout_angle_restricted_traces',
+  'checkout_angle_restricted_trace_sonic_forces': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_sonic_the_hedgehog': 'checkout_angle_restricted_traces',
+  'checkout_angle_restricted_trace_special_forces_group_2': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_spider_fighter_3': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_standoff_2': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_star_trek_fleet_command': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_star_wars_galaxy_of_heroes': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_star_wars_kotor': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_stardew_valley': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_state_of_survival': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_street_fighter_duel': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_street_fighter_iv_ce': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_streets_of_rage_4': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_stumble_guys': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_subway_princess_runner': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_subway_surfers': 'checkout_angle_restricted_traces',
+  'checkout_angle_restricted_trace_summoners_war': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_super_bear_adventure': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_super_mario_run': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_supertuxkart': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_supreme_duelist': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_survivor_io': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_talking_tom_gold_run': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_talking_tom_hero_dash': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_temple_run_2': 'checkout_angle_restricted_traces',
+  'checkout_angle_restricted_trace_temple_run_300': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_tesla': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_teslagrad': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_tessellation': 'checkout_angle_restricted_traces',
+  'checkout_angle_restricted_trace_the_gardens_between': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_the_sims_mobile': 'checkout_angle_restricted_traces',
+  'checkout_angle_restricted_trace_the_witcher_monster_slayer': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_thief_puzzle': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_thimbleweed_park': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_tile_club': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_tiles_hop': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_tmnt_shredders_revenge': 'checkout_angle_restricted_traces',
+  'checkout_angle_restricted_trace_toca_life_world': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_toon_blast': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_top_heroes_kingdom_saga': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_top_war': 'checkout_angle_restricted_traces',
+  'checkout_angle_restricted_trace_toptop_games': 'checkout_angle_restricted_traces',
+  'checkout_angle_restricted_trace_total_battle': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_tower_of_fantasy': 'checkout_angle_restricted_traces',
+  'checkout_angle_restricted_trace_township': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_traffic_rider': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_travel_town': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_trex_200': 'checkout_angle_restricted_traces',
+  'checkout_angle_restricted_trace_two_player_games': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_uber': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_umamusume_pretty_derby': 'checkout_angle_restricted_traces',
+  'checkout_angle_restricted_trace_vainglory': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_vita_mahjong': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_walking_dead_survivors': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_war_planet_online': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_warcraft_rumble': 'checkout_angle_restricted_traces',
+  'checkout_angle_restricted_trace_warhammer_40000_freeblade': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_wayward_souls': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_whatsapp': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_whiteout_survival': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_woodoku': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_words_crush': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_words_of_wonders': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_words_with_friends_2': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_wordscapes': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_world_cricket_championship_2': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_world_of_kings': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_world_of_tanks_blitz': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_world_war_doh': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_worms_zone_io': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_wuthering_waves': 'checkout_angle_restricted_traces',
+  'checkout_angle_restricted_trace_wwe_supercard': 'checkout_angle_restricted_traces',
+  'checkout_angle_restricted_trace_yalla_ludo': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_zenonia_4': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_zillow': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_zombie_smasher': 'checkout_extra_traces',
+  'checkout_angle_restricted_trace_zombie_waves': 'checkout_angle_restricted_traces',
+  # === ANGLE Restricted Trace Generated Var End ===
+
+  'checkout_angle_perfetto': 'checkout_angle_restricted_traces',
+
+  # Check out OpenCL related deps conditionally. This can be overridden with custom_vars.
+  'checkout_angle_cl_deps': True,
+
+  # Check out dawn related deps conditionally. This can be overridden with custom_vars.
+  'checkout_angle_dawn_deps': True,
+}
+
+deps = {
+
+  'build': {
+    'url': Var('chromium_git') + '/chromium/src/build.git@b6d3bf1cb558bd41aa171d518b0ee60c3eb1b10e',
+    'condition': 'not build_with_chromium',
+  },
+
+  'buildtools': {
+    'url': Var('chromium_git') + '/chromium/src/buildtools.git@8790f824690e131a78f36e80ecc05a9272f061c8',
+    'condition': 'not build_with_chromium',
+  },
+
+  'third_party/clang-format/script': {
+    'url': Var('chromium_git') + '/external/github.com/llvm/llvm-project/clang/tools/clang-format.git@9f796802e5d633c96dbe97e0b6683d5e62594f9f',
+    'condition': 'not build_with_chromium',
+  },
+
+  'buildtools/linux64': {
+    'packages': [
+      {
+        'package': 'gn/gn/linux-${{arch}}',
+        'version': 'git_revision:0035961837fbcfe875d855744b3eda4fd2eefb43',
+      }
+    ],
+    'dep_type': 'cipd',
+    'condition': 'not build_with_chromium and checkout_linux',
+  },
+
+  'buildtools/mac': {
+    'packages': [
+      {
+        'package': 'gn/gn/mac-${{arch}}',
+        'version': 'git_revision:0035961837fbcfe875d855744b3eda4fd2eefb43',
+      }
+    ],
+    'dep_type': 'cipd',
+    'condition': 'not build_with_chromium and checkout_mac',
+  },
+
+  'buildtools/reclient': {
+    'packages': [
+      {
+        'package': Var('reclient_package') + '${{platform}}',
+        'version': Var('reclient_version'),
+      }
+    ],
+    'dep_type': 'cipd',
+    'condition': 'not build_with_chromium and not (host_os == "linux" and host_cpu == "arm64")',
+  },
+
+  'buildtools/win': {
+    'packages': [
+      {
+        'package': 'gn/gn/windows-amd64',
+        'version': 'git_revision:0035961837fbcfe875d855744b3eda4fd2eefb43',
+      }
+    ],
+    'dep_type': 'cipd',
+    'condition': 'not build_with_chromium and checkout_win',
+  },
+
+  'testing': {
+    'url': '{chromium_git}/chromium/src/testing@ac3dba73bfe38df61c280905447d2a87dce5c327',
+    'condition': 'not build_with_chromium',
+  },
+
+  'third_party/abseil-cpp': {
+    'url': Var('chromium_git') + '/chromium/src/third_party/abseil-cpp@9aa0c314d9bd021e48f0193f0af3316a7e8bec63',
+    'condition': 'not build_with_chromium',
+  },
+
+  'third_party/android_build_tools': {
+    'url': Var('chromium_git') + '/chromium/src/third_party/android_build_tools@c497b45dc593b518813831d8be4fd6e62acfcdcc',
+    'condition': 'checkout_android and not build_with_chromium',
+  },
+
+  # Always download Linux x64 package regardless of host OS for RBE workers.
+  'third_party/cpython3/linux-amd64': {
+      'packages': [
+        {
+          'package': 'infra/3pp/tools/cpython3/linux-amd64',
+          'version': Var('cpython3_version'),
+        },
+      ],
+      'condition': 'non_git_source and not build_with_chromium',
+      'dep_type': 'cipd',
+  },
+
+  # Host platform package.
+  'third_party/cpython3/host': {
+      'packages': [
+        {
+          'package': 'infra/3pp/tools/cpython3/${{platform}}',
+          'version': Var('cpython3_version'),
+        },
+      ],
+      'condition': 'non_git_source and not build_with_chromium',
+      'dep_type': 'cipd',
+  },
+
+  'third_party/android_build_tools/aapt2/cipd': {
+      'packages': [
+          {
+              'package': 'chromium/third_party/android_build_tools/aapt2/${{platform}}',
+              'version': 'version:2@9.5.0-alpha08-16409357',
+          },
+      ],
+      'condition': 'checkout_android and not build_with_chromium and '
+                   '((host_os == "linux" and host_cpu == "x64") or '
+                   '(host_os == "mac" and host_cpu == "arm64"))',
+      'dep_type': 'cipd',
+  },
+
+  'third_party/android_build_tools/bazel_tools/cipd': {
+      'packages': [
+          {
+              'package': 'chromium/third_party/android_build_tools/bazel_tools/${{platform}}',
+              'version': 'version:2@7.4.1',
+          },
+      ],
+      'condition': 'checkout_android and not build_with_chromium and'
+                   '((host_os == "linux" and host_cpu == "x64") or '
+                   '(host_os == "mac" and host_cpu == "arm64"))',
+      'dep_type': 'cipd',
+  },
+
+  'third_party/android_build_tools/error_prone/cipd': {
+      'packages': [
+          {
+               'package': 'chromium/third_party/android_build_tools/error_prone',
+               'version': 'OMumydTae4pwjd5CyldTT3K3NeuCmcwrBuMOvO2zFjsC',
+          },
+      ],
+      'condition': 'checkout_android and not build_with_chromium',
+      'dep_type': 'cipd',
+  },
+
+  'third_party/android_build_tools/error_prone_javac/cipd': {
+      'packages': [
+          {
+               'package': 'chromium/third_party/android_build_tools/error_prone_javac',
+               'version': '7EcHxlEXEaLRWEyHIAxf0ouPjkmN1Od6jkutuo0sfBIC',
+          },
+      ],
+      'cond…29488 tokens truncated…dition': 'checkout_angle_restricted_trace_saint_seiya_awakening',
+  },
+  'src/tests/restricted_traces/sakura_school_simulator': {
+      'packages': [
+        {
+            'package': 'angle/traces/sakura_school_simulator',
+            'version': 'version:5',
+        },
+      ],
+      'dep_type': 'cipd',
+      'condition': 'checkout_angle_restricted_trace_sakura_school_simulator',
+  },
+  'src/tests/restricted_traces/scary_teacher_3d': {
+      'packages': [
+        {
+            'package': 'angle/traces/scary_teacher_3d',
+            'version': 'version:1',
+        },
+      ],
+      'dep_type': 'cipd',
+      'condition': 'checkout_angle_restricted_trace_scary_teacher_3d',
+  },
+  'src/tests/restricted_traces/school_party_craft': {
+      'packages': [
+        {
+            'package': 'angle/traces/school_party_craft',
+            'version': 'version:2',
+        },
+      ],
+      'dep_type': 'cipd',
+      'condition': 'checkout_angle_restricted_trace_school_party_craft',
+  },
+  'src/tests/restricted_traces/scrabble_go': {
+      'packages': [
+        {
+            'package': 'angle/traces/scrabble_go',
+            'version': 'version:5',
+        },
+      ],
+      'dep_type': 'cipd',
+      'condition': 'checkout_angle_restricted_trace_scrabble_go',
+  },
+  'src/tests/restricted_traces/seaside_escape': {
+      'packages': [
+        {
+            'package': 'angle/traces/seaside_escape',
+            'version': 'version:1',
+        },
+      ],
+      'dep_type': 'cipd',
+      'condition': 'checkout_angle_restricted_trace_seaside_escape',
+  },
+  'src/tests/restricted_traces/shadow_fight_2': {
+      'packages': [
+        {
+            'package': 'angle/traces/shadow_fight_2',
+            'version': 'version:5',
+        },
+      ],
+      'dep_type': 'cipd',
+      'condition': 'checkout_angle_restricted_trace_shadow_fight_2',
+  },
+  'src/tests/restricted_traces/shadow_fight_3': {
+      'packages': [
+        {
+            'package': 'angle/traces/shadow_fight_3',
+            'version': 'version:1',
+        },
+      ],
+      'dep_type': 'cipd',
+      'condition': 'checkout_angle_restricted_trace_shadow_fight_3',
+  },
+  'src/tests/restricted_traces/shadowgun_legends': {
+      'packages': [
+        {
+            'package': 'angle/traces/shadowgun_legends',
+            'version': 'version:2',
+        },
+      ],
+      'dep_type': 'cipd',
+      'condition': 'checkout_angle_restricted_trace_shadowgun_legends',
+  },
+  'src/tests/restricted_traces/shooting_ball': {
+      'packages': [
+        {
+            'package': 'angle/traces/shooting_ball',
+            'version': 'version:1',
+        },
+      ],
+      'dep_type': 'cipd',
+      'condition': 'checkout_angle_restricted_trace_shooting_ball',
+  },
+  'src/tests/restricted_traces/shovel_knight_pocket_dungeon': {
+      'packages': [
+        {
+            'package': 'angle/traces/shovel_knight_pocket_dungeon',
+            'version': 'version:2',
+        },
+      ],
+      'dep_type': 'cipd',
+      'condition': 'checkout_angle_restricted_trace_shovel_knight_pocket_dungeon',
+  },
+  'src/tests/restricted_traces/simcity_buildit': {
+      'packages': [
+        {
+            'package': 'angle/traces/simcity_buildit',
+            'version': 'version:1',
+        },
+      ],
+      'dep_type': 'cipd',
+      'condition': 'checkout_angle_restricted_trace_simcity_buildit',
+  },
+  'src/tests/restricted_traces/sky_force_reloaded': {
+      'packages': [
+        {
+            'package': 'angle/traces/sky_force_reloaded',
+            'version': 'version:1',
+        },
+      ],
+      'dep_type': 'cipd',
+      'condition': 'checkout_angle_restricted_trace_sky_force_reloaded',
+  },
+  'src/tests/restricted_traces/slam_dunk_from_tv_animation': {
+      'packages': [
+        {
+            'package': 'angle/traces/slam_dunk_from_tv_animation',
+            'version': 'version:1',
+        },
+      ],
+      'dep_type': 'cipd',
+      'condition': 'checkout_angle_restricted_trace_slam_dunk_from_tv_animation',
+  },
+  'src/tests/restricted_traces/slay_the_spire': {
+      'packages': [
+        {
+            'package': 'angle/traces/slay_the_spire',
+            'version': 'version:2',
+        },
+      ],
+      'dep_type': 'cipd',
+      'condition': 'checkout_angle_restricted_trace_slay_the_spire',
+  },
+  'src/tests/restricted_traces/slingshot_test1': {
+      'packages': [
+        {
+            'package': 'angle/traces/slingshot_test1',
+            'version': 'version:5',
+        },
+      ],
+      'dep_type': 'cipd',
+      'condition': 'checkout_angle_restricted_trace_slingshot_test1',
+  },
+  'src/tests/restricted_traces/slingshot_test2': {
+      'packages': [
+        {
+            'package': 'angle/traces/slingshot_test2',
+            'version': 'version:5',
+        },
+      ],
+      'dep_type': 'cipd',
+      'condition': 'checkout_angle_restricted_trace_slingshot_test2',
+  },
+  'src/tests/restricted_traces/slotomania': {
+      'packages': [
+        {
+            'package': 'angle/traces/slotomania',
+            'version': 'version:1',
+        },
+      ],
+      'dep_type': 'cipd',
+      'condition': 'checkout_angle_restricted_trace_slotomania',
+  },
+  'src/tests/restricted_traces/snake_io': {
+      'packages': [
+        {
+            'package': 'angle/traces/snake_io',
+            'version': 'version:1',
+        },
+      ],
+      'dep_type': 'cipd',
+      'condition': 'checkout_angle_restricted_trace_snake_io',
+  },
+  'src/tests/restricted_traces/snake_lite': {
+      'packages': [
+        {
+            'package': 'angle/traces/snake_lite',
+            'version': 'version:1',
+        },
+      ],
+      'dep_type': 'cipd',
+      'condition': 'checkout_angle_restricted_trace_snake_lite',
+  },
+  'src/tests/restricted_traces/sniper_3d': {
+      'packages': [
+        {
+            'package': 'angle/traces/sniper_3d',
+            'version': 'version:5',
+        },
+      ],
+      'dep_type': 'cipd',
+      'condition': 'checkout_angle_restricted_trace_sniper_3d',
+  },
+  'src/tests/restricted_traces/soccer_superstar': {
+      'packages': [
+        {
+            'package': 'angle/traces/soccer_superstar',
+            'version': 'version:1',
+        },
+      ],
+      'dep_type': 'cipd',
+      'condition': 'checkout_angle_restricted_trace_soccer_superstar',
+  },
+  'src/tests/restricted_traces/solar_smash': {
+      'packages': [
+        {
+            'package': 'angle/traces/solar_smash',
+            'version': 'version:3',
+        },
+      ],
+      'dep_type': 'cipd',
+      'condition': 'checkout_angle_restricted_trace_solar_smash',
+  },
+  'src/tests/restricted_traces/sonic_forces': {
+      'packages': [
+        {
+            'package': 'angle/traces/sonic_forces',
+            'version': 'version:1',
+        },
+      ],
+      'dep_type': 'cipd',
+      'condition': 'checkout_angle_restricted_trace_sonic_forces',
+  },
+  'src/tests/restricted_traces/sonic_the_hedgehog': {
+      'packages': [
+        {
+            'package': 'angle/traces/sonic_the_hedgehog',
+            'version': 'version:6',
+        },
+      ],
+      'dep_type': 'cipd',
+      'condition': 'checkout_angle_restricted_trace_sonic_the_hedgehog',
+  },
+  'src/tests/restricted_traces/special_forces_group_2': {
+      'packages': [
+        {
+            'package': 'angle/traces/special_forces_group_2',
+            'version': 'version:1',
+        },
+      ],
+      'dep_type': 'cipd',
+      'condition': 'checkout_angle_restricted_trace_special_forces_group_2',
+  },
+  'src/tests/restricted_traces/spider_fighter_3': {
+      'packages': [
+        {
+            'package': 'angle/traces/spider_fighter_3',
+            'version': 'version:1',
+        },
+      ],
+      'dep_type': 'cipd',
+      'condition': 'checkout_angle_restricted_trace_spider_fighter_3',
+  },
+  'src/tests/restricted_traces/standoff_2': {
+      'packages': [
+        {
+            'package': 'angle/traces/standoff_2',
+            'version': 'version:5',
+        },
+      ],
+      'dep_type': 'cipd',
+      'condition': 'checkout_angle_restricted_trace_standoff_2',
+  },
+  'src/tests/restricted_traces/star_trek_fleet_command': {
+      'packages': [
+        {
+            'package': 'angle/traces/star_trek_fleet_command',
+            'version': 'version:1',
+        },
+      ],
+      'dep_type': 'cipd',
+      'condition': 'checkout_angle_restricted_trace_star_trek_fleet_command',
+  },
+  'src/tests/restricted_traces/star_wars_galaxy_of_heroes': {
+      'packages': [
+        {
+            'package': 'angle/traces/star_wars_galaxy_of_heroes',
+            'version': 'version:1',
+        },
+      ],
+      'dep_type': 'cipd',
+      'condition': 'checkout_angle_restricted_trace_star_wars_galaxy_of_heroes',
+  },
+  'src/tests/restricted_traces/star_wars_kotor': {
+      'packages': [
+        {
+            'package': 'angle/traces/star_wars_kotor',
+            'version': 'version:1',
+        },
+      ],
+      'dep_type': 'cipd',
+      'condition': 'checkout_angle_restricted_trace_star_wars_kotor',
+  },
+  'src/tests/restricted_traces/stardew_valley': {
+      'packages': [
+        {
+            'package': 'angle/traces/stardew_valley',
+            'version': 'version:2',
+        },
+      ],
+      'dep_type': 'cipd',
+      'condition': 'checkout_angle_restricted_trace_stardew_valley',
+  },
+  'src/tests/restricted_traces/state_of_survival': {
+      'packages': [
+        {
+            'package': 'angle/traces/state_of_survival',
+            'version': 'version:2',
+        },
+      ],
+      'dep_type': 'cipd',
+      'condition': 'checkout_angle_restricted_trace_state_of_survival',
+  },
+  'src/tests/restricted_traces/street_fighter_duel': {
+      'packages': [
+        {
+            'package': 'angle/traces/street_fighter_duel',
+            'version': 'version:2',
+        },
+      ],
+      'dep_type': 'cipd',
+      'condition': 'checkout_angle_restricted_trace_street_fighter_duel',
+  },
+  'src/tests/restricted_traces/street_fighter_iv_ce': {
+      'packages': [
+        {
+            'package': 'angle/traces/street_fighter_iv_ce',
+            'version': 'version:1',
+        },
+      ],
+      'dep_type': 'cipd',
+      'condition': 'checkout_angle_restricted_trace_street_fighter_iv_ce',
+  },
+  'src/tests/restricted_traces/streets_of_rage_4': {
+      'packages': [
+        {
+            'package': 'angle/traces/streets_of_rage_4',
+            'version': 'version:2',
+        },
+      ],
+      'dep_type': 'cipd',
+      'condition': 'checkout_angle_restricted_trace_streets_of_rage_4',
+  },
+  'src/tests/restricted_traces/stumble_guys': {
+      'packages': [
+        {
+            'package': 'angle/traces/stumble_guys',
+            'version': 'version:1',
+        },
+      ],
+      'dep_type': 'cipd',
+      'condition': 'checkout_angle_restricted_trace_stumble_guys',
+  },
+  'src/tests/restricted_traces/subway_princess_runner': {
+      'packages': [
+        {
+            'package': 'angle/traces/subway_princess_runner',
+            'version': 'version:5',
+        },
+      ],
+      'dep_type': 'cipd',
+      'condition': 'checkout_angle_restricted_trace_subway_princess_runner',
+  },
+  'src/tests/restricted_traces/subway_surfers': {
+      'packages': [
+        {
+            'package': 'angle/traces/subway_surfers',
+            'version': 'version:5',
+        },
+      ],
+      'dep_type': 'cipd',
+      'condition': 'checkout_angle_restricted_trace_subway_surfers',
+  },
+  'src/tests/restricted_traces/summoners_war': {
+      'packages': [
+        {
+            'package': 'angle/traces/summoners_war',
+            'version': 'version:5',
+        },
+      ],
+      'dep_type': 'cipd',
+      'condition': 'checkout_angle_restricted_trace_summoners_war',
+  },
+  'src/tests/restricted_traces/super_bear_adventure': {
+      'packages': [
+        {
+            'package': 'angle/traces/super_bear_adventure',
+            'version': 'version:1',
+        },
+      ],
+      'dep_type': 'cipd',
+      'condition': 'checkout_angle_restricted_trace_super_bear_adventure',
+  },
+  'src/tests/restricted_traces/super_mario_run': {
+      'packages': [
+        {
+            'package': 'angle/traces/super_mario_run',
+            'version': 'version:1',
+        },
+      ],
+      'dep_type': 'cipd',
+      'condition': 'checkout_angle_restricted_trace_super_mario_run',
+  },
+  'src/tests/restricted_traces/supertuxkart': {
+      'packages': [
+        {
+            'package': 'angle/traces/supertuxkart',
+            'version': 'version:1',
+        },
+      ],
+      'dep_type': 'cipd',
+      'condition': 'checkout_angle_restricted_trace_supertuxkart',
+  },
+  'src/tests/restricted_traces/supreme_duelist': {
+      'packages': [
+        {
+            'package': 'angle/traces/supreme_duelist',
+            'version': 'version:1',
+        },
+      ],
+      'dep_type': 'cipd',
+      'condition': 'checkout_angle_restricted_trace_supreme_duelist',
+  },
+  'src/tests/restricted_traces/survivor_io': {
+      'packages': [
+        {
+            'package': 'angle/traces/survivor_io',
+            'version': 'version:1',
+        },
+      ],
+      'dep_type': 'cipd',
+      'condition': 'checkout_angle_restricted_trace_survivor_io',
+  },
+  'src/tests/restricted_traces/talking_tom_gold_run': {
+      'packages': [
+        {
+            'package': 'angle/traces/talking_tom_gold_run',
+            'version': 'version:1',
+        },
+      ],
+      'dep_type': 'cipd',
+      'condition': 'checkout_angle_restricted_trace_talking_tom_gold_run',
+  },
+  'src/tests/restricted_traces/talking_tom_hero_dash': {
+      'packages': [
+        {
+            'package': 'angle/traces/talking_tom_hero_dash',
+            'version': 'version:5',
+        },
+      ],
+      'dep_type': 'cipd',
+      'condition': 'checkout_angle_restricted_trace_talking_tom_hero_dash',
+  },
+  'src/tests/restricted_traces/temple_run_2': {
+      'packages': [
+        {
+            'package': 'angle/traces/temple_run_2',
+            'version': 'version:5',
+        },
+      ],
+      'dep_type': 'cipd',
+      'condition': 'checkout_angle_restricted_trace_temple_run_2',
+  },
+  'src/tests/restricted_traces/temple_run_300': {
+      'packages': [
+        {
+            'package': 'angle/traces/temple_run_300',
+            'version': 'version:5',
+        },
+      ],
+      'dep_type': 'cipd',
+      'condition': 'checkout_angle_restricted_trace_temple_run_300',
+  },
+  'src/tests/restricted_traces/tesla': {
+      'packages': [
+        {
+            'package': 'angle/traces/tesla',
+            'version': 'version:1',
+        },
+      ],
+      'dep_type': 'cipd',
+      'condition': 'checkout_angle_restricted_trace_tesla',
+  },
+  'src/tests/restricted_traces/teslagrad': {
+      'packages': [
+        {
+            'package': 'angle/traces/teslagrad',
+            'version': 'version:1',
+        },
+      ],
+      'dep_type': 'cipd',
+      'condition': 'checkout_angle_restricted_trace_teslagrad',
+  },
+  'src/tests/restricted_traces/tessellation': {
+      'packages': [
+        {
+            'package': 'angle/traces/tessellation',
+            'version': 'version:1',
+        },
+      ],
+      'dep_type': 'cipd',
+      'condition': 'checkout_angle_restricted_trace_tessellation',
+  },
+  'src/tests/restricted_traces/the_gardens_between': {
+      'packages': [
+        {
+            'package': 'angle/traces/the_gardens_between',
+            'version': 'version:1',
+        },
+      ],
+      'dep_type': 'cipd',
+      'condition': 'checkout_angle_restricted_trace_the_gardens_between',
+  },
+  'src/tests/restricted_traces/the_sims_mobile': {
+      'packages': [
+        {
+            'package': 'angle/traces/the_sims_mobile',
+            'version': 'version:1',
+        },
+      ],
+      'dep_type': 'cipd',
+      'condition': 'checkout_angle_restricted_trace_the_sims_mobile',
+  },
+  'src/tests/restricted_traces/the_witcher_monster_slayer': {
+      'packages': [
+        {
+            'package': 'angle/traces/the_witcher_monster_slayer',
+            'version': 'version:1',
+        },
+      ],
+      'dep_type': 'cipd',
+      'condition': 'checkout_angle_restricted_trace_the_witcher_monster_slayer',
+  },
+  'src/tests/restricted_traces/thief_puzzle': {
+      'packages': [
+        {
+            'package': 'angle/traces/thief_puzzle',
+            'version': 'version:1',
+        },
+      ],
+      'dep_type': 'cipd',
+      'condition': 'checkout_angle_restricted_trace_thief_puzzle',
+  },
+  'src/tests/restricted_traces/thimbleweed_park': {
+      'packages': [
+        {
+            'package': 'angle/traces/thimbleweed_park',
+            'version': 'version:1',
+        },
+      ],
+      'dep_type': 'cipd',
+      'condition': 'checkout_angle_restricted_trace_thimbleweed_park',
+  },
+  'src/tests/restricted_traces/tile_club': {
+      'packages': [
+        {
+            'package': 'angle/traces/tile_club',
+            'version': 'version:1',
+        },
+      ],
+      'dep_type': 'cipd',
+      'condition': 'checkout_angle_restricted_trace_tile_club',
+  },
+  'src/tests/restricted_traces/tiles_hop': {
+      'packages': [
+        {
+            'package': 'angle/traces/tiles_hop',
+            'version': 'version:1',
+        },
+      ],
+      'dep_type': 'cipd',
+      'condition': 'checkout_angle_restricted_trace_tiles_hop',
+  },
+  'src/tests/restricted_traces/tmnt_shredders_revenge': {
+      'packages': [
+        {
+            'package': 'angle/traces/tmnt_shredders_revenge',
+            'version': 'version:2',
+        },
+      ],
+      'dep_type': 'cipd',
+      'condition': 'checkout_angle_restricted_trace_tmnt_shredders_revenge',
+  },
+  'src/tests/restricted_traces/toca_life_world': {
+      'packages': [
+        {
+            'package': 'angle/traces/toca_life_world',
+            'version': 'version:3',
+        },
+      ],
+      'dep_type': 'cipd',
+      'condition': 'checkout_angle_restricted_trace_toca_life_world',
+  },
+  'src/tests/restricted_traces/toon_blast': {
+      'packages': [
+        {
+            'package': 'angle/traces/toon_blast',
+            'version': 'version:6',
+        },
+      ],
+      'dep_type': 'cipd',
+      'condition': 'checkout_angle_restricted_trace_toon_blast',
+  },
+  'src/tests/restricted_traces/top_heroes_kingdom_saga': {
+      'packages': [
+        {
+            'package': 'angle/traces/top_heroes_kingdom_saga',
+            'version': 'version:1',
+        },
+      ],
+      'dep_type': 'cipd',
+      'condition': 'checkout_angle_restricted_trace_top_heroes_kingdom_saga',
+  },
+  'src/tests/restricted_traces/top_war': {
+      'packages': [
+        {
+            'package': 'angle/traces/top_war',
+            'version': 'version:1',
+        },
+      ],
+      'dep_type': 'cipd',
+      'condition': 'checkout_angle_restricted_trace_top_war',
+  },
+  'src/tests/restricted_traces/toptop_games': {
+      'packages': [
+        {
+            'package': 'angle/traces/toptop_games',
+            'version': 'version:1',
+        },
+      ],
+      'dep_type': 'cipd',
+      'condition': 'checkout_angle_restricted_trace_toptop_games',
+  },
+  'src/tests/restricted_traces/total_battle': {
+      'packages': [
+        {
+            'package': 'angle/traces/total_battle',
+            'version': 'version:2',
+        },
+      ],
+      'dep_type': 'cipd',
+      'condition': 'checkout_angle_restricted_trace_total_battle',
+  },
+  'src/tests/restricted_traces/tower_of_fantasy': {
+      'packages': [
+        {
+            'package': 'angle/traces/tower_of_fantasy',
+            'version': 'version:1',
+        },
+      ],
+      'dep_type': 'cipd',
+      'condition': 'checkout_angle_restricted_trace_tower_of_fantasy',
+  },
+  'src/tests/restricted_traces/township': {
+      'packages': [
+        {
+            'package': 'angle/traces/township',
+            'version': 'version:6',
+        },
+      ],
+      'dep_type': 'cipd',
+      'condition': 'checkout_angle_restricted_trace_township',
+  },
+  'src/tests/restricted_traces/traffic_rider': {
+      'packages': [
+        {
+            'package': 'angle/traces/traffic_rider',
+            'version': 'version:1',
+        },
+      ],
+      'dep_type': 'cipd',
+      'condition': 'checkout_angle_restricted_trace_traffic_rider',
+  },
+  'src/tests/restricted_traces/travel_town': {
+      'packages': [
+        {
+            'package': 'angle/traces/travel_town',
+            'version': 'version:1',
+        },
+      ],
+      'dep_type': 'cipd',
+      'condition': 'checkout_angle_restricted_trace_travel_town',
+  },
+  'src/tests/restricted_traces/trex_200': {
+      'packages': [
+        {
+            'package': 'angle/traces/trex_200',
+            'version': 'version:5',
+        },
+      ],
+      'dep_type': 'cipd',
+      'condition': 'checkout_angle_restricted_trace_trex_200',
+  },
+  'src/tests/restricted_traces/two_player_games': {
+      'packages': [
+        {
+            'package': 'angle/traces/two_player_games',
+            'version': 'version:1',
+        },
+      ],
+      'dep_type': 'cipd',
+      'condition': 'checkout_angle_restricted_trace_two_player_games',
+  },
+  'src/tests/restricted_traces/uber': {
+      'packages': [
+        {
+            'package': 'angle/traces/uber',
+            'version': 'version:1',
+        },
+      ],
+      'dep_type': 'cipd',
+      'condition': 'checkout_angle_restricted_trace_uber',
+  },
+  'src/tests/restricted_traces/umamusume_pretty_derby': {
+      'packages': [
+        {
+            'package': 'angle/traces/umamusume_pretty_derby',
+            'version': 'version:1',
+        },
+      ],
+      'dep_type': 'cipd',
+      'condition': 'checkout_angle_restricted_trace_umamusume_pretty_derby',
+  },
+  'src/tests/restricted_traces/vainglory': {
+      'packages': [
+        {
+            'package': 'angle/traces/vainglory',
+            'version': 'version:1',
+        },
+      ],
+      'dep_type': 'cipd',
+      'condition': 'checkout_angle_restricted_trace_vainglory',
+  },
+  'src/tests/restricted_traces/vita_mahjong': {
+      'packages': [
+        {
+            'package': 'angle/traces/vita_mahjong',
+            'version': 'version:1',
+        },
+      ],
+      'dep_type': 'cipd',
+      'condition': 'checkout_angle_restricted_trace_vita_mahjong',
+  },
+  'src/tests/restricted_traces/walking_dead_survivors': {
+      'packages': [
+        {
+            'package': 'angle/traces/walking_dead_survivors',
+            'version': 'version:1',
+        },
+      ],
+      'dep_type': 'cipd',
+      'condition': 'checkout_angle_restricted_trace_walking_dead_survivors',
+  },
+  'src/tests/restricted_traces/war_planet_online': {
+      'packages': [
+        {
+            'package': 'angle/traces/war_planet_online',
+            'version': 'version:4',
+        },
+      ],
+      'dep_type': 'cipd',
+      'condition': 'checkout_angle_restricted_trace_war_planet_online',
+  },
+  'src/tests/restricted_traces/warcraft_rumble': {
+      'packages': [
+        {
+            'package': 'angle/traces/warcraft_rumble',
+            'version': 'version:1',
+        },
+      ],
+      'dep_type': 'cipd',
+      'condition': 'checkout_angle_restricted_trace_warcraft_rumble',
+  },
+  'src/tests/restricted_traces/warhammer_40000_freeblade': {
+      'packages': [
+        {
+            'package': 'angle/traces/warhammer_40000_freeblade',
+            'version': 'version:1',
+        },
+      ],
+      'dep_type': 'cipd',
+      'condition': 'checkout_angle_restricted_trace_warhammer_40000_freeblade',
+  },
+  'src/tests/restricted_traces/wayward_souls': {
+      'packages': [
+        {
+            'package': 'angle/traces/wayward_souls',
+            'version': 'version:1',
+        },
+      ],
+      'dep_type': 'cipd',
+      'condition': 'checkout_angle_restricted_trace_wayward_souls',
+  },
+  'src/tests/restricted_traces/whatsapp': {
+      'packages': [
+        {
+            'package': 'angle/traces/whatsapp',
+            'version': 'version:5',
+        },
+      ],
+      'dep_type': 'cipd',
+      'condition': 'checkout_angle_restricted_trace_whatsapp',
+  },
+  'src/tests/restricted_traces/whiteout_survival': {
+      'packages': [
+        {
+            'package': 'angle/traces/whiteout_survival',
+            'version': 'version:1',
+        },
+      ],
+      'dep_type': 'cipd',
+      'condition': 'checkout_angle_restricted_trace_whiteout_survival',
+  },
+  'src/tests/restricted_traces/woodoku': {
+      'packages': [
+        {
+            'package': 'angle/traces/woodoku',
+            'version': 'version:1',
+        },
+      ],
+      'dep_type': 'cipd',
+      'condition': 'checkout_angle_restricted_trace_woodoku',
+  },
+  'src/tests/restricted_traces/words_crush': {
+      'packages': [
+        {
+            'package': 'angle/traces/words_crush',
+            'version': 'version:2',
+        },
+      ],
+      'dep_type': 'cipd',
+      'condition': 'checkout_angle_restricted_trace_words_crush',
+  },
+  'src/tests/restricted_traces/words_of_wonders': {
+      'packages': [
+        {
+            'package': 'angle/traces/words_of_wonders',
+            'version': 'version:1',
+        },
+      ],
+      'dep_type': 'cipd',
+      'condition': 'checkout_angle_restricted_trace_words_of_wonders',
+  },
+  'src/tests/restricted_traces/words_with_friends_2': {
+      'packages': [
+        {
+            'package': 'angle/traces/words_with_friends_2',
+            'version': 'version:5',
+        },
+      ],
+      'dep_type': 'cipd',
+      'condition': 'checkout_angle_restricted_trace_words_with_friends_2',
+  },
+  'src/tests/restricted_traces/wordscapes': {
+      'packages': [
+        {
+            'package': 'angle/traces/wordscapes',
+            'version': 'version:5',
+        },
+      ],
+      'dep_type': 'cipd',
+      'condition': 'checkout_angle_restricted_trace_wordscapes',
+  },
+  'src/tests/restricted_traces/world_cricket_championship_2': {
+      'packages': [
+        {
+            'package': 'angle/traces/world_cricket_championship_2',
+            'version': 'version:5',
+        },
+      ],
+      'dep_type': 'cipd',
+      'condition': 'checkout_angle_restricted_trace_world_cricket_championship_2',
+  },
+  'src/tests/restricted_traces/world_of_kings': {
+      'packages': [
+        {
+            'package': 'angle/traces/world_of_kings',
+            'version': 'version:5',
+        },
+      ],
+      'dep_type': 'cipd',
+      'condition': 'checkout_angle_restricted_trace_world_of_kings',
+  },
+  'src/tests/restricted_traces/world_of_tanks_blitz': {
+      'packages': [
+        {
+            'package': 'angle/traces/world_of_tanks_blitz',
+            'version': 'version:5',
+        },
+      ],
+      'dep_type': 'cipd',
+      'condition': 'checkout_angle_restricted_trace_world_of_tanks_blitz',
+  },
+  'src/tests/restricted_traces/world_war_doh': {
+      'packages': [
+        {
+            'package': 'angle/traces/world_war_doh',
+            'version': 'version:5',
+        },
+      ],
+      'dep_type': 'cipd',
+      'condition': 'checkout_angle_restricted_trace_world_war_doh',
+  },
+  'src/tests/restricted_traces/worms_zone_io': {
+      'packages': [
+        {
+            'package': 'angle/traces/worms_zone_io',
+            'version': 'version:5',
+        },
+      ],
+      'dep_type': 'cipd',
+      'condition': 'checkout_angle_restricted_trace_worms_zone_io',
+  },
+  'src/tests/restricted_traces/wuthering_waves': {
+      'packages': [
+        {
+            'package': 'angle/traces/wuthering_waves',
+            'version': 'version:1',
+        },
+      ],
+      'dep_type': 'cipd',
+      'condition': 'checkout_angle_restricted_trace_wuthering_waves',
+  },
+  'src/tests/restricted_traces/wwe_supercard': {
+      'packages': [
+        {
+            'package': 'angle/traces/wwe_supercard',
+            'version': 'version:1',
+        },
+      ],
+      'dep_type': 'cipd',
+      'condition': 'checkout_angle_restricted_trace_wwe_supercard',
+  },
+  'src/tests/restricted_traces/yalla_ludo': {
+      'packages': [
+        {
+            'package': 'angle/traces/yalla_ludo',
+            'version': 'version:1',
+        },
+      ],
+      'dep_type': 'cipd',
+      'condition': 'checkout_angle_restricted_trace_yalla_ludo',
+  },
+  'src/tests/restricted_traces/zenonia_4': {
+      'packages': [
+        {
+            'package': 'angle/traces/zenonia_4',
+            'version': 'version:1',
+        },
+      ],
+      'dep_type': 'cipd',
+      'condition': 'checkout_angle_restricted_trace_zenonia_4',
+  },
+  'src/tests/restricted_traces/zillow': {
+      'packages': [
+        {
+            'package': 'angle/traces/zillow',
+            'version': 'version:5',
+        },
+      ],
+      'dep_type': 'cipd',
+      'condition': 'checkout_angle_restricted_trace_zillow',
+  },
+  'src/tests/restricted_traces/zombie_smasher': {
+      'packages': [
+        {
+            'package': 'angle/traces/zombie_smasher',
+            'version': 'version:2',
+        },
+      ],
+      'dep_type': 'cipd',
+      'condition': 'checkout_angle_restricted_trace_zombie_smasher',
+  },
+  'src/tests/restricted_traces/zombie_waves': {
+      'packages': [
+        {
+            'package': 'angle/traces/zombie_waves',
+            'version': 'version:1',
+        },
+      ],
+      'dep_type': 'cipd',
+      'condition': 'checkout_angle_restricted_trace_zombie_waves',
+  },
+  # === ANGLE Restricted Trace Generated Code End ===
+
+  # === ANDROID_DEPS Generated Code Start ===
+  # Generated by //third_party/android_deps/fetch_all.py
+  'third_party/android_deps/cipd/libs/com_android_tools_common': {
+      'packages': [
+          {
+              'package': 'chromium/third_party/android_deps/libs/com_android_tools_common',
+              'version': 'version:2@30.2.0-beta01.cr2',
+          },
+      ],
+      'condition': 'checkout_android and not build_with_chromium and non_git_source',
+      'dep_type': 'cipd',
+  },
+
+  'third_party/android_deps/cipd/libs/com_android_tools_layoutlib_layoutlib_api': {
+      'packages': [
+          {
+              'package': 'chromium/third_party/android_deps/libs/com_android_tools_layoutlib_layoutlib_api',
+              'version': 'version:2@30.2.0-beta01.cr2',
+          },
+      ],
+      'condition': 'checkout_android and not build_with_chromium and non_git_source',
+      'dep_type': 'cipd',
+  },
+
+  'third_party/android_deps/cipd/libs/com_android_tools_sdk_common': {
+      'packages': [
+          {
+              'package': 'chromium/third_party/android_deps/libs/com_android_tools_sdk_common',
+              'version': 'version:2@30.2.0-beta01.cr2',
+          },
+      ],
+      'condition': 'checkout_android and not build_with_chromium and non_git_source',
+      'dep_type': 'cipd',
+  },
+
+  'third_party/android_deps/cipd/libs/com_google_android_apps_common_testing_accessibility_framework_accessibility_test_framework': {
+      'packages': [
+          {
+              'package': 'chromium/third_party/android_deps/libs/com_google_android_apps_common_testing_accessibility_framework_accessibility_test_framework',
+              'version': 'version:2@4.0.0.cr2',
+          },
+      ],
+      'condition': 'checkout_android and not build_with_chromium and non_git_source',
+      'dep_type': 'cipd',
+  },
+
+  'third_party/android_deps/cipd/libs/com_googlecode_java_diff_utils_diffutils': {
+      'packages': [
+          {
+              'package': 'chromium/third_party/android_deps/libs/com_googlecode_java_diff_utils_diffutils',
+              'version': 'version:2@1.3.0.cr2',
+          },
+      ],
+      'condition': 'checkout_android and not build_with_chromium and non_git_source',
+      'dep_type': 'cipd',
+  },
+
+  'third_party/android_deps/cipd/libs/com_squareup_javapoet': {
+      'packages': [
+          {
+              'package': 'chromium/third_party/android_deps/libs/com_squareup_javapoet',
+              'version': 'version:2@1.13.0.cr2',
+          },
+      ],
+      'condition': 'checkout_android and not build_with_chromium and non_git_source',
+      'dep_type': 'cipd',
+  },
+
+  'third_party/android_deps/cipd/libs/net_bytebuddy_byte_buddy': {
+      'packages': [
+          {
+              'package': 'chromium/third_party/android_deps/libs/net_bytebuddy_byte_buddy',
+              'version': 'version:2@1.17.6.cr2',
+          },
+      ],
+      'condition': 'checkout_android and not build_with_chromium and non_git_source',
+      'dep_type': 'cipd',
+  },
+
+  'third_party/android_deps/cipd/libs/net_bytebuddy_byte_buddy_agent': {
+      'packages': [
+          {
+              'package': 'chromium/third_party/android_deps/libs/net_bytebuddy_byte_buddy_agent',
+              'version': 'version:2@1.17.6.cr2',
+          },
+      ],
+      'condition': 'checkout_android and not build_with_chromium and non_git_source',
+      'dep_type': 'cipd',
+  },
+
+  'third_party/android_deps/cipd/libs/org_ccil_cowan_tagsoup_tagsoup': {
+      'packages': [
+          {
+              'package': 'chromium/third_party/android_deps/libs/org_ccil_cowan_tagsoup_tagsoup',
+              'version': 'version:2@1.2.1.cr2',
+          },
+      ],
+      'condition': 'checkout_android and not build_with_chromium and non_git_source',
+      'dep_type': 'cipd',
+  },
+
+  'third_party/android_deps/cipd/libs/org_checkerframework_checker_compat_qual': {
+      'packages': [
+          {
+              'package': 'chromium/third_party/android_deps/libs/org_checkerframework_checker_compat_qual',
+              'version': 'version:2@2.5.5.cr2',
+          },
+      ],
+      'condition': 'checkout_android and not build_with_chromium and non_git_source',
+      'dep_type': 'cipd',
+  },
+
+  'third_party/android_deps/cipd/libs/org_jetbrains_kotlin_kotlin_android_extensions_runtime': {
+      'packages': [
+          {
+              'package': 'chromium/third_party/android_deps/libs/org_jetbrains_kotlin_kotlin_android_extensions_runtime',
+              'version': 'version:2@1.9.22.cr2',
+          },
+      ],
+      'condition': 'checkout_android and not build_with_chromium and non_git_source',
+      'dep_type': 'cipd',
+  },
+
+  'third_party/android_deps/cipd/libs/org_jetbrains_kotlin_kotlin_parcelize_runtime': {
+      'packages': [
+          {
+              'package': 'chromium/third_party/android_deps/libs/org_jetbrains_kotlin_kotlin_parcelize_runtime',
+              'version': 'version:2@1.9.22.cr2',
+          },
+      ],
+      'condition': 'checkout_android and not build_with_chromium and non_git_source',
+      'dep_type': 'cipd',
+  },
+
+  'third_party/android_deps/cipd/libs/org_jsoup_jsoup': {
+      'packages': [
+          {
+              'package': 'chromium/third_party/android_deps/libs/org_jsoup_jsoup',
+              'version': 'version:2@1.15.1.cr2',
+          },
+      ],
+      'condition': 'checkout_android and not build_with_chromium and non_git_source',
+      'dep_type': 'cipd',
+  },
+
+  'third_party/android_deps/cipd/libs/org_mockito_mockito_android': {
+      'packages': [
+          {
+              'package': 'chromium/third_party/android_deps/libs/org_mockito_mockito_android',
+              'version': 'version:2@5.19.0.cr2',
+          },
+      ],
+      'condition': 'checkout_android and not build_with_chromium and non_git_source',
+      'dep_type': 'cipd',
+  },
+
+  'third_party/android_deps/cipd/libs/org_mockito_mockito_core': {
+      'packages': [
+          {
+              'package': 'chromium/third_party/android_deps/libs/org_mockito_mockito_core',
+              'version': 'version:2@5.19.0.cr2',
+          },
+      ],
+      'condition': 'checkout_android and not build_with_chromium and non_git_source',
+      'dep_type': 'cipd',
+  },
+
+  'third_party/android_deps/cipd/libs/org_mockito_mockito_subclass': {
+      'packages': [
+          {
+              'package': 'chromium/third_party/android_deps/libs/org_mockito_mockito_subclass',
+              'version': 'version:2@5.19.0.cr2',
+          },
+      ],
+      'condition': 'checkout_android and not build_with_chromium and non_git_source',
+      'dep_type': 'cipd',
+  },
+
+  'third_party/android_deps/cipd/libs/org_objenesis_objenesis': {
+      'packages': [
+          {
+              'package': 'chromium/third_party/android_deps/libs/org_objenesis_objenesis',
+              'version': 'version:2@3.3.cr2',
+          },
+      ],
+      'condition': 'checkout_android and not build_with_chromium and non_git_source',
+      'dep_type': 'cipd',
+  },
+
+  # === ANDROID_DEPS Generated Code End ===
+}
+
+hooks = [
+  {
+    # Ensure that the DEPS'd "depot_tools" has its self-update capability
+    # disabled.
+    'name': 'disable_depot_tools_selfupdate',
+    'pattern': '.',
+    'condition': 'not build_with_chromium',
+    'action': [
+        'python3',
+        'third_party/depot_tools/update_depot_tools_toggle.py',
+        '--disable',
+    ],
+  },
+  {
+    'name': 'sysroot_x86',
+    'pattern': '.',
+    'condition': 'checkout_linux and ((checkout_x86 or checkout_x64) and not build_with_chromium)',
+    'action': ['python3', 'build/linux/sysroot_scripts/install-sysroot.py',
+               '--arch=x86'],
+  },
+  {
+    'name': 'sysroot_x64',
+    'pattern': '.',
+    'condition': 'checkout_linux and (checkout_x64 and not build_with_chromium)',
+    'action': ['python3', 'build/linux/sysroot_scripts/install-sysroot.py',
+               '--arch=x64'],
+  },
+  {
+    # Case-insensitivity for the Win SDK. Must run before win_toolchain below.
+    'name': 'ciopfs_linux',
+    'pattern': '.',
+    'condition': 'checkout_win and host_os == "linux" and not build_with_chromium',
+    'action': [ 'python3',
+                'third_party/depot_tools/download_from_google_storage.py',
+                '--no_resume',
+                '--bucket', 'chromium-browser-clang/ciopfs',
+                '-s', 'build/ciopfs.sha1',
+    ]
+  },
+  {
+    # Update the Windows toolchain if necessary.  Must run before 'clang' below.
+    'name': 'win_toolchain',
+    'pattern': '.',
+    'condition': 'checkout_win and not build_with_chromium',
+    'action': ['python3', 'build/vs_toolchain.py', 'update', '--force'],
+  },
+  {
+    # Update the Mac toolchain if necessary.
+    'name': 'mac_toolchain',
+    'pattern': '.',
+    'condition': 'checkout_mac and not build_with_chromium',
+    'action': ['python3', 'build/mac_toolchain.py'],
+  },
+  {
+    'name': 'rust',
+    'pattern': '.',
+    'action': ['python3', 'tools/rust/update_rust.py'],
+    'condition': 'not build_with_chromium',
+  },
+
+  {
+    # Update LASTCHANGE.
+    'name': 'lastchange',
+    'pattern': '.',
+    'condition': 'not build_with_chromium',
+    'action': ['python3', 'build/util/lastchange.py',
+               '-o', 'build/util/LASTCHANGE'],
+  },
+
+  # Pull dsymutil binaries using checked-in hashes.
+  {
+    'name': 'dsymutil_mac_arm64',
+    'pattern': '.',
+    'condition': 'host_os == "mac" and host_cpu == "arm64" and not build_with_chromium',
+    'action': [ 'python3',
+                'third_party/depot_tools/download_from_google_storage.py',
+                '--no_resume',
+                '--bucket', 'chromium-browser-clang',
+                '-s', 'tools/clang/dsymutil/bin/dsymutil.arm64.sha1',
+                '-o', 'tools/clang/dsymutil/bin/dsymutil',
+    ],
+  },
+  {
+    'name': 'dsymutil_mac_x64',
+    'pattern': '.',
+    'condition': 'host_os == "mac" and host_cpu == "x64" and not build_with_chromium',
+    'action': [ 'python3',
+                'third_party/depot_tools/download_from_google_storage.py',
+                '--no_resume',
+                '--bucket', 'chromium-browser-clang',
+                '-s', 'tools/clang/dsymutil/bin/dsymutil.x64.sha1',
+                '-o', 'tools/clang/dsymutil/bin/dsymutil',
+    ],
+  },
+  # Pull rc binaries using checked-in hashes.
+  {
+    'name': 'rc_win',
+    'pattern': '.',
+    'condition': 'checkout_win and host_os == "win" and not build_with_chromium',
+    'action': [ 'python3',
+                'third_party/depot_tools/download_from_google_storage.py',
+                '--no_resume',
+                '--bucket', 'chromium-browser-clang/rc',
+                '-s', 'build/toolchain/win/rc/win/rc.exe.sha1',
+    ],
+  },
+
+  {
+    'name': 'rc_mac',
+    'pattern': '.',
+    'condition': 'checkout_win and host_os == "mac" and not build_with_chromium',
+    'action': [ 'python3',
+                'third_party/depot_tools/download_from_google_storage.py',
+                '--no_resume',
+                '--bucket', 'chromium-browser-clang/rc',
+                '-s', 'build/toolchain/win/rc/mac/rc.sha1',
+    ],
+  },
+  {
+    'name': 'rc_linux',
+    'pattern': '.',
+    'condition': 'checkout_win and host_os == "linux" and not build_with_chromium',
+    'action': [ 'python3',
+                'third_party/depot_tools/download_from_google_storage.py',
+                '--no_resume',
+                '--bucket', 'chromium-browser-clang/rc',
+                '-s', 'build/toolchain/win/rc/linux64/rc.sha1',
+    ]
+  },
+
+  # Download glslang validator binary for Linux.
+  {
+    'name': 'linux_glslang_validator',
+    'pattern': '.',
+    'condition': 'checkout_linux and not build_with_chromium',
+    'action': [ 'python3',
+                'third_party/depot_tools/download_from_google_storage.py',
+                '--no_resume',
+                '--platform=linux*',
+                '--bucket', 'angle-glslang-validator',
+                '-s', 'tools/glslang/glslang_validator.sha1',
+    ],
+  },
+
+  # Download glslang validator binary for Windows.
+  {
+    'name': 'win_glslang_validator',
+    'pattern': '.',
+    'condition': 'checkout_win and not build_with_chromium',
+    'action': [ 'python3',
+                'third_party/depot_tools/download_from_google_storage.py',
+                '--no_resume',
+                '--platform=win32*',
+                '--bucket', 'angle-glslang-validator',
+                '-s', 'tools/glslang/glslang_validator.exe.sha1',
+    ],
+  },
+
+  # Download flex/bison binaries for Linux.
+  {
+    'name': 'linux_flex_bison',
+    'pattern': '.',
+    'condition': 'checkout_linux and not build_with_chromium',
+    'action': [ 'python3',
+                'third_party/depot_tools/download_from_google_storage.py',
+                '--no_resume',
+                '--platform=linux*',
+                '--bucket', 'angle-flex-bison',
+                '-d', 'tools/flex-bison/linux/',
+    ],
+  },
+
+  # Download flex/bison binaries for Mac.
+  {
+    'name': 'mac_flex_bison',
+    'pattern': '.',
+    'condition': 'checkout_mac and not build_with_chromium',
+    'action': [ 'python3',
+                'third_party/depot_tools/download_from_google_storage.py',
+                '--no_resume',
+                '--platform=darwin*',
+                '--bucket', 'angle-flex-bison',
+                '-d', 'tools/flex-bison/mac/',
+    ],
+  },
+
+  # Download flex/bison binaries for Windows.
+  {
+    'name': 'win_flex_bison',
+    'pattern': '.',
+    'condition': 'checkout_win and not build_with_chromium',
+    'action': [ 'python3',
+                'third_party/depot_tools/download_from_google_storage.py',
+                '--no_resume',
+                '--platform=win32*',
+                '--bucket', 'angle-flex-bison',
+                '-d', 'tools/flex-bison/windows/',
+    ],
+  },
+
+  # Set up an input file for the Mesa setup step.
+  {
+    'name': 'mesa_input',
+    'pattern': '.',
+    'condition': 'checkout_angle_mesa',
+    'action': [ 'python3', 'third_party/mesa/mesa_build.py', 'runhook', ],
+  },
+
+  # Configure remote exec cfg files
+  {
+    'name': 'configure_reclient_cfgs',
+    'pattern': '.',
+    'condition': 'download_remoteexec_cfg and not build_with_chromium and not (host_os == "linux" and host_cpu == "arm64")',
+    'action': ['python3',
+               'buildtools/reclient_cfgs/configure_reclient_cfgs.py',
+               '--rbe_instance',
+               Var('rbe_instance'),
+               '--reproxy_cfg_template',
+               'reproxy.cfg.template',
+               '--rewrapper_cfg_project',
+               Var('rewrapper_cfg_project'),
+               '--quiet',
+               ],
+  },
+  # Configure Siso for developer builds.
+  {
+    'name': 'configure_siso',
+    'pattern': '.',
+    'condition': 'not build_with_chromium',
+    'action': ['python3',
+               'build/config/siso/configure_siso.py',
+               '--rbe_instance',
+               Var('rbe_instance'),
+               ],
+  },
+]
+
+recursedeps = [
+  'buildtools',
+  'third_party/jsoncpp',
+  'third_party/dawn',
+]
+
+skip_child_includes = [
+    'third_party'
+]

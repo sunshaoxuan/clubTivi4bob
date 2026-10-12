@@ -37,12 +37,22 @@ def test_arm64_windows_never_accepts_x64_dll(tmp_path):
     path=tmp_path/'arm64.zip'
     for machine,valid in [(0xaa64,True),(0x8664,False)]:
         with zipfile.ZipFile(path,'w') as package:
-            package.writestr('BobTV/BobTV.exe',pe(0xaa64));package.writestr('BobTV/data/app.so',b'AOT')
+            package.writestr('BobTV/BobTV.exe',pe(0xaa64));package.writestr('BobTV/data/app.so',elf(183))
             package.writestr('BobTV/flutter_windows.dll',pe(machine))
         if valid: mirror_releases._inspect_update_archive(path,'windows-arm64')
         else:
             with pytest.raises(ValueError,match='architecture'):
                 mirror_releases._inspect_update_archive(path,'windows-arm64')
+
+@pytest.mark.parametrize('snapshot',[elf(62),b'AOT',elf(40)])
+def test_arm64_windows_rejects_wrong_dart_aot(tmp_path,snapshot):
+    path=tmp_path/'wrong-aot.zip'
+    with zipfile.ZipFile(path,'w') as package:
+        package.writestr('BobTV/BobTV.exe',pe(0xaa64))
+        package.writestr('BobTV/flutter_windows.dll',pe(0xaa64))
+        package.writestr('BobTV/data/app.so',snapshot)
+    with pytest.raises(ValueError,match='Dart AOT'):
+        mirror_releases._inspect_update_archive(path,'windows-arm64')
 
 def test_apk_delivery_requires_approval(tmp_path,monkeypatch):
     monkeypatch.setattr(update_delivery,'DATA',tmp_path)

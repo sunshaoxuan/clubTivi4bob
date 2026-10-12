@@ -250,17 +250,22 @@ bool ANGLESurfaceManager::CreateEGLDisplay() {
                                             EGL_DEFAULT_DISPLAY,
                                             kD3D11_9_3DisplayAttributes);
         if (eglInitialize(display_, 0, 0) == EGL_FALSE) {
+#ifdef EGL_PLATFORM_ANGLE_TYPE_D3D9_ANGLE
+          // Legacy ANGLE has D3D9; newer ARM64 headers omit this backend.
           display_ = eglGetPlatformDisplayEXT(EGL_PLATFORM_ANGLE_ANGLE,
                                               EGL_DEFAULT_DISPLAY,
                                               kD3D9DisplayAttributes);
           if (eglInitialize(display_, 0, 0) == EGL_FALSE) {
+#endif
             display_ = eglGetPlatformDisplayEXT(EGL_PLATFORM_ANGLE_ANGLE,
                                                 EGL_DEFAULT_DISPLAY,
                                                 kWrapDisplayAttributes);
             if (eglInitialize(display_, 0, 0) == EGL_FALSE) {
               FAIL("eglGetPlatformDisplayEXT");
             }
+#ifdef EGL_PLATFORM_ANGLE_TYPE_D3D9_ANGLE
           }
+#endif
         }
       }
     } else {

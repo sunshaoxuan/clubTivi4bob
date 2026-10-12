@@ -13,7 +13,7 @@
   },
   "meta": {
     "index": "BobTVはWindowsとmacOS向けのテレビプレーヤーです。チャンネルのプレビューと公開チャンネル一覧の同期に対応しています。",
-    "downloads": "Windows、macOS、Androidを各1欄にまとめ、CPU別に選択できます。Windows ARMネイティブ版はビルド検証待ちです。",
+    "downloads": "Windows、macOS、Androidを各1欄にまとめ、CPU別に選択できます。Windows ARM64ネイティブ版を提供。Surface実機試験は未実施です。",
     "diagnostics": "必要な項目に絞ったBobTVのJSONL診断ログを送信できます。"
   },
   "footer": "BobTV · オープンソースのデスクトッププレーヤー",
@@ -167,7 +167,7 @@
             "当サイトからダウンロードし、完全性と署名を確認後、Androidのシステム画面でインストールします。"
           ]
         ],
-        "note": "Android実機と中国本土のネットワークでの試験は未実施です。Surface ARMネイティブ版は検証待ちのため公開していません。"
+        "note": "Android実機、中国本土のネットワーク、Surface ARM64実機での試験は未実施です。Windows ARM64版はクロスビルドとアーキテクチャ検証を完了しました。"
       },
       {
         "id": "settings",
@@ -193,6 +193,11 @@
     "history_label": "リリースノート",
     "history_title": "最近の更新",
     "history": [
+      [
+        "2026-10-12",
+        "v1.1.0 · Windows ARM64ネイティブ版を追加",
+        "x64 Windows上でクロスビルド。Windows欄でARM64を選択できます。実行ファイル、Dart AOT、DLLを検証済み。Surface実機試験は未実施です。"
+      ],
       [
         "2026-10-12",
         "v1.1.0 · AndroidタブレットとCPU別ダウンロード",
@@ -235,10 +240,10 @@
       ]
     ],
     "closing": "お使いのパソコンに合った配布版を。",
-    "closing_text": "Windows、macOS、Androidを各1欄にまとめ、CPU別に選択できます。Windows ARMネイティブ版はビルド検証待ちです。"
+    "closing_text": "Windows、macOS、Androidを各1欄にまとめ、CPU別に選択できます。Windows ARM64ネイティブ版を提供。Surface実機試験は未実施です。"
   },
   "downloads": {
-    "intro": "Windows、macOS、Androidを各1欄にまとめ、CPU別に選択できます。Windows ARMネイティブ版はビルド検証待ちです。",
+    "intro": "Windows、macOS、Androidを各1欄にまとめ、CPU別に選択できます。Windows ARM64ネイティブ版を提供。Surface実機試験は未実施です。",
     "latest": "最新インストーラー",
     "local": "当サイトから直接配布",
     "sections": [
@@ -332,6 +337,7 @@
     "surface_pending": "Surface ARMネイティブ版は検証待ち",
     "windows_note": "Setupには管理者の許可が必要です。ZIPは全体を展開してください。",
     "macos_note": "チップを選び、DMGからApplicationsへドラッグ。",
-    "android_note": "Android 7以上。更新時にシステム確認が必要です。実機と中国本土の試験は未実施。"
+    "android_note": "Android 7以上。更新時にシステム確認が必要です。実機と中国本土の試験は未実施。",
+    "windows_arm64_note": "ARM64ネイティブ版のビルドとアーキテクチャを検証済み。Surface実機での再生、AirPlay、更新インストールは未検証です。"
   }
 }

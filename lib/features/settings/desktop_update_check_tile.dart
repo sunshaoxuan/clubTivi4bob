@@ -10,9 +10,11 @@ class DesktopUpdateCheckTile extends StatelessWidget {
     super.key,
     required this.state,
     required this.onCheck,
+    this.onInstall,
   });
   final ValueListenable<WindowsUpdateState> state;
   final Future<void> Function() onCheck;
+  final Future<void> Function()? onInstall;
 
   @override
   Widget build(BuildContext context) =>
@@ -30,7 +32,10 @@ class DesktopUpdateCheckTile extends StatelessWidget {
           subtitle: Text(
             update.visible ? update.description : '连接 BobTV 更新服务，检查适用于当前平台的版本',
           ),
-          trailing: update.phase == WindowsUpdatePhase.manualRequired
+          trailing:
+              update.phase == WindowsUpdatePhase.ready && onInstall != null
+              ? TextButton(onPressed: onInstall, child: const Text('安装更新'))
+              : update.phase == WindowsUpdatePhase.manualRequired
               ? TextButton(
                   onPressed: () => launchUrl(
                     Uri.parse('https://bobtv.briconbric.com/downloads'),

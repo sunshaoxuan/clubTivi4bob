@@ -1,0 +1,6 @@
+flutter_launcher_icons:
+  android: true
+  ios: false
+  image_path: assets/icon/bobtv-icon.png
+  adaptive_icon_background: '#0F0E1A'
+  adaptive_icon_foreground: assets/icon/bobtv-icon.png

@@ -73,7 +73,7 @@ def test_product_pages_reflect_published_releases():
     client = TestClient(module.app)
     home = client.get("/").text
     assert "v1.0.3" in home and "WINDOWS · MACOS" in home
-    assert "1.0.6 · Windows 与 macOS" in home
+    assert "1.1.0 · Windows、macOS 与 Android" in home
     assert "v1.0.5 · 服务器链路、频道合并与全屏修复" in home
     assert "跨分类合并多个频道" in home
     assert 'id="server-title"' in home
@@ -90,7 +90,7 @@ def test_product_pages_reflect_published_releases():
     downloads = client.get("/downloads").text
     assert 'id="release-list"' in downloads and "BobTV.exe" in downloads
     assert "Apple Silicon" in downloads and "下载最新版本" in downloads
-    assert 'id="first-launch-title"' in downloads and "1.0.6" in downloads
+    assert 'id="first-launch-title"' in downloads and "1.1.0" in downloads
     assert "管理员权限安装" in downloads and "只读磁盘映像" in downloads
     assert "后台下载、校验及退出后安装" in downloads
     assert "v0.9.1-bob.11" not in downloads
@@ -98,12 +98,25 @@ def test_product_pages_reflect_published_releases():
     script = client.get("/assets/downloads.js").text
     assert "item.version === candidates[0]?.version" in script
     assert "${release.version} · ${format}" in script
-    assert script.count("{ name: '") == 3
+    assert "const families" in script and "data-cpu" in script
+    assert "Windows ARM64" in script and "Android ARM64" in script
     diagnostics = client.get("/diagnostics").text
     assert 'class="diagnostics-page"' in diagnostics
     assert 'id="upload-form"' in diagnostics and 'id="log-file"' in diagnostics
     assert "自动上传默认关闭" in diagnostics
     assert "尚未集成自动上传" not in diagnostics
+
+
+def test_android_manual_download_has_apk_mime(tmp_path, monkeypatch):
+    monkeypatch.setattr(module, 'DATA', tmp_path)
+    folder=tmp_path/'releases';folder.mkdir()
+    name='BobTV-1.1.0+93-android-arm64.apk'
+    (folder/name).write_bytes(b'PK\x03\x04test')
+    (tmp_path/'releases.json').write_text(json.dumps({'releases':[{'filename':name}]}))
+    client=TestClient(module.app)
+    result=client.get('/downloads/'+name)
+    assert result.status_code==200
+    assert result.headers['content-type']=='application/vnd.android.package-archive'
 
 
 def test_expired_diagnostics_are_removed(tmp_path, monkeypatch):

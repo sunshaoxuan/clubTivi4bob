@@ -188,6 +188,24 @@ footer { border-top: 1px solid #dce5df; background: #f9fbf8; color: #71857a; fon
 .release-version-date { margin-top: 9px; color: #bac9ce; font-size: 12px; }
 .release-version-caption { margin-top: auto; padding-top: 24px; color: #d3dfe1; font-size: 12px; line-height: 1.5; }
 .release-choices { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.release-family { display: flex; flex-direction: column; min-width: 0; padding: 22px 17px; border: 1px solid #71818a55; border-radius: 18px; background: linear-gradient(155deg,#2a3e4d,#1b2e3b); }
+.release-family-heading { display: flex; align-items: center; gap: 12px; margin-bottom: 20px; }
+.release-family-heading .release-choice-icon { flex-shrink: 0; margin: 0; }
+.release-family-title { color: #fff; font-size: 22px; line-height: 1.2; margin: 0 0 4px; }
+.release-cpu-tabs { display: flex; flex-wrap: wrap; gap: 5px; min-height: 66px; align-content: start; }
+.release-cpu-tab { border: 1px solid #ffffff25; border-radius: 8px; background: #142634; padding: 7px 9px; color: #b9c9d1; font: inherit; font-size: 11px; cursor: pointer; transition: background .18s,color .18s,border-color .18s; }
+.release-cpu-tab:hover { border-color: #f3b78e; color: #ffe0c9; }
+.release-cpu-tab.active { background: #f2b88f; border-color: #f2b88f; color: #182837; font-weight: 750; }
+.release-cpu-tab:focus-visible,.release-download:focus-visible,.release-secondary:focus-visible { outline: 3px solid #f3b78e; outline-offset: 3px; }
+.release-cpu-pending { display: flex; align-items: center; gap: 5px; padding: 7px 6px; color: #8d9faa; font-size: 11px; }
+.release-cpu-pending small { font-size: 9px; }
+.release-cpu-content { flex: 1; }
+.release-selected-version { min-height: 34px; margin: 0 0 14px; color: #adbec8; font-size: 11px; line-height: 1.6; }
+.release-download { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 12px 14px; border-radius: 10px; background: #f2b88f; color: #182837; font-size: 13px; font-weight: 800; text-decoration: none; transition: background .18s; }
+.release-download:hover { background: #ffd0ac; }
+.release-secondary { display: flex; justify-content: space-between; gap: 8px; padding: 12px 2px 0; color: #f4c7a8; font-size: 11px; text-decoration: none; }
+.release-secondary:hover { color: #fff; }
+.release-family-note { margin: 18px 0 0; color: #91a8b5; font-size: 11px; line-height: 1.65; }
 .release-choice { position: relative; display: flex; flex-direction: column; min-height: 210px; padding: 23px 18px 19px; border: 1px solid #71818a55; border-radius: 18px; background: #233542; color: #f8f9f5; text-decoration: none; transition: transform .18s ease, background .18s ease, border-color .18s ease, box-shadow .18s ease; }
 .release-choice:hover { transform: translateY(-4px); background: #304756; border-color: #f3b78e; box-shadow: 0 16px 30px #07121e70; }
 .release-choice:focus-visible { outline: 3px solid #f3b78e; outline-offset: 3px; }

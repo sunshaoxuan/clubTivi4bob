@@ -49,12 +49,14 @@ class ChannelCardFeedback extends StatefulWidget {
     required this.onDoubleTap,
     required this.builder,
     this.joinedToProgramme = false,
+    this.onContextMenu,
   });
   final bool loading;
   final Future<void> Function() onTap;
   final Future<void> Function() onDoubleTap;
   final Widget Function(bool busy) builder;
   final bool joinedToProgramme;
+  final ValueChanged<Offset>? onContextMenu;
 
   @override
   State<ChannelCardFeedback> createState() => _ChannelCardFeedbackState();
@@ -73,6 +75,8 @@ class _ChannelCardFeedbackState extends State<ChannelCardFeedback>
   Duration? _lastClick;
   Offset? _lastPosition;
   int _request = 0;
+  Timer? _holdTimer;
+  bool _heldForMenu = false;
 
   void _keyboardActivate() {
     setState(() => _acknowledged = true);
@@ -81,6 +85,7 @@ class _ChannelCardFeedbackState extends State<ChannelCardFeedback>
   }
 
   void _cancel() {
+    _holdTimer?.cancel();
     _down = null;
     _pointer = null;
     if (mounted) setState(() => _acknowledged = false);
@@ -102,6 +107,7 @@ class _ChannelCardFeedbackState extends State<ChannelCardFeedback>
 
   @override
   void dispose() {
+    _holdTimer?.cancel();
     _sweep.dispose();
     super.dispose();
   }
@@ -136,6 +142,17 @@ class _ChannelCardFeedbackState extends State<ChannelCardFeedback>
               }
               _down = event.position;
               _pointer = event.pointer;
+              _heldForMenu = false;
+              _holdTimer?.cancel();
+              if (widget.onContextMenu != null) {
+                _holdTimer = Timer(kLongPressTimeout, () {
+                  if (!mounted || _pointer == null || _down == null) return;
+                  _heldForMenu = true;
+                  _lastClick = null;
+                  setState(() => _acknowledged = false);
+                  widget.onContextMenu!(_down!);
+                });
+              }
               setState(() => _acknowledged = true);
               _sweep.forward(from: 0);
             },
@@ -149,8 +166,10 @@ class _ChannelCardFeedbackState extends State<ChannelCardFeedback>
             onPointerCancel: (_) => _cancel(),
             onPointerUp: (event) {
               if (event.pointer != _pointer || _down == null) return;
+              _holdTimer?.cancel();
               _pointer = null;
               _down = null;
+              if (_heldForMenu) return;
               final doubleClick =
                   _lastClick != null &&
                   event.timeStamp - _lastClick! <= kDoubleTapTimeout &&

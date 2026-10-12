@@ -9,10 +9,12 @@ class DesktopUpdateBadge extends StatelessWidget {
     required this.state,
     required this.onRetry,
     this.showPostExitProgress = false,
+    this.onInstall,
   });
   final ValueListenable<WindowsUpdateState> state;
   final VoidCallback onRetry;
   final bool showPostExitProgress;
+  final VoidCallback? onInstall;
 
   @override
   Widget build(BuildContext context) =>
@@ -32,6 +34,7 @@ class DesktopUpdateBadge extends StatelessWidget {
                     state: state,
                     onRetry: onRetry,
                     showPostExitProgress: showPostExitProgress,
+                    onInstall: onInstall,
                   ),
                 ),
                 child: Container(
@@ -92,10 +95,12 @@ class _UpdateDetails extends StatelessWidget {
     required this.state,
     required this.onRetry,
     required this.showPostExitProgress,
+    this.onInstall,
   });
   final ValueListenable<WindowsUpdateState> state;
   final VoidCallback onRetry;
   final bool showPostExitProgress;
+  final VoidCallback? onInstall;
   @override
   Widget build(
     BuildContext context,
@@ -158,6 +163,8 @@ class _UpdateDetails extends StatelessWidget {
         ),
       ),
       actions: [
+        if (update.phase == WindowsUpdatePhase.ready && onInstall != null)
+          FilledButton(onPressed: onInstall, child: const Text('安装更新')),
         if (update.phase == WindowsUpdatePhase.manualRequired)
           FilledButton(
             onPressed: () =>

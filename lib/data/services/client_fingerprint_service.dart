@@ -11,7 +11,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../core/app_diagnostics.dart';
 
-/// Stable, app-scoped desktop client identity. Raw machine identifiers are
+/// Stable, app-scoped client identity. Raw machine identifiers are
 /// never stored or transmitted by this service.
 class ClientFingerprintService {
   ClientFingerprintService._();
@@ -37,6 +37,23 @@ class ClientFingerprintService {
       }
     } catch (_) {}
     if (Platform.isMacOS) return _loadOrCreateMacFingerprint();
+    if (Platform.isAndroid) {
+      try {
+        final info = await const MethodChannel('bobtv/device')
+            .invokeMapMethod<String, dynamic>('info');
+        final identifier = info?['androidId'];
+        if (identifier is String && RegExp(r'^[0-9a-fA-F]{16}$').hasMatch(identifier) &&
+            identifier != '0000000000000000') {
+          final value = 'btv1_${sha256.convert(utf8.encode('BobTV-client-v1|android:${identifier.toLowerCase()}'))}';
+          await (await SharedPreferences.getInstance()).setString(_fallbackKey, value);
+          _current = value;
+          return value;
+        }
+      } catch (error, stack) {
+        AppDiagnostics.instance.recordError('client_fingerprint_android', error, stack);
+      }
+      return _loadOrCreateFallback();
+    }
     if (!Platform.isWindows) return _loadOrCreateFallback();
     final localAppData = Platform.environment['LOCALAPPDATA'];
     if (localAppData == null || localAppData.isEmpty) {

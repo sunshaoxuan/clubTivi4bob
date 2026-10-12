@@ -7,6 +7,12 @@ automatic update has been published. The independent worker downloads a newer
 archive while BobTV runs and installs it after the app closes. Debug builds do
 not poll automatically. The installed application does not need GitHub access.
 
+Native ARM64 executables use
+`https://bobtv.briconbric.com/updates/windows-arm64/latest.json`; the running
+EXE determines the architecture even on an emulated host. Update staging
+rejects packages whose app or root DLL architecture differs from the installed
+app. Native ARM64 compilation and hardware testing are still pending.
+
 Checking immediately shows a spinner. Settings retains the actual result,
 including up-to-date, network failure, and a skipped unhealthy version. Active
 download or installation progress is not overwritten by another check.

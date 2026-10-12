@@ -18,7 +18,14 @@ class UpdateManifest {
   static final _versionPattern = RegExp(r'^\d+\.\d+\.\d+\+\d+$');
   static final _hashPattern = RegExp(r'^[a-fA-F0-9]{64}$');
 
-  static UpdateManifest parse(String content, Uri manifestUri) {
+  static UpdateManifest parse(
+    String content,
+    Uri manifestUri, {
+    String extension = '.zip',
+  }) {
+    if (!const {'.zip', '.apk'}.contains(extension)) {
+      throw const FormatException('Unsupported update package type');
+    }
     final decoded = jsonDecode(content);
     if (decoded is! Map<String, dynamic> || decoded['schema'] != 1) {
       throw const FormatException('Unsupported update manifest');
@@ -38,8 +45,9 @@ class UpdateManifest {
         bytes > 2000000000) {
       throw const FormatException('Invalid update manifest fields');
     }
-    if (signature != null && (signature is! String ||
-        !RegExp(r'^[A-Za-z0-9+/]{80,120}={0,2}$').hasMatch(signature))) {
+    if (signature != null &&
+        (signature is! String ||
+            !RegExp(r'^[A-Za-z0-9+/]{80,120}={0,2}$').hasMatch(signature))) {
       throw const FormatException('Invalid update signature');
     }
     final archive = Uri.tryParse(archiveText);
@@ -51,7 +59,7 @@ class UpdateManifest {
         archive.hasQuery ||
         archive.hasFragment ||
         !archive.path.startsWith('/updates/') ||
-        !archive.path.endsWith('.zip')) {
+        !archive.path.endsWith(extension)) {
       throw const FormatException('Update archive must be on the mirror');
     }
     return UpdateManifest(

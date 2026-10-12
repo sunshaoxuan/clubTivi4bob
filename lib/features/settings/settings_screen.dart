@@ -360,10 +360,11 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   title: const Text('BobTV'),
                   subtitle: const Text('v$bobTvVersion • 开源软件 • Apache 2.0'),
                 ),
-                if (Platform.isWindows || Platform.isMacOS)
+                if (Platform.isWindows || Platform.isMacOS || Platform.isAndroid)
                   DesktopUpdateCheckTile(
                     state: DesktopUpdateService.instance.state,
                     onCheck: DesktopUpdateService.instance.checkNow,
+                    onInstall: Platform.isAndroid ? DesktopUpdateService.instance.installReady : null,
                   ),
                 ListTile(
                   leading: const Icon(Icons.code_rounded),

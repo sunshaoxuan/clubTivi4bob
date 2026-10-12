@@ -8,7 +8,7 @@
     "multi-view", "recording", "ffmpeg codec bridge", "AirPlay/DLNA/WebOS media",
     "channel logos", "EPG icons", "XMLTV", "TMDB posters/backdrops",
     "TMDB/Trakt/debrid metadata", "weather", "source refresh", "AI tasks",
-    "Windows/macOS update feeds and downloads"
+    "Windows/macOS/Android update feeds and downloads"
   ],
   "hls": ["variants", "segments", "audio", "subtitles", "keys", "maps", "LL-HLS hints"],
   "dash": ["clear SegmentTemplate", "SegmentList", "SegmentBase", "inherited BaseURL"],

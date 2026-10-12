@@ -52,6 +52,21 @@ function Get-Sha256([string]$path) {
   finally { $hash.Dispose(); $stream.Dispose() }
 }
 
+function Get-UpdateMachine([string]$path) {
+  $stream=[IO.File]::OpenRead($path)
+  $reader=New-Object IO.BinaryReader($stream)
+  try {
+    if($stream.Length -lt 64 -or $reader.ReadUInt16() -ne 0x5A4D){throw 'Invalid executable'}
+    $stream.Position=0x3c;$offset=$reader.ReadUInt32()
+    if($offset -lt 64 -or $offset -gt 1048576 -or $offset+6 -gt $stream.Length){throw 'Invalid PE header'}
+    $stream.Position=$offset
+    if($reader.ReadUInt32() -ne 0x4550){throw 'Invalid PE signature'}
+    $machine=$reader.ReadUInt16()
+    if($machine -notin @(0x8664,0xAA64)){throw 'Unsupported executable architecture'}
+    return $machine
+  } finally {$reader.Dispose();$stream.Dispose()}
+}
+
 function Write-Status([string]$phase, [string]$version, [int]$percent,
                       [string]$message) {
   if($script:lastWrittenPhase -eq $phase -and
@@ -455,6 +470,13 @@ try {
   if ((Get-Item (Join-Path $bundle 'BobTV.exe')).VersionInfo.FileVersion -ne $Version -or
       !(Test-Path -LiteralPath (Join-Path $bundle 'data\app.so'))) {
     throw 'Package version or app data mismatch'
+  }
+  $installedExe=@('clubtivi.exe','BobTV.exe')|Where-Object {Test-Path -LiteralPath (Join-Path $AppDir $_)}|Select-Object -First 1
+  if(!$installedExe){throw 'Installed executable missing'}
+  $expectedMachine=Get-UpdateMachine (Join-Path $AppDir $installedExe)
+  if((Get-UpdateMachine (Join-Path $bundle 'BobTV.exe')) -ne $expectedMachine){throw '更新包架构与当前应用不匹配'}
+  foreach($native in Get-ChildItem -LiteralPath $bundle -Filter '*.dll' -File){
+    if((Get-UpdateMachine $native.FullName) -ne $expectedMachine){throw "更新包含不匹配的 DLL：$($native.Name)"}
   }
   Write-Status 'ready' $Version 100 '更新已下载并校验通过，关闭 BobTV 后自动安装'
   Wait-ForExit $CurrentPid

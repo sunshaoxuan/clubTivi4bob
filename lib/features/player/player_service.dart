@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io' show HttpClient, Platform;
+import '../../core/playback_memory_budget.dart';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -326,15 +327,15 @@ class PlayerService {
   Player get player {
     if (_player == null) {
       _player = Player(
-        configuration: const PlayerConfiguration(
-          bufferSize: 96 * 1024 * 1024,
+        configuration: PlayerConfiguration(
+          bufferSize: PlaybackMemoryBudget(tablet: Platform.isAndroid).main,
           logLevel: MPVLogLevel.warn,
         ),
       );
       _initPlayer(_player!);
       _bindPlayerLogs(_player!);
       AppDiagnostics.instance.log('player_created', {
-        'bufferSizeBytes': 96 * 1024 * 1024,
+        'bufferSizeBytes': PlaybackMemoryBudget(tablet: Platform.isAndroid).main,
       });
     }
     return _player!;
@@ -398,12 +399,9 @@ class PlayerService {
       // Volume
       await np.setProperty('volume', '100');
       await np.setProperty('mute', 'no');
-      // Android TV: enable hardware decoding and optimize buffering
-      if (Platform.isAndroid) {
-        await np.setProperty('hwdec', 'mediacodec-copy');
-        await np.setProperty('vo', 'gpu');
-        await np.setProperty('framedrop', 'vo');
-      }
+      // AndroidVideoController owns vo/hwdec and the Surface lifecycle.
+      // Setting vo=gpu before a valid wid can crash libmpv. Its auto-safe
+      // decoder selection also retains fallback for older tablet chipsets.
     }
     await p.setVolume(100);
     _playerReady = true;
@@ -680,8 +678,8 @@ class PlayerService {
           );
         }
         final candidate = Player(
-          configuration: const PlayerConfiguration(
-            bufferSize: 48 * 1024 * 1024,
+          configuration: PlayerConfiguration(
+            bufferSize: PlaybackMemoryBudget(tablet: Platform.isAndroid).preview,
             logLevel: MPVLogLevel.warn,
           ),
         );
@@ -1020,8 +1018,8 @@ class PlayerService {
     bool requireUltraHd = false,
   }) async {
     final candidate = Player(
-      configuration: const PlayerConfiguration(
-        bufferSize: 24 * 1024 * 1024,
+      configuration: PlayerConfiguration(
+        bufferSize: PlaybackMemoryBudget(tablet: Platform.isAndroid).discovery,
         logLevel: MPVLogLevel.warn,
       ),
     );
@@ -2582,8 +2580,8 @@ class PlayerService {
 
     final generation = ++_warmGeneration;
     final warmPlayer = Player(
-      configuration: const PlayerConfiguration(
-        bufferSize: 32 * 1024 * 1024,
+      configuration: PlayerConfiguration(
+        bufferSize: PlaybackMemoryBudget(tablet: Platform.isAndroid).warm,
         logLevel: MPVLogLevel.warn,
       ),
     );

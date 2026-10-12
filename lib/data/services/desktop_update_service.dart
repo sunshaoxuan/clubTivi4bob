@@ -7,6 +7,7 @@ import 'package:window_manager/window_manager.dart';
 
 import 'mac_update_service.dart';
 import 'windows_update_service.dart';
+import 'android_update_service.dart';
 
 /// The UI depends on this small platform-neutral entry point. Each operating
 /// system owns its update directory, helper process and installation rules.
@@ -17,17 +18,23 @@ class DesktopUpdateService with WidgetsBindingObserver, WindowListener {
   bool _started = false;
   DateTime? _lastForegroundCheck;
 
-  ValueListenable<WindowsUpdateState> get state => Platform.isMacOS
+  ValueListenable<WindowsUpdateState> get state => Platform.isAndroid
+      ? AndroidUpdateService.instance.state
+      : Platform.isMacOS
       ? MacUpdateService.instance.state
       : WindowsUpdateService.instance.state;
 
   void start() {
-    if (_started || !(Platform.isMacOS || Platform.isWindows)) return;
+    if (_started ||
+        !(Platform.isMacOS || Platform.isWindows || Platform.isAndroid))
+      return;
     _started = true;
     _lastForegroundCheck = DateTime.now();
     WidgetsBinding.instance.addObserver(this);
-    windowManager.addListener(this);
-    if (Platform.isMacOS) {
+    if (!Platform.isAndroid) windowManager.addListener(this);
+    if (Platform.isAndroid) {
+      AndroidUpdateService.instance.start();
+    } else if (Platform.isMacOS) {
       MacUpdateService.instance.start();
     } else if (Platform.isWindows) {
       WindowsUpdateService.instance.start();
@@ -53,11 +60,19 @@ class DesktopUpdateService with WidgetsBindingObserver, WindowListener {
     unawaited(checkNow());
   }
 
-  Future<void> checkNow() => Platform.isMacOS
+  Future<void> checkNow() => Platform.isAndroid
+      ? AndroidUpdateService.instance.checkNow()
+      : Platform.isMacOS
       ? MacUpdateService.instance.checkNow()
       : WindowsUpdateService.instance.checkNow();
 
-  Future<void> markStartupHealthy() => Platform.isMacOS
+  Future<void> installReady() => Platform.isAndroid
+      ? AndroidUpdateService.instance.installReady()
+      : Future.value();
+
+  Future<void> markStartupHealthy() => Platform.isAndroid
+      ? Future.value()
+      : Platform.isMacOS
       ? MacUpdateService.instance.markStartupHealthy()
       : WindowsUpdateService.instance.markStartupHealthy();
 }

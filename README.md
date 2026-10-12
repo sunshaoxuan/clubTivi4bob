@@ -8,6 +8,15 @@ BobTV is a Windows and macOS IPTV player built from the open source [clubTivi](h
 
 The application is built with Flutter and uses `media_kit`, libmpv, FFmpeg, Riverpod, Drift, and SQLite.
 
+### Android tablets and Windows ARM development
+
+`1.1.0+93` adds signed Android 7+ tablet APKs with the shared simple UI,
+touch menus, aspect-preserving video, public catalog synchronization and
+system-confirmed APK updates. Windows ARM64 dependencies, installer and update
+isolation are implemented in source; native Surface compilation and hardware
+testing are pending an ARM64 host. Physical Android playback and Mainland China
+throughput still need testing. See [tablet platform status and limits](docs/tablet-platforms.md).
+
 <p align="center">
   <img src="website/assets/product.png" alt="BobTV simplified channel browser and player" width="900">
 </p>

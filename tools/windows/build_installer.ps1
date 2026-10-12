@@ -2,18 +2,27 @@ param(
   [Parameter(Mandatory=$true)][string]$BundleDirectory,
   [Parameter(Mandatory=$true)][string]$OutputDirectory,
   [string]$CompilerPath,
-  [string]$Version
+  [string]$Version,
+  [ValidateSet('auto','x64','arm64')][string]$Architecture='auto'
 )
 $ErrorActionPreference='Stop'
 $bundle=(Get-Item -LiteralPath $BundleDirectory).FullName
 $exe=Join-Path $bundle 'BobTV.exe'
+. (Join-Path $PSScriptRoot 'pe_architecture.ps1')
+$detected=if((Get-BobTvPEMachine $exe) -eq 0xAA64){'arm64'}else{'x64'}
+if($Architecture -eq 'auto'){$Architecture=$detected}
+if($Architecture -ne $detected){throw 'Installer architecture does not match app'}
+Assert-BobTvBundleArchitecture $bundle $Architecture
 foreach($name in @('BobTV.exe','BobTV.ico','data\app.so','flutter_windows.dll',
-  'libmpv-2.dll','msvcp140.dll','vcruntime140.dll','vcruntime140_1.dll',
+  'libmpv-2.dll','msvcp140.dll','vcruntime140.dll',
   'AirPlay\bobtv-airplay.exe','AirPlay\fpsap-auth.exe',
   'data\flutter_assets\assets\updater\ensure_shortcut.ps1')) {
   if(!(Test-Path -LiteralPath (Join-Path $bundle $name) -PathType Leaf)) {
     throw "Installer component missing: $name"
   }
+}
+if($Architecture -eq 'x64' -and !(Test-Path -LiteralPath (Join-Path $bundle 'vcruntime140_1.dll'))) {
+  throw 'x64 installer component missing: vcruntime140_1.dll'
 }
 $actualVersion=(Get-Item -LiteralPath $exe).VersionInfo.FileVersion
 if(!$Version){$Version=$actualVersion}
@@ -31,8 +40,8 @@ if(!$CompilerPath -or !(Test-Path -LiteralPath $CompilerPath -PathType Leaf)) {
 }
 New-Item -ItemType Directory -Path $OutputDirectory -Force|Out-Null
 $output=(Get-Item -LiteralPath $OutputDirectory).FullName
-& $CompilerPath "/DBundleDirectory=$bundle" "/DOutputDirectory=$output" "/DAppVersion=$Version" (Join-Path $PSScriptRoot 'installer\BobTV.iss')
+& $CompilerPath "/DBundleDirectory=$bundle" "/DOutputDirectory=$output" "/DAppVersion=$Version" "/DAppArchitecture=$Architecture" (Join-Path $PSScriptRoot 'installer\BobTV.iss')
 if($LASTEXITCODE -ne 0){throw "Installer compiler failed: $LASTEXITCODE"}
-$setup=Join-Path $output "BobTV-$Version-windows-x64-Setup.exe"
+$setup=Join-Path $output "BobTV-$Version-windows-$Architecture-Setup.exe"
 if(!(Test-Path -LiteralPath $setup)){throw 'Compiler did not produce installer'}
 Get-FileHash -LiteralPath $setup -Algorithm SHA256|Select-Object Path,Hash

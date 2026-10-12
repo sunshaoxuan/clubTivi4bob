@@ -10,16 +10,17 @@ import subprocess
 import tempfile
 import urllib.request
 import zipfile
+import struct
 from pathlib import Path
 
 DATA = Path(os.environ.get("BOBTV_DATA_DIR", Path(__file__).resolve().parent / "data"))
 
 API = "https://api.github.com/repos/sunshaoxuan/clubTivi4bob/releases?per_page=100"
-NAME = re.compile(r"^BobTV-[A-Za-z0-9.+_-]+-(windows-x64(?:\.zip|-Setup\.exe)|macos-(x64|arm64)\.dmg)$")
+NAME = re.compile(r"^BobTV-[A-Za-z0-9.+_-]+-(windows-(x64|arm64)(?:\.zip|-Setup\.exe)|macos-(x64|arm64)\.dmg|android-(arm|arm64|x64)\.apk)$")
 UPDATE_METADATA = "BobTV-update-metadata.json"
 UPDATE_VERSION = re.compile(r"^\d+\.\d+\.\d+\+\d+$")
-UPDATE_NAME = re.compile(r"^BobTV-[A-Za-z0-9.+_-]+\.zip$")
-UPDATE_PLATFORMS = {"windows-x64", "macos-x64", "macos-arm64"}
+UPDATE_NAME = re.compile(r"^BobTV-[A-Za-z0-9.+_-]+\.(zip|apk)$")
+UPDATE_PLATFORMS = {"windows-x64", "windows-arm64", "macos-x64", "macos-arm64", "android-arm", "android-arm64", "android-x64"}
 MAX_UPDATE_BYTES = 2_000_000_000
 UPDATE_PUBLIC_KEY = Path(__file__).resolve().parent / "update-signing-public.pem"
 
@@ -87,9 +88,13 @@ def _download_verified(asset, target, expected_hash=None):
 
 
 def _inspect_update_archive(path, platform):
-    root = "BobTV/" if platform == "windows-x64" else "BobTV.app/"
+    windows = platform.startswith('windows-')
+    android = platform.startswith('android-')
+    abi = {'android-arm': 'armeabi-v7a', 'android-arm64': 'arm64-v8a', 'android-x64': 'x86_64'}.get(platform)
+    root = '' if android else "BobTV/" if windows else "BobTV.app/"
     required = ({"BobTV/BobTV.exe", "BobTV/data/app.so"}
-                if platform == "windows-x64" else
+                if windows else
+                {'AndroidManifest.xml', 'classes.dex', f'lib/{abi}/libflutter.so'} if android else
                 {"BobTV.app/Contents/MacOS/BobTV", "BobTV.app/Contents/Info.plist"})
     try:
         with zipfile.ZipFile(path) as package:
@@ -117,6 +122,21 @@ def _inspect_update_archive(path, platform):
                 names.add(name)
             if not required <= names:
                 raise ValueError("Update archive is missing application files")
+            if android:
+                for name in names:
+                    if name.startswith(f'lib/{abi}/') and name.endswith('.so'):
+                        with package.open(name) as binary:
+                            header = binary.read(20)
+                        if len(header) != 20 or header[:4] != b'\x7fELF' or header[5] != 1 or struct.unpack_from('<H', header, 18)[0] != {'android-arm':40,'android-arm64':183,'android-x64':62}[platform]:
+                            raise ValueError('APK native library architecture mismatch')
+            if platform == 'windows-arm64':
+                for name in names:
+                    if name == 'BobTV/BobTV.exe' or (name.startswith('BobTV/') and name.count('/') == 1 and name.endswith('.dll')):
+                        with package.open(name) as binary:
+                            header = binary.read(1048582)
+                        offset = struct.unpack_from('<I', header, 60)[0] if len(header) >= 64 else 0
+                        if header[:2] != b'MZ' or not 64 <= offset <= 1048576 or offset + 6 > len(header) or header[offset:offset+4] != b'PE\0\0' or struct.unpack_from('<H', header, offset+4)[0] != 0xaa64:
+                            raise ValueError('Windows ARM64 archive contains wrong-architecture native binary')
     except zipfile.BadZipFile as exc:
         raise ValueError("Invalid update ZIP") from exc
 
@@ -151,6 +171,11 @@ def _mirror_updates(release, selected):
         checksum = package["sha256"]
         if platform not in UPDATE_PLATFORMS or platform in seen or not isinstance(filename, str) or not UPDATE_NAME.fullmatch(filename) or platform not in filename:
             raise ValueError("Invalid update platform or filename")
+        if filename.endswith('.apk') != platform.startswith('android-'):
+            raise ValueError('Update package type does not match platform')
+        extension = 'apk' if platform.startswith('android-') else 'zip'
+        if filename != f'BobTV-{version}-{platform}.{extension}':
+            raise ValueError('Update filename must match exact version and platform')
         seen.add(platform)
         if not isinstance(checksum, str) or not re.fullmatch(r"[a-f0-9]{64}", checksum):
             raise ValueError("Invalid update checksum")
@@ -163,7 +188,7 @@ def _mirror_updates(release, selected):
         if platform.startswith("macos-"):
             _verify_mac_signature(target, package.get("signature"))
         elif "signature" in package:
-            raise ValueError("Unexpected Windows update signature")
+            raise ValueError("Unexpected non-Mac update signature")
         current = selected.get(platform)
         if current is None or version_parts(version) > version_parts(current["version"]):
             selected[platform] = {
@@ -242,7 +267,11 @@ def mirror():
                     os.replace(temp, target)
                 finally:
                     temp.unlink(missing_ok=True)
-            platform = ("Windows x64" if name.endswith(("windows-x64.zip", "windows-x64-Setup.exe")) else
+            platform = ("Android ARM64" if name.endswith('android-arm64.apk') else
+                        "Android ARM32" if name.endswith('android-arm.apk') else
+                        "Android x64" if name.endswith('android-x64.apk') else
+                        "Windows ARM64" if name.endswith(('windows-arm64.zip','windows-arm64-Setup.exe')) else
+                        "Windows x64" if name.endswith(("windows-x64.zip", "windows-x64-Setup.exe")) else
                         "macOS Intel" if name.endswith("macos-x64.dmg") else
                         "macOS Apple Silicon")
             result.append({"version": release["tag_name"], "date": release["published_at"][:10],

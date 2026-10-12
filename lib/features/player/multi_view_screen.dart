@@ -52,8 +52,7 @@ class _MultiViewScreenState extends ConsumerState<MultiViewScreen> {
   void _configurePlayer(Player player) {
     final np = player.platform;
     if (np is native_player.NativePlayer && Platform.isAndroid) {
-      np.setProperty('hwdec', 'mediacodec-copy');
-      np.setProperty('vo', 'gpu');
+      // VideoController initializes Android output after its Surface is ready.
       np.setProperty('framedrop', 'vo');
       np.setProperty('cache', 'yes');
       np.setProperty('cache-secs', '10');

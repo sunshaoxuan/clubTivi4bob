@@ -14,6 +14,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:window_manager/window_manager.dart';
 
 import '../../core/app_diagnostics.dart';
+import '../../core/tablet_presentation.dart';
+import '../../data/services/android_pip_service.dart';
 import '../../data/datasources/local/database.dart' as db;
 import '../../data/services/channel_category_classifier.dart';
 import '../../data/services/manual_route_cycle.dart';
@@ -125,6 +127,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   @override
   void initState() {
     super.initState();
+    if (Platform.isAndroid) {
+      AndroidPipService.instance.active.addListener(_onAndroidPipChanged);
+    }
     _channelIndex = widget.currentIndex;
     _currentChannelName = widget.channelName;
     _currentChannelLogo = widget.channelLogo;
@@ -1077,6 +1082,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
 
   @override
   void dispose() {
+    if (Platform.isAndroid) {
+      AndroidPipService.instance.active.removeListener(_onAndroidPipChanged);
+    }
     _activePlayerSubscription?.cancel();
     _castStatusSubscription?.cancel();
     _overlayTimer?.cancel();
@@ -1129,6 +1137,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
               onDoubleTap: _toggleNativeFullscreen,
               onSecondaryTapUp: (details) =>
                   _showRouteMenu(details.globalPosition),
+              onLongPressStart: (details) =>
+                  _showRouteMenu(details.globalPosition),
               child: Stack(
                 fit: StackFit.expand,
                 children: [
@@ -1139,6 +1149,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                       key: ValueKey(controller ?? initialVideoController),
                       controller: controller ?? initialVideoController,
                       controls: NoVideoControls,
+                      fit: TabletPresentation.videoFit,
                     ),
                   ),
 
@@ -1830,6 +1841,23 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
 
   Future<void> _enterPip() async {
     if (_pipMode || _pipTransition || _leavingPlayer) return;
+    if (Platform.isAndroid) {
+      try {
+        final state = ref.read(playerServiceProvider).player.state;
+        final entered = await AndroidPipService.instance.enter(
+          width: state.width ?? 16,
+          height: state.height ?? 9,
+        );
+        if (!entered && mounted) {
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(const SnackBar(content: Text('此设备或系统版本未提供画中画功能')));
+        }
+      } catch (error, stack) {
+        AppDiagnostics.instance.recordError('android_pip', error, stack);
+      }
+      return;
+    }
     if (!_supportsNativeFullscreen) {
       ScaffoldMessenger.of(
         context,
@@ -1893,6 +1921,14 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     } finally {
       if (mounted) setState(() => _pipTransition = false);
     }
+  }
+
+  void _onAndroidPipChanged() {
+    if (!mounted) return;
+    setState(() {
+      _showOverlay = !AndroidPipService.instance.active.value;
+      _showChannelList = false;
+    });
   }
 
   Future<void> _renameCurrentChannel() async {

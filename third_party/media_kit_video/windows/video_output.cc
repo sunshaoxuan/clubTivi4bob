@@ -9,6 +9,8 @@
 #include "video_output.h"
 
 #include <algorithm>
+#include <cmath>
+#include "software_video_size.h"
 
 // Limit the frame size to 1080p in software rendering.
 // This is for performance reasons & to avoid allocating too much memory.
@@ -414,12 +416,8 @@ int64_t VideoOutput::GetVideoWidth() {
   if (pixel_buffer_ != nullptr) {
     // Make sure |width| & |height| fit between |SW_RENDERING_MAX_WIDTH| &
     // |SW_RENDERING_MAX_HEIGHT| while maintaining aspect-ratio.
-    if (width >= SW_RENDERING_MAX_WIDTH) {
-      return SW_RENDERING_MAX_WIDTH;
-    }
-    if (height >= SW_RENDERING_MAX_HEIGHT) {
-      return width / height * SW_RENDERING_MAX_HEIGHT;
-    }
+    return BobTvSoftwareVideoSize(width, height, SW_RENDERING_MAX_WIDTH,
+                                 SW_RENDERING_MAX_HEIGHT).first;
   }
 
   return width;
@@ -463,12 +461,8 @@ int64_t VideoOutput::GetVideoHeight() {
   if (pixel_buffer_ != NULL) {
     // Make sure |width| & |height| fit between |SW_RENDERING_MAX_WIDTH| &
     // |SW_RENDERING_MAX_HEIGHT| while maintaining aspect-ratio.
-    if (height >= SW_RENDERING_MAX_HEIGHT) {
-      return SW_RENDERING_MAX_HEIGHT;
-    }
-    if (width >= SW_RENDERING_MAX_WIDTH) {
-      return height / width * SW_RENDERING_MAX_WIDTH;
-    }
+    return BobTvSoftwareVideoSize(width, height, SW_RENDERING_MAX_WIDTH,
+                                 SW_RENDERING_MAX_HEIGHT).second;
   }
 
   return height;

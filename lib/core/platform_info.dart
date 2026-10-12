@@ -2,17 +2,29 @@ import 'dart:io' show Platform;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
+import 'package:flutter/services.dart';
 
 /// Detects the current platform type for UI adaptation.
 ///
-/// On Android TV, there is no touchscreen and the screen is typically
-/// large and landscape. We use these heuristics to decide whether to
-/// show the 10-foot TV UI (sidebar nav, large focus rings, D-pad nav)
-/// or the standard mobile/desktop UI.
+/// Android's native device mode selects the TV presentation. Touch tablets
+/// retain the desktop-style simple home in both orientations and at all DPIs.
 class PlatformInfo {
   PlatformInfo._();
 
   static bool? _isTvOverride;
+  static const _device = MethodChannel('bobtv/device');
+
+  /// Query the native device mode before constructing routes. Screen density
+  /// never identifies a television: low-density touch tablets also exist.
+  static Future<void> initialize() async {
+    if (kIsWeb || !Platform.isAndroid) return;
+    try {
+      final info = await _device.invokeMapMethod<String, dynamic>('info');
+      _detectedAsTV = info?['television'] == true;
+    } catch (_) {
+      _detectedAsTV = false;
+    }
+  }
 
   /// Force TV mode (useful for testing on desktop with keyboard).
   static void setTvOverride(bool value) => _isTvOverride = value;
@@ -20,10 +32,6 @@ class PlatformInfo {
   /// True when running on Android TV (or overridden for testing).
   static bool get isTV {
     if (_isTvOverride != null) return _isTvOverride!;
-    // On Android, detect TV by checking if it's a large landscape device
-    // without a touchscreen. The `android.software.leanback` feature
-    // presence is the canonical signal, but from Flutter/Dart we rely
-    // on heuristics: non-web Android + the absence of pointer-based input.
     if (kIsWeb) return false;
     return Platform.isAndroid && _detectedAsTV;
   }
@@ -32,27 +40,17 @@ class PlatformInfo {
       !kIsWeb && (Platform.isAndroid || Platform.isIOS) && !isTV;
 
   static bool get isDesktop =>
-      !kIsWeb &&
-      (Platform.isMacOS || Platform.isLinux || Platform.isWindows);
+      !kIsWeb && (Platform.isMacOS || Platform.isLinux || Platform.isWindows);
 
-  /// Cached TV detection result (set after first MediaQuery access).
+  /// Cached native TV detection result, initialized before constructing routes.
   static bool _detectedAsTV = false;
 
-  /// Call this once from a widget that has access to [MediaQuery].
-  /// Detects TV by screen size + shortest side heuristic.
+  /// Retained for callers; native device detection is initialized before routes.
   static void detectFromContext(BuildContext context) {
     if (_isTvOverride != null) return;
     if (!Platform.isAndroid) return;
 
-    final data = MediaQuery.of(context);
-    final size = data.size;
-    final shortest = size.shortestSide;
-    // Android TV: landscape, large screen (shortest side > 500dp typically),
-    // and no system touch-based padding (or device pixel ratio suggests TV).
-    // Also check if no touch pointer devices are present.
-    final hasNoTouch = data.navigationMode == NavigationMode.directional;
-    final isLargeScreen = shortest > 500 && size.width > size.height;
-
-    _detectedAsTV = hasNoTouch || (isLargeScreen && data.devicePixelRatio < 2.0);
+    // Native UiModeManager detection owns this state. Accessing MediaQuery
+    // here must not turn a tablet into a TV after rotation or DPI changes.
   }
 }

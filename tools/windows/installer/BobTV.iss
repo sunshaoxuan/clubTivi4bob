@@ -18,7 +18,13 @@
   #define ProgramsRoot "{commonprograms}"
 #endif
 #ifndef OutputName
-  #define OutputName "BobTV-" + AppVersion + "-windows-x64-Setup"
+  #ifndef AppArchitecture
+    #define AppArchitecture "x64"
+  #endif
+  #define OutputName "BobTV-" + AppVersion + "-windows-" + AppArchitecture + "-Setup"
+#endif
+#ifndef AppArchitecture
+  #define AppArchitecture "x64"
 #endif
 
 [Setup]
@@ -34,9 +40,15 @@ DisableDirPage=no
 DefaultGroupName=BoB\BobTV
 DisableProgramGroupPage=yes
 PrivilegesRequired=admin
+#if AppArchitecture == "arm64"
+ArchitecturesAllowed=arm64
+ArchitecturesInstallIn64BitMode=arm64
+MinVersion=10.0.22000
+#else
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
 MinVersion=10.0
+#endif
 OutputDir={#OutputDirectory}
 OutputBaseFilename={#OutputName}
 SetupIconFile={#BundleDirectory}\BobTV.ico

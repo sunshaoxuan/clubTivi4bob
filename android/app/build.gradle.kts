@@ -21,20 +21,26 @@ android {
 
     defaultConfig {
         // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
-        applicationId = "io.github.clubanderson.clubtivi"
+        applicationId = "com.briconbric.bobtv"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
-        minSdk = flutter.minSdkVersion
+        minSdk = 24
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
     }
 
+    signingConfigs {
+        create("bobtvRelease") {
+            System.getenv("BOBTV_ANDROID_KEYSTORE")?.let { storeFile = file(it) }
+            storePassword = System.getenv("BOBTV_ANDROID_STORE_PASSWORD")
+            keyAlias = System.getenv("BOBTV_ANDROID_KEY_ALIAS")
+            keyPassword = System.getenv("BOBTV_ANDROID_KEY_PASSWORD")
+        }
+    }
     buildTypes {
         release {
-            // TODO: Add your own signing config for the release build.
-            // Signing with the debug keys for now, so `flutter run --release` works.
-            signingConfig = signingConfigs.getByName("debug")
+            signingConfig = signingConfigs.getByName("bobtvRelease")
         }
     }
 }

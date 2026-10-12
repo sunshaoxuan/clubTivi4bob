@@ -91,6 +91,7 @@ def download(filename: str):
     if not path.is_file():
         raise HTTPException(404)
     media_type = ("application/x-apple-diskimage" if filename.endswith(".dmg") else
+                  "application/vnd.android.package-archive" if filename.endswith(".apk") else
                   "application/octet-stream" if filename.endswith(".exe") else "application/zip")
     return FileResponse(path, filename=filename, media_type=media_type)
 

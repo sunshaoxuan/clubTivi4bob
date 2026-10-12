@@ -7,12 +7,16 @@
     <uses-feature android:name="android.software.leanback" android:required="false"/>
 
     <application
-        android:label="clubTivi"
+        android:label="BobTV"
+        android:allowBackup="false"
+        android:usesCleartextTraffic="false"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher"
         android:banner="@mipmap/ic_launcher">
         <activity
-            android:name=".MainActivity"
+            android:name="io.github.clubanderson.clubtivi.MainActivity"
+            android:supportsPictureInPicture="true"
+            android:resizeableActivity="true"
             android:exported="true"
             android:launchMode="singleTop"
             android:taskAffinity=""

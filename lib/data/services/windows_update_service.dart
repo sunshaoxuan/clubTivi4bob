@@ -9,6 +9,7 @@ import 'package:path/path.dart' as p;
 
 import '../../core/app_diagnostics.dart';
 import '../../core/app_version.dart';
+import '../../core/windows_binary_architecture.dart';
 import 'desktop_update_state.dart';
 import 'update_manifest.dart';
 export 'desktop_update_state.dart';
@@ -161,7 +162,7 @@ class WindowsUpdateService {
     final configured = File(p.join(directory.path, 'update-manifest-url.txt'));
     final address = await configured.exists()
         ? (await configured.readAsString()).trim()
-        : 'https://$_mirrorHost/updates/windows-x64/latest.json';
+        : 'https://$_mirrorHost/updates/windows-${await WindowsBinaryArchitecture.read(File(Platform.resolvedExecutable))}/latest.json';
     final candidate = Uri.tryParse(address);
     if (candidate == null ||
         candidate.scheme != 'https' ||

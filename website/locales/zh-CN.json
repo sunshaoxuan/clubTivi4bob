@@ -13,7 +13,7 @@
   },
   "meta": {
     "index": "BobTV 是 Windows 与 macOS 桌面电视播放器，支持频道预览和公共频道目录同步。",
-    "downloads": "下载 BobTV Windows 与 macOS 安装包，查看版本和 SHA-256 校验值。",
+    "downloads": "Windows、macOS、Android 各自一栏，再按 CPU 选择安装包。Windows ARM 原生版仍待编译验证。",
     "diagnostics": "提交经过字段过滤的 BobTV JSONL 诊断日志。"
   },
   "footer": "BobTV · 开源桌面播放器",
@@ -149,6 +149,27 @@
         ]
       },
       {
+        "id": "tablets",
+        "label": "TABLET",
+        "title": "同一套界面，来到平板。",
+        "text": "Android 首版沿用简洁频道卡片与现代设置。横竖屏自动布局，视频保留原始比例；频道维护与 AI 执行继续由服务器负责。",
+        "items": [
+          [
+            "触屏也顺手",
+            "轻点预览，再点切换；长按打开收藏、换线、淘汰、分类与合并菜单。"
+          ],
+          [
+            "缓冲有边界",
+            "平板使用较小的主播放与预览缓存，减少同时解码时的占用；保留线路重试。"
+          ],
+          [
+            "更新有确认",
+            "从本站下载并显示进度，核对完整性和发布者签名后，由 Android 系统确认安装。"
+          ]
+        ],
+        "note": "Android 实机播放与中国大陆网络速度仍需当地测试。Surface ARM 原生包待编译验证，目前不提供下载。"
+      },
+      {
         "id": "settings",
         "label": "设置",
         "title": "精巧有序的设置空间。",
@@ -172,6 +193,11 @@
     "history_label": "版本记录",
     "history_title": "近期更新",
     "history": [
+      [
+        "2026-10-12",
+        "v1.1.0 · Android 平板与 CPU 下载分栏",
+        "新增 Android 7+ 安装包、触屏菜单、原比例播放和系统确认升级。Windows、macOS 与 Android 按系统分栏，栏内按 CPU 选择。"
+      ],
       [
         "2026-10-12",
         "v1.0.6 · 播放线路统计修正",
@@ -209,10 +235,10 @@
       ]
     ],
     "closing": "选择适合电脑的安装包。",
-    "closing_text": "Windows Setup、Intel Mac 和 Apple Silicon Mac 安装包均由本站直接提供。"
+    "closing_text": "Windows、macOS、Android 各自一栏，再按 CPU 选择安装包。Windows ARM 原生版仍待编译验证。"
   },
   "downloads": {
-    "intro": "选择 Windows x64、Intel Mac 或 Apple Silicon Mac。下载按钮标明各平台最新可用的版本。",
+    "intro": "Windows、macOS、Android 各自一栏，再按 CPU 选择安装包。Windows ARM 原生版仍待编译验证。",
     "latest": "最新安装包",
     "local": "安装包由本站提供",
     "sections": [
@@ -231,14 +257,18 @@
           ],
           [
             "后续更新",
-            "1.0.6 在启动时、每六小时及返回前台时检查更新，前台检查最多每十五分钟一次。Windows Setup 安装版需下载新安装程序并以管理员权限安装。Windows 便携版和可写位置的 Mac 版在后台下载、校验，退出后安装；连续三次启动失败会尝试回退。受保护位置的 Mac 版需手动替换。"
+            "1.1.0 在启动时、每六小时及返回前台时检查更新，前台检查最多每十五分钟一次。Windows Setup 安装版需下载新安装程序并以管理员权限安装。Windows 便携版和可写位置的 Mac 版在后台下载、校验，退出后安装；连续三次启动失败会尝试回退。受保护位置的 Mac 版需手动替换。"
+          ],
+          [
+            "Android",
+            "Android 7 及以上可安装 APK。先选 ARM64；仅支持 32 位应用的旧设备选 ARM32。x64 包用于相应设备或模拟器。画面按原始比例显示，竖屏与横屏自动调整布局。首次更新可能需要允许 BobTV 安装应用，然后在系统窗口确认。"
           ]
         ]
       },
       {
         "id": "first-launch",
         "title": "首次启动与频道同步",
-        "text": "1.0.6 从 BobTV 网站同步频道和分类，来源发现与 AI 分类在服务器执行。客户端不定时全量扫描，只按需检查当前频道线路。",
+        "text": "1.1.0 从 BobTV 网站同步频道和分类，来源发现与 AI 分类在服务器执行。客户端不定时全量扫描，只按需检查当前频道线路。",
         "items": [
           [
             "初始目录",
@@ -294,6 +324,14 @@
     "processed_limit": "过滤后日志超过 1 MiB",
     "uploading": "正在上传…",
     "success": "上传完成。诊断编号：{id}",
-    "failure": "上传失败（{error}）。请检查文件后重试。"
+    "failure": "上传失败（{error}）。请检查文件后重试。",
+    "cpu_note": "每个系统一栏，按 CPU 选择。",
+    "download_package": "下载安装包",
+    "portable_download": "下载 ZIP 便携包",
+    "pending": "准备中",
+    "surface_pending": "Surface ARM 原生版待编译验证",
+    "windows_note": "Setup 需要管理员授权，ZIP 可完整解压使用。",
+    "macos_note": "选对芯片，打开 DMG 后拖到 Applications。",
+    "android_note": "Android 7+；更新安装需系统确认。实机与大陆网络待验证。"
   }
 }

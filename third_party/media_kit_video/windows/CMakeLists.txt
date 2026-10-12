@@ -16,6 +16,9 @@ set(PLUGIN_NAME "media_kit_video_plugin")
 # Must be built before this target.
 set(LIBMPV_SRC "${CMAKE_BINARY_DIR}/libmpv")
 set(ANGLE_SRC "${CMAKE_BINARY_DIR}/ANGLE")
+if(FLUTTER_TARGET_PLATFORM STREQUAL "windows-arm64")
+  set(ANGLE_SRC "${BOBTV_ANGLE_SRC}")
+endif()
 
 # Deal with MSVC incompatiblity
 add_compile_definitions(_DISABLE_CONSTEXPR_MUTEX_CONSTRUCTOR)

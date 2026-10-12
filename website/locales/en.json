@@ -13,7 +13,7 @@
   },
   "meta": {
     "index": "BobTV is a desktop TV player for Windows and macOS with channel previews and a shared public channel catalog.",
-    "downloads": "Download BobTV for Windows and macOS, with version information and SHA-256 checksums.",
+    "downloads": "One column each for Windows, macOS and Android. Choose the CPU within your system. Native Windows ARM packages are awaiting build validation.",
     "diagnostics": "Submit a filtered JSONL diagnostic log to BobTV."
   },
   "footer": "BobTV · Open-source desktop player",
@@ -149,6 +149,27 @@
         ]
       },
       {
+        "id": "tablets",
+        "label": "TABLET",
+        "title": "The same experience, on a tablet.",
+        "text": "The first Android release shares the simple channel cards and modern settings. Portrait and landscape layouts preserve video aspect ratios. Discovery and AI still run on the server.",
+        "items": [
+          [
+            "Touch controls",
+            "Tap to preview, tap again to switch. Long press for favorites, routes, retirement, categories and merges."
+          ],
+          [
+            "Bounded buffers",
+            "Smaller main and preview buffers reduce tablet memory use while retaining route retries."
+          ],
+          [
+            "Confirmed updates",
+            "Downloads come from this site. Integrity and publisher signatures are checked before the Android system asks to install."
+          ]
+        ],
+        "note": "Physical Android playback and Mainland China throughput still need local testing. Native Surface ARM packages are not yet available."
+      },
+      {
         "id": "settings",
         "label": "Settings",
         "title": "A considered settings workspace.",
@@ -172,6 +193,11 @@
     "history_label": "Release notes",
     "history_title": "Recent changes",
     "history": [
+      [
+        "2026-10-12",
+        "v1.1.0 · Android tablets and CPU download groups",
+        "Adds Android 7+ APKs, touch menus, aspect-preserving playback and system-confirmed updates. Each OS has one download group with CPU choices."
+      ],
       [
         "2026-10-12",
         "v1.0.6 · Playing-route count correction",
@@ -209,10 +235,10 @@
       ]
     ],
     "closing": "Choose the installer for your computer.",
-    "closing_text": "Windows Setup, Intel Mac and Apple Silicon Mac packages are served directly from this site."
+    "closing_text": "One column each for Windows, macOS and Android. Choose the CPU within your system. Native Windows ARM packages are awaiting build validation."
   },
   "downloads": {
-    "intro": "Choose Windows x64, Intel Mac or Apple Silicon Mac. Each button shows the latest available version for that platform.",
+    "intro": "One column each for Windows, macOS and Android. Choose the CPU within your system. Native Windows ARM packages are awaiting build validation.",
     "latest": "Latest installers",
     "local": "Downloads hosted on this site",
     "sections": [
@@ -231,14 +257,18 @@
           ],
           [
             "Updates",
-            "Version 1.0.6 checks at startup, every six hours, and on returning to the foreground, at most once every 15 minutes. Windows Setup installations require a new installer with administrator approval. Portable Windows and writable Mac installations download and verify updates in the background, then install after exit. After three failed starts, the app attempts rollback. Protected Mac locations require manual replacement."
+            "Version 1.1.0 checks at startup, every six hours, and on returning to the foreground, at most once every 15 minutes. Windows Setup installations require a new installer with administrator approval. Portable Windows and writable Mac installations download and verify updates in the background, then install after exit. After three failed starts, the app attempts rollback. Protected Mac locations require manual replacement."
+          ],
+          [
+            "Android",
+            "Install the APK on Android 7 or later. Choose ARM64 first, ARM32 for devices limited to 32-bit apps, or x64 for matching devices/emulators. Video retains its source aspect ratio in portrait and landscape. Updates require Android installation permission and system confirmation."
           ]
         ]
       },
       {
         "id": "first-launch",
         "title": "First launch and channel sync",
-        "text": "Version 1.0.6 syncs channels and categories from BobTV. Discovery and AI classification run on the server. Clients avoid scheduled full scans and check the selected channel on demand.",
+        "text": "Version 1.1.0 syncs channels and categories from BobTV. Discovery and AI classification run on the server. Clients avoid scheduled full scans and check the selected channel on demand.",
         "items": [
           [
             "Initial catalog",
@@ -294,6 +324,14 @@
     "processed_limit": "Filtered log exceeds 1 MiB",
     "uploading": "Uploading…",
     "success": "Upload complete. Diagnostic ID: {id}",
-    "failure": "Upload failed ({error}). Check the file and try again."
+    "failure": "Upload failed ({error}). Check the file and try again.",
+    "cpu_note": "One group per OS. Choose your CPU.",
+    "download_package": "Download installer",
+    "portable_download": "Download portable ZIP",
+    "pending": "Pending",
+    "surface_pending": "Native Surface ARM build validation pending",
+    "windows_note": "Setup needs administrator approval. Extract the complete ZIP for portable use.",
+    "macos_note": "Choose your chip, open the DMG and drag the app to Applications.",
+    "android_note": "Android 7+. Updates require system confirmation. Device and Mainland China tests pending."
   }
 }

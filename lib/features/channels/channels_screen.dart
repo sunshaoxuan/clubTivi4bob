@@ -31,6 +31,8 @@ import '../../data/services/channel_category_ai_service.dart';
 import '../../data/services/manual_channel_category.dart';
 import 'channel_category_picker.dart';
 import 'channel_merge_dialog.dart';
+import 'channel_route_transfer_dialog.dart';
+import '../../data/services/channel_route_transfer.dart';
 import '../../data/services/channel_merge.dart';
 import 'channel_catalog_status.dart';
 import 'manual_category_move.dart';
@@ -2194,6 +2196,8 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
               '选择地区和子分类'),
         if (menuChannel != null)
           _routeMenuAction(-6, Icons.merge_rounded, '合并频道', '跨分类选择同内容频道'),
+        if (menuChannel != null)
+          _routeMenuAction(-7, Icons.drive_file_move_rounded, '转移线路到…', '将当前线路移入其他频道'),
         _routeMenuAction(-3, Icons.skip_next_rounded, '切换到下一条线路',
             '先检查线路，成功后切换',
             enabled: alternatives.isNotEmpty),
@@ -2209,6 +2213,10 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
       ],
     );
     if (!mounted || choice == null) return;
+    if (choice == -7 && menuChannel != null && service.currentUrl == currentUrl) {
+      await _transferChannelRoute(menuChannel, currentUrl);
+      return;
+    }
     if (choice == -6 && menuChannel != null) {
       await _mergeChannel(menuChannel);
       return;
@@ -2291,6 +2299,62 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
     }
   }
 
+  Future<void> _transferChannelRoute(db.Channel channel, String url) async {
+    final sourceKey = _automaticChannelKey(channel);
+    final result = await showDialog<ChannelRouteTransfer>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => ChannelRouteTransferDialog(
+        database: ref.read(databaseProvider),
+        channel: channel,
+        routeUrl: url,
+      ),
+    );
+    if (!mounted || result == null) return;
+    ++_channelSelectionGeneration;
+    final service = ref.read(playerServiceProvider);
+    final affectedMain = service.currentUrl == url;
+    _manualCategories.remove(result.url);
+    _pendingManualCategories.remove(result.url);
+    _cardRouteSelection.remove(channel.id);
+    setState(() {
+      _pendingChannelId = null;
+      _preparedChannelId = null;
+    });
+    // Cancel an in-flight card request before it can commit the old owner.
+    await service.discardPreparedChannel();
+    unawaited(
+      ref.read(sourceMaintenanceCoordinatorProvider).inventory.flushEvents(),
+    );
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('线路已转移至“${result.name}”，${result.shared ? '公共线路在后台同步' : '私有线路仅保存到本机'}'),
+        duration: const Duration(seconds: 3),
+      ),
+    );
+    final replacement = service.handleTransferredRoute(result.url);
+    await _loadGroupChannels(_selectedGroup, preserveScroll: true);
+    await ref.read(streamAlternativesProvider).rebuildForChannels(_allChannels);
+    service.routeOwnershipIndexUpdated();
+    await replacement;
+    if (!mounted) return;
+    if (affectedMain) {
+      final index = _filteredChannels.indexWhere(
+        (c) =>
+            c.streamUrl == service.currentUrl ||
+            (_automaticChannelKey(c) == sourceKey && c.streamUrl != result.url),
+      );
+      setState(() {
+        _selectedIndex = index;
+        _previewChannel = index < 0 ? null : _filteredChannels[index];
+      });
+    }
+    if (_previewChannel != null)
+      await service.updateFailoverAlternatives(
+        _automaticAlternativeUrls(_previewChannel!, includeUnverified: true),
+      );
+  }
+
   Future<void> _showCardRouteMenu(
       db.Channel channel, Offset position) async {
     final service = ref.read(playerServiceProvider);
@@ -2298,7 +2362,9 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
       channel.streamUrl,
       ..._automaticAlternativeUrls(channel, includeUnverified: true),
     ].where((url) => url.isNotEmpty).toSet().toList();
-    final lastUrl = service.preparedChannelId == channel.id
+    final lastUrl = service.currentChannelId == channel.id && service.currentUrl != null
+        ? service.currentUrl!
+        : service.preparedChannelId == channel.id
         ? service.preparedChannelUrl ?? channel.streamUrl
         : _cardRouteSelection[channel.id] ?? channel.streamUrl;
     final alternatives = urls.where((url) => url != lastUrl).toList();
@@ -2333,6 +2399,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
         _routeMenuAction(-5, Icons.folder_open_rounded, '变更分类',
             '选择地区和子分类'),
         _routeMenuAction(-6, Icons.merge_rounded, '合并频道', '跨分类选择同内容频道'),
+        _routeMenuAction(-7, Icons.drive_file_move_rounded, '转移线路到…', '将这条线路移入其他频道'),
         _routeMenuAction(-3, Icons.skip_next_rounded, '切换到下一条线路',
             '在卡片中预览下一条',
             enabled: alternatives.isNotEmpty),
@@ -2349,6 +2416,10 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
       ],
     );
     if (!mounted || choice == null) return;
+    if (choice == -7) {
+      await _transferChannelRoute(channel, lastUrl);
+      return;
+    }
     if (choice == -6) {
       await _mergeChannel(channel);
       return;

@@ -12,6 +12,7 @@ import '../../services/public_inventory_policy.dart';
 import '../../services/route_identity.dart';
 import '../../services/manual_channel_category.dart';
 import '../../services/channel_merge.dart';
+import '../../services/channel_route_transfer.dart';
 import '../../services/bobtv_api_client.dart';
 import 'tables.dart';
 
@@ -93,6 +94,11 @@ class AppDatabase extends _$AppDatabase {
       'CREATE TABLE IF NOT EXISTS channel_merge_overrides '
       '(url TEXT PRIMARY KEY, merge_id TEXT NOT NULL, name TEXT NOT NULL, '
       'group_name TEXT NOT NULL, epg_id TEXT, logo_url TEXT)',
+    );
+    await customStatement(
+      'CREATE TABLE IF NOT EXISTS channel_route_transfers '
+      '(url TEXT PRIMARY KEY, name TEXT NOT NULL, group_name TEXT NOT NULL, '
+      'epg_id TEXT, logo_url TEXT)',
     );
     await customStatement(
       'CREATE TABLE IF NOT EXISTS shared_sync_control (id INTEGER PRIMARY KEY, suppressed INTEGER NOT NULL)',
@@ -299,7 +305,7 @@ class AppDatabase extends _$AppDatabase {
     Set<String> excludedIds = const {},
   }) async {
     final rows = await customSelect(
-      "SELECT id,url,kind,payload FROM shared_sync_outbox WHERE id NOT IN (SELECT value FROM json_each(?)) ORDER BY CASE kind WHEN 'retire' THEN 0 WHEN 'delete' THEN 1 WHEN 'upsert' THEN 2 WHEN 'classify' THEN 3 ELSE 4 END,rowid LIMIT ?",
+      "SELECT id,url,kind,payload FROM shared_sync_outbox WHERE id NOT IN (SELECT value FROM json_each(?)) ORDER BY CASE kind WHEN 'retire' THEN 0 WHEN 'delete' THEN 1 WHEN 'upsert' THEN 2 WHEN 'classify' THEN 3 WHEN 'merge' THEN 3 WHEN 'transfer' THEN 3 ELSE 4 END,rowid LIMIT ?",
       variables: [Variable(jsonEncode(excludedIds.toList())), Variable(limit)],
     ).get();
     return [
@@ -324,6 +330,157 @@ class AppDatabase extends _$AppDatabase {
     "UPDATE shared_sync_outbox SET payload=json_set(payload,'\$.baseRevision',?) WHERE url=? AND kind='classify' AND json_extract(payload,'\$.baseRevision')=?",
     [revision, url, oldRevision],
   );
+
+  Future<void> advanceQueuedTransferRevision(
+    String url,
+    int oldRevision,
+    int revision,
+  ) async {
+    for (final field in ['baseRevision', 'targetRevision']) {
+      final owner = field == 'baseRevision' ? 'url' : 'targetUrl';
+      await customStatement(
+        "UPDATE shared_sync_outbox SET payload=json_set(payload,'\$.$field',?) "
+        "WHERE kind='transfer' AND json_extract(payload,'\$.$owner')=? "
+        "AND json_extract(payload,'\$.$field')=?",
+        [revision, url, oldRevision],
+      );
+    }
+  }
+
+  Future<Set<String>> pendingSharedTransferUrls() async => {
+    for (final row in await customSelect(
+      "SELECT url FROM shared_sync_outbox WHERE kind='transfer'",
+    ).get())
+      row.read<String>('url'),
+  };
+
+  Future<void> importRouteTransferBatch(
+    Iterable<Map<String, Object?>> records,
+  ) async {
+    await batch((b) {
+      for (final record in records) {
+        if (record['transferred'] == true) {
+          b.customStatement(
+            'INSERT INTO channel_route_transfers VALUES(?,?,?,?,?) '
+            'ON CONFLICT(url) DO UPDATE SET name=excluded.name,'
+            'group_name=excluded.group_name,epg_id=excluded.epg_id,logo_url=excluded.logo_url',
+            [
+              record['url'],
+              record['name'],
+              record['group'],
+              record['epgId'],
+              record['logoUrl'],
+            ],
+          );
+        } else {
+          b.customStatement('DELETE FROM channel_route_transfers WHERE url=?', [
+            record['url'],
+          ]);
+        }
+      }
+    });
+  }
+
+  /// Commit locally with a durable event; neither network nor decoder blocks it.
+  Future<ChannelRouteTransfer> transferRoute(
+    String routeUrl,
+    ChannelMergeChoice destination,
+  ) async {
+    final url = canonicalRouteUrl(routeUrl);
+    late ChannelRouteTransfer result;
+    await withoutSharedReporting(() async {
+      final owners = await getChannelsByStreamUrls([url]);
+      final targets = await channelsForMergeChoice(destination);
+      if (owners.isEmpty || targets.isEmpty)
+        throw StateError('Channel no longer exists');
+      if (targets.any((c) => canonicalRouteUrl(c.streamUrl) == url)) {
+        throw ArgumentError('Route already belongs to this channel');
+      }
+      if (await isStreamUrlBlocked(url)) throw StateError('Route was retired');
+      final eligible = {
+        for (final p in await getAllProviders())
+          if (isSharedInventoryProvider(
+            id: p.id,
+            type: p.type,
+            url: p.url,
+            username: p.username,
+            password: p.password,
+          ))
+            p.id,
+      };
+      final public =
+          owners.any((c) => eligible.contains(c.providerId)) &&
+          BobTvApiClient.isPublicCatalogUrl(url);
+      final target = targets
+          .where(
+            (c) =>
+                c.streamUrl != url &&
+                (!public ||
+                    (eligible.contains(c.providerId) &&
+                        BobTvApiClient.isPublicCatalogUrl(c.streamUrl))),
+          )
+          .firstOrNull;
+      if (target == null)
+        throw StateError('Public routes require a public destination');
+      if (await isStreamUrlBlocked(target.streamUrl)) {
+        throw StateError('Destination route was retired');
+      }
+      final mergeId = (await channelMergeIds([
+        target.streamUrl,
+      ]))[target.streamUrl];
+      result = ChannelRouteTransfer(
+        url: url,
+        targetChannelId: target.id,
+        targetUrl: target.streamUrl,
+        name: target.name,
+        group: target.groupTitle ?? '其他',
+        epgId: target.tvgId,
+        logoUrl: target.tvgLogo,
+        mergeId: mergeId,
+        shared: public,
+      );
+      await ManualChannelCategory.remove([url]);
+      await importRouteTransferBatch([
+        {
+          'url': url,
+          'name': result.name,
+          'group': result.group,
+          'epgId': result.epgId,
+          'logoUrl': result.logoUrl,
+          'transferred': true,
+        },
+      ]);
+      await importChannelMerge({
+        'url': url,
+        'mergeId': mergeId,
+        'name': result.name,
+        'group': result.group,
+        'epgId': result.epgId,
+        'logoUrl': result.logoUrl,
+      });
+      await (update(channels)..where((c) => c.streamUrl.equals(url))).write(
+        ChannelsCompanion(
+          name: Value(result.name),
+          groupTitle: Value(result.group),
+          tvgId: Value(result.epgId),
+          tvgName: Value(result.name),
+          tvgLogo: Value(result.logoUrl),
+        ),
+      );
+      await customStatement(
+        "DELETE FROM shared_sync_outbox WHERE kind='classify' AND url=?",
+        [url],
+      );
+      if (public)
+        await queueSharedEvent(url, 'transfer', {
+          'url': url,
+          'targetUrl': result.targetUrl,
+          'baseRevision': await sharedRouteRevision(url),
+          'targetRevision': await sharedRouteRevision(result.targetUrl),
+        });
+    });
+    return result;
+  }
 
   Future<Set<String>> pendingSharedCategoryUrls() async => {
     for (final row in await customSelect(
@@ -522,6 +679,10 @@ class AppDatabase extends _$AppDatabase {
       if (expanded.length > 1000)
         throw ArgumentError('Too many routes in one merge');
       await ManualChannelCategory.remove(expanded);
+      await customStatement(
+        'DELETE FROM channel_route_transfers WHERE url IN (SELECT value FROM json_each(?))',
+        [jsonEncode(expanded.toList())],
+      );
       final providers = {
         for (final p in await getAllProviders())
           if (isSharedInventoryProvider(
@@ -808,6 +969,36 @@ class AppDatabase extends _$AppDatabase {
             ? entry
             : entry.copyWith(groupTitle: Value(manual.group));
       }).toList();
+      final transfers = {
+        for (final row in await customSelect(
+          'SELECT * FROM channel_route_transfers WHERE url IN (SELECT value FROM json_each(?))',
+          variables: [
+            Variable(
+              jsonEncode(
+                entries
+                    .where((e) => e.streamUrl.present)
+                    .map((e) => e.streamUrl.value)
+                    .toList(),
+              ),
+            ),
+          ],
+        ).get())
+          row.read<String>('url'): row,
+      };
+      entries = entries.map((entry) {
+        final transfer = entry.streamUrl.present
+            ? transfers[entry.streamUrl.value]
+            : null;
+        return transfer == null
+            ? entry
+            : entry.copyWith(
+                name: Value(transfer.read<String>('name')),
+                groupTitle: Value(transfer.read<String>('group_name')),
+                tvgName: Value(transfer.read<String>('name')),
+                tvgId: Value(transfer.readNullable<String>('epg_id')),
+                tvgLogo: Value(transfer.readNullable<String>('logo_url')),
+              );
+      }).toList();
       final merges = {
         for (final row in await customSelect(
           'SELECT * FROM channel_merge_overrides WHERE url IN (SELECT value FROM json_each(?))',
@@ -874,6 +1065,10 @@ class AppDatabase extends _$AppDatabase {
       for (final url in unique) {
         await customStatement(
           'UPDATE channel_merge_overrides SET group_name=? WHERE url=?',
+          [destination.group, url],
+        );
+        await customStatement(
+          'UPDATE channel_route_transfers SET group_name=? WHERE url=?',
           [destination.group, url],
         );
         await queueSharedEvent(url, 'classify', {

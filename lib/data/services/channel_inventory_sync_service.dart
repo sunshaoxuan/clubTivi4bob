@@ -96,8 +96,8 @@ class ChannelInventorySyncService {
         for (final row in pending) {
           // A merge has a multi-route revision vector. Serialize it after
           // earlier metadata and before another merge, then re-read the queue.
-          if (batch.any((e) => e['kind'] == 'merge') ||
-              (row['kind'] == 'merge' && batch.isNotEmpty))
+          if (batch.any((e) => ['merge', 'transfer'].contains(e['kind'])) ||
+              (['merge', 'transfer'].contains(row['kind']) && batch.isNotEmpty))
             break;
           final url = row['url'] as String;
           if (row['kind'] == 'classify' &&
@@ -188,13 +188,18 @@ class ChannelInventorySyncService {
           }
           await database.transaction(() async {
             if (receipt['status'] == 'applied' &&
-                (event['kind'] == 'classify' || event['kind'] == 'upsert')) {
+                (['classify', 'upsert', 'transfer'].contains(event['kind']))) {
               await database.advanceQueuedCategoryRevision(
                 event['url'] as String,
                 event['baseRevision'] as int,
                 receipt['revision'] as int,
               );
               await database.advanceQueuedMergeRevision(
+                event['url'] as String,
+                event['baseRevision'] as int,
+                receipt['revision'] as int,
+              );
+              await database.advanceQueuedTransferRevision(
                 event['url'] as String,
                 event['baseRevision'] as int,
                 receipt['revision'] as int,
@@ -219,6 +224,11 @@ class ChannelInventorySyncService {
                     original['baseRevision'] as int,
                     route['revision'] as int,
                   );
+                  await database.advanceQueuedTransferRevision(
+                    route['url'] as String,
+                    original['baseRevision'] as int,
+                    route['revision'] as int,
+                  );
                 }
               }
               if (receipt['status'] != 'applied') {
@@ -233,6 +243,20 @@ class ChannelInventorySyncService {
                 await prefs.remove('bobtv_website_catalog_version_v1');
                 await database.setSharedCatalogVersion(null);
               }
+            }
+            if (event['kind'] == 'transfer' && receipt['status'] != 'applied') {
+              mergeConflict = true;
+              await database.customStatement(
+                'DELETE FROM channel_route_transfers WHERE url=?',
+                [event['url']],
+              );
+              await database.customStatement(
+                'DELETE FROM channel_merge_overrides WHERE url=?',
+                [event['url']],
+              );
+              final prefs = await SharedPreferences.getInstance();
+              await prefs.remove('bobtv_website_catalog_version_v1');
+              await database.setSharedCatalogVersion(null);
             }
             await database.acknowledgeSharedEvent(event['id'] as String);
           });
@@ -250,7 +274,7 @@ class ChannelInventorySyncService {
       if (!_disposed)
         state.value = WebsiteCatalogProgress(
           phase: mergeConflict
-              ? '合并未同步，公共库已变化，请重新选择'
+              ? '频道变更未同步，公共库已变化，请重新选择'
               : stillPending
               ? '同步待重试，本机修改已保存'
               : '频道变更已同步',

@@ -24,6 +24,9 @@ import '../../features/providers/provider_manager.dart' show databaseProvider;
 import '../casting/cast_service.dart';
 import '../casting/cast_dialog.dart';
 import '../channels/channel_debug_dialog.dart';
+import '../channels/channel_route_transfer_dialog.dart';
+import '../../data/services/channel_route_transfer.dart';
+import '../providers/source_maintenance_coordinator.dart';
 import 'player_control_bar.dart';
 import 'alternative_preview_overlay.dart';
 import 'player_service.dart';
@@ -912,6 +915,12 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
         ),
         const PopupMenuDivider(height: 14),
         _routeContextAction(
+          -7,
+          Icons.drive_file_move_rounded,
+          '转移线路到…',
+          '将当前线路移入其他频道',
+        ),
+        _routeContextAction(
           -3,
           Icons.skip_next_rounded,
           '切换到下一条线路',
@@ -929,6 +938,60 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       ],
     );
     if (!mounted || choice == null || service.currentUrl != currentUrl) return;
+    if (choice == -7) {
+      final database = ref.read(databaseProvider);
+      final owners = await database.getChannelsByStreamUrls([currentUrl]);
+      if (!mounted || owners.isEmpty || service.currentUrl != currentUrl)
+        return;
+      final result = await showDialog<ChannelRouteTransfer>(
+        context: context,
+        barrierDismissible: false,
+        builder: (_) => ChannelRouteTransferDialog(
+          database: database,
+          channel: owners.where((c) => c.id == service.currentChannelId).firstOrNull ?? owners.first,
+          routeUrl: currentUrl,
+        ),
+      );
+      if (!mounted || result == null) return;
+      unawaited(
+        ref.read(sourceMaintenanceCoordinatorProvider).inventory.flushEvents(),
+      );
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('线路已转移至“${result.name}”，${result.shared ? '公共线路在后台同步' : '私有线路仅保存到本机'}'),
+          duration: const Duration(seconds: 3),
+        ),
+      );
+      await service.handleTransferredRoute(result.url);
+      await ref.read(streamAlternativesProvider).rebuild();
+      service.routeOwnershipIndexUpdated();
+      if (!mounted) return;
+      // Fullscreen owns a menu snapshot. Rebase its primary URL so a later
+      // channel button cannot reopen the moved route under the old name.
+      for (final item in widget.channels) {
+        final remaining = (item['alternativeUrls'] as List? ?? [])
+          .cast<String>().where((url) => url != result.url).toList();
+        if (item['streamUrl'] == result.url) {
+          final next = service.currentUrl != null && remaining.contains(service.currentUrl)
+            ? service.currentUrl! : remaining.firstOrNull;
+          final rows = await database.getChannelsByStreamUrls([next ?? result.url]);
+          if (rows.isNotEmpty) {
+            final row = rows.first;
+            item.addAll({'id': row.id, 'streamUrl': row.streamUrl,
+              'name': row.name, 'groupTitle': row.groupTitle,
+              'tvgId': row.tvgId, 'tvgName': row.tvgName, 'tvgLogo': row.tvgLogo});
+          }
+        }
+        if (item['name'] == result.name && item['groupTitle'] == result.group) {
+          item['alternativeUrls'] = <String>{...remaining, result.url}
+            .where((url) => url != item['streamUrl']).toList();
+        } else {
+          item['alternativeUrls'] = remaining.where((url) => url != item['streamUrl']).toList();
+        }
+      }
+      if (mounted) setState(() {});
+      return;
+    }
     if (choice == -2) {
       if (_isFavorite) {
         _toggleFavorite();

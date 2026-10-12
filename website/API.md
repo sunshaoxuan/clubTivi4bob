@@ -179,6 +179,7 @@ Windows 与 macOS 的共享频道接口与旧版 `/api/v1/sources` 独立。
 
 - `POST /api/v1/channel-catalog/events` 持久化同步新增、分类、合并、线路权重、删除和淘汰事件。正文包含 `schemaVersion: 1`、`fingerprint` 和最多 200 个 `events`，上限 512 KiB。每个事件含唯一 `id`、公开 `url`、`kind`。`upsert` 含 `metadata` 与 `baseRevision`；`classify` 含 `group` 与 `baseRevision`；`health` 含 0 至 10 的正向 `success` 和负向 `failure` 次数；`delete`、`retire` 无额外字段。
 - `merge` 事件含 UUID `mergeId`、统一 `name`、目标 `group`、可选 `epgId` 与 `logoUrl`，以及 1 至 1000 项去重 `routes`，每项含公开 `url` 和 `baseRevision`。事件顶层 `url` 必须属于其中一项。服务端先检查全部版本与已有合并集合完整性，再原子更新，回执返回所有成员版本。冲突不会部分修改；尚未入库的线路返回可重试状态。频道快照的可选 `mergeId` 用于跨设备归组，线路身份、评分和淘汰独立保留。
+- `transfer` 事件将顶层 `url` 对应的单条线路转入现有频道，额外含 `targetUrl`、`baseRevision` 和 `targetRevision`。两条线路都必须存在且未淘汰；目标线路只用作频道锚点，不移动、不改权重。服务端核对双方版本并从目标频道复制名称、分类、EPG、台标及合并标识。旧频道其余线路保持原样，原有测速、来源、区域权重和线路 ID 全部保留。快照中的线路可含布尔值 `transferred`，客户端据此保存刷新时的归属覆盖。冲突不修改任何线路，未知地址返回 `retry`，重复事件返回原回执。
 - 响应 `202` 含 `schemaVersion: 1` 和 `receipts`，每项包含事件 `id`、`revision`、`status`。状态为 `applied`、`conflict`、`rejected` 或 `retry`。服务器按客户端与事件 ID 去重，分类采用版本比较保护。`retry` 保留在客户端持久队列，其他状态仅确认对应事件 ID。旧版清单上报不会覆盖手工分类。
 - 客户端每 15 秒分批上报变更，每分钟检查共享清单版本。修改、权重和删除在后台发布，不等待慢线路验证；新增线路仍需服务器验证。快照线路可包含 `revision`，共享 `healthScore` 参与线路排序。空清单和失去最后线路的分类都能同步移除。界面显示同步过程，网络失败不阻塞本地修改。
 

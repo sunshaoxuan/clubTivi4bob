@@ -173,6 +173,7 @@ class WebsiteChannelCatalogService {
         final revisions = await database.sharedRouteRevisions();
         final pending = await database.pendingSharedCategoryUrls();
         final pendingMerges = await database.pendingSharedMergeUrls();
+        pendingMerges.addAll(await database.pendingSharedTransferUrls());
         final reconciled = <String>[];
         for (final record in records) {
           final url = record['url'] as String;
@@ -196,6 +197,18 @@ class WebsiteChannelCatalogService {
           if (_disposed) throw StateError('Catalog sync canceled');
           final batch = <db.ChannelsCompanion>[];
           await database.importChannelMergeBatch(
+            records
+                .skip(offset)
+                .take(400)
+                .where(
+                  (record) =>
+                      !pendingMerges.contains(record['url']) &&
+                      !blockedUrls.contains(record['url']) &&
+                      (record['revision'] as int) >=
+                          (revisions[record['url']] ?? 0),
+                ),
+          );
+          await database.importRouteTransferBatch(
             records
                 .skip(offset)
                 .take(400)
@@ -436,6 +449,9 @@ Future<List<Map<String, Object?>>> _decodeCatalog(
           !BobTvApiClient.isPublicCatalogUrl(route['url'] as String)) {
         throw const FormatException('Invalid website route');
       }
+      if (route['transferred'] != null && route['transferred'] is! bool) {
+        throw const FormatException('Invalid route ownership');
+      }
       final name = channel['name'] as String;
       final url = canonicalRouteUrl(route['url'] as String);
       if (ChannelCategoryClassifier.isClearlyNonTelevisionRoute(
@@ -452,6 +468,7 @@ Future<List<Map<String, Object?>>> _decodeCatalog(
             ? channel['mergeId'] as String
             : null,
         'url': url,
+        'transferred': route['transferred'] == true,
         'group': group,
         'epgId': channel['epgId'] as String?,
         'logoUrl': channel['logoUrl'] as String?,

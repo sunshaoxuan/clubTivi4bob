@@ -170,6 +170,52 @@ void main() {
       });
       await freshCatalog.sync();
       expect(scores![url], lessThan(.8));
+      final destination = (await first.searchChannelMergeChoices(
+        query: 'New TV',
+      )).single;
+      await first.transferRoute(url, destination);
+      expect(await uploader.flushEvents(), 1);
+      expect(
+        uploader.state.value.error,
+        isFalse,
+        reason: 'Transfer result: ${uploader.state.value.phase}\n$messages',
+      );
+      for (var attempt = 0; attempt < 30; attempt++) {
+        await secondCatalog.sync();
+        if ((await second.getChannelsByStreamUrls([url])).single.name ==
+            'New TV')
+          break;
+        await Future<void>.delayed(const Duration(milliseconds: 50));
+      }
+      expect((await second.getAllChannels()).map((c) => c.name).toSet(), {
+        'New TV',
+      });
+      expect(await second.sharedRouteRevision(url), 2);
+      await freshCatalog.sync();
+      expect((await fresh.getAllChannels()).map((c) => c.name).toSet(), {
+        'New TV',
+      });
+      await probe.uploadChannelInventory(
+        fingerprint: 'd' * 64,
+        routes: [
+          {
+            'url': url,
+            'name': 'NRBTV',
+            'group': '中国 / 北京',
+            'source': 'old-client',
+            'blocked': false,
+          },
+        ],
+      );
+      await runPython(
+        'from process_channel_inventory import process; process(limit=0)',
+      );
+      await secondCatalog.sync();
+      expect(
+        (await second.getChannelsByStreamUrls([url])).single.name,
+        'New TV',
+      );
+      expect(await second.pendingSharedEvents(), isEmpty);
       await first.mergeChannels(
         ChannelMergePlan(
           name: 'Shared Unified TV',
@@ -202,7 +248,7 @@ void main() {
         (await second.channelMergeIds([url, added])).values.toSet(),
         hasLength(1),
       );
-      expect(await second.sharedRouteRevision(url), 2);
+      expect(await second.sharedRouteRevision(url), 3);
       await freshCatalog.sync();
       expect((await fresh.getAllChannels()).map((c) => c.name).toSet(), {
         'Shared Unified TV',

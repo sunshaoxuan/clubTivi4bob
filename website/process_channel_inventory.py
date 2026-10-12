@@ -210,6 +210,8 @@ def process(data_dir=DATA, limit=120, verifier=probe):
             learned = (row['success_votes'] + 4) / (row['success_votes'] + row['failure_votes'] + 5)
             score = max(.1, .8 - row['failures'] * .2) * (1-confidence) + learned * confidence
             channel["routes"].append({"id": "route-" + row["digest"][:24], "url": row["url"], "source": row["source"], "lastPlayableAt": datetime.fromtimestamp(row["success_at"], timezone.utc).isoformat().replace("+00:00", "Z"), "healthScore": score, 'revision':row['revision']})
+            if row['transferred']:
+                channel['routes'][-1]['transferred'] = True
         # Keep prior reviewed routes until their inventory record is verified.
         if current:
             inventory_urls = {canonical_route_url(row["url"]) for row in rows}

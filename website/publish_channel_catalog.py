@@ -84,8 +84,10 @@ def validate(payload):
             validate_public_url(channel["logoUrl"])
         channel_ids.add(channel_id)
         for route in channel["routes"]:
-            if not isinstance(route, dict) or set(route) - {'revision'} != {"id", "url", "source", "lastPlayableAt", "healthScore"}:
+            if not isinstance(route, dict) or set(route) - {'revision', 'transferred'} != {"id", "url", "source", "lastPlayableAt", "healthScore"}:
                 raise ValueError("Invalid route")
+            if 'transferred' in route and type(route['transferred']) is not bool:
+                raise ValueError('Invalid route ownership')
             if 'revision' in route and (type(route['revision']) is not int or route['revision'] < 0):
                 raise ValueError('Invalid route revision')
             route_id = route["id"]

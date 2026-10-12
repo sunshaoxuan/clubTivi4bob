@@ -184,6 +184,52 @@ class PlayerService {
   List<String> get currentAlternativeUrls => _getFailoverAlternatives();
   List<String> get retirementAlternativeUrls =>
       _getFailoverAlternatives(includePreviouslyFailed: true);
+  final Map<String, Set<String>> _transferredRouteExclusions = {};
+  String get _transferScope => '${_currentChannelId ?? ''}\n${_currentChannelName ?? ''}';
+
+  void routeOwnershipIndexUpdated() => _transferredRouteExclusions.clear();
+
+  /// Ownership changes do not lower a route's health or retire it globally.
+  Future<void> handleTransferredRoute(String url) async {
+    final route = canonicalRouteUrl(url);
+    final active =
+        _currentUrl != null && canonicalRouteUrl(_currentUrl!) == route;
+    final alternatives = retirementAlternativeUrls
+        .where((candidate) => canonicalRouteUrl(candidate) != route)
+        .toList();
+    if (active ||
+        currentAlternativeUrls.any(
+          (candidate) => canonicalRouteUrl(candidate) == route,
+        )) {
+      _transferredRouteExclusions
+          .putIfAbsent(_transferScope, () => {})
+          .add(route);
+      _failoverGroupUrls = alternatives;
+    }
+    if (active) {
+      await stop();
+      if (alternatives.isNotEmpty) {
+        await playRetirementReplacement(
+          alternatives.first,
+          alternatives.skip(1).toList(),
+          stage: '线路转移后寻找替代线路',
+        );
+      } else {
+        routeSearchProgress.value = const RouteSearchProgress(
+          stage: '线路已转移，原频道暂无其他线路',
+          index: 0,
+          total: 0,
+        );
+      }
+    } else {
+      await _disposeWarmPlayer();
+      if (preparedChannelUrl != null &&
+          canonicalRouteUrl(preparedChannelUrl!) == route) {
+        await discardPreparedChannel();
+      }
+    }
+  }
+
   int get currentCandidateCount => _currentUrl == null ? 0 :
       1 + _getFailoverAlternatives(includePreviouslyFailed: true).length;
 
@@ -238,8 +284,9 @@ class PlayerService {
   /// Starts a replacement after the rejected route has been stopped.
   Future<bool> playRetirementReplacement(
     String url,
-    List<String> remainingAlternatives,
-  ) async {
+    List<String> remainingAlternatives, {
+    String stage = '淘汰后寻找新线路',
+  }) async {
     final candidates = _rankCandidateUrls([url, ...remainingAlternatives])
         .where((candidate) => candidate.isNotEmpty &&
             !_manuallyRejectedUrls.contains(canonicalRouteUrl(candidate)))
@@ -260,7 +307,7 @@ class PlayerService {
         if (generation != _playGeneration) return false;
         final candidate = candidates[index];
         routeSearchProgress.value = RouteSearchProgress(
-          stage: '淘汰后寻找新线路', index: index + 1,
+          stage: stage, index: index + 1,
           total: candidates.length, label: routeLabel(candidate), active: true,
         );
         if (await _switchWithVerification(candidate, generation)) {
@@ -2507,6 +2554,7 @@ class PlayerService {
     void addUrls(Iterable<String> urls) {
       for (final url in urls) {
         if (url.isNotEmpty &&
+            !(_transferredRouteExclusions[_transferScope]?.contains(canonicalRouteUrl(url)) ?? false) &&
             !_manuallyRejectedUrls.contains(canonicalRouteUrl(url)) &&
             seen.add(canonicalRouteUrl(url))) {
           results.add(url);

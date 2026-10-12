@@ -94,7 +94,8 @@ def database(data_dir=None):
             'failure_votes': 'INTEGER NOT NULL DEFAULT 0',
             'manual_category': 'INTEGER NOT NULL DEFAULT 0',
             'manual_name': 'INTEGER NOT NULL DEFAULT 0',
-            'merge_id': 'TEXT'}.items():
+            'merge_id': 'TEXT',
+            'transferred': 'INTEGER NOT NULL DEFAULT 0'}.items():
         if name not in columns:
             conn.execute(f'ALTER TABLE routes ADD COLUMN {name} {definition}')
     conn.execute('CREATE TABLE IF NOT EXISTS sync_receipts (reporter TEXT NOT NULL, event_id TEXT NOT NULL, receipt TEXT NOT NULL, PRIMARY KEY(reporter,event_id))')
@@ -208,8 +209,8 @@ def ingest_events(events, fingerprint, data_dir=None):
                 kind = event.get('kind')
                 digest = hashlib.sha256(url.encode()).hexdigest()
                 row = conn.execute('SELECT * FROM routes WHERE digest=?', (digest,)).fetchone()
-                if kind == 'merge':
-                    receipt = _merge_event(conn, event, receipt)
+                if kind in ('merge', 'transfer'):
+                    receipt = (_merge_event if kind == 'merge' else _transfer_event)(conn, event, receipt)
                     if receipt['status'] != 'retry':
                         conn.execute('INSERT INTO sync_receipts VALUES(?,?,?)', (reporter,event_id,json.dumps(receipt)))
                     receipts.append(receipt)
@@ -288,6 +289,32 @@ def ingest_events(events, fingerprint, data_dir=None):
     return {'schemaVersion':1, 'receipts':receipts}
 
 
+def _transfer_event(conn, event, receipt):
+    """Move one canonical endpoint. Never expand its prior merge group."""
+    url = validate_media_url(event.get('url'))
+    target_url = validate_media_url(event.get('targetUrl'))
+    if url == target_url or any(type(event.get(k)) is not int or event[k] < 0
+                               for k in ('baseRevision', 'targetRevision')):
+        raise ValueError('Invalid transfer')
+    row = conn.execute('SELECT * FROM routes WHERE url=?', (url,)).fetchone()
+    target = conn.execute('SELECT * FROM routes WHERE url=?', (target_url,)).fetchone()
+    if row is None or target is None:
+        return {**receipt, 'status': 'retry'}
+    receipt = {**receipt, 'revision': row['revision']}
+    if row['blocked'] or row['deleted'] or target['blocked'] or target['deleted']:
+        return {**receipt, 'status': 'conflict'}
+    if row['revision'] != event['baseRevision'] or target['revision'] != event['targetRevision']:
+        return {**receipt, 'status': 'conflict'}
+    from process_channel_inventory import _identity
+    name = target['name'] if target['manual_name'] else _identity(target['name'])
+    if (row['name'], row['group_name'], row['merge_id']) == (name, target['group_name'], target['merge_id']):
+        raise ValueError('Route already belongs to destination')
+    conn.execute('UPDATE routes SET name=?,group_name=?,epg_id=?,logo_url=?, '
+                 'manual_name=1,manual_category=1,merge_id=?,transferred=1,revision=revision+1 WHERE url=?',
+                 (name, target['group_name'], target['epg_id'], target['logo_url'], target['merge_id'], url))
+    return {**receipt, 'status': 'applied', 'revision': row['revision'] + 1}
+
+
 def _merge_event(conn, event, receipt):
     """Validate all members before writing. Preserve endpoint identity,
     provenance, retirement and per-network weights.
@@ -328,7 +355,7 @@ def _merge_event(conn, event, receipt):
     for url,(row,_) in rows.items():
         if row['blocked'] or row['deleted']: continue
         conn.execute('UPDATE routes SET name=?,group_name=?,epg_id=?,logo_url=?, '
-                     'manual_category=1,manual_name=1,merge_id=?,revision=revision+1 WHERE url=?',
+                     'manual_category=1,manual_name=1,merge_id=?,transferred=0,revision=revision+1 WHERE url=?',
                      (name,group,epg,logo,merge_id,url))
     revisions=[{'url':url,'revision':conn.execute('SELECT revision FROM routes WHERE url=?',(url,)).fetchone()[0]}
                for url in rows]

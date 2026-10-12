@@ -145,13 +145,31 @@ service files under `website/deploy` alongside the updated website runtime.
 
 `POST /api/v1/channel-catalog/events` accepts `schemaVersion: 1`, an
 application fingerprint, and at most 200 events. Each event has a unique `id`,
-public `url`, and `kind`: `upsert`, `classify`, `health`, `delete`, or `retire`.
+public `url`, and `kind`: `upsert`, `classify`, `merge`, `transfer`, `health`, `delete`, or `retire`.
 Classification includes `group` and `baseRevision`; health observations include
 bounded positive `success` and negative `failure` counts. Upserts include
 `metadata` (name, group, source, optional EPG ID and logo) and `baseRevision`.
 The receipt returns an ID, revision and `applied`, `conflict`, `rejected`, or
 `retry` status for each event. Retry receipts remain queued; terminal receipts
 remove only the exact acknowledged event ID.
+
+`transfer` moves exactly one canonical route to an existing channel. It includes
+`targetUrl` (an existing destination route), `baseRevision` and `targetRevision`.
+The server checks both revisions, then copies the destination's authoritative
+name, category, EPG, logo and optional merge identity. Other routes in the old
+merge stay untouched. The route ID, verification history, regional weights,
+provenance and retirement state are preserved. Retired endpoints cannot be
+revived. Snapshot routes carry optional boolean `transferred`; new clients
+persist its ownership override across rediscovery. Old clients accept the
+additional field and still receive the corrected name/category in snapshots.
+
+The main player, card preview and fullscreen right-click menus offer a searchable
+single-destination picker. The local transaction completes before uploading.
+Disconnected operations remain queued; ownership and classification events keep
+their relative order. A conflict invalidates the cached catalog and reports the
+failure instead of overwriting a newer assignment. Active transferred routes
+stop immediately and the original channel attempts its remaining routes,
+without lowering the moved route's health or adding a global tombstone.
 
 SQLite triggers capture public channel additions, metadata changes and last
 route deletions in the same transaction as the local operation. Explicit

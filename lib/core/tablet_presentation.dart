@@ -10,8 +10,33 @@ class TabletPresentation {
   }) => simpleMode && !television;
 
   static bool splitLayout({required double width, required double height}) =>
-      width >= 1050 || (width >= 900 && width > height);
+      width >= 640;
+
+  // Use logical window dimensions: Android display density must not opt a
+  // small tablet into the spacious desktop layout.
+  static bool compactLayout({required double width, required double height}) =>
+      width <= 1280 || height <= 720;
+
+  static double compactCardHeight(
+    double availableHeight,
+    double guideHeight, {
+    bool tiny = false,
+  }) => (availableHeight - guideHeight - 14).clamp(tiny ? 56.0 : 80.0, 140.0);
 
   static double previewHeight(double availableHeight) =>
       (availableHeight * .44).clamp(140.0, 340.0);
+
+  static int channelColumns(
+    double width, {
+    required bool compact,
+    bool tiny = false,
+  }) =>
+      (width /
+              (tiny
+                  ? 140
+                  : compact
+                  ? 180
+                  : 250))
+          .floor()
+          .clamp(1, 5);
 }

@@ -1,8 +1,9 @@
 # Code signing policy
 
-Status: The free SignPath Foundation application was submitted on 2026-10-13.
-The application page confirmed receipt. Review, approval and production
-credentials are pending. Existing published installers are unchanged and do not
+Status: The free SignPath Foundation application was submitted on 2026-10-13
+and was not approved. The review email cited insufficient public trust and
+visibility signals. No Foundation certificate or production credentials were
+issued. Existing published installers are unchanged and do not
 gain Windows trust from this document. Candidate builds are labeled separately.
 
 Unsigned Windows x64 and ARM64 source builds and candidate packaging passed in
@@ -18,8 +19,8 @@ validate a production certificate or replace Surface hardware testing.
 - Signing approver: [sunshaoxuan](https://github.com/sunshaoxuan).
 
 The maintainer authorizes the release source and each production signing request.
-Account multi-factor authentication is required by the Foundation. No approval
-or certificate is assumed before the application has been reviewed.
+Account multi-factor authentication is required by the Foundation. Any future
+application requires a new review; no approval or certificate is assumed.
 
 ## Proposed signing provider
 

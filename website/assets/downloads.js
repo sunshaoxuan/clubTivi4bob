@@ -88,6 +88,10 @@ function downloadLink(release, label, secondary = false) {
         const release = variant.release;
         const format = release.filename.endsWith('-Setup.exe') ? text('exe', 'EXE 安装程序') : family.description;
         content.append(element('p', 'release-selected-version', `${release.version} · ${format} · ${release.size}`));
+        if (release.version !== latest.version) {
+          content.append(element('p', 'release-family-note release-platform-pending',
+            text('platform_pending', '这个 CPU 的新包稍后补充，当前提供 {version}。现有下载和更新通道继续可用。').replace('{version}', release.version)));
+        }
         content.append(downloadLink(release, text('download_package', '下载安装包')));
         const portable = variant.files.find(item => item.filename.endsWith('.zip'));
         if (portable && portable !== release) content.append(downloadLink(portable, text('portable_download', '下载 ZIP 便携包'), true));

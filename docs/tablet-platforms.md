@@ -1,17 +1,41 @@
 # Android tablets and Windows ARM64
 
-Release version: `1.1.0+93`. Windows x64, both Mac CPU variants and Android
-APKs are distributed together. Windows ARM64 packages use a validated x64
-cross-build; Surface hardware validation remains pending.
+Release version: `1.1.3+96`. Android APKs and both Mac CPU variants are published
+first. Windows retains `1.1.2+95` until the powered-off build host is available;
+the new Windows packages will be appended to the same release after validation.
+Windows ARM64 uses a validated x64 cross-build; Surface hardware validation
+remains pending.
 
 ## Android
 
 The tablet entry point uses the same simple channel browser, cards, programme
 guide, modern settings, favorites, channel merge and category-edit workflows
-as the desktop app. Landscape tablets use the split view; narrower or portrait
-windows put the video above the channel list. Long press opens the same channel
+as the desktop app. Windows at least 640 logical pixels wide use the split view;
+narrower windows put the video above the channel list. Long press opens the same channel
 menu as desktop right click. Single tap starts a silent preview; tapping the
 ready preview switches it to the main player. Double tap requests direct play.
+
+### Compact channel browser
+
+At widths up to 1280 logical pixels or heights up to 720, the main player and
+channel browser use equal-width panes. Android display density does not override
+this compact policy. Main categories, subcategories and regions/types occupy at
+most three single-line rows. Overflow keeps the selected category visible and
+opens all options for that level in a scrollable menu attached to its More button.
+The menu closes immediately after selection; country pinning remains available
+through right-click or long press.
+
+Channel cards and their connected EPG outline use the same responsive geometry.
+The current and next two programmes retain a compact timeline, with horizontal
+scrolling for longer titles. Card height adapts to the remaining list viewport.
+Very short windows move search into a search button/dialog and use a one-line
+programme title, leaving space for a complete card and its guide. Smaller toolbar
+controls keep advanced mode and route refresh in an overflow menu. Videos retain
+their original aspect ratio.
+
+Tests cover 640x360 through 1280x1024, portrait/narrow windows, longer category
+lists, selected overflow items, every category menu level and larger text.
+Physical Xiaomi Pad playback/layout testing still requires a connected device.
 
 Native `UiModeManager` identifies actual televisions. Display density or
 landscape orientation never turns a touch tablet into a television.
@@ -40,6 +64,24 @@ classification and merges use the existing shared website API. The client
 checks the shared catalog periodically and queues edits durably. GitHub
 discovery and AI execution stay on the server. Playback, EPG and logo resources
 use the BobTV HTTPS gateway; no direct GitHub fallback is enabled.
+
+### Explicit Android exit
+
+An Android-only, touch-sized **退出 BobTV** control is reserved at the top
+of the app across initialization, empty catalogs, both navigation modes,
+settings, Android TV, fullscreen playback and multi-view. It never covers
+channel cards or EPG. Desktop layout and native close controls are unchanged.
+Native Android PiP omits this strip and uses the system's PiP close control.
+
+Exit replaces the active routes with immediate progress feedback, waits for
+main/preview and route-owned decoders, stops casting, recording and the remote
+server, cancels provider work and closes the application task with
+`finishAndRemoveTask`. Cleanup has bounded timeouts and native close is
+retryable. Android update downloads stop after closing their partial-file sink;
+partial files and durable synchronization outboxes remain available next launch.
+The application does not force-crash its process or request task-killer access.
+
+Tests: `test/android_app_exit_test.dart` and the desktop/tablet regression tests.
 
 ### Android updates
 

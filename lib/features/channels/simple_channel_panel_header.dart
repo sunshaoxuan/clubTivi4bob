@@ -6,28 +6,30 @@ class SimpleChannelPanelHeader extends StatelessWidget {
     super.key,
     required this.syncBadge,
     required this.summary,
+    this.compact = false,
   });
 
   final Widget syncBadge;
   final String summary;
+  final bool compact;
 
   Widget _title() => Row(
     mainAxisSize: MainAxisSize.min,
     children: [
       Container(
         width: 4,
-        height: 28,
+        height: compact ? 18 : 28,
         decoration: BoxDecoration(
           color: const Color(0xFFA8BFFF),
           borderRadius: BorderRadius.circular(3),
         ),
       ),
-      const SizedBox(width: 11),
-      const Text(
+      SizedBox(width: compact ? 7 : 11),
+      Text(
         '选台',
         style: TextStyle(
           color: Colors.white,
-          fontSize: 23,
+          fontSize: compact ? 16 : 23,
           fontWeight: FontWeight.w800,
           letterSpacing: -0.4,
         ),
@@ -47,7 +49,7 @@ class SimpleChannelPanelHeader extends StatelessWidget {
           key: const ValueKey('simple-channel-panel-summary'),
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
-          style: const TextStyle(color: Colors.white60, fontSize: 12),
+          style: TextStyle(color: Colors.white60, fontSize: compact ? 10 : 12),
         ),
       ),
     ],
@@ -57,7 +59,7 @@ class SimpleChannelPanelHeader extends StatelessWidget {
   Widget build(BuildContext context) => LayoutBuilder(
     builder: (context, constraints) {
       final textScale = MediaQuery.textScalerOf(context).scale(12) / 12;
-      if (constraints.maxWidth < 280 * textScale) {
+      if (!compact && constraints.maxWidth < 280 * textScale) {
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [_title(), const SizedBox(height: 10), _status()],

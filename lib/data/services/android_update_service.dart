@@ -26,23 +26,36 @@ class AndroidUpdateService {
   );
   bool _started = false;
   bool _checking = false;
+  bool _stopped = false;
+  Timer? _checkTimer;
+  HttpClient? _activeClient;
+  Future<void>? _checkRun;
   File? _ready;
 
   void start() {
-    if (!Platform.isAndroid || _started) return;
+    if (!Platform.isAndroid || _started || _stopped) return;
     _started = true;
     if (kReleaseMode) {
       unawaited(checkNow());
-      Timer.periodic(const Duration(hours: 6), (_) => unawaited(checkNow()));
+      _checkTimer = Timer.periodic(
+        const Duration(hours: 6),
+        (_) => unawaited(checkNow()),
+      );
     }
   }
 
-  Future<void> checkNow() async {
-    if (!Platform.isAndroid || _checking || !state.value.canCheck) return;
+  Future<void> checkNow() =>
+      _checkRun ??= _checkNow().whenComplete(() => _checkRun = null);
+
+  Future<void> _checkNow() async {
+    if (!Platform.isAndroid || _checking || _stopped || !state.value.canCheck) {
+      return;
+    }
     _checking = true;
     state.value = const WindowsUpdateState(WindowsUpdatePhase.checking);
     final client = HttpClient()
       ..connectionTimeout = const Duration(seconds: 10);
+    _activeClient = client;
     try {
       final info = await const MethodChannel(
         'bobtv/device',
@@ -145,6 +158,9 @@ class AndroidUpdateService {
             await for (final chunk in data.timeout(
               const Duration(seconds: 30),
             )) {
+              if (_stopped) {
+                throw StateError('Update download stopped for exit');
+              }
               received += chunk.length;
               if (received > manifest.bytes) {
                 throw const FormatException('APK exceeds manifest size');
@@ -195,6 +211,7 @@ class AndroidUpdateService {
         message: '更新包和发布者签名已校验。点击“安装更新”，在 Android 系统窗口确认。关闭应用不会触发静默安装。',
       );
     } catch (error, stack) {
+      if (_stopped) return;
       AppDiagnostics.instance.recordError('android_update', error, stack);
       state.value = WindowsUpdateState(
         WindowsUpdatePhase.failed,
@@ -203,6 +220,7 @@ class AndroidUpdateService {
       );
     } finally {
       client.close(force: true);
+      if (identical(_activeClient, client)) _activeClient = null;
       _checking = false;
     }
   }
@@ -213,7 +231,11 @@ class AndroidUpdateService {
       (await sha256.bind(file.openRead()).first).toString() == manifest.sha256;
 
   Future<void> installReady() async {
-    if (_ready == null || state.value.phase != WindowsUpdatePhase.ready) return;
+    if (_stopped ||
+        _ready == null ||
+        state.value.phase != WindowsUpdatePhase.ready) {
+      return;
+    }
     try {
       final result = await _installer.invokeMapMethod<String, dynamic>(
         'installApk',
@@ -234,5 +256,16 @@ class AndroidUpdateService {
         message: '系统安装未启动：$error。现有版本保持不变。',
       );
     }
+  }
+
+  /// Exit cancels network work and waits for the APK's partial-file sink to
+  /// close. The partial file remains available for the next launch to resume.
+  Future<void> stop() async {
+    _stopped = true;
+    _checkTimer?.cancel();
+    _activeClient?.close(force: true);
+    try {
+      await _checkRun?.timeout(const Duration(seconds: 3));
+    } catch (_) {}
   }
 }

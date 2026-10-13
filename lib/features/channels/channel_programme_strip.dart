@@ -19,6 +19,8 @@ class ChannelProgrammeStrip extends StatefulWidget {
     this.embedded = false,
     this.showHeader = true,
     this.compact = false,
+    this.compactSingleLine = false,
+    this.compactDense = false,
   });
 
   final String channelName;
@@ -28,6 +30,26 @@ class ChannelProgrammeStrip extends StatefulWidget {
   final bool embedded;
   final bool showHeader;
   final bool compact;
+  final bool compactSingleLine;
+  final bool compactDense;
+
+  static double compactHeight(
+    TextScaler scaler, {
+    bool singleLine = false,
+    bool dense = false,
+  }) => dense
+      ? (18 + scaler.scale(9) * 1.3 + 8 + 2 + scaler.scale(11) * 1.25)
+                .ceilToDouble() +
+            1
+      : (24 +
+                    scaler.scale(10) * 1.3 +
+                    12 +
+                    4 +
+                    scaler.scale(12) * 1.25 * (singleLine ? 1 : 2) +
+                    3 +
+                    scaler.scale(10) * 1.2)
+                .ceilToDouble() +
+            3;
 
   @override
   State<ChannelProgrammeStrip> createState() => _ChannelProgrammeStripState();
@@ -110,6 +132,8 @@ class _ChannelProgrammeStripState extends State<ChannelProgrammeStrip> {
       ),
     ].take(3).toList(growable: false);
     if (upcoming.isEmpty) return const SizedBox.shrink();
+
+    if (widget.compact) return _compactTimeline(upcoming, now);
 
     final textScaler = MediaQuery.textScalerOf(context);
     final titleHeight = textScaler.scale(14) * 1.28 * (widget.compact ? 1 : 2);
@@ -253,6 +277,141 @@ class _ChannelProgrammeStripState extends State<ChannelProgrammeStrip> {
       ),
     );
   }
+
+  Widget _compactTimeline(
+    List<db.EpgProgramme> programmes,
+    DateTime now,
+  ) => SizedBox(
+    key: const ValueKey('channel-programme-strip'),
+    height: ChannelProgrammeStrip.compactHeight(
+      MediaQuery.textScalerOf(context),
+      singleLine: widget.compactSingleLine,
+      dense: widget.compactDense,
+    ),
+    child: Padding(
+      padding: widget.compactDense
+          ? const EdgeInsets.fromLTRB(6, 6, 6, 6)
+          : const EdgeInsets.fromLTRB(8, 6, 8, 10),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final minimumWidth =
+              (widget.compactDense ? 80.0 : 120.0) +
+              (MediaQuery.textScalerOf(context).scale(12) - 12).clamp(
+                    0.0,
+                    30.0,
+                  ) *
+                  5;
+          final width = math.max(
+            minimumWidth,
+            constraints.maxWidth / programmes.length,
+          );
+          return Scrollbar(
+            controller: _scrollController,
+            thumbVisibility: width * programmes.length > constraints.maxWidth,
+            thickness: 3,
+            child: SingleChildScrollView(
+              controller: _scrollController,
+              scrollDirection: Axis.horizontal,
+              padding: EdgeInsets.only(bottom: widget.compactDense ? 6 : 8),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  for (var i = 0; i < programmes.length; i++)
+                    SizedBox(
+                      width: width,
+                      child: Padding(
+                        padding: const EdgeInsets.only(right: 8),
+                        child: Builder(
+                          builder: (context) {
+                            final programme = programmes[i];
+                            final start = _effectiveTime(programme.start);
+                            final stop = _effectiveTime(programme.stop);
+                            final current =
+                                !start.isAfter(now) && stop.isAfter(now);
+                            final firstIsCurrent = !_effectiveTime(
+                              programmes.first.start,
+                            ).isAfter(now);
+                            final label = current
+                                ? '正在播出'
+                                : i == (firstIsCurrent ? 1 : 0)
+                                ? '接下来'
+                                : '随后';
+                            return Column(
+                              key: ValueKey('programme-${programme.id}'),
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                Text(
+                                  '${_time(start)} · $label',
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                    color: current
+                                        ? const Color(0xFFBFDCFF)
+                                        : const Color(0xFF9EB2D0),
+                                    fontSize: widget.compactDense ? 9 : 10,
+                                    height: 1.3,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                                SizedBox(
+                                  height: widget.compactDense ? 8 : 12,
+                                  child: CustomPaint(
+                                    key: ValueKey(
+                                      'programme-timeline-node-${programme.id}',
+                                    ),
+                                    painter: _ProgrammeTimelineRail(
+                                      current: current,
+                                    ),
+                                  ),
+                                ),
+                                SizedBox(height: widget.compactDense ? 2 : 4),
+                                Tooltip(
+                                  message:
+                                      '${programme.title}\n${_time(start)} ~ ${_time(stop)}',
+                                  child: Text(
+                                    programme.title,
+                                    maxLines:
+                                        widget.compactSingleLine ||
+                                            widget.compactDense
+                                        ? 1
+                                        : 2,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                      color: Color(0xFFF0F4FD),
+                                      fontSize: widget.compactDense ? 11 : 12,
+                                      height: 1.25,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ),
+                                const Spacer(),
+                                if (!widget.compactDense)
+                                  const SizedBox(height: 3),
+                                if (!widget.compactDense)
+                                  Text(
+                                    '${_time(start)} ~ ${_time(stop)}',
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(
+                                      color: Color(0xFF9EB2D0),
+                                      fontSize: 10,
+                                      height: 1.2,
+                                    ),
+                                  ),
+                              ],
+                            );
+                          },
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+    ),
+  );
 
   Widget _scrollButton({
     required Key key,

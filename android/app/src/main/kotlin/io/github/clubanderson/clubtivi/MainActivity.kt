@@ -15,9 +15,23 @@ import io.flutter.plugin.common.MethodChannel
 class MainActivity : FlutterActivity() {
     private val CHANNEL = "io.github.clubanderson.clubtivi/installer"
     private var deviceChannel: MethodChannel? = null
+    private var exitRequested = false
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "bobtv/app").setMethodCallHandler { call, result ->
+            if (call.method == "exit") {
+                result.success(true)
+                if (!exitRequested) {
+                    exitRequested = true
+                    // Reply first, then close the task, including an active PiP.
+                    // FlutterActivity destroys its engine as the host finishes.
+                    window.decorView.post { finishAndRemoveTask() }
+                }
+            } else {
+                result.notImplemented()
+            }
+        }
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CHANNEL).setMethodCallHandler { call, result ->
             if (call.method == "installApk" || call.method == "validateApk") {
                 val filePath = call.argument<String>("filePath")

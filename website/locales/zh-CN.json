@@ -18,7 +18,10 @@
   },
   "footer": "BobTV · 开源桌面播放器",
   "disclaimer": "使用前请确认第三方节目源的可用性及使用授权。",
-  "policy_links": {"privacy": "隐私政策", "signing": "代码签名政策 / Code signing policy"},
+  "policy_links": {
+    "privacy": "隐私政策",
+    "signing": "代码签名政策 / Code signing policy"
+  },
   "download": "下载 BobTV",
   "features": "功能介绍",
   "home": {
@@ -153,19 +156,19 @@
         "id": "tablets",
         "label": "TABLET",
         "title": "同一套界面，来到平板。",
-        "text": "Android 首版沿用简洁频道卡片与现代设置。横竖屏自动布局，视频保留原始比例；频道维护与 AI 执行继续由服务器负责。",
+        "text": "Android 与桌面共享简洁频道卡片和现代设置。小屏分区等宽、分类最多三行，卡片和节目单按空间缩放；视频保留原始比例，频道维护与 AI 仍由服务器负责。",
         "items": [
           [
-            "触屏也顺手",
-            "轻点预览，再点切换；长按打开收藏、换线、淘汰、分类与合并菜单。"
+            "触屏与退出",
+            "轻点预览，再点切换；长按打开频道菜单。Android 各页面保留“退出 BobTV”按钮，退出时停止播放和后台工作。"
           ],
           [
-            "缓冲有边界",
-            "平板使用较小的主播放与预览缓存，减少同时解码时的占用；保留线路重试。"
+            "小屏也能完整预览",
+            "每级分类只占一行，更多选项从按钮上展开。至少保留一张预览卡片及节目单，特别矮的窗口进一步缩小卡片与文字。"
           ],
           [
-            "更新有确认",
-            "从本站下载并显示进度，核对完整性和发布者签名后，由 Android 系统确认安装。"
+            "原比例与更新",
+            "视频保持原始比例，平板缓存有上限。显示下载进度并检查完整性和签名后，由 Android 系统确认安装。"
           ]
         ],
         "note": "Android 实机播放、中国大陆网络速度与 Surface ARM64 实机测试仍需当地验证。Windows ARM64 原生包已通过交叉构建和架构校验。"
@@ -194,6 +197,11 @@
     "history_label": "版本记录",
     "history_title": "近期更新",
     "history": [
+      [
+        "2026-10-13",
+        "v1.1.3 · 小屏布局与 Android 退出",
+        "Android 与 macOS 先行发布；Windows 暂保留 1.1.2。小屏左右分区等宽，分类最多三行，更多选项贴着按钮弹出，完整保留预览卡片和节目时间轴；Android 增加明确退出入口。"
+      ],
       [
         "2026-10-12",
         "v1.1.2 · 分类创建、私有收藏与更新反馈",
@@ -254,8 +262,8 @@
     "closing_text": "Windows、macOS、Android 各自一栏，再按 CPU 选择安装包。提供 Windows ARM64 原生安装包，Surface 实机仍待验证。"
   },
   "downloads": {
-    "signing_notice": "SignPath Foundation 免费代码签名申请已于 2026-10-13 提交，等待审核。当前安装包不变；审核通过后，签名将由 SignPath.io 提供，证书由 SignPath Foundation 提供。",
-    "intro": "Windows、macOS、Android 各自一栏，再按 CPU 选择安装包。提供 Windows ARM64 原生安装包，Surface 实机仍待验证。",
+    "signing_notice": "SignPath Foundation 免费签名申请未获批准，当前没有受信任 Windows 证书，也未使用 SignPath.io 正式签名。Edge 首次浏览器下载仍可能需要安全确认。",
+    "intro": "1.1.3 先提供 Android 和 macOS 安装包，Windows 暂保留 1.1.2，稍后补充新包。每个系统一栏，栏内按 CPU 选择。",
     "latest": "最新安装包",
     "local": "安装包由本站提供",
     "sections": [
@@ -274,7 +282,7 @@
           ],
           [
             "后续更新",
-            "1.1.2 在启动时、每六小时及返回前台时检查更新。Windows 安装版在应用内下载并校验 Setup，点击安装后请求管理员授权，再显示安装进度；取消授权可继续使用旧版。旧安装版需先安装一次本版 Setup。便携 Windows 与可写位置的 Mac 版退出后更新，连续三次启动失败会尝试回退。受保护位置的 Mac 版需手动替换。未有受信任代码签名，Edge 首次下载的安全提示仍可能出现。"
+            "客户端 在启动时、每六小时及返回前台时检查更新。Windows 安装版在应用内下载并校验 Setup，点击安装后请求管理员授权，再显示安装进度；取消授权可继续使用旧版。旧安装版需先安装一次本版 Setup。便携 Windows 与可写位置的 Mac 版退出后更新，连续三次启动失败会尝试回退。受保护位置的 Mac 版需手动替换。未有受信任代码签名，Edge 首次下载的安全提示仍可能出现。"
           ],
           [
             "Android",
@@ -285,7 +293,7 @@
       {
         "id": "first-launch",
         "title": "首次启动与频道同步",
-        "text": "1.1.2 从 BobTV 网站同步频道和完整分类层级，自动比较主站与 cndrp 资源节点。来源发现与 AI 分类在服务器执行，视频直连节目源。客户端只按需检查当前频道线路。",
+        "text": "BobTV 从 BobTV 网站同步频道和完整分类层级，自动比较主站与 cndrp 资源节点。来源发现与 AI 分类在服务器执行，视频直连节目源。客户端只按需检查当前频道线路。",
         "items": [
           [
             "初始目录",
@@ -350,6 +358,7 @@
     "windows_note": "Setup 需要管理员授权，ZIP 可完整解压使用。",
     "macos_note": "选对芯片，打开 DMG 后拖到 Applications。",
     "android_note": "Android 7+；更新安装需系统确认。实机与大陆网络待验证。",
-    "windows_arm64_note": "ARM64 原生包已通过构建与架构校验；Surface 实机播放、AirPlay 和更新仍待验证。"
+    "windows_arm64_note": "ARM64 原生包已通过构建与架构校验；Surface 实机播放、AirPlay 和更新仍待验证。",
+    "platform_pending": "这个 CPU 的新包稍后补充，当前提供 {version}。现有下载和更新通道继续可用。"
   }
 }

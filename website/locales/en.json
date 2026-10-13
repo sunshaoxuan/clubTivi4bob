@@ -18,7 +18,10 @@
   },
   "footer": "BobTV · Open-source desktop player",
   "disclaimer": "Check the availability and permissions of third-party streams before use.",
-  "policy_links": {"privacy": "Privacy policy", "signing": "Code signing policy"},
+  "policy_links": {
+    "privacy": "Privacy policy",
+    "signing": "Code signing policy"
+  },
   "download": "Download BobTV",
   "features": "Features",
   "home": {
@@ -153,19 +156,19 @@
         "id": "tablets",
         "label": "TABLET",
         "title": "The same experience, on a tablet.",
-        "text": "The first Android release shares the simple channel cards and modern settings. Portrait and landscape layouts preserve video aspect ratios. Discovery and AI still run on the server.",
+        "text": "Android and desktop share the simple cards and modern settings. Compact split views use equal panes and at most three category rows. Cards and guides adapt to the available space, video retains its aspect ratio, and discovery and AI remain server-side.",
         "items": [
           [
-            "Touch controls",
-            "Tap to preview, tap again to switch. Long press for favorites, routes, retirement, categories and merges."
+            "Touch controls and exit",
+            "Tap to preview, then switch; long press for channel actions. Android keeps an Exit BobTV control across pages and stops playback and background work when closing."
           ],
           [
-            "Bounded buffers",
-            "Smaller main and preview buffers reduce tablet memory use while retaining route retries."
+            "Room for a complete preview",
+            "Each category level occupies one row, with overflow attached to its button. A complete card and guide remain visible; short windows use smaller cards and labels."
           ],
           [
-            "Confirmed updates",
-            "Downloads come from this site. Integrity and publisher signatures are checked before the Android system asks to install."
+            "Original proportions and updates",
+            "Video retains its aspect ratio and tablet buffers stay bounded. Downloads show progress and are checked before Android requests installation confirmation."
           ]
         ],
         "note": "Android devices, Mainland China throughput and Surface ARM64 hardware still need local tests. The native Windows ARM64 packages passed cross-build and architecture checks."
@@ -194,6 +197,11 @@
     "history_label": "Release notes",
     "history_title": "Recent changes",
     "history": [
+      [
+        "2026-10-13",
+        "v1.1.3 · Compact layouts and Android exit",
+        "Android and macOS ship first; Windows stays on 1.1.2 until new builds are ready. Compact views use equal panes, at most three category rows and attached overflow menus, preserving a complete preview and programme timeline. Android adds an explicit exit control."
+      ],
       [
         "2026-10-12",
         "v1.1.2 · Category creation, private favorites and update feedback",
@@ -254,8 +262,8 @@
     "closing_text": "One column each for Windows, macOS and Android, with CPU choices inside. Native Windows ARM64 packages are available; Surface hardware tests are pending."
   },
   "downloads": {
-    "signing_notice": "The free SignPath Foundation application was submitted on 2026-10-13 and is awaiting review. Current packages are unchanged. After approval: free code signing provided by SignPath.io, certificate by SignPath Foundation.",
-    "intro": "One column each for Windows, macOS and Android, with CPU choices inside. Native Windows ARM64 packages are available; Surface hardware tests are pending.",
+    "signing_notice": "The free SignPath Foundation application was not approved. No trusted Windows certificate was issued and SignPath.io production signing is not in use. Edge may still require a security confirmation on the first browser download.",
+    "intro": "Version 1.1.3 is available first for Android and macOS. Windows remains on 1.1.2 until new packages are added. Each operating system has one column with CPU choices inside.",
     "latest": "Latest installers",
     "local": "Downloads hosted on this site",
     "sections": [
@@ -274,7 +282,7 @@
           ],
           [
             "Updates",
-            "Version 1.1.2 checks at startup, every six hours, and on returning to the foreground. Managed Windows installations download and verify Setup inside BobTV, request administrator approval when you choose Install, then show installation progress. Canceling approval keeps the old app running. Older managed clients need this Setup once. Portable Windows and writable Mac locations update after exit and attempt rollback after three failed starts. Protected Mac locations require manual replacement. Without trusted code signing, Edge warnings on a first browser download may remain."
+            "BobTV checks at startup, every six hours, and on returning to the foreground. Managed Windows installations download and verify Setup inside BobTV, request administrator approval when you choose Install, then show installation progress. Canceling approval keeps the old app running. Older managed clients need this Setup once. Portable Windows and writable Mac locations update after exit and attempt rollback after three failed starts. Protected Mac locations require manual replacement. Without trusted code signing, Edge warnings on a first browser download may remain."
           ],
           [
             "Android",
@@ -285,7 +293,7 @@
       {
         "id": "first-launch",
         "title": "First launch and channel sync",
-        "text": "Version 1.1.2 syncs channels and complete category hierarchies from BobTV and compares the primary site with cndrp for resource delivery. Discovery and AI run on the server; video connects directly to its source. Clients check the selected channel on demand.",
+        "text": "BobTV syncs channels and complete category hierarchies from BobTV and compares the primary site with cndrp for resource delivery. Discovery and AI run on the server; video connects directly to its source. Clients check the selected channel on demand.",
         "items": [
           [
             "Initial catalog",
@@ -350,6 +358,7 @@
     "windows_note": "Setup needs administrator approval. Extract the complete ZIP for portable use.",
     "macos_note": "Choose your chip, open the DMG and drag the app to Applications.",
     "android_note": "Android 7+. Updates require system confirmation. Device and Mainland China tests pending.",
-    "windows_arm64_note": "Native ARM64 packages passed build and architecture checks. Surface playback, AirPlay and update installation still need hardware tests."
+    "windows_arm64_note": "Native ARM64 packages passed build and architecture checks. Surface playback, AirPlay and update installation still need hardware tests.",
+    "platform_pending": "The new package for this CPU will follow. Currently available: {version}; existing downloads and update feeds remain usable."
   }
 }

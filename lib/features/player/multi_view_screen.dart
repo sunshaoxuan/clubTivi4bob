@@ -7,6 +7,7 @@ import 'package:media_kit/media_kit.dart';
 import 'package:media_kit/src/player/native/player/real.dart' as native_player;
 import 'package:media_kit_video/media_kit_video.dart';
 import '../../core/server_egress.dart';
+import '../../core/android_app_exit.dart';
 
 /// Multi-view player — shows 1-9 streams in a flexible grid.
 /// Free feature. Tap a cell to focus audio; long-press to fullscreen.
@@ -80,7 +81,8 @@ class _MultiViewScreenState extends ConsumerState<MultiViewScreen> {
   @override
   void dispose() {
     for (final cell in _cells) {
-      cell.player.dispose();
+      final disposal = cell.player.dispose();
+      if (Platform.isAndroid) AndroidExitDrain.track(disposal);
     }
     if (Platform.isAndroid || Platform.isIOS) {
       SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);

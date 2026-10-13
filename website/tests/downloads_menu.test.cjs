@@ -40,6 +40,8 @@ test('Each OS is one column; Mac CPU changes never replace the Windows download'
  assert.equal(button(mac,'x64')['aria-selected'],'true');
  assert.equal(button(mac,'arm64')['aria-selected'],'false');
  assert.match(links(windows)[0]['aria-label'],/v1\.0\.1/);
+ assert.ok(walk(windows).some(item=>item.className==='release-family-note release-platform-pending' && item.textContent.includes('v1.0.1')));
+ assert.ok(!walk(mac).some(item=>item.className==='release-family-note release-platform-pending'));
  assert.equal(button(windows,'arm64'),undefined);
  assert.equal(list.children[1].children.length,5);
 });

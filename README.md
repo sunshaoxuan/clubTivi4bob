@@ -10,17 +10,20 @@ The application is built with Flutter and uses `media_kit`, libmpv, FFmpeg, Rive
 
 ### Latest release
 
-`1.1.2+95` adds direct creation of missing countries and nested categories,
-device-private favorite backups, permanent retired-route guards, and clearer
-managed Windows updates with in-app Setup downloads and installation progress.
-The sync badge stays at the channel panel's right edge. Shared categories retain
-their complete hierarchy across clients. Video still connects directly to its
-source. See [release details](docs/releases/1.1.2.md).
+`1.1.3+96` adds an explicit Android exit button and a compact channel browser.
+Small split views use equal-width player/browser panes, at most three category
+rows and attached overflow menus. Preview cards and their connected programme
+timelines adapt to the available space without stretching video.
+Android ARM32/ARM64/x64 and macOS Intel/Apple Silicon packages are published
+first. Windows keeps the available `1.1.2+95` installers until its build host is
+online; new Windows packages will be added to this release after validation.
+See [release details](docs/releases/1.1.3.md).
 
 ### Windows code signing preparation
 
-The free SignPath Foundation application was submitted on 2026-10-13 and is
-awaiting review. The [manual Windows x64 and ARM64 build validation](https://github.com/sunshaoxuan/clubTivi4bob/actions/runs/38345860975)
+The free SignPath Foundation application was submitted on 2026-10-13 and was
+not approved. No Foundation certificate or production signing credentials were
+issued. The [manual Windows x64 and ARM64 build validation](https://github.com/sunshaoxuan/clubTivi4bob/actions/runs/38345860975)
 passed. Current release packages are unchanged and do not gain a
 trusted signature by this source change. See the [public signing policy](docs/code-signing-policy.md),
 [configuration and manual build instructions](docs/windows-code-signing.md), and

@@ -11,6 +11,10 @@ class InlineExpandedChannelGrid extends StatelessWidget {
     required this.cardBuilder,
     this.expandedChannelId,
     this.expandedContent,
+    this.cardHeight = 172,
+    this.spacing = 14,
+    this.guideGap = 12,
+    this.padding = const EdgeInsets.fromLTRB(12, 8, 12, 24),
   }) : assert(columns > 0);
 
   final List<String> channelIds;
@@ -18,6 +22,10 @@ class InlineExpandedChannelGrid extends StatelessWidget {
   final Widget Function(BuildContext, int) cardBuilder;
   final String? expandedChannelId;
   final Widget? expandedContent;
+  final double cardHeight;
+  final double spacing;
+  final double guideGap;
+  final EdgeInsets padding;
 
   @override
   Widget build(BuildContext context) {
@@ -31,7 +39,7 @@ class InlineExpandedChannelGrid extends StatelessWidget {
         'channel-row-${channelIds[index]}': index ~/ columns,
     };
     return ListView.builder(
-      padding: const EdgeInsets.fromLTRB(12, 8, 12, 24),
+      padding: padding,
       itemCount: rows,
       findChildIndexCallback: (key) {
         if (key is! ValueKey<String>) return null;
@@ -42,13 +50,16 @@ class InlineExpandedChannelGrid extends StatelessWidget {
         final expanded = row == expandedRow && expandedContent != null;
         return Padding(
           key: ValueKey('channel-row-${channelIds[first]}'),
-          padding: const EdgeInsets.only(bottom: 14),
+          padding: EdgeInsets.only(bottom: spacing),
           child: LayoutBuilder(
             builder: (context, constraints) => CustomPaint(
               painter: expanded
                   ? ChannelGuideOutline(
                       column: expandedIndex % columns,
                       columns: columns,
+                      cardHeight: cardHeight,
+                      spacing: spacing,
+                      guideGap: guideGap,
                     )
                   : null,
               foregroundPainter: expanded
@@ -56,6 +67,9 @@ class InlineExpandedChannelGrid extends StatelessWidget {
                       column: expandedIndex % columns,
                       columns: columns,
                       foreground: true,
+                      cardHeight: cardHeight,
+                      spacing: spacing,
+                      guideGap: guideGap,
                     )
                   : null,
               child: Column(
@@ -65,10 +79,10 @@ class InlineExpandedChannelGrid extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       for (var column = 0; column < columns; column++) ...[
-                        if (column > 0) const SizedBox(width: 14),
+                        if (column > 0) SizedBox(width: spacing),
                         Expanded(
                           child: SizedBox(
-                            height: 172,
+                            height: cardHeight,
                             child: first + column < channelIds.length
                                 ? KeyedSubtree(
                                     key: ValueKey(
@@ -88,7 +102,7 @@ class InlineExpandedChannelGrid extends StatelessWidget {
                     alignment: Alignment.topCenter,
                     child: expanded
                         ? Padding(
-                            padding: const EdgeInsets.only(top: 12),
+                            padding: EdgeInsets.only(top: guideGap),
                             child: expandedContent!,
                           )
                         : const SizedBox.shrink(),
@@ -110,31 +124,39 @@ class ChannelGuideOutline extends CustomPainter {
     required this.column,
     required this.columns,
     this.foreground = false,
+    this.cardHeight = 172,
+    this.spacing = 14,
+    this.guideGap = 12,
   });
   final int column;
   final int columns;
   final bool foreground;
+  final double cardHeight;
+  final double spacing;
+  final double guideGap;
 
   Path outline(Size size) {
     if (size.isEmpty) return Path();
-    final width = (size.width - (columns - 1) * 14) / columns;
+    final width = (size.width - (columns - 1) * spacing) / columns;
     final card = Path()
       ..addRRect(
         RRect.fromRectAndRadius(
           Rect.fromLTRB(
-            column * (width + 14) + 1,
+            column * (width + spacing) + 1,
             1,
-            column * (width + 14) + width - 1,
-            size.height < 203 ? size.height - 1 : 202,
+            column * (width + spacing) + width - 1,
+            size.height < cardHeight + guideGap + 19
+                ? size.height - 1
+                : cardHeight + guideGap + 18,
           ),
           const Radius.circular(20),
         ),
       );
-    if (size.height <= 186) return card;
-    final left = column * (width + 14) + 1;
+    if (size.height <= cardHeight + guideGap + 2) return card;
+    final left = column * (width + spacing) + 1;
     final right = left + width - 2;
     final bottom = size.height - 1;
-    const guideTop = 184.0;
+    final guideTop = cardHeight + guideGap;
     final guideRadius = ((bottom - guideTop) / 2).clamp(0.0, 20.0);
     final cardRadius = ((right - left) / 2).clamp(0.0, 20.0);
     const shoulder = 12.0;
@@ -219,5 +241,8 @@ class ChannelGuideOutline extends CustomPainter {
   bool shouldRepaint(ChannelGuideOutline oldDelegate) =>
       column != oldDelegate.column ||
       columns != oldDelegate.columns ||
+      cardHeight != oldDelegate.cardHeight ||
+      spacing != oldDelegate.spacing ||
+      guideGap != oldDelegate.guideGap ||
       foreground != oldDelegate.foreground;
 }

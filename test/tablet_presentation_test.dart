@@ -35,6 +35,9 @@ void main() {
       const Size(1280, 800),
       const Size(1024, 768),
       const Size(960, 640),
+      const Size(800, 600),
+      const Size(640, 480),
+      const Size(800, 1280),
       const Size(1920, 1080),
     ]) {
       expect(
@@ -42,11 +45,7 @@ void main() {
         isTrue,
       );
     }
-    for (final size in [
-      const Size(800, 1280),
-      const Size(600, 960),
-      const Size(480, 800),
-    ]) {
+    for (final size in [const Size(600, 960), const Size(480, 800)]) {
       expect(
         TabletPresentation.splitLayout(width: size.width, height: size.height),
         isFalse,
@@ -135,6 +134,46 @@ void main() {
     expect(clicks, 0);
     expect(forced, 0);
   });
+  for (final width in [480.0, 640.0, 800.0, 1280.0]) {
+    testWidgets('compact toolbar actions align to the right at $width dp', (
+      tester,
+    ) async {
+      tester.view.physicalSize = Size(width, 900);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: Align(
+              alignment: Alignment.topLeft,
+              child: SizedBox(
+                width: width,
+                child: AdaptiveHomeToolbar(
+                  compact: true,
+                  brand: const SizedBox(width: 160, child: Text('BobTV')),
+                  actions: const [
+                    SizedBox(width: 100, height: 40),
+                    SizedBox(width: 100, height: 40),
+                    SizedBox(
+                      key: ValueKey('last-toolbar-action'),
+                      width: 48,
+                      height: 40,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      expect(tester.takeException(), isNull);
+      expect(
+        tester.getRect(find.byKey(const ValueKey('last-toolbar-action'))).right,
+        closeTo(width, .01),
+      );
+    });
+  }
   test('PE architecture selects native ARM64 or emulated x64 correctly', () {
     Uint8List header(int machine) {
       final bytes = Uint8List(256);

@@ -6,14 +6,23 @@ class AdaptiveHomeToolbar extends StatelessWidget {
     super.key,
     required this.brand,
     required this.actions,
+    this.compact = false,
   });
   final Widget brand;
   final List<Widget> actions;
+  final bool compact;
   @override
   Widget build(BuildContext context) => LayoutBuilder(
     builder: (context, size) {
-      if (size.maxWidth >= 780) {
-        return Row(children: [brand, const Spacer(), ...actions]);
+      if (size.maxWidth >= (compact ? 480 : 780)) {
+        return Row(
+          children: [
+            Expanded(
+              child: Align(alignment: Alignment.centerLeft, child: brand),
+            ),
+            ...actions,
+          ],
+        );
       }
       return Column(
         crossAxisAlignment: CrossAxisAlignment.start,

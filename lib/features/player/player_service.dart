@@ -3124,10 +3124,20 @@ class PlayerService {
     }
   }
 
-  Future<void> dispose() async {
+  Future<void>? _disposeFuture;
+
+  Future<void> dispose() => _disposeFuture ??= _dispose();
+
+  Future<void> _dispose() async {
     _disposed = true;
     ++_playGeneration;
     ++_channelSwitchGeneration;
+    _bufferManager.stop();
+    _qualityCheckTimer?.cancel();
+    _videoCheckTimer?.cancel();
+    _bufferTrackTimer?.cancel();
+    _failoverCheckTimer?.cancel();
+    _resetStaticFrameMonitor();
     await _retirementSubscription?.cancel();
     await _retirementCleanup;
     await discardPreparedChannel();

@@ -37,3 +37,15 @@ The optional `CertificateThumbprint`/`SignToolPath` build arguments use an alrea
 provisioned Windows Authenticode certificate. Without one, first-time browser
 downloads can still display SmartScreen reputation warnings. The pinned BobTV
 update signature does not replace a trusted Windows code-signing certificate.
+
+The manual SignPath Foundation candidate workflow is documented in
+`docs/windows-code-signing.md`. Approval is still required. It builds on a
+standard GitHub-hosted runner, signs the main application before Setup, and
+checks the resulting publisher, timestamp, versions and hashes. Current public
+release assets are never replaced by a candidate build.
+
+Setup displays `PrivacyNotice.txt` and offers a first-run private-favorite backup
+choice in its installation options. The `[BobTVPrivacy] FavoritesBackup` marker
+sets only the initial per-user preference. Once the user changes this in BobTV
+settings, later Setup upgrades do not override that preference. Disabling backup
+stops new private-favorite reads/uploads and keeps all local favorites.

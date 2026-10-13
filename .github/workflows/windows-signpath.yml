@@ -1,0 +1,187 @@
+name: BobTV Windows Manual Code Signing
+
+on:
+  workflow_dispatch:
+    inputs:
+      architecture:
+        description: Windows CPU candidates to build
+        type: choice
+        options: [x64, arm64, all]
+        default: x64
+      signing_mode:
+        description: Unsigned validation until SignPath approval and credentials exist
+        type: choice
+        options: [unsigned, test-signing, release-signing]
+        default: unsigned
+      retain_unsigned_candidate:
+        description: Explicitly retain an unsigned package after checking account artifact storage
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: bobtv-signpath-${{ github.ref }}-${{ inputs.architecture }}
+  cancel-in-progress: false
+
+jobs:
+  windows:
+    if: >-
+      github.repository == 'sunshaoxuan/clubTivi4bob' && github.ref == 'refs/heads/main' &&
+      contains(fromJSON('["x64","arm64","all"]'), inputs.architecture) &&
+      contains(fromJSON('["unsigned","test-signing","release-signing"]'), inputs.signing_mode)
+    runs-on: windows-2022
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: ${{ fromJSON(inputs.architecture == 'all' && '["x64","arm64"]' || format('["{0}"]', inputs.architecture)) }}
+    env:
+      SIGNPATH_EXPECTED_PUBLISHER: ${{ vars.SIGNPATH_EXPECTED_PUBLISHER }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - name: Validate signing configuration
+        if: inputs.signing_mode != 'unsigned' || inputs.retain_unsigned_candidate
+        shell: pwsh
+        env:
+          ORGANIZATION_ID: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+          API_TOKEN: ${{ secrets.SIGNPATH_API_TOKEN }}
+          STORAGE_CONFIRMED: ${{ vars.SIGNPATH_ARTIFACT_STORAGE_CONFIRMED_FREE }}
+        run: |
+          if ($env:STORAGE_CONFIRMED -ne 'true') { throw 'Confirm available, non-billable artifact storage before retaining signing artifacts.' }
+          if ('${{ inputs.signing_mode }}' -ne 'unsigned' -and (!$env:ORGANIZATION_ID -or !$env:API_TOKEN)) { throw 'SignPath approval and secret configuration are required. Use unsigned validation until approved.' }
+          if ('${{ inputs.signing_mode }}' -eq 'release-signing' -and !$env:SIGNPATH_EXPECTED_PUBLISHER) { throw 'Approved publisher identity is missing' }
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2
+        with:
+          flutter-version: '3.44.6'
+          channel: stable
+          cache: false
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
+        with:
+          go-version: '1.23'
+          cache: false
+      - name: Build current open-source AirPlay components
+        shell: pwsh
+        run: |
+          $source = Join-Path $env:RUNNER_TEMP 'fpsap-source'
+          git clone https://github.com/objevovat/fairplay-sap-core-airplay2-sender-authentication-handshake.git $source
+          if ($LASTEXITCODE) { throw 'FPSAP source clone failed' }
+          git -C $source checkout --detach 370f9db2e26b21b4a710bdba5d51012c1239e736
+          if ($LASTEXITCODE) { throw 'FPSAP source checkout failed' }
+          Push-Location $source
+          try { go mod download; if ($LASTEXITCODE) { throw 'Go dependency download failed' } } finally { Pop-Location }
+          & tools/airplay/build-fpsap.ps1 -SourceDirectory $source -OutputDirectory build/fpsap-dist
+          & tools/airplay/build.ps1
+      - name: Test privacy and private-favorite isolation
+        shell: pwsh
+        run: |
+          flutter pub get
+          flutter test test/device_favorites_privacy_test.dart test/device_favorites_sync_test.dart test/device_favorites_api_test.dart
+          if ($LASTEXITCODE) { throw 'Private favorite regression' }
+          & tools/windows/test_pe_architecture.ps1
+          & tools/windows/test_bundle_vc_runtime.ps1
+      - name: Prepare verified application bundle
+        shell: pwsh
+        run: |
+          & tools/windows/prepare_signpath_bundle.ps1 -Architecture '${{ matrix.arch }}' -FlutterDirectory $env:FLUTTER_ROOT -OutputDirectory (Join-Path $env:RUNNER_TEMP 'BobTVSignPath-${{ matrix.arch }}')
+      - name: Upload original application to the verifiable artifact store
+        if: inputs.signing_mode != 'unsigned'
+        id: app
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: original-app-${{ matrix.arch }}-${{ github.run_id }}
+          path: ${{ env.BOBTV_BUNDLE }}/BobTV.exe
+          if-no-files-found: error
+          retention-days: 7
+      - name: Request application signature with manual SignPath approval
+        if: inputs.signing_mode != 'unsigned'
+        uses: signpath/github-action-submit-signing-request@f6d04783b4569d051e0c80105fe66e82819d0092 # v3
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: bobtv
+          signing-policy-slug: ${{ inputs.signing_mode }}
+          artifact-configuration-slug: bobtv-app
+          github-artifact-id: ${{ steps.app.outputs.artifact-id }}
+          wait-for-completion: true
+          wait-for-completion-timeout-in-seconds: 1800
+          output-artifact-directory: ${{ runner.temp }}/signed-app-${{ matrix.arch }}
+          parameters: |
+            version: ${{ toJSON(env.BOBTV_VERSION) }}
+      - name: Verify and use the signed application
+        if: inputs.signing_mode != 'unsigned'
+        shell: pwsh
+        run: |
+          $exe = Join-Path $env:RUNNER_TEMP 'signed-app-${{ matrix.arch }}/BobTV.exe'
+          & tools/windows/verify_signpath_artifact.ps1 -Path $exe -Version $env:BOBTV_VERSION -Architecture '${{ matrix.arch }}' -TestCertificate:('${{ inputs.signing_mode }}' -eq 'test-signing')
+          Copy-Item -LiteralPath $exe -Destination (Join-Path $env:BOBTV_BUNDLE 'BobTV.exe') -Force
+      - name: Install pinned official Inno Setup compiler and build Setup
+        shell: pwsh
+        run: |
+          $download = Join-Path $env:RUNNER_TEMP 'innosetup-6.5.4.exe'
+          Invoke-WebRequest https://github.com/jrsoftware/issrc/releases/download/is-6_5_4/innosetup-6.5.4.exe -OutFile $download
+          if ((Get-FileHash $download).Hash.ToLower() -ne 'fa73bf47a4da250d185d07561c2bfda387e5e20db77e4570004cf6a133cc10b1') { throw 'Compiler hash mismatch' }
+          if ((Get-AuthenticodeSignature $download).Status -ne 'Valid') { throw 'Compiler Authenticode is invalid' }
+          $install = Start-Process $download -ArgumentList '/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART','/SP-' -Wait -PassThru
+          if ($install.ExitCode -ne 0) { throw 'Compiler install failed' }
+          $compiler = Join-Path ${env:ProgramFiles(x86)} 'Inno Setup 6/ISCC.exe'
+          $output = Join-Path $env:RUNNER_TEMP 'setup-${{ matrix.arch }}'
+          & tools/windows/build_installer.ps1 -BundleDirectory $env:BOBTV_BUNDLE -OutputDirectory $output -Version $env:BOBTV_VERSION -Architecture '${{ matrix.arch }}' -CompilerPath $compiler
+          $setup = Join-Path $output "BobTV-$env:BOBTV_VERSION-windows-${{ matrix.arch }}-Setup.exe"
+          "BOBTV_SETUP=$setup" | Out-File $env:GITHUB_ENV -Encoding utf8 -Append
+          if ('${{ matrix.arch }}' -eq 'x64') { & tools/windows/test_installer.ps1 -BundleDirectory $env:BOBTV_BUNDLE -CompilerPath $compiler }
+      - name: Upload Setup to the verifiable artifact store
+        if: inputs.signing_mode != 'unsigned'
+        id: setup
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: original-setup-${{ matrix.arch }}-${{ github.run_id }}
+          path: ${{ env.BOBTV_SETUP }}
+          if-no-files-found: error
+          retention-days: 7
+      - name: Request Setup signature with manual SignPath approval
+        if: inputs.signing_mode != 'unsigned'
+        uses: signpath/github-action-submit-signing-request@f6d04783b4569d051e0c80105fe66e82819d0092 # v3
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: bobtv
+          signing-policy-slug: ${{ inputs.signing_mode }}
+          artifact-configuration-slug: bobtv-setup
+          github-artifact-id: ${{ steps.setup.outputs.artifact-id }}
+          wait-for-completion: true
+          wait-for-completion-timeout-in-seconds: 1800
+          output-artifact-directory: ${{ runner.temp }}/signed-setup-${{ matrix.arch }}
+          parameters: |
+            version: ${{ toJSON(env.BOBTV_VERSION) }}
+      - name: Verify Setup signature
+        if: inputs.signing_mode != 'unsigned'
+        shell: pwsh
+        run: |
+          $setup = Join-Path $env:RUNNER_TEMP "signed-setup-${{ matrix.arch }}/BobTV-$env:BOBTV_VERSION-windows-${{ matrix.arch }}-Setup.exe"
+          & tools/windows/verify_signpath_artifact.ps1 -Path $setup -Version $env:BOBTV_VERSION -Architecture '${{ matrix.arch }}' -Installer -TestCertificate:('${{ inputs.signing_mode }}' -eq 'test-signing')
+          "BOBTV_SETUP=$setup" | Out-File $env:GITHUB_ENV -Encoding utf8 -Append
+      - name: Package candidate without changing a public release
+        shell: pwsh
+        run: |
+          $output = Join-Path $env:RUNNER_TEMP 'candidate-${{ matrix.arch }}'
+          python tools/package_signpath_candidate.py --bundle $env:BOBTV_BUNDLE --setup $env:BOBTV_SETUP --output $output --version $env:BOBTV_VERSION --arch '${{ matrix.arch }}' --mode '${{ inputs.signing_mode }}'
+          if ($LASTEXITCODE) { throw 'Candidate packaging failed' }
+          Copy-Item $env:BOBTV_PROVENANCE -Destination $output
+          "BOBTV_CANDIDATE=$output" | Out-File $env:GITHUB_ENV -Encoding utf8 -Append
+          "Candidate only. Signing mode: ${{ inputs.signing_mode }}. Public releases and update feeds are unchanged." | Out-File $env:GITHUB_STEP_SUMMARY -Encoding utf8 -Append
+      - name: Retain manual candidate for review
+        if: inputs.signing_mode != 'unsigned' || inputs.retain_unsigned_candidate
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: BobTV-windows-${{ matrix.arch }}-${{ inputs.signing_mode }}-${{ github.run_id }}
+          path: ${{ env.BOBTV_CANDIDATE }}
+          if-no-files-found: error
+          retention-days: 7

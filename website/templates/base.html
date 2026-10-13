@@ -26,7 +26,7 @@
     </form>
   </div></header>
   {% block content %}{% endblock %}
-  <footer><div class="container footer-inner"><span>{{ t.footer }}<span id="installed-devices">{% if installed_devices is not none %} ({{ installed_devices }}){% endif %}</span></span><span>{{ t.disclaimer }}</span></div></footer>
+  <footer><div class="container footer-inner"><span>{{ t.footer }}<span id="installed-devices">{% if installed_devices is not none %} ({{ installed_devices }}){% endif %}</span></span><span>{{ t.disclaimer }}<br><a href="/privacy">{{ t.policy_links.privacy }}</a> · <a href="/code-signing">{{ t.policy_links.signing }}</a></span></div></footer>
   <script id="site-messages" type="application/json">{{ t.messages | tojson }}</script>
   <script src="/assets/language.js?v=1" defer></script>
   <script src="/assets/device-count.js?v=1" defer></script>

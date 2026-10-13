@@ -4,7 +4,8 @@ param(
   [Parameter(Mandatory=$true)][string]$Arm64RuntimeDirectory,
   [Parameter(Mandatory=$true)][string]$SupportDirectory,
   [string]$InstallerCompiler,
-  [switch]$CrossCompile
+  [switch]$CrossCompile,
+  [switch]$BundleOnly
 )
 $ErrorActionPreference='Stop'
 Set-StrictMode -Version Latest
@@ -106,9 +107,11 @@ try {
   $template=Join-Path $source 'tools/windows/installer/BobTV.iss'
   $text=[IO.File]::ReadAllText($template,[Text.Encoding]::UTF8)
   [IO.File]::WriteAllText($template,$text,(New-Object Text.UTF8Encoding $true))
-  & (Join-Path $PSScriptRoot 'build_installer.ps1') -BundleDirectory $bundle -OutputDirectory $output -Architecture arm64 -Version $version -CompilerPath $InstallerCompiler
-  if($LASTEXITCODE -ne 0){throw 'ARM64 installer compilation failed'}
-  $archive=Join-Path $output "BobTV-$version-windows-arm64.zip"
-  Compress-Archive -LiteralPath $bundle -DestinationPath $archive -CompressionLevel Optimal
+  if(!$BundleOnly) {
+    & (Join-Path $PSScriptRoot 'build_installer.ps1') -BundleDirectory $bundle -OutputDirectory $output -Architecture arm64 -Version $version -CompilerPath $InstallerCompiler
+    if($LASTEXITCODE -ne 0){throw 'ARM64 installer compilation failed'}
+    $archive=Join-Path $output "BobTV-$version-windows-arm64.zip"
+    Compress-Archive -LiteralPath $bundle -DestinationPath $archive -CompressionLevel Optimal
+  }
   foreach($file in Get-ChildItem -LiteralPath $output -File){Get-FileHash -LiteralPath $file.FullName -Algorithm SHA256}
 } finally {Pop-Location}

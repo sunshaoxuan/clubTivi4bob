@@ -18,6 +18,7 @@
   },
   "footer": "BobTV · 開源桌面播放器",
   "disclaimer": "使用前請確認第三方節目來源的可用性及使用授權。",
+  "policy_links": {"privacy": "隱私政策", "signing": "程式碼簽署政策 / Code signing policy"},
   "download": "下載 BobTV",
   "features": "功能介紹",
   "home": {
@@ -253,6 +254,7 @@
     "closing_text": "Windows、macOS、Android 各自一欄，再依 CPU 選擇安裝包。提供 Windows ARM64 原生安裝包，Surface 實機仍待驗證。"
   },
   "downloads": {
+    "signing_notice": "正在準備 SignPath Foundation 免費程式碼簽章申請，尚未核准。目前安裝包不變；審核通過後，簽章將由 SignPath.io 提供，憑證由 SignPath Foundation 提供。",
     "intro": "Windows、macOS、Android 各自一欄，再依 CPU 選擇安裝包。提供 Windows ARM64 原生安裝包，Surface 實機仍待驗證。",
     "latest": "最新安裝程式",
     "local": "安裝程式由本站提供",

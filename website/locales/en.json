@@ -18,6 +18,7 @@
   },
   "footer": "BobTV · Open-source desktop player",
   "disclaimer": "Check the availability and permissions of third-party streams before use.",
+  "policy_links": {"privacy": "Privacy policy", "signing": "Code signing policy"},
   "download": "Download BobTV",
   "features": "Features",
   "home": {
@@ -253,6 +254,7 @@
     "closing_text": "One column each for Windows, macOS and Android, with CPU choices inside. Native Windows ARM64 packages are available; Surface hardware tests are pending."
   },
   "downloads": {
+    "signing_notice": "SignPath Foundation free code signing is being prepared and is not yet approved. Current packages are unchanged. After approval: free code signing provided by SignPath.io, certificate by SignPath Foundation.",
     "intro": "One column each for Windows, macOS and Android, with CPU choices inside. Native Windows ARM64 packages are available; Surface hardware tests are pending.",
     "latest": "Latest installers",
     "local": "Downloads hosted on this site",

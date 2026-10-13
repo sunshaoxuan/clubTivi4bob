@@ -4,6 +4,7 @@ import 'package:clubtivi/data/datasources/local/database.dart' as db;
 import 'package:clubtivi/data/models/device_favorites_snapshot.dart';
 import 'package:clubtivi/data/services/bobtv_api_client.dart';
 import 'package:clubtivi/data/services/device_favorites_identity.dart';
+import 'package:clubtivi/data/services/device_favorites_privacy.dart';
 import 'package:clubtivi/data/services/device_favorites_store.dart';
 import 'package:clubtivi/data/services/device_favorites_sync_service.dart';
 import 'package:drift/native.dart';
@@ -90,6 +91,61 @@ Future<void> seed(db.AppDatabase database, {String id = 'original'}) async {
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   setUp(() => SharedPreferences.setMockInitialValues({}));
+
+  test(
+    'disabled backup preserves local favorites and never loads credentials',
+    () async {
+      final database = db.AppDatabase.forTesting(NativeDatabase.memory());
+      final api = FavoriteApi();
+      var identities = 0;
+      final service = DeviceFavoritesSyncService(
+        database: database,
+        api: api,
+        credentialLoader: () async {
+          identities++;
+          return credentialA;
+        },
+      );
+      addTearDown(() async {
+        service.dispose();
+        await database.close();
+      });
+      await seed(database);
+      await database.addChannelToDefaultFavorites('original');
+      await DeviceFavoritesPrivacy.setEnabled(false);
+      await service.sync(force: true);
+      expect(identities, 0);
+      expect(api.uploads, isEmpty);
+      expect(await database.getAllFavoritedChannelIds(), contains('original'));
+      await DeviceFavoritesPrivacy.setEnabled(true);
+      await service.sync(force: true);
+      expect(identities, 1);
+      expect(api.uploads.length, 1);
+    },
+  );
+
+  test(
+    'disable during a read prevents restoring and uploading a response',
+    () async {
+      final database = db.AppDatabase.forTesting(NativeDatabase.memory());
+      final api = FavoriteApi();
+      api.beforeRead = () => DeviceFavoritesPrivacy.setEnabled(false);
+      final service = DeviceFavoritesSyncService(
+        database: database,
+        api: api,
+        credentialLoader: () async => credentialA,
+      );
+      addTearDown(() async {
+        service.dispose();
+        await database.close();
+      });
+      await seed(database);
+      await database.addChannelToDefaultFavorites('original');
+      await service.sync(force: true);
+      expect(api.uploads, isEmpty);
+      expect(await database.getAllFavoritedChannelIds(), contains('original'));
+    },
+  );
 
   test(
     'secret persists for the original fingerprint and differs on another device',

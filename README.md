@@ -17,6 +17,21 @@ The sync badge stays at the channel panel's right edge. Shared categories retain
 their complete hierarchy across clients. Video still connects directly to its
 source. See [release details](docs/releases/1.1.2.md).
 
+### Windows code signing preparation
+
+The free SignPath Foundation signing integration is prepared and pending
+application approval. Current release packages are unchanged and do not gain a
+trusted signature by this source change. See the [public signing policy](docs/code-signing-policy.md),
+[configuration and manual build instructions](docs/windows-code-signing.md), and
+[privacy notice](https://bobtv.briconbric.com/privacy).
+
+The signing workflow is manual only, uses standard GitHub-hosted Windows
+runners, and verifies BobTV's application before packaging and signing Setup.
+Other upstream DLLs and helpers are not re-signed. Signing candidates omit the
+optional proprietary ProcDump tool and retain BobTV's own native crash dumps.
+An unsigned validation run does not upload binary artifacts by default.
+Previously disabled automated workflows remain disabled.
+
 ### Android tablets and Windows ARM64
 
 `1.1.0+93` adds signed Android 7+ tablet APKs with the shared simple UI,

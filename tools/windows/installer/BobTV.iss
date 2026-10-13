@@ -32,6 +32,9 @@ AppId={{#InstallerAppId}
 AppName=BobTV
 AppVersion={#AppVersion}
 VersionInfoVersion={#StringChange(AppVersion, "+", ".")}
+VersionInfoTextVersion={#AppVersion}
+VersionInfoProductVersion={#AppVersion}
+VersionInfoProductName=BobTV
 AppPublisher=BoB
 AppPublisherURL=https://bobtv.briconbric.com
 AppSupportURL=https://bobtv.briconbric.com
@@ -57,6 +60,7 @@ UninstallDisplayName=BobTV
 Compression=lzma2/fast
 SolidCompression=yes
 WizardStyle=modern
+InfoBeforeFile=PrivacyNotice.txt
 SetupLogging=yes
 CloseApplications=yes
 RestartApplications=no
@@ -70,6 +74,7 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 [CustomMessages]
 english.DesktopIcon=创建桌面快捷方式
 english.LaunchBobTV=启动 BobTV
+english.FavoritesBackup=首次启动时启用本机收藏在线备份（仅原设备可恢复）
 
 [Messages]
 SetupAppTitle=安装
@@ -93,9 +98,9 @@ WizardSelectDir=选择安装位置
 SelectDirDesc=将 [name] 安装到哪里？
 SelectDirLabel3=程序将安装到以下文件夹。
 SelectDirBrowseLabel=点击“下一步”继续，或点击“浏览”选择其他位置。
-WizardSelectTasks=快捷方式
-SelectTasksDesc=选择需要创建的快捷方式。
-SelectTasksLabel2=开始菜单入口将自动创建。你可以选择是否另外创建桌面图标。
+WizardSelectTasks=安装选项
+SelectTasksDesc=选择快捷方式与本机收藏备份选项。
+SelectTasksLabel2=开始菜单入口将自动创建。收藏备份仅原设备可恢复，也可在 BobTV 设置中关闭。
 WizardReady=准备安装
 ReadyLabel1=已准备好在电脑上安装 [name]。
 ReadyLabel2a=点击“安装”开始，或点击“上一步”调整设置。
@@ -126,6 +131,7 @@ Source: "{#BundleDirectory}\*"; DestDir: "{app}"; Flags: ignoreversion recursesu
 
 [Tasks]
 Name: "desktopicon"; Description: "{cm:DesktopIcon}"; GroupDescription: "快捷方式："
+Name: "privatefavoritesbackup"; Description: "{cm:FavoritesBackup}"; GroupDescription: "隐私选项："
 
 [Icons]
 Name: "{#ProgramsRoot}\BoB\BobTV\BobTV"; Filename: "{app}\BobTV.exe"; WorkingDir: "{app}"; AppUserModelID: "BoB.BobTV"
@@ -134,6 +140,7 @@ Name: "{#DesktopRoot}\BobTV"; Filename: "{app}\BobTV.exe"; WorkingDir: "{app}"; 
 [INI]
 Filename: "{app}\installation.ini"; Section: "BobTVInstallation"; Key: "Managed"; String: "1"; Flags: uninsdeleteentry
 Filename: "{app}\installation.ini"; Section: "BobTVInstallation"; Key: "DesktopShortcut"; String: "{code:DesktopShortcutChoice}"; Flags: uninsdeleteentry
+Filename: "{app}\installation.ini"; Section: "BobTVPrivacy"; Key: "FavoritesBackup"; String: "{code:FavoritesBackupChoice}"; Flags: uninsdeleteentry
 
 [UninstallDelete]
 Type: files; Name: "{app}\installation.ini"
@@ -172,5 +179,11 @@ end;
 function DesktopShortcutChoice(Param: String): String;
 begin
   if WizardIsTaskSelected('desktopicon') then Result := '1'
+  else Result := '0';
+end;
+
+function FavoritesBackupChoice(Param: String): String;
+begin
+  if WizardIsTaskSelected('privatefavoritesbackup') then Result := '1'
   else Result := '0';
 end;

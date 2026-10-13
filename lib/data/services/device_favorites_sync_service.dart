@@ -6,6 +6,7 @@ import '../../core/app_diagnostics.dart';
 import '../datasources/local/database.dart' as db;
 import 'bobtv_api_client.dart';
 import 'device_favorites_identity.dart';
+import 'device_favorites_privacy.dart';
 import 'device_favorites_store.dart';
 import 'website_channel_catalog_service.dart';
 
@@ -16,14 +17,17 @@ class DeviceFavoritesSyncService {
     required db.AppDatabase database,
     BobTvApiClient? api,
     Future<DeviceFavoritesCredential?> Function()? credentialLoader,
+    Future<bool> Function()? backupEnabled,
     DateTime Function()? now,
   }) : store = DeviceFavoritesStore(database),
        api = api ?? BobTvApiClient(),
        credentialLoader = credentialLoader ?? DeviceFavoritesIdentity().load,
+       backupEnabled = backupEnabled ?? DeviceFavoritesPrivacy.enabled,
        now = now ?? DateTime.now;
   final DeviceFavoritesStore store;
   final BobTvApiClient api;
   final Future<DeviceFavoritesCredential?> Function() credentialLoader;
+  final Future<bool> Function() backupEnabled;
   final DateTime Function() now;
   final state = ValueNotifier(const WebsiteCatalogProgress());
   Future<void>? _running;
@@ -41,10 +45,19 @@ class DeviceFavoritesSyncService {
 
   Future<void> _sync() async {
     try {
+      if (!await backupEnabled()) {
+        if (!_disposed) {
+          state.value = const WebsiteCatalogProgress(
+            phase: '收藏仅保存在本机，在线备份已关闭',
+            complete: true,
+          );
+        }
+        return;
+      }
       await store.initialize();
       if (_disposed) return;
       final credential = await credentialLoader();
-      if (_disposed) return;
+      if (_disposed || !await backupEnabled()) return;
       if (credential == null) {
         throw StateError('Private favorite device identity unavailable');
       }
@@ -75,11 +88,12 @@ class DeviceFavoritesSyncService {
       var revision = captured.remoteRevision;
       var missing = false;
       if (pull) {
+        if (!await backupEnabled() || _disposed) return;
         final remote = await api.fetchDeviceFavorites(
           credential: credential,
           ifRevision: captured.initialized && !_needFreshRead ? revision : null,
         );
-        if (_disposed) return;
+        if (_disposed || !await backupEnabled()) return;
         _lastPull = now();
         _needFreshRead = false;
         revision = remote?.revision ?? 0;
@@ -119,6 +133,7 @@ class DeviceFavoritesSyncService {
       } else if (missing ||
           !captured.initialized ||
           favoriteSnapshotDigest(captured.snapshot) != captured.digest) {
+        if (!await backupEnabled() || _disposed) return;
         revision = await api.saveDeviceFavorites(
           credential: credential,
           snapshot: captured.snapshot,

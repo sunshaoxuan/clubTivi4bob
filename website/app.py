@@ -86,6 +86,16 @@ def diagnostics_page():
     return FileResponse(BASE / "diagnostics.html")
 
 
+@app.api_route("/privacy", methods=["GET", "HEAD"])
+def privacy_page():
+    return FileResponse(BASE / "privacy.html")
+
+
+@app.api_route("/code-signing", methods=["GET", "HEAD"])
+def code_signing_page():
+    return FileResponse(BASE / "code-signing.html")
+
+
 @app.api_route("/releases.json", methods=["GET", "HEAD"])
 def releases():
     path = DATA / "releases.json"

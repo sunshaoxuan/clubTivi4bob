@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../data/services/bobtv_api_client.dart';
 import '../../data/services/bobtv_community_service.dart';
+import '../../data/services/device_favorites_privacy.dart';
 import 'settings_design.dart';
 
 class BobTvServiceSettings extends ConsumerStatefulWidget {
@@ -17,13 +18,20 @@ class BobTvServiceSettings extends ConsumerStatefulWidget {
 
 class _BobTvServiceSettingsState extends ConsumerState<BobTvServiceSettings> {
   bool _busy = false;
+  bool? _favoritesBackupEnabled;
 
   @override
   void initState() {
     super.initState();
+    unawaited(_loadFavoritePrivacy());
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) unawaited(ref.read(bobTvCommunityProvider).start());
     });
+  }
+
+  Future<void> _loadFavoritePrivacy() async {
+    final value = await DeviceFavoritesPrivacy.enabled();
+    if (mounted) setState(() => _favoritesBackupEnabled = value);
   }
 
   void _notice(String message) {
@@ -230,6 +238,23 @@ class _BobTvServiceSettingsState extends ConsumerState<BobTvServiceSettings> {
             ),
           ),
           SwitchListTile(
+            secondary: const Icon(Icons.bookmark_added_outlined),
+            title: const Text('本机收藏在线备份'),
+            subtitle: const Text('仅原设备可恢复。关闭后收藏仍保存在本机，不再上传或读取备份'),
+            value: _favoritesBackupEnabled ?? true,
+            onChanged: _busy || _favoritesBackupEnabled == null
+                ? null
+                : (enabled) => unawaited(
+                    _run(() async {
+                      await DeviceFavoritesPrivacy.setEnabled(enabled);
+                      if (mounted) {
+                        setState(() => _favoritesBackupEnabled = enabled);
+                      }
+                      _notice(enabled ? '收藏将在后台恢复私有备份' : '在线备份已关闭，本机收藏已保留');
+                    }),
+                  ),
+          ),
+          SwitchListTile(
             secondary: const Icon(Icons.monitor_heart_rounded),
             title: const Text('分享播放状态'),
             subtitle: const Text('仅上报已审核源的可播结果，默认关闭'),
@@ -242,8 +267,9 @@ class _BobTvServiceSettingsState extends ConsumerState<BobTvServiceSettings> {
                           !await _confirm(
                             '分享播放状态',
                             '每个已审核源最多五分钟上报一次。会发送源编号、可播结果及客户端指纹哈希，不发送播放地址。',
-                          ))
+                          )) {
                         return;
+                      }
                       await service.setHealthFeedbackEnabled(enabled);
                       if (mounted) setState(() {});
                     }),
@@ -262,8 +288,9 @@ class _BobTvServiceSettingsState extends ConsumerState<BobTvServiceSettings> {
                           !await _confirm(
                             '自动上传诊断摘要',
                             '每六小时上传一次筛选后的时间、事件、来源标识、故障标记、运行时间、内存和平台字段。原始日志、地址和异常堆栈不会上传。',
-                          ))
+                          )) {
                         return;
+                      }
                       await service.setAutomaticLogsEnabled(enabled);
                       if (mounted) setState(() {});
                     }),

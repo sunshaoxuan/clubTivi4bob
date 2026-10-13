@@ -254,7 +254,7 @@
     "closing_text": "Windows、macOS、Android 各自一栏，再按 CPU 选择安装包。提供 Windows ARM64 原生安装包，Surface 实机仍待验证。"
   },
   "downloads": {
-    "signing_notice": "正在准备 SignPath Foundation 免费代码签名申请，尚未获批。当前安装包不变；审核通过后，签名将由 SignPath.io 提供，证书由 SignPath Foundation 提供。",
+    "signing_notice": "SignPath Foundation 免费代码签名申请已于 2026-10-13 提交，等待审核。当前安装包不变；审核通过后，签名将由 SignPath.io 提供，证书由 SignPath Foundation 提供。",
     "intro": "Windows、macOS、Android 各自一栏，再按 CPU 选择安装包。提供 Windows ARM64 原生安装包，Surface 实机仍待验证。",
     "latest": "最新安装包",
     "local": "安装包由本站提供",

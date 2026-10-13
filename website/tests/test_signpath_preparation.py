@@ -117,6 +117,7 @@ def test_policy_routes_and_current_release_boundary():
         assert client.head(path).status_code == 200
     policy = client.get('/code-signing').text
     assert '尚未批准' in policy and 'Code signing policy' in policy
+    assert '已提交' in policy and '2026-10-13' in policy
     assert 'SignPath Foundation' in policy and 'sunshaoxuan' in policy
     privacy = client.get('/privacy').text
     assert '现有正式版 1.1.2' in privacy and '默认关闭' in privacy

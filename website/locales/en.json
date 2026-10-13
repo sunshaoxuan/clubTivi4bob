@@ -254,7 +254,7 @@
     "closing_text": "One column each for Windows, macOS and Android, with CPU choices inside. Native Windows ARM64 packages are available; Surface hardware tests are pending."
   },
   "downloads": {
-    "signing_notice": "SignPath Foundation free code signing is being prepared and is not yet approved. Current packages are unchanged. After approval: free code signing provided by SignPath.io, certificate by SignPath Foundation.",
+    "signing_notice": "The free SignPath Foundation application was submitted on 2026-10-13 and is awaiting review. Current packages are unchanged. After approval: free code signing provided by SignPath.io, certificate by SignPath Foundation.",
     "intro": "One column each for Windows, macOS and Android, with CPU choices inside. Native Windows ARM64 packages are available; Surface hardware tests are pending.",
     "latest": "Latest installers",
     "local": "Downloads hosted on this site",

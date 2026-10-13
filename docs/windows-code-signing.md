@@ -1,6 +1,11 @@
 # Windows SignPath integration
 
 This integrates the free Foundation programme; approval is external and pending.
+The application was submitted on 2026-10-13 and the site confirmed receipt.
+Both Windows CPU candidate jobs passed in
+[manual validation run 38345860975](https://github.com/sunshaoxuan/clubTivi4bob/actions/runs/38345860975)
+without retaining binary artifacts. Production signing remains disabled until
+the Foundation approves the project and the configuration below is supplied.
 Official references: [eligibility](https://signpath.org/terms.html),
 [GitHub connector](https://docs.signpath.io/trusted-build-systems/github),
 [artifact restrictions](https://docs.signpath.io/artifact-configuration/reference).

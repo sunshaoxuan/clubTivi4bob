@@ -1,8 +1,15 @@
 # Code signing policy
 
-Status: SignPath integration prepared; Foundation approval and production
+Status: The free SignPath Foundation application was submitted on 2026-10-13.
+The application page confirmed receipt. Review, approval and production
 credentials are pending. Existing published installers are unchanged and do not
 gain Windows trust from this document. Candidate builds are labeled separately.
+
+Unsigned Windows x64 and ARM64 source builds and candidate packaging passed in
+[manual validation run 38345860975](https://github.com/sunshaoxuan/clubTivi4bob/actions/runs/38345860975)
+at source commit `7e89f136aeb71f122cfb4c8f768710de1c967270`.
+No binary artifacts were uploaded by this validation run. This result does not
+validate a production certificate or replace Surface hardware testing.
 
 ## Maintainers and signing approval
 

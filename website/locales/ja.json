@@ -254,7 +254,7 @@
     "closing_text": "Windows、macOS、Androidを各1欄にまとめ、CPU別に選択できます。Windows ARM64ネイティブ版を提供。Surface実機試験は未実施です。"
   },
   "downloads": {
-    "signing_notice": "SignPath Foundationの無料コード署名を準備中で、承認は未取得です。公開済みパッケージは変更しません。承認後はSignPath.ioが署名を、SignPath Foundationが証明書を提供します。",
+    "signing_notice": "SignPath Foundationの無料コード署名申請は2026-10-13に送信済みで、審査待ちです。公開済みパッケージは変更しません。承認後はSignPath.ioが署名を、SignPath Foundationが証明書を提供します。",
     "intro": "Windows、macOS、Androidを各1欄にまとめ、CPU別に選択できます。Windows ARM64ネイティブ版を提供。Surface実機試験は未実施です。",
     "latest": "最新インストーラー",
     "local": "当サイトから直接配布",

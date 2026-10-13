@@ -19,8 +19,9 @@ source. See [release details](docs/releases/1.1.2.md).
 
 ### Windows code signing preparation
 
-The free SignPath Foundation signing integration is prepared and pending
-application approval. Current release packages are unchanged and do not gain a
+The free SignPath Foundation application was submitted on 2026-10-13 and is
+awaiting review. The [manual Windows x64 and ARM64 build validation](https://github.com/sunshaoxuan/clubTivi4bob/actions/runs/38345860975)
+passed. Current release packages are unchanged and do not gain a
 trusted signature by this source change. See the [public signing policy](docs/code-signing-policy.md),
 [configuration and manual build instructions](docs/windows-code-signing.md), and
 [privacy notice](https://bobtv.briconbric.com/privacy).

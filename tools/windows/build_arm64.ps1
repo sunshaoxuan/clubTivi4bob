@@ -54,9 +54,10 @@ New-Item -ItemType Directory -Path $OutputDirectory|Out-Null
 $output=(Get-Item -LiteralPath $OutputDirectory).FullName
 Push-Location $source
 try {
-  & $flutter pub get --offline
+  # Use cmd explicitly for stable .bat startup in non-interactive PowerShell.
+  & $env:ComSpec /d /c ('"'+$flutter+'" pub get --offline')
   if($LASTEXITCODE -ne 0){throw 'Flutter dependency resolution failed'}
-  & $flutter build windows --release --no-pub
+  & $env:ComSpec /d /c ('"'+$flutter+'" build windows --release --no-pub')
   if($LASTEXITCODE -ne 0){throw 'Native ARM64 Flutter build failed'}
   $release=Join-Path $source 'build/windows/arm64/runner/Release'
   $built=Join-Path $release 'clubtivi.exe'

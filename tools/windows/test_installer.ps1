@@ -12,6 +12,8 @@ $version=(Get-Item -LiteralPath "$bundle\BobTV.exe").VersionInfo.FileVersion
 & $CompilerPath "/DBundleDirectory=$bundle" "/DOutputDirectory=$fixture" "/DAppVersion=$version" "/DInstallerAppId=$id" "/DDesktopRoot=$desktop" "/DProgramsRoot=$programs" '/DOutputName=BobTV-Setup-fixture' (Join-Path $PSScriptRoot 'installer\BobTV.iss')
 if($LASTEXITCODE -ne 0){throw 'Fixture compilation failed'}
 $setup=Join-Path $fixture 'BobTV-Setup-fixture.exe'
+$setupVersion=(Get-Item -LiteralPath $setup).VersionInfo.FileVersion.Trim([char[]]@([char]0,[char]32))
+if($setupVersion -ne $version.Replace('+','.')){throw 'Installer version resource is incompatible with existing automatic updaters'}
 foreach($selected in @($false,$true)) {
  $tasks=if($selected){'desktopicon'}else{''}
  # A dedicated sleeping fixture represents BobTV closing after authorization.

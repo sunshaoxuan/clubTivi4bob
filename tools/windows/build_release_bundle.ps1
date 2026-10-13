@@ -23,9 +23,11 @@ if($LASTEXITCODE -ne 0){throw 'Extraction failed'}
 } elseif(!(Test-Path -LiteralPath (Join-Path $StagingDirectory 'pubspec.yaml'))){throw 'Reusable source missing'}
 Push-Location $StagingDirectory
 try {
- & $FlutterPath pub get --offline
+ # Explicit cmd avoids PowerShell 5.1's native .bat invocation failure under
+ # non-interactive CIM/WinRM launches (IndexOutOfRangeException).
+ & $env:ComSpec /d /c ('"'+$FlutterPath+'" pub get --offline')
  if($LASTEXITCODE -ne 0){throw 'Dependency resolution failed'}
- & $FlutterPath build windows --release --no-pub
+ & $env:ComSpec /d /c ('"'+$FlutterPath+'" build windows --release --no-pub')
  if($LASTEXITCODE -ne 0){throw 'Build failed'}
  $release=Join-Path $StagingDirectory 'build/windows/x64/runner/Release'
  $bundle=Join-Path $OutputDirectory 'BobTV'

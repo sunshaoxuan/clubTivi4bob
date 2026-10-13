@@ -200,7 +200,7 @@
       [
         "2026-10-13",
         "v1.1.3 · Compact layouts and Android exit",
-        "Android and macOS ship first; Windows stays on 1.1.2 until new builds are ready. Compact views use equal panes, at most three category rows and attached overflow menus, preserving a complete preview and programme timeline. Android adds an explicit exit control."
+        "Windows x64 and ARM64 installers and portable packages are now available, joining macOS and Android on 1.1.3. Compact views use equal panes, at most three category rows and attached overflow menus, preserving a complete preview and programme timeline. Android adds an explicit exit control."
       ],
       [
         "2026-10-12",
@@ -263,7 +263,7 @@
   },
   "downloads": {
     "signing_notice": "The free SignPath Foundation application was not approved. No trusted Windows certificate was issued and SignPath.io production signing is not in use. Edge may still require a security confirmation on the first browser download.",
-    "intro": "Version 1.1.3 is available first for Android and macOS. Windows remains on 1.1.2 until new packages are added. Each operating system has one column with CPU choices inside.",
+    "intro": "Version 1.1.3 is available for Windows, macOS (Intel / Apple Silicon) and Android. Windows offers x64 and ARM64 installers and portable packages. Each operating system has one column with CPU choices inside.",
     "latest": "Latest installers",
     "local": "Downloads hosted on this site",
     "sections": [

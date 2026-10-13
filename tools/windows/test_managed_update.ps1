@@ -32,6 +32,9 @@ function Arguments($scenario,[string]$run){
 $verify=New-Scenario 'verify'
 $parameters=Arguments $verify 'verify';$parameters.VerifyOnly=$true
 & (Join-Path $source 'installer_worker.ps1') @parameters
+$verifyStatus=[IO.File]::ReadAllText((Join-Path $verify.root 'status.json'))|ConvertFrom-Json
+if($verifyStatus.phase -eq 'failed'){throw $verifyStatus.message}
+if($verifyStatus.phase -ne 'verifying'){throw 'Verification-only worker did not verify the package'}
 if(Test-Path -LiteralPath (Join-Path $verify.root 'candidate.ini')){throw 'Verification mode installed a candidate'}
 Write-Output 'PASS: cached official Setup hash, size, CNG signature and version verified inside isolated Unicode path.'
 

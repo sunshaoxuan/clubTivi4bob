@@ -1,8 +1,7 @@
 # Android tablets and Windows ARM64
 
-Release version: `1.1.3+96`. Android APKs and both Mac CPU variants are published
-first. Windows retains `1.1.2+95` until the powered-off build host is available;
-the new Windows packages will be appended to the same release after validation.
+Release version: `1.1.3+96`. Android APKs, both Mac CPU variants and Windows
+x64/ARM64 Setup and portable ZIP packages are available in the same release.
 Windows ARM64 uses a validated x64 cross-build; Surface hardware validation
 remains pending.
 

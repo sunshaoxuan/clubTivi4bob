@@ -14,10 +14,15 @@ The application is built with Flutter and uses `media_kit`, libmpv, FFmpeg, Rive
 Small split views use equal-width player/browser panes, at most three category
 rows and attached overflow menus. Preview cards and their connected programme
 timelines adapt to the available space without stretching video.
-Android ARM32/ARM64/x64 and macOS Intel/Apple Silicon packages are published
-first. Windows keeps the available `1.1.2+95` installers until its build host is
-online; new Windows packages will be added to this release after validation.
+Android ARM32/ARM64/x64, macOS Intel/Apple Silicon and Windows x64/ARM64
+packages are available. Windows offers Setup installers and portable ZIPs;
+all seven platform update channels now use `1.1.3+96`.
 See [release details](docs/releases/1.1.3.md).
+
+The main branch also contains [unreleased route-state and favorite fixes](docs/unreleased-route-sync-favorites.md).
+They are not part of the already distributed `1.1.3+96` application packages.
+The additive live retirement API is deployed, while the matching client update
+is intentionally deferred at the maintainer's request.
 
 ### Windows code signing preparation
 

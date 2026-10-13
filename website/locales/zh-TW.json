@@ -200,7 +200,7 @@
       [
         "2026-10-13",
         "v1.1.3 · 小螢幕排版與 Android 結束",
-        "Android 與 macOS 先行發布；Windows 暫保留 1.1.2。小螢幕左右等寬、分類最多三行，更多選項與按鈕相連，保留完整預覽卡片與節目時間軸；Android 增加明確結束入口。"
+        "Windows x64 與 ARM64 安裝版和可攜版已補齊，macOS 與 Android 同為 1.1.3。小螢幕左右等寬、分類最多三行，更多選項與按鈕相連，保留完整預覽卡片與節目時間軸；Android 增加明確結束入口。"
       ],
       [
         "2026-10-12",
@@ -263,7 +263,7 @@
   },
   "downloads": {
     "signing_notice": "SignPath Foundation 免費簽章申請未獲批准，目前沒有受信任 Windows 憑證，也未使用 SignPath.io 正式簽章。Edge 首次下載仍可能需要安全確認。",
-    "intro": "1.1.3 先提供 Android 與 macOS 安裝包，Windows 暫保留 1.1.2，稍後補齊新包。每個系統一欄，再依 CPU 選擇。",
+    "intro": "1.1.3 已提供 Windows、macOS（Intel / Apple Silicon）與 Android 安裝包。Windows 支援 x64 與 ARM64，提供安裝版和可攜版。每個系統一欄，再依 CPU 選擇。",
     "latest": "最新安裝程式",
     "local": "安裝程式由本站提供",
     "sections": [

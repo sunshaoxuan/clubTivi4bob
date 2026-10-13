@@ -85,7 +85,8 @@ def test_privacy_notice_and_default_choice_are_in_installer():
     setup = (ROOT / 'tools/windows/installer/BobTV.iss').read_text()
     assert 'InfoBeforeFile=PrivacyNotice.txt' in setup
     assert 'VersionInfoProductVersion={#StringChange(AppVersion, "+", ".")}' in setup
-    assert 'VersionInfoProductTextVersion={#AppVersion}' in setup
+    assert 'VersionInfoProductTextVersion={#StringChange(AppVersion, "+", ".")}' in setup
+    assert 'VersionInfoTextVersion={#StringChange(AppVersion, "+", ".")}' in setup
     assert 'privatefavoritesbackup' in setup and '[BobTVPrivacy]' not in setup
     assert 'Section: "BobTVPrivacy"' in setup
     notice = (ROOT / 'tools/windows/installer/PrivacyNotice.txt').read_text(encoding='utf-8-sig')

@@ -10,7 +10,10 @@ Set-StrictMode -Version Latest
 $file=Get-Item -LiteralPath $Path
 if($file.Attributes -band [IO.FileAttributes]::ReparsePoint){throw 'Signed file cannot be a reparse point'}
 $info=$file.VersionInfo
-if($info.ProductName -ne 'BobTV' -or $info.ProductVersion -ne $Version -or $info.FileVersion -ne $Version){
+$expectedVersion=$Version.Replace('+','.')
+$productVersion=$info.ProductVersion.Trim([char[]]@([char]0,[char]32)).Replace('+','.')
+$fileVersion=$info.FileVersion.Trim([char[]]@([char]0,[char]32)).Replace('+','.')
+if($info.ProductName -ne 'BobTV' -or $productVersion -ne $expectedVersion -or $fileVersion -ne $expectedVersion){
   throw 'Signed artifact metadata does not match this BobTV build'
 }
 if(!$Installer){

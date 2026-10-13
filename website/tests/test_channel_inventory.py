@@ -93,3 +93,21 @@ def test_inventory_api_and_global_tombstones(tmp_path, monkeypatch):
     assert client.post("/api/v1/channel-catalog/inventory", json=body).status_code == 422
     assert client.post("/api/v1/channel-catalog/inventory", content=b"x" * (512 * 1024 + 1),
         headers={"content-type": "application/json"}).status_code == 413
+
+
+def test_live_route_state_reads_retirement_before_snapshot_and_never_caches(tmp_path, monkeypatch):
+    monkeypatch.setattr(catalog_inventory, 'DATA', tmp_path)
+    ingest([route(blocked=True), route('CCTV-1', 'https://media.example.org/one.m3u8')], 'a'*64, tmp_path)
+    app = FastAPI(); app.include_router(catalog_inventory.router)
+    client = TestClient(app)
+    response = client.post('/api/v1/channel-catalog/route-state', json={
+        'schemaVersion': 1, 'urls': ['https://MEDIA.EXAMPLE.ORG:443/live.m3u8']})
+    assert response.status_code == 200 and response.headers['cache-control'] == 'no-store'
+    assert response.json()['urls'] == [route()['url']]
+    assert response.json()['catalogVersion'] is None
+    assert client.get('/api/v1/channel-catalog/blocked').headers['cache-control'] == 'no-store'
+    assert client.post('/api/v1/channel-catalog/route-state', json={
+        'schemaVersion': 1, 'urls': ['https://media.example.org/one.m3u8']}).json()['urls'] == []
+    for urls in ([], [route()['url']]*201, ['http://127.0.0.1/private'], ['https://media.example.org/?token=secret']):
+        assert client.post('/api/v1/channel-catalog/route-state', json={
+            'schemaVersion': 1, 'urls': urls}).status_code == 422

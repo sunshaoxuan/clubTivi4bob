@@ -182,7 +182,34 @@ async def inventory(request: Request):
 def blocked_routes():
     with database() as conn:
         urls = [row[0] for row in conn.execute("SELECT url FROM routes WHERE blocked=1 OR deleted=1 ORDER BY digest")]
-    return {"schemaVersion": 1, "urls": urls}
+    return JSONResponse({"schemaVersion": 1, "urls": urls}, headers={"Cache-Control": "no-store"})
+
+
+@router.post("/route-state")
+async def route_state(request: Request):
+    """Read durable retirements directly, without waiting for snapshot rebuilds."""
+    if request.headers.get("content-type", "").split(";", 1)[0] != "application/json":
+        raise HTTPException(415)
+    body = bytearray()
+    async for chunk in request.stream():
+        body.extend(chunk)
+        if len(body) > MAX_BODY: raise HTTPException(413)
+    try:
+        payload = json.loads(body)
+        urls = payload.get('urls') if isinstance(payload, dict) else None
+        if payload.get('schemaVersion') != 1 or not isinstance(urls, list) or not 1 <= len(urls) <= 200:
+            raise ValueError()
+        urls = list(dict.fromkeys(validate_media_url(url) for url in urls))
+    except (ValueError, TypeError, AttributeError):
+        raise HTTPException(422, 'Invalid route-state request') from None
+    with database() as conn:
+        rows = conn.execute('SELECT url,blocked,deleted,revision FROM routes WHERE url IN (' +
+                            ','.join('?' for _ in urls) + ')', urls).fetchall()
+    retired = [row['url'] for row in rows if row['blocked'] or row['deleted']]
+    path = DATA / 'channel-catalog/manifest.json'
+    version = json.loads(path.read_text()).get('version') if path.is_file() else None
+    return JSONResponse({'schemaVersion': 1, 'urls': retired, 'catalogVersion': version,
+                         'checkedAt': int(time.time())}, headers={'Cache-Control': 'no-store'})
 
 
 def ingest_events(events, fingerprint, data_dir=None):

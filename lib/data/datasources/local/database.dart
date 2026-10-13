@@ -14,6 +14,7 @@ import '../../services/manual_channel_category.dart';
 import '../../services/channel_merge.dart';
 import '../../services/channel_route_transfer.dart';
 import '../../services/bobtv_api_client.dart';
+import '../../services/favorite_channel_identity.dart';
 import 'tables.dart';
 
 part 'database.g.dart';
@@ -43,6 +44,8 @@ const _uuid = Uuid();
   ],
 )
 class AppDatabase extends _$AppDatabase {
+  Future<void>? _favoriteExpansion;
+  bool _favoriteExpansionDone = false;
   AppDatabase() : super(_openConnection());
 
   AppDatabase.forTesting(super.e);
@@ -1054,6 +1057,7 @@ class AppDatabase extends _$AppDatabase {
       await batch((b) {
         b.insertAllOnConflictUpdate(channels, entries);
       });
+      await _inheritFavoritesForIds(entries.where((e) => e.id.present).map((e) => e.id.value).toSet());
     });
   }
 
@@ -1729,6 +1733,7 @@ class AppDatabase extends _$AppDatabase {
   )..orderBy([(t) => OrderingTerm.asc(t.sortOrder)])).get();
 
   Future<List<Channel>> getChannelsInList(String listId) async {
+    await reconcileFavoriteMemberships();
     final query =
         select(channels).join([
             innerJoin(
@@ -1742,13 +1747,63 @@ class AppDatabase extends _$AppDatabase {
     return rows.map((row) => row.readTable(channels)).toList();
   }
 
-  Future<void> addChannelToList(String listId, String channelId) =>
-      into(favoriteListChannels).insertOnConflictUpdate(
-        FavoriteListChannelsCompanion.insert(
-          listId: listId,
-          channelId: channelId,
-        ),
-      );
+  String _favoriteKey(Channel channel) => favoriteChannelIdentity(name: channel.name,
+      group: channel.groupTitle, tvgName: channel.tvgName, tvgId: channel.tvgId);
+
+  Future<Set<String>> _favoriteEquivalentIds(String channelId) async {
+    final selected = await (select(channels)..where((c) => c.id.equals(channelId))).getSingleOrNull();
+    if (selected == null) return {};
+    final key = _favoriteKey(selected);
+    final blocked = await getBlockedStreamUrls();
+    // Explicit favorite actions can search all providers and classifications.
+    // This is not a background stream probe or whole-catalog media scan.
+    return {for (final c in await select(channels).get())
+      if (_favoriteKey(c) == key && !blocked.contains(canonicalRouteUrl(c.streamUrl))) c.id};
+  }
+
+  Future<void> addChannelToList(String listId, String channelId) async {
+    final ids = await _favoriteEquivalentIds(channelId);
+    await batch((b) {
+      for (final id in ids) {
+        b.insert(favoriteListChannels, FavoriteListChannelsCompanion.insert(
+            listId: listId, channelId: id), mode: InsertMode.insertOrIgnore);
+      }
+    });
+  }
+
+  Future<void> _inheritFavoritesForIds(Set<String> ids) async {
+    if (ids.isEmpty) return;
+    final members = await select(favoriteListChannels).get();
+    if (members.isEmpty) return;
+    final anchors = {for (final c in await getChannelsByIds(members.map((m) => m.channelId).toSet())) c.id: c};
+    final listsByKey = <String, Set<String>>{};
+    for (final member in members) {
+      final anchor = anchors[member.channelId];
+      if (anchor != null) (listsByKey[_favoriteKey(anchor)] ??= {}).add(member.listId);
+    }
+    final newRoutes = await getChannelsByIds(ids);
+    await batch((b) {
+      for (final route in newRoutes) {
+        for (final list in listsByKey[_favoriteKey(route)] ?? <String>{}) {
+          b.insert(favoriteListChannels, FavoriteListChannelsCompanion.insert(
+              listId: list, channelId: route.id), mode: InsertMode.insertOrIgnore);
+        }
+      }
+    });
+  }
+
+  Future<void> reconcileFavoriteMemberships({bool force = false}) {
+    if (_favoriteExpansionDone && !force) return Future.value();
+    return _favoriteExpansion ??= (() async {
+      final members = await select(favoriteListChannels).get();
+      if (members.isNotEmpty) {
+        final ids = (await (selectOnly(channels)..addColumns([channels.id])).get())
+            .map((r) => r.read(channels.id)!).toSet();
+        await _inheritFavoritesForIds(ids);
+      }
+      _favoriteExpansionDone = true;
+    })().whenComplete(() { _favoriteExpansion = null; });
+  }
 
   /// A single click on the favorite star must persist even when the user has
   /// not created any named lists yet. Keep the default list's ID stable so
@@ -1764,11 +1819,14 @@ class AppDatabase extends _$AppDatabase {
     return getAllFavoriteLists();
   }
 
-  Future<void> removeChannelFromList(String listId, String channelId) =>
-      (delete(favoriteListChannels)..where(
-            (t) => t.listId.equals(listId) & t.channelId.equals(channelId),
-          ))
-          .go();
+  Future<void> removeChannelFromList(String listId, String channelId) async {
+    final ids = await _favoriteEquivalentIds(channelId);
+    if (ids.isEmpty) ids.add(channelId);
+    for (var offset = 0; offset < ids.length; offset += 400) {
+      await (delete(favoriteListChannels)..where((t) =>
+          t.listId.equals(listId) & t.channelId.isIn(ids.skip(offset).take(400)))).go();
+    }
+  }
 
   Future<FavoriteList> createFavoriteList(String name) async {
     final id = _uuid.v4();
@@ -1816,6 +1874,7 @@ class AppDatabase extends _$AppDatabase {
 
   /// Get all channel IDs that belong to any favorite list.
   Future<Set<String>> getAllFavoritedChannelIds() async {
+    await reconcileFavoriteMemberships();
     final rows = await select(favoriteListChannels).get();
     return rows.map((r) => r.channelId).toSet();
   }

@@ -8,6 +8,7 @@ class RetiredRouteGuard {
   RetiredRouteGuard({
     required Future<Set<String>> Function() read,
     required Stream<Set<String>> updates,
+    this.beforeOpen,
   }) : _read = read {
     _subscription = updates.listen(
       _absorb,
@@ -18,6 +19,7 @@ class RetiredRouteGuard {
   }
 
   final Future<Set<String>> Function() _read;
+  final Future<void> Function(String url)? beforeOpen;
   final _retired = <String>{};
   final _changes = StreamController<Set<String>>.broadcast(sync: true);
   late final StreamSubscription<Set<String>> _subscription;
@@ -56,6 +58,7 @@ class RetiredRouteGuard {
     Future<void> Function() operation, {
     required Future<void> Function() stop,
   }) async {
+    await beforeOpen?.call(url);
     await requireAllowed(url);
     await operation();
     try {

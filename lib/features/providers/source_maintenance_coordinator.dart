@@ -11,6 +11,8 @@ import 'provider_manager.dart';
 import '../../data/services/stream_alternatives_service.dart';
 import '../../data/services/regional_route_service.dart';
 import '../../data/services/device_favorites_sync_service.dart';
+import '../../data/services/bobtv_api_client.dart';
+import '../../data/services/channel_route_sync_service.dart';
 
 class SourceMaintenanceCoordinator {
   final ProviderManager manager;
@@ -24,6 +26,18 @@ class SourceMaintenanceCoordinator {
         database: manager.database,
       );
   final WebsiteChannelCatalogService websiteCatalog;
+  late final routeStates = ChannelRouteSyncService(
+    database: manager.database,
+    fetch: (urls) async {
+      final client = BobTvApiClient(baseUri: websiteCatalog.api.baseUri);
+      try {
+        return await client.fetchRouteState(urls).timeout(const Duration(seconds: 3));
+      } finally {
+        client.close();
+      }
+    },
+    onCatalogChanged: () => unawaited(websiteCatalog.sync()),
+  );
   late final inventory =
       _inventoryOverride ??
       ChannelInventorySyncService(database: manager.database);
@@ -145,6 +159,7 @@ class SourceMaintenanceCoordinator {
     _changesTimer?.cancel();
     _maintenanceService?.dispose();
     websiteCatalog.dispose();
+    routeStates.dispose();
     inventory.dispose();
     privateFavorites.dispose();
     regionalRoutes?.dispose();

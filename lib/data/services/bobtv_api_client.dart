@@ -68,6 +68,12 @@ class BobTvChannelCatalogManifest {
   final String sha256;
 }
 
+class BobTvRouteState {
+  const BobTvRouteState({required this.retiredUrls, this.catalogVersion});
+  final Set<String> retiredUrls;
+  final String? catalogVersion;
+}
+
 /// Strict client for the public BobTV service. Never sends a media URL in a
 /// playback report, and never follows API or download redirects.
 class BobTvApiClient {
@@ -427,6 +433,32 @@ class BobTvApiClient {
         .whereType<String>()
         .where(isPublicCatalogUrl)
         .toList();
+  }
+
+  Future<BobTvRouteState> fetchRouteState(List<String> urls) async {
+    if (urls.isEmpty || urls.length > 200) {
+      throw const FormatException('Invalid route-state batch');
+    }
+    final response = await _request('POST', '/api/v1/channel-catalog/route-state',
+        contentType: 'application/json',
+        body: utf8.encode(jsonEncode({'schemaVersion': 1, 'urls': urls})),
+        maxBytes: 512 * 1024);
+    if (response.status != 200) {
+      throw BobTvApiException('route_state_http_status', statusCode: response.status);
+    }
+    final payload = jsonDecode(utf8.decode(response.body));
+    if (payload is! Map || payload['schemaVersion'] != 1 ||
+        payload['urls'] is! List ||
+        (payload['catalogVersion'] != null && payload['catalogVersion'] is! String)) {
+      throw const FormatException('Invalid route state');
+    }
+    final retired = (payload['urls'] as List).whereType<String>().toSet();
+    if (retired.length != (payload['urls'] as List).length ||
+        retired.any((url) => !urls.contains(url))) {
+      throw const FormatException('Unrequested retirement');
+    }
+    return BobTvRouteState(retiredUrls: retired,
+        catalogVersion: payload['catalogVersion'] as String?);
   }
 
   Future<List<BobTvReviewedSource>> fetchSources() async {

@@ -223,6 +223,7 @@ class DeviceFavoritesStore {
       }
     });
     await resolvePending();
+    await database.reconcileFavoriteMemberships(force: true);
     final captured = await read();
     await acknowledge(owner, captured, remoteRevision);
     return true;

@@ -21,6 +21,7 @@ import '../../data/services/bobtv_community_service.dart';
 import '../../data/services/route_identity.dart';
 import '../../data/services/retired_route_guard.dart';
 import '../providers/provider_manager.dart';
+import '../providers/source_maintenance_coordinator.dart';
 import '../casting/cast_service.dart';
 import '../casting/local_cast_mute.dart';
 
@@ -3228,6 +3229,7 @@ final playerServiceProvider = Provider<PlayerService>((ref) {
   final database = ref.read(databaseProvider);
   final retirementGuard = RetiredRouteGuard(
     read: database.getBlockedStreamUrls,
+    beforeOpen: (url) => ref.read(sourceMaintenanceCoordinatorProvider).routeStates.beforeOpen(url),
     updates: database.select(database.blockedStreamRoutes).watch().map(
       (rows) => rows.map((row) => row.streamUrl).toSet(),
     ),

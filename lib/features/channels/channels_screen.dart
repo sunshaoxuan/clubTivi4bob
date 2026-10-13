@@ -33,6 +33,7 @@ import 'channel_category_picker.dart';
 import 'channel_merge_dialog.dart';
 import 'channel_route_transfer_dialog.dart';
 import '../../data/services/channel_route_transfer.dart';
+import '../../data/services/route_identity.dart';
 import '../../data/services/channel_merge.dart';
 import 'channel_catalog_status.dart';
 import 'manual_category_move.dart';
@@ -1479,6 +1480,8 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
         (_selectedInternationalGenre == '全部' ||
           ChannelCategoryClassifier.internationalGenreFor(c.groupTitle) == _selectedInternationalGenre)).toList();
     }
+    ref.read(sourceMaintenanceCoordinatorProvider).routeStates.queueCategory(
+        channels.map((channel) => channel.streamUrl));
     List<db.StreamCheck> checks;
     try {
       checks = await ref.read(databaseProvider).getStreamChecksForChannels(channels)
@@ -1943,6 +1946,11 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
             (playerService.currentChannelId == null &&
                 playerService.currentUrl == channel.streamUrl));
     if (isPlayingChannel && !force && preferredUrl == null) {
+      unawaited(ref.read(sourceMaintenanceCoordinatorProvider).routeStates.priority([
+        channel.streamUrl, ..._automaticAlternativeUrls(channel, includeUnverified: true),
+      ]).catchError((Object error, StackTrace stack) {
+        AppDiagnostics.instance.recordError('selected_channel_route_sync', error, stack);
+      }));
       ++_channelSelectionGeneration;
       _pendingAutoplayGroup = null;
       final hadPreview = _pendingChannelId != null ||
@@ -2011,12 +2019,41 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
       }
     }
 
+    var requestedUrl = preferredUrl ?? channel.streamUrl;
+    try {
+      await ref.read(sourceMaintenanceCoordinatorProvider).routeStates.priority([
+        requestedUrl, ...failoverUrls,
+      ]);
+    } catch (error, stack) {
+      AppDiagnostics.instance.recordError('selected_channel_route_sync', error, stack);
+      if (mounted && selectionGeneration == _channelSelectionGeneration) {
+        setState(() => _pendingChannelId = null);
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('同步线路状态失败，原频道继续播放，请重试'),
+        ));
+      }
+      return;
+    }
+    if (!mounted || selectionGeneration != _channelSelectionGeneration) return;
+    final retired = await ref.read(databaseProvider).getBlockedStreamUrls();
+    failoverUrls.removeWhere((url) => retired.contains(canonicalRouteUrl(url)));
+    if (retired.contains(canonicalRouteUrl(requestedUrl))) {
+      if (failoverUrls.isEmpty) {
+        setState(() => _pendingChannelId = null);
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('该频道线路已全部淘汰，原频道继续播放'),
+        ));
+        return;
+      }
+      requestedUrl = failoverUrls.removeAt(0);
+    }
+
     bool switched;
     try {
       if (force && hasActivePlayback && _simpleMode) {
         await playerService.discardPreparedChannel();
         unawaited(playerService.play(
-          preferredUrl ?? channel.streamUrl,
+          requestedUrl,
           channelId: channel.id,
           epgChannelId: _getEpgId(channel),
           tvgId: channel.tvgId,
@@ -2032,7 +2069,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
           ? await playerService.commitPreparedChannel(channel.id)
           : hasActivePlayback
             ? await playerService.switchChannel(
-            preferredUrl ?? channel.streamUrl,
+            requestedUrl,
             channelId: channel.id,
             epgChannelId: _getEpgId(channel),
             tvgId: channel.tvgId,
@@ -2080,7 +2117,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
     }
     if (!hasActivePlayback) {
       unawaited(playerService.play(
-        preferredUrl ?? channel.streamUrl,
+        requestedUrl,
         channelId: channel.id,
         epgChannelId: _getEpgId(channel),
         tvgId: channel.tvgId,

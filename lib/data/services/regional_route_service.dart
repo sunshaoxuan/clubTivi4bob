@@ -124,7 +124,7 @@ class RegionalRouteService {
       final key = '$networkId:${page.join('\n')}';
       await (_rankings[key] ??= _rank(
         page,
-      ).whenComplete(() => _rankings.remove(key)));
+      ).whenComplete(() { _rankings.remove(key); }));
     }
   }
 

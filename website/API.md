@@ -234,3 +234,22 @@ The cndrp resource relay forwards the fingerprint header without caching private
 payloads. Public inventories, public events, catalog snapshots and release/starter
 packages never contain favorites. See `docs/channel-catalog-sync.md` for recovery,
 credential-loss boundaries and the real HTTP cross-device acceptance test.
+
+## Live route retirement state (server deployed; client change unreleased)
+
+`POST /api/v1/channel-catalog/route-state` accepts JSON
+`{schemaVersion:1, urls:[publicCanonicalUrl, ...]}` with 1 to 200 URLs and a
+512 KiB request limit. It reads permanent `blocked` and `deleted` flags directly
+from the durable inventory, without waiting for a catalog snapshot rebuild.
+Responses are `{schemaVersion:1, urls:[retiredRequestedUrl, ...], catalogVersion,
+checkedAt}` and always `Cache-Control: no-store`. Credentials, private addresses
+and malformed requests are rejected. The cndrp API relay bypasses caching.
+
+The next client revision performs this read when a channel is clicked, before
+opening its candidates, and queues the current category in batches of 100.
+Foreground requests bypass a background page; switching categories replaces
+the remaining queue. Native main/preview/warm opens also check freshness.
+Connection failure preserves the original programme and offers a retry.
+An empty response never removes a known local tombstone. A changed catalog
+version schedules the existing snapshot importer for full metadata changes.
+The already distributed `1.1.3+96` packages do not contain this new client path.

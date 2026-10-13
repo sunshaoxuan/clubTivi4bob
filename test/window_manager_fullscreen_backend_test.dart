@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:clubtivi/features/player/desktop_fullscreen_session.dart';
 import 'package:clubtivi/features/player/window_manager_fullscreen_backend.dart';
 import 'package:clubtivi/core/desktop_window_sizing.dart';
@@ -15,6 +17,9 @@ class _MockNativeWindow {
   bool resizable = true;
   bool maximizable = true;
   bool synchronousFullscreen = false;
+  bool rejectFloatingFullscreen = false;
+  void Function(bool)? onFullscreenRequest;
+  Completer<void>? fullscreenReply;
   String titleBarStyle = 'normal';
   Rect bounds = const Rect.fromLTWH(20, 40, 1280, 720);
 
@@ -44,10 +49,16 @@ class _MockNativeWindow {
       case 'isMaximizable':
         return maximizable;
       case 'setFullScreen':
+        final requested = (call.arguments as Map)['isFullScreen'] as bool;
+        if (requested && rejectFloatingFullscreen && alwaysOnTop) {
+          throw StateError('Native entry attempted from a floating window');
+        }
         if (synchronousFullscreen) {
-          fullscreen = (call.arguments as Map)['isFullScreen'] as bool;
+          fullscreen = requested;
           if (fullscreen) maximizable = false;
         }
+        onFullscreenRequest?.call(requested);
+        if (fullscreenReply != null) await fullscreenReply!.future;
         return true;
       case 'setTitleBarStyle':
         titleBarStyle = (call.arguments as Map)['titleBarStyle'] as String;
@@ -136,7 +147,9 @@ void main() {
 
       expect(native.callsTo('setFullScreen'), hasLength(1));
       expect(finished, isFalse);
-      expect(native.callsTo('setAlwaysOnTop'), isEmpty);
+      expect(native.callsTo('setAlwaysOnTop').single.arguments, {
+        'isAlwaysOnTop': false,
+      });
       expect(native.callsTo('focus'), isEmpty);
 
       native.fullscreen = true;
@@ -145,8 +158,110 @@ void main() {
       expect(finished, isTrue);
       expect(events, [true]);
       expect(native.callsTo('setAlwaysOnTop'), hasLength(1));
+      expect(native.alwaysOnTop, isFalse);
       expect(native.callsTo('focus'), hasLength(1));
       await subscription.cancel();
+    },
+  );
+
+  test(
+    'Mac re-entry repairs the floating state left by an older fullscreen owner',
+    () async {
+      native.alwaysOnTop = true;
+      native.rejectFloatingFullscreen = true;
+      createBackend(isMacOS: true);
+      native.onFullscreenRequest = (value) {
+        native.fullscreen = value;
+        if (value) backend.onWindowEnterFullScreen();
+      };
+      await backend.setFullscreen(true);
+      expect(native.fullscreen, isTrue);
+      expect(native.alwaysOnTop, isFalse);
+      final methods = native.calls.map((call) => call.method).toList();
+      expect(
+        methods.indexOf('setAlwaysOnTop'),
+        lessThan(methods.indexOf('setFullScreen')),
+      );
+    },
+  );
+
+  for (final originalAlwaysOnTop in [false, true]) {
+    test(
+      'Mac Escape on the channel page allows repeated player re-entry, original top=$originalAlwaysOnTop',
+      () async {
+        native.alwaysOnTop = originalAlwaysOnTop;
+        native.rejectFloatingFullscreen = true;
+        for (var cycle = 0; cycle < 4; cycle++) {
+          createBackend(isMacOS: true);
+          native.onFullscreenRequest = (value) {
+            native.fullscreen = value;
+            if (value) {
+              backend.onWindowEnterFullScreen();
+            } else {
+              backend.onWindowLeaveFullScreen();
+            }
+          };
+          final session = DesktopFullscreenSession(
+            backend: backend,
+            onChanged: (_) {},
+            onExternalExit: () => fail(
+              'The player owner must be disposed before native channel-page Escape',
+            ),
+          );
+          await session.enter();
+          expect(native.fullscreen, isTrue);
+          expect(native.alwaysOnTop, isFalse);
+          await session.exit(keepWindowFullscreen: true);
+          session.dispose();
+          await _advanceAsyncWork();
+          // Native Escape while the channel page owns the fullscreen window.
+          // There is deliberately no active player/backend listener here.
+          native.fullscreen = false;
+          expect(native.alwaysOnTop, isFalse);
+        }
+        expect(native.callsTo('setFullScreen'), hasLength(4));
+        expect(
+          native
+              .callsTo('setAlwaysOnTop')
+              .every((c) => (c.arguments as Map)['isAlwaysOnTop'] == false),
+          isTrue,
+        );
+      },
+    );
+  }
+
+  test(
+    'Mac native exit from the player restores window state before re-entry',
+    () async {
+      createBackend(isMacOS: true);
+      native.rejectFloatingFullscreen = true;
+      native.onFullscreenRequest = (value) {
+        native.fullscreen = value;
+        if (value) {
+          backend.onWindowEnterFullScreen();
+        } else {
+          backend.onWindowLeaveFullScreen();
+        }
+      };
+      late DesktopFullscreenSession session;
+      var externalExits = 0;
+      session = DesktopFullscreenSession(
+        backend: backend,
+        onChanged: (_) {},
+        onExternalExit: () {
+          externalExits++;
+          unawaited(session.exit());
+        },
+      );
+      await session.enter();
+      native.fullscreen = false;
+      backend.onWindowLeaveFullScreen();
+      await session.exit();
+      expect(externalExits, 1);
+      expect(native.alwaysOnTop, isFalse);
+      expect(native.callsTo('setFullScreen'), hasLength(1));
+      session.dispose();
+      await _advanceAsyncWork();
     },
   );
 
@@ -170,6 +285,44 @@ void main() {
     expect(native.callsTo('setBounds'), isEmpty);
     expect(native.callsTo('maximize'), isEmpty);
   });
+
+  test(
+    'Mac native Escape cancels pending entry without the ten-second timeout',
+    () async {
+      createBackend(isMacOS: true);
+      final entering = backend.setFullscreen(true);
+      final outcome = expectLater(
+        entering,
+        throwsA(isA<FullscreenEntryCancelled>()),
+      );
+      await _advanceAsyncWork();
+      backend.onWindowLeaveFullScreen();
+      await outcome.timeout(const Duration(seconds: 1));
+      expect(native.fullscreen, isFalse);
+      expect(native.callsTo('focus'), isEmpty);
+      expect(native.alwaysOnTop, isFalse);
+    },
+  );
+
+  test(
+    'Mac cancel before the method reply is handled and does not focus the old window',
+    () async {
+      createBackend(isMacOS: true);
+      native.fullscreenReply = Completer<void>();
+      final entering = backend.setFullscreen(true);
+      final outcome = expectLater(
+        entering,
+        throwsA(isA<FullscreenEntryCancelled>()),
+      );
+      await _advanceAsyncWork();
+      backend.onWindowLeaveFullScreen();
+      await _advanceAsyncWork();
+      native.fullscreenReply!.complete();
+      await outcome.timeout(const Duration(seconds: 1));
+      expect(native.callsTo('focus'), isEmpty);
+      expect(native.alwaysOnTop, isFalse);
+    },
+  );
 
   test(
     'Mac exit recovers when native state changes without a notification',

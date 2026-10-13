@@ -1,9 +1,34 @@
 # Android tablets and Windows ARM64
 
-Release version: `1.1.3+96`. Android APKs, both Mac CPU variants and Windows
+Release version: `1.1.4+97`. Android APKs, both Mac CPU variants and Windows
 x64/ARM64 Setup and portable ZIP packages are available in the same release.
 Windows ARM64 uses a validated x64 cross-build; Surface hardware validation
 remains pending.
+
+## Unified channel-browser layout on every platform
+
+The current source uses one layout for Windows x64/ARM64, macOS Intel/Apple
+Silicon and Android. The previous wide-window multi-line category layout is
+removed. This follow-up is included in 1.1.4 and was absent from 1.1.3 packages.
+
+The available route viewport determines density after app-wide controls and
+system safe areas. Windows DPI scaling, macOS Retina density and Android display
+density all use logical dimensions. Window resizing and tablet rotation keep the
+selected channel and its programme guide.
+
+Windows at least 640 logical pixels wide use equal-width player and channel
+panes. Narrower windows put the video above the channel list. Categories always
+occupy at most three single-line rows, on both small and large displays. Overflow
+opens the complete list in a scrollable menu attached to the pressed button.
+Cards and their EPG adapt to the remaining viewport; videos retain their original
+aspect ratio. Small viewports use a search button to reserve space for a complete
+preview card and its connected programme guide.
+
+Regression coverage runs the same components under Windows, macOS and Android
+presentation themes, including 640x360, 1024x600, 1281x721, 1290x747, 1366x768,
+1920x1080 and 3840x2160, portrait views, live resize, safe areas and 125/150/200
+percent display scaling. Native device playback is separate from widget layout
+coverage.
 
 ## Android
 
@@ -16,9 +41,9 @@ ready preview switches it to the main player. Double tap requests direct play.
 
 ### Compact channel browser
 
-At widths up to 1280 logical pixels or heights up to 720, the main player and
-channel browser use equal-width panes. Android display density does not override
-this compact policy. Main categories, subcategories and regions/types occupy at
+The main player and channel browser use equal-width panes in landscape windows.
+Android display density does not override the shared policy. Main categories,
+subcategories and regions/types occupy at
 most three single-line rows. Overflow keeps the selected category visible and
 opens all options for that level in a scrollable menu attached to its More button.
 The menu closes immediately after selection; country pinning remains available
@@ -32,7 +57,7 @@ programme title, leaving space for a complete card and its guide. Smaller toolba
 controls keep advanced mode and route refresh in an overflow menu. Videos retain
 their original aspect ratio.
 
-Tests cover 640x360 through 1280x1024, portrait/narrow windows, longer category
+Tests cover 640x360 through 3840x2160, portrait/narrow windows, longer category
 lists, selected overflow items, every category menu level and larger text.
 Physical Xiaomi Pad playback/layout testing still requires a connected device.
 

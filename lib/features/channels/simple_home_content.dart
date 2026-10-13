@@ -2,14 +2,29 @@ import 'package:flutter/material.dart';
 
 import '../../core/tablet_presentation.dart';
 
+/// Size policy shared by Windows, macOS and Android. Use the route's available
+/// area after native chrome / app-wide controls, including during live resize.
+class ResponsiveHomeLayout extends StatelessWidget {
+  const ResponsiveHomeLayout({super.key, required this.builder});
+
+  final Widget Function(BuildContext context, bool tiny) builder;
+
+  @override
+  Widget build(BuildContext context) => LayoutBuilder(
+    builder: (context, constraints) {
+      final padding = MediaQuery.paddingOf(context);
+      final height = constraints.maxHeight - padding.vertical;
+      return builder(context, height <= 450);
+    },
+  );
+}
+
 class SimpleHomeContent extends StatelessWidget {
   const SimpleHomeContent({
     super.key,
-    required this.compact,
     required this.preview,
     required this.channels,
   });
-  final bool compact;
   final Widget preview;
   final Widget channels;
 
@@ -21,22 +36,18 @@ class SimpleHomeContent extends StatelessWidget {
         height: constraints.maxHeight,
       );
       return Padding(
-        padding: compact
-            ? const EdgeInsets.fromLTRB(10, 4, 10, 10)
-            : const EdgeInsets.fromLTRB(30, 18, 30, 30),
+        padding: const EdgeInsets.fromLTRB(10, 4, 10, 10),
         child: split
             ? Row(
                 children: [
                   Expanded(
-                    flex: compact ? 1 : 6,
                     child: KeyedSubtree(
                       key: const ValueKey('simple-main-pane'),
                       child: preview,
                     ),
                   ),
-                  SizedBox(width: compact ? 10 : 22),
+                  const SizedBox(width: 10),
                   Expanded(
-                    flex: compact ? 1 : 4,
                     child: KeyedSubtree(
                       key: const ValueKey('simple-channel-pane'),
                       child: channels,
@@ -47,14 +58,10 @@ class SimpleHomeContent extends StatelessWidget {
             : Column(
                 children: [
                   SizedBox(
-                    height: compact
-                        ? (constraints.maxHeight * .25).clamp(90.0, 220.0)
-                        : TabletPresentation.previewHeight(
-                            constraints.maxHeight,
-                          ),
+                    height: (constraints.maxHeight * .25).clamp(90.0, 220.0),
                     child: preview,
                   ),
-                  SizedBox(height: compact ? 8 : 16),
+                  const SizedBox(height: 8),
                   Expanded(child: channels),
                 ],
               ),

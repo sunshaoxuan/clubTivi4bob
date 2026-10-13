@@ -10,19 +10,20 @@ The application is built with Flutter and uses `media_kit`, libmpv, FFmpeg, Rive
 
 ### Latest release
 
-`1.1.3+96` adds an explicit Android exit button and a compact channel browser.
-Small split views use equal-width player/browser panes, at most three category
-rows and attached overflow menus. Preview cards and their connected programme
-timelines adapt to the available space without stretching video.
+`1.1.4+97` uses one responsive channel browser at all window sizes, with
+equal-width player/browser panes, at most three category rows and attached
+overflow menus. Preview cards and their connected programme timelines adapt to
+the available space without stretching video. It repairs macOS native fullscreen
+Escape/re-entry, prioritizes fresh retirement state for selected channels and
+keeps every equivalent route with a favorited channel.
 Android ARM32/ARM64/x64, macOS Intel/Apple Silicon and Windows x64/ARM64
 packages are available. Windows offers Setup installers and portable ZIPs;
-all seven platform update channels now use `1.1.3+96`.
-See [release details](docs/releases/1.1.3.md).
-
-The main branch also contains [unreleased route-state and favorite fixes](docs/unreleased-route-sync-favorites.md).
-They are not part of the already distributed `1.1.3+96` application packages.
-The additive live retirement API is deployed, while the matching client update
-is intentionally deferred at the maintainer's request.
+all seven platform update channels use architecture-specific packages.
+See [release details](docs/releases/1.1.4.md). Mac fullscreen acceptance passed
+on the maintainer's Intel Mac. Windows and Android physical acceptance for this
+version remains pending; automated platform and package tests do not replace it.
+Publication does not restart installed applications. Primary downloads and
+updates are also available through [the resource relay manifest](https://cndrp.com/bobtv/releases.json).
 
 ### Windows code signing preparation
 

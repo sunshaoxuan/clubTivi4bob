@@ -69,17 +69,22 @@ class WindowManagerFullscreenBackend extends WindowListener
 
   @override
   Future<void> setFullscreen(bool value) async {
+    if (_isMacOS) {
+      // Native Escape can leave the fullscreen Space after the player route
+      // transferred ownership to the channel page. Cocoa must never inherit a
+      // floating level on the next entry; the native fullscreen Space already
+      // provides the Mac presentation and does not need a floating window.
+      await windowManager.setAlwaysOnTop(false);
+    }
     if (await isFullscreen() != value) {
       // On macOS the method reply starts the animation; the event finishes it.
       final completion = _isMacOS ? Completer<void>() : null;
+      // A native cancel can precede the method acknowledgement. Observe errors
+      // immediately; the transition waiter still receives the same result.
+      completion?.future.ignore();
       _transition = completion;
       _transitionTarget = value;
       try {
-        // Cocoa fullscreen windows must return to the normal window level
-        // before leaving their Space. Restore the saved level afterwards.
-        if (_isMacOS && !value) {
-          await windowManager.setAlwaysOnTop(false);
-        }
         await windowManager.setFullScreen(value);
         if (completion != null) {
           await _awaitNativeTransition(value, completion);
@@ -100,7 +105,7 @@ class WindowManagerFullscreenBackend extends WindowListener
     if (value) {
       // A user may have exited natively while the method reply was pending.
       if (_isMacOS && !await isFullscreen()) return;
-      await windowManager.setAlwaysOnTop(true);
+      if (!_isMacOS) await windowManager.setAlwaysOnTop(true);
       if (!await windowManager.isMinimized() &&
           (!_isMacOS || await isFullscreen())) {
         await windowManager.focus();
@@ -134,6 +139,8 @@ class WindowManagerFullscreenBackend extends WindowListener
         throw TimeoutException('Native fullscreen state did not reach $value');
       }
     }
+    // Cancellation may already have arrived before the method replied.
+    await completion.future;
   }
 
   @override
@@ -198,6 +205,14 @@ class WindowManagerFullscreenBackend extends WindowListener
         transition != null &&
         !transition.isCompleted) {
       transition.complete();
+    } else if (_transitionTarget == true &&
+        !value &&
+        transition != null &&
+        !transition.isCompleted) {
+      // Escape can cancel entry before Cocoa has sent didEnterFullScreen.
+      // Finish the cancelled request now instead of holding navigation for
+      // the full transition timeout.
+      transition.completeError(const FullscreenEntryCancelled());
     }
     _changes.add(value);
   }

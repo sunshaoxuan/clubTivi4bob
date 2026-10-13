@@ -110,7 +110,6 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
   List<String> _internationalCountries = [];
   Map<String, String> _knownCountryByStreamUrl = {};
   List<String> _pinnedInternationalCountries = [];
-  final ScrollController _countryScrollController = ScrollController();
   final ChannelCountryAiService _countryAi = ChannelCountryAiService();
   final ChannelCategoryAiService _categoryAi = ChannelCategoryAiService();
   Map<String, String> _aiCountryCache = {};
@@ -184,8 +183,6 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
   final _sidebarFocusNode = FocusScopeNode(debugLabel: 'sidebar');
   final _sidebarAllItemFocusNode = FocusNode(debugLabel: 'sidebar-all');
   final _firstChannelFocusNode = FocusNode(debugLabel: 'channel-first');
-  final _provinceButtonKey = GlobalKey();
-  final _customCategoryButtonKey = GlobalKey();
   String _sidebarSearchQuery = '';
 
   StreamSubscription<List<db.Provider>>? _providersSub;
@@ -537,7 +534,6 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
     _firstChannelFocusNode.dispose();
     _channelListController.dispose();
     _guideScrollController.dispose();
-    _countryScrollController.dispose();
     _guideVerticalController.dispose();
     _guideIdleTimer?.cancel();
     _searchDebounce?.cancel();
@@ -3425,10 +3421,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
   }
 
   Widget _buildSimpleHome(BuildContext context) {
-    final size = MediaQuery.sizeOf(context);
-    final compact = TabletPresentation.compactLayout(width: size.width, height: size.height);
-    final tiny = compact && size.height <= 450;
-    return PopScope(
+    return ResponsiveHomeLayout(builder: (context, tiny) => PopScope(
       canPop: false,
       child: Scaffold(
         backgroundColor: const Color(0xFF070B14),
@@ -3446,15 +3439,15 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
             child: Column(
               children: [
                 Padding(
-                  padding: compact ? const EdgeInsets.fromLTRB(12, 4, 12, 4) : const EdgeInsets.fromLTRB(30, 22, 30, 16),
+                  padding: const EdgeInsets.fromLTRB(12, 4, 12, 4),
                   child: AdaptiveHomeToolbar(
-                    compact: compact,
+                    compact: true,
                     brand: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         Container(
-                          width: compact ? 26 : 34,
-                          height: compact ? 26 : 34,
+                          width: 26,
+                          height: 26,
                           decoration: BoxDecoration(
                             color: const Color(0xFF94A8FF),
                             borderRadius: BorderRadius.circular(10),
@@ -3470,7 +3463,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                           'BobTV',
                           style: TextStyle(
                             color: Colors.white,
-                            fontSize: compact ? 19 : 25,
+                            fontSize: 19,
                             fontWeight: FontWeight.w700,
                             letterSpacing: -0.7,
                           ),
@@ -3500,35 +3493,6 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                     actions: [
                       _buildUpdateBadge(),
                       const DesktopExitButton(),
-                      if (!compact) TextButton.icon(
-                        onPressed: () => _setSimpleMode(false),
-                        icon: const Icon(Icons.tune_rounded),
-                        label: const Text('进阶模式'),
-                        style: TextButton.styleFrom(
-                          foregroundColor: Colors.white70,
-                        ),
-                      ),
-                      if (!compact) IconButton(
-                        tooltip: '重新读取线路检查结果',
-                        onPressed:
-                            _routeAvailabilityLoading || _regionTotalRoutes > 0
-                            ? null
-                            : () {
-                                setState(
-                                  () => _routeAvailabilityLoading = true,
-                                );
-                                unawaited(
-                                  _refreshRouteAvailability(
-                                    _allChannels,
-                                    _categoryLoadGeneration,
-                                  ),
-                                );
-                              },
-                        icon: const Icon(
-                          Icons.refresh_rounded,
-                          color: Colors.white70,
-                        ),
-                      ),
                       IconButton(
                         tooltip: '设置',
                         constraints: tiny ? const BoxConstraints.tightFor(width: 40, height: 40) : null,
@@ -3539,7 +3503,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                           color: Colors.white70,
                         ),
                       ),
-                      if (compact) PopupMenuButton<String>(
+                      PopupMenuButton<String>(
                         iconSize: tiny ? 20 : 24,
                         style: tiny ? IconButton.styleFrom(minimumSize: const Size(40, 40), maximumSize: const Size(40, 40), padding: const EdgeInsets.all(4), tapTargetSize: MaterialTapTargetSize.shrinkWrap) : null,
                         tooltip: '更多操作',
@@ -3561,9 +3525,8 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                 ),
                 Expanded(
                   child: SimpleHomeContent(
-                    compact: compact,
-                    preview: RepaintBoundary(child: _buildSimplePreview(compact: compact)),
-                    channels: RepaintBoundary(child: _buildSimpleChannelPanel(compact: compact)),
+                    preview: RepaintBoundary(child: _buildSimplePreview()),
+                    channels: RepaintBoundary(child: _buildSimpleChannelPanel(tiny: tiny)),
                   ),
                 ),
               ],
@@ -3571,7 +3534,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
           ),
         ),
       ),
-    );
+    ));
   }
 
   BoxDecoration _simpleSurfaceDecoration() => BoxDecoration(
@@ -3590,233 +3553,12 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
     )],
   );
 
-  Widget _buildSimpleCategoryTab(
-    String label, {
-    required bool selected,
-    VoidCallback? onTap,
-    VoidCallback? onLongPress,
-    GestureTapUpCallback? onSecondaryTapUp,
-    GestureLongPressStartCallback? onLongPressStart,
-    IconData? trailing,
-  }) {
-    return GestureDetector(
-      onLongPressStart: onLongPressStart,
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: onTap,
-          onLongPress: onLongPress,
-          onSecondaryTapUp: onSecondaryTapUp,
-          borderRadius: BorderRadius.circular(12),
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 180),
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-            decoration: BoxDecoration(
-              gradient: selected
-                  ? const LinearGradient(
-                      colors: [Color(0xFFBDD0FF), Color(0xFF8FAEFF)],
-                    )
-                  : null,
-              color: selected ? null : const Color(0xFF26354A),
-              borderRadius: BorderRadius.circular(22),
-              border: Border.all(
-                color: selected ? const Color(0xFFDDE6FF) : Colors.white12,
-              ),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Flexible(
-                  child: Text(
-                    label,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      color: selected ? const Color(0xFF122039) : Colors.white70,
-                      fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
-                      fontSize: 14,
-                    ),
-                  ),
-                ),
-                if (trailing != null) ...[
-                  const SizedBox(width: 5),
-                  Icon(
-                    trailing,
-                    size: 17,
-                    color: selected ? const Color(0xFF122039) : Colors.white70,
-                  ),
-                ],
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Future<void> _showProvincePicker({List<String>? groups, GlobalKey? anchorKey}) async {
-    final choices = groups ?? ChannelCategoryClassifier.provinceCategories;
-    final custom = groups != null;
-    final buttonContext = (anchorKey ?? _provinceButtonKey).currentContext;
-    final buttonBox = buttonContext?.findRenderObject();
-    if (buttonBox is! RenderBox) return;
-    final buttonPosition = buttonBox.localToGlobal(Offset.zero);
-    final screenSize = MediaQuery.sizeOf(context);
-    final width = (screenSize.width - 24).clamp(280.0, 700.0);
-    final top = buttonPosition.dy + buttonBox.size.height + 8;
-    final left = buttonPosition.dx.clamp(12.0, screenSize.width - width - 12);
-    final height = (screenSize.height - top - 12).clamp(180.0, 510.0);
-    final columns = ((width - 44) / 138).floor().clamp(2, 5);
-    final selected = await showGeneralDialog<String>(
-      context: context,
-      barrierDismissible: true,
-      barrierLabel: '关闭地区菜单',
-      barrierColor: Colors.black26,
-      transitionDuration: const Duration(milliseconds: 160),
-      pageBuilder: (dialogContext, _, __) => Stack(
-        children: [
-          Positioned(
-            left: left,
-            top: top,
-            width: width,
-            height: height,
-            child: Material(
-            color: Colors.transparent,
-            child: Container(
-            padding: const EdgeInsets.all(18),
-            decoration: _simpleSurfaceDecoration(),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(children: [
-                  Expanded(child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(custom ? '选择分类' : '选择地区', style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 25,
-                        fontWeight: FontWeight.w700,
-                      )),
-                      const SizedBox(height: 4),
-                      Text(custom ? '浏览新增分类与子分类' : '探索各地电视频道', style: const TextStyle(
-                        color: Colors.white60,
-                        fontSize: 13,
-                      )),
-                    ],
-                  )),
-                  IconButton(
-                    tooltip: '关闭',
-                    onPressed: () => Navigator.of(dialogContext).pop(),
-                    icon: const Icon(Icons.close_rounded, color: Colors.white70),
-                  ),
-                ]),
-                const SizedBox(height: 14),
-                Expanded(
-                  child: GridView.builder(
-                    itemCount: choices.length,
-                    gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                      crossAxisCount: columns,
-                      mainAxisExtent: 94,
-                      mainAxisSpacing: 11,
-                      crossAxisSpacing: 11,
-                    ),
-                    itemBuilder: (context, index) {
-                      final province = choices[index];
-                      return _buildProvinceCard(
-                        province,
-                        index,
-                        selected: province == _selectedGroup,
-                        onTap: () => Navigator.of(dialogContext).pop(province),
-                      );
-                    },
-                  ),
-                ),
-              ],
-            ),
-          ),
-          ),
-          ),
-        ],
-      ),
-    );
-    if (!mounted || selected == null) return;
-    await _selectGroupAndPlayFirst(selected);
-  }
-
-  Widget _buildProvinceCard(String province, int index, {
-    required bool selected,
-    required VoidCallback onTap,
-  }) {
-    const accents = <Color>[
-      Color(0xFF6E9DDB), Color(0xFF987FCA), Color(0xFF5BAFA8),
-      Color(0xFFC39072), Color(0xFF819ACF),
-    ];
-    final accent = accents[index % accents.length];
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(18),
-        child: Ink(
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [accent.withValues(alpha: 0.35),
-                  const Color(0xFF142034)],
-            ),
-            borderRadius: BorderRadius.circular(18),
-            border: Border.all(
-              color: selected ? const Color(0xFFB7CAFF) : Colors.white12,
-              width: selected ? 1.5 : 1,
-            ),
-          ),
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(17),
-            child: Stack(
-              fit: StackFit.expand,
-              children: [
-                Positioned(
-                  right: -5,
-                  bottom: -21,
-                  child: ImageFiltered(
-                    imageFilter: ui.ImageFilter.blur(sigmaX: 5, sigmaY: 5),
-                    child: Text(province.substring(0, 1), style: TextStyle(
-                      color: Colors.white.withValues(alpha: 0.27),
-                      fontSize: 92,
-                      fontWeight: FontWeight.w900,
-                    )),
-                  ),
-                ),
-                Center(child: Padding(
-                  padding: const EdgeInsets.all(12),
-                  child: Text(province, maxLines: 2, overflow: TextOverflow.ellipsis,
-                  textAlign: TextAlign.center, style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 21,
-                  fontWeight: FontWeight.w700,
-                  shadows: [Shadow(color: Colors.black38, blurRadius: 8)],
-                )))),
-                if (selected)
-                  const Positioned(
-                    top: 8,
-                    right: 8,
-                    child: Icon(Icons.check_circle_rounded,
-                        size: 17, color: Colors.white),
-                  ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildSimplePreview({bool compact = false}) {
+  Widget _buildSimplePreview() {
     final channel = _previewChannel;
     final nowPlaying = channel == null ? null : _getChannelNowPlaying(channel);
     return Container(
       decoration: _simpleSurfaceDecoration(),
-      padding: EdgeInsets.all(compact ? 8 : 14),
+      padding: const EdgeInsets.all(8),
       child: Column(
         children: [
           Expanded(
@@ -3886,7 +3628,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
               ),
             ),
           ),
-          SizedBox(height: compact ? 8 : 15),
+          const SizedBox(height: 8),
           ValueListenableBuilder<RouteSearchProgress?>(
             valueListenable: ref
                 .read(playerServiceProvider)
@@ -3930,7 +3672,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                   children: [
                     const Text(
                       '正在播放',
-                      style: TextStyle(
+                      style: const TextStyle(
                         color: Color(0xFFAFC4FF),
                         fontSize: 12,
                         fontWeight: FontWeight.w700,
@@ -3946,7 +3688,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
                         color: Colors.white,
-                        fontSize: compact ? 18 : 26,
+                        fontSize: 18,
                         fontWeight: FontWeight.w700,
                         letterSpacing: -0.5,
                       ),
@@ -3958,7 +3700,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                         overflow: TextOverflow.ellipsis,
                         style: const TextStyle(color: Colors.white60),
                       ),
-                    if (compact && channel != null)
+                    if (channel != null)
                       Text(playingRouteCountLabel(ref.read(playerServiceProvider).currentCandidateCount),
                         maxLines: 1, overflow: TextOverflow.ellipsis,
                         style: const TextStyle(color: Colors.white60, fontSize: 10),
@@ -3967,24 +3709,6 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                 ),
               ),
               if (channel != null) ...[
-                if (!compact) Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 10,
-                    vertical: 7,
-                  ),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.07),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: Colors.white12),
-                  ),
-                  child: Text(
-                    playingRouteCountLabel(
-                      ref.read(playerServiceProvider).currentCandidateCount,
-                    ),
-                    style: const TextStyle(color: Colors.white70, fontSize: 12),
-                  ),
-                ),
-                if (!compact) const SizedBox(width: 10),
                 IconButton(
                   tooltip: '收藏频道',
                   onPressed: () => _showFavoriteListSheet(channel),
@@ -3995,23 +3719,10 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                     color: Colors.amber,
                   ),
                 ),
-                SizedBox(width: compact ? 0 : 8),
-                if (compact) IconButton(
+                IconButton(
                   tooltip: '全屏播放',
                   onPressed: () => _goFullscreen(channel),
                   icon: const Icon(Icons.fullscreen_rounded, color: Color(0xFFADC5FF)),
-                ) else FilledButton.icon(
-                  onPressed: () => _goFullscreen(channel),
-                  icon: const Icon(Icons.fullscreen_rounded),
-                  label: const Text('全屏播放'),
-                  style: FilledButton.styleFrom(
-                    backgroundColor: const Color(0xFFADC5FF),
-                    foregroundColor: const Color(0xFF111B2E),
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 18,
-                      vertical: 13,
-                    ),
-                  ),
                 ),
               ],
             ],
@@ -4039,8 +3750,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
 
   String? _compactChinaSection;
 
-  Widget _buildCompactCategories() {
-    final tiny = MediaQuery.sizeOf(context).height <= 450;
+  Widget _buildCompactCategories({required bool tiny}) {
     final favorites = _selectedGroup == 'Favorites' || _selectedGroup.startsWith('fav:');
     final international = _selectedGroup == '国际';
     final mainland = !favorites && !international;
@@ -4102,20 +3812,13 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
     ]);
   }
 
-  Widget _buildSimpleChannelPanel({bool compact = false}) {
-    final tiny = compact && MediaQuery.sizeOf(context).height <= 450;
-    final selectedProvince = ChannelCategoryClassifier.provinceCategories
-        .contains(_selectedGroup);
-    final customGroups = _groups.where((group) =>
-        !ChannelCategoryClassifier.categories.contains(group)).toList();
-    final mainlandSelected = _groups.contains(_selectedGroup) &&
-        _selectedGroup != '国际' && _selectedGroup != '网络直播';
-    final internationalGenres = _internationalGenresForSelectedCountry();
+  Widget _buildSimpleChannelPanel({required bool tiny}) {
     return Container(
       decoration: _simpleSurfaceDecoration(),
-      padding: EdgeInsets.all(compact ? 8 : 20),
+      padding: const EdgeInsets.all(8),
       child: SimpleChannelPanelFrame(
-        compact: compact,
+        compact: true,
+        tiny: tiny,
         onSearch: () => showDialog<void>(
           context: context,
           builder: (dialogContext) => AlertDialog(
@@ -4132,7 +3835,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
           ),
         ),
         header: SimpleChannelPanelHeader(
-            compact: compact,
+            compact: true,
             syncBadge: SharedSyncBadge(
               catalog: ref
                   .read(sourceMaintenanceCoordinatorProvider)
@@ -4150,162 +3853,14 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                 ? '正在核对线路…'
                 : '${_filteredChannels.length} 个频道',
           ),
-        navigation: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          if (compact) _buildCompactCategories(),
-          if (!compact) ...[
-          Wrap(
-            spacing: 7,
-            runSpacing: 7,
-            children: [
-              _buildSimpleCategoryTab(
-                '我的收藏',
-                selected:
-                    _selectedGroup == 'Favorites' ||
-                    _selectedGroup.startsWith('fav:'),
-                onTap: () => _selectGroupAndPlayFirst('Favorites'),
-              ),
-              _buildSimpleCategoryTab(
-                '中国',
-                selected: mainlandSelected,
-                onTap: () {
-                  if (!mainlandSelected) _selectGroupAndPlayFirst('央视');
-                },
-              ),
-              _buildSimpleCategoryTab(
-                '国际',
-                selected:
-                    _selectedGroup == '国际' &&
-                    !_pinnedInternationalCountries.contains(
-                      _selectedInternationalCountry,
-                    ),
-                onTap: () => _selectGroupAndPlayFirst('国际'),
-              ),
-              for (final country in _pinnedInternationalCountries)
-                _buildSimpleCategoryTab(
-                  country,
-                  selected:
-                      _selectedGroup == '国际' &&
-                      _selectedInternationalCountry == country,
-                  onTap: () => _selectPinnedCountry(country),
-                  onLongPressStart: (details) =>
-                      _showCountryPinMenu(country, details.globalPosition),
-                  onSecondaryTapUp: (details) =>
-                      _showCountryPinMenu(country, details.globalPosition),
-                ),
-            ],
-          ),
-          if (mainlandSelected) ...[
-            const SizedBox(height: 13),
-            const Text(
-              '频道分类',
-              style: TextStyle(color: Colors.white60, fontSize: 12),
-            ),
-            const SizedBox(height: 7),
-            Wrap(
-              spacing: 7,
-              runSpacing: 7,
-              children: [
-                for (final group in const ['央视', '数字', '广播', '其他'])
-                  _buildSimpleCategoryTab(
-                    group,
-                    selected: _selectedGroup == group,
-                    onTap: () => _selectGroupAndPlayFirst(group),
-                  ),
-                KeyedSubtree(
-                  key: _provinceButtonKey,
-                  child: _buildSimpleCategoryTab(
-                    selectedProvince ? _selectedGroup : '地方台',
-                    selected: selectedProvince,
-                    trailing: Icons.grid_view_rounded,
-                    onTap: _showProvincePicker,
-                  ),
-                ),
-                if (customGroups.isNotEmpty)
-                  KeyedSubtree(
-                    key: _customCategoryButtonKey,
-                    child: _buildSimpleCategoryTab(
-                      customGroups.contains(_selectedGroup) ? _selectedGroup : '更多分类',
-                      selected: customGroups.contains(_selectedGroup),
-                      trailing: Icons.grid_view_rounded,
-                      onTap: () => _showProvincePicker(
-                        groups: customGroups,
-                        anchorKey: _customCategoryButtonKey,
-                      ),
-                    ),
-                  ),
-              ],
-            ),
-          ],
-          if (_selectedGroup == '国际' && _internationalCountries.isNotEmpty) ...[
-            const SizedBox(height: 13),
-            const Text(
-              '国家或地区',
-              style: TextStyle(color: Colors.white60, fontSize: 12),
-            ),
-            const SizedBox(height: 7),
-            ConstrainedBox(
-              constraints: const BoxConstraints(maxHeight: 160),
-              child: Scrollbar(
-                controller: _countryScrollController,
-                thumbVisibility: true,
-                child: SingleChildScrollView(
-                  controller: _countryScrollController,
-                  padding: const EdgeInsets.only(right: 12),
-                  child: Wrap(
-                    spacing: 7,
-                    runSpacing: 7,
-                    children: [
-                      for (final country in _internationalCountries)
-                        _buildSimpleCategoryTab(
-                          country,
-                          selected: country == _selectedInternationalCountry,
-                          onTap: () => _selectInternationalCountry(country),
-                          onLongPressStart: (details) => _showCountryPinMenu(
-                            country,
-                            details.globalPosition,
-                          ),
-                          onSecondaryTapUp: (details) => _showCountryPinMenu(
-                            country,
-                            details.globalPosition,
-                          ),
-                        ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-            const SizedBox(height: 10),
-            const Text(
-              '频道类型',
-              style: TextStyle(color: Colors.white60, fontSize: 12),
-            ),
-            const SizedBox(height: 7),
-            SizedBox(
-              height: 43,
-              child: ListView.separated(
-                scrollDirection: Axis.horizontal,
-                itemCount: internationalGenres.length,
-                separatorBuilder: (_, __) => const SizedBox(width: 7),
-                itemBuilder: (context, index) {
-                  final genre = internationalGenres[index];
-                  return _buildSimpleCategoryTab(
-                    genre,
-                    selected: genre == _selectedInternationalGenre,
-                    onTap: () => _selectInternationalGenre(genre),
-                  );
-                },
-              ),
-            ),
-          ],
-          ],
-        ]),
+        navigation: _buildCompactCategories(tiny: tiny),
         search: TextField(
             controller: _searchController,
-            style: TextStyle(color: Colors.white, fontSize: compact ? 12 : null),
+            style: const TextStyle(color: Colors.white, fontSize: 12),
             decoration: InputDecoration(
-              isDense: compact,
-              contentPadding: compact ? const EdgeInsets.symmetric(horizontal: 10, vertical: 8) : null,
-              prefixIconConstraints: compact ? const BoxConstraints(minWidth: 32, minHeight: 32) : null,
+              isDense: true,
+              contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+              prefixIconConstraints: const BoxConstraints(minWidth: 32, minHeight: 32),
               hintText: '搜索当前分类',
               hintStyle: const TextStyle(color: Colors.white54),
               prefixIcon: const Icon(
@@ -4358,7 +3913,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                   )
                 : LayoutBuilder(
                     builder: (context, constraints) {
-                      final columns = TabletPresentation.channelColumns(constraints.maxWidth, compact: compact, tiny: tiny);
+                      final columns = TabletPresentation.channelColumns(constraints.maxWidth, compact: true, tiny: tiny);
                       final guideIndex = ChannelListIdentity.indexOf(
                         _filteredChannels,
                         _inlineProgrammePreview.selectedChannelId,
@@ -4367,15 +3922,15 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                       final hasGuide =
                           guideIndex >= 0 &&
                           _inlineProgrammePreview.programmes.isNotEmpty;
-                      final singleLineGuide = compact && constraints.maxHeight < 230;
-                      final guideHeight = compact && hasGuide
+                      final singleLineGuide = constraints.maxHeight < 230;
+                      final guideHeight = hasGuide
                           ? ChannelProgrammeStrip.compactHeight(MediaQuery.textScalerOf(context), singleLine: singleLineGuide, dense: tiny)
                           : 0.0;
                       return InlineExpandedChannelGrid(
-                        cardHeight: compact ? TabletPresentation.compactCardHeight(constraints.maxHeight, guideHeight, tiny: tiny) : 172,
-                        spacing: compact ? 8 : 14,
-                        guideGap: tiny ? 4 : compact ? 6 : 12,
-                        padding: tiny ? const EdgeInsets.fromLTRB(4, 2, 4, 4) : compact ? const EdgeInsets.fromLTRB(4, 4, 4, 8) : const EdgeInsets.fromLTRB(12, 8, 12, 24),
+                        cardHeight: TabletPresentation.compactCardHeight(constraints.maxHeight, guideHeight, tiny: tiny),
+                        spacing: 8,
+                        guideGap: tiny ? 4 : 6,
+                        padding: tiny ? const EdgeInsets.fromLTRB(4, 2, 4, 4) : const EdgeInsets.fromLTRB(4, 4, 4, 8),
                         channelIds: _filteredChannels.map((c) => c.id).toList(),
                         columns: columns,
                         expandedChannelId: hasGuide
@@ -4392,10 +3947,10 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                                     _filteredChannels[guideIndex],
                                   ),
                                   embedded: true,
-                                  compact: compact,
+                                  compact: true,
                                   compactSingleLine: singleLineGuide,
                                   compactDense: tiny,
-                                  showHeader: !compact,
+                                  showHeader: false,
                                   programmes:
                                       _inlineProgrammePreview.programmes,
                                   timeshiftHours:
@@ -4430,7 +3985,6 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                             builder: (previewController, progress, loading) =>
                                 _buildSimpleChannelTile(
                                   channel,
-                                  compact: compact,
                                   tiny: tiny,
                                   joinedToProgramme:
                                       hasGuide && index == guideIndex,
@@ -4459,7 +4013,6 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
 
   Widget _buildSimpleChannelTile(
     db.Channel channel, {
-    bool compact = false,
     bool tiny = false,
     required bool joinedToProgramme,
     required bool selected,
@@ -4574,7 +4127,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                         ),
                       ),
                       Padding(
-                        padding: compact ? EdgeInsets.all(tiny ? 6 : 9) : const EdgeInsets.fromLTRB(15, 13, 15, 14),
+                        padding: EdgeInsets.all(tiny ? 6 : 9),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
@@ -4590,7 +4143,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                                   overflow: TextOverflow.ellipsis,
                                   style: TextStyle(
                                     color: Color(0xFFCFD9FF),
-                                    fontSize: tiny ? 8 : compact ? 9 : 11,
+                                    fontSize: tiny ? 8 : 9,
                                     fontWeight: FontWeight.w700,
                                   ),
                                 )),
@@ -4614,7 +4167,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                                   textAlign: TextAlign.right,
                                   style: TextStyle(
                                     color: Colors.white70,
-                                    fontSize: tiny ? 8 : compact ? 9 : 11,
+                                    fontSize: tiny ? 8 : 9,
                                   ),
                                 )),
                               ],
@@ -4622,19 +4175,19 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                             const Spacer(),
                             Text(
                               name,
-                              maxLines: compact ? 1 : 2,
+                              maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                               style: TextStyle(
                                 color: Colors.white,
                                 fontWeight: FontWeight.w800,
-                                fontSize: tiny ? 13 : compact ? 16 : 21,
+                                fontSize: tiny ? 13 : 16,
                                 height: 1.08,
                                 shadows: [
                                   Shadow(color: Colors.black87, blurRadius: 8),
                                 ],
                               ),
                             ),
-                            SizedBox(height: tiny ? 2 : compact ? 4 : 9),
+                            SizedBox(height: tiny ? 2 : 4),
                             Row(
                               children: [
                                 Expanded(child: Text(
@@ -4649,7 +4202,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                                   overflow: TextOverflow.ellipsis,
                                   style: TextStyle(
                                     color: Colors.white70,
-                                    fontSize: tiny ? 8 : compact ? 9 : 11,
+                                    fontSize: tiny ? 8 : 9,
                                   ),
                                 )),
                                 if (_favoritedChannelIds.contains(channel.id))

@@ -1,8 +1,7 @@
-# Unreleased channel-state and favorite fixes
+# Channel-state and favorite fix notes
 
-These client changes are newer than the immutable `v1.1.3` package source.
-They require a subsequent application release. Installed applications have
-not been replaced or restarted.
+These client changes are included in `1.1.4+97`, after the immutable `v1.1.3`
+package source. Publication does not replace or restart installed clients.
 
 - Selected channels request fresh permanent retirement state for their
   candidates before playback. Current-category metadata is queued in small
@@ -26,6 +25,6 @@ not been replaced or restarted.
 - A regional-ranking future cleanup no longer returns its own pending
   future, preventing a request from waiting for itself after completion.
 
-No installed-app visual acceptance was performed because the user requested
-that the current applications remain running. Client fixes are covered by
-automated tests and must be packaged separately from the Windows 1.1.3 additions.
+Client synchronization and favorites are covered by automated and real-HTTP
+tests. Fullscreen acceptance was separately performed on the authorized local
+Intel Mac test build. Physical Windows and Android acceptance remains pending.

@@ -198,6 +198,11 @@
     "history_title": "Recent changes",
     "history": [
       [
+        "2026-10-14",
+        "v1.1.4 · Unified layouts, fullscreen and route-state fixes",
+        "All window sizes use the same balanced layout, three category rows and attached More menus. macOS Escape and native fullscreen re-entry are repaired. Selected channels prioritize fresh retirement state; favorites retain every equivalent route. Windows and Android physical acceptance remains pending. Platform updates are mirrored to cndrp."
+      ],
+      [
         "2026-10-13",
         "v1.1.3 · Compact layouts and Android exit",
         "Windows x64 and ARM64 installers and portable packages are now available, joining macOS and Android on 1.1.3. Compact views use equal panes, at most three category rows and attached overflow menus, preserving a complete preview and programme timeline. Android adds an explicit exit control."
@@ -263,7 +268,7 @@
   },
   "downloads": {
     "signing_notice": "The free SignPath Foundation application was not approved. No trusted Windows certificate was issued and SignPath.io production signing is not in use. Edge may still require a security confirmation on the first browser download.",
-    "intro": "Version 1.1.3 is available for Windows, macOS (Intel / Apple Silicon) and Android. Windows offers x64 and ARM64 installers and portable packages. Each operating system has one column with CPU choices inside.",
+    "intro": "Version 1.1.4 provides Windows, macOS (Intel / Apple Silicon) and Android packages with unified layouts, fullscreen and route-state fixes. Windows offers x64 and ARM64 installers and portable packages. Windows and Android physical acceptance remains pending. Each operating system has one column with CPU choices inside.",
     "latest": "Latest installers",
     "local": "Downloads hosted on this site",
     "sections": [

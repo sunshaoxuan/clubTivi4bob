@@ -220,15 +220,20 @@ class _CompactCategoryRowState extends State<CompactCategoryRow> {
           final painter = TextPainter(
             text: TextSpan(
               text: option.label,
-              style: TextStyle(
-                fontSize: widget.tiny ? 10 : 12,
-                fontWeight: option.selected ? FontWeight.w700 : FontWeight.w500,
+              style: DefaultTextStyle.of(context).style.merge(
+                TextStyle(
+                  fontSize: widget.tiny ? 10 : 12,
+                  height: 1.2,
+                  fontWeight: option.selected
+                      ? FontWeight.w700
+                      : FontWeight.w500,
+                ),
               ),
             ),
             textDirection: Directionality.of(context),
             textScaler: MediaQuery.textScalerOf(context),
           )..layout();
-          final width = painter.width + 20;
+          final width = (painter.width + 20).ceilToDouble();
           painter.dispose();
           return width;
         }
@@ -242,7 +247,7 @@ class _CompactCategoryRowState extends State<CompactCategoryRow> {
             children: [
               for (var i = 0; i < widget.options.length; i++) ...[
                 if (i > 0) const SizedBox(width: 5),
-                _button(widget.options[i]),
+                SizedBox(width: widths[i], child: _button(widget.options[i])),
               ],
             ],
           );
@@ -270,8 +275,8 @@ class _CompactCategoryRowState extends State<CompactCategoryRow> {
           children: [
             for (var i = 0; i < visible.length; i++) ...[
               if (i > 0) const SizedBox(width: 5),
-              ConstrainedBox(
-                constraints: BoxConstraints(maxWidth: remaining),
+              SizedBox(
+                width: math.min(widths[visible[i]], remaining),
                 child: _button(widget.options[visible[i]]),
               ),
             ],

@@ -11,9 +11,11 @@ class SimpleChannelPanelFrame extends StatelessWidget {
     required this.search,
     required this.body,
     required this.onSearch,
+    this.tiny = false,
   });
 
   final bool compact;
+  final bool tiny;
   final Widget header;
   final Widget navigation;
   final Widget search;
@@ -24,14 +26,14 @@ class SimpleChannelPanelFrame extends StatelessWidget {
   Widget build(BuildContext context) => LayoutBuilder(
     builder: (context, constraints) {
       final textScale = MediaQuery.textScalerOf(context).scale(12) / 12;
-      final tiny = compact && MediaQuery.sizeOf(context).height <= 450;
+      final dense = compact && tiny;
       final short = compact && constraints.maxHeight < 430 * textScale;
       return Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           if (short)
             SizedBox(
-              height: (tiny ? 24 : 32) * textScale,
+              height: (dense ? 24 : 32) * textScale,
               child: Row(
                 children: [
                   Expanded(child: header),
@@ -58,10 +60,10 @@ class SimpleChannelPanelFrame extends StatelessWidget {
             )
           else
             header,
-          SizedBox(height: compact ? (tiny ? 4 : 6) : 18),
+          SizedBox(height: compact ? (dense ? 4 : 6) : 18),
           navigation,
           if (!short) ...[SizedBox(height: compact ? 6 : 16), search],
-          SizedBox(height: compact ? (tiny ? 4 : 6) : 12),
+          SizedBox(height: compact ? (dense ? 4 : 6) : 12),
           Expanded(child: body),
         ],
       );

@@ -96,6 +96,35 @@ class _FakeFullscreenBackend implements FullscreenWindowBackend {
 
 void main() {
   group('DesktopFullscreenSession', () {
+    test(
+      'native Escape during entry returns once without publishing fullscreen',
+      () async {
+        final backend = _FakeFullscreenBackend();
+        final changes = <bool>[];
+        var externalExits = 0;
+        late DesktopFullscreenSession session;
+        session = DesktopFullscreenSession(
+          backend: backend,
+          onChanged: changes.add,
+          onExternalExit: () {
+            externalExits++;
+            unawaited(session.exit());
+          },
+        );
+        final entering = session.enter();
+        await _advanceAsyncWork();
+        backend.completeNativeTransition(false);
+        await entering;
+        await session.exit();
+        expect(externalExits, 1);
+        expect(changes, [false]);
+        expect(backend.commands, [true]);
+        expect(backend.restoredSnapshots, hasLength(1));
+        session.dispose();
+        await backend.disposed.future;
+      },
+    );
+
     test('return to channels preserves fullscreen through disposal', () async {
       final backend = _FakeFullscreenBackend();
       final session = DesktopFullscreenSession(
@@ -118,25 +147,28 @@ void main() {
       expect(backend.restoredSnapshots, isEmpty);
     });
 
-    test('return during entry finishes animation without exiting window', () async {
-      final backend = _FakeFullscreenBackend();
-      final session = DesktopFullscreenSession(
-        backend: backend,
-        onChanged: (_) {},
-        onExternalExit: () {},
-      );
-      final entering = session.enter();
-      await _advanceAsyncWork();
-      final leaving = session.exit(keepWindowFullscreen: true);
-      backend.completeNativeTransition(true);
-      await entering;
-      await leaving;
-      session.dispose();
-      await backend.disposed.future;
-      expect(backend.fullscreen, isTrue);
-      expect(backend.commands, [true]);
-      expect(backend.restoredSnapshots, isEmpty);
-    });
+    test(
+      'return during entry finishes animation without exiting window',
+      () async {
+        final backend = _FakeFullscreenBackend();
+        final session = DesktopFullscreenSession(
+          backend: backend,
+          onChanged: (_) {},
+          onExternalExit: () {},
+        );
+        final entering = session.enter();
+        await _advanceAsyncWork();
+        final leaving = session.exit(keepWindowFullscreen: true);
+        backend.completeNativeTransition(true);
+        await entering;
+        await leaving;
+        session.dispose();
+        await backend.disposed.future;
+        expect(backend.fullscreen, isTrue);
+        expect(backend.commands, [true]);
+        expect(backend.restoredSnapshots, isEmpty);
+      },
+    );
 
     test(
       'immediate exit waits for native enter and leave completion',

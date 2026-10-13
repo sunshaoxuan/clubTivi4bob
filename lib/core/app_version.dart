@@ -1,2 +1,2 @@
 /// Must match pubspec.yaml. The release validation test guards this value.
-const bobTvVersion = '1.1.3+96';
+const bobTvVersion = '1.1.4+97';

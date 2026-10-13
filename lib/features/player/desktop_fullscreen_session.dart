@@ -1,6 +1,14 @@
 import 'dart:async';
 import 'dart:ui';
 
+/// A native leave superseded an in-flight fullscreen entry.
+class FullscreenEntryCancelled implements Exception {
+  const FullscreenEntryCancelled();
+
+  @override
+  String toString() => 'Native fullscreen entry was cancelled';
+}
+
 class FullscreenWindowSnapshot {
   const FullscreenWindowSnapshot({
     required this.bounds,
@@ -48,7 +56,7 @@ class DesktopFullscreenSession {
         return;
       }
       if (!fullscreen &&
-          _entered &&
+          (_entered || _entering) &&
           !_exitRequested &&
           !_disposed &&
           !_externalExitReported) {
@@ -67,6 +75,7 @@ class DesktopFullscreenSession {
   Future<void>? _entryFuture;
   Future<void>? _exitFuture;
   bool _entered = false;
+  bool _entering = false;
   bool _exitRequested = false;
   bool _keepWindowFullscreen = false;
   bool _externalExitReported = false;
@@ -78,12 +87,23 @@ class DesktopFullscreenSession {
   }
 
   Future<void> _performEntry() async {
-    _snapshot = await _backend.capture();
-    if (_exitRequested && !_keepWindowFullscreen) return;
-    await _backend.prepareEntry();
-    await _backend.setFullscreen(true);
-    _entered = !_externalExitReported;
-    if (!_disposed && !_exitRequested && _entered) _onChanged(true);
+    _entering = true;
+    try {
+      _snapshot = await _backend.capture();
+      if (_exitRequested && !_keepWindowFullscreen) return;
+      await _backend.prepareEntry();
+      await _backend.setFullscreen(true);
+      _entered = !_externalExitReported;
+      if (!_disposed && !_exitRequested && _entered) _onChanged(true);
+    } on FullscreenEntryCancelled {
+      _entered = false;
+      if (!_disposed && !_exitRequested && !_externalExitReported) {
+        _externalExitReported = true;
+        _onExternalExit();
+      }
+    } finally {
+      _entering = false;
+    }
   }
 
   Future<void> exit({bool keepWindowFullscreen = false}) {

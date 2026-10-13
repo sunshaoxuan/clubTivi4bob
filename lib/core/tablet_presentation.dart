@@ -12,11 +12,6 @@ class TabletPresentation {
   static bool splitLayout({required double width, required double height}) =>
       width >= 640;
 
-  // Use logical window dimensions: Android display density must not opt a
-  // small tablet into the spacious desktop layout.
-  static bool compactLayout({required double width, required double height}) =>
-      width <= 1280 || height <= 720;
-
   static double compactCardHeight(
     double availableHeight,
     double guideHeight, {

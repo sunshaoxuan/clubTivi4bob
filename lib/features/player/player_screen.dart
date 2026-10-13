@@ -32,6 +32,7 @@ import 'alternative_preview_overlay.dart';
 import 'player_service.dart';
 import 'stream_info_badges.dart';
 import 'desktop_fullscreen_session.dart';
+import 'mobile_fullscreen_session.dart';
 import 'window_manager_fullscreen_backend.dart';
 import 'fullscreen_return_navigation.dart';
 import 'desktop_exit_button.dart';
@@ -72,6 +73,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   bool _nativeFullscreen = false;
   bool _leavingPlayer = false;
   DesktopFullscreenSession? _fullscreenSession;
+  MobileFullscreenSession? _mobileFullscreenSession;
   DesktopPipSession? _pipSession;
   bool _pipMode = false;
   bool _pipTransition = false;
@@ -144,7 +146,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
           .providerName(ch['providerId']?.toString() ?? '');
     }
     if (!_supportsNativeFullscreen) {
-      SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
+      _mobileFullscreenSession = MobileFullscreenSession();
+      unawaited(_mobileFullscreenSession!.enter().catchError((Object error, StackTrace stack) {
+        AppDiagnostics.instance.recordError('mobile_fullscreen_enter', error, stack);
+      }));
     }
     if (_supportsNativeFullscreen) {
       _createFullscreenSession();
@@ -632,7 +637,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
         if (mounted) setState(() => _nativeFullscreen = value);
       },
       onExternalExit: () {
-        if (!_pipTransition && !_pipMode) unawaited(_leavePlayer());
+        if (!_pipTransition && !_pipMode) {
+          unawaited(_leavePlayer(keepWindowFullscreen: false));
+        }
       },
       onError: (error, stack) => AppDiagnostics.instance.recordError(
         'fullscreen_transition',
@@ -663,17 +670,18 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     await _leavePlayer();
   }
 
-  Future<bool> _leavePlayer() async {
+  Future<bool> _leavePlayer({bool keepWindowFullscreen = true}) async {
     if (_leavingPlayer || _pipTransition) return false;
     if (_pipMode && !await _restorePip()) return false;
     _leavingPlayer = true;
     try {
       AppDiagnostics.instance.log('fullscreen_exit_requested', {
-        'keepWindowFullscreen': true,
+        'keepWindowFullscreen': keepWindowFullscreen,
       });
-      await _fullscreenSession?.exit(keepWindowFullscreen: true);
+      await _fullscreenSession?.exit(keepWindowFullscreen: keepWindowFullscreen);
+      await _mobileFullscreenSession?.exit();
       AppDiagnostics.instance.log('fullscreen_exit_completed', {
-        'keepWindowFullscreen': true,
+        'keepWindowFullscreen': keepWindowFullscreen,
       });
     } catch (error, stack) {
       _leavingPlayer = false;
@@ -1165,9 +1173,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
         }),
       );
     }
-    if (!_supportsNativeFullscreen) {
-      SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
-    }
+    unawaited(_mobileFullscreenSession?.exit().catchError((Object error, StackTrace stack) {
+      AppDiagnostics.instance.recordError('mobile_fullscreen_exit', error, stack);
+    }));
     super.dispose();
   }
 

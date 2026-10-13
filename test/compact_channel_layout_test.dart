@@ -42,14 +42,19 @@ Future<void> _pumpBrowser(
   Size size, {
   double textScale = 1,
   bool preview = false,
+  TargetPlatform platform = TargetPlatform.android,
+  double pixelRatio = 1,
+  double reservedHeight = 0,
+  EdgeInsets safePadding = EdgeInsets.zero,
 }) async {
-  final tiny = size.height <= 450;
-  tester.view.physicalSize = size;
-  tester.view.devicePixelRatio = 1;
+  const compact = true;
+  tester.view.physicalSize = size * pixelRatio;
+  tester.view.devicePixelRatio = pixelRatio;
   await tester.pumpWidget(
     MaterialApp(
       debugShowCheckedModeBanner: false,
       theme: ThemeData.dark(useMaterial3: true).copyWith(
+        platform: platform,
         textTheme: ThemeData.dark().textTheme.apply(
           fontFamily: preview ? 'BobTVCompactPreview' : null,
         ),
@@ -57,6 +62,8 @@ Future<void> _pumpBrowser(
       home: MediaQuery(
         data: MediaQueryData(
           size: size,
+          devicePixelRatio: pixelRatio,
+          padding: safePadding,
           textScaler: TextScaler.linear(textScale),
         ),
         child: Scaffold(
@@ -65,241 +72,279 @@ Future<void> _pumpBrowser(
             key: const ValueKey('compact-preview'),
             child: Column(
               children: [
-                const SizedBox(
-                  height: 52,
-                  child: Align(
-                    alignment: Alignment.centerRight,
-                    child: Padding(
-                      padding: EdgeInsets.only(right: 16),
-                      child: Text('退出 BobTV'),
-                    ),
-                  ),
-                ),
-                Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 4,
-                  ),
-                  child: AdaptiveHomeToolbar(
-                    compact: true,
-                    brand: const Text(
-                      'BobTV',
-                      style: TextStyle(
-                        fontSize: 19,
-                        fontWeight: FontWeight.w700,
+                if (platform == TargetPlatform.android)
+                  const SizedBox(
+                    height: 52,
+                    child: Align(
+                      alignment: Alignment.centerRight,
+                      child: Padding(
+                        padding: EdgeInsets.only(right: 16),
+                        child: Text('退出 BobTV'),
                       ),
                     ),
-                    actions: [
-                      IconButton(
-                        constraints: tiny
-                            ? const BoxConstraints.tightFor(
-                                width: 40,
-                                height: 40,
-                              )
-                            : null,
-                        style: tiny
-                            ? IconButton.styleFrom(
-                                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                              )
-                            : null,
-                        onPressed: () {},
-                        icon: const Icon(Icons.settings_outlined),
-                      ),
-                      IconButton(
-                        constraints: tiny
-                            ? const BoxConstraints.tightFor(
-                                width: 40,
-                                height: 40,
-                              )
-                            : null,
-                        style: tiny
-                            ? IconButton.styleFrom(
-                                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                              )
-                            : null,
-                        onPressed: () {},
-                        icon: const Icon(Icons.more_horiz),
-                      ),
-                    ],
                   ),
-                ),
+                if (reservedHeight > 0) SizedBox(height: reservedHeight),
                 Expanded(
-                  child: SimpleHomeContent(
-                    compact: true,
-                    preview: Container(
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF17283E),
-                        borderRadius: BorderRadius.circular(20),
-                        border: Border.all(color: Colors.white24),
-                      ),
-                      padding: const EdgeInsets.all(8),
+                  child: ResponsiveHomeLayout(
+                    builder: (context, tiny) => SafeArea(
                       child: Column(
                         children: [
-                          const Expanded(
-                            child: ColoredBox(
-                              color: Colors.black,
-                              child: Center(
-                                child: Icon(
-                                  Icons.live_tv,
-                                  size: 44,
-                                  color: Colors.white30,
+                          Padding(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 4,
+                            ),
+                            child: AdaptiveHomeToolbar(
+                              compact: compact,
+                              brand: const Text(
+                                'BobTV',
+                                style: TextStyle(
+                                  fontSize: 19,
+                                  fontWeight: FontWeight.w700,
                                 ),
                               ),
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          const Align(
-                            alignment: Alignment.centerLeft,
-                            child: Text(
-                              'CCTV-6 电影',
-                              style: TextStyle(
-                                fontSize: 18,
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    channels: Container(
-                      padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF17283E),
-                        borderRadius: BorderRadius.circular(20),
-                        border: Border.all(color: Colors.white24),
-                      ),
-                      child: SimpleChannelPanelFrame(
-                        compact: true,
-                        onSearch: () {},
-                        header: const SimpleChannelPanelHeader(
-                          compact: true,
-                          syncBadge: SizedBox(
-                            width: 62,
-                            height: 22,
-                            child: Center(
-                              child: Text(
-                                '已同步',
-                                style: TextStyle(fontSize: 11),
-                              ),
-                            ),
-                          ),
-                          summary: '8 个频道',
-                        ),
-                        navigation: Column(
-                          children: [
-                            for (var level = 1; level <= 3; level++) ...[
-                              if (level > 1) const SizedBox(height: 3),
-                              CompactCategoryRow(
-                                tiny: tiny,
-                                level: level,
-                                title: '第 $level 级分类',
-                                options: _options(level),
-                              ),
-                            ],
-                          ],
-                        ),
-                        search: const TextField(
-                          decoration: InputDecoration(
-                            isDense: true,
-                            contentPadding: EdgeInsets.symmetric(
-                              horizontal: 10,
-                              vertical: 8,
-                            ),
-                            hintText: '搜索当前分类',
-                            prefixIconConstraints: BoxConstraints(
-                              minWidth: 32,
-                              minHeight: 32,
-                            ),
-                            prefixIcon: Icon(Icons.search, size: 18),
-                          ),
-                          style: TextStyle(fontSize: 12),
-                        ),
-                        body: LayoutBuilder(
-                          builder: (context, constraints) {
-                            final singleLine = constraints.maxHeight < 230;
-                            final guideHeight =
-                                ChannelProgrammeStrip.compactHeight(
-                                  MediaQuery.textScalerOf(context),
-                                  singleLine: singleLine,
-                                  dense: tiny,
-                                );
-                            return InlineExpandedChannelGrid(
-                              channelIds: const [
-                                'cctv6',
-                                'cctv1',
-                                'cctv5',
-                                'cctv9',
+                              actions: [
+                                IconButton(
+                                  constraints: tiny
+                                      ? const BoxConstraints.tightFor(
+                                          width: 40,
+                                          height: 40,
+                                        )
+                                      : null,
+                                  style: tiny
+                                      ? IconButton.styleFrom(
+                                          tapTargetSize:
+                                              MaterialTapTargetSize.shrinkWrap,
+                                        )
+                                      : null,
+                                  onPressed: () {},
+                                  icon: const Icon(Icons.settings_outlined),
+                                ),
+                                IconButton(
+                                  constraints: tiny
+                                      ? const BoxConstraints.tightFor(
+                                          width: 40,
+                                          height: 40,
+                                        )
+                                      : null,
+                                  style: tiny
+                                      ? IconButton.styleFrom(
+                                          tapTargetSize:
+                                              MaterialTapTargetSize.shrinkWrap,
+                                        )
+                                      : null,
+                                  onPressed: () {},
+                                  icon: const Icon(Icons.more_horiz),
+                                ),
                               ],
-                              columns: TabletPresentation.channelColumns(
-                                constraints.maxWidth,
-                                compact: true,
-                                tiny: tiny,
-                              ),
-                              cardHeight: TabletPresentation.compactCardHeight(
-                                constraints.maxHeight,
-                                guideHeight,
-                                tiny: tiny,
-                              ),
-                              spacing: 8,
-                              guideGap: tiny ? 4 : 6,
-                              padding: tiny
-                                  ? const EdgeInsets.fromLTRB(4, 2, 4, 4)
-                                  : const EdgeInsets.fromLTRB(4, 4, 4, 8),
-                              expandedChannelId: 'cctv6',
-                              expandedContent: ChannelProgrammeStrip(
-                                channelName: 'CCTV-6',
-                                programmes: _programmes,
-                                now: _now,
-                                embedded: true,
-                                showHeader: false,
-                                compact: true,
-                                compactSingleLine: singleLine,
-                                compactDense: tiny,
-                              ),
-                              cardBuilder: (_, i) => Container(
+                            ),
+                          ),
+                          Expanded(
+                            child: SimpleHomeContent(
+                              preview: Container(
                                 decoration: BoxDecoration(
-                                  gradient: const LinearGradient(
-                                    colors: [
-                                      Color(0xFF405E87),
-                                      Color(0xFF111E32),
-                                    ],
-                                  ),
-                                  borderRadius: BorderRadius.circular(19),
+                                  color: const Color(0xFF17283E),
+                                  borderRadius: BorderRadius.circular(20),
+                                  border: Border.all(color: Colors.white24),
                                 ),
-                                padding: EdgeInsets.all(tiny ? 6 : 9),
+                                padding: const EdgeInsets.all(8),
                                 child: Column(
-                                  crossAxisAlignment:
-                                      CrossAxisAlignment.stretch,
                                   children: [
-                                    Text(
-                                      '● 静音预览',
-                                      style: TextStyle(fontSize: tiny ? 8 : 9),
-                                    ),
-                                    const Spacer(),
-                                    Text(
-                                      [
-                                        'CCTV-6 电影',
-                                        'CCTV-1 综合',
-                                        'CCTV-5 体育',
-                                        'CCTV-9 纪录',
-                                      ][i],
-                                      maxLines: 1,
-                                      style: TextStyle(
-                                        fontSize: tiny ? 13 : 16,
-                                        fontWeight: FontWeight.w800,
+                                    const Expanded(
+                                      child: ColoredBox(
+                                        color: Colors.black,
+                                        child: Center(
+                                          child: Icon(
+                                            Icons.live_tv,
+                                            size: 44,
+                                            color: Colors.white30,
+                                          ),
+                                        ),
                                       ),
                                     ),
-                                    SizedBox(height: tiny ? 2 : 4),
-                                    Text(
-                                      '点击切换到主画面',
-                                      style: TextStyle(fontSize: tiny ? 8 : 9),
+                                    const SizedBox(height: 8),
+                                    const Align(
+                                      alignment: Alignment.centerLeft,
+                                      child: Text(
+                                        'CCTV-6 电影',
+                                        style: TextStyle(
+                                          fontSize: 18,
+                                          fontWeight: FontWeight.w700,
+                                        ),
+                                      ),
                                     ),
                                   ],
                                 ),
                               ),
-                            );
-                          },
-                        ),
+                              channels: Container(
+                                padding: const EdgeInsets.all(8),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFF17283E),
+                                  borderRadius: BorderRadius.circular(20),
+                                  border: Border.all(color: Colors.white24),
+                                ),
+                                child: SimpleChannelPanelFrame(
+                                  compact: compact,
+                                  tiny: tiny,
+                                  onSearch: () {},
+                                  header: SimpleChannelPanelHeader(
+                                    compact: compact,
+                                    syncBadge: const SizedBox(
+                                      width: 62,
+                                      height: 22,
+                                      child: Center(
+                                        child: Text(
+                                          '已同步',
+                                          style: TextStyle(fontSize: 11),
+                                        ),
+                                      ),
+                                    ),
+                                    summary: '8 个频道',
+                                  ),
+                                  navigation: Column(
+                                    children: [
+                                      for (
+                                        var level = 1;
+                                        level <= 3;
+                                        level++
+                                      ) ...[
+                                        if (level > 1)
+                                          const SizedBox(height: 3),
+                                        CompactCategoryRow(
+                                          tiny: tiny,
+                                          level: level,
+                                          title: '第 $level 级分类',
+                                          options: _options(level),
+                                        ),
+                                      ],
+                                    ],
+                                  ),
+                                  search: const TextField(
+                                    decoration: InputDecoration(
+                                      isDense: true,
+                                      contentPadding: EdgeInsets.symmetric(
+                                        horizontal: 10,
+                                        vertical: 8,
+                                      ),
+                                      hintText: '搜索当前分类',
+                                      prefixIconConstraints: BoxConstraints(
+                                        minWidth: 32,
+                                        minHeight: 32,
+                                      ),
+                                      prefixIcon: Icon(Icons.search, size: 18),
+                                    ),
+                                    style: TextStyle(fontSize: 12),
+                                  ),
+                                  body: LayoutBuilder(
+                                    builder: (context, constraints) {
+                                      final singleLine =
+                                          constraints.maxHeight < 230;
+                                      final guideHeight =
+                                          ChannelProgrammeStrip.compactHeight(
+                                            MediaQuery.textScalerOf(context),
+                                            singleLine: singleLine,
+                                            dense: tiny,
+                                          );
+                                      return InlineExpandedChannelGrid(
+                                        channelIds: const [
+                                          'cctv6',
+                                          'cctv1',
+                                          'cctv5',
+                                          'cctv9',
+                                        ],
+                                        columns:
+                                            TabletPresentation.channelColumns(
+                                              constraints.maxWidth,
+                                              compact: compact,
+                                              tiny: tiny,
+                                            ),
+                                        cardHeight:
+                                            TabletPresentation.compactCardHeight(
+                                              constraints.maxHeight,
+                                              guideHeight,
+                                              tiny: tiny,
+                                            ),
+                                        spacing: 8,
+                                        guideGap: tiny ? 4 : 6,
+                                        padding: tiny
+                                            ? const EdgeInsets.fromLTRB(
+                                                4,
+                                                2,
+                                                4,
+                                                4,
+                                              )
+                                            : const EdgeInsets.fromLTRB(
+                                                4,
+                                                4,
+                                                4,
+                                                8,
+                                              ),
+                                        expandedChannelId: 'cctv6',
+                                        expandedContent: ChannelProgrammeStrip(
+                                          channelName: 'CCTV-6',
+                                          programmes: _programmes,
+                                          now: _now,
+                                          embedded: true,
+                                          showHeader: false,
+                                          compact: compact,
+                                          compactSingleLine: singleLine,
+                                          compactDense: tiny,
+                                        ),
+                                        cardBuilder: (_, i) => Container(
+                                          decoration: BoxDecoration(
+                                            gradient: const LinearGradient(
+                                              colors: [
+                                                Color(0xFF405E87),
+                                                Color(0xFF111E32),
+                                              ],
+                                            ),
+                                            borderRadius: BorderRadius.circular(
+                                              19,
+                                            ),
+                                          ),
+                                          padding: EdgeInsets.all(tiny ? 6 : 9),
+                                          child: Column(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.stretch,
+                                            children: [
+                                              Text(
+                                                '● 静音预览',
+                                                style: TextStyle(
+                                                  fontSize: tiny ? 8 : 9,
+                                                ),
+                                              ),
+                                              const Spacer(),
+                                              Text(
+                                                [
+                                                  'CCTV-6 电影',
+                                                  'CCTV-1 综合',
+                                                  'CCTV-5 体育',
+                                                  'CCTV-9 纪录',
+                                                ][i],
+                                                maxLines: 1,
+                                                style: TextStyle(
+                                                  fontSize: tiny ? 13 : 16,
+                                                  fontWeight: FontWeight.w800,
+                                                ),
+                                              ),
+                                              SizedBox(height: tiny ? 2 : 4),
+                                              Text(
+                                                '点击切换到主画面',
+                                                style: TextStyle(
+                                                  fontSize: tiny ? 8 : 9,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                      );
+                                    },
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   ),
@@ -315,63 +360,180 @@ Future<void> _pumpBrowser(
 }
 
 void main() {
-  for (final size in [
-    const Size(640, 360),
-    const Size(800, 400),
-    const Size(960, 400),
-    const Size(640, 480),
-    const Size(800, 480),
-    const Size(800, 600),
-    const Size(960, 540),
-    const Size(1024, 600),
-    const Size(1024, 768),
-    const Size(1280, 720),
-    const Size(1280, 1024),
-    const Size(800, 1280),
-    const Size(600, 960),
-    const Size(360, 640),
+  for (final platform in [
+    TargetPlatform.windows,
+    TargetPlatform.macOS,
+    TargetPlatform.android,
   ]) {
+    for (final size in [
+      const Size(640, 360),
+      const Size(800, 400),
+      const Size(960, 400),
+      const Size(640, 480),
+      const Size(800, 480),
+      const Size(800, 600),
+      const Size(960, 540),
+      const Size(1024, 600),
+      const Size(1024, 768),
+      const Size(1280, 720),
+      const Size(1280, 1024),
+      const Size(1281, 721),
+      const Size(1290, 747),
+      const Size(1366, 768),
+      const Size(1440, 900),
+      const Size(1920, 1080),
+      const Size(3840, 2160),
+      const Size(800, 1280),
+      const Size(600, 960),
+      const Size(360, 640),
+    ]) {
+      testWidgets(
+        '${platform.name} $size reserves a complete card and its EPG with only three category rows',
+        (tester) async {
+          addTearDown(tester.view.resetPhysicalSize);
+          addTearDown(tester.view.resetDevicePixelRatio);
+          await _pumpBrowser(tester, size, platform: platform);
+          final tiny =
+              size.height - (platform == TargetPlatform.android ? 52 : 0) <=
+              450;
+          expect(tester.takeException(), isNull);
+          for (var level = 1; level <= 3; level++) {
+            expect(
+              tester
+                  .getSize(find.byKey(ValueKey('category-level-$level')))
+                  .height,
+              closeTo(tiny ? 24 : 32, .01),
+            );
+            expect(
+              find.byKey(ValueKey('row-category-$level-39')),
+              findsOneWidget,
+            );
+          }
+          if (size.width >= 640) {
+            final main = tester.getRect(
+              find.byKey(const ValueKey('simple-main-pane')),
+            );
+            final channels = tester.getRect(
+              find.byKey(const ValueKey('simple-channel-pane')),
+            );
+            expect(main.width, lessThanOrEqualTo(size.width / 2));
+            expect(main.width, closeTo(channels.width, .01));
+          }
+          final list = tester.getRect(find.byType(InlineExpandedChannelGrid));
+          final card = tester.getRect(
+            find.byKey(const ValueKey('grid-card-cctv6')),
+          );
+          final epg = tester.getRect(
+            find.byKey(const ValueKey('channel-programme-strip')),
+          );
+          expect(card.top, greaterThanOrEqualTo(list.top));
+          expect(epg.bottom, lessThanOrEqualTo(list.bottom + .01));
+          expect(epg.height, greaterThan(tiny ? 50 : 70));
+          expect(card.height, greaterThanOrEqualTo(tiny ? 56 : 80));
+          expect(TabletPresentation.videoFit, BoxFit.contain);
+        },
+      );
+    }
+    for (final ratio in [1.25, 1.5, 2.0]) {
+      testWidgets(
+        '${platform.name} physical 1920x1080 at ${ratio}x uses logical dimensions',
+        (tester) async {
+          addTearDown(tester.view.resetPhysicalSize);
+          addTearDown(tester.view.resetDevicePixelRatio);
+          final size = const Size(1920, 1080) / ratio;
+          await _pumpBrowser(
+            tester,
+            size,
+            platform: platform,
+            pixelRatio: ratio,
+          );
+          expect(tester.takeException(), isNull);
+          expect(
+            tester
+                .widget<SimpleChannelPanelFrame>(
+                  find.byType(SimpleChannelPanelFrame),
+                )
+                .compact,
+            isTrue,
+          );
+          expect(
+            tester
+                .getRect(find.byKey(const ValueKey('simple-main-pane')))
+                .width,
+            closeTo(
+              tester
+                  .getRect(find.byKey(const ValueKey('simple-channel-pane')))
+                  .width,
+              .01,
+            ),
+          );
+          expect(
+            tester
+                .getRect(find.byKey(const ValueKey('channel-programme-strip')))
+                .bottom,
+            lessThanOrEqualTo(
+              tester.getRect(find.byType(InlineExpandedChannelGrid)).bottom +
+                  .01,
+            ),
+          );
+        },
+      );
+    }
     testWidgets(
-      '$size reserves a complete card and its EPG with only three category rows',
+      '${platform.name} reserved controls and system padding use the remaining viewport',
       (tester) async {
         addTearDown(tester.view.resetPhysicalSize);
         addTearDown(tester.view.resetDevicePixelRatio);
-        await _pumpBrowser(tester, size);
+        await _pumpBrowser(
+          tester,
+          const Size(1600, 500),
+          platform: platform,
+          reservedHeight: 90,
+          safePadding: const EdgeInsets.only(top: 24, bottom: 20),
+        );
         expect(tester.takeException(), isNull);
-        for (var level = 1; level <= 3; level++) {
+        expect(
+          tester
+              .widget<SimpleChannelPanelFrame>(
+                find.byType(SimpleChannelPanelFrame),
+              )
+              .tiny,
+          isTrue,
+        );
+        expect(
+          tester
+              .getRect(find.byKey(const ValueKey('channel-programme-strip')))
+              .bottom,
+          lessThanOrEqualTo(
+            tester.getRect(find.byType(InlineExpandedChannelGrid)).bottom + .01,
+          ),
+        );
+      },
+    );
+    testWidgets(
+      '${platform.name} resize keeps the unified layout and selected channel guide',
+      (tester) async {
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+        for (final size in [
+          const Size(1920, 1080),
+          const Size(1024, 600),
+          const Size(600, 960),
+          const Size(1920, 1080),
+        ]) {
+          await _pumpBrowser(tester, size, platform: platform);
+          expect(tester.takeException(), isNull);
           expect(
             tester
-                .getSize(find.byKey(ValueKey('category-level-$level')))
-                .height,
-            closeTo(size.height <= 450 ? 24 : 32, .01),
+                .widget<SimpleChannelPanelFrame>(
+                  find.byType(SimpleChannelPanelFrame),
+                )
+                .compact,
+            isTrue,
           );
-          expect(
-            find.byKey(ValueKey('row-category-$level-39')),
-            findsOneWidget,
-          );
+          expect(find.byKey(const ValueKey('grid-card-cctv6')), findsOneWidget);
+          expect(find.text('光影星播客'), findsOneWidget);
         }
-        if (size.width >= 640) {
-          final main = tester.getRect(
-            find.byKey(const ValueKey('simple-main-pane')),
-          );
-          final channels = tester.getRect(
-            find.byKey(const ValueKey('simple-channel-pane')),
-          );
-          expect(main.width, lessThanOrEqualTo(size.width / 2));
-          expect(main.width, closeTo(channels.width, .01));
-        }
-        final list = tester.getRect(find.byType(InlineExpandedChannelGrid));
-        final card = tester.getRect(
-          find.byKey(const ValueKey('grid-card-cctv6')),
-        );
-        final epg = tester.getRect(
-          find.byKey(const ValueKey('channel-programme-strip')),
-        );
-        expect(card.top, greaterThanOrEqualTo(list.top));
-        expect(epg.bottom, lessThanOrEqualTo(list.bottom + .01));
-        expect(epg.height, greaterThan(size.height <= 450 ? 50 : 70));
-        expect(card.height, greaterThanOrEqualTo(size.height <= 450 ? 56 : 80));
-        expect(TabletPresentation.videoFit, BoxFit.contain);
       },
     );
   }
@@ -555,29 +717,37 @@ void main() {
         icons.addFont(rootBundle.load('fonts/MaterialIcons-Regular.otf'));
         await icons.load();
       });
-      for (final size in [
-        const Size(640, 360),
-        const Size(800, 480),
-        const Size(1024, 600),
-        const Size(1280, 720),
+      for (final platform in [
+        TargetPlatform.windows,
+        TargetPlatform.macOS,
+        TargetPlatform.android,
       ]) {
-        await _pumpBrowser(tester, size, preview: true);
-        await expectLater(
-          find.byKey(const ValueKey('compact-preview')),
-          matchesGoldenFile(
-            '/tmp/bobtv-compact-${size.width.toInt()}x${size.height.toInt()}.png',
-          ),
-        );
-        await tester.tap(find.byKey(const ValueKey('category-more-3')));
-        await tester.pumpAndSettle();
-        await expectLater(
-          find.byType(MaterialApp),
-          matchesGoldenFile(
-            '/tmp/bobtv-compact-menu-${size.width.toInt()}x${size.height.toInt()}.png',
-          ),
-        );
-        await tester.tapAt(const Offset(5, 5));
-        await tester.pumpAndSettle();
+        for (final size in [
+          const Size(640, 360),
+          const Size(800, 480),
+          const Size(1024, 600),
+          const Size(1290, 747),
+          const Size(1366, 768),
+          const Size(1920, 1080),
+        ]) {
+          await _pumpBrowser(tester, size, preview: true, platform: platform);
+          await expectLater(
+            find.byKey(const ValueKey('compact-preview')),
+            matchesGoldenFile(
+              '/tmp/bobtv-compact-${platform.name}-${size.width.toInt()}x${size.height.toInt()}.png',
+            ),
+          );
+          await tester.tap(find.byKey(const ValueKey('category-more-3')));
+          await tester.pumpAndSettle();
+          await expectLater(
+            find.byType(MaterialApp),
+            matchesGoldenFile(
+              '/tmp/bobtv-compact-menu-${platform.name}-${size.width.toInt()}x${size.height.toInt()}.png',
+            ),
+          );
+          await tester.tapAt(const Offset(5, 5));
+          await tester.pumpAndSettle();
+        }
       }
       tester.view.resetPhysicalSize();
       tester.view.resetDevicePixelRatio();

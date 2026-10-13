@@ -84,10 +84,22 @@ def test_candidate_rejects_non_oss_helper_and_private_keys(tmp_path, filename, b
 def test_privacy_notice_and_default_choice_are_in_installer():
     setup = (ROOT / 'tools/windows/installer/BobTV.iss').read_text()
     assert 'InfoBeforeFile=PrivacyNotice.txt' in setup
+    assert 'VersionInfoProductVersion={#StringChange(AppVersion, "+", ".")}' in setup
+    assert 'VersionInfoProductTextVersion={#AppVersion}' in setup
     assert 'privatefavoritesbackup' in setup and '[BobTVPrivacy]' not in setup
     assert 'Section: "BobTVPrivacy"' in setup
     notice = (ROOT / 'tools/windows/installer/PrivacyNotice.txt').read_text(encoding='utf-8-sig')
     assert '/privacy' in notice and '默认关闭' in notice
+
+
+def test_arm_runtime_selection_skips_non_numeric_visual_studio_aliases():
+    script = (ROOT / 'tools/windows/prepare_signpath_bundle.ps1').read_text()
+    selection = script.split("$runtime=Get-ChildItem", 1)[1].split("if(!$runtime)", 1)[0]
+    pattern = r'^\d+\.\d+\.\d+(?:\.\d+)?$'
+    assert pattern in selection
+    assert selection.index('Where-Object') < selection.index('Sort-Object')
+    assert re.fullmatch(pattern, '14.44.35112')
+    assert not re.fullmatch(pattern, 'v143')
 
 
 def test_policy_routes_and_current_release_boundary():

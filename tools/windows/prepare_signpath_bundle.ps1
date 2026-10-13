@@ -38,6 +38,7 @@ try {
     $vs=(& $vswhere -latest -products '*' -requires Microsoft.VisualStudio.Component.VC.Tools.ARM64 -property installationPath)
     if(!$vs){throw 'GitHub runner is missing the Microsoft ARM64 C++ toolchain'}
     $runtime=Get-ChildItem -LiteralPath (Join-Path $vs 'VC/Redist/MSVC') -Directory |
+      Where-Object {$_.Name -match '^\d+\.\d+\.\d+(?:\.\d+)?$'} |
       Sort-Object { [Version]$_.Name } -Descending |
       ForEach-Object { Join-Path $_.FullName 'arm64/Microsoft.VC143.CRT' } |
       Where-Object { Test-Path -LiteralPath $_ } | Select-Object -First 1

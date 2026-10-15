@@ -81,6 +81,92 @@ def test_mirror_publishes_mac_install_dmg(tmp_path, monkeypatch):
     assert (tmp_path / "releases" / name).read_bytes() == image
 
 
+def test_incremental_publication_never_reads_old_archives_and_preserves_history(tmp_path, monkeypatch):
+    monkeypatch.setattr(module, 'DATA', tmp_path)
+    old_name = 'BobTV-1.0.0+1-windows-x64.zip'
+    new_name = 'BobTV-1.1.5+98-windows-x64.zip'
+    payloads = {'old': b'PK\x03\x04previous', 'new': b'PK\x03\x04latest'}
+    releases = [
+        {'tag_name': tag, 'published_at': date, 'assets': [{
+            'name': name, 'size': len(payloads[key]), 'browser_download_url': key,
+            'digest': 'sha256:' + hashlib.sha256(payloads[key]).hexdigest(),
+        }]}
+        for tag, date, name, key in [
+            ('v1.0.0', '2026-10-01T00:00:00Z', old_name, 'old'),
+            ('v1.1.5', '2026-10-16T00:00:00Z', new_name, 'new'),
+        ]
+    ]
+    folder = tmp_path / 'releases'
+    folder.mkdir()
+    old_path = folder / old_name
+    old_path.write_bytes(b'old archive must not be opened during new publication')
+    previous = {'version': 'v1.0.0', 'filename': old_name,
+                'sha256': hashlib.sha256(payloads['old']).hexdigest()}
+    (tmp_path / 'releases.json').write_text(json.dumps({'releases': [previous]}))
+    rollback = tmp_path / 'updates/macos-x64/latest.json'
+    rollback.parent.mkdir(parents=True)
+    rollback.write_text('{"version":"1.0.0+1","retained":true}')
+    calls = []
+
+    def request(url):
+        calls.append(url)
+        return io.BytesIO(json.dumps(releases).encode() if url == module.API else payloads[url])
+
+    monkeypatch.setattr(module, 'request', request)
+    original_open = Path.open
+
+    def guard(path, *args, **kwargs):
+        assert path != old_path, 'incremental publish opened a historical archive'
+        return original_open(path, *args, **kwargs)
+
+    with monkeypatch.context() as guard_context:
+        guard_context.setattr(Path, 'open', guard)
+        module.mirror()
+    rows = json.loads((tmp_path / 'releases.json').read_text())['releases']
+    assert [row['filename'] for row in rows] == [new_name, old_name]
+    assert rows[1] == previous
+    assert 'old' not in calls
+    assert json.loads(rollback.read_text()) == {'version': '1.0.0+1', 'retained': True}
+
+    calls.clear()
+    module.mirror(all_releases=True)
+    assert 'old' in calls
+    assert old_path.read_bytes() == payloads['old']
+
+
+def test_targeted_publication_can_supplement_an_older_release(tmp_path, monkeypatch):
+    monkeypatch.setattr(module, 'DATA', tmp_path)
+    payload = b'PK\x03\x04older supplement'
+    name = 'BobTV-1.1.3+96-windows-arm64.zip'
+    releases = [
+        {'tag_name': 'v1.1.5', 'published_at': '2026-10-16T00:00:00Z', 'assets': []},
+        {'tag_name': 'v1.1.3', 'published_at': '2026-10-14T00:00:00Z', 'assets': [{
+            'name': name, 'size': len(payload), 'browser_download_url': 'supplement',
+            'digest': 'sha256:' + hashlib.sha256(payload).hexdigest(),
+        }]},
+    ]
+    monkeypatch.setattr(module, 'request', lambda url: io.BytesIO(
+        json.dumps(releases).encode() if url == module.API else payload))
+    module.mirror(release_tag='v1.1.3')
+    assert (tmp_path / 'releases' / name).read_bytes() == payload
+    before = (tmp_path / 'releases.json').read_bytes()
+    with pytest.raises(ValueError, match='No eligible release'):
+        module.mirror(release_tag='missing')
+    assert (tmp_path / 'releases.json').read_bytes() == before
+
+
+def test_incremental_publication_rejects_invalid_history_without_overwriting(tmp_path, monkeypatch):
+    monkeypatch.setattr(module, 'DATA', tmp_path)
+    manifest = tmp_path / 'releases.json'
+    manifest.write_text('{"releases":[{"invalid":true}]}')
+    before = manifest.read_bytes()
+    releases = [{'tag_name': 'v1.1.5', 'published_at': '2026-10-16T00:00:00Z', 'assets': []}]
+    monkeypatch.setattr(module, 'request', lambda url: io.BytesIO(json.dumps(releases).encode()))
+    with pytest.raises(ValueError, match='Invalid previous download manifest'):
+        module.mirror()
+    assert manifest.read_bytes() == before
+
+
 def test_mirror_publishes_setup_and_rejects_invalid_executable(tmp_path, monkeypatch):
     monkeypatch.setattr(module, "DATA", tmp_path)
     image = bytearray(128)

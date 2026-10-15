@@ -1,5 +1,10 @@
-"""Mirror published BobTV Windows assets before exposing them to visitors."""
+"""Publish the newest BobTV release without re-auditing historical archives.
 
+Previously published manifests and rollback packages remain available. Use
+--tag to supplement a particular release, or --all for an explicit full audit.
+"""
+
+import argparse
 import hashlib
 import base64
 import json
@@ -237,9 +242,29 @@ def request(url):
     return urllib.request.urlopen(urllib.request.Request(url, headers={"User-Agent": "BobTV-release-mirror", "Accept": "application/vnd.github+json"}), timeout=90)
 
 
-def mirror():
+def mirror(release_tag=None, all_releases=False):
     with request(API) as response:
         releases = json.load(response)
+    if not isinstance(releases, list):
+        raise ValueError("Invalid GitHub release response; manifests unchanged")
+    releases = [release for release in releases
+                if not release.get('draft') and not release.get('prerelease')]
+    if release_tag is not None:
+        releases = [release for release in releases if release['tag_name'] == release_tag]
+    elif not all_releases and releases:
+        releases = [max(releases, key=lambda release: release['published_at'])]
+    if not releases:
+        raise ValueError("No eligible release found; manifests unchanged")
+    previous_rows = []
+    manifest = DATA / "releases.json"
+    if not all_releases and manifest.is_file():
+        previous = json.loads(manifest.read_text(encoding='utf-8'))
+        if (not isinstance(previous, dict) or
+                not isinstance(previous.get('releases'), list) or
+                not all(isinstance(row, dict) and isinstance(row.get('filename'), str)
+                        for row in previous['releases'])):
+            raise ValueError("Invalid previous download manifest; manifest unchanged")
+        previous_rows = previous['releases']
     folder = DATA / "releases"
     folder.mkdir(parents=True, exist_ok=True)
     result = []
@@ -312,7 +337,8 @@ def mirror():
     if not result and not updates:
         raise ValueError("No eligible release assets found; manifest unchanged")
     if result:
-        manifest = DATA / "releases.json"
+        replaced = {row['filename'] for row in result}
+        result.extend(row for row in previous_rows if row['filename'] not in replaced)
         temp_manifest = DATA / f".releases.{os.getpid()}.tmp"
         temp_manifest.write_text(json.dumps({"releases": result}, ensure_ascii=False, indent=2), encoding="utf-8")
         os.replace(temp_manifest, manifest)
@@ -354,4 +380,9 @@ def mirror():
 
 
 if __name__ == "__main__":
-    mirror()
+    parser = argparse.ArgumentParser(description=__doc__)
+    mode = parser.add_mutually_exclusive_group()
+    mode.add_argument('--tag', help='Publish or supplement only this release tag')
+    mode.add_argument('--all', action='store_true', help='Explicitly re-audit all release archives')
+    args = parser.parse_args()
+    mirror(release_tag=args.tag, all_releases=args.all)

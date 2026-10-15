@@ -71,9 +71,20 @@ with the local database so restored or fresh databases cannot skip initializatio
 
 The download page selects the latest verified installer independently for each platform and labels its exact version. A platform-specific release does not remove another platform's previous installer or advance its update feed. Release 1.0.6 provides Windows x64 Setup/portable packages and both macOS architectures, with server-side discovery, HTTPS media access, regional ranking and fullscreen fixes. Automatic update status is separate from the manual historical-release browser. Foreground update checks are throttled to 15 minutes in addition to startup and six-hour checks.
 
-Current releases mirror Windows x64 ZIP packages and both macOS architectures' DMG installers and signed update ZIP archives. A single download row presents the three manual installers; automatic updates use separate platform feeds.
+Current releases mirror Windows x64/ARM64 Setup and ZIP packages, both macOS
+architectures' DMG installers and signed update ZIPs, and Android ARM32/ARM64/x64
+APKs. Downloads are grouped by operating system, with CPU variants inside each
+group. Automatic updates use separate platform feeds.
 
 Run `python mirror_releases.py` in this directory with `BOBTV_DATA_DIR=/var/lib/bobtv`. It reads public GitHub release metadata and downloads each matching BobTV Windows x64 ZIP or Setup EXE and macOS DMG into private staging. Size, ZIP signature, and GitHub's SHA-256 digest where present are verified before manual-download manifest publication. A release can additionally contain `BobTV-update-metadata.json` with `schema`, numeric `version` and `packages` entries containing `platform`, `filename`, `sha256` and `bytes`. Mac packages also require a base64 P-256 `signature` over the exact ZIP bytes. The mirror checks that signature with the bundled public key before publication. Each listed package is downloaded and verified before its platform's `latest.json` is atomically replaced. Older releases without this metadata stay manual downloads. Mac packages must be physically tested on their target architecture; CI test artifacts remain outside the release feed. Downloads are served from the local filesystem. The server needs outbound GitHub access for mirror refreshes; visitors do not. Deploy `update-signing-public.pem` with the website runtime files. Keep its matching private key outside the site and repository.
+
+Normal runs publish only the newest non-draft, non-prerelease release and merge
+its verified files into the existing download manifest. Historical archives are
+not opened or hashed again; previous platform feeds, approved downloads and
+rollback history remain available. Use `python mirror_releases.py --tag v1.1.5`
+to publish or supplement a particular tag. A full historical archive audit is
+an explicit maintenance operation: `python mirror_releases.py --all`. It must
+not block an ordinary new-version publication.
 
 ## Deployment
 

@@ -198,6 +198,11 @@
     "history_title": "Recent changes",
     "history": [
       [
+        "2026-10-16",
+        "v1.1.5 · Original window restoration and category menus",
+        "Returning from video fullscreen restores the caller's bounds, maximization or native fullscreen and channel layout. Repairs Windows native-caption overlap, PiP return state and the Mac termination callback. Category popups use larger text and buttons with less empty space. Continuous EPG discovery is scheduled development and is not included in this release."
+      ],
+      [
         "2026-10-14",
         "v1.1.4 · Unified layouts, fullscreen and route-state fixes",
         "All window sizes use the same balanced layout, three category rows and attached More menus. macOS Escape and native fullscreen re-entry are repaired. Selected channels prioritize fresh retirement state; favorites retain every equivalent route. Windows and Android physical acceptance remains pending. Platform updates are mirrored to cndrp."
@@ -268,7 +273,7 @@
   },
   "downloads": {
     "signing_notice": "The free SignPath Foundation application was not approved. No trusted Windows certificate was issued and SignPath.io production signing is not in use. Edge may still require a security confirmation on the first browser download.",
-    "intro": "Version 1.1.4 provides Windows, macOS (Intel / Apple Silicon) and Android packages with unified layouts, fullscreen and route-state fixes. Windows offers x64 and ARM64 installers and portable packages. Windows and Android physical acceptance remains pending. Each operating system has one column with CPU choices inside.",
+    "intro": "Version 1.1.5 provides Windows x64 / ARM64, macOS Intel / Apple Silicon and Android packages. Video fullscreen restores the original window state; category menus use larger text and buttons. Native Mac return cycles and Windows window-state checks passed. Windows white-strip visual acceptance and Android hardware testing remain pending. Each OS has one group with CPU choices.",
     "latest": "Latest installers",
     "local": "Downloads hosted on this site",
     "sections": [
@@ -361,7 +366,7 @@
     "pending": "Pending",
     "surface_pending": "Native Surface ARM build validation pending",
     "windows_note": "Setup needs administrator approval. Extract the complete ZIP for portable use.",
-    "macos_note": "Choose your chip, open the DMG and drag the app to Applications.",
+    "macos_note": "Current dependencies require macOS 13 or later; older-system compatibility is pending. Choose your chip, open the DMG and drag the app to Applications.",
     "android_note": "Android 7+. Updates require system confirmation. Device and Mainland China tests pending.",
     "windows_arm64_note": "Native ARM64 packages passed build and architecture checks. Surface playback, AirPlay and update installation still need hardware tests.",
     "platform_pending": "The new package for this CPU will follow. Currently available: {version}; existing downloads and update feeds remain usable."

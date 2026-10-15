@@ -198,6 +198,11 @@
     "history_title": "近期更新",
     "history": [
       [
+        "2026-10-16",
+        "v1.1.5 · 全螢幕原狀態還原與分類選單優化",
+        "影片全螢幕返回時還原原視窗大小、最大化或原生全螢幕狀態，並保留頻道排版。修復 Windows 頂部控制的原生標題列遮擋、子母畫面返回狀態與 Mac 結束回呼。分類彈出選單加大文字及按鈕並減少留白。持續 EPG 探索仍在開發安排中，本版尚未上線。"
+      ],
+      [
         "2026-10-14",
         "v1.1.4 · 統一排版、全螢幕與線路同步修復",
         "所有螢幕使用統一的左右等寬排版、三行分類及與按鈕相連的更多選單。修復 Mac 按 Esc 離開後無法再次全螢幕，頻道優先同步最新淘汰狀態，收藏包含整個頻道的線路。Windows 與 Android 實機驗證待完成；下載站與 cndrp 中繼同步提供各平台更新。"
@@ -268,7 +273,7 @@
   },
   "downloads": {
     "signing_notice": "SignPath Foundation 免費簽章申請未獲批准，目前沒有受信任 Windows 憑證，也未使用 SignPath.io 正式簽章。Edge 首次下載仍可能需要安全確認。",
-    "intro": "1.1.4 提供 Windows、macOS（Intel / Apple Silicon）與 Android 安裝包。Windows 支援 x64 與 ARM64，提供安裝版和可攜版。統一排版、全螢幕和線路同步已修復；Windows 與 Android 實機驗證待完成。每個系統一欄，再依 CPU 選擇。",
+    "intro": "1.1.5 提供 Windows x64 / ARM64、macOS Intel / Apple Silicon 與 Android 安裝包。影片全螢幕返回會還原原視窗狀態，分類選單加大文字及按鈕。Mac 原生往返與 Windows 視窗狀態測試通過；Windows 白條視覺複核與 Android 實機驗證仍待完成。每個系統一欄，再依 CPU 選擇。",
     "latest": "最新安裝程式",
     "local": "安裝程式由本站提供",
     "sections": [
@@ -361,7 +366,7 @@
     "pending": "準備中",
     "surface_pending": "Surface ARM 原生版待編譯驗證",
     "windows_note": "Setup 需要管理員授權，ZIP 可完整解壓縮使用。",
-    "macos_note": "選擇正確晶片，開啟 DMG 後拖至 Applications。",
+    "macos_note": "目前相依元件要求 macOS 13 或更新版本，舊系統相容仍待開發。選擇正確晶片，開啟 DMG 後拖至 Applications。",
     "android_note": "Android 7+；更新安裝需系統確認。實機與大陸網路待驗證。",
     "windows_arm64_note": "ARM64 原生包已通過建置與架構校驗；Surface 實機播放、AirPlay 與更新仍待驗證。",
     "platform_pending": "此 CPU 的新包稍後補齊，目前提供 {version}。既有下載與更新通道仍可使用。"

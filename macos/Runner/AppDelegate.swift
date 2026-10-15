@@ -53,7 +53,8 @@ class AppDelegate: FlutterAppDelegate {
                                 encoding: .utf8)
       try? FileManager.default.removeItem(at: marker)
     }
-    super.applicationWillTerminate(notification)
+    // FlutterAppDelegate does not implement this optional delegate selector.
+    // Sending it to super raises an Objective-C exception during app exit.
   }
 
   override func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {

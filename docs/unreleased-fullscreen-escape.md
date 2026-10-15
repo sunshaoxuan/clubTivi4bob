@@ -1,5 +1,10 @@
 # Fullscreen Escape and re-entry
 
+Historical 1.1.4 behavior and acceptance are recorded below. The subsequent
+unpublished repair in [Window and video fullscreen state](fullscreen-window-state-20261015.md)
+separates the caller's window state from video fullscreen and restores both on
+ordinary return.
+
 Included in the `1.1.4+97` release source, following 1.1.3. The earlier
 local repair and acceptance did not change public release assets.
 A local Mac test build was installed with the user's approval on 2026-10-14.

@@ -98,6 +98,7 @@ class WindowManagerFullscreenBackend extends WindowListener
       if (await isFullscreen() != value) {
         throw StateError('Windows fullscreen state did not reach $value');
       }
+      await setWindowsVideoFullscreenChrome(value);
       // Windows omits fullscreen notifications for some normal/maximized
       // placements. A verified method result still completes this session.
       _completed(value);
@@ -163,6 +164,7 @@ class WindowManagerFullscreenBackend extends WindowListener
       if (snapshot.maximized) {
         if (!await windowManager.isMaximized()) await windowManager.maximize();
       } else {
+        if (await windowManager.isMaximized()) await windowManager.unmaximize();
         final bounds = await _sizing.constrain(snapshot.bounds);
         await _sizing.restoreMinimumSize(bounds);
         if (await windowManager.getBounds() == bounds) return;
@@ -175,6 +177,9 @@ class WindowManagerFullscreenBackend extends WindowListener
       return;
     }
     if (_isWindows) {
+      // A caller using native window fullscreen keeps that window state while
+      // the video route returns to its original channel layout.
+      if (await isFullscreen()) return;
       await restoreWindowsWindowChrome(
         resizable: snapshot.resizable,
         maximizable: snapshot.maximizable,
@@ -188,6 +193,7 @@ class WindowManagerFullscreenBackend extends WindowListener
     if (snapshot.maximized) {
       await windowManager.maximize();
     } else {
+      if (await windowManager.isMaximized()) await windowManager.unmaximize();
       final bounds = await _sizing.constrain(snapshot.bounds);
       await _sizing.restoreMinimumSize(bounds);
       await windowManager.setBounds(bounds);

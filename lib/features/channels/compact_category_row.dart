@@ -60,9 +60,18 @@ class _CompactCategoryRowState extends State<CompactCategoryRow> {
     final below = bottom - anchor.bottom;
     final above = anchor.top - media.padding.top - 12;
     final upwards = below < 160 && above > below;
-    final height = math.min(360.0, math.max(80.0, upwards ? above : below));
-    final top = upwards ? anchor.top - height : anchor.bottom;
     final choices = List<CompactCategoryOption>.of(widget.options);
+    final maxHeight = math.min(360.0, math.max(80.0, upwards ? above : below));
+    final layout = _CategoryMenuLayout.resolve(
+      width: width,
+      maxHeight: maxHeight,
+      options: choices,
+      textStyle: Theme.of(context).textTheme.bodyMedium ?? const TextStyle(),
+      textScaler: media.textScaler,
+      direction: Directionality.of(context),
+    );
+    final height = math.min(maxHeight, layout.contentHeight);
+    final top = upwards ? anchor.top - height : anchor.bottom;
     setState(() {
       _menuOpen = true;
       _opensUpwards = upwards;
@@ -80,71 +89,86 @@ class _CompactCategoryRowState extends State<CompactCategoryRow> {
             top: top,
             width: width,
             height: height,
-            child: Material(
-              key: ValueKey('category-menu-${widget.level}'),
-              color: const Color(0xFF1A2B43),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.only(
-                  topLeft: const Radius.circular(16),
-                  topRight: Radius.circular(upwards ? 16 : 0),
-                  bottomLeft: const Radius.circular(16),
-                  bottomRight: Radius.circular(upwards ? 0 : 16),
-                ),
-                side: const BorderSide(color: Color(0xFF829CC8)),
-              ),
-              clipBehavior: Clip.antiAlias,
-              child: Column(
-                children: [
-                  SizedBox(
-                    height: 40,
-                    child: Row(
-                      children: [
-                        const SizedBox(width: 14),
-                        Expanded(
-                          child: Text(
-                            widget.title,
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 13,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                        ),
-                        IconButton(
-                          tooltip: '关闭分类菜单',
-                          onPressed: () => Navigator.pop(dialogContext),
-                          icon: const Icon(
-                            Icons.close_rounded,
-                            size: 18,
-                            color: Colors.white70,
-                          ),
-                        ),
-                      ],
-                    ),
+            child: RepaintBoundary(
+              key: ValueKey('category-menu-surface-${widget.level}'),
+              child: Material(
+                key: ValueKey('category-menu-${widget.level}'),
+                color: const Color(0xFF1A2B43),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.only(
+                    topLeft: const Radius.circular(16),
+                    topRight: Radius.circular(upwards ? 16 : 0),
+                    bottomLeft: const Radius.circular(16),
+                    bottomRight: Radius.circular(upwards ? 0 : 16),
                   ),
-                  const Divider(height: 1, color: Colors.white12),
-                  Expanded(
-                    child: SingleChildScrollView(
-                      padding: const EdgeInsets.all(10),
-                      child: Wrap(
-                        spacing: 6,
-                        runSpacing: 6,
+                  side: const BorderSide(color: Color(0xFF829CC8)),
+                ),
+                clipBehavior: Clip.antiAlias,
+                child: Column(
+                  children: [
+                    SizedBox(
+                      height: layout.headerHeight,
+                      child: Row(
                         children: [
-                          for (final option in choices)
-                            ConstrainedBox(
-                              constraints: BoxConstraints(maxWidth: width - 20),
-                              child: _button(
-                                option,
-                                onTap: () =>
-                                    Navigator.pop(dialogContext, option),
-                                menu: true,
+                          const SizedBox(width: 14),
+                          Expanded(
+                            child: Text(
+                              widget.title,
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 16,
+                                fontWeight: FontWeight.w700,
                               ),
                             ),
+                          ),
+                          IconButton(
+                            tooltip: '关闭分类菜单',
+                            constraints: BoxConstraints.tightFor(
+                              width: layout.headerHeight,
+                              height: layout.headerHeight,
+                            ),
+                            style: IconButton.styleFrom(
+                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                            ),
+                            onPressed: () => Navigator.pop(dialogContext),
+                            icon: const Icon(
+                              Icons.close_rounded,
+                              size: 20,
+                              color: Colors.white70,
+                            ),
+                          ),
                         ],
                       ),
                     ),
-                  ),
-                ],
+                    const Divider(height: 1, color: Colors.white12),
+                    Expanded(
+                      child: SingleChildScrollView(
+                        padding: EdgeInsets.all(layout.padding),
+                        child: Wrap(
+                          spacing: layout.spacing,
+                          runSpacing: layout.spacing,
+                          children: [
+                            for (final option in choices)
+                              ConstrainedBox(
+                                constraints: BoxConstraints(
+                                  maxWidth: width - layout.padding * 2,
+                                ),
+                                child: SizedBox(
+                                  width: layout.optionWidths[option],
+                                  child: _button(
+                                    option,
+                                    onTap: () =>
+                                        Navigator.pop(dialogContext, option),
+                                    menuLayout: layout,
+                                  ),
+                                ),
+                              ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
@@ -161,49 +185,67 @@ class _CompactCategoryRowState extends State<CompactCategoryRow> {
   Widget _button(
     CompactCategoryOption option, {
     VoidCallback? onTap,
-    bool menu = false,
-  }) => GestureDetector(
-    onLongPressStart: option.onContextMenu == null
-        ? null
-        : (d) => option.onContextMenu!(d.globalPosition),
-    child: Material(
-      color: option.selected
-          ? const Color(0xFFAFC7FF)
-          : const Color(0xFF26374F),
-      borderRadius: BorderRadius.circular(menu ? 10 : 18),
-      child: InkWell(
-        key: ValueKey(
-          '${menu ? 'menu' : 'row'}-category-${widget.level}-${option.id}',
-        ),
-        borderRadius: BorderRadius.circular(menu ? 10 : 18),
-        onTap: onTap ?? option.onTap,
-        onSecondaryTapUp: option.onContextMenu == null
-            ? null
-            : (d) => option.onContextMenu!(d.globalPosition),
-        child: Padding(
-          padding: EdgeInsets.symmetric(
-            horizontal: 10,
-            vertical: menu
-                ? 10
-                : widget.tiny
-                ? 6
-                : 8,
+    _CategoryMenuLayout? menuLayout,
+  }) {
+    final menu = menuLayout != null;
+    return GestureDetector(
+      onLongPressStart: option.onContextMenu == null
+          ? null
+          : (d) => option.onContextMenu!(d.globalPosition),
+      child: Material(
+        color: option.selected
+            ? const Color(0xFFAFC7FF)
+            : const Color(0xFF26374F),
+        borderRadius: BorderRadius.circular(menu ? 12 : 18),
+        child: InkWell(
+          key: ValueKey(
+            '${menu ? 'menu' : 'row'}-category-${widget.level}-${option.id}',
           ),
-          child: Text(
-            option.label,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              fontSize: widget.tiny && !menu ? 10 : 12,
-              height: 1.2,
-              fontWeight: option.selected ? FontWeight.w700 : FontWeight.w500,
-              color: option.selected ? const Color(0xFF14213B) : Colors.white70,
+          borderRadius: BorderRadius.circular(menu ? 12 : 18),
+          onTap: onTap ?? option.onTap,
+          onSecondaryTapUp: option.onContextMenu == null
+              ? null
+              : (d) => option.onContextMenu!(d.globalPosition),
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              minHeight: menuLayout?.buttonHeight ?? 0,
+            ),
+            child: Padding(
+              padding: EdgeInsets.symmetric(
+                horizontal: menuLayout?.horizontalPadding ?? 10,
+                vertical: menu
+                    ? menuLayout.verticalPadding
+                    : widget.tiny
+                    ? 6
+                    : 8,
+              ),
+              child: Text(
+                option.label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style:
+                    (menu
+                            ? Theme.of(context).textTheme.bodyMedium ??
+                                  const TextStyle()
+                            : const TextStyle())
+                        .copyWith(
+                          fontSize:
+                              menuLayout?.fontSize ?? (widget.tiny ? 10 : 12),
+                          height: 1.2,
+                          fontWeight: option.selected
+                              ? FontWeight.w700
+                              : FontWeight.w500,
+                          color: option.selected
+                              ? const Color(0xFF14213B)
+                              : Colors.white70,
+                        ),
+              ),
             ),
           ),
         ),
       ),
-    ),
-  );
+    );
+  }
 
   @override
   Widget build(BuildContext context) => SizedBox(
@@ -330,4 +372,99 @@ class _CompactCategoryRowState extends State<CompactCategoryRow> {
       },
     ),
   );
+}
+
+/// Prefer larger menu controls when the choices fit. Navigation rows retain
+/// their compact dimensions, and long menus remain scrollable at readable sizes.
+class _CategoryMenuLayout {
+  const _CategoryMenuLayout({
+    required this.fontSize,
+    required this.horizontalPadding,
+    required this.verticalPadding,
+    required this.buttonHeight,
+    required this.spacing,
+    required this.padding,
+    required this.headerHeight,
+    required this.contentHeight,
+    required this.optionWidths,
+  });
+
+  final double fontSize;
+  final double horizontalPadding;
+  final double verticalPadding;
+  final double buttonHeight;
+  final double spacing;
+  final double padding;
+  final double headerHeight;
+  final double contentHeight;
+  final Map<CompactCategoryOption, double> optionWidths;
+
+  static _CategoryMenuLayout resolve({
+    required double width,
+    required double maxHeight,
+    required List<CompactCategoryOption> options,
+    required TextStyle textStyle,
+    required TextScaler textScaler,
+    required TextDirection direction,
+  }) {
+    _CategoryMenuLayout? layout;
+    for (final size in [16.0, 15.0, 14.0]) {
+      final horizontal = size == 16 ? 14.0 : 12.0;
+      final vertical = size - 4;
+      final padding = size == 16 ? 14.0 : 12.0;
+      final spacing = size == 16 ? 10.0 : 8.0;
+      final buttonHeight = math.max(
+        40 + (size - 14) * 4,
+        textScaler.scale(size) * 1.2 + vertical * 2,
+      );
+      final headerHeight = math.max(44.0, textScaler.scale(16) * 1.2 + 16);
+      final innerWidth = math.max(1.0, width - padding * 2);
+      var rows = options.isEmpty ? 0 : 1;
+      var used = 0.0;
+      final widths = <CompactCategoryOption, double>{};
+      for (final option in options) {
+        final painter = TextPainter(
+          text: TextSpan(
+            text: option.label,
+            style: textStyle.copyWith(
+              fontSize: size,
+              height: 1.2,
+              fontWeight: option.selected ? FontWeight.w700 : FontWeight.w500,
+            ),
+          ),
+          textDirection: direction,
+          textScaler: textScaler,
+        )..layout();
+        final buttonWidth = math.min(
+          innerWidth,
+          (painter.width + horizontal * 2).ceilToDouble(),
+        );
+        widths[option] = buttonWidth;
+        painter.dispose();
+        if (used > 0 && used + spacing + buttonWidth > innerWidth) {
+          rows++;
+          used = 0;
+        }
+        used += buttonWidth + (used > 0 ? spacing : 0);
+      }
+      layout = _CategoryMenuLayout(
+        fontSize: size,
+        horizontalPadding: horizontal,
+        verticalPadding: vertical,
+        buttonHeight: buttonHeight,
+        spacing: spacing,
+        padding: padding,
+        headerHeight: headerHeight,
+        contentHeight:
+            headerHeight +
+            1 +
+            padding * 2 +
+            rows * buttonHeight +
+            math.max(0, rows - 1) * spacing,
+        optionWidths: widths,
+      );
+      if (layout.contentHeight <= maxHeight) return layout;
+    }
+    return layout!;
+  }
 }

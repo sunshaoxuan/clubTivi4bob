@@ -1,8 +1,34 @@
+import 'dart:async';
+
 import 'package:clubtivi/app/windows_fullscreen_controls.dart';
+import 'package:clubtivi/features/player/desktop_fullscreen_session.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+
+class _WindowBackend implements FullscreenWindowBackend {
+  final changes = StreamController<bool>.broadcast();
+  @override
+  Stream<bool> get fullscreenChanges => changes.stream;
+  @override
+  Future<FullscreenWindowSnapshot> capture() async =>
+      const FullscreenWindowSnapshot(
+        bounds: Rect.fromLTWH(30, 30, 1000, 650),
+        maximized: false,
+        alwaysOnTop: false,
+      );
+  @override
+  Future<bool> isFullscreen() async => true;
+  @override
+  Future<void> prepareEntry() async {}
+  @override
+  Future<void> restore(FullscreenWindowSnapshot snapshot) async {}
+  @override
+  Future<void> setFullscreen(bool value) async {}
+  @override
+  void dispose() => unawaited(changes.close());
+}
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -11,6 +37,11 @@ void main() {
   setUp(() {
     calls.clear();
     fullscreen = true;
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(
+          const MethodChannel('bobtv/window_chrome'),
+          (_) async => null,
+        );
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(const MethodChannel('window_manager'), (
           call,
@@ -23,6 +54,11 @@ void main() {
         });
   });
   tearDown(() {
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(
+          const MethodChannel('bobtv/window_chrome'),
+          null,
+        );
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(const MethodChannel('window_manager'), null);
   });
@@ -82,6 +118,84 @@ void main() {
       {'isResizable': true},
     );
     expect(find.byTooltip('恢复窗口'), findsNothing);
+    await tester.pumpWidget(const SizedBox());
+  });
+
+  testWidgets('Restore first completes the owning video route', (tester) async {
+    var returned = false;
+    late DesktopFullscreenSession session;
+    session = DesktopFullscreenSession(
+      backend: _WindowBackend(),
+      onChanged: (_) {},
+      onExternalExit: () {},
+      onWindowRestore: () async {
+        await session.exit(forceWindowed: true);
+        returned = true;
+        fullscreen = false;
+        return true;
+      },
+    );
+    await session.enter();
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: WindowsFullscreenControls(enabled: true, child: Scaffold()),
+      ),
+    );
+    await tester.pump();
+    await tester.tap(find.byTooltip('恢复窗口'));
+    await tester.pump();
+
+    expect(returned, isTrue);
+    expect(calls.any((call) => call.method == 'setFullScreen'), isFalse);
+    expect(find.byTooltip('恢复窗口'), findsNothing);
+    session.dispose();
+    await tester.pumpWidget(const SizedBox());
+  });
+
+  testWidgets('Moving from top edge toward buttons keeps controls visible', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: WindowsFullscreenControls(enabled: true, child: Scaffold()),
+      ),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(seconds: 3));
+    final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+    await mouse.addPointer(location: const Offset(730, 100));
+    await mouse.moveTo(const Offset(730, 2));
+    await tester.pump();
+    await mouse.moveTo(const Offset(730, 48));
+    await tester.pump(const Duration(milliseconds: 100));
+    expect(find.byTooltip('恢复窗口'), findsOneWidget);
+    await mouse.moveTo(tester.getCenter(find.byTooltip('恢复窗口')));
+    await tester.pump(const Duration(milliseconds: 500));
+    expect(find.byTooltip('恢复窗口'), findsOneWidget);
+    await mouse.removePointer();
+    await tester.pumpWidget(const SizedBox());
+  });
+
+  testWidgets('A busy video owner cannot trigger a second native exit', (
+    tester,
+  ) async {
+    final session = DesktopFullscreenSession(
+      backend: _WindowBackend(),
+      onChanged: (_) {},
+      onExternalExit: () {},
+      onWindowRestore: () async => false,
+    );
+    await session.enter();
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: WindowsFullscreenControls(enabled: true, child: Scaffold()),
+      ),
+    );
+    await tester.pump();
+    await tester.tap(find.byTooltip('恢复窗口'));
+    await tester.pump();
+    expect(calls.any((call) => call.method == 'setFullScreen'), isFalse);
+    session.dispose();
     await tester.pumpWidget(const SizedBox());
   });
 

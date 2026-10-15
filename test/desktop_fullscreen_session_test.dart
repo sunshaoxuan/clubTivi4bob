@@ -125,48 +125,62 @@ void main() {
       },
     );
 
-    test('return to channels preserves fullscreen through disposal', () async {
-      final backend = _FakeFullscreenBackend();
-      final session = DesktopFullscreenSession(
-        backend: backend,
-        onChanged: (_) {},
-        onExternalExit: () {},
-      );
-      final entering = session.enter();
-      await _advanceAsyncWork();
-      backend.completeNativeTransition(true);
-      await entering;
-      await session.exit(keepWindowFullscreen: true);
-      expect(backend.fullscreen, isTrue);
-      expect(backend.commands, [true]);
-      expect(backend.restoredSnapshots, isEmpty);
-      session.dispose();
-      await backend.disposed.future;
-      expect(backend.fullscreen, isTrue);
-      expect(backend.commands, [true]);
-      expect(backend.restoredSnapshots, isEmpty);
-    });
-
     test(
-      'return during entry finishes animation without exiting window',
+      'native window fullscreen survives video return and disposal',
       () async {
-        final backend = _FakeFullscreenBackend();
+        final backend = _FakeFullscreenBackend(fullscreen: true);
+        const saved = FullscreenWindowSnapshot(
+          bounds: Rect.fromLTWH(0, 0, 1920, 1080),
+          maximized: false,
+          alwaysOnTop: false,
+          wasFullscreen: true,
+        );
         final session = DesktopFullscreenSession(
           backend: backend,
+          returnSnapshot: saved,
           onChanged: (_) {},
           onExternalExit: () {},
         );
         final entering = session.enter();
         await _advanceAsyncWork();
-        final leaving = session.exit(keepWindowFullscreen: true);
-        backend.completeNativeTransition(true);
         await entering;
-        await leaving;
+        await session.exit();
+        expect(backend.fullscreen, isTrue);
+        expect(backend.commands, isEmpty);
+        expect(backend.restoredSnapshots, [saved]);
         session.dispose();
         await backend.disposed.future;
         expect(backend.fullscreen, isTrue);
-        expect(backend.commands, [true]);
-        expect(backend.restoredSnapshots, isEmpty);
+        expect(backend.commands, isEmpty);
+        expect(backend.restoredSnapshots, [saved]);
+      },
+    );
+
+    test(
+      'native Escape overrides a caller that was already fullscreen',
+      () async {
+        final backend = _FakeFullscreenBackend(fullscreen: true);
+        var externalExits = 0;
+        final session = DesktopFullscreenSession(
+          backend: backend,
+          returnSnapshot: const FullscreenWindowSnapshot(
+            bounds: Rect.fromLTWH(0, 0, 1920, 1080),
+            maximized: false,
+            alwaysOnTop: false,
+            wasFullscreen: true,
+          ),
+          onChanged: (_) {},
+          onExternalExit: () => externalExits++,
+        );
+        await session.enter();
+        backend.completeNativeTransition(false);
+        await session.exit();
+        session.dispose();
+        await backend.disposed.future;
+        expect(backend.fullscreen, isFalse);
+        expect(externalExits, 1);
+        expect(backend.commands, isEmpty);
+        expect(backend.restoredSnapshots, hasLength(1));
       },
     );
 
@@ -212,6 +226,85 @@ void main() {
         );
         session.dispose();
         await backend.disposed.future;
+      },
+    );
+
+    test(
+      'PiP can leave the window and retain the original caller snapshot',
+      () async {
+        const original = FullscreenWindowSnapshot(
+          bounds: Rect.fromLTWH(0, 0, 1920, 1080),
+          maximized: false,
+          alwaysOnTop: false,
+          wasFullscreen: true,
+        );
+        final firstBackend = _FakeFullscreenBackend(fullscreen: true);
+        final first = DesktopFullscreenSession(
+          backend: firstBackend,
+          returnSnapshot: original,
+          onChanged: (_) {},
+          onExternalExit: () {},
+        );
+        await first.enter();
+        final saved = first.returnSnapshot;
+        final compacting = first.exit(forceWindowed: true);
+        await _advanceAsyncWork();
+        firstBackend.completeNativeTransition(false);
+        await compacting;
+        expect(firstBackend.fullscreen, isFalse);
+        first.dispose();
+        await firstBackend.disposed.future;
+
+        final nextBackend = _FakeFullscreenBackend();
+        final next = DesktopFullscreenSession(
+          backend: nextBackend,
+          returnSnapshot: saved,
+          onChanged: (_) {},
+          onExternalExit: () {},
+        );
+        final entering = next.enter();
+        await _advanceAsyncWork();
+        nextBackend.completeNativeTransition(true);
+        await entering;
+        await next.exit();
+        expect(nextBackend.fullscreen, isTrue);
+        expect(nextBackend.captureCount, 0);
+        expect(nextBackend.restoredSnapshots, [original]);
+        next.dispose();
+        await nextBackend.disposed.future;
+      },
+    );
+
+    test(
+      'window restore reaches the owning video without a native exit event',
+      () async {
+        final backend = _FakeFullscreenBackend();
+        var requests = 0;
+        late DesktopFullscreenSession session;
+        session = DesktopFullscreenSession(
+          backend: backend,
+          onChanged: (_) {},
+          onExternalExit: () {},
+          onWindowRestore: () async {
+            requests++;
+            await session.exit(forceWindowed: true);
+            return true;
+          },
+        );
+        final entering = session.enter();
+        await _advanceAsyncWork();
+        backend.completeNativeTransition(true);
+        await entering;
+        final restoring = DesktopFullscreenSession.restoreActiveWindow();
+        await _advanceAsyncWork();
+        expect(backend.commands, [true, false]);
+        backend.completeNativeTransition(false);
+        expect(await restoring, isTrue);
+        expect(requests, 1);
+        expect(backend.restoredSnapshots, [backend.snapshot]);
+        session.dispose();
+        await backend.disposed.future;
+        expect(await DesktopFullscreenSession.restoreActiveWindow(), isFalse);
       },
     );
 

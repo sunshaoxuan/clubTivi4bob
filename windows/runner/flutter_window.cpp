@@ -3,6 +3,7 @@
 #include <commctrl.h>
 
 #include <optional>
+#include <flutter/standard_method_codec.h>
 
 #include "flutter/generated_plugin_registrant.h"
 
@@ -50,6 +51,45 @@ bool FlutterWindow::OnCreate() {
   }
   RegisterPlugins(flutter_controller_->engine());
   updater_channel_ = RegisterUpdaterLauncher(flutter_controller_->engine()->messenger());
+  window_chrome_channel_ =
+      std::make_unique<flutter::MethodChannel<flutter::EncodableValue>>(
+          flutter_controller_->engine()->messenger(), "bobtv/window_chrome",
+          &flutter::StandardMethodCodec::GetInstance());
+  window_chrome_channel_->SetMethodCallHandler(
+      [this](const flutter::MethodCall<flutter::EncodableValue>& call,
+             std::unique_ptr<flutter::MethodResult<flutter::EncodableValue>> result) {
+        if (call.method_name() != "setVideoFullscreenChrome") {
+          result->NotImplemented();
+          return;
+        }
+        const auto* enabled = call.arguments()
+            ? std::get_if<bool>(call.arguments()) : nullptr;
+        if (!enabled) {
+          result->Error("invalid_argument", "Expected a fullscreen boolean");
+          return;
+        }
+        const HWND window = GetHandle();
+        constexpr LONG_PTR caption_mask = WS_CAPTION | WS_SYSMENU;
+        const LONG_PTR style = GetWindowLongPtr(window, GWL_STYLE);
+        LONG_PTR next_style = style;
+        if (*enabled) {
+          if (!video_caption_hidden_) {
+            saved_caption_style_ = style & caption_mask;
+            video_caption_hidden_ = true;
+          }
+          next_style &= ~caption_mask;
+        } else if (video_caption_hidden_) {
+          next_style = (style & ~caption_mask) | saved_caption_style_;
+          video_caption_hidden_ = false;
+        }
+        if (style != next_style) {
+          SetWindowLongPtr(window, GWL_STYLE, next_style);
+          SetWindowPos(window, nullptr, 0, 0, 0, 0,
+                       SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER |
+                           SWP_NOACTIVATE | SWP_FRAMECHANGED);
+        }
+        result->Success();
+      });
   HWND flutter_view = flutter_controller_->view()->GetNativeWindow();
   SetWindowSubclass(flutter_view, FlutterViewSubclassProc,
                     kFlutterViewSubclassId, 0);
@@ -70,6 +110,7 @@ bool FlutterWindow::OnCreate() {
 void FlutterWindow::OnDestroy() {
   if (flutter_controller_) {
     updater_channel_ = nullptr;
+    window_chrome_channel_ = nullptr;
     RemoveWindowSubclass(flutter_controller_->view()->GetNativeWindow(),
                          FlutterViewSubclassProc, kFlutterViewSubclassId);
     flutter_controller_ = nullptr;

@@ -3,6 +3,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:ffi';
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:ffi/ffi.dart';
 import 'package:flutter/material.dart';
@@ -62,6 +63,10 @@ class NativeWindow {
     isZoomed = user32.lookupFunction<Int32 Function(IntPtr), int Function(int)>(
       'IsZoomed',
     );
+    movePointer = user32
+        .lookupFunction<Int32 Function(Int32, Int32), int Function(int, int)>(
+          'SetCursorPos',
+        );
   }
   late final int Function(Pointer<Utf16>, Pointer<Utf16>) findWindow;
   late final int Function(int, Pointer<NativeRect>) getRect;
@@ -69,6 +74,135 @@ class NativeWindow {
   late final int Function(int, Pointer<NativePoint>) toScreen;
   late final int Function(int, int) getStyle;
   late final int Function(int) isZoomed;
+  late final int Function(int, int) movePointer;
+
+  int get handle {
+    final title = 'BobTV window QA'.toNativeUtf16();
+    try {
+      return findWindow(nullptr, title);
+    } finally {
+      calloc.free(title);
+    }
+  }
+
+  Future<void> captureControls(String path) async {
+    final hwnd = handle;
+    final user32 = DynamicLibrary.open('user32.dll');
+    final gdi = DynamicLibrary.open('gdi32.dll');
+    final foreground = user32.lookupFunction<IntPtr Function(), int Function()>(
+      'GetForegroundWindow',
+    );
+    require(hwnd != 0 && foreground() == hwnd, 'QA window is not foreground');
+    final getDC = user32
+        .lookupFunction<IntPtr Function(IntPtr), int Function(int)>(
+          'GetWindowDC',
+        );
+    final releaseDC = user32
+        .lookupFunction<Int32 Function(IntPtr, IntPtr), int Function(int, int)>(
+          'ReleaseDC',
+        );
+    final createDC = gdi
+        .lookupFunction<IntPtr Function(IntPtr), int Function(int)>(
+          'CreateCompatibleDC',
+        );
+    final deleteDC = gdi
+        .lookupFunction<Int32 Function(IntPtr), int Function(int)>('DeleteDC');
+    final select = gdi
+        .lookupFunction<
+          IntPtr Function(IntPtr, IntPtr),
+          int Function(int, int)
+        >('SelectObject');
+    final deleteObject = gdi
+        .lookupFunction<Int32 Function(IntPtr), int Function(int)>(
+          'DeleteObject',
+        );
+    final createBitmap = gdi
+        .lookupFunction<
+          IntPtr Function(
+            IntPtr,
+            Pointer<Uint8>,
+            Uint32,
+            Pointer<Pointer<Uint8>>,
+            IntPtr,
+            Uint32,
+          ),
+          int Function(
+            int,
+            Pointer<Uint8>,
+            int,
+            Pointer<Pointer<Uint8>>,
+            int,
+            int,
+          )
+        >('CreateDIBSection');
+    final copy = gdi
+        .lookupFunction<
+          Int32 Function(
+            IntPtr,
+            Int32,
+            Int32,
+            Int32,
+            Int32,
+            IntPtr,
+            Int32,
+            Int32,
+            Uint32,
+          ),
+          int Function(int, int, int, int, int, int, int, int, int)
+        >('BitBlt');
+    const width = 640;
+    const height = 80;
+    const length = width * height * 4;
+    final info = calloc<Uint8>(44);
+    final pixels = calloc<Pointer<Uint8>>();
+    final header = ByteData.sublistView(info.asTypedList(44));
+    header.setUint32(0, 40, Endian.little);
+    header.setInt32(4, width, Endian.little);
+    header.setInt32(8, -height, Endian.little);
+    header.setUint16(12, 1, Endian.little);
+    header.setUint16(14, 32, Endian.little);
+    final source = getDC(hwnd);
+    final memory = createDC(source);
+    final bitmap = createBitmap(source, info, 0, pixels, 0, 0);
+    final previous = select(memory, bitmap);
+    try {
+      require(
+        source != 0 && memory != 0 && bitmap != 0,
+        'QA capture unavailable',
+      );
+      final bounds = inspect();
+      require(
+        copy(
+              memory,
+              0,
+              0,
+              width,
+              height,
+              source,
+              (bounds['width'] as int) - width,
+              0,
+              0x40CC0020,
+            ) !=
+            0,
+        'QA window capture failed',
+      );
+      final file = Uint8List(54 + length);
+      final data = ByteData.sublistView(file);
+      data.setUint16(0, 0x4D42, Endian.little);
+      data.setUint32(2, file.length, Endian.little);
+      data.setUint32(10, 54, Endian.little);
+      file.setRange(14, 54, info.asTypedList(40));
+      file.setRange(54, file.length, pixels.value.asTypedList(length));
+      await File(path).writeAsBytes(file, flush: true);
+    } finally {
+      select(memory, previous);
+      deleteObject(bitmap);
+      deleteDC(memory);
+      releaseDC(hwnd, source);
+      calloc.free(info);
+      calloc.free(pixels);
+    }
+  }
 
   Map<String, Object?> inspect() {
     final title = 'BobTV window QA'.toNativeUtf16();
@@ -92,6 +226,8 @@ class NativeWindow {
         'clientHeight': client.ref.bottom - client.ref.top,
         'captionInset': origin.ref.y - rect.ref.top,
         'maximizable': getStyle(hwnd, -16) & 0x10000 != 0,
+        'captionStyle': getStyle(hwnd, -16) & 0x00C00000 != 0,
+        'systemMenuStyle': getStyle(hwnd, -16) & 0x00080000 != 0,
         'zoomed': isZoomed(hwnd) != 0,
       };
     } finally {
@@ -117,6 +253,7 @@ Future<void> main(List<String> arguments) async {
       .singleWhere((argument) => argument.startsWith('--report='))
       .substring(9);
   final records = <Map<String, Object?>>[];
+  final capture = arguments.contains('--capture');
   var passed = false;
   String? error;
   await windowManager.setTitle('BobTV window QA');
@@ -148,6 +285,11 @@ Future<void> main(List<String> arguments) async {
       if (maximized) await windowManager.maximize();
       await settle();
       for (var cycle = 0; cycle < 3; cycle++) {
+        final original = native.inspect();
+        require(
+          !await windowManager.isFullScreen(),
+          'Window maximize entered video fullscreen',
+        );
         final backend = WindowManagerFullscreenBackend();
         final session = DesktopFullscreenSession(
           backend: backend,
@@ -160,16 +302,55 @@ Future<void> main(List<String> arguments) async {
         require(
           full['captionInset'] == 0 &&
               full['clientHeight'] == full['height'] &&
-              full['clientWidth'] == full['width'],
+              full['clientWidth'] == full['width'] &&
+              full['captionStyle'] == false &&
+              full['systemMenuStyle'] == false,
           'Fullscreen retained native borders: $full',
         );
         require(
           await windowManager.isFullScreen(),
           'Fullscreen native flag missing',
         );
+        require(
+          native.movePointer(
+                (full['left'] as int) + (full['width'] as int) - 70,
+                (full['top'] as int) + 2,
+              ) !=
+              0,
+          'QA pointer could not reach top edge',
+        );
+        await settle();
+        require(
+          native.movePointer(
+                (full['left'] as int) + (full['width'] as int) - 70,
+                (full['top'] as int) + 24,
+              ) !=
+              0,
+          'QA pointer could not reach restore control',
+        );
+        await settle();
+        final hover = native.inspect();
+        require(
+          hover['captionInset'] == 0 &&
+              hover['captionStyle'] == false &&
+              hover['systemMenuStyle'] == false,
+          'Native caption returned over fullscreen controls: $hover',
+        );
+        if (capture && cycle == 0) {
+          await native.captureControls(
+            '${File(report).parent.path}\\controls-${maximized ? 'maximized' : 'normal'}.bmp',
+          );
+        }
         await session.exit();
         await settle();
         final normal = native.inspect();
+        for (final dimension in ['left', 'top', 'width', 'height']) {
+          require(
+            ((normal[dimension] as int) - (original[dimension] as int)).abs() <=
+                2,
+            'Original $dimension changed: $original -> $normal',
+          );
+        }
         require(
           normal['captionInset'] as int > 0,
           'Normal caption not restored: $normal',
@@ -209,14 +390,10 @@ Future<void> main(List<String> arguments) async {
         await settle();
       }
     }
-    final first = DesktopFullscreenSession(
-      backend: WindowManagerFullscreenBackend(),
-      onChanged: (_) {},
-      onExternalExit: () {},
-    );
-    await first.enter();
-    await first.exit(keepWindowFullscreen: true);
-    first.dispose();
+    final windowOwner = WindowManagerFullscreenBackend();
+    final callerSnapshot = await windowOwner.capture();
+    await windowOwner.prepareEntry();
+    await windowOwner.setFullscreen(true);
     await settle();
     require(
       native.inspect()['captionInset'] == 0,
@@ -231,6 +408,19 @@ Future<void> main(List<String> arguments) async {
     await second.exit();
     await settle();
     require(
+      await windowManager.isFullScreen(),
+      'Video return changed caller window fullscreen',
+    );
+    require(
+      native.inspect()['captionInset'] == 0,
+      'Video return exposed native caption',
+    );
+    second.dispose();
+    await settle();
+    await windowOwner.setFullscreen(false);
+    await windowOwner.restore(callerSnapshot);
+    windowOwner.dispose();
+    require(
       native.inspect()['maximizable'] == true,
       'Fullscreen re-entry saved temporary disabled maximize',
     );
@@ -238,8 +428,6 @@ Future<void> main(List<String> arguments) async {
       'path': 'fullscreen-channel-reentry',
       'normal': native.inspect(),
     });
-    second.dispose();
-    await settle();
     final pip = WindowManagerPipBackend();
     final saved = await pip.capture();
     await pip.compact();
@@ -261,7 +449,12 @@ Future<void> main(List<String> arguments) async {
     error = '$failure\n$stack';
   } finally {
     await File(report).writeAsString(
-      jsonEncode({'passed': passed, 'records': records, 'error': error}),
+      jsonEncode({
+        'passed': passed,
+        'records': records,
+        'error': error,
+        'captureRequested': capture,
+      }),
       flush: true,
     );
     await windowManager.setAlwaysOnTop(false);

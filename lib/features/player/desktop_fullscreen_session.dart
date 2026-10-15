@@ -44,7 +44,11 @@ class DesktopFullscreenSession {
     required void Function(bool) onChanged,
     required void Function() onExternalExit,
     void Function(Object, StackTrace)? onError,
+    FullscreenWindowSnapshot? returnSnapshot,
+    Future<bool> Function()? onWindowRestore,
   }) : _backend = backend,
+       _snapshot = returnSnapshot,
+       _onWindowRestore = onWindowRestore,
        _onChanged = onChanged,
        _onExternalExit = onExternalExit,
        _onError = onError {
@@ -67,6 +71,20 @@ class DesktopFullscreenSession {
   }
 
   final FullscreenWindowBackend _backend;
+  static DesktopFullscreenSession? _windowOwner;
+  final Future<bool> Function()? _onWindowRestore;
+
+  /// Window chrome can finish the owning video route even when a platform
+  /// omits its native leave-fullscreen notification.
+  static Future<bool> restoreActiveWindow() async {
+    final restore = _windowOwner?._onWindowRestore;
+    if (restore == null) return false;
+    // A busy owner can decline duplicate input. Do not let window chrome start
+    // an independent native exit while that route transition is still pending.
+    await restore();
+    return true;
+  }
+
   final void Function(bool) _onChanged;
   final void Function() _onExternalExit;
   final void Function(Object, StackTrace)? _onError;
@@ -77,20 +95,23 @@ class DesktopFullscreenSession {
   bool _entered = false;
   bool _entering = false;
   bool _exitRequested = false;
-  bool _keepWindowFullscreen = false;
+  bool _forceWindowed = false;
   bool _externalExitReported = false;
   bool _disposed = false;
 
+  FullscreenWindowSnapshot? get returnSnapshot => _snapshot;
+
   Future<void> enter() {
     if (_exitRequested || _disposed) return Future<void>.value();
+    _windowOwner = this;
     return _entryFuture ??= _performEntry();
   }
 
   Future<void> _performEntry() async {
     _entering = true;
     try {
-      _snapshot = await _backend.capture();
-      if (_exitRequested && !_keepWindowFullscreen) return;
+      _snapshot ??= await _backend.capture();
+      if (_exitRequested) return;
       await _backend.prepareEntry();
       await _backend.setFullscreen(true);
       _entered = !_externalExitReported;
@@ -106,10 +127,10 @@ class DesktopFullscreenSession {
     }
   }
 
-  Future<void> exit({bool keepWindowFullscreen = false}) {
+  Future<void> exit({bool forceWindowed = false}) {
     final existingExit = _exitFuture;
     if (existingExit != null) return existingExit;
-    _keepWindowFullscreen = keepWindowFullscreen;
+    _forceWindowed = forceWindowed;
     _exitRequested = true;
     return _exitFuture ??= _performExit().catchError((
       Object error,
@@ -127,16 +148,18 @@ class DesktopFullscreenSession {
     } catch (error, stack) {
       _onError?.call(error, stack);
     }
-    if (!_keepWindowFullscreen && await _backend.isFullscreen()) {
-      await _backend.setFullscreen(false);
-    }
     final snapshot = _snapshot;
-    if (snapshot != null && !_keepWindowFullscreen) {
+    if (snapshot != null) {
+      final targetFullscreen =
+          snapshot.wasFullscreen && !_forceWindowed && !_externalExitReported;
+      if (await _backend.isFullscreen() != targetFullscreen) {
+        await _backend.setFullscreen(targetFullscreen);
+      }
       await _backend.restore(snapshot);
     }
-    // Returning to the caller transfers the existing fullscreen window to
-    // that page. Disposal must not replay native exit or saved geometry.
+    // Disposal shares this completed exit and cannot replay saved geometry.
     _snapshot = null;
+    if (identical(_windowOwner, this)) _windowOwner = null;
     _entered = false;
     if (!_disposed) _onChanged(false);
   }
@@ -144,6 +167,7 @@ class DesktopFullscreenSession {
   void dispose() {
     if (_disposed) return;
     _disposed = true;
+    if (identical(_windowOwner, this)) _windowOwner = null;
     unawaited(_subscription.cancel());
     unawaited(
       exit().then(

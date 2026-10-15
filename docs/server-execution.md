@@ -59,6 +59,32 @@ other kinds. Shared AI request limits are sixty per hour and five hundred per
 rolling day, in addition to the job budgets. Budget deferral preserves the job,
 does not consume a failure attempt, and reports its next retry time.
 
+## Public catalog classification audit
+
+`reclassify_public_catalog.py` performs an operator-run, resumable audit of
+every channel in the currently published snapshot. It sends the complete
+channel name, route aliases, EPG identifier, current category as fallible
+context, and a bounded image from a public HTTPS logo URL when the image can be
+read. Logo requests use the server's DNS-pinned public egress. Stream URLs and
+provider credentials are never sent to the model. Decisions require 0.90
+confidence and a short evidence field; other results remain in their existing
+category and are recorded for review. The audit retries uncertain and unmapped
+results with `--retry-reviews`, preserves entries without a matching active
+inventory route for manual review, and records the model's raw market, region,
+kind and program type to make taxonomy gaps visible. Category aliases cover
+provincial suffixes and common station genres such as agriculture, military,
+fashion and law. Routes explicitly marked `manual_category` are preserved.
+
+The job stages a private per-channel JSONL audit under
+`/var/lib/bobtv/reclassification/`, resumes by route identity, and respects the
+shared 60-per-hour and 500-per-day AI request limits. `--apply-on-complete`
+creates and verifies a focused inventory and catalog backup before changing
+route groups, then rebuilds the public snapshot. It rechecks channel identities
+after publication and resumes if a concurrent catalog refresh introduced new
+entries; route additions and removals during the audit are reported separately.
+It refuses to publish until every current catalog entry has a classified,
+review, or manual-preserved record.
+
 Task results expose attempts, update time, next retry time and a stable error
 code. Status exposes aggregate queue counts, queue age and separate lane health.
 No prompts, keys, endpoint credentials, channel names or source addresses are

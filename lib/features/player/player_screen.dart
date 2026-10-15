@@ -73,6 +73,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   bool _nativeFullscreen = false;
   bool _leavingPlayer = false;
   DesktopFullscreenSession? _fullscreenSession;
+  FullscreenWindowSnapshot? _fullscreenReturnSnapshot;
   MobileFullscreenSession? _mobileFullscreenSession;
   DesktopPipSession? _pipSession;
   bool _pipMode = false;
@@ -633,12 +634,14 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   void _createFullscreenSession() {
     _fullscreenSession = DesktopFullscreenSession(
       backend: WindowManagerFullscreenBackend(),
+      returnSnapshot: _fullscreenReturnSnapshot,
+      onWindowRestore: () => _leavePlayer(forceWindowed: true),
       onChanged: (value) {
         if (mounted) setState(() => _nativeFullscreen = value);
       },
       onExternalExit: () {
         if (!_pipTransition && !_pipMode) {
-          unawaited(_leavePlayer(keepWindowFullscreen: false));
+          unawaited(_leavePlayer());
         }
       },
       onError: (error, stack) => AppDiagnostics.instance.recordError(
@@ -653,9 +656,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     try {
       AppDiagnostics.instance.log('fullscreen_enter_requested');
       await _fullscreenSession?.enter();
+      _fullscreenReturnSnapshot ??= _fullscreenSession?.returnSnapshot;
       AppDiagnostics.instance.log('fullscreen_enter_completed');
     } catch (error, stack) {
       AppDiagnostics.instance.recordError('fullscreen_enter', error, stack);
+      if (mounted && !_pipTransition) await _leavePlayer();
     }
   }
 
@@ -670,19 +675,17 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     await _leavePlayer();
   }
 
-  Future<bool> _leavePlayer({bool keepWindowFullscreen = true}) async {
+  Future<bool> _leavePlayer({bool forceWindowed = false}) async {
     if (_leavingPlayer || _pipTransition) return false;
     if (_pipMode && !await _restorePip()) return false;
     _leavingPlayer = true;
     try {
       AppDiagnostics.instance.log('fullscreen_exit_requested', {
-        'keepWindowFullscreen': keepWindowFullscreen,
+        'restoreWindowFullscreen': _fullscreenReturnSnapshot?.wasFullscreen,
       });
-      await _fullscreenSession?.exit(keepWindowFullscreen: keepWindowFullscreen);
+      await _fullscreenSession?.exit(forceWindowed: forceWindowed);
       await _mobileFullscreenSession?.exit();
-      AppDiagnostics.instance.log('fullscreen_exit_completed', {
-        'keepWindowFullscreen': keepWindowFullscreen,
-      });
+      AppDiagnostics.instance.log('fullscreen_exit_completed');
     } catch (error, stack) {
       _leavingPlayer = false;
       AppDiagnostics.instance.recordError('fullscreen_exit', error, stack);
@@ -1937,7 +1940,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     }
     _pipTransition = true;
     try {
-      await _fullscreenSession?.exit();
+      _fullscreenReturnSnapshot ??= _fullscreenSession?.returnSnapshot;
+      await _fullscreenSession?.exit(forceWindowed: true);
       _fullscreenSession?.dispose();
       _fullscreenSession = null;
       if (!mounted) return;

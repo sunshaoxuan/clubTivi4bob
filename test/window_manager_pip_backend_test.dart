@@ -6,10 +6,22 @@ import 'package:clubtivi/core/desktop_window_sizing.dart';
 
 void main() {
   final binding = TestWidgetsFlutterBinding.ensureInitialized();
-  setUp(() => binding.platformDispatcher.implicitView!.devicePixelRatio = 1);
-  tearDown(
-    () => binding.platformDispatcher.implicitView!.resetDevicePixelRatio(),
-  );
+  setUp(() {
+    binding.platformDispatcher.implicitView!.devicePixelRatio = 1;
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(
+          const MethodChannel('bobtv/window_chrome'),
+          (_) async => null,
+        );
+  });
+  tearDown(() {
+    binding.platformDispatcher.implicitView!.resetDevicePixelRatio();
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(
+          const MethodChannel('bobtv/window_chrome'),
+          null,
+        );
+  });
   const window = MethodChannel('window_manager');
   const screens = MethodChannel('dev.leanflutter.plugins/screen_retriever');
   for (final mac in [false, true]) {

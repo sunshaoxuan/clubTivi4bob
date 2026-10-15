@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:window_manager/window_manager.dart';
 
 import '../features/player/windows_window_chrome.dart';
+import '../features/player/desktop_fullscreen_session.dart';
 
 /// Mouse-accessible window chrome across every Windows fullscreen route.
 /// macOS continues to use its native, edge-reveal titlebar.
@@ -54,6 +55,7 @@ class _WindowsFullscreenControlsState extends State<WindowsFullscreenControls>
     setState(() {
       _fullscreen = value;
       _shown = value;
+      _hovered = false;
     });
     if (value) {
       _hide = Timer(const Duration(seconds: 2), () {
@@ -84,6 +86,10 @@ class _WindowsFullscreenControlsState extends State<WindowsFullscreenControls>
     if (_restoring) return;
     _restoring = true;
     try {
+      if (await DesktopFullscreenSession.restoreActiveWindow()) {
+        if (mounted) await _readState();
+        return;
+      }
       await windowManager.setAlwaysOnTop(false);
       await windowManager.setFullScreen(false);
       await restoreWindowsWindowChrome();
@@ -124,10 +130,13 @@ class _WindowsFullscreenControlsState extends State<WindowsFullscreenControls>
                   _shown = true;
                 });
               },
-              onExit: (_) => setState(() {
+              onExit: (_) {
                 _hovered = false;
-                _shown = false;
-              }),
+                _hide?.cancel();
+                _hide = Timer(const Duration(milliseconds: 400), () {
+                  if (mounted && !_hovered) setState(() => _shown = false);
+                });
+              },
               child: SizedBox(
                 height: _shown ? 44 : 12,
                 child: _shown

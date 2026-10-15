@@ -10,18 +10,20 @@ The application is built with Flutter and uses `media_kit`, libmpv, FFmpeg, Rive
 
 ### Latest release
 
-`1.1.4+97` uses one responsive channel browser at all window sizes, with
-equal-width player/browser panes, at most three category rows and attached
-overflow menus. Preview cards and their connected programme timelines adapt to
-the available space without stretching video. It repairs macOS native fullscreen
-Escape/re-entry, prioritizes fresh retirement state for selected channels and
-keeps every equivalent route with a favorited channel.
+`1.1.5+98` separates video fullscreen from native window maximization and
+restores the caller's original window bounds, maximization and channel layout.
+It fixes Windows caption styles covering top-edge controls, preserves return
+state through PiP, and removes an invalid Mac termination callback. Attached
+category menus use larger, adaptive text and buttons without excess blank space.
+The shared responsive browser, fresh retirement checks and whole-channel
+favorites from 1.1.4 remain available.
 Android ARM32/ARM64/x64, macOS Intel/Apple Silicon and Windows x64/ARM64
 packages are available. Windows offers Setup installers and portable ZIPs;
 all seven platform update channels use architecture-specific packages.
-See [release details](docs/releases/1.1.4.md). Mac fullscreen acceptance passed
-on the maintainer's Intel Mac. Windows and Android physical acceptance for this
-version remains pending; automated platform and package tests do not replace it.
+See [release details](docs/releases/1.1.5.md). Thirteen isolated native Mac
+fullscreen scenarios and eight native Windows geometry/style scenarios passed.
+Windows pixel-level white-strip acceptance and Android hardware testing remain
+pending; automated platform and package tests do not replace them.
 Publication does not restart installed applications. Primary downloads and
 updates are also available through [the resource relay manifest](https://cndrp.com/bobtv/releases.json).
 
@@ -110,7 +112,7 @@ necessary before formal release.
 
 ### Windows television mode
 
-The player switches the window into a borderless fullscreen state that covers the current monitor. Returning to channels restores the split browser layout while retaining fullscreen window mode. The separate window-fullscreen control restores native window chrome and resize/maximize controls. Mouse-accessible return and exit controls remain available during playback.
+Video fullscreen captures the caller's window state. Double-click and Return restore the split browser with its original ordinary, maximized or native-fullscreen window placement. Native window maximize/fullscreen actions keep the channel browser visible. Explicit native restore actions also leave native fullscreen. Mouse-accessible return and exit controls remain available during playback.
 
 Additional Windows behavior includes:
 

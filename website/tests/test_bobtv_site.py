@@ -73,7 +73,7 @@ def test_product_pages_reflect_published_releases():
     client = TestClient(module.app)
     home = client.get("/").text
     assert "v1.0.3" in home and "WINDOWS · MACOS" in home
-    assert "1.1.4 · Windows / macOS / Android" in home
+    assert "1.1.5 · Windows / macOS / Android" in home
     assert "cndrp" in home and "视频直连" in home
     assert "v1.0.5 · 服务器链路、频道合并与全屏修复" in home
     assert "跨分类合并多个频道" in home
@@ -91,8 +91,8 @@ def test_product_pages_reflect_published_releases():
     downloads = client.get("/downloads").text
     assert 'id="release-list"' in downloads and "BobTV.exe" in downloads
     assert "Apple Silicon" in downloads and "下载最新版本" in downloads
-    assert 'id="first-launch-title"' in downloads and "1.1.4" in downloads
-    assert "Windows 支持 x64 与 ARM64" in downloads
+    assert 'id="first-launch-title"' in downloads and "1.1.5" in downloads
+    assert "Windows x64 / ARM64" in downloads
     assert "管理员权限安装" in downloads and "只读磁盘映像" in downloads
     assert "后台下载、校验及退出后安装" in downloads
     assert "v0.9.1-bob.11" not in downloads

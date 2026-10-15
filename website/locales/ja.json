@@ -198,6 +198,11 @@
     "history_title": "最近の更新",
     "history": [
       [
+        "2026-10-16",
+        "v1.1.5 · 全画面終了時の状態復元と分類メニュー改善",
+        "動画の全画面表示から戻ると、元のウィンドウ位置・最大化・ネイティブ全画面とチャンネル画面を復元します。Windowsのタイトルバーによる上部操作の重なり、PiPの復帰状態、Mac終了時のコールバックを修正。分類メニューの文字とボタンを拡大し、余白を削減。継続的なEPG探索は開発予定で、本版には含まれません。"
+      ],
+      [
         "2026-10-14",
         "v1.1.4 · レイアウト統一、全画面と配信経路の同期修正",
         "全サイズで左右等幅、分類3行、ボタンに接続したメニューを使用します。MacでEsc終了後に全画面へ戻れない問題を修正。選択チャンネルの廃止状態を優先同期し、お気に入りには同一チャンネルの全経路を含めます。WindowsとAndroidの実機検証は未完了です。cndrpにも各更新をミラーします。"
@@ -268,7 +273,7 @@
   },
   "downloads": {
     "signing_notice": "SignPath Foundationの無料署名申請は承認されませんでした。信頼されたWindows証明書は取得しておらず、SignPath.ioの正式署名も使用していません。Edgeの初回ダウンロードでは安全確認が必要な場合があります。",
-    "intro": "1.1.4はWindows、macOS（Intel / Apple Silicon）、Android向けに、統一レイアウトと全画面、配信経路同期の修正を提供します。Windowsはx64とARM64のインストーラーとポータブル版を提供します。WindowsとAndroidの実機検証は未完了です。OSごとに1列、列内でCPUを選択できます。",
+    "intro": "1.1.5はWindows x64 / ARM64、macOS Intel / Apple Silicon、Android向けです。動画の全画面終了時に元のウィンドウ状態を復元し、分類メニューの文字とボタンを拡大。Macのネイティブ往復とWindowsの状態検証は通過済み。Windowsの白帯の視覚確認とAndroid実機検証は未完了です。OS別にまとめ、CPUを選択できます。",
     "latest": "最新インストーラー",
     "local": "当サイトから直接配布",
     "sections": [
@@ -361,7 +366,7 @@
     "pending": "準備中",
     "surface_pending": "Surface ARMネイティブ版は検証待ち",
     "windows_note": "Setupには管理者の許可が必要です。ZIPは全体を展開してください。",
-    "macos_note": "チップを選び、DMGからApplicationsへドラッグ。",
+    "macos_note": "現在の依存関係はmacOS 13以降を必要とします。旧OS対応は未実装です。チップを選び、DMGからApplicationsへドラッグ。",
     "android_note": "Android 7以上。更新時にシステム確認が必要です。実機と中国本土の試験は未実施。",
     "windows_arm64_note": "ARM64ネイティブ版のビルドとアーキテクチャを検証済み。Surface実機での再生、AirPlay、更新インストールは未検証です。",
     "platform_pending": "このCPUの新パッケージは後日追加予定です。現在は{version}を提供し、既存のダウンロードと更新経路を維持します。"

@@ -72,6 +72,9 @@ class _MockNativeWindow {
       case 'maximize':
         maximized = true;
         return true;
+      case 'unmaximize':
+        maximized = false;
+        return true;
       case 'setAlwaysOnTop':
         alwaysOnTop = (call.arguments as Map)['isAlwaysOnTop'] as bool;
         return true;
@@ -101,10 +104,20 @@ void main() {
     native = _MockNativeWindow();
     hasBackend = false;
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(
+          const MethodChannel('bobtv/window_chrome'),
+          (_) async => null,
+        );
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(channel, native.handle);
   });
 
   tearDown(() {
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(
+          const MethodChannel('bobtv/window_chrome'),
+          null,
+        );
     binding.platformDispatcher.implicitView!.resetDevicePixelRatio();
     if (hasBackend) backend.dispose();
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
@@ -187,7 +200,7 @@ void main() {
 
   for (final originalAlwaysOnTop in [false, true]) {
     test(
-      'Mac Escape on the channel page allows repeated player re-entry, original top=$originalAlwaysOnTop',
+      'Mac video return restores original window before repeated re-entry, original top=$originalAlwaysOnTop',
       () async {
         native.alwaysOnTop = originalAlwaysOnTop;
         native.rejectFloatingFullscreen = true;
@@ -211,21 +224,13 @@ void main() {
           await session.enter();
           expect(native.fullscreen, isTrue);
           expect(native.alwaysOnTop, isFalse);
-          await session.exit(keepWindowFullscreen: true);
+          await session.exit();
+          expect(native.fullscreen, isFalse);
           session.dispose();
           await _advanceAsyncWork();
-          // Native Escape while the channel page owns the fullscreen window.
-          // There is deliberately no active player/backend listener here.
-          native.fullscreen = false;
-          expect(native.alwaysOnTop, isFalse);
+          expect(native.alwaysOnTop, originalAlwaysOnTop);
         }
-        expect(native.callsTo('setFullScreen'), hasLength(4));
-        expect(
-          native
-              .callsTo('setAlwaysOnTop')
-              .every((c) => (c.arguments as Map)['isAlwaysOnTop'] == false),
-          isTrue,
-        );
+        expect(native.callsTo('setFullScreen'), hasLength(8));
       },
     );
   }
@@ -581,9 +586,10 @@ void main() {
   );
 
   test(
-    'Windows keeps fullscreen chrome hidden when returning to channels',
+    'Windows preserves caller window fullscreen when returning to channels',
     () async {
       native.maximized = true;
+      native.fullscreen = true;
       createBackend(isMacOS: false);
       final session = DesktopFullscreenSession(
         backend: backend,
@@ -591,7 +597,7 @@ void main() {
         onExternalExit: () {},
       );
       await session.enter();
-      await session.exit(keepWindowFullscreen: true);
+      await session.exit();
       expect(native.fullscreen, isTrue);
       expect(native.titleBarStyle, 'hidden');
       expect(native.callsTo('setBounds'), isEmpty);
@@ -613,6 +619,20 @@ void main() {
     expect(native.resizable, isFalse);
     expect(native.maximizable, isFalse);
   });
+
+  for (final mac in [true, false]) {
+    test(
+      '${mac ? 'Mac' : 'Windows'} clears unexpected maximization before restoring an ordinary frame',
+      () async {
+        native.maximized = true;
+        createBackend(isMacOS: mac);
+        await backend.restore(_snapshot);
+        expect(native.maximized, isFalse);
+        expect(native.callsTo('unmaximize'), hasLength(1));
+        expect(native.callsTo('setBounds'), hasLength(1));
+      },
+    );
+  }
 
   test(
     'Windows synthesizes both completion events when native events are missing',

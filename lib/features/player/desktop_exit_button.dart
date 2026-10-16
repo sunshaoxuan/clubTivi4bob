@@ -1,7 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
-import 'package:window_manager/window_manager.dart';
+import '../../core/desktop_app_exit.dart';
 
 /// Use the normal native close path so independent update workers can finish.
 class DesktopExitButton extends StatefulWidget {
@@ -20,7 +20,8 @@ class _DesktopExitButtonState extends State<DesktopExitButton> {
     if (_closing) return;
     setState(() => _closing = true);
     try {
-      await (widget.onClose ?? windowManager.close)();
+      await (widget.onClose ??
+          () => DesktopAppExit.request('header_exit_button'))();
     } catch (_) {
       if (!mounted) return;
       setState(() => _closing = false);

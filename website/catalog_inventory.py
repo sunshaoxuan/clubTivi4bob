@@ -12,6 +12,7 @@ from urllib.parse import urlsplit, parse_qsl
 
 from fastapi import APIRouter, HTTPException, Request, BackgroundTasks
 from fastapi.responses import JSONResponse
+from starlette.concurrency import run_in_threadpool
 from route_identity import canonical_route_url
 
 DATA = Path(os.environ.get("BOBTV_DATA_DIR", Path(__file__).parent / "data"))
@@ -20,11 +21,11 @@ MAX_BODY = 512 * 1024
 
 
 def validate_media_url(url):
-    if not isinstance(url, str) or not 1 <= len(url) <= 2048 or any(ord(c) <= 32 for c in url):
+    if not isinstance(url, str) or not 1 <= len(url) <= 2048 or any(ord(c) <= 32 or ord(c) == 127 for c in url):
         raise ValueError("Invalid media URL")
     parsed = urlsplit(url)
     host = (parsed.hostname or "").lower()
-    if parsed.scheme not in ("https", "http") or not host or parsed.username or parsed.password or parsed.fragment:
+    if parsed.scheme not in ("https", "http") or not host or parsed.username or parsed.password or '#' in url:
         raise ValueError("Invalid public media URL")
     try:
         address = ipaddress.ip_address(host)
@@ -34,7 +35,7 @@ def validate_media_url(url):
     else:
         if not address.is_global:
             raise ValueError("Private address")
-    if any(re.search(r"token|password|secret|auth|api.?key", key, re.I) for key, _ in parse_qsl(parsed.query)):
+    if any(re.search(r"token|password|secret|auth|api.?key", key, re.I) for key, _ in parse_qsl(parsed.query, keep_blank_values=True)):
         raise ValueError("Credential-bearing media URL")
     segments = [part for part in parsed.path.split('/') if part]
     if len(segments) >= 4 and segments[0].lower() in ('live', 'movie', 'series'):
@@ -78,10 +79,10 @@ def _migrate_route_identity(conn):
 
 
 @contextmanager
-def database(data_dir=None):
+def database(data_dir=None, *, timeout=30):
     directory = Path(data_dir or DATA)
     directory.mkdir(parents=True, exist_ok=True)
-    conn = sqlite3.connect(directory / "channel_inventory.sqlite3", timeout=30)
+    conn = sqlite3.connect(directory / "channel_inventory.sqlite3", timeout=timeout)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA journal_mode=WAL")
     conn.execute("CREATE TABLE IF NOT EXISTS routes (digest TEXT PRIMARY KEY, name TEXT NOT NULL, url TEXT NOT NULL, group_name TEXT NOT NULL, source TEXT NOT NULL, epg_id TEXT, logo_url TEXT, playable_at INTEGER, blocked INTEGER NOT NULL DEFAULT 0, received INTEGER NOT NULL, checked_at INTEGER, success_at INTEGER, failures INTEGER NOT NULL DEFAULT 0)")
@@ -111,7 +112,7 @@ def database(data_dir=None):
         conn.close()
 
 
-def ingest(rows, fingerprint, data_dir=None):
+def ingest(rows, fingerprint, data_dir=None, *, busy_timeout=30):
     now = int(time.time())
     accepted = 0
     skipped = 0
@@ -139,7 +140,9 @@ def ingest(rows, fingerprint, data_dir=None):
             skipped += 1
     reporter = hashlib.sha256(fingerprint.encode()).hexdigest()
     batch_digest = hashlib.sha256(json.dumps(normalized, ensure_ascii=False).encode()).hexdigest()
-    with database(data_dir) as conn:
+    with database(data_dir, timeout=busy_timeout) as conn:
+        if not conn.in_transaction:
+            conn.execute('BEGIN IMMEDIATE')
         limit = conn.execute("SELECT hour,count FROM limits WHERE reporter=?", (reporter,)).fetchone()
         count = limit["count"] + 1 if limit and limit["hour"] == now // 3600 else 1
         if count > 2000: raise HTTPException(429, "Inventory rate limit", headers={"Retry-After": "3600"})
@@ -175,7 +178,17 @@ async def inventory(request: Request):
         if not isinstance(rows, list) or not 1 <= len(rows) <= 200: raise ValueError()
     except (ValueError, TypeError):
         raise HTTPException(422, "Invalid inventory batch") from None
-    return JSONResponse(ingest(rows, payload["fingerprint"]), status_code=202)
+    receipt = await run_in_threadpool(_bounded_write, ingest, rows, payload['fingerprint'])
+    return JSONResponse(receipt, status_code=202)
+
+
+def _bounded_write(operation, *args):
+    try:
+        return operation(*args, busy_timeout=1)
+    except sqlite3.OperationalError as error:
+        if getattr(error, 'sqlite_errorcode', 0) & 255 in (sqlite3.SQLITE_BUSY, sqlite3.SQLITE_LOCKED):
+            raise HTTPException(503, 'Channel state temporarily busy', headers={'Retry-After': '1'}) from None
+        raise
 
 
 @router.get("/blocked")
@@ -202,9 +215,11 @@ async def route_state(request: Request):
         urls = list(dict.fromkeys(validate_media_url(url) for url in urls))
     except (ValueError, TypeError, AttributeError):
         raise HTTPException(422, 'Invalid route-state request') from None
-    with database() as conn:
-        rows = conn.execute('SELECT url,blocked,deleted,revision FROM routes WHERE url IN (' +
-                            ','.join('?' for _ in urls) + ')', urls).fetchall()
+    def read_state():
+        with database() as conn:
+            return conn.execute('SELECT url,blocked,deleted,revision FROM routes WHERE url IN (' +
+                                ','.join('?' for _ in urls) + ')', urls).fetchall()
+    rows = await run_in_threadpool(read_state)
     retired = [row['url'] for row in rows if row['blocked'] or row['deleted']]
     path = DATA / 'channel-catalog/manifest.json'
     version = json.loads(path.read_text()).get('version') if path.is_file() else None
@@ -212,10 +227,14 @@ async def route_state(request: Request):
                          'checkedAt': int(time.time())}, headers={'Cache-Control': 'no-store'})
 
 
-def ingest_events(events, fingerprint, data_dir=None):
+def ingest_events(events, fingerprint, data_dir=None, *, busy_timeout=30):
     reporter = hashlib.sha256(fingerprint.encode()).hexdigest()
     receipts = []
-    with database(data_dir) as conn:
+    with database(data_dir, timeout=busy_timeout) as conn:
+        # Serialize before the first read. A deferred read-to-write upgrade in
+        # WAL mode can otherwise fail immediately with SQLITE_BUSY_SNAPSHOT.
+        if not conn.in_transaction:
+            conn.execute('BEGIN IMMEDIATE')
         now=int(time.time())
         limit=conn.execute('SELECT hour,count FROM limits WHERE reporter=?',(reporter,)).fetchone()
         count=limit['count']+1 if limit and limit['hour']==now//3600 else 1
@@ -404,7 +423,7 @@ async def sync_events(request: Request, background_tasks: BackgroundTasks):
         if not isinstance(events,list) or not 1 <= len(events) <= 200: raise ValueError()
     except (ValueError,TypeError,AttributeError):
         raise HTTPException(422,'Invalid sync events') from None
-    receipt=ingest_events(events,payload['fingerprint'])
+    receipt = await run_in_threadpool(_bounded_write, ingest_events, events, payload['fingerprint'])
     background_tasks.add_task(_publish_changes)
     return JSONResponse(receipt,status_code=202)
 

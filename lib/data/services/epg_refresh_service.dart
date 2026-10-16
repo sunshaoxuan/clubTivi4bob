@@ -9,19 +9,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../datasources/local/database.dart' as db;
 import '../datasources/parsers/xmltv_parser.dart';
-import '../models/epg.dart';
+import '../models/server_epg_snapshot.dart';
 import '../../features/providers/provider_manager.dart';
-
-/// Runs heavy XML parsing in a background isolate.
-XmltvResult _parseInIsolate(_ParseArgs args) {
-  return XmltvParser().parse(args.xml, sourceId: args.sourceId);
-}
-
-class _ParseArgs {
-  final String xml;
-  final String sourceId;
-  const _ParseArgs(this.xml, this.sourceId);
-}
 
 class EpgRefreshService {
   final db.AppDatabase _db;
@@ -49,9 +38,7 @@ class EpgRefreshService {
     final dio = ServerEgress.dio(
       BaseOptions(
         extra: {'egressKind': 'epg'},
-        headers: {
-          'User-Agent': 'BobTV/1.0',
-        },
+        headers: {'User-Agent': 'BobTV/1.0'},
       ),
     );
     try {
@@ -71,8 +58,46 @@ class EpgRefreshService {
       debugPrint(
         '[EPG] Parsed ${result.channels.length} channels, ${result.programmes.length} programmes',
       );
+      await importParsed(sourceId, result);
+    } finally {
+      dio.close();
+    }
+  }
 
-      // Store channels
+  /// Validate before changing cache; readers only see a complete committed guide.
+  /// This importer is shared groundwork for the future server-version receiver.
+  Future<void> importParsed(
+    String sourceId,
+    XmltvResult result, {
+    DateTime? at,
+  }) async {
+    final now = at ?? DateTime.now();
+    if (result.channels.isEmpty ||
+        result.programmes.isEmpty ||
+        !result.programmes.any((p) => p.stop.isAfter(now))) {
+      throw const FormatException(
+        'EPG is empty or contains only expired programmes',
+      );
+    }
+    final channelIds = result.channels.map((c) => c.id).toSet();
+    if (result.channels.any((c) => c.sourceId != sourceId || c.id.isEmpty) ||
+        result.programmes.any(
+          (p) =>
+              p.sourceId != sourceId ||
+              !channelIds.contains(p.channelId) ||
+              p.title.trim().isEmpty ||
+              !p.stop.isAfter(p.start),
+        )) {
+      throw const FormatException(
+        'EPG source or programme identity is invalid',
+      );
+    }
+    await _db.transaction(() async {
+      if (!(await _db.getAllEpgSources()).any(
+        (source) => source.id == sourceId,
+      )) {
+        throw StateError('EPG source no longer exists');
+      }
       final channelCompanions = result.channels.map((c) {
         return db.EpgChannelsCompanion.insert(
           id: '${sourceId}_${c.id}',
@@ -84,7 +109,7 @@ class EpgRefreshService {
       }).toList();
       await _db.upsertEpgChannels(channelCompanions);
 
-      // Delete old programmes for this source, then insert new ones in batches
+      // Replacing programmes, channel metadata and refresh time is one commit.
       await _db.deleteEpgProgrammesForSource(sourceId);
       final programmeCompanions = result.programmes.map((p) {
         return db.EpgProgrammesCompanion.insert(
@@ -109,11 +134,8 @@ class EpgRefreshService {
         }
       }
 
-      // Update last refresh timestamp
       await _db.updateEpgSourceRefreshTime(sourceId);
-    } finally {
-      dio.close();
-    }
+    });
   }
 
   /// Refresh all enabled EPG sources (skips sources refreshed within the last 4 hours).
@@ -121,6 +143,8 @@ class EpgRefreshService {
     final sources = await _db.getAllEpgSources();
     final now = DateTime.now();
     for (final source in sources.where((s) => s.enabled)) {
+      // This source is version-driven; it must never enter the XMLTV/4h path.
+      if (source.id == serverEpgSourceId) continue;
       if (!force &&
           source.lastRefresh != null &&
           now.difference(source.lastRefresh!).inHours < 4) {

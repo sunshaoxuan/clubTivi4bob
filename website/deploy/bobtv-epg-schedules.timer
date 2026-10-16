@@ -1,0 +1,12 @@
+[Unit]
+Description=Resume bounded approved BobTV programme ingestion
+
+[Timer]
+OnBootSec=3min
+OnUnitInactiveSec=60s
+AccuracySec=10s
+RandomizedDelaySec=10s
+Persistent=true
+
+[Install]
+WantedBy=timers.target

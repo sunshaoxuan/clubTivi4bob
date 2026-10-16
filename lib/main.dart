@@ -8,6 +8,8 @@ import 'package:media_kit/media_kit.dart';
 import 'package:window_manager/window_manager.dart';
 
 import 'app/app.dart';
+import 'app/desktop_app_lifecycle.dart';
+import 'app/server_epg_runtime_host.dart';
 import 'core/app_diagnostics.dart';
 import 'core/server_egress.dart';
 import 'core/platform_info.dart';
@@ -43,12 +45,21 @@ void main() {
       MediaKit.ensureInitialized();
       if (Platform.isWindows || Platform.isLinux || Platform.isMacOS) {
         await windowManager.ensureInitialized();
+        if (Platform.isWindows || Platform.isMacOS) {
+          await windowManager.setPreventClose(true);
+        }
         await DesktopWindowSizing.instance.start();
       }
       diagnostics.log('flutter_ready', {
         'diagnosticDirectory': diagnostics.logDirectoryPath,
       });
-      runApp(const ProviderScope(child: ClubTiviApp()));
+      runApp(
+        const ProviderScope(
+          child: DesktopAppLifecycle(
+            child: ServerEpgRuntimeHost(child: ClubTiviApp()),
+          ),
+        ),
+      );
       unawaited(ClientFingerprintService.instance.initialize());
       DesktopUpdateService.instance.start();
     },

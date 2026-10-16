@@ -10,13 +10,19 @@ import fcntl
 import gzip
 import hashlib
 import json
+import math
 import os
+import random
 import sqlite3
+import sys
 import tempfile
 import time
+from collections import Counter
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
+from email.utils import parsedate_to_datetime
 from pathlib import Path
+from urllib.error import HTTPError
 from urllib.parse import quote, urlunsplit
 
 from catalog_inventory import database as inventory_db
@@ -322,6 +328,7 @@ def classify_batch(batch, settings, data_dir=DATA):
         valid_confidence = type(confidence) in (int, float) and 0 <= confidence <= 1
         output.append({
             'key': target['key'],
+            'model': settings.get('model'),
             'channel': target['name'],
             'oldPath': target['currentPath'],
             'routeDigests': target['routeDigests'],
@@ -402,12 +409,63 @@ def budget_wait_seconds():
     return max(waits, default=60)
 
 
-def pilot(data_dir=DATA, count=4):
+class AuditStopped(RuntimeError):
+    """A non-transient failure needs attention instead of systemd retry loops."""
+
+
+def upstream_retry(exc, attempt):
+    """Return safe error code and delay, or no delay for permanent failures."""
+    code = error_code(exc)
+    retry_after = 0
+    if isinstance(exc, HTTPError):
+        if exc.code not in (429, 500, 502, 503, 504):
+            return code, None
+        if exc.code == 429:
+            try:
+                payload = json.loads(exc.read(16384))
+                upstream_code = payload.get('error', {}).get('code')
+            except (ValueError, OSError, AttributeError, TypeError):
+                upstream_code = None
+            if isinstance(upstream_code, str) and upstream_code in {
+                    'insufficient_quota', 'billing_hard_limit_reached',
+                    'billing_not_active', 'account_deactivated'}:
+                return 'upstream_quota_exhausted', None
+        value = exc.headers.get('Retry-After') if exc.headers else None
+        if value:
+            try:
+                retry_after = float(value)
+            except (ValueError, TypeError):
+                try:
+                    retry_after = parsedate_to_datetime(value).timestamp() - time.time()
+                except (ValueError, TypeError, OverflowError):
+                    retry_after = 0
+            if not math.isfinite(retry_after):
+                retry_after = 0
+            if retry_after > 86400:
+                return 'upstream_retry_requires_attention', None
+    elif code != 'network_unavailable' and not (code == 'invalid_response' and attempt <= 3):
+        return code, None
+    delay = min(600, 30 * 2 ** min(attempt - 1, 5))
+    return code, max(delay, retry_after) + random.uniform(0, 3)
+
+
+def audit_settings(model=None, upstream_limits=False):
+    settings = dict(config())
+    if model:
+        settings['model'] = model
+    if upstream_limits:
+        settings['enforceLocalBudget'] = False
+    if settings.get('model') == 'gpt-6-luna':
+        settings.update(reasoningEffort='none', jsonMode=True)
+    return settings
+
+
+def pilot(data_dir=DATA, count=4, model=None, upstream_limits=False):
     _, targets = collect_targets(data_dir)
     selected = [item for item in targets if item['logoUrls'] and item['routeDigests'] and not item['manualOnly']][:count]
     if not selected:
         selected = [item for item in targets if item['routeDigests'] and not item['manualOnly']][:count]
-    results = classify_batch(selected, config(), data_dir)
+    results = classify_batch(selected, audit_settings(model, upstream_limits), data_dir)
     print(json.dumps({
         'pilot': True,
         'channelsSent': len(results),
@@ -416,7 +474,8 @@ def pilot(data_dir=DATA, count=4):
     }, ensure_ascii=False))
 
 
-def stage(data_dir=DATA, run_id=None, follow_budget=False, max_batches=0, retry_reviews=False):
+def stage(data_dir=DATA, run_id=None, follow_budget=False, max_batches=0, retry_reviews=False,
+          model=None, upstream_limits=False):
     path = result_path(run_id, data_dir)
     lock_path = path.with_suffix('.lock')
     with lock_path.open('a') as lock:
@@ -432,7 +491,19 @@ def stage(data_dir=DATA, run_id=None, follow_budget=False, max_batches=0, retry_
             old_status = {}
         if old_status.get('state') == 'complete' and old_status.get('runId') == run_id:
             return old_status
-        done = read_results(path)
+        settings = audit_settings(model, upstream_limits)
+        all_results = read_results(path)
+        target_keys = {item['key'] for item in targets}
+        # Catalog refreshes can replace route-set identities. Retain every
+        # append-only audit record, but count only this stage's target set.
+        historical = {key: item for key, item in all_results.items() if key not in target_keys}
+        done = {key: item for key, item in all_results.items() if key in target_keys}
+        historical_progress = {
+            'model': settings.get('model'),
+            'localBudgetEnforced': settings.get('enforceLocalBudget', True),
+            'historicalAuditRecords': len(historical),
+            'historicalAuditCounts': dict(Counter(item['status'] for item in historical.values())),
+        }
         if retry_reviews:
             done = {
                 key: item for key, item in done.items()
@@ -466,7 +537,7 @@ def stage(data_dir=DATA, run_id=None, follow_budget=False, max_batches=0, retry_
         pending = [item for item in pending if item['key'] not in done]
         batches_done = 0
         calls = 0
-        settings = config()
+        failures = 0
         while pending:
             batch = pending[:BATCH_SIZE]
             try:
@@ -475,6 +546,7 @@ def stage(data_dir=DATA, run_id=None, follow_budget=False, max_batches=0, retry_
                 wait = budget_wait_seconds()
                 status = {
                     'state': 'waiting_for_ai_budget', 'runId': run_id,
+                    **historical_progress,
                     'catalogVersion': manifest['version'], 'targetChannels': len(targets),
                     'completedChannels': len(done), 'pendingChannels': len(pending),
                     'batchSize': BATCH_SIZE, 'batchIntervalSeconds': BATCH_INTERVAL_SECONDS,
@@ -491,12 +563,32 @@ def stage(data_dir=DATA, run_id=None, follow_budget=False, max_batches=0, retry_
                 time.sleep(min(wait, 600))
                 continue
             except Exception as exc:
-                code = error_code(exc)
-                status = {'state': 'retrying', 'runId': run_id, 'errorCode': code,
-                          'pendingChannels': len(pending), 'updatedAt': utc_now()}
+                failures += 1
+                code, wait = upstream_retry(exc, failures)
+                status = {
+                    'state': 'waiting_for_upstream' if wait is not None else 'failed',
+                    'runId': run_id, **historical_progress,
+                    'catalogVersion': manifest['version'], 'targetChannels': len(targets),
+                    'completedChannels': len(done), 'pendingChannels': len(pending),
+                    'classified': sum(item['status'] == 'classified' for item in done.values()),
+                    'needsReview': sum(item['status'] == 'needs_review' for item in done.values()),
+                    'manualPreserved': sum(item['status'] == 'manual_preserved' for item in done.values()),
+                    'batchSize': BATCH_SIZE, 'batchIntervalSeconds': BATCH_INTERVAL_SECONDS,
+                    'aiCallsThisRun': calls, 'retryAttempt': failures,
+                    'errorCode': code, 'waitSeconds': wait, 'updatedAt': utc_now(),
+                }
+                if wait is not None:
+                    status['nextRetryAt'] = datetime.fromtimestamp(
+                        time.time() + wait, timezone.utc).isoformat().replace('+00:00', 'Z')
                 write_status(path, status)
                 print(json.dumps(status, ensure_ascii=False), flush=True)
-                raise
+                if wait is None:
+                    raise AuditStopped(code) from None
+                if not follow_budget:
+                    return status
+                time.sleep(wait)
+                continue
+            failures = 0
             append_results(path, results)
             done.update({item['key']: item for item in results})
             pending = [item for item in pending if item['key'] not in done]
@@ -504,6 +596,7 @@ def stage(data_dir=DATA, run_id=None, follow_budget=False, max_batches=0, retry_
             batches_done += 1
             status = {
                 'state': 'staging', 'runId': run_id,
+                **historical_progress,
                 'catalogVersion': manifest['version'], 'targetChannels': len(targets),
                 'completedChannels': len(done), 'pendingChannels': len(pending),
                 'batchSize': BATCH_SIZE, 'batchIntervalSeconds': BATCH_INTERVAL_SECONDS,
@@ -521,8 +614,9 @@ def stage(data_dir=DATA, run_id=None, follow_budget=False, max_batches=0, retry_
                 time.sleep(BATCH_INTERVAL_SECONDS)
         status = {
             'state': 'ready_to_apply', 'runId': run_id,
+            **historical_progress,
             'catalogVersion': manifest['version'], 'targetChannels': len(targets),
-            'completedChannels': len(done),
+            'completedChannels': len(done), 'pendingChannels': 0,
             'batchSize': BATCH_SIZE, 'batchIntervalSeconds': BATCH_INTERVAL_SECONDS,
             'classified': sum(item['status'] == 'classified' for item in done.values()),
             'needsReview': sum(item['status'] == 'needs_review' for item in done.values()),
@@ -658,6 +752,8 @@ def main():
     parser.add_argument('--follow-budget', action='store_true', help='Wait and resume as shared AI request budget becomes available')
     parser.add_argument('--retry-reviews', action='store_true', help='Re-run prior uncertain or unmapped AI results while keeping no-route items for review')
     parser.add_argument('--apply-on-complete', action='store_true', help='Back up and publish automatically after all channels have an audited result')
+    parser.add_argument('--model', help='Operator-selected classification model; preserves other workers settings')
+    parser.add_argument('--upstream-limits', action='store_true', help='Use upstream throttling and bounded serial batches without local request-count budgets')
     parser.add_argument('--max-batches', type=int, default=0)
     options = parser.parse_args()
     selected = sum((options.pilot, options.stage, options.apply))
@@ -666,12 +762,12 @@ def main():
     if options.pilot:
         if not 1 <= options.pilot_count <= BATCH_SIZE:
             parser.error('--pilot-count must be between 1 and 20')
-        pilot(count=options.pilot_count)
+        pilot(count=options.pilot_count, model=options.model, upstream_limits=options.upstream_limits)
     elif options.stage:
         if options.apply_on_complete and options.max_batches:
             parser.error('--apply-on-complete requires an unbounded stage run')
         status = stage(run_id=options.run_id, follow_budget=options.follow_budget, max_batches=options.max_batches,
-                       retry_reviews=options.retry_reviews)
+                       retry_reviews=options.retry_reviews, model=options.model, upstream_limits=options.upstream_limits)
         while options.apply_on_complete and status.get('state') == 'ready_to_apply':
             try:
                 apply_results(run_id=options.run_id)
@@ -682,10 +778,14 @@ def main():
                 # The shared catalog may gain routes while a multi-hour AI
                 # pass is running. Re-scan that newer snapshot before publish.
                 status = stage(run_id=options.run_id, follow_budget=options.follow_budget,
-                               retry_reviews=False)
+                               retry_reviews=False, model=options.model, upstream_limits=options.upstream_limits)
     else:
         apply_results(run_id=options.run_id)
 
 
 if __name__ == '__main__':
-    main()
+    try:
+        main()
+    except AuditStopped as exc:
+        print(json.dumps({'stopped': True, 'errorCode': str(exc)}), flush=True)
+        sys.exit(2)

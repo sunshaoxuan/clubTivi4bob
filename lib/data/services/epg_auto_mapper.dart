@@ -2,6 +2,7 @@ import 'package:string_similarity/string_similarity.dart';
 
 import '../models/channel.dart';
 import '../models/epg.dart';
+import '../models/server_epg_snapshot.dart';
 
 /// Automatically maps provider channels to EPG channels using multiple
 /// fuzzy matching strategies. Designed for epg.best and other XMLTV sources.
@@ -21,6 +22,7 @@ class EpgAutoMapper {
     required Function(EpgMapping) onMapping,
   }) {
     final stopwatch = Stopwatch()..start();
+    epgChannels = epgChannels.where((c) => c.sourceId != serverEpgSourceId).toList();
     int mapped = 0, suggested = 0, unmapped = 0;
 
     // Build lookup indices for EPG channels
@@ -31,7 +33,7 @@ class EpgAutoMapper {
       final existing = existingMappings[key];
 
       // Skip locked (manual) mappings
-      if (existing != null && existing.locked) {
+      if (existing != null && (existing.locked || existing.epgSourceId == serverEpgSourceId)) {
         mapped++;
         continue;
       }
@@ -110,6 +112,11 @@ class EpgAutoMapper {
     required String epgSourceId,
     bool exactOnly = false,
   }) {
+    if (epgSourceId == serverEpgSourceId) return const [];
+    if (epgChannels.any((c) => c.sourceId == serverEpgSourceId)) {
+      epgChannels = epgChannels.where((c) => c.sourceId != serverEpgSourceId).toList();
+      index = null;
+    }
     final idx = index is _EpgIndex ? index : _EpgIndex.build(epgChannels);
     final results = <String, _CandidateScore>{};
 

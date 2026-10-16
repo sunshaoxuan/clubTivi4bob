@@ -1,0 +1,23 @@
+[Unit]
+Description=BobTV bounded EPG identity candidate discovery
+After=network-online.target
+
+[Service]
+Type=oneshot
+User=bobtv
+Group=bobtv
+WorkingDirectory=/opt/bobtv/site
+Environment=BOBTV_DATA_DIR=/var/lib/bobtv
+ExecStart=/opt/bobtv/venv/bin/python /opt/bobtv/site/epg_discovery.py --seed-existing-cache
+TimeoutStartSec=180
+MemoryMax=384M
+CPUQuota=20%
+TasksMax=16
+Nice=10
+UMask=0077
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+PrivateNetwork=true
+ReadWritePaths=/var/lib/bobtv

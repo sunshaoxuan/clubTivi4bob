@@ -9,6 +9,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../core/app_diagnostics.dart';
 import '../datasources/local/database.dart' as db;
+import '../models/catalog_epg_identity.dart';
+import 'server_epg_binding.dart';
 import 'bobtv_api_client.dart';
 import 'channel_category_classifier.dart';
 import 'manual_channel_category.dart';
@@ -37,7 +39,7 @@ class WebsiteChannelCatalogService {
     this.onSharedScores,
   }) : api = api ?? BobTvApiClient();
 
-  static const providerId = 'bobtv-channel-catalog';
+  static const providerId = publicCatalogProviderId;
   static const _versionKey = 'bobtv_website_catalog_version_v1';
 
   /// The website list is the common default on every installation. Personal
@@ -119,7 +121,9 @@ class WebsiteChannelCatalogService {
       final newTime = DateTime.tryParse(manifest.version);
       if (oldTime != null && newTime != null && newTime.isBefore(oldTime))
         throw const FormatException('Stale website snapshot');
-      if (installedVersion == manifest.version && installed) {
+      final identityBinding = ServerEpgBinding(database);
+      if (installedVersion == manifest.version && installed &&
+          await identityBinding.catalogIdentityVersion() == manifest.version) {
         state.value = WebsiteCatalogProgress(
           phase: '网站频道已是最新',
           imported: manifest.routeCount,
@@ -287,6 +291,8 @@ class WebsiteChannelCatalogService {
           }
         }
         await database.deleteChannelsMissingFromProvider(providerId, keepIds);
+        await identityBinding.replaceCatalogIdentities(manifest.version, records);
+        await identityBinding.reconcile();
         await database.markProviderRefreshed(providerId, DateTime.now());
         await database.setSharedCatalogVersion(manifest.version);
       });
@@ -429,6 +435,7 @@ Future<List<Map<String, Object?>>> _decodeCatalog(
       throw const FormatException('Invalid merged channel identity');
     }
     final category = categories[channel['categoryId']];
+    final identityHash = catalogEpgIdentityHash(channel);
     if (category == null) throw const FormatException('Unknown category');
     final group = _catalogGroupFor(
       category,
@@ -457,6 +464,8 @@ Future<List<Map<String, Object?>>> _decodeCatalog(
       }
       result.add({
         'routeId': route['id'] as String,
+        'catalogChannelId': channel['id'] as String,
+        'catalogIdentityHash': identityHash,
         'name': name,
         'mergeId': channel['mergeId'] is String
             ? channel['mergeId'] as String

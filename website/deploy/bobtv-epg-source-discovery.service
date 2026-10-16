@@ -1,0 +1,23 @@
+[Unit]
+Description=BobTV bounded persistent EPG source discovery
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=bobtv
+Group=bobtv
+WorkingDirectory=/opt/bobtv/site
+Environment=BOBTV_DATA_DIR=/var/lib/bobtv
+ExecStart=/opt/bobtv/venv/bin/python /opt/bobtv/site/epg_source_discovery.py
+TimeoutStartSec=75
+MemoryMax=384M
+CPUQuota=15%
+TasksMax=16
+Nice=15
+UMask=0077
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ReadWritePaths=/var/lib/bobtv

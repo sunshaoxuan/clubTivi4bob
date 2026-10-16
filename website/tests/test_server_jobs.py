@@ -205,6 +205,32 @@ def test_ai_global_budget_prevents_more_upstream_calls(tmp_path, monkeypatch):
         worker.ai([], 'test', {'baseUrl':'https://ai.example.org/v1','apiKey':'hidden','model':'test'})
 
 
+def test_operator_audit_can_bypass_counts_without_consuming_other_workers_budget(tmp_path, monkeypatch):
+    import time
+    import pytest
+    client(tmp_path, monkeypatch)
+    with jobs.database() as conn:
+        conn.executemany('INSERT INTO ai_requests VALUES (?)', [(int(time.time()),)] * 500)
+    requests = []
+
+    def fetch(url, body, *args, **kwargs):
+        requests.append(body)
+        return json.dumps({'choices': [{'message': {'content': '{"ok":true}'}}]}).encode()
+
+    monkeypatch.setattr(worker, 'fetch', fetch)
+    settings = {'baseUrl': 'https://ai.example.org/v1', 'apiKey': 'hidden', 'model': 'gpt-6-luna',
+                'enforceLocalBudget': False, 'reasoningEffort': 'none', 'jsonMode': True}
+    assert worker.ai([], 'test', settings) == {'ok': True}
+    assert requests[0]['model'] == 'gpt-6-luna'
+    assert requests[0]['reasoning_effort'] == 'none'
+    assert requests[0]['response_format'] == {'type': 'json_object'}
+    with jobs.database() as conn:
+        assert conn.execute('SELECT count(*) FROM ai_requests').fetchone()[0] == 500
+    with pytest.raises(worker.BudgetDeferred):
+        worker.ai([], 'test', {**settings, 'enforceLocalBudget': True})
+    assert len(requests) == 1
+
+
 def test_budget_defer_does_not_consume_failure_attempt(tmp_path, monkeypatch):
     api = client(tmp_path, monkeypatch)
     monkeypatch.setattr(worker,'config',lambda:{'baseUrl':'https://ai.example.org/v1','apiKey':'hidden','model':'test'})

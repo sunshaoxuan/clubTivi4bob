@@ -1,4 +1,5 @@
 import '../../core/server_image.dart';
+import '../../data/services/epg_ui_refresh.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -35,11 +36,14 @@ class _GuideScreenState extends ConsumerState<GuideScreen> {
   Map<String, String> _epgMappings = {};
   Set<String> _validEpgChannelIds = {};
   bool _mappingsLoaded = false;
+  EpgUiRefresh? _epgUiRefresh;
+  int _epgRevision = 0, _mappingLoadGeneration = 0;
 
   @override
   void initState() {
     super.initState();
     _loadMappings();
+    _epgUiRefresh = EpgUiRefresh(ref.read(databaseProvider).watchEpgChanges(), _loadMappings);
     // Pre-set offset to "now" so rows render correctly before jumpTo fires
     final nowMinutes = _focusTime.hour * 60 + _focusTime.minute;
     final initialOffset = (nowMinutes * _pixelsPerMinute - 100).clamp(
@@ -60,9 +64,10 @@ class _GuideScreenState extends ConsumerState<GuideScreen> {
   }
 
   Future<void> _loadMappings() async {
+    final generation = ++_mappingLoadGeneration;
     final database = ref.read(databaseProvider);
     final mappings = await database.getAllMappings();
-    final epgSources = await database.getAllEpgSources();
+    final epgSources = (await database.getAllEpgSources()).where((s) => s.enabled).toList();
     final currentSourceIds = epgSources.map((s) => s.id).toSet();
     final validIds = <String>{};
     for (final src in epgSources) {
@@ -74,6 +79,12 @@ class _GuideScreenState extends ConsumerState<GuideScreen> {
     // Resolve mappings — handle stale source IDs from deleted/re-created sources
     final epgMap = <String, String>{};
     for (final m in mappings) {
+      final direct = '${m.epgSourceId}_${m.epgChannelId}';
+      if (m.locked || m.source == 'manual' || m.source == 'server') {
+        epgMap[m.channelId] = currentSourceIds.contains(m.epgSourceId) && validIds.contains(direct)
+          ? direct : '';
+        continue;
+      }
       if (currentSourceIds.contains(m.epgSourceId)) {
         epgMap[m.channelId] = '${m.epgSourceId}_${m.epgChannelId}';
       } else {
@@ -86,17 +97,19 @@ class _GuideScreenState extends ConsumerState<GuideScreen> {
         }
       }
     }
-    if (!mounted) return;
+    if (!mounted || generation != _mappingLoadGeneration) return;
     setState(() {
       _epgMappings = epgMap;
       _validEpgChannelIds = validIds;
       _mappingsLoaded = true;
+      _epgRevision++;
     });
   }
 
   /// Resolve a channel to its EPG channel ID for programme lookup.
   String? _resolveEpgId(db.Channel channel) {
     final mapped = _epgMappings[channel.id];
+    if (mapped == '') return null;
     if (mapped != null && mapped.isNotEmpty) return mapped;
     if (channel.tvgId != null &&
         channel.tvgId!.isNotEmpty &&
@@ -108,6 +121,7 @@ class _GuideScreenState extends ConsumerState<GuideScreen> {
 
   @override
   void dispose() {
+    _epgUiRefresh?.dispose();
     _scrollController.dispose();
     _scrollOffset.dispose();
     _searchController.dispose();
@@ -285,6 +299,8 @@ class _GuideScreenState extends ConsumerState<GuideScreen> {
                               ? _resolveEpgId(channel)
                               : null;
                           return _ChannelGuideRow(
+                            key: ValueKey(channel.id),
+                            epgRevision: _epgRevision,
                             channelName: channel.name,
                             channelLogo: channel.tvgLogo,
                             scrollOffset: _scrollOffset,
@@ -350,6 +366,7 @@ class _TimeRuler extends StatelessWidget {
 }
 
 class _ChannelGuideRow extends StatefulWidget {
+  final int epgRevision;
   final String channelName;
   final String? channelLogo;
   final ValueNotifier<double> scrollOffset;
@@ -359,6 +376,8 @@ class _ChannelGuideRow extends StatefulWidget {
   final double pixelsPerMinute;
 
   const _ChannelGuideRow({
+    super.key,
+    required this.epgRevision,
     required this.channelName,
     this.channelLogo,
     required this.scrollOffset,
@@ -373,6 +392,7 @@ class _ChannelGuideRow extends StatefulWidget {
 }
 
 class _ChannelGuideRowState extends State<_ChannelGuideRow> {
+  int _loadGeneration = 0;
   List<db.EpgProgramme>? _programmes;
   bool _loading = false;
 
@@ -386,17 +406,19 @@ class _ChannelGuideRowState extends State<_ChannelGuideRow> {
   void didUpdateWidget(covariant _ChannelGuideRow old) {
     super.didUpdateWidget(old);
     if (old.epgChannelId != widget.epgChannelId ||
-        old.focusDate != widget.focusDate) {
+        old.focusDate != widget.focusDate || old.epgRevision != widget.epgRevision) {
+      if (old.epgChannelId != widget.epgChannelId) _programmes = null;
       _loadProgrammes();
     }
   }
 
   Future<void> _loadProgrammes() async {
+    final generation = ++_loadGeneration;
     if (widget.epgChannelId == null) {
-      if (mounted) setState(() => _programmes = []);
+      if (mounted) setState(() { _programmes = []; _loading = false; });
       return;
     }
-    setState(() => _loading = true);
+    if (_programmes == null) setState(() => _loading = true);
     final dayStart = DateTime(
       widget.focusDate.year,
       widget.focusDate.month,
@@ -424,13 +446,13 @@ class _ChannelGuideRowState extends State<_ChannelGuideRow> {
         });
         if (!dominated) unique.add(p);
       }
-      if (mounted)
+      if (mounted && generation == _loadGeneration)
         setState(() {
           _programmes = unique;
           _loading = false;
         });
     } catch (_) {
-      if (mounted)
+      if (mounted && generation == _loadGeneration)
         setState(() {
           _programmes = [];
           _loading = false;

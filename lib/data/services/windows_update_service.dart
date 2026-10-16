@@ -6,9 +6,9 @@ import 'dart:typed_data';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:path/path.dart' as p;
-import 'package:window_manager/window_manager.dart';
 
 import '../../core/app_diagnostics.dart';
+import '../../core/desktop_app_exit.dart';
 import '../../core/app_version.dart';
 import '../../core/server_egress.dart';
 import '../../core/windows_binary_architecture.dart';
@@ -498,7 +498,7 @@ class WindowsUpdateService {
             reported.phase == WindowsUpdatePhase.awaitingExit) {
           _installRequested = false;
           _installRequestId = null;
-          await windowManager.close();
+          await DesktopAppExit.request('windows_update_authorized');
         }
       }
       if (reported?.phase == WindowsUpdatePhase.failed ||
@@ -537,14 +537,14 @@ class WindowsUpdateService {
   Future<void> installReady() async {
     final current = state.value;
     if (current.phase == WindowsUpdatePhase.awaitingExit) {
-      await windowManager.close();
+      await DesktopAppExit.request('windows_update_awaiting_exit');
       return;
     }
     if (current.phase != WindowsUpdatePhase.ready || _updateDirectory == null) {
       return;
     }
     if (!current.requiresAuthorization) {
-      await windowManager.close();
+      await DesktopAppExit.request('windows_portable_update_install');
       return;
     }
     if (_runId == null || !await _isWorkerRunning()) {

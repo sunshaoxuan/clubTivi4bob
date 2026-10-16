@@ -198,6 +198,11 @@
     "history_title": "Recent changes",
     "history": [
       [
+        "2026-10-17",
+        "v1.1.6 · Safe player shutdown and background EPG sync",
+        "Unifies main, preview and multi-view cleanup, waits for native callbacks to detach before shutdown, and records exit origins. Adds bounded renderer detachment for hidden windows, background EPG version checks and live guide updates. Manual mappings, private sources and offline caches are preserved. Public programme coverage and two real-version hot-update acceptance remain incomplete; a first client upgrade is required."
+      ],
+      [
         "2026-10-16",
         "v1.1.5 · Original window restoration and category menus",
         "Returning from video fullscreen restores the caller's bounds, maximization or native fullscreen and channel layout. Repairs Windows native-caption overlap, PiP return state and the Mac termination callback. Category popups use larger text and buttons with less empty space. Continuous EPG discovery is scheduled development and is not included in this release."
@@ -273,7 +278,7 @@
   },
   "downloads": {
     "signing_notice": "The free SignPath Foundation application was not approved. No trusted Windows certificate was issued and SignPath.io production signing is not in use. Edge may still require a security confirmation on the first browser download.",
-    "intro": "Version 1.1.5 provides Windows x64 / ARM64, macOS Intel / Apple Silicon and Android packages. Video fullscreen restores the original window state; category menus use larger text and buttons. Native Mac return cycles and Windows window-state checks passed. Windows white-strip visual acceptance and Android hardware testing remain pending. Each OS has one group with CPU choices.",
+    "intro": "Version 1.1.6 provides Windows x64 / ARM64, macOS Intel / Apple Silicon and Android packages. Unifies player shutdown cleanup, adds bounded hidden-window renderer detachment and records close origins. Adds background EPG checks while preserving manual mappings and offline caches. Public programme coverage and physical EPG playback/reconnect acceptance remain incomplete. Each OS has one group with CPU choices.",
     "latest": "Latest installers",
     "local": "Downloads hosted on this site",
     "sections": [

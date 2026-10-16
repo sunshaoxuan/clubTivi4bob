@@ -90,6 +90,27 @@ class AppDatabase extends _$AppDatabase {
 
   Future<void> _initializeSharedSync() async {
     await customStatement(
+      'CREATE TABLE IF NOT EXISTS catalog_epg_routes '
+      '(local_channel_id TEXT PRIMARY KEY, catalog_channel_id TEXT NOT NULL, '
+      'identity_hash TEXT NOT NULL, name TEXT NOT NULL, epg_id TEXT, group_name TEXT)',
+    );
+    await customStatement(
+      'CREATE TABLE IF NOT EXISTS catalog_epg_identity_version '
+      '(id INTEGER PRIMARY KEY CHECK(id=1), version TEXT NOT NULL)',
+    );
+    await customStatement(
+      'CREATE TABLE IF NOT EXISTS server_epg_receipt '
+      '(id INTEGER PRIMARY KEY CHECK(id=1), manifest TEXT NOT NULL)',
+    );
+    await customStatement(
+      'CREATE TABLE IF NOT EXISTS server_epg_identities '
+      '(channel_id TEXT PRIMARY KEY, metadata TEXT NOT NULL)',
+    );
+    await customStatement(
+      'CREATE TABLE IF NOT EXISTS server_epg_attributions '
+      '(source_id TEXT PRIMARY KEY, metadata TEXT NOT NULL)',
+    );
+    await customStatement(
       'CREATE TABLE IF NOT EXISTS catalog_sync_manifest '
       '(id INTEGER PRIMARY KEY CHECK(id=1), version TEXT NOT NULL)',
     );
@@ -1675,6 +1696,16 @@ class AppDatabase extends _$AppDatabase {
 
   // --- EPG Mapping queries ---
 
+  /// Transaction-safe invalidation; never loads the full programme table.
+  Stream<void> watchEpgChanges() => tableUpdates(
+    TableUpdateQuery.onAllTables([
+      epgSources,
+      epgChannels,
+      epgProgrammes,
+      epgMappings,
+    ]),
+  ).map((_) {});
+
   Future<List<EpgMapping>> getAllMappings() => select(epgMappings).get();
 
   Future<List<EpgMapping>> getMappingsForChannelIds(Set<String> ids) async {
@@ -1717,7 +1748,7 @@ class AppDatabase extends _$AppDatabase {
     final all = await select(epgMappings).get();
     int mapped = 0, suggested = 0;
     for (final m in all) {
-      if (m.source == 'auto' || m.source == 'manual') {
+      if (m.source == 'auto' || m.source == 'manual' || m.source == 'server') {
         mapped++;
       } else {
         suggested++;

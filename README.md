@@ -10,20 +10,23 @@ The application is built with Flutter and uses `media_kit`, libmpv, FFmpeg, Rive
 
 ### Latest release
 
-`1.1.5+98` separates video fullscreen from native window maximization and
-restores the caller's original window bounds, maximization and channel layout.
-It fixes Windows caption styles covering top-edge controls, preserves return
-state through PiP, and removes an invalid Mac termination callback. Attached
-category menus use larger, adaptive text and buttons without excess blank space.
-The shared responsive browser, fresh retirement checks and whole-channel
-favorites from 1.1.4 remain available.
+`1.1.6+99` adds shared, awaited native-player cleanup before desktop shutdown,
+bounded renderer detachment for hidden windows, and auditable exit reasons.
+It also adds server-owned EPG version checks, checksum-verified transactional
+imports, foreground/reconnect checks and live guide refresh without reopening
+the player. Unchanged versions avoid full downloads. Manual mappings, private
+sources and cached schedules remain protected, with visible cache-expiry status.
+The server-side programme discovery and source-recovery workers are operational,
+but approved public programme coverage and production two-version hot-update
+acceptance are incomplete. A first client upgrade is required for the new logic.
+Existing fullscreen restoration, adaptive menus, retirement protection and
+whole-channel favorites are retained.
 Android ARM32/ARM64/x64, macOS Intel/Apple Silicon and Windows x64/ARM64
 packages are available. Windows offers Setup installers and portable ZIPs;
 all seven platform update channels use architecture-specific packages.
-See [release details](docs/releases/1.1.5.md). Thirteen isolated native Mac
-fullscreen scenarios and eight native Windows geometry/style scenarios passed.
-Windows pixel-level white-strip acceptance and Android hardware testing remain
-pending; automated platform and package tests do not replace them.
+See [release details](docs/releases/1.1.6.md). Native Windows, macOS and Android
+playback/reconnect acceptance for the new EPG path remains pending; shared-code
+and package validation do not replace platform-specific physical testing.
 Publication does not restart installed applications. Primary downloads and
 updates are also available through [the resource relay manifest](https://cndrp.com/bobtv/releases.json).
 

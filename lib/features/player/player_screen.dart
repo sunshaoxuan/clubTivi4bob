@@ -14,8 +14,10 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:window_manager/window_manager.dart';
 
 import '../../core/app_diagnostics.dart';
+import '../../core/desktop_app_exit.dart';
 import '../../core/tablet_presentation.dart';
 import '../../data/services/android_pip_service.dart';
+import '../../data/services/epg_ui_refresh.dart';
 import '../../data/datasources/local/database.dart' as db;
 import '../../data/services/channel_category_classifier.dart';
 import '../../data/services/manual_route_cycle.dart';
@@ -106,6 +108,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   int _epgTimeshiftHours = 0;
   DateTime? _lastEpgLoad;
   Timer? _epgRefreshTimer;
+  EpgUiRefresh? _epgUiRefresh;
   String? _nowPlayingTitle;
   String? _nowPlayingTime;
   String? _nowDescription;
@@ -148,9 +151,18 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     }
     if (!_supportsNativeFullscreen) {
       _mobileFullscreenSession = MobileFullscreenSession();
-      unawaited(_mobileFullscreenSession!.enter().catchError((Object error, StackTrace stack) {
-        AppDiagnostics.instance.recordError('mobile_fullscreen_enter', error, stack);
-      }));
+      unawaited(
+        _mobileFullscreenSession!.enter().catchError((
+          Object error,
+          StackTrace stack,
+        ) {
+          AppDiagnostics.instance.recordError(
+            'mobile_fullscreen_enter',
+            error,
+            stack,
+          );
+        }),
+      );
     }
     if (_supportsNativeFullscreen) {
       _createFullscreenSession();
@@ -184,6 +196,17 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     _autoHideOverlay();
     _scheduleCursorHide();
     _loadEpgInfo();
+    _epgUiRefresh = EpgUiRefresh(
+      ref.read(databaseProvider).watchEpgChanges(),
+      () async {
+        if (mounted) await _loadEpgInfo(clear: false, force: true);
+      },
+      onError: (error, stack) => AppDiagnostics.instance.recordError(
+        'fullscreen_epg_hot_refresh',
+        error,
+        stack,
+      ),
+    );
     _epgRefreshTimer = Timer.periodic(const Duration(seconds: 30), (_) {
       if (mounted && _showOverlay && !_pipMode) {
         unawaited(_loadEpgInfo(clear: false));
@@ -208,8 +231,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     }
   }
 
-  Future<void> _loadEpgInfo({bool clear = true}) async {
-    if (!clear &&
+  Future<void> _loadEpgInfo({bool clear = true, bool force = false}) async {
+    if (!force &&
+        !clear &&
         _lastEpgLoad != null &&
         DateTime.now().difference(_lastEpgLoad!) <
             const Duration(seconds: 30)) {
@@ -232,7 +256,24 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
         _nextTime = null;
       });
     }
-    final epgId = (ch['epgId'] ?? ch['epgChannelId']) as String?;
+    final database = ref.read(databaseProvider);
+    String? epgId;
+    try {
+      epgId = await resolveLiveEpgId(
+        database,
+        channelId: ch['id'] as String? ?? '',
+        providerId: ch['providerId'] as String?,
+        fallbackId: (ch['epgId'] ?? ch['epgChannelId']) as String?,
+      );
+    } catch (error, stack) {
+      AppDiagnostics.instance.recordError(
+        'fullscreen_epg_mapping_query',
+        error,
+        stack,
+      );
+      return;
+    }
+    if (!mounted || generation != _epgLoadGeneration) return;
     if (epgId == null || epgId.isEmpty) {
       if (mounted) {
         setState(() {
@@ -247,7 +288,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       return;
     }
 
-    final database = ref.read(databaseProvider);
     final now = DateTime.now();
     late final List<db.EpgProgramme> programmes;
     try {
@@ -959,7 +999,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
         barrierDismissible: false,
         builder: (_) => ChannelRouteTransferDialog(
           database: database,
-          channel: owners.where((c) => c.id == service.currentChannelId).firstOrNull ?? owners.first,
+          channel:
+              owners
+                  .where((c) => c.id == service.currentChannelId)
+                  .firstOrNull ??
+              owners.first,
           routeUrl: currentUrl,
         ),
       );
@@ -969,7 +1013,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       );
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('线路已转移至“${result.name}”，${result.shared ? '公共线路在后台同步' : '私有线路仅保存到本机'}'),
+          content: Text(
+            '线路已转移至“${result.name}”，${result.shared ? '公共线路在后台同步' : '私有线路仅保存到本机'}',
+          ),
           duration: const Duration(seconds: 3),
         ),
       );
@@ -981,23 +1027,40 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       // channel button cannot reopen the moved route under the old name.
       for (final item in widget.channels) {
         final remaining = (item['alternativeUrls'] as List? ?? [])
-          .cast<String>().where((url) => url != result.url).toList();
+            .cast<String>()
+            .where((url) => url != result.url)
+            .toList();
         if (item['streamUrl'] == result.url) {
-          final next = service.currentUrl != null && remaining.contains(service.currentUrl)
-            ? service.currentUrl! : remaining.firstOrNull;
-          final rows = await database.getChannelsByStreamUrls([next ?? result.url]);
+          final next =
+              service.currentUrl != null &&
+                  remaining.contains(service.currentUrl)
+              ? service.currentUrl!
+              : remaining.firstOrNull;
+          final rows = await database.getChannelsByStreamUrls([
+            next ?? result.url,
+          ]);
           if (rows.isNotEmpty) {
             final row = rows.first;
-            item.addAll({'id': row.id, 'streamUrl': row.streamUrl,
-              'name': row.name, 'groupTitle': row.groupTitle,
-              'tvgId': row.tvgId, 'tvgName': row.tvgName, 'tvgLogo': row.tvgLogo});
+            item.addAll({
+              'id': row.id,
+              'streamUrl': row.streamUrl,
+              'name': row.name,
+              'groupTitle': row.groupTitle,
+              'tvgId': row.tvgId,
+              'tvgName': row.tvgName,
+              'tvgLogo': row.tvgLogo,
+            });
           }
         }
         if (item['name'] == result.name && item['groupTitle'] == result.group) {
-          item['alternativeUrls'] = <String>{...remaining, result.url}
-            .where((url) => url != item['streamUrl']).toList();
+          item['alternativeUrls'] = <String>{
+            ...remaining,
+            result.url,
+          }.where((url) => url != item['streamUrl']).toList();
         } else {
-          item['alternativeUrls'] = remaining.where((url) => url != item['streamUrl']).toList();
+          item['alternativeUrls'] = remaining
+              .where((url) => url != item['streamUrl'])
+              .toList();
         }
       }
       if (mounted) setState(() {});
@@ -1156,6 +1219,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
 
   @override
   void dispose() {
+    _epgUiRefresh?.dispose();
     if (Platform.isAndroid) {
       AndroidPipService.instance.active.removeListener(_onAndroidPipChanged);
     }
@@ -1176,9 +1240,18 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
         }),
       );
     }
-    unawaited(_mobileFullscreenSession?.exit().catchError((Object error, StackTrace stack) {
-      AppDiagnostics.instance.recordError('mobile_fullscreen_exit', error, stack);
-    }));
+    unawaited(
+      _mobileFullscreenSession?.exit().catchError((
+        Object error,
+        StackTrace stack,
+      ) {
+        AppDiagnostics.instance.recordError(
+          'mobile_fullscreen_exit',
+          error,
+          stack,
+        );
+      }),
+    );
     super.dispose();
   }
 
@@ -1701,7 +1774,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                         onVolume: (value) => _adjustVolume(value - _volume),
                         onExpand: () => unawaited(_restorePip()),
                         onReturn: () => unawaited(_leavePlayer()),
-                        onClose: () => unawaited(windowManager.close()),
+                        onClose: () => unawaited(
+                          DesktopAppExit.request('pip_close_button'),
+                        ),
                         onDrag: () => unawaited(windowManager.startDragging()),
                       ),
                     ),

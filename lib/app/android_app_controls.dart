@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../core/android_app_exit.dart';
 import '../core/app_diagnostics.dart';
+import '../core/player_resources.dart';
 import '../data/services/android_pip_service.dart';
 import '../data/services/android_update_service.dart';
 import '../features/casting/cast_service.dart';
@@ -52,6 +53,7 @@ class _AndroidAppControlsState extends State<AndroidAppControls> {
   }
 
   Future<void> _prepareExit(ProviderContainer container) async {
+    PlayerResourceRegistry.instance.beginShutdown();
     // Detach player widgets and their subscriptions before disposing providers.
     await WidgetsBinding.instance.endOfFrame;
     final operations = <Future<void> Function()>[
@@ -81,6 +83,7 @@ class _AndroidAppControlsState extends State<AndroidAppControls> {
     );
     // Cancels catalog synchronization, HTTP clients, recordings, device scans
     // and provider timers. Their durable database outboxes stay on disk.
+    await PlayerResourceRegistry.instance.disposeAll();
     container.dispose();
     await AppDiagnostics.instance.shutdown(reason: 'android_exit');
   }

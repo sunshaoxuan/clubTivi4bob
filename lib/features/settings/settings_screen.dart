@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'desktop_update_check_tile.dart';
 import 'settings_design.dart';
+import 'server_epg_attribution_tile.dart';
 
 import 'package:drift/drift.dart' show Value;
 import 'package:file_picker/file_picker.dart';
@@ -277,6 +278,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   onTap: () => context.push('/epg-mapping'),
                 ),
                 _AutoRefreshTile(),
+                const ServerEpgCreditsSettings(),
               ],
             ),
             SettingsPanel(

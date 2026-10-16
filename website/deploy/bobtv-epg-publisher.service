@@ -1,0 +1,24 @@
+[Unit]
+Description=BobTV bounded two-node verified EPG publication
+After=network-online.target bobtv-epg-api.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=bobtv
+Group=bobtv
+WorkingDirectory=/opt/bobtv/site
+Environment=BOBTV_DATA_DIR=/var/lib/bobtv
+ExecStart=/opt/bobtv/venv/bin/python /opt/bobtv/site/epg_publish_worker.py
+TimeoutStartSec=90
+MemoryMax=384M
+CPUQuota=20%
+TasksMax=16
+Nice=10
+UMask=0077
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+ReadWritePaths=/var/lib/bobtv/epg

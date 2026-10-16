@@ -8,6 +8,7 @@ import 'package:window_manager/window_manager.dart';
 import 'mac_update_service.dart';
 import 'windows_update_service.dart';
 import 'android_update_service.dart';
+import '../../core/desktop_app_exit.dart';
 
 /// The UI depends on this small platform-neutral entry point. Each operating
 /// system owns its update directory, helper process and installation rules.
@@ -72,7 +73,7 @@ class DesktopUpdateService with WidgetsBindingObserver, WindowListener {
       : Platform.isWindows
       ? WindowsUpdateService.instance.installReady()
       : Platform.isMacOS
-      ? windowManager.close()
+      ? DesktopAppExit.request('mac_update_install')
       : Future.value();
 
   Future<void> markStartupHealthy() => Platform.isAndroid

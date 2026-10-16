@@ -40,6 +40,8 @@ import 'manual_category_move.dart';
 import '../../data/services/server_task_client.dart';
 import '../../data/services/bobtv_community_service.dart';
 import '../../data/services/epg_refresh_service.dart';
+import '../../data/services/epg_ui_refresh.dart';
+import '../../data/models/server_epg_snapshot.dart';
 import '../../data/services/stream_alternatives_service.dart';
 import '../../data/services/manual_route_cycle.dart';
 import '../../data/services/channel_name_normalizer.dart';
@@ -86,6 +88,9 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
   bool _startupHealthScheduled = false;
   String _loadStatus = '';
   bool _epgLoading = false;
+  EpgUiRefresh? _epgUiRefresh;
+  int _epgDataLoadGeneration = 0;
+  int _nowPlayingLoadGeneration = 0;
   List<db.Channel> _allChannels = [];
   List<db.Channel> _filteredChannels = [];
   final Map<String, String> _automaticKeyByChannelId = {};
@@ -277,6 +282,11 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
     // Watch providers table — reload when providers or channels change
     final database = ref.read(databaseProvider);
     Timer? debounce;
+    _epgUiRefresh = EpgUiRefresh(database.watchEpgChanges(), () async {
+      if (!mounted) return;
+      await _loadEpgData(database, _allChannels, _favoritedChannelIds);
+      if (mounted) await _refreshNowPlaying();
+    }, onError: (error, stack) => AppDiagnostics.instance.recordError('channel_epg_hot_refresh', error, stack));
     void debouncedReload() {
       debounce?.cancel();
       debounce = Timer(const Duration(milliseconds: 500), () {
@@ -347,6 +357,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
   }
 
   Future<void> _refreshNowPlaying() async {
+    final generation = ++_nowPlayingLoadGeneration;
     if (!mounted) return;
     _refreshInlineProgrammeStrip(forceRefresh: true);
     final database = ref.read(databaseProvider);
@@ -377,7 +388,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
             now.add(Duration(hours: maxShift + 1)),
           )
         : await database.getNowPlaying(epgChannelIds.toList());
-    if (!mounted) return;
+    if (!mounted || generation != _nowPlayingLoadGeneration) return;
     setState(() {
       _nowPlaying = nowPlaying;
     });
@@ -524,6 +535,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
 
   @override
   void dispose() {
+    _epgUiRefresh?.dispose();
     _inlineProgrammePreview.removeListener(_onInlineProgrammeChanged);
     _inlineProgrammePreview.dispose();
     _searchController.dispose();
@@ -911,7 +923,9 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
     List<db.Channel> allChannels,
     Set<String> favChannelIds,
   ) async {
-    final epgSources = [...await database.getAllEpgSources()];
+    final generation = ++_epgDataLoadGeneration;
+    ++_nowPlayingLoadGeneration;
+    final epgSources = (await database.getAllEpgSources()).where((s) => s.enabled).toList();
     epgSources.sort((a, b) {
       int priority(String id) {
         if (id == 'hotel-cn-epg') return 0;
@@ -931,6 +945,11 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
       final chs = await database.getEpgChannelsForSource(src.id);
       for (final ch in chs) {
         validIds.add(ch.id);
+        if (src.id == serverEpgSourceId) {
+          final service = ChannelNameNormalizer.cctvSportsServiceKey(ch.displayName);
+          if (service != null) epgSportsServiceById[ch.id] = service;
+          continue;
+        }
         rawToPrefixed.putIfAbsent(ch.channelId.toLowerCase(), () => ch.id);
         final normName = _normalizeForEpgMatch(ch.displayName);
         if (normName.isNotEmpty) {
@@ -966,6 +985,11 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
     final epgMap = <String, String>{};
     for (final m in mappings) {
       final directKey = '${m.epgSourceId}_${m.epgChannelId}';
+      if (m.locked || m.source == 'manual' || m.source == 'server') {
+        epgMap[m.channelId] = currentSourceIds.contains(m.epgSourceId) && validIds.contains(directKey)
+          ? directKey : '';
+        continue;
+      }
       if (currentSourceIds.contains(m.epgSourceId)) {
         epgMap[m.channelId] = directKey;
       } else {
@@ -1010,6 +1034,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
     for (final c in allChannels) {
       if (!epgScopeIds.contains(c.id)) continue;
       final mapped = epgMap[c.id];
+      if (mapped == '') continue;
       if (mapped != null && mapped.isNotEmpty && acceptsEpg(c, mapped)) {
         epgChannelIds.add(mapped);
         continue;
@@ -1042,7 +1067,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
       nowPlaying = await database.getNowPlaying(epgChannelIds.toList());
     }
 
-    if (!mounted) return;
+    if (!mounted || generation != _epgDataLoadGeneration) return;
     setState(() {
       _nowPlaying = nowPlaying;
       _epgMappings = epgMap;
@@ -2915,6 +2940,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
   /// Get the effective EPG channel ID: mapped ID takes priority, then tvgId, then name match.
   String? _getEpgId(db.Channel channel) {
     final mapped = _epgMappings[channel.id];
+    if (mapped == '') return null;
     if (mapped != null &&
         mapped.isNotEmpty &&
         _acceptsEpgForChannel(channel, mapped)) {

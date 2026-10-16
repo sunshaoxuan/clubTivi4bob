@@ -2,6 +2,7 @@ import 'package:drift/drift.dart' show Value;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../data/datasources/local/database.dart' as db;
 import '../../data/models/epg.dart';
+import '../../data/models/server_epg_snapshot.dart';
 import '../../data/models/channel.dart' hide Provider;
 import '../../data/services/epg_auto_mapper.dart';
 import '../providers/provider_manager.dart';
@@ -232,7 +233,7 @@ class EpgMappingNotifier extends StateNotifier<EpgMappingState> {
 
     // Collect EPG channels from ALL enabled sources
     final epgChannels = <EpgChannel>[];
-    for (final src in epgSources.where((s) => s.enabled)) {
+    for (final src in epgSources.where((s) => s.enabled && s.id != serverEpgSourceId)) {
       final epgDbChannels = await _db.getEpgChannelsForSource(src.id);
       epgChannels.addAll(epgDbChannels.map((c) => EpgChannel(
         id: c.channelId,

@@ -33,12 +33,12 @@ class AppDiagnostics with WidgetsBindingObserver {
 
   String? get logDirectoryPath => _logDirectory?.path;
 
-  Future<void> initialize() async {
+  Future<void> initialize({Directory? directoryOverride}) async {
     if (_initialized) return;
     _initialized = true;
     _startedAt = DateTime.now();
 
-    final directory = await _resolveLogDirectory();
+    final directory = directoryOverride ?? await _resolveLogDirectory();
     await directory.create(recursive: true);
     _logDirectory = directory;
     _logFile = await _selectLogFile(directory);

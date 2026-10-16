@@ -1,0 +1,24 @@
+[Unit]
+Description=BobTV bounded approved programme ingestion checkpoint
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=bobtv
+Group=bobtv
+WorkingDirectory=/opt/bobtv/site
+Environment=BOBTV_DATA_DIR=/var/lib/bobtv
+ExecStart=/opt/bobtv/venv/bin/python /opt/bobtv/site/epg_schedule_worker.py
+TimeoutStartSec=90
+MemoryMax=384M
+CPUQuota=20%
+TasksMax=16
+Nice=10
+UMask=0077
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+PrivateNetwork=true
+ReadWritePaths=/var/lib/bobtv

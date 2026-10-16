@@ -1,0 +1,30 @@
+[Unit]
+Description=Resume the BobTV 20261015 public catalog AI audit
+After=network-online.target bobtv.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=bobtv
+Group=bobtv
+WorkingDirectory=/opt/bobtv/site
+Environment=BOBTV_DATA_DIR=/var/lib/bobtv
+Environment=BOBTV_AI_CONFIG=/etc/bobtv/ai.json
+ExecStart=/opt/bobtv/venv/bin/python /opt/bobtv/site/reclassify_public_catalog.py --stage --follow-budget --apply-on-complete --run-id 20261015-ai-reclassification --model gpt-6-luna --upstream-limits
+Restart=on-failure
+RestartPreventExitStatus=2
+RestartSec=60
+TimeoutStopSec=30
+UMask=0077
+Nice=10
+CPUQuota=20%
+MemoryMax=512M
+TasksMax=32
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ReadWritePaths=/var/lib/bobtv
+
+[Install]
+WantedBy=multi-user.target

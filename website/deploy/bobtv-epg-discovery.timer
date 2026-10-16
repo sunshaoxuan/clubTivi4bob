@@ -1,0 +1,12 @@
+[Unit]
+Description=Continue BobTV EPG identity candidate batches
+
+[Timer]
+OnBootSec=3min
+OnUnitInactiveSec=60s
+AccuracySec=10s
+RandomizedDelaySec=10s
+Persistent=true
+
+[Install]
+WantedBy=timers.target

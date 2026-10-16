@@ -1,0 +1,29 @@
+[Unit]
+Description=BobTV read-only authoritative EPG version and snapshot API
+After=network.target
+
+[Service]
+Type=simple
+User=bobtv
+Group=bobtv
+WorkingDirectory=/opt/bobtv/site
+Environment=BOBTV_DATA_DIR=/var/lib/bobtv
+ExecStart=/opt/bobtv/venv/bin/uvicorn epg_api:app --host 127.0.0.1 --port 8918 --limit-concurrency 16 --timeout-keep-alive 5
+Restart=on-failure
+RestartSec=5
+MemoryMax=256M
+CPUQuota=10%
+TasksMax=64
+Nice=10
+UMask=0077
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ReadOnlyPaths=/var/lib/bobtv/epg
+IPAddressDeny=any
+IPAddressAllow=localhost
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+
+[Install]
+WantedBy=multi-user.target

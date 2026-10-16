@@ -6,6 +6,7 @@ sys.path.insert(0, str(Path(__file__).parents[1]))
 from catalog_inventory import ingest, database
 from process_channel_inventory import process, _identity
 import catalog_inventory
+import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
@@ -49,6 +50,29 @@ def test_invalid_routes_are_skipped(tmp_path):
         route(url="http://38.75.136.137:8080/live")], "a" * 64, tmp_path)
     assert result["accepted"] == 1
     assert result["skipped"] == 3
+
+
+@pytest.mark.parametrize('suffix', ['#', '?token=', '?token', '?%74oken=', '?api_key=', '\x7f'])
+def test_public_url_validation_matches_client_for_empty_markers_and_sensitive_keys(suffix):
+    with pytest.raises(ValueError):
+        catalog_inventory.validate_media_url('https://media.example.org/live.m3u8' + suffix)
+
+
+def test_client_incompatible_legacy_routes_cannot_poison_the_next_snapshot(tmp_path):
+    ingest([route()], 'a' * 64, tmp_path)
+    process(tmp_path, verifier=lambda _: True)
+    with database(tmp_path) as conn:
+        # Legacy metadata is retained in the DB; only the public snapshot filters it.
+        import hashlib
+        for suffix in ('#', '?token='):
+            url = 'https://legacy.example.org/stream.m3u8' + suffix
+            conn.execute('''INSERT INTO routes(digest,name,url,group_name,source,received,success_at)
+              VALUES(?,?,?,?,?,?,?)''', (hashlib.sha256(url.encode()).hexdigest(), 'Legacy', url,
+                '其他', 'legacy', 1, 1))
+    process(tmp_path, limit=0)
+    assert [c['name'] for c in snapshot(tmp_path)['channels']] == ['CCTV-5+']
+    with database(tmp_path) as conn:
+        assert conn.execute('SELECT count(*) FROM routes').fetchone()[0] == 3
 
 
 def test_distinct_cctv_signals():

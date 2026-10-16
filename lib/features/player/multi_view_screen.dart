@@ -8,6 +8,7 @@ import 'package:media_kit/src/player/native/player/real.dart' as native_player;
 import 'package:media_kit_video/media_kit_video.dart';
 import '../../core/server_egress.dart';
 import '../../core/android_app_exit.dart';
+import '../../core/player_resources.dart';
 
 /// Multi-view player — shows 1-9 streams in a flexible grid.
 /// Free feature. Tap a cell to focus audio; long-press to fullscreen.
@@ -35,7 +36,7 @@ class _MultiViewScreenState extends ConsumerState<MultiViewScreen> {
 
   void _initPlayers() {
     for (var i = 0; i < widget.channels.length && i < 9; i++) {
-      final player = Player();
+      final player = ManagedPlayer(role: 'multi_view');
       _configurePlayer(player);
       final controller = VideoController(player);
       _cells.add(_StreamCell(

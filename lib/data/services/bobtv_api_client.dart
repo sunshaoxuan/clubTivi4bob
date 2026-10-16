@@ -5,6 +5,7 @@ import 'dart:io';
 import 'package:crypto/crypto.dart';
 import 'package:path/path.dart' as p;
 import '../models/device_favorites_snapshot.dart';
+import '../models/server_epg_snapshot.dart';
 import 'device_favorites_identity.dart';
 
 class BobTvApiException implements Exception {
@@ -515,6 +516,31 @@ class BobTvApiClient {
       );
     }
     return result;
+  }
+
+  Future<ServerEpgManifest?> fetchEpgManifest() async {
+    final response = await _request('GET', '/api/v1/epg/manifest',
+      headers: const {'Cache-Control': 'no-cache, no-store, max-age=0',
+        'Pragma': 'no-cache'}, maxBytes: 4096);
+    if (response.status != 200) {
+      throw BobTvApiException('epg_manifest_status',
+        statusCode: response.status, retryAfter: response.retryAfter);
+    }
+    return ServerEpgManifest.parse(jsonDecode(utf8.decode(response.body)));
+  }
+
+  Future<List<int>> downloadEpgSnapshot(ServerEpgManifest manifest) async {
+    final response = await _request('GET', manifest.snapshotPath,
+      maxBytes: 8 * 1024 * 1024);
+    if (response.status != 200) {
+      throw BobTvApiException('epg_snapshot_status',
+        statusCode: response.status, retryAfter: response.retryAfter);
+    }
+    if (response.body.length != manifest.compressedBytes ||
+        sha256.convert(response.body).toString() != manifest.sha256) {
+      throw const FormatException('EPG snapshot checksum mismatch');
+    }
+    return response.body;
   }
 
   Future<BobTvChannelCatalogManifest?> fetchChannelCatalogManifest() async {

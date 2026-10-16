@@ -250,12 +250,19 @@ def _rate_limit(request, data_dir):
     address, _ = _attribution(request)
     now = int(time.time())
     origin = hashlib.sha256(f'{now // 86400}:{address}'.encode()).hexdigest()
-    with database(data_dir) as conn:
-        row = conn.execute('SELECT hour,count FROM network_api_limits WHERE origin=?', (origin,)).fetchone()
-        count = row['count'] + 1 if row and row['hour'] == now // 3600 else 1
-        if count > 600: raise HTTPException(429, 'Network ranking rate limit', headers={'Retry-After': '60'})
-        conn.execute('DELETE FROM network_api_limits WHERE hour<?', (now // 3600 - 1,))
-        conn.execute('INSERT INTO network_api_limits VALUES(?,?,?) ON CONFLICT(origin) DO UPDATE SET hour=excluded.hour,count=excluded.count', (origin, now // 3600, count))
+    try:
+        with database(data_dir, timeout=1) as conn:
+            if not conn.in_transaction:
+                conn.execute('BEGIN IMMEDIATE')
+            row = conn.execute('SELECT hour,count FROM network_api_limits WHERE origin=?', (origin,)).fetchone()
+            count = row['count'] + 1 if row and row['hour'] == now // 3600 else 1
+            if count > 600: raise HTTPException(429, 'Network ranking rate limit', headers={'Retry-After': '60'})
+            conn.execute('DELETE FROM network_api_limits WHERE hour<?', (now // 3600 - 1,))
+            conn.execute('INSERT INTO network_api_limits VALUES(?,?,?) ON CONFLICT(origin) DO UPDATE SET hour=excluded.hour,count=excluded.count', (origin, now // 3600, count))
+    except sqlite3.OperationalError as error:
+        if getattr(error, 'sqlite_errorcode', 0) & 255 in (sqlite3.SQLITE_BUSY, sqlite3.SQLITE_LOCKED):
+            raise HTTPException(503, 'Network state temporarily busy', headers={'Retry-After': '1'}) from None
+        raise
 
 
 @router.get('/network-profile')
@@ -268,7 +275,7 @@ def network_profile(request: Request):
 @router.post('/rank')
 async def network_rank(request: Request):
     from catalog_inventory import DATA, database, validate_media_url
-    _rate_limit(request, DATA)
+    await run_in_threadpool(_rate_limit, request, DATA)
     if request.headers.get('content-type', '').split(';', 1)[0] != 'application/json': raise HTTPException(415)
     body = bytearray()
     async for chunk in request.stream():

@@ -1,0 +1,127 @@
+{
+  "schemaVersion": 1,
+  "sources": [
+    {
+      "id": "cctv2-official-diagnostic-v1",
+      "url": "https://api.cntv.cn/epg/getEpgInfoByChannelNew",
+      "format": "cctv-json",
+      "channelId": "cctv2",
+      "countryCode": "CN",
+      "calendarTimezone": "Asia/Shanghai",
+      "redirectUrls": [],
+      "refreshSeconds": 3600,
+      "scope": "One official source identity; bounded metadata-only pilot, no programme distribution or exact catalogue approval",
+      "publicationAllowed": false,
+      "dataLicense": {
+        "status": "unverified",
+        "reviewedAt": "2026-10-16",
+        "evidenceUrl": "https://tv.cctv.com/epg/",
+        "restriction": "Public viewing/API structure checked. BobTV server redistribution permission, source calendar context and exact catalogue feed are not approved. Persist diagnostic identity and quality metadata only."
+      }
+    },
+    {
+      "id": "cn-zsdc-existing",
+      "url": "https://epg.zsdc.eu.org/t.xml.gz",
+      "redirectUrls": [],
+      "refreshSeconds": 21600,
+      "scope": "Existing client default, diagnostic validation only",
+      "publicationAllowed": false,
+      "dataLicense": {
+        "status": "unverified",
+        "reviewedAt": "2026-10-16",
+        "evidenceUrl": "https://iptv.zsdc.eu.org/",
+        "restriction": "Project states learning and exchange use. Programme redistribution permission not established."
+      }
+    },
+    {
+      "id": "cn-112114-existing",
+      "url": "https://epg.112114.xyz/pp.xml",
+      "redirectUrls": [],
+      "refreshSeconds": 21600,
+      "scope": "Existing client default, diagnostic validation only",
+      "publicationAllowed": false,
+      "dataLicense": {
+        "status": "unverified",
+        "reviewedAt": "2026-10-16",
+        "evidenceUrl": "https://github.com/sparkssssssssss/epg",
+        "restriction": "README advertises public XMLTV access and six-hour updates. Separate programme-data redistribution license not found."
+      }
+    },
+    {
+      "id": "hk-iptv-epg-reviewed-redirect-v1",
+      "url": "https://iptv-epg.org/files/epg-hk.xml.gz",
+      "redirectUrls": [],
+      "redirectPolicy": {"kind": "same_origin_versioned_xmltv_v1"},
+      "supersedes": {
+        "sourceId": "hk-iptv-epg-candidate",
+        "reason": "Reviewed same-origin HTTPS /files/32-lowercase-hex/epg-hk.xml.gz redirect shape after bounded live diagnostic validation. Original failure history retained. Data-use permission and channel context still unverified."
+      },
+      "refreshSeconds": 21600,
+      "scope": "Hong Kong guide candidate, bounded validation only, no client URL or public programme distribution",
+      "publicationAllowed": false,
+      "dataLicense": {
+        "status": "unverified",
+        "reviewedAt": "2026-10-16",
+        "evidenceUrl": "https://iptv-epg.org/guides",
+        "restriction": "Public page offers XMLTV player links. Separate BobTV server programme redistribution permission not established. This configuration revision only permits the reviewed bounded same-origin versioned redirect."
+      }
+    },
+    {
+      "id": "tvmaze-cn-diagnostic-v1",
+      "url": "https://api.tvmaze.com/schedule",
+      "format": "tvmaze-json",
+      "countryCode": "CN",
+      "calendarTimezone": "Asia/Shanghai",
+      "redirectUrls": [],
+      "refreshSeconds": 3600,
+      "scope": "Sparse episode schedules, internal identity and quality diagnostics only",
+      "publicationAllowed": false,
+      "dataLicense": {
+        "status": "programme_data_license_evidence_found",
+        "name": "CC BY-SA 4.0",
+        "reviewedAt": "2026-10-16",
+        "evidenceUrl": "https://www.tvmaze.com/api",
+        "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0/",
+        "restriction": "Attribution, license link, transformation notice and ShareAlike required before publication. Exact catalog identity and complete/current coverage not established."
+      }
+    },
+    {
+      "id": "tvmaze-gb-diagnostic-v1",
+      "url": "https://api.tvmaze.com/schedule",
+      "format": "tvmaze-json",
+      "countryCode": "GB",
+      "calendarTimezone": "Europe/London",
+      "redirectUrls": [],
+      "refreshSeconds": 3600,
+      "scope": "Sparse episode schedules, internal identity and quality diagnostics only",
+      "publicationAllowed": false,
+      "dataLicense": {
+        "status": "programme_data_license_evidence_found",
+        "name": "CC BY-SA 4.0",
+        "reviewedAt": "2026-10-16",
+        "evidenceUrl": "https://www.tvmaze.com/api",
+        "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0/",
+        "restriction": "Attribution, license link, transformation notice and ShareAlike required before publication. Exact regional/delay catalog identity not established."
+      }
+    },
+    {
+      "id": "tvmaze-us-diagnostic-v1",
+      "url": "https://api.tvmaze.com/schedule",
+      "format": "tvmaze-json",
+      "countryCode": "US",
+      "calendarTimezone": "America/New_York",
+      "redirectUrls": [],
+      "refreshSeconds": 3600,
+      "scope": "Sparse episode schedules, internal identity and quality diagnostics only",
+      "publicationAllowed": false,
+      "dataLicense": {
+        "status": "programme_data_license_evidence_found",
+        "name": "CC BY-SA 4.0",
+        "reviewedAt": "2026-10-16",
+        "evidenceUrl": "https://www.tvmaze.com/api",
+        "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0/",
+        "restriction": "Attribution, license link, transformation notice and ShareAlike required before publication. Exact regional/delay catalog identity not established. Sparse episodes never imply a full broadcast schedule."
+      }
+    }
+  ]
+}

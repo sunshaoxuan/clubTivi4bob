@@ -9,6 +9,7 @@ import 'package:media_kit/src/player/native/player/real.dart' as native_player;
 import 'package:media_kit_video/media_kit_video.dart';
 
 import '../../core/app_diagnostics.dart';
+import '../../core/player_resources.dart';
 import '../../core/server_egress.dart';
 import 'adaptive_buffer.dart';
 import 'prepared_channel_commit_gate.dart';
@@ -466,7 +467,7 @@ class PlayerService {
 
   Player get player {
     if (_player == null) {
-      _player = Player(
+      _player = ManagedPlayer(role: 'main',
         configuration: PlayerConfiguration(
           bufferSize: PlaybackMemoryBudget(tablet: Platform.isAndroid).main,
           logLevel: MPVLogLevel.warn,
@@ -820,7 +821,7 @@ class PlayerService {
             active: true,
           );
         }
-        final candidate = Player(
+        final candidate = ManagedPlayer(role: 'channel_preview',
           configuration: PlayerConfiguration(
             bufferSize: PlaybackMemoryBudget(tablet: Platform.isAndroid).preview,
             logLevel: MPVLogLevel.warn,
@@ -1168,7 +1169,7 @@ class PlayerService {
   }) async {
     await _retirementGuard?.refresh();
     if (!_routeAllowed(url)) return false;
-    final candidate = Player(
+    final candidate = ManagedPlayer(role: 'route_preview',
       configuration: PlayerConfiguration(
         bufferSize: PlaybackMemoryBudget(tablet: Platform.isAndroid).discovery,
         logLevel: MPVLogLevel.warn,
@@ -2404,7 +2405,7 @@ class PlayerService {
         stage: '正在尝试备用线路', index: index + 1,
         total: candidates.length,
       );
-      final candidate = Player(configuration: const PlayerConfiguration(
+      final candidate = ManagedPlayer(role: 'replacement', configuration: const PlayerConfiguration(
         bufferSize: 32 * 1024 * 1024,
         logLevel: MPVLogLevel.warn,
       ));
@@ -2767,7 +2768,7 @@ class PlayerService {
     _warmReady = false;
 
     final generation = ++_warmGeneration;
-    final warmPlayer = Player(
+    final warmPlayer = ManagedPlayer(role: 'warm_failover',
       configuration: PlayerConfiguration(
         bufferSize: PlaybackMemoryBudget(tablet: Platform.isAndroid).warm,
         logLevel: MPVLogLevel.warn,

@@ -45,6 +45,7 @@ class AppDelegate: FlutterAppDelegate {
   }
 
   override func applicationWillTerminate(_ notification: Notification) {
+    NativeWindowAudit.record("native_application_will_terminate")
     if let marker = updateMarker {
       let healthy = marker.deletingLastPathComponent()
         .appendingPathComponent("startup.healthy")
@@ -58,6 +59,7 @@ class AppDelegate: FlutterAppDelegate {
   }
 
   override func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
+    NativeWindowAudit.record("native_last_window_closed")
     return true
   }
 

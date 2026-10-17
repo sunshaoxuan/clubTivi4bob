@@ -69,6 +69,7 @@ class ServerEpgBinding {
               .customSelect(
                 '''
       SELECT r.local_channel_id,r.catalog_channel_id,r.identity_hash,
+        e.id AS local_epg_channel_id,
         r.name AS catalog_name,r.epg_id AS catalog_epg_id,r.group_name,
         c.name,c.tvg_id,c.group_title,i.metadata,
         m.channel_id AS mapped_channel,m.epg_source_id AS mapped_source,
@@ -115,15 +116,18 @@ class ServerEpgBinding {
         continue;
       }
       final localId = row.read<String>('local_channel_id');
+      final localEpgId = row.read<String>('local_epg_channel_id');
       valid.add(localId);
       final old = previous[localId];
       final confidence = (metadata['confidence'] as num).toDouble();
-      if (old?.epgChannelId == id && old?.confidence == confidence) continue;
+      if (old?.epgChannelId == localEpgId && old?.confidence == confidence) {
+        continue;
+      }
       bindings.add(
         db.EpgMappingsCompanion.insert(
           channelId: localId,
           providerId: publicCatalogProviderId,
-          epgChannelId: id,
+          epgChannelId: localEpgId,
           epgSourceId: serverEpgSourceId,
           confidence: Value(confidence),
           source: const Value('server'),

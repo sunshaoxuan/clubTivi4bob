@@ -1,6 +1,7 @@
 import 'dart:async';
 
-/// Coalesces clicks on one preview and checks ownership across asynchronous work.
+/// Coalesces ownership transfer of an already verified preview without waiting
+/// for its buffer state to change or reopening its decoder.
 class PreparedChannelCommitGate {
   Object? _owner;
   Future<bool>? _running;
@@ -9,8 +10,6 @@ class PreparedChannelCommitGate {
     required Object owner,
     required void Function() onStart,
     required bool Function() isCurrent,
-    required bool Function() readyNow,
-    required Future<bool> Function() waitUntilReady,
     required Future<bool> Function() promote,
   }) {
     if (identical(owner, _owner) && _running != null) return _running!;
@@ -20,14 +19,6 @@ class PreparedChannelCommitGate {
     Future<void> execute() async {
       try {
         onStart();
-        if (!isCurrent()) {
-          result.complete(false);
-          return;
-        }
-        if (!readyNow() && !await waitUntilReady()) {
-          result.complete(false);
-          return;
-        }
         if (!isCurrent()) {
           result.complete(false);
           return;

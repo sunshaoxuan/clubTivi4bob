@@ -1,0 +1,60 @@
+{
+  "schemaVersion": 1,
+  "fixtureOnly": true,
+  "notice": "Authored test programmes and test-only grants, never real broadcast schedules or production permissions.",
+  "generator": "website/tests/epg_contract_fixture.py",
+  "networkRequests": 0,
+  "simulatedNodeSnapshotChecks": 4,
+  "temporaryDatabasePublications": 2,
+  "productionPublications": 0,
+  "unchangedPublicationReused": true,
+  "catalogIdentity": {
+    "id": "fixture-channel",
+    "name": "Synthetic Fixture",
+    "epgId": "fixture",
+    "countryCode": "CN",
+    "regionCode": null
+  },
+  "versions": [
+    {
+      "checkedAtUtc": 1792108800,
+      "manifest": {
+        "schemaVersion": 1,
+        "version": "epg-f48c0a1ed5c829f0be8e5146a9ffc77f1c8bd2e4a2893fe7dce41d744038659d",
+        "sha256": "dc5881a4d42cf2b86d7be56ddd0d41f17ddab3a229a21e400ca8b16aa2955481",
+        "snapshotUrl": "/api/v1/epg/snapshots/dc5881a4d42cf2b86d7be56ddd0d41f17ddab3a229a21e400ca8b16aa2955481.json.gz",
+        "compressedBytes": 804,
+        "channelCount": 1,
+        "programmeCount": 2,
+        "generatedAt": "2026-10-16T00:00:00Z",
+        "coverageStartUtc": 1792105200,
+        "coverageEndUtc": 1792116000
+      },
+      "compressedBase64": "H4sIAAAAAAACE+1WS4/bNhD+K4KuXdukXhS3J8dt0QLBHuKkQFEEwYgc2UQlSqVox97F/veOLO2uX82mPfTS+GRxHvzmm29GegjVGqzFqgtvf38IFXiomtUvGq03fv8zdOvwNoxUoVBzBhmHJC/KPBclZwWXCeQJK2IAGQkdqxIEpCItY5lqJbGMUPCoUGl4E6rGloayKgxv+ZT1Bxvr3X7RaDoJF3fkgy1dTA+l2fmNQzoxR4+TESgdW6j7oOXe+jV6o4KfniMaZ1bGQrUYnM/yOVyZxg532k1V3YRds3EKT9weP96EmniYe+9MsfEUMZADLwcfXEURa+/b7nY2GyOnuIO6rXDauNWMbquMQtvhqa9yCN5sUTV1TYkPvqNjNyv2kw5myZT14XWjTWmoI3TfXUNlntZsG1dDZe4P9mCEEDS22n8fEHzsArCazrHSXdB5egCnzT3qKeXu1uBwXpk/8B3+uTEOiQDvNniVkKfDt1BgdYJhBK6DY+5a16wc1DWOkrrsxFErv9wvSrVFCwfVPFxqqO/S2wFCr6FF8Oa3yXIeEH/hifHH7RD2eteesU/68EmLrjZdRwT38rT6DXSGqgpx11Lpxn/qfNMOpg9eESohI86jhBG4Er1ao577FwvL8yPL8kDq65hWG0I/3dU9XTW0rbGrp4IGVi4H6avrNeOgTxzF4OfrI0LTNrZnbvUPWMH+V3QHUk40s7gEMhjenaV8fK3tZ9Y7GLR0ZeCP5fZv+HTwebmGKM0oRtCqimjHSRnLPJO51DzORc6ZFJnIeBkL0MhECjpLWVZmIhYogZWY64KD1M/1Lj04369NFmWc8YwJRr/gO0bdP3Ii5Rz5yCs+702N943t6Tw1/LMiux7PkQrTqFchtb3qM49UBtuhp0F/3+Pf7YGrmfohuJD/l9P/H9dCxr6thW9r4ZWRP1sLnP1na+Fsbu9w519e61+3D8YUZ/tg0P31vNSojkRfw7N0+E24ffrffxFOyiRXDDjqVOWRLFmBOaY8yUCWpRL0IaryQkeYQJTLuEShFSZciyRhcZ6lxP/jX6agfZ7kCgAA",
+      "expectedTitles": [
+        "Fixture version one",
+        "Next fixture"
+      ]
+    },
+    {
+      "checkedAtUtc": 1792109700,
+      "manifest": {
+        "schemaVersion": 1,
+        "version": "epg-532d9168b37e88fc42c2d96c7ed9d43f90551122051255d1de32f66edfc8fa45",
+        "sha256": "dcfa20b68cc8bc604c86ad2015bdbe3749f2b6c5fac5bae71eda5187143f3edf",
+        "snapshotUrl": "/api/v1/epg/snapshots/dcfa20b68cc8bc604c86ad2015bdbe3749f2b6c5fac5bae71eda5187143f3edf.json.gz",
+        "compressedBytes": 804,
+        "channelCount": 1,
+        "programmeCount": 2,
+        "generatedAt": "2026-10-16T00:15:00Z",
+        "coverageStartUtc": 1792105200,
+        "coverageEndUtc": 1792116000
+      },
+      "compressedBase64": "H4sIAAAAAAACE+1WS2/jNhD+K4KujW1SEvVIT163RQsscljvFiiKohiRQ5uoRKkU7dgJ8t87spTEr262PfTSvUXz4jfffDPOYyjXYC1WXXj762MowUPVrH5SaL3x+x+hW4e3YSRLiYozSDkkeanzPNOclbxIIE9YGQMUUaZiqSEDkQkdF0LJAnWEGY9KKcKbUDZWG6oqMbzlU9YbNta7/aJRZAkXdxSDLT1MH9rs/MYhWczR52QESmYLdZ+03Fu/Rm9k8MNLRuPMylioFkPwWT2HK9PY4U27qaqbsGs2TuJJ2NNvN6EiHubeO1NuPGUM5MCr4ZOrKGPtfdvdzmZj5hR3ULcVThu3mtFrlZFoOzyNlQ7Bmy3Kpq6p8CF2DOxm5X7SwSyZsj69bpTRhiZC79011OZpz7ZxNVTm4eAPRghBY6v9twHBxy4Aq8iOleqCztMHOGUeUE2pdrcGh/PK/IEf8M+NcUgEeLfBq4Q8G99DidUJhhG4Co65a12zclDXOErqchJHo/z8vKjUFi0cVPN4qaF+Su8HCL2GFsG7XybLeUD8hSfO77dD2ttTe8E+6dMnLbradB0R3MvTqnfQGeoqxF1LrRv/e+ebdnB98pJQZUXEeZQwAqfRyzWquX/1sCI78iwPpL6NabUh9NNd3dNVQ9sau3puaGDlcpG+uF8zLvrEUQ7eX18R2rZxPHOrvsMK9j+jO5ByopnFJZDB8eGs5NNbYz/z3sGgpSsLfyy3f8Ong/vlGiKR9u8XiqHOlVaMAQgeQ5yrCFkii5LHRcoilsWliJGVWiValCVLS6bymIuUJfHrniw9ON+fTRalnPGU0dQZC75hOWNHQaSco5jiSsxHU+NDY3s6Tx3/rMmux3OkQhH1KqSxV33lkcpgO8w08PdN+PR3d+BqpX4JLuT/+fL/x7OQsq9n4etZeGPlz84CZ//ZWTjb2zvc+def9S+7B2OJs3sw6P56XRpUR6Kv4UU6/CbcPv/d/0c4EXGkCp7mZZxhnmuZRJIMqcxQFSqJdcGEoJcjJngkhOIK40inKSotcw2JCJ/+AozrHGTkCgAA",
+      "expectedTitles": [
+        "Fixture version two",
+        "Next fixture"
+      ]
+    }
+  ]
+}

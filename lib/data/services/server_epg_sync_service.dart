@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
@@ -55,6 +56,7 @@ class ServerEpgSyncService {
   Future<bool>? _running;
   DateTime? _retryAt, _nextCheckAt;
   bool _started = false, _disposed = false;
+  bool _connectivityRetry = false, _recheckAfterReconnect = false;
   int _failures = 0;
   List<ServerEpgAttribution> _attributions = const [];
 
@@ -65,13 +67,38 @@ class ServerEpgSyncService {
   }
 
   void onAppResumed() => unawaited(check(forceVersionCheck: true));
-  void onNetworkRestored() => unawaited(check(forceVersionCheck: true));
+  void onNetworkRestored() {
+    if (_disposed) return;
+    if (_running != null) {
+      _recheckAfterReconnect = true;
+      return;
+    }
+    _clearConnectivityRetry();
+    unawaited(check(forceVersionCheck: true));
+  }
+
+  void _clearConnectivityRetry() {
+    // A new network can recover a failed local connection immediately. HTTP
+    // Retry-After, invalid data and every non-connectivity backoff remain intact.
+    if (!_connectivityRetry) return;
+    _connectivityRetry = false;
+    _retryAt = null;
+    _nextCheckAt = null;
+    _failures = 0;
+  }
 
   Future<bool> check({bool forceVersionCheck = false}) {
     if (_disposed) return Future.value(false);
     return _running ??= _check(forceVersionCheck).whenComplete(() {
       _running = null;
-      _schedule();
+      final catchUp = _recheckAfterReconnect && _connectivityRetry;
+      _recheckAfterReconnect = false;
+      if (catchUp && !_disposed) {
+        _clearConnectivityRetry();
+        unawaited(check(forceVersionCheck: true));
+      } else {
+        _schedule();
+      }
     });
   }
 
@@ -142,18 +169,14 @@ class ServerEpgSyncService {
           if (_disposed) return false;
           // A slow download must not commit a guide that expired during I/O.
           final commitAt = _now().toUtc();
-          final currentIds = <String>{}, futureIds = <String>{};
+          final futureIds = <String>{};
           for (final programme in snapshot.guide.programmes) {
-            if (!programme.start.isAfter(commitAt) &&
-                programme.stop.isAfter(commitAt)) {
-              currentIds.add(programme.channelId);
-            }
             if (programme.start.isAfter(commitAt)) {
               futureIds.add(programme.channelId);
             }
           }
           for (final id in snapshot.identities.keys) {
-            if (!currentIds.contains(id) || !futureIds.contains(id)) {
+            if (!futureIds.contains(id)) {
               throw const FormatException('EPG expired before commit');
             }
           }
@@ -210,6 +233,7 @@ class ServerEpgSyncService {
         await ServerEpgBinding(database).reconcile();
       }
       _failures = 0;
+      _connectivityRetry = false;
       _retryAt = null;
       _nextCheckAt = _now().toUtc().add(pollInterval);
       if (!_disposed) {
@@ -225,6 +249,8 @@ class ServerEpgSyncService {
       return changed;
     } catch (error) {
       _failures++;
+      _connectivityRetry =
+          error is SocketException || error is TimeoutException;
       var wait = Duration(
         seconds: math.min(1800, 30 * (1 << math.min(6, _failures - 1))),
       );

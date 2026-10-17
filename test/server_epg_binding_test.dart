@@ -174,11 +174,11 @@ void main() {
       final mapping = (await database.getAllMappings()).single;
       expect(mapping.channelId, _localId);
       expect(mapping.source, 'server');
-      expect(mapping.epgChannelId, 'channel-test');
+      expect(mapping.epgChannelId, '${serverEpgSourceId}_channel-test');
       expect(mapping.epgSourceId, serverEpgSourceId);
       expect(
         await database.getUpcomingProgrammes(
-          epgChannelId: '${serverEpgSourceId}_channel-test',
+          epgChannelId: mapping.epgChannelId,
           at: _at,
           limit: 3,
         ),
@@ -186,6 +186,24 @@ void main() {
       );
     },
   );
+  test('unchanged guide repairs a previous raw-ID managed mapping', () async {
+    await catalog.sync();
+    expect(await receiver.check(), isTrue);
+    await database.customStatement(
+      "UPDATE epg_mappings SET epg_channel_id='channel-test' WHERE source='server' AND locked=0",
+    );
+    expect(await receiver.check(forceVersionCheck: true), isFalse);
+    final mapping = (await database.getAllMappings()).single;
+    expect(mapping.epgChannelId, '${serverEpgSourceId}_channel-test');
+    expect(
+      await database.getUpcomingProgrammes(
+        epgChannelId: mapping.epgChannelId,
+        at: _at,
+        limit: 3,
+      ),
+      hasLength(3),
+    );
+  });
   test(
     'guide arriving before catalog is linked by later catalog import',
     () async {

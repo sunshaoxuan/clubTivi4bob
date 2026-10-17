@@ -1,6 +1,7 @@
 import hashlib
 import sys
 import time
+import sqlite3
 from pathlib import Path
 
 import pytest
@@ -154,6 +155,49 @@ def test_missing_geo_databases_degrades_to_unknown(tmp_path):
     (tmp_path / 'network-db').mkdir()
     (tmp_path / 'network-db' / 'city.mmdb').write_bytes(b'invalid database')
     assert network.resolve_address('8.8.8.8', tmp_path)['networkId'] == 'ZZ:*:*'
+
+
+def test_profile_and_rank_work_while_catalogue_writer_holds_lock(tmp_path, monkeypatch):
+    seed(tmp_path)
+    monkeypatch.setattr(catalog_inventory, 'DATA', tmp_path)
+    app = FastAPI()
+    app.include_router(network.router)
+    client = TestClient(app)
+    writer = sqlite3.connect(tmp_path / 'channel_inventory.sqlite3')
+    try:
+        writer.execute('BEGIN IMMEDIATE')
+        writer.execute('UPDATE routes SET failures=failures+1')
+        start = time.monotonic()
+        assert client.get('/api/v1/channel-catalog/network-profile').status_code == 200
+        response = client.post('/api/v1/channel-catalog/rank', json={'schemaVersion': 1, 'urls': [URL, OTHER]})
+        assert response.status_code == 200
+        assert len(response.json()['routes']) == 2
+        assert time.monotonic() - start < 1
+        with network.inventory_reader(tmp_path) as reader:
+            assert reader.execute('SELECT sum(failures) FROM routes').fetchone()[0] == 0
+            with pytest.raises(sqlite3.OperationalError):
+                reader.execute('UPDATE routes SET failures=0')
+    finally:
+        writer.rollback()
+        writer.close()
+
+
+def test_isolated_limits_preserve_existing_budget_and_enforce_600(tmp_path, monkeypatch):
+    seed(tmp_path)
+    monkeypatch.setattr(catalog_inventory, 'DATA', tmp_path)
+    now = int(time.time())
+    monkeypatch.setattr(network.time, 'time', lambda: now)
+    # TestClient's actual peer, with the same daily salt as production.
+    origin = hashlib.sha256(f'{now // 86400}:1.1.1.1'.encode()).hexdigest()
+    with database(tmp_path) as conn:
+        conn.execute('INSERT INTO network_api_limits VALUES(?,?,?)', (origin, now // 3600, 599))
+    app = FastAPI()
+    app.include_router(network.router)
+    client = TestClient(app, client=('1.1.1.1', 50000))
+    assert client.get('/api/v1/channel-catalog/network-profile').status_code == 200
+    assert client.get('/api/v1/channel-catalog/network-profile').status_code == 429
+    with database(tmp_path) as conn:
+        assert conn.execute('SELECT count FROM network_api_limits WHERE origin=?', (origin,)).fetchone()[0] == 599
 
 
 def test_trusted_domestic_probe_can_approve_pending_route(tmp_path):

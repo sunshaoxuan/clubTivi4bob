@@ -199,6 +199,11 @@
     "history": [
       [
         "2026-10-17",
+        "v1.1.7 · Score-first playback, direct preview transfer and a lighter client",
+        "Try the highest known current-network score first, then the next candidate on decoder failure. Remove parallel startup media probes. Transfer a decoded preview's existing player without a repeated route sync or buffering recovery gate. Public names, categories, routes and EPG come from the server; remove browse-time inference and category-wide scans. Preserve manual settings, private sources and offline data. Physical switching latency and playback acceptance remain pending."
+      ],
+      [
+        "2026-10-17",
         "v1.1.6 · Safe player shutdown and background EPG sync",
         "Unifies main, preview and multi-view cleanup, waits for native callbacks to detach before shutdown, and records exit origins. Adds bounded renderer detachment for hidden windows, background EPG version checks and live guide updates. Manual mappings, private sources and offline caches are preserved. Public programme coverage and two real-version hot-update acceptance remain incomplete; a first client upgrade is required."
       ],
@@ -278,7 +283,7 @@
   },
   "downloads": {
     "signing_notice": "The free SignPath Foundation application was not approved. No trusted Windows certificate was issued and SignPath.io production signing is not in use. Edge may still require a security confirmation on the first browser download.",
-    "intro": "Version 1.1.6 provides Windows x64 / ARM64, macOS Intel / Apple Silicon and Android packages. Unifies player shutdown cleanup, adds bounded hidden-window renderer detachment and records close origins. Adds background EPG checks while preserving manual mappings and offline caches. Public programme coverage and physical EPG playback/reconnect acceptance remain incomplete. Each OS has one group with CPU choices.",
+    "intro": "Version 1.1.7 provides Windows x64 / ARM64, macOS Intel / Apple Silicon and Android packages. Prefers the highest known current-network route score, removes parallel startup probes and transfers an existing decoded preview directly. Public names, categories, routes and EPG come from the server with less local processing. Manual mappings and offline data are preserved. Physical switching latency and playback continuity still require device testing.",
     "latest": "Latest installers",
     "local": "Downloads hosted on this site",
     "sections": [

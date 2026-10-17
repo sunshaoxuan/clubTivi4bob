@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:async';
 
 import 'package:clubtivi/data/datasources/local/database.dart' as db;
 import 'package:clubtivi/data/services/stream_health_tracker.dart';
@@ -9,6 +10,57 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+
+  test('startup uses highest network score beyond route 24 without media probes', () async {
+    final urls = List.generate(60, (index) => 'https://example.com/route-$index.m3u8');
+    var prepared = 0;
+    final scored = <String>[];
+    final selected = await PlayerService.selectInitialRoute(urls,
+      prepare: (_) async { prepared++; },
+      score: (url) { scored.add(url); return url == urls.last ? .99 : .5; },
+      isCurrent: () => true, allowed: (_) => true);
+    expect(selected, urls.last);
+    expect(prepared, 1);
+    expect(scored, hasLength(60));
+  });
+
+  test('failed route is excluded and next highest route is selected', () async {
+    const urls = ['https://example.com/low', 'https://example.com/best', 'https://example.com/next'];
+    final scores = {urls[0]: .2, urls[1]: .9, urls[2]: .8};
+    final failed = <String>{};
+    Future<String?> choose() => PlayerService.selectInitialRoute(urls,
+      prepare: (_) async {}, score: (url) => scores[url]!,
+      isCurrent: () => true, allowed: (url) => !failed.contains(url));
+    expect(await choose(), urls[1]);
+    failed.add(urls[1]);
+    expect(await choose(), urls[2]);
+  });
+
+  test('offline scoring keeps current-network cached best candidate', () async {
+    expect(await PlayerService.selectInitialRoute(
+      ['https://example.com/low', 'https://example.com/best'],
+      prepare: (_) async => throw StateError('503'),
+      score: (url) => url.endsWith('best') ? .9 : .2,
+      isCurrent: () => true, allowed: (_) => true),
+      'https://example.com/best');
+  });
+
+  test('late ranking cannot select a superseded channel or retired route', () async {
+    final pending = Completer<void>();
+    var current = true;
+    var allowed = true;
+    final first = PlayerService.selectInitialRoute(['https://example.com/live'],
+      prepare: (_) => pending.future, score: (_) => .9,
+      isCurrent: () => current, allowed: (_) => allowed);
+    current = false;
+    pending.complete();
+    expect(await first, isNull);
+    current = true;
+    allowed = false;
+    expect(await PlayerService.selectInitialRoute(['https://example.com/live'],
+      prepare: (_) async {}, score: (_) => .9,
+      isCurrent: () => current, allowed: (_) => allowed), isNull);
+  });
 
   test('failed routes move behind untried routes before candidate limits', () {
     const urls = ['failed-1', 'failed-2', 'new-1', 'new-2'];

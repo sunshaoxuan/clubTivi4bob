@@ -15,6 +15,7 @@ import sqlite3
 import threading
 import time
 from pathlib import Path
+from contextlib import contextmanager
 
 from fastapi import APIRouter, BackgroundTasks, HTTPException, Request
 from fastapi.responses import JSONResponse
@@ -244,16 +245,42 @@ def rank_routes(conn, urls, profile, now=None, transport='direct'):
     return results
 
 
+@contextmanager
+def inventory_reader(data_dir):
+    """Ranking must never migrate or acquire the catalogue writer lock."""
+    path = (Path(data_dir) / 'channel_inventory.sqlite3').resolve()
+    conn = sqlite3.connect(path.as_uri() + '?mode=ro', uri=True, timeout=.25)
+    conn.row_factory = sqlite3.Row
+    try:
+        conn.execute('PRAGMA query_only=ON')
+        yield conn
+    finally:
+        conn.close()
+
+
 def _rate_limit(request, data_dir):
-    from catalog_inventory import database
     from source_candidates import _attribution
     address, _ = _attribution(request)
     now = int(time.time())
     origin = hashlib.sha256(f'{now // 86400}:{address}'.encode()).hexdigest()
+    directory = Path(data_dir)
+    directory.mkdir(parents=True, exist_ok=True)
+    conn = sqlite3.connect(directory / 'network-api-limits.sqlite3', timeout=1)
+    conn.row_factory = sqlite3.Row
     try:
-        with database(data_dir, timeout=1) as conn:
-            if not conn.in_transaction:
-                conn.execute('BEGIN IMMEDIATE')
+        conn.execute('PRAGMA journal_mode=WAL')
+        with conn:
+            conn.execute('BEGIN IMMEDIATE')
+            conn.execute('CREATE TABLE IF NOT EXISTS network_api_limits (origin TEXT PRIMARY KEY, hour INTEGER NOT NULL, count INTEGER NOT NULL)')
+            conn.execute('CREATE TABLE IF NOT EXISTS migrations (name TEXT PRIMARY KEY)')
+            if not conn.execute("SELECT 1 FROM migrations WHERE name='inventory_limits_v1'").fetchone():
+                # Keep the current hourly budget when switching storage. Reading
+                # the WAL snapshot also works while a catalogue writer is busy.
+                if (directory / 'channel_inventory.sqlite3').exists():
+                    with inventory_reader(directory) as old:
+                        rows = old.execute('SELECT origin,hour,count FROM network_api_limits WHERE hour>=?', (now // 3600 - 1,)).fetchall()
+                    conn.executemany('INSERT OR IGNORE INTO network_api_limits VALUES(?,?,?)', rows)
+                conn.execute("INSERT INTO migrations VALUES('inventory_limits_v1')")
             row = conn.execute('SELECT hour,count FROM network_api_limits WHERE origin=?', (origin,)).fetchone()
             count = row['count'] + 1 if row and row['hour'] == now // 3600 else 1
             if count > 600: raise HTTPException(429, 'Network ranking rate limit', headers={'Retry-After': '60'})
@@ -263,6 +290,8 @@ def _rate_limit(request, data_dir):
         if getattr(error, 'sqlite_errorcode', 0) & 255 in (sqlite3.SQLITE_BUSY, sqlite3.SQLITE_LOCKED):
             raise HTTPException(503, 'Network state temporarily busy', headers={'Retry-After': '1'}) from None
         raise
+    finally:
+        conn.close()
 
 
 @router.get('/network-profile')
@@ -274,7 +303,7 @@ def network_profile(request: Request):
 
 @router.post('/rank')
 async def network_rank(request: Request):
-    from catalog_inventory import DATA, database, validate_media_url
+    from catalog_inventory import DATA, validate_media_url
     await run_in_threadpool(_rate_limit, request, DATA)
     if request.headers.get('content-type', '').split(';', 1)[0] != 'application/json': raise HTTPException(415)
     body = bytearray()
@@ -293,7 +322,7 @@ async def network_rank(request: Request):
     profile = request_profile(request, DATA)
     def calculate():
         started = time.monotonic()
-        with database(DATA) as conn:
+        with inventory_reader(DATA) as conn:
             conn.set_progress_handler(lambda: int(time.monotonic() - started > 2), 2000)
             try:
                 return rank_routes(conn, urls, profile, transport=transport)

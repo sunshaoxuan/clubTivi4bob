@@ -28,6 +28,7 @@ class RegionalRouteService {
   DateTime? _lastRefresh;
   DateTime? _retryAfter;
   bool _disposed = false;
+  int _networkGeneration = 0;
 
   String get networkId => '${_profile?['networkId'] as String? ?? 'ZZ:*:*'}|direct';
 
@@ -93,9 +94,10 @@ class RegionalRouteService {
     final changed = networkId != '${profile['networkId']}|direct';
     _profile = profile;
     tracker.setNetworkContext(networkId);
-    await onNetworkChanged?.call(networkId);
     if (changed) {
+      ++_networkGeneration;
       _checked.clear();
+      await onNetworkChanged?.call(networkId);
       AppDiagnostics.instance.log('route_network_changed', {
         'country': profile['countryCode'],
         'asn': profile['asn'],
@@ -129,11 +131,12 @@ class RegionalRouteService {
   }
 
   Future<void> _rank(List<String> urls) async {
+    final generation = _networkGeneration;
     try {
       final result = await api
           .rankRegionalRoutes(urls)
           .timeout(const Duration(seconds: 3));
-      if (_disposed) return;
+      if (_disposed || generation != _networkGeneration) return;
       final profile = result['profile'];
       if (profile is! Map<String, dynamic> || !_validProfile(profile)) {
         throw const FormatException('Invalid ranking profile');

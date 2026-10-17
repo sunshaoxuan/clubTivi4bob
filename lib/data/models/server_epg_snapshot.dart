@@ -77,7 +77,10 @@ class ServerEpgAttribution {
   String get attributionUrl => json['attributionUrl'] as String;
   String get licenseUrl => json['licenseUrl'] as String;
   String get modificationNotice => json['modificationNotice'] as String;
-  String get dataLicense => 'CC BY-SA 4.0';
+  bool get shareAlikeRequired => json['shareAlikeRequired'] as bool;
+  String get dataLicense => json['licenseUrl'] == 'https://data.gov.tw/license'
+      ? 'Open Government Data License 1.0'
+      : 'CC BY-SA 4.0';
 
   static ServerEpgAttribution parse(Object? value) {
     const keys = {
@@ -94,9 +97,11 @@ class ServerEpgAttribution {
         !_text(value['sourceId'], 128) ||
         !_text(value['sourceLabel'], 512) ||
         !_text(value['modificationNotice'], 512) ||
-        value['shareAlikeRequired'] != true ||
-        value['licenseUrl'] !=
-            'https://creativecommons.org/licenses/by-sa/4.0/' ||
+        !((value['shareAlikeRequired'] == true &&
+                value['licenseUrl'] ==
+                    'https://creativecommons.org/licenses/by-sa/4.0/') ||
+            (value['shareAlikeRequired'] == false &&
+                value['licenseUrl'] == 'https://data.gov.tw/license')) ||
         !_publicAttributionUrl(value['attributionUrl'])) {
       throw const FormatException('Invalid EPG data attribution');
     }
@@ -214,7 +219,9 @@ Future<ServerEpgSnapshot> decodeServerEpg(Map<String, Object> message) async {
     }
     final dataLicense = (item['provenance'] as Map)['dataLicense'];
     final credit = attributions[item['sourceId']];
-    if ((dataLicense == 'CC BY-SA 4.0' && credit == null) ||
+    if (((dataLicense == 'CC BY-SA 4.0' ||
+                dataLicense == 'Open Government Data License 1.0') &&
+            credit == null) ||
         (credit != null && dataLicense != credit.dataLicense) ||
         (dataLicense is String &&
             dataLicense.startsWith('CC BY-SA') &&
@@ -247,7 +254,7 @@ Future<ServerEpgSnapshot> decodeServerEpg(Map<String, Object> message) async {
   for (final id in identities.keys) {
     final rows = byChannel[id] ?? [];
     rows.sort((a, b) => a.start.compareTo(b.start));
-    var hasNow = false, hasNext = false;
+    var hasNext = false;
     DateTime? previousStop;
     for (final row in rows) {
       if (previousStop != null && row.start.isBefore(previousStop)) {
@@ -255,12 +262,12 @@ Future<ServerEpgSnapshot> decodeServerEpg(Map<String, Object> message) async {
       }
       previousStop = row.stop;
       final start = row.start.millisecondsSinceEpoch ~/ 1000;
-      final stop = row.stop.millisecondsSinceEpoch ~/ 1000;
-      hasNow |= start <= now && now < stop;
       hasNext |= start > now;
     }
-    if (!hasNow || !hasNext) {
-      throw const FormatException('EPG channel lacks current or future data');
+    // An explicit source gap at now must not discard its real future entries.
+    // Current-programme queries keep the gap empty; no placeholder is added.
+    if (!hasNext) {
+      throw const FormatException('EPG channel lacks future data');
     }
   }
   if (minStart != manifest.json['coverageStartUtc'] ||

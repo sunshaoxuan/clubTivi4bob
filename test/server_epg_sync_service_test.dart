@@ -146,6 +146,58 @@ void main() {
           ?.read<String>('manifest');
 
   test(
+    'government data credits import and hot update without false sharealike',
+    () async {
+      Map<String, dynamic> government(String version) {
+        final value = _payload(version);
+        value['dataAttributions'] = [
+          {
+            ..._credit(label: 'Synthetic government provider 2026'),
+            'attributionUrl': 'https://data.gov.tw/dataset/121175',
+            'licenseUrl': 'https://data.gov.tw/license',
+            'shareAlikeRequired': false,
+          },
+        ];
+        for (final programme in value['programmes'] as List) {
+          programme['provenance']['dataLicense'] =
+              'Open Government Data License 1.0';
+        }
+        return value;
+      }
+
+      api.payload = government('government-first');
+      expect(await service.check(), isTrue);
+      expect(
+        service.state.value.attributions.single.dataLicense,
+        'Open Government Data License 1.0',
+      );
+      expect(
+        service.state.value.attributions.single.json['shareAlikeRequired'],
+        false,
+      );
+      api.payload = government('government-second');
+      expect(await service.check(forceVersionCheck: true), isTrue);
+      expect(await titles(), [
+        'government-second 0',
+        'government-second 1',
+        'government-second 2',
+      ]);
+      api.payload = government('government-invalid')
+        ..remove('dataAttributions');
+      expect(await service.check(forceVersionCheck: true), isFalse);
+      expect(await titles(), [
+        'government-second 0',
+        'government-second 1',
+        'government-second 2',
+      ]);
+      expect(
+        service.state.value.attributions.single.licenseUrl,
+        'https://data.gov.tw/license',
+      );
+    },
+  );
+
+  test(
     'credits persist, survive offline restart and unchanged checks',
     () async {
       api.payload = _licensed('first');
@@ -472,6 +524,50 @@ void main() {
     },
   );
 
+  for (final error in [
+    const SocketException('fixture offline'),
+    TimeoutException('fixture connection timeout'),
+  ]) {
+    test(
+      'reconnect immediately clears only ${error.runtimeType} backoff',
+      () async {
+        api.error = error;
+        expect(await service.check(), isFalse);
+        expect(service.state.value.nextCheckAt!.isAfter(clock), isTrue);
+        api.error = null;
+        service.onNetworkRestored();
+        expect(await service.check(), isTrue);
+        expect(api.checks, 2);
+        expect(api.downloads, 1);
+      },
+    );
+  }
+
+  test('reconnect does not bypass invalid-data backoff', () async {
+    api.corrupt = true;
+    expect(await service.check(), isFalse);
+    api.corrupt = false;
+    service.onNetworkRestored();
+    expect(await service.check(forceVersionCheck: true), isFalse);
+    expect(api.checks, 1);
+    expect(api.downloads, 1);
+  });
+
+  test(
+    'reconnect during an in-flight failed request schedules one catch-up',
+    () async {
+      api.error = const SocketException('fixture offline');
+      api.gate = Completer<void>();
+      final pending = service.check();
+      service.onNetworkRestored();
+      api.gate!.complete();
+      expect(await pending, isFalse);
+      await service.check(forceVersionCheck: true);
+      expect(api.checks, 2);
+      expect(api.downloads, 0);
+    },
+  );
+
   test(
     'foreground check can receive a new version before normal polling',
     () async {
@@ -535,7 +631,7 @@ void main() {
     'wrong-source',
     'overlap',
     'expired',
-    'no-current',
+    'no-future',
   ]) {
     test('rejects $kind payload without changing valid cache', () async {
       await service.check();
@@ -554,11 +650,8 @@ void main() {
             p['startUtc'] -= 86400;
             p['stopUtc'] -= 86400;
           }
-        case 'no-current':
-          for (final p in programmes) {
-            p['startUtc'] += 86400;
-            p['stopUtc'] += 86400;
-          }
+        case 'no-future':
+          programmes.removeWhere((p) => (p['startUtc'] as int) > _epoch);
       }
       api.payload = invalid;
       expect(await service.check(forceVersionCheck: true), isFalse);
@@ -566,6 +659,42 @@ void main() {
       expect(await titles(), ['first 0', 'first 1', 'first 2']);
     });
   }
+
+  test(
+    'current gap imports real future rows without a fake now entry',
+    () async {
+      expect(await service.check(), isTrue);
+      final gap = _payload('real-future-gap');
+      (gap['programmes'] as List).removeWhere(
+        (p) => (p['startUtc'] as int) <= _epoch,
+      );
+      api.payload = gap;
+      expect(await service.check(forceVersionCheck: true), isTrue);
+      expect(await titles(), ['real-future-gap 1', 'real-future-gap 2']);
+      final channel =
+          (await database.select(database.epgChannels).get()).single;
+      final upcoming = await database.getUpcomingProgrammes(
+        epgChannelId: channel.id,
+        at: clock,
+        limit: 3,
+      );
+      expect(upcoming, hasLength(2));
+      expect(upcoming.every((p) => p.start.isAfter(clock)), isTrue);
+      final current = (await database.select(database.epgProgrammes).get())
+          .where(
+            (p) =>
+                p.epgChannelId == channel.id &&
+                !p.start.isAfter(clock) &&
+                p.stop.isAfter(clock),
+          );
+      expect(current, isEmpty);
+      expect(await service.check(forceVersionCheck: true), isFalse);
+      expect(api.downloads, 2);
+      api.error = const SocketException('offline gap fixture');
+      expect(await service.check(forceVersionCheck: true), isFalse);
+      expect(await titles(), ['real-future-gap 1', 'real-future-gap 2']);
+    },
+  );
 
   test('manifest cannot redirect a snapshot outside fixed BobTV path', () {
     final value = Map<String, dynamic>.from(api.manifest!.json);

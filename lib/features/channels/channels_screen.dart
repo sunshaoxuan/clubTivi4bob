@@ -19,15 +19,12 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../core/countdown_snackbar.dart';
 import '../../core/app_diagnostics.dart';
 import '../../core/app_version.dart';
-import '../../core/fuzzy_match.dart';
 import '../../core/platform_info.dart';
 import '../../core/tablet_presentation.dart';
 import '../../core/weather_clock_widget.dart';
 import '../../data/datasources/local/database.dart' as db;
 import '../../data/datasources/remote/tmdb_client.dart';
 import '../../data/services/channel_category_classifier.dart';
-import '../../data/services/channel_country_ai_service.dart';
-import '../../data/services/channel_category_ai_service.dart';
 import '../../data/services/manual_channel_category.dart';
 import 'channel_category_picker.dart';
 import 'channel_merge_dialog.dart';
@@ -46,7 +43,6 @@ import '../../data/services/stream_alternatives_service.dart';
 import '../../data/services/manual_route_cycle.dart';
 import '../../data/services/channel_name_normalizer.dart';
 import '../../data/services/source_visibility.dart';
-import '../../data/services/source_maintenance_service.dart';
 import '../../data/services/website_channel_catalog_service.dart';
 import '../../data/services/desktop_update_service.dart';
 import 'desktop_update_badge.dart';
@@ -80,6 +76,7 @@ class ChannelsScreen extends ConsumerStatefulWidget {
 }
 
 class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
+  Map<String, String> _catalogChannelIds = {};
   bool _initialLoadDone = false;
   bool _fullscreenRouteOpen = false;
   late final ChannelProgrammePreview _inlineProgrammePreview;
@@ -101,8 +98,6 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
   Set<String> _verifiedRouteUrls = {};
   bool _routeAvailabilityLoading = false;
   int _availabilityRevision = 0;
-  int _regionCheckedRoutes = 0;
-  int _regionTotalRoutes = 0;
   final Map<String, String> _cardRouteSelection = {};
   final ManualRouteCycle _manualRouteCycle = ManualRouteCycle();
   bool _serverRecoveryRunning = false;
@@ -113,12 +108,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
   String _selectedInternationalCountry = '';
   String _selectedInternationalGenre = '全部';
   List<String> _internationalCountries = [];
-  Map<String, String> _knownCountryByStreamUrl = {};
   List<String> _pinnedInternationalCountries = [];
-  final ChannelCountryAiService _countryAi = ChannelCountryAiService();
-  final ChannelCategoryAiService _categoryAi = ChannelCategoryAiService();
-  Map<String, String> _aiCountryCache = {};
-  Map<String, String> _aiCategoryCache = {};
   Map<String, ChannelCategoryDestination> _manualCategories = {};
   final Map<String, ChannelCategoryDestination> _pendingManualCategories = {};
   Future<void> _manualCategorySaveQueue = Future<void>.value();
@@ -394,50 +384,6 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
     });
   }
 
-  String _normalizeName(String name) {
-    return ChannelNameNormalizer.normalize(name);
-  }
-
-  /// Extract a broadcast call-sign sort key from a channel name.
-  /// Channels with call signs (W/K + 2-3 letters) sort first (uppercase),
-  /// others sort by cleaned name (lowercase) so they come after.
-  static String _callSignSortKey(String name) {
-    // Strip provider prefixes like "US-P|", "US: ", "UK- ", "CA-", "MX-"
-    var s = name.replaceAll(RegExp(r'^[A-Z]{2}[\s:-]*[A-Z]*\|'), '');
-    s = s.replaceAll(
-      RegExp(r'^(US|UK|CA|MX)[\s:-]+', caseSensitive: false),
-      '',
-    );
-    // Strip bracketed tags [US], [SP], [H]
-    s = s.replaceAll(RegExp(r'\[.*?\]'), '');
-    // Strip quality tags
-    s = s.replaceAll(
-      RegExp(r'\b(HD|FHD|SHD|SD|4K|UHD)\b', caseSensitive: false),
-      '',
-    );
-    // Strip common location names
-    s = s.replaceAll(
-      RegExp(
-        r'\b(New York|Los Angeles|Chicago|Houston|Phoenix|Philadelphia|San Antonio|San Diego|Dallas|San Jose|Austin|Jacksonville|Fort Worth|Columbus|Charlotte|Indianapolis|San Francisco|Seattle|Denver|Washington|Nashville|Oklahoma City|El Paso|Boston|Portland|Las Vegas|Memphis|Louisville|Baltimore|Milwaukee|Albuquerque|Tucson|Fresno|Mesa|Sacramento|Atlanta|Kansas City|Colorado Springs|Omaha|Raleigh|Long Beach|Virginia Beach|Miami|Oakland|Minneapolis|Tampa|Tulsa|Arlington|New Orleans|Cleveland|Orlando|Cincinnati|Pittsburgh|Detroit|St\.? Louis)\b',
-        caseSensitive: false,
-      ),
-      '',
-    );
-    s = s.trim();
-    // Try to find a broadcast call sign: W or K followed by 2-3 letters
-    final csMatch = RegExp(
-      r'\b([WK][A-Z]{2,3})\b',
-      caseSensitive: false,
-    ).firstMatch(s);
-    if (csMatch != null) {
-      final cs = csMatch.group(1)!.toUpperCase();
-      // Validate it looks like a real call sign (not a common word)
-      if (cs.length >= 3 && cs.length <= 4) return cs;
-    }
-    // No call sign found — return cleaned name lowercase (sorts after uppercase)
-    return s.replaceAll(RegExp(r'[^a-zA-Z0-9]+'), ' ').trim().toLowerCase();
-  }
-
   /// Normalize a channel/EPG display name for fuzzy EPG matching.
   /// Strips country tags, quality tags, provider prefixes, call signs in parens.
   static String _normalizeForEpgMatch(String name) {
@@ -701,8 +647,6 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
         _routeAvailabilityLoading = true;
         _verifiedRouteCounts = {};
         _verifiedRouteUrls = {};
-        _regionCheckedRoutes = 0;
-        _regionTotalRoutes = 0;
         if (!preserveScroll) {
           _allChannels = [];
           _filteredChannels = [];
@@ -711,7 +655,6 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
     }
 
     List<db.Channel> loaded;
-    _aiCategoryCache = await _categoryAi.cachedCategories();
     _manualCategories = {
       ...await ManualChannelCategory.load(),
       ..._pendingManualCategories,
@@ -724,19 +667,12 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
       loaded = await database.getChannelsInList(group.substring(4));
     } else {
       final candidates = await database.getChannelCategoryCandidates(group);
-      final mappedIds = _aiCategoryCache.entries
-          .where((entry) => entry.value == group)
-          .map((entry) => entry.key.split('\u0000').first)
-          .toSet();
-      final mapped = mappedIds.isEmpty
-          ? <db.Channel>[] : await database.getChannelsByIds(mappedIds);
       final manual = await database.getChannelsByStreamUrls(
         _manualCategories.entries.where((entry) => entry.value.category == group)
             .map((entry) => entry.key),
       );
       loaded = {
         for (final channel in candidates) channel.id: channel,
-        for (final channel in mapped) channel.id: channel,
         for (final channel in manual) channel.id: channel,
       }.values.where((channel) => _categoryFor(channel) == group).toList();
     }
@@ -752,23 +688,14 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
           )).toList();
     }
 
-    if (group == '国际') {
-      _aiCountryCache = await _countryAi.cachedCountries();
-    }
+    final catalogIds = await database.publicCatalogChannelIds(loaded
+      .where((c) => c.providerId == WebsiteChannelCatalogService.providerId)
+      .map((c) => c.id));
     final mergeIds = await database.channelMergeIds(loaded.map((c) => c.streamUrl));
     if (!mounted || generation != _categoryLoadGeneration) return;
     final unchanged = _sameChannelSnapshot(_allChannels, loaded);
     setState(() {
-      _knownCountryByStreamUrl = group == '国际'
-          ? ChannelCategoryClassifier.knownCountriesByStreamUrl(
-              loaded.map((channel) => (
-                name: channel.name,
-                groupTitle: channel.groupTitle,
-                tvgId: channel.tvgId,
-                streamUrl: channel.streamUrl,
-              )),
-            )
-          : {};
+      _catalogChannelIds = catalogIds;
       _rebuildInternationalCountries(loaded, group);
       _channelMergeIds = mergeIds;
       if (!unchanged) {
@@ -782,48 +709,6 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
     });
     if (!unchanged && scrollAnchor != null) {
       _restoreScrollAnchor(scrollAnchor);
-    }
-    if (group == '国际' && await _countryAi.isEnabled()) {
-      final unknown = loaded.where((channel) =>
-          channel.providerId != WebsiteChannelCatalogService.providerId &&
-          _countryFor(channel) == '未识别地区').map((channel) =>
-          CountryNameInput(channel.name, channel.groupTitle)).toList();
-      unawaited(_countryAi.classifyUnknown(unknown, onBatch: (additions) {
-        if (!mounted || generation != _categoryLoadGeneration ||
-            _selectedGroup != '国际') return;
-        setState(() {
-          _aiCountryCache.addAll(additions);
-          _rebuildInternationalCountries(_allChannels, '国际');
-          _applyFilters();
-        });
-      }).catchError((Object error, StackTrace stackTrace) {
-        AppDiagnostics.instance.recordError(
-          'channel_country_ai_start', error, stackTrace,
-        );
-      }));
-    }
-    if (group == '其他') {
-      final unresolved = loaded.where((channel) =>
-          channel.providerId != WebsiteChannelCatalogService.providerId &&
-          _categoryFor(channel) == '其他').map((channel) => CategoryNameInput(
-        id: channel.id,
-        name: channel.name,
-        groupTitle: channel.groupTitle,
-        tvgId: channel.tvgId,
-      )).toList();
-      unawaited(_categoryAi.classifyUnknown(unresolved, onBatch: (additions) {
-        if (!mounted || generation != _categoryLoadGeneration) return;
-        setState(() {
-          _aiCategoryCache.addAll(additions);
-          _applyFilters();
-        });
-      }).catchError((Object error, StackTrace stackTrace) {
-        AppDiagnostics.instance.recordError(
-          'channel_category_ai_start',
-          StateError('AI classification unavailable'),
-          stackTrace,
-        );
-      }));
     }
     unawaited(_refreshRouteAvailability(loaded, generation));
     await ref.read(streamAlternativesProvider).rebuildForChannels(loaded);
@@ -855,10 +740,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
       tvgId: channel.tvgId,
     );
     if (deterministic != '未识别地区') return deterministic;
-    final sharedStreamCountry = _knownCountryByStreamUrl[channel.streamUrl];
-    if (sharedStreamCountry != null) return sharedStreamCountry;
-    final key = CountryNameInput(channel.name, channel.groupTitle).key;
-    return _aiCountryCache[key] ?? deterministic;
+    return deterministic;
   }
 
   String _categoryFor(db.Channel channel) {
@@ -869,13 +751,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
     if (channel.providerId == WebsiteChannelCatalogService.providerId) {
       return WebsiteChannelCatalogService.categoryForGroup(channel.groupTitle);
     }
-    final key = CategoryNameInput(
-      id: channel.id,
-      name: channel.name,
-      groupTitle: channel.groupTitle,
-      tvgId: channel.tvgId,
-    ).key;
-    return _aiCategoryCache[key] ?? ChannelCategoryClassifier.classify(
+    return ChannelCategoryClassifier.classify(
       name: channel.name,
       groupTitle: channel.groupTitle,
       tvgId: channel.tvgId,
@@ -941,15 +817,16 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
     final epgNameToId = <String, String>{};
     final epgSportsServiceById = <String, String>{};
     final epgCallSignToId = <String, String>{}; // WABC → prefixed id
+    final needsPrivateMatching = allChannels.any((c) =>
+      c.providerId != WebsiteChannelCatalogService.providerId);
     for (final src in epgSources) {
       final chs = await database.getEpgChannelsForSource(src.id);
       for (final ch in chs) {
         validIds.add(ch.id);
         if (src.id == serverEpgSourceId) {
-          final service = ChannelNameNormalizer.cctvSportsServiceKey(ch.displayName);
-          if (service != null) epgSportsServiceById[ch.id] = service;
           continue;
         }
+        if (!needsPrivateMatching) continue;
         rawToPrefixed.putIfAbsent(ch.channelId.toLowerCase(), () => ch.id);
         final normName = _normalizeForEpgMatch(ch.displayName);
         if (normName.isNotEmpty) {
@@ -1006,13 +883,13 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
     // Build failover name index + EPG scope
     final normNameIndex = <String, List<String>>{};
     for (final c in allChannels) {
-      final norm = _normalizeName(c.name);
+      final norm = _automaticChannelKey(c);
       (normNameIndex[norm] ??= []).add(c.id);
     }
     final epgScopeIds = <String>{...favChannelIds};
     final favChannels = allChannels.where((c) => favChannelIds.contains(c.id));
     for (final fav in favChannels) {
-      final normName = _normalizeName(fav.name);
+      final normName = _automaticChannelKey(fav);
       final alts = normNameIndex[normName];
       if (alts != null) epgScopeIds.addAll(alts);
     }
@@ -1020,6 +897,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
     // Collect EPG channel IDs for now-playing lookup
     final epgChannelIds = <String>{};
     bool acceptsEpg(db.Channel channel, String epgId) {
+      if (channel.providerId == WebsiteChannelCatalogService.providerId) return true;
       final channelService =
           ChannelNameNormalizer.cctvSportsServiceKey(channel.name) ??
           ChannelNameNormalizer.cctvSportsServiceKey(channel.tvgName ?? '') ??
@@ -1039,6 +917,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
         epgChannelIds.add(mapped);
         continue;
       }
+      if (c.providerId == WebsiteChannelCatalogService.providerId) continue;
       if (c.tvgId != null && c.tvgId!.isNotEmpty) {
         final prefixed = rawToPrefixed[c.tvgId!.toLowerCase()];
         if (prefixed != null && acceptsEpg(c, prefixed)) {
@@ -1153,13 +1032,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
     } else {
       // Group filters only apply when not searching
       if (_selectedGroup == 'Favorites') {
-        channels =
-            channels.where((c) => _favoritedChannelIds.contains(c.id)).toList()
-              ..sort(
-                (a, b) => _callSignSortKey(
-                  _channelDisplayName(a),
-                ).compareTo(_callSignSortKey(_channelDisplayName(b))),
-              );
+        channels = channels.where((c) => _favoritedChannelIds.contains(c.id)).toList();
       } else if (_selectedGroup.startsWith('fav:')) {
         final listId = _selectedGroup.substring(4);
         _applyFavoriteListFilter(listId);
@@ -1214,21 +1087,8 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
 
     _filteredChannels = _deduplicateChannels(channels);
     if (_groups.contains(_selectedGroup)) {
-      _filteredChannels.sort((a, b) {
-        final aKey = ChannelCategoryClassifier.sortKeyForCategory(
-          category: _selectedGroup,
-          name: _channelDisplayName(a),
-          tvgId: a.tvgId,
-          groupTitle: a.groupTitle,
-        );
-        final bKey = ChannelCategoryClassifier.sortKeyForCategory(
-          category: _selectedGroup,
-          name: _channelDisplayName(b),
-          tvgId: b.tvgId,
-          groupTitle: b.groupTitle,
-        );
-        return aKey.compareTo(bKey);
-      });
+      _filteredChannels.sort((a, b) => (a.channelNumber ?? a.sortOrder)
+        .compareTo(b.channelNumber ?? b.sortOrder));
     }
     if (_selectedIndex >= 0) {
       _selectedIndex = ChannelListIdentity.indexOf(
@@ -1256,6 +1116,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
     }
     return representatives.values.toList();
   }
+
 
   bool _sameChannelSnapshot(List<db.Channel> previous, List<db.Channel> next) {
     if (previous.length != next.length) return false;
@@ -1315,6 +1176,9 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
   String _automaticChannelKey(db.Channel channel) {
     final merged = _channelMergeIds[channel.streamUrl];
     if (merged != null) return 'manual:$merged';
+    if (channel.providerId == WebsiteChannelCatalogService.providerId) {
+      return 'catalog:${_catalogChannelIds[channel.id] ?? channel.id}';
+    }
     final cached = _automaticKeyByChannelId[channel.id];
     if (cached != null) return cached;
     final vanity = _vanityNames[channel.id];
@@ -1335,6 +1199,10 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
 
   bool _hasCompatibleQuality(db.Channel first, db.Channel second) {
     if (_hideIpv6Sources && _isIpv6Channel(second)) return false;
+    if (first.providerId == WebsiteChannelCatalogService.providerId &&
+        second.providerId == WebsiteChannelCatalogService.providerId) {
+      return _automaticChannelKey(first) == _automaticChannelKey(second);
+    }
     if (_hasInvalidStreamMetadata(second)) return false;
     if (_isUltraHdChannel(first) != _isUltraHdChannel(second)) return false;
     final firstSportsService = _sportsServiceForChannel(first);
@@ -1354,6 +1222,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
   }
 
   bool _hasInvalidStreamMetadata(db.Channel channel) {
+    if (channel.providerId == WebsiteChannelCatalogService.providerId) return false;
     final names = [channel.name, channel.tvgName ?? '', channel.tvgId ?? ''];
     return ChannelNameNormalizer.hasCctvSportsMetadataConflict(
           names: names,
@@ -1543,176 +1412,6 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
       _applyFilters();
     });
     _playFirstFilteredChannelForGroup(_selectedGroup);
-    if (_groups.contains(_selectedGroup)) {
-      unawaited(_verifyActiveCategory(channels, checks, generation, revision));
-    }
-  }
-
-  Future<void> _verifyActiveCategory(
-    List<db.Channel> channels,
-    List<db.StreamCheck> checks,
-    int generation,
-    int revision,
-  ) async {
-    final checkByRoute = <String, db.StreamCheck>{
-      for (final check in checks)
-        '${check.providerId}\u0000${check.streamUrl}': check,
-    };
-    final retryBefore = DateTime.now().subtract(const Duration(hours: 2));
-    final byChannel = <String, List<db.Channel>>{};
-    for (final channel in channels) {
-      // Server-validated public routes need no second full scan on each client.
-      // Selected playback and preview still validate/retry their own routes.
-      if (channel.providerId == WebsiteChannelCatalogService.providerId) continue;
-      if (_selectedGroup == '国际' &&
-          (_countryFor(channel) != _selectedInternationalCountry ||
-              (_selectedInternationalGenre != '全部' &&
-                  ChannelCategoryClassifier.internationalGenreFor(
-                    channel.groupTitle,
-                  ) != _selectedInternationalGenre))) continue;
-      if (_hideIpv6Sources && _isIpv6Channel(channel)) continue;
-      if (_hasInvalidStreamMetadata(channel)) continue;
-      final key = _automaticChannelKey(channel);
-      final groupKey = key.isEmpty ? channel.id : key;
-      if ((_verifiedRouteCounts[groupKey] ?? 0) > 0) continue;
-      final check = checkByRoute['${channel.providerId}\u0000${channel.streamUrl}'];
-      if (check?.retired == true ||
-          (check?.lastCheckedAt?.isAfter(retryBefore) ?? false)) continue;
-      (byChannel[groupKey] ??= []).add(channel);
-    }
-    final pending = <db.Channel>[];
-    for (final entries in byChannel.values) {
-      entries.sort((a, b) {
-        final aCheck = checkByRoute['${a.providerId}\u0000${a.streamUrl}'];
-        final bCheck = checkByRoute['${b.providerId}\u0000${b.streamUrl}'];
-        final aScore = (aCheck?.lastSuccessAt != null ? 100 : 0) -
-            (aCheck?.consecutiveFailures ?? 0) * 10;
-        final bScore = (bCheck?.lastSuccessAt != null ? 100 : 0) -
-            (bCheck?.consecutiveFailures ?? 0) * 10;
-        return bScore.compareTo(aScore);
-      });
-    }
-    final seenRoutes = <String>{};
-    var remaining = byChannel.values.toList();
-    for (var pass = 0; remaining.isNotEmpty; pass++) {
-      final next = <List<db.Channel>>[];
-      for (final entries in remaining) {
-        final channel = entries[pass];
-        if (seenRoutes.add('${channel.providerId}\u0000${channel.streamUrl}')) {
-          pending.add(channel);
-        }
-        if (pass + 1 < entries.length) next.add(entries);
-      }
-      remaining = next;
-    }
-    if (pending.isEmpty || !mounted || generation != _categoryLoadGeneration ||
-        revision != _availabilityRevision) {
-      return;
-    }
-    setState(() {
-      _regionCheckedRoutes = 0;
-      _regionTotalRoutes = pending.length;
-    });
-    final database = ref.read(databaseProvider);
-    final maintenance = ref.read(sourceMaintenanceCoordinatorProvider)
-        .maintenanceService;
-    final validByChannel = <String, Set<String>>{};
-    final channelsByRoute = <String, List<db.Channel>>{};
-    final recent = DateTime.now().subtract(const Duration(days: 7));
-    for (final channel in channels) {
-      final routeKey = '${channel.providerId}\u0000${channel.streamUrl}';
-      (channelsByRoute[routeKey] ??= <db.Channel>[]).add(channel);
-      final check = checkByRoute[routeKey];
-      final lastVerifiedAt = check?.lastCheckedAt ?? check?.lastSuccessAt;
-      if (check == null || check.retired || check.consecutiveFailures != 0 ||
-          check.lastSuccessAt == null || lastVerifiedAt == null ||
-          lastVerifiedAt.isBefore(recent)) continue;
-      final key = _automaticChannelKey(channel);
-      (validByChannel[key.isEmpty ? channel.id : key] ??= <String>{})
-          .add(channel.streamUrl);
-    }
-    for (var offset = 0; offset < pending.length; offset += 4) {
-      if (!mounted || generation != _categoryLoadGeneration ||
-          revision != _availabilityRevision) return;
-      final end = (offset + 4).clamp(0, pending.length);
-      final batch = pending.sublist(offset, end).where((channel) {
-        if (_selectedGroup == '国际' &&
-            (_countryFor(channel) != _selectedInternationalCountry ||
-                (_selectedInternationalGenre != '全部' &&
-                    ChannelCategoryClassifier.internationalGenreFor(
-                      channel.groupTitle,
-                    ) != _selectedInternationalGenre))) return false;
-        final key = _automaticChannelKey(channel);
-        return validByChannel[key.isEmpty ? channel.id : key]?.isEmpty ?? true;
-      }).toList();
-      if (batch.isEmpty) continue;
-      final results = await Future.wait(batch.map((channel) async {
-        try {
-          return await maintenance.probeRoute(channel.streamUrl);
-        } catch (error, stackTrace) {
-          AppDiagnostics.instance.recordError(
-              'category_route_probe', error, stackTrace);
-          return false;
-        }
-      }));
-      if (!mounted || generation != _categoryLoadGeneration ||
-          revision != _availabilityRevision) return;
-      final now = DateTime.now();
-      final updates = <db.StreamChecksCompanion>[];
-      for (var index = 0; index < batch.length; index++) {
-        final channel = batch[index];
-        final previous = checkByRoute[
-            '${channel.providerId}\u0000${channel.streamUrl}'];
-        final decision = SourceMaintenancePolicy.evaluate(
-          success: results[index],
-          previousFailures: previous?.consecutiveFailures ?? 0,
-          previousFirstFailureAt: previous?.firstFailureAt,
-          previousLastSuccessAt: previous?.lastSuccessAt,
-          now: now,
-        );
-        updates.add(db.StreamChecksCompanion.insert(
-          streamUrl: channel.streamUrl,
-          providerId: channel.providerId,
-          channelId: channel.id,
-          consecutiveFailures: Value(decision.consecutiveFailures),
-          firstFailureAt: Value(decision.firstFailureAt),
-          lastCheckedAt: Value(now),
-          lastSuccessAt: Value(decision.lastSuccessAt),
-          retired: Value(decision.retired),
-        ));
-      }
-      await database.upsertStreamChecks(updates);
-      if (!mounted || generation != _categoryLoadGeneration ||
-          revision != _availabilityRevision) return;
-      final foundPlayable = results.contains(true);
-      setState(() {
-        _regionCheckedRoutes = end;
-        if (!foundPlayable) return;
-        for (var index = 0; index < batch.length; index++) {
-          if (!results[index]) continue;
-          final channel = batch[index];
-          final routeKey = '${channel.providerId}\u0000${channel.streamUrl}';
-          for (final candidate in channelsByRoute[routeKey] ?? [channel]) {
-            final key = _automaticChannelKey(candidate);
-            (validByChannel[key.isEmpty ? candidate.id : key] ??= <String>{})
-                .add(candidate.streamUrl);
-          }
-          _verifiedRouteUrls.add(channel.streamUrl);
-        }
-        _verifiedRouteCounts = validByChannel.map(
-          (key, urls) => MapEntry(key, urls.length),
-        );
-        _applyFilters();
-      });
-      if (foundPlayable) _playFirstFilteredChannelForGroup(_selectedGroup);
-    }
-    if (mounted && generation == _categoryLoadGeneration &&
-        revision == _availabilityRevision) {
-      setState(() {
-        _regionCheckedRoutes = 0;
-        _regionTotalRoutes = 0;
-      });
-    }
   }
 
   Future<void> _applyFavoriteListFilter(String listId) async {
@@ -1741,11 +1440,6 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
             (_vanityNames[c.id]?.toLowerCase().contains(q) ?? false);
       }).toList();
     }
-    channels.sort(
-      (a, b) => _callSignSortKey(
-        _channelDisplayName(a),
-      ).compareTo(_callSignSortKey(_channelDisplayName(b))),
-    );
     if (!mounted) return;
     setState(() {
       _filteredChannels = _deduplicateChannels(channels);
@@ -1992,13 +1686,16 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
     if (preferredUrl != null) _cardRouteSelection[channel.id] = preferredUrl;
     final selectionGeneration = ++_channelSelectionGeneration;
     _pendingAutoplayGroup = null;
+    if (playerService.preparedChannelId != null &&
+        playerService.preparedChannelId != channel.id) {
+      unawaited(playerService.discardPreparedChannel());
+    }
 
     final hasActivePlayback = playerService.currentUrl != null &&
         (playerService.player.state.playing ||
             playerService.player.state.buffering ||
             playerService.preparedChannelId == channel.id);
     final commitPreview = preferredUrl == null && !force && _simpleMode && hasActivePlayback &&
-        _preparedChannelId == channel.id &&
         playerService.preparedChannelId == channel.id;
     final prepareOnly = !force && _simpleMode && hasActivePlayback &&
         !commitPreview;
@@ -2008,7 +1705,31 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
         if (!commitPreview) _preparedChannelId = null;
       });
     }
-    // Paint the pending state before preparing potentially large route sets.
+    // The decoder is already open and verified. Transfer its ownership before
+    // any cold-selection work or network synchronization; do not reopen it.
+    if (commitPreview) {
+      var committed = false;
+      try {
+        committed = await playerService.commitPreparedChannel(channel.id);
+      } catch (error, stack) {
+        AppDiagnostics.instance.recordError('channel_preview_commit', error, stack);
+      }
+      if (!mounted || selectionGeneration != _channelSelectionGeneration) return;
+      if (committed) {
+        _finishChannelSelection(channel);
+      } else {
+        setState(() {
+          _pendingChannelId = null;
+          _preparedChannelId = playerService.preparedChannelId;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('预览已失效，原频道继续播放，请重新选择'),
+        ));
+      }
+      return;
+    }
+
+    // Cold selection may build large route sets; only that path yields a frame.
     await WidgetsBinding.instance.endOfFrame;
     if (!mounted || selectionGeneration != _channelSelectionGeneration) return;
 
@@ -2086,9 +1807,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
         ));
         switched = true;
       } else {
-        switched = commitPreview
-          ? await playerService.commitPreparedChannel(channel.id)
-          : hasActivePlayback
+        switched = hasActivePlayback
             ? await playerService.switchChannel(
             requestedUrl,
             channelId: channel.id,
@@ -2106,27 +1825,6 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
             onlyRequestedRoute: onlyRequestedRoute,
           )
             : true;
-        if (commitPreview && !switched && mounted &&
-            selectionGeneration == _channelSelectionGeneration) {
-          // A brief interruption must not cancel the viewer's channel choice.
-          // Retry the same channel through its full candidate list.
-          final previewUrl = playerService.preparedChannelUrl;
-          switched = await playerService.switchChannel(
-            previewUrl ?? channel.streamUrl,
-            channelId: channel.id,
-            epgChannelId: _getEpgId(channel),
-            tvgId: channel.tvgId,
-            channelName: channel.name,
-            vanityName: _vanityNames[channel.id],
-            originalName: channel.tvgName,
-            failoverGroupUrls: <String>{
-              channel.streamUrl,
-              ...failoverUrls,
-            }.toList(),
-            allowAudioOnly: _allowsAudioOnly(channel),
-            preferRequestedRoute: previewUrl != null,
-          );
-        }
       }
     } catch (error, stackTrace) {
       AppDiagnostics.instance.recordError(
@@ -2174,6 +1872,17 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
         _pendingChannelId = null;
         _preparedChannelId = channel.id;
       });
+      return;
+    }
+    _finishChannelSelection(channel);
+  }
+
+  void _finishChannelSelection(db.Channel channel) {
+    final currentIndex = ChannelListIdentity.indexOf(
+      _filteredChannels, channel.id, (candidate) => candidate.id,
+    );
+    if (currentIndex < 0) {
+      setState(() => _pendingChannelId = null);
       return;
     }
     if (_selectedIndex >= 0 && _selectedIndex != currentIndex) {
@@ -2946,6 +2655,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
         _acceptsEpgForChannel(channel, mapped)) {
       return mapped;
     }
+    if (channel.providerId == WebsiteChannelCatalogService.providerId) return null;
     if (channel.tvgId != null && channel.tvgId!.isNotEmpty) {
       final prefixed = _rawToPrefixedEpg[channel.tvgId!.toLowerCase()];
       if (prefixed != null && _acceptsEpgForChannel(channel, prefixed)) {
@@ -2970,6 +2680,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
   }
 
   bool _acceptsEpgForChannel(db.Channel channel, String epgId) {
+    if (channel.providerId == WebsiteChannelCatalogService.providerId) return true;
     final channelService =
         ChannelNameNormalizer.cctvSportsServiceKey(channel.name) ??
         ChannelNameNormalizer.cctvSportsServiceKey(channel.tvgName ?? '') ??
@@ -3536,14 +3247,14 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                         icon: const Icon(Icons.more_horiz, color: Colors.white70),
                         onSelected: (action) {
                           if (action == 'advanced') _setSimpleMode(false);
-                          if (action == 'refresh' && !_routeAvailabilityLoading && _regionTotalRoutes == 0) {
+                          if (action == 'refresh' && !_routeAvailabilityLoading) {
                             setState(() => _routeAvailabilityLoading = true);
                             unawaited(_refreshRouteAvailability(_allChannels, _categoryLoadGeneration));
                           }
                         },
                         itemBuilder: (_) => [
                           const PopupMenuItem(value: 'advanced', child: Text('进阶模式')),
-                          PopupMenuItem(value: 'refresh', enabled: !_routeAvailabilityLoading && _regionTotalRoutes == 0, child: const Text('重新读取线路检查结果')),
+                          PopupMenuItem(value: 'refresh', enabled: !_routeAvailabilityLoading, child: const Text('重新读取线路检查结果')),
                         ],
                       ),
                     ],
@@ -3872,11 +3583,8 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                   .inventory
                   .state,
             ),
-            summary: _regionTotalRoutes > 0
-                ? '${_filteredChannels.length} 个频道 · 正在核对线路 '
-                      '$_regionCheckedRoutes/$_regionTotalRoutes'
-                : _routeAvailabilityLoading
-                ? '正在核对线路…'
+            summary: _routeAvailabilityLoading
+                ? '正在读取服务器线路状态…'
                 : '${_filteredChannels.length} 个频道',
           ),
         navigation: _buildCompactCategories(tiny: tiny),
@@ -3921,13 +3629,10 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                               ? '我的收藏'
                               : _selectedGroup,
                           loading: _categoryLoading,
-                          checking:
-                              _routeAvailabilityLoading ||
-                              _regionTotalRoutes > 0,
+                          checking: _routeAvailabilityLoading,
                           onRetry: () => _loadGroupChannels(_selectedGroup),
                         ),
-                        if (!_routeAvailabilityLoading &&
-                            _regionTotalRoutes == 0) ...[
+                        if (!_routeAvailabilityLoading) ...[
                           const SizedBox(height: 12),
                           TextButton(
                             onPressed: () => _setSimpleMode(false),

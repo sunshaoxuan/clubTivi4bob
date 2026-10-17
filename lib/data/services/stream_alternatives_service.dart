@@ -9,6 +9,7 @@ import '../models/channel.dart' hide Provider;
 import 'channel_name_normalizer.dart';
 import 'source_visibility.dart';
 import 'stream_health_tracker.dart';
+import 'website_channel_catalog_service.dart';
 import '../../features/providers/provider_manager.dart';
 
 /// Maintains a real-time index of alternative streams for each channel.
@@ -50,11 +51,14 @@ class StreamAlternativesService {
   /// All channels cached for fuzzy fallback.
   List<Channel> _allChannels = [];
   Map<String, String> _mergeIds = {};
+  Map<String, String> _catalogIds = {};
+  Map<String, List<Channel>> _catalogIndex = {};
   final Map<String, List<Channel>> _mergeIndex = {};
   final Set<String> _hiddenProviderIds = {};
   bool _hideIpv6Sources = false;
 
   StreamAlternativesService(this._db, this._health);
+  int _rebuildGeneration = 0;
 
   /// Completes when the initial rebuild() finishes.
   Future<void> get ready => _readyCompleter.future;
@@ -82,6 +86,32 @@ class StreamAlternativesService {
 
   /// Rebuild the failover index for the currently loaded content category.
   Future<void> rebuildForChannels(List<db.Channel> channels) async {
+    final generation = ++_rebuildGeneration;
+    final next = StreamAlternativesService(_db, _health);
+    await next._buildIndex(channels,
+      isCurrent: () => generation == _rebuildGeneration);
+    if (generation != _rebuildGeneration) return;
+    // Publish only a complete index. Background catalogue refreshes must not
+    // temporarily remove the playing channel's failover routes.
+    _vanityIndex = next._vanityIndex;
+    _epgIndex = next._epgIndex;
+    _tvgIdIndex = next._tvgIdIndex;
+    _nameIndex = next._nameIndex;
+    _callSignIndex = next._callSignIndex;
+    _providerNames = next._providerNames;
+    _allChannels = next._allChannels;
+    _mergeIds = next._mergeIds;
+    _catalogIds = next._catalogIds;
+    _catalogIndex = next._catalogIndex;
+    _mergeIndex..clear()..addAll(next._mergeIndex);
+    _hiddenProviderIds..clear()..addAll(next._hiddenProviderIds);
+    _hideIpv6Sources = next._hideIpv6Sources;
+    if (!_readyCompleter.isCompleted) _readyCompleter.complete();
+  }
+
+  Future<void> _buildIndex(List<db.Channel> channels, {
+    required bool Function() isCurrent,
+  }) async {
     _vanityIndex.clear();
     _epgIndex.clear();
     _tvgIdIndex.clear();
@@ -91,8 +121,12 @@ class StreamAlternativesService {
     _hiddenProviderIds.clear();
 
     final mappings = await _db.getMappingsForChannelIds(
-      channels.map((channel) => channel.id).toSet(),
+      channels.where((c) => c.providerId != WebsiteChannelCatalogService.providerId)
+        .map((channel) => channel.id).toSet(),
     );
+    _catalogIds = await _db.publicCatalogChannelIds(channels
+      .where((c) => c.providerId == WebsiteChannelCatalogService.providerId)
+      .map((c) => c.id));
     _allChannels = channels.map(_dbToChannel).toList();
     _mergeIds = await _db.channelMergeIds(channels.map((c) => c.streamUrl));
     _mergeIndex.clear();
@@ -133,12 +167,22 @@ class StreamAlternativesService {
       channelToEpg[m.channelId] = m.epgChannelId;
     }
 
-    for (final ch in _allChannels) {
+    for (var index = 0; index < _allChannels.length; index++) {
+      if (index % 100 == 0) {
+        await Future<void>.delayed(Duration.zero);
+        if (!isCurrent()) return;
+      }
+      final ch = _allChannels[index];
       if (ch.streamUrl.isEmpty) continue;
       if (_shouldHideChannel(ch)) continue;
       final mergeId = _mergeIds[ch.streamUrl];
       if (mergeId != null) {
         _mergeIndex.putIfAbsent(mergeId, () => []).add(ch);
+      }
+      if (ch.providerId == WebsiteChannelCatalogService.providerId) {
+        final id = _catalogIds[ch.id];
+        if (id != null) _catalogIndex.putIfAbsent(id, () => []).add(ch);
+        continue;
       }
       if (_hasInvalidStreamMetadata(ch)) continue;
 
@@ -201,7 +245,6 @@ class StreamAlternativesService {
       }
     }
 
-    if (!_readyCompleter.isCompleted) _readyCompleter.complete();
   }
 
   /// Get ranked alternative stream URLs for a channel.
@@ -225,6 +268,12 @@ class StreamAlternativesService {
           .toSet();
       return _health.rankUrls(routes.toList()).map((e) => e.key).toList();
     }
+    if (channelId.startsWith('${WebsiteChannelCatalogService.providerId}:')) {
+      final routes = (_catalogIndex[_catalogIds[channelId]] ?? const <Channel>[])
+        .where((c) => c.streamUrl != excludeUrl && !_shouldHideChannel(c))
+        .map((c) => c.streamUrl).toSet().toList();
+      return _health.rankUrls(routes).map((e) => e.key).toList();
+    }
     final seen = <String>{excludeUrl};
     final results = <String>[];
     final requestedSportsService =
@@ -237,6 +286,7 @@ class StreamAlternativesService {
         ChannelNameNormalizer.isUltraHd(tvgId ?? '');
 
     bool isCompatible(Channel channel) {
+      if (channel.providerId == WebsiteChannelCatalogService.providerId) return false;
       if (_shouldHideChannel(channel)) return false;
       if (_hasInvalidStreamMetadata(channel)) return false;
       if (_isUltraHdChannel(channel) != requestedUltraHd) return false;
@@ -397,6 +447,14 @@ class StreamAlternativesService {
     String? originalName,
     required String excludeUrl,
   }) {
+    if (channelId.startsWith('${WebsiteChannelCatalogService.providerId}:')) {
+      final routes = (_catalogIndex[_catalogIds[channelId]] ?? const <Channel>[])
+        .where((c) => c.streamUrl != excludeUrl && !_shouldHideChannel(c));
+      return [for (final channel in routes) AlternativeDetail(channel: channel,
+        matchReasons: const {'confirmed'}, healthScore: _health.getScore(channel.streamUrl),
+        providerName: providerName(channel.providerId))]
+        ..sort((a, b) => b.healthScore.compareTo(a.healthScore));
+    }
     final seen = <String>{excludeUrl};
     final requestedSportsService =
         ChannelNameNormalizer.cctvSportsServiceKey(channelName ?? '') ??
@@ -408,6 +466,7 @@ class StreamAlternativesService {
         ChannelNameNormalizer.isUltraHd(tvgId ?? '');
 
     bool isCompatible(Channel channel) {
+      if (channel.providerId == WebsiteChannelCatalogService.providerId) return false;
       if (_shouldHideChannel(channel)) return false;
       if (_hasInvalidStreamMetadata(channel)) return false;
       if (_isUltraHdChannel(channel) != requestedUltraHd) return false;

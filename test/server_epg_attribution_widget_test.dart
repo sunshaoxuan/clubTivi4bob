@@ -15,6 +15,43 @@ ServerEpgAttribution credit(String label) => ServerEpgAttribution.parse({
 
 void main() {
   testWidgets(
+    'government data shows its real license without a sharealike claim',
+    (tester) async {
+      final state = ValueNotifier(
+        ServerEpgSyncStatus(
+          phase: 'updated',
+          attributions: [
+            ServerEpgAttribution.parse({
+              'sourceId': 'fixture-government',
+              'sourceLabel': 'Synthetic government provider 2026',
+              'attributionUrl': 'https://data.gov.tw/dataset/121175',
+              'licenseUrl': 'https://data.gov.tw/license',
+              'modificationNotice': 'Synthetic UTC normalization fixture.',
+              'shareAlikeRequired': false,
+            }),
+          ],
+        ),
+      );
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(body: ServerEpgAttributionTile(state: state)),
+        ),
+      );
+      await tester.tap(find.text('服务器节目表署名与许可'));
+      await tester.pumpAndSettle();
+      expect(
+        find.text('节目数据许可：Open Government Data License 1.0'),
+        findsOneWidget,
+      );
+      expect(find.text('https://data.gov.tw/license'), findsOneWidget);
+      expect(find.text('改编数据须按相同许可共享。'), findsNothing);
+      expect(find.text('使用数据及衍生资料须保留来源署名与许可声明。'), findsOneWidget);
+      await tester.pumpWidget(const SizedBox());
+      state.dispose();
+    },
+  );
+
+  testWidgets(
     'offline credits and license dialog hot update without replacing child',
     (tester) async {
       final state = ValueNotifier(

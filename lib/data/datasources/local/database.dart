@@ -242,6 +242,25 @@ class AppDatabase extends _$AppDatabase {
     return rows.firstOrNull?.read<String>('version');
   }
 
+  /// Exact server-owned channel identity for the selected local route rows.
+  /// No name matching, classification or new persistent cache is involved.
+  Future<Map<String, String>> publicCatalogChannelIds(Iterable<String> localIds) async {
+    final ids = localIds.toSet().toList();
+    final result = <String, String>{};
+    for (var offset = 0; offset < ids.length; offset += 400) {
+      final page = ids.skip(offset).take(400).toList();
+      final rows = await customSelect(
+        'SELECT local_channel_id,catalog_channel_id FROM catalog_epg_routes '
+        'WHERE local_channel_id IN (${List.filled(page.length, '?').join(',')})',
+        variables: page.map(Variable.withString).toList(),
+      ).get();
+      for (final row in rows) {
+        result[row.read<String>('local_channel_id')] = row.read<String>('catalog_channel_id');
+      }
+    }
+    return result;
+  }
+
   Future<void> setSharedCatalogVersion(String? version) async {
     if (version == null) {
       await customStatement('DELETE FROM catalog_sync_manifest WHERE id=1');
@@ -1778,18 +1797,32 @@ class AppDatabase extends _$AppDatabase {
     return rows.map((row) => row.readTable(channels)).toList();
   }
 
-  String _favoriteKey(Channel channel) => favoriteChannelIdentity(name: channel.name,
-      group: channel.groupTitle, tvgName: channel.tvgName, tvgId: channel.tvgId);
+  String _favoriteKey(Channel channel, [Map<String, String> catalogIds = const {}]) =>
+    channel.providerId == 'bobtv-channel-catalog'
+      ? 'catalog:${catalogIds[channel.id] ?? channel.id}'
+      : favoriteChannelIdentity(name: channel.name,
+          group: channel.groupTitle, tvgName: channel.tvgName, tvgId: channel.tvgId);
 
   Future<Set<String>> _favoriteEquivalentIds(String channelId) async {
     final selected = await (select(channels)..where((c) => c.id.equals(channelId))).getSingleOrNull();
     if (selected == null) return {};
+    if (selected.providerId == 'bobtv-channel-catalog') {
+      final rows = await customSelect('''
+        SELECT c.id FROM catalog_epg_routes a
+        JOIN catalog_epg_routes r ON r.catalog_channel_id=a.catalog_channel_id
+        JOIN channels c ON c.id=r.local_channel_id
+        WHERE a.local_channel_id=? AND c.provider_id='bobtv-channel-catalog'
+        AND NOT EXISTS(SELECT 1 FROM blocked_stream_routes b WHERE b.stream_url=c.stream_url)
+      ''', variables: [Variable.withString(channelId)]).get();
+      return rows.isEmpty ? {channelId} : {for (final row in rows) row.read<String>('id')};
+    }
     final key = _favoriteKey(selected);
     final blocked = await getBlockedStreamUrls();
     // Explicit favorite actions can search all providers and classifications.
     // This is not a background stream probe or whole-catalog media scan.
     return {for (final c in await select(channels).get())
-      if (_favoriteKey(c) == key && !blocked.contains(canonicalRouteUrl(c.streamUrl))) c.id};
+      if (c.providerId != 'bobtv-channel-catalog' && _favoriteKey(c) == key &&
+          !blocked.contains(canonicalRouteUrl(c.streamUrl))) c.id};
   }
 
   Future<void> addChannelToList(String listId, String channelId) async {
@@ -1807,15 +1840,18 @@ class AppDatabase extends _$AppDatabase {
     final members = await select(favoriteListChannels).get();
     if (members.isEmpty) return;
     final anchors = {for (final c in await getChannelsByIds(members.map((m) => m.channelId).toSet())) c.id: c};
+    final newRoutes = await getChannelsByIds(ids);
+    final catalogIds = await publicCatalogChannelIds([
+      ...anchors.values, ...newRoutes,
+    ].where((c) => c.providerId == 'bobtv-channel-catalog').map((c) => c.id));
     final listsByKey = <String, Set<String>>{};
     for (final member in members) {
       final anchor = anchors[member.channelId];
-      if (anchor != null) (listsByKey[_favoriteKey(anchor)] ??= {}).add(member.listId);
+      if (anchor != null) (listsByKey[_favoriteKey(anchor, catalogIds)] ??= {}).add(member.listId);
     }
-    final newRoutes = await getChannelsByIds(ids);
     await batch((b) {
       for (final route in newRoutes) {
-        for (final list in listsByKey[_favoriteKey(route)] ?? <String>{}) {
+        for (final list in listsByKey[_favoriteKey(route, catalogIds)] ?? <String>{}) {
           b.insert(favoriteListChannels, FavoriteListChannelsCompanion.insert(
               listId: list, channelId: route.id), mode: InsertMode.insertOrIgnore);
         }

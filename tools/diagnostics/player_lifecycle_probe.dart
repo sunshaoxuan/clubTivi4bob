@@ -276,6 +276,47 @@ Future<void> main() async {
       'audioSamples': audioSamples,
       'rssGrowth': growth,
     });
+    if (service != null &&
+        Platform.environment['BOBTV_LIFECYCLE_PREVIEW_COMMIT'] == '1') {
+      // Isolated local-fixture transfer, including a decoded but paused preview.
+      // This never opens a public route or the user's settings/database.
+      await service.play(media, channelId: 'fixture-main');
+      final prepared = await service.switchChannel(
+        media,
+        channelId: 'fixture-preview',
+        previewOnly: true,
+        onlyRequestedRoute: true,
+      );
+      final controller = service.previewVideoController.value;
+      if (!prepared || controller == null) {
+        throw StateError('Fixture preview was not prepared');
+      }
+      await (controller.player.platform as native.NativePlayer).setProperty(
+        'ao',
+        'null',
+      );
+      preview.value = controller;
+      await WidgetsBinding.instance.endOfFrame;
+      await controller.player.pause();
+      final watch = Stopwatch()..start();
+      final committed = await service.commitPreparedChannel('fixture-preview');
+      watch.stop();
+      if (!committed ||
+          !identical(service.player, controller.player) ||
+          !identical(service.videoController, controller)) {
+        throw StateError('Fixture preview decoder/controller was not reused');
+      }
+      visible.value = controller;
+      preview.value = null;
+      await service.player.play();
+      record('preview_commit_passed', {
+        'nativeCommitMicroseconds': watch.elapsedMicroseconds,
+        'sameDecoderAndController': true,
+        'decodedPausedPreviewAccepted': true,
+        'localFixtureOnly': true,
+        'audibleContinuityTested': false,
+      });
+    }
     if (mode == 'native_close' && hiddenIdle) {
       await windowManager.show();
       await enterFullscreen();

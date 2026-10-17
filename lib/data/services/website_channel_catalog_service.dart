@@ -168,6 +168,9 @@ class WebsiteChannelCatalogService {
       final keepIds = <String>{};
       var imported = 0;
       await database.withoutSharedReporting(() async {
+        // Make exact server ownership available to favorite inheritance during
+        // the same atomic import; no client-side name matching is needed.
+        await identityBinding.replaceCatalogIdentities(manifest.version, records);
         final revisions = await database.sharedRouteRevisions();
         final pending = await database.pendingSharedCategoryUrls();
         final pendingMerges = await database.pendingSharedMergeUrls();
@@ -291,7 +294,6 @@ class WebsiteChannelCatalogService {
           }
         }
         await database.deleteChannelsMissingFromProvider(providerId, keepIds);
-        await identityBinding.replaceCatalogIdentities(manifest.version, records);
         await identityBinding.reconcile();
         await database.markProviderRefreshed(providerId, DateTime.now());
         await database.setSharedCatalogVersion(manifest.version);

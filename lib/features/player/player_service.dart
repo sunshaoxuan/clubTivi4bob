@@ -972,7 +972,8 @@ class PlayerService {
   Future<bool> commitPreparedChannel(String? channelId) async {
     final prepared = _preparedChannel;
     if (prepared == null || prepared.channelId != channelId) return false;
-    await _retirementGuard?.refresh();
+    // Reuse the already verified decoder. The promotion below still performs
+    // the durable retirement check, so do not read it twice on this fast path.
     if (!_routeAllowed(prepared.url)) {
       await discardPreparedChannel();
       return false;
@@ -991,33 +992,8 @@ class PlayerService {
           _preparedChannelTimeout = null;
         },
         isCurrent: current,
-        readyNow: () {
-          final state = prepared.player.state;
-          return preparedMediaReady(
-            playing: state.playing, buffering: state.buffering,
-            hasVideoTrack: state.tracks.video.any((t) => t.id != 'auto' && t.id != 'no'),
-            hasAudioTrack: state.tracks.audio.any((t) => t.id != 'auto' && t.id != 'no'),
-            width: state.width ?? 0, height: state.height ?? 0,
-            advanced: true, allowAudioOnly: prepared.allowAudioOnly,
-          );
-        },
-        waitUntilReady: () {
-          AppDiagnostics.instance.log('channel_preview_commit_waiting', {
-            'channel': prepared.channelName,
-            'buffering': prepared.player.state.buffering,
-          });
-          channelPreviewProgress.value = const RouteSearchProgress(
-            stage: '正在等待预览恢复', index: 1, total: 1, active: true,
-          );
-          return _waitForPreparedChannel(
-            prepared.player, request,
-            allowAudioOnly: prepared.allowAudioOnly,
-            requireUltraHd: ChannelNameNormalizer.isUltraHd(prepared.channelName ?? '') ||
-                ChannelNameNormalizer.isUltraHd(prepared.originalName ?? '') ||
-                ChannelNameNormalizer.isUltraHd(prepared.tvgId ?? ''),
-            stillValid: current,
-          );
-        },
+        // A prepared object exists only after the first decoded preview passed
+        // validation. Buffering after that does not invalidate its ownership.
         promote: () => _commitReadyPreparedChannel(prepared, request),
       );
     } catch (error) {
@@ -1471,12 +1447,13 @@ class PlayerService {
     if (playGeneration != _playGeneration) return;
 
     routeSearchProgress.value = RouteSearchProgress(
-      stage: '正在快速探测前 ${currentCandidateCount > 24 ? 24 : currentCandidateCount} 路',
+      stage: '正在按当前网络评分选择线路',
       index: 0, total: currentCandidateCount,
-      label: '随后会逐条验证画面', active: true,
+      label: '优先高分线路，失败后尝试下一条', active: true,
     );
-    final selectedUrl = await _selectFastestStream(url);
+    final selectedUrl = await _selectInitialStream(url);
     if (playGeneration != _playGeneration) return;
+    if (selectedUrl == null) return;
     var activeUrl = selectedUrl;
     _currentUrl = activeUrl;
     routeSearchProgress.value = RouteSearchProgress(
@@ -1883,126 +1860,36 @@ class PlayerService {
     });
   }
 
-  /// Tests a small, bounded set of equivalent streams in parallel and returns
-  /// the quickest usable route. The original URL remains the fallback.
-  Future<String> _selectFastestStream(String originalUrl) async {
+  /// Open the best known route without fetching competing media streams.
+  /// Actual decoding and the existing failure monitor validate it, in order.
+  Future<String?> _selectInitialStream(String originalUrl) async {
     final generation = _playGeneration;
-    await _healthTracker?.prepare([originalUrl, ..._getFailoverAlternatives()]);
-    if (generation != _playGeneration) return originalUrl;
-    final candidates = <String>[originalUrl];
-    for (final url in _getFailoverAlternatives()) {
-      if (_failedFailoverUrls.contains(url)) continue;
-      if (!candidates.contains(url)) candidates.add(url);
-      if (candidates.length >= 24) break;
-    }
-    if (candidates.length < 2) return originalUrl;
-
-    final probes = candidates
-        .map(
-          (url) => _probeStream(url).timeout(
-            const Duration(milliseconds: 2800),
-            onTimeout: () => _StreamProbe.unusable(url),
-          ),
-        )
-        .toList();
-    List<_StreamProbe> results;
-    try {
-      results = await Future.wait(probes).timeout(
-        const Duration(milliseconds: 3200),
-        onTimeout: () => const <_StreamProbe>[],
-      );
-    } catch (_) {
-      return originalUrl;
-    }
-
-    final usable = results.where((probe) => probe.usable).toList();
-    if (usable.isEmpty) return originalUrl;
-    usable.sort((a, b) => b.score.compareTo(a.score));
-    final best = usable.first;
-    _healthTracker?.recordTTFF(best.url, best.firstByteMs);
-    debugPrint(
-      '[Failover] Preflight selected ${best.url} '
-      '(${best.firstByteMs}ms, ${best.bytesPerSecond.round()} B/s)',
+    return selectInitialRoute(
+      [originalUrl, ..._getFailoverAlternatives()],
+      prepare: (urls) async => _healthTracker?.prepare(urls),
+      score: (url) => _healthTracker?.getScore(url) ?? .5,
+      isCurrent: () => generation == _playGeneration && !_disposed,
+      allowed: _routeAllowed,
     );
-    return best.url;
   }
 
-  Future<_StreamProbe> _probeStream(String url) async {
-    final cleanUrl = url.split('|').first.trim();
-    final uri = Uri.tryParse(cleanUrl);
-    if (uri == null || (uri.scheme != 'http' && uri.scheme != 'https')) {
-      _healthTracker?.recordProbeFailure(url);
-      return _StreamProbe.unusable(url);
-    }
-
-    final client = ServerEgress.createMediaClient()..connectionTimeout = const Duration(seconds: 1);
-    final stopwatch = Stopwatch()..start();
-    var firstByteMs = 3200;
-    var bytes = 0;
-    var statusOk = false;
-    final prefix = <int>[];
+  @visibleForTesting
+  static Future<String?> selectInitialRoute(
+    Iterable<String> urls, {
+    required Future<void> Function(Iterable<String>) prepare,
+    required double Function(String) score,
+    required bool Function() isCurrent,
+    required bool Function(String) allowed,
+  }) async {
+    final candidates = urls.toList();
     try {
-      final request = await client
-          .getUrl(ServerEgress.resourceUri(url, 'media'))
-          .timeout(const Duration(milliseconds: 1400));
-      request.followRedirects = true;
-      request.maxRedirects = 4;
-      request.headers.set('Range', 'bytes=0-65535');
-      request.headers.set('User-Agent', 'HotelTV/0.4');
-      ServerEgress.mediaHeaders(url).forEach(request.headers.set);
-      final response = await request.close().timeout(
-        const Duration(milliseconds: 1600),
-      );
-      statusOk = response.statusCode >= 200 && response.statusCode < 300;
-      final contentType = response.headers.contentType?.mimeType.toLowerCase() ?? '';
-      if (contentType.contains('text/html') ||
-          contentType.contains('application/json') ||
-          (contentType.contains('text/xml') && !contentType.contains('dash+xml'))) {
-        statusOk = false;
-      }
-      if (!statusOk) {
-        _healthTracker?.recordProbeFailure(url);
-        return _StreamProbe.unusable(url);
-      }
-
-      await for (final chunk in response.timeout(
-        const Duration(milliseconds: 1700),
-      )) {
-        if (bytes == 0) firstByteMs = stopwatch.elapsedMilliseconds;
-        bytes += chunk.length;
-        if (prefix.length < 64) {
-          prefix.addAll(chunk.take(64 - prefix.length));
-        }
-        if (bytes >= 64 * 1024) break;
-      }
+      await prepare(candidates);
     } catch (_) {
-      if (bytes == 0) {
-        _healthTracker?.recordProbeFailure(url);
-        return _StreamProbe.unusable(url);
-      }
-    } finally {
-      stopwatch.stop();
-      client.close(force: true);
+      // Retain cached current-network ordering when the advisory API fails.
     }
-
-    final elapsedMs = stopwatch.elapsedMilliseconds.clamp(1, 3200);
-    final bytesPerSecond = bytes * 1000.0 / elapsedMs;
-    if (!statusOk || bytes == 0 || !looksLikeMediaPrefix(prefix)) {
-      _healthTracker?.recordProbeFailure(url);
-      return _StreamProbe.unusable(url);
-    }
-    _healthTracker?.recordProbeSuccess(url, firstByteMs, bytesPerSecond);
-    final health = _healthTracker?.getScore(url) ?? 0.5;
-    final responseScore = 1.0 / (1.0 + firstByteMs / 1000.0);
-    final throughputScore = bytesPerSecond / (bytesPerSecond + 750000.0);
-    final score = throughputScore * 0.45 + responseScore * 0.25 + health * 0.30;
-    return _StreamProbe(
-      url: url,
-      usable: statusOk && bytes > 0,
-      firstByteMs: firstByteMs,
-      bytesPerSecond: bytesPerSecond,
-      score: score,
-    );
+    if (!isCurrent()) return null;
+    final ranked = prioritizeCandidateUrls(candidates.where(allowed), score);
+    return ranked.firstOrNull;
   }
 
   @visibleForTesting
@@ -2743,10 +2630,11 @@ class PlayerService {
         .map(canonicalRouteUrl).toSet().toList();
     if (preferredUrl != null) preferredUrl = canonicalRouteUrl(preferredUrl);
     final order = {for (var i = 0; i < distinct.length; i++) distinct[i]: i};
+    final scores = {for (final url in distinct) url: score(url)};
     distinct.sort((left, right) {
       if (left == preferredUrl) return -1;
       if (right == preferredUrl) return 1;
-      final byScore = score(right).compareTo(score(left));
+      final byScore = scores[right]!.compareTo(scores[left]!);
       return byScore != 0
           ? byScore
           : order[left]!.compareTo(order[right]!);
@@ -3173,28 +3061,6 @@ class PlayerService {
     await _failoverSwitchingController.close();
     await _activePlayerController.close();
   }
-}
-
-class _StreamProbe {
-  final String url;
-  final bool usable;
-  final int firstByteMs;
-  final double bytesPerSecond;
-  final double score;
-
-  const _StreamProbe({
-    required this.url,
-    required this.usable,
-    required this.firstByteMs,
-    required this.bytesPerSecond,
-    required this.score,
-  });
-
-  const _StreamProbe.unusable(this.url)
-    : usable = false,
-      firstByteMs = 3200,
-      bytesPerSecond = 0,
-      score = 0;
 }
 
 class _PreparedChannel {

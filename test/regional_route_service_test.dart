@@ -29,6 +29,7 @@ class FakeApi extends BobTvApiClient {
   Map<String, dynamic> current = profile('CN', 4134);
   int calls = 0;
   bool offline = false;
+  Completer<Map<String, dynamic>>? pendingRanking;
 
   @override
   Future<Map<String, dynamic>> fetchNetworkProfile() async {
@@ -40,6 +41,7 @@ class FakeApi extends BobTvApiClient {
   Future<Map<String, dynamic>> rankRegionalRoutes(List<String> urls) async {
     calls++;
     if (offline) throw StateError('offline');
+    if (pendingRanking != null) return pendingRanking!.future;
     return {
       'schemaVersion': 1,
       'profile': current,
@@ -59,6 +61,43 @@ class FakeApi extends BobTvApiClient {
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   setUp(() => SharedPreferences.setMockInitialValues({}));
+
+  test('same network ranking never rewrites availability or interrupts playback', () async {
+    final tracker = StreamHealthTracker();
+    final api = FakeApi();
+    var networkChanges = 0;
+    final service = RegionalRouteService(tracker: tracker, api: api,
+      onNetworkChanged: (_) async { networkChanges++; });
+    try {
+      await service.initialize();
+      await service.prepare([domestic]);
+      await service.prepare([overseas]);
+      expect(networkChanges, 1);
+    } finally { service.dispose(); }
+  });
+
+  test('late score response from old network is ignored', () async {
+    final tracker = StreamHealthTracker();
+    final api = FakeApi();
+    final service = RegionalRouteService(tracker: tracker, api: api);
+    try {
+      await service.initialize();
+      final old = Map<String, dynamic>.of(api.current);
+      api.pendingRanking = Completer<Map<String, dynamic>>();
+      final pending = service.prepare([domestic]);
+      await Future<void>.delayed(Duration.zero);
+      // A concurrent ranking observes the new connection first.
+      final first = api.pendingRanking!;
+      api.pendingRanking = null;
+      api.current = profile('US', 7922);
+      await service.prepare([overseas]);
+      first.complete({'schemaVersion': 1, 'profile': old,
+        'routes': [{'url': domestic, 'score': .99}]});
+      await pending;
+      expect(service.networkId, 'US:*:7922|direct');
+      expect(tracker.getScore(domestic), .5);
+    } finally { service.dispose(); }
+  });
 
   test(
     'main and preview share regional ranking and per-channel caching',

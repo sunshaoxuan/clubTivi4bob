@@ -62,7 +62,11 @@ class ServerEpgAttributionTile extends StatelessWidget {
                             const SizedBox(height: 8),
                             Text('节目数据许可：${credit.dataLicense}'),
                             SelectableText(credit.licenseUrl),
-                            const Text('改编数据须按相同许可共享。'),
+                            Text(
+                              credit.shareAlikeRequired
+                                  ? '改编数据须按相同许可共享。'
+                                  : '使用数据及衍生资料须保留来源署名与许可声明。',
+                            ),
                             const SizedBox(height: 8),
                             Text('转换说明：${credit.modificationNotice}'),
                             const SizedBox(height: 24),

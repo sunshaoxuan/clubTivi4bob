@@ -268,7 +268,8 @@ class StreamAlternativesService {
           .toSet();
       return _health.rankUrls(routes.toList()).map((e) => e.key).toList();
     }
-    if (channelId.startsWith('${WebsiteChannelCatalogService.providerId}:')) {
+    if (_catalogIds.containsKey(channelId) ||
+        channelId.startsWith('${WebsiteChannelCatalogService.providerId}:')) {
       final routes = (_catalogIndex[_catalogIds[channelId]] ?? const <Channel>[])
         .where((c) => c.streamUrl != excludeUrl && !_shouldHideChannel(c))
         .map((c) => c.streamUrl).toSet().toList();

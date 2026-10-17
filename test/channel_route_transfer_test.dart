@@ -88,6 +88,14 @@ void main() {
         ),
         contains(a),
       );
+      expect(
+        alternatives.getAlternatives(
+          channelId: 'third', channelName: 'Third', excludeUrl: c,
+        ),
+        isNot(contains(b)),
+      );
+      final identities = await database.publicCatalogChannelIds({'one', 'third'});
+      expect(identities['one'], identities['third']);
     },
   );
 

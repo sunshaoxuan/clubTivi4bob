@@ -257,6 +257,27 @@ class AppDatabase extends _$AppDatabase {
       for (final row in rows) {
         result[row.read<String>('local_channel_id')] = row.read<String>('catalog_channel_id');
       }
+      // A queued manual transfer is an explicit route-to-route choice. Reflect
+      // it until the server receipt arrives, without inferring any name match.
+      final transfers = await customSelect('''
+        SELECT c.id AS source_id,t.id AS target_id,
+          coalesce(r.catalog_channel_id,'manual-transfer:' || t.stream_url) AS identity
+        FROM shared_sync_outbox o
+        JOIN channels c ON c.stream_url=o.url
+        JOIN channels t ON t.stream_url=json_extract(o.payload,'\$.targetUrl')
+        LEFT JOIN catalog_epg_routes r ON r.local_channel_id=t.id
+        WHERE o.kind='transfer' AND c.provider_id='bobtv-channel-catalog'
+          AND t.provider_id='bobtv-channel-catalog'
+          AND (c.id IN (${List.filled(page.length, '?').join(',')})
+            OR t.id IN (${List.filled(page.length, '?').join(',')}))
+      ''', variables: [...page, ...page].map(Variable.withString).toList()).get();
+      final requested = page.toSet();
+      for (final transfer in transfers) {
+        for (final key in ['source_id', 'target_id']) {
+          final id = transfer.read<String>(key);
+          if (requested.contains(id)) result[id] = transfer.read<String>('identity');
+        }
+      }
     }
     return result;
   }

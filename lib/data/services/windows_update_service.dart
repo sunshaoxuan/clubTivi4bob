@@ -19,6 +19,23 @@ export 'desktop_update_state.dart';
 class WindowsUpdateService {
   WindowsUpdateService._();
 
+  @visibleForTesting
+  WindowsUpdateService.forTesting({
+    required Directory directory,
+    required String version,
+    required String runId,
+    required int workerPid,
+    String? installRequestId,
+  }) : _updateDirectory = directory,
+       _workerLaunchedForVersion = version,
+       _runId = runId,
+       _workerPid = workerPid,
+       _installRequested = installRequestId != null,
+       _installRequestId = installRequestId;
+
+  @visibleForTesting
+  Future<void> pollWorkerStatusForTesting() => _readWorkerStatus();
+
   static final instance = WindowsUpdateService._();
   static const _mirrorHost = 'bobtv.briconbric.com';
   static const _maxManifestBytes = 64 * 1024;
@@ -480,6 +497,26 @@ class WindowsUpdateService {
           );
         }
       }
+      final terminal =
+          reported?.phase == WindowsUpdatePhase.failed ||
+          reported?.phase == WindowsUpdatePhase.installed;
+      // Check liveness before ignoring an old consent receipt. Otherwise a dead
+      // helper can leave the application displaying authorization forever.
+      if (!terminal && !await _isWorkerRunning()) {
+        _installRequested = false;
+        _installRequestId = null;
+        state.value = WindowsUpdateState(
+          WindowsUpdatePhase.failed,
+          version: _workerLaunchedForVersion,
+          message: '更新助手已退出，授权或安装尚未完成。当前版本保留，下载和备份不会删除，请点击重试。',
+        );
+        AppDiagnostics.instance.log('update_worker_exited', {
+          'version': _workerLaunchedForVersion,
+          'pid': _workerPid,
+          'runId': _runId,
+        });
+        return;
+      }
       if (reported != null) {
         // A poll may still read the previous ready/cancelled state immediately
         // after a new request. Keep the consent UI busy until this request is
@@ -505,18 +542,7 @@ class WindowsUpdateService {
           reported?.phase == WindowsUpdatePhase.installed) {
         return;
       }
-      if (!await _isWorkerRunning()) {
-        state.value = WindowsUpdateState(
-          WindowsUpdatePhase.failed,
-          version: _workerLaunchedForVersion,
-          message: '更新助手意外退出，下载或安装尚未完成。点击重试；启动错误记录在 launcher.log。',
-        );
-        AppDiagnostics.instance.log('update_worker_exited', {
-          'version': _workerLaunchedForVersion,
-          'pid': _workerPid,
-          'runId': _runId,
-        });
-      } else if (reported == null &&
+      if (reported == null &&
           _workerStartedAt != null &&
           DateTime.now().difference(_workerStartedAt!) >
               const Duration(seconds: 30)) {

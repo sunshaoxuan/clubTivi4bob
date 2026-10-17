@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:clubtivi/core/app_version.dart';
 import 'package:clubtivi/data/services/desktop_update_state.dart';
 import 'package:clubtivi/features/settings/desktop_update_check_tile.dart';
 
@@ -43,6 +44,7 @@ void main() {
         ),
       ),
     );
+    expect(find.textContaining('当前版本 v$bobTvVersion'), findsOneWidget);
     await tester.tap(find.text('检查更新'));
     await tester.pump();
     expect(find.text('正在检查更新'), findsOneWidget);
@@ -52,13 +54,14 @@ void main() {
     state.value = const WindowsUpdateState(WindowsUpdatePhase.upToDate);
     await tester.pump();
     expect(find.text('已是最新版本'), findsOneWidget);
+    expect(find.textContaining('当前版本 v$bobTvVersion'), findsOneWidget);
     expect(find.byType(CircularProgressIndicator), findsNothing);
     state.value = const WindowsUpdateState(
       WindowsUpdatePhase.failed,
       message: '连接超时',
     );
     await tester.pump();
-    expect(find.text('连接超时'), findsOneWidget);
+    expect(find.textContaining('连接超时'), findsOneWidget);
     state.value = const WindowsUpdateState(WindowsUpdatePhase.manualRequired);
     await tester.pump();
     expect(find.text('更新服务暂未就绪'), findsOneWidget);

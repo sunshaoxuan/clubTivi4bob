@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
+import '../../core/app_version.dart';
 import '../../data/services/desktop_update_state.dart';
 
 /// Live feedback stays in the settings page while the user checks or downloads.
@@ -16,41 +17,43 @@ class DesktopUpdateCheckTile extends StatelessWidget {
   final Future<void> Function()? onInstall;
 
   @override
-  Widget build(BuildContext context) =>
-      ValueListenableBuilder<WindowsUpdateState>(
-        valueListenable: state,
-        builder: (context, update, _) => ListTile(
-          leading: update.busy
-              ? const SizedBox(
-                  width: 24,
-                  height: 24,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                )
-              : const Icon(Icons.system_update_rounded),
-          title: Text(update.visible ? update.label : '检查更新'),
-          subtitle: Text(
-            update.visible ? update.description : '连接 BobTV 更新服务，检查适用于当前平台的版本',
-          ),
-          trailing:
-              (update.phase == WindowsUpdatePhase.ready ||
-                      update.phase == WindowsUpdatePhase.awaitingExit) &&
-                  onInstall != null
-              ? TextButton(
-                  onPressed: onInstall,
-                  child: Text(
-                    update.phase == WindowsUpdatePhase.awaitingExit
-                        ? '退出并安装'
-                        : '安装更新',
-                  ),
-                )
-              : update.phase == WindowsUpdatePhase.manualRequired
-              ? TextButton(onPressed: onCheck, child: const Text('重试更新'))
-              : null,
-          onTap: update.canCheck
-              ? () async {
-                  await onCheck();
-                }
-              : null,
-        ),
-      );
+  Widget build(
+    BuildContext context,
+  ) => ValueListenableBuilder<WindowsUpdateState>(
+    valueListenable: state,
+    builder: (context, update, _) => ListTile(
+      leading: update.busy
+          ? const SizedBox(
+              width: 24,
+              height: 24,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            )
+          : const Icon(Icons.system_update_rounded),
+      title: Text(update.visible ? update.label : '检查更新'),
+      subtitle: Text(
+        '当前版本 v$bobTvVersion · '
+        '${update.visible ? update.description : '连接 BobTV 更新服务，检查适用于当前平台的版本'}',
+      ),
+      trailing:
+          (update.phase == WindowsUpdatePhase.ready ||
+                  update.phase == WindowsUpdatePhase.awaitingExit) &&
+              onInstall != null
+          ? TextButton(
+              onPressed: onInstall,
+              child: Text(
+                update.phase == WindowsUpdatePhase.awaitingExit
+                    ? '退出并安装'
+                    : '安装更新',
+              ),
+            )
+          : update.phase == WindowsUpdatePhase.manualRequired
+          ? TextButton(onPressed: onCheck, child: const Text('重试更新'))
+          : null,
+      onTap: update.canCheck
+          ? () async {
+              await onCheck();
+            }
+          : null,
+    ),
+  );
 }

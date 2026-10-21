@@ -384,6 +384,6 @@
     "macos_note": "現在の依存関係はmacOS 13以降を必要とします。旧OS対応は未実装です。チップを選び、DMGからApplicationsへドラッグ。",
     "android_note": "Android 7以上。更新時にシステム確認が必要です。実機と中国本土の試験は未実施。",
     "windows_arm64_note": "ARM64ネイティブ版のビルドとアーキテクチャを検証済み。Surface実機での再生、AirPlay、更新インストールは未検証です。",
-    "platform_pending": "このCPUの新パッケージは後日追加予定です。現在は{version}を提供し、既存のダウンロードと更新経路を維持します。"
+    "platform_pending": "このプラットフォームでは現在 {version} を提供しています。ダウンロードと更新経路は引き続き利用できます。"
   }
 }

@@ -384,6 +384,6 @@
     "macos_note": "Current dependencies require macOS 13 or later; older-system compatibility is pending. Choose your chip, open the DMG and drag the app to Applications.",
     "android_note": "Android 7+. Updates require system confirmation. Device and Mainland China tests pending.",
     "windows_arm64_note": "Native ARM64 packages passed build and architecture checks. Surface playback, AirPlay and update installation still need hardware tests.",
-    "platform_pending": "The new package for this CPU will follow. Currently available: {version}; existing downloads and update feeds remain usable."
+    "platform_pending": "This platform currently provides {version}. Its existing downloads and update channel remain available."
   }
 }

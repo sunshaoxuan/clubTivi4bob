@@ -384,6 +384,6 @@
     "macos_note": "当前依赖要求 macOS 13 或更新版本，旧系统兼容仍待开发。选对芯片，打开 DMG 后拖到 Applications。",
     "android_note": "Android 7+；更新安装需系统确认。实机与大陆网络待验证。",
     "windows_arm64_note": "ARM64 原生包已通过构建与架构校验；Surface 实机播放、AirPlay 和更新仍待验证。",
-    "platform_pending": "这个 CPU 的新包稍后补充，当前提供 {version}。现有下载和更新通道继续可用。"
+    "platform_pending": "该平台当前提供 {version}，现有下载与更新通道继续可用。"
   }
 }

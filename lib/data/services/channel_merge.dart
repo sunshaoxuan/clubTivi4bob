@@ -7,12 +7,14 @@ class ChannelMergeChoice {
     required this.group,
     required this.routeCount,
     this.mergeId,
+    this.identityKey,
   });
   final String id;
   final String name;
   final String group;
   final int routeCount;
   final String? mergeId;
+  final String? identityKey;
 }
 
 class ChannelMergePlan {

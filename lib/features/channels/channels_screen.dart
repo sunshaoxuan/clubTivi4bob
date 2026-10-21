@@ -42,6 +42,7 @@ import '../../data/models/server_epg_snapshot.dart';
 import '../../data/services/stream_alternatives_service.dart';
 import '../../data/services/manual_route_cycle.dart';
 import '../../data/services/channel_name_normalizer.dart';
+import '../../data/services/channel_presentation_identity.dart';
 import '../../data/services/source_visibility.dart';
 import '../../data/services/website_channel_catalog_service.dart';
 import '../../data/services/desktop_update_service.dart';
@@ -76,7 +77,8 @@ class ChannelsScreen extends ConsumerStatefulWidget {
 }
 
 class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
-  Map<String, String> _catalogChannelIds = {};
+  Map<String, String> _presentationKeys = {};
+  Map<String, List<String>> _catalogCategoryGroups = {};
   bool _initialLoadDone = false;
   bool _fullscreenRouteOpen = false;
   late final ChannelProgrammePreview _inlineProgrammePreview;
@@ -688,14 +690,15 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
           )).toList();
     }
 
-    final catalogIds = await database.publicCatalogChannelIds(loaded
-      .where((c) => c.providerId == WebsiteChannelCatalogService.providerId)
-      .map((c) => c.id));
+    final presentationKeys = await database.channelPresentationKeys(loaded);
+    final categoryGroups = await database.publicCatalogCategoryGroups(
+      loaded.map((c) => c.id));
     final mergeIds = await database.channelMergeIds(loaded.map((c) => c.streamUrl));
     if (!mounted || generation != _categoryLoadGeneration) return;
     final unchanged = _sameChannelSnapshot(_allChannels, loaded);
     setState(() {
-      _catalogChannelIds = catalogIds;
+      _presentationKeys = presentationKeys;
+      _catalogCategoryGroups = categoryGroups;
       _rebuildInternationalCountries(loaded, group);
       _channelMergeIds = mergeIds;
       if (!unchanged) {
@@ -1042,9 +1045,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
           if (_selectedGroup == '国际') {
             return _countryFor(c) == _selectedInternationalCountry &&
                 (_selectedInternationalGenre == '全部' ||
-                    ChannelCategoryClassifier.internationalGenreFor(
-                      c.groupTitle,
-                    ) == _selectedInternationalGenre);
+                    _matchesInternationalGenre(c, _selectedInternationalGenre));
           }
           return _categoryFor(c) == _selectedGroup;
         }).toList();
@@ -1098,23 +1099,14 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
   }
 
   List<db.Channel> _deduplicateChannels(List<db.Channel> channels) {
-    final representatives = <String, db.Channel>{};
-    final scores = <String, int>{};
-    for (final channel in channels) {
-      if (_hideIpv6Sources && _isIpv6Channel(channel)) continue;
-      if (_hasInvalidStreamMetadata(channel)) continue;
-      final key = _automaticChannelKey(channel);
-      if (key.isEmpty) {
-        representatives[channel.id] = channel;
-        continue;
-      }
-      final score = _representativeScore(channel);
-      if (!representatives.containsKey(key) || score > (scores[key] ?? -1)) {
-        representatives[key] = channel;
-        scores[key] = score;
-      }
-    }
-    return representatives.values.toList();
+    return ChannelPresentationIdentity.representatives(
+      channels.where((c) => !(_hideIpv6Sources && _isIpv6Channel(c)) &&
+          !_hasInvalidStreamMetadata(c)),
+      idOf: (c) => c.id,
+      keyOf: (c) => _automaticChannelKey(c),
+      scoreOf: _representativeScore,
+      playingId: _previewChannel?.id,
+    );
   }
 
 
@@ -1174,10 +1166,12 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
   }
 
   String _automaticChannelKey(db.Channel channel) {
-    final merged = _channelMergeIds[channel.streamUrl];
+    final merged = _channelMergeIds[canonicalRouteUrl(channel.streamUrl)];
     if (merged != null) return 'manual:$merged';
+    final presentation = _presentationKeys[channel.id];
+    if (presentation != null) return presentation;
     if (channel.providerId == WebsiteChannelCatalogService.providerId) {
-      return 'catalog:${_catalogChannelIds[channel.id] ?? channel.id}';
+      return 'catalog:${channel.id}';
     }
     final cached = _automaticKeyByChannelId[channel.id];
     if (cached != null) return cached;
@@ -1190,6 +1184,13 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
     _automaticKeyByChannelId[channel.id] = qualifiedKey;
     return qualifiedKey;
   }
+
+  Iterable<String> _internationalGenresOf(db.Channel channel) =>
+      (_catalogCategoryGroups[channel.id] ?? [channel.groupTitle ?? ''])
+          .map(ChannelCategoryClassifier.internationalGenreFor);
+
+  bool _matchesInternationalGenre(db.Channel channel, String genre) =>
+      _internationalGenresOf(channel).contains(genre);
 
   bool _isUltraHdChannel(db.Channel channel) {
     return ChannelNameNormalizer.isUltraHd(channel.name) ||
@@ -1301,16 +1302,17 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
       final key = _automaticChannelKey(channel);
       if (key.isEmpty || channel.streamUrl.isEmpty) continue;
       final urls = _automaticUrlSetsByKey.putIfAbsent(key, () => <String>{});
-      if (urls.add(channel.streamUrl)) {
+      final url = canonicalRouteUrl(channel.streamUrl);
+      if (urls.add(url)) {
         _automaticUrlsByKey.putIfAbsent(key, () => <String>[])
-            .add(channel.streamUrl);
+            .add(url);
       }
     }
   }
 
   int _representativeScore(db.Channel channel) {
     var score = 0;
-    if (_verifiedRouteUrls.contains(channel.streamUrl)) score += 100;
+    if (_verifiedRouteUrls.contains(canonicalRouteUrl(channel.streamUrl))) score += 100;
     if (_epgMappings.containsKey(channel.id)) score += 8;
     if (channel.tvgId?.isNotEmpty ?? false) score += 4;
     if (channel.tvgLogo?.isNotEmpty ?? false) score += 2;
@@ -1324,7 +1326,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
     if (key.isEmpty) return const [];
     final urls = (_automaticUrlsByKey[key] ?? const <String>[])
         .where((url) =>
-            url != channel.streamUrl &&
+            url != canonicalRouteUrl(channel.streamUrl) &&
             (includeUnverified || !_simpleMode ||
                 channel.providerId == WebsiteChannelCatalogService.providerId ||
                 _verifiedRouteUrls.contains(url)))
@@ -1345,7 +1347,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
     final key = _automaticChannelKey(channel);
     final urls = _automaticUrlSetsByKey[key];
     if (urls == null || urls.isEmpty) return 1;
-    return urls.length + (urls.contains(channel.streamUrl) ? 0 : 1);
+    return urls.length + (urls.contains(canonicalRouteUrl(channel.streamUrl)) ? 0 : 1);
   }
 
   int _verifiedRouteCount(db.Channel channel) {
@@ -1355,7 +1357,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
 
   int _verifiedAlternativeCount(db.Channel channel) {
     final count = _verifiedRouteCount(channel);
-    return count - (_verifiedRouteUrls.contains(channel.streamUrl) ? 1 : 0);
+    return count - (_verifiedRouteUrls.contains(canonicalRouteUrl(channel.streamUrl)) ? 1 : 0);
   }
 
   Future<void> _refreshRouteAvailability(
@@ -1368,7 +1370,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
     if (_selectedGroup == '国际') {
       channels = channels.where((c) => _countryFor(c) == _selectedInternationalCountry &&
         (_selectedInternationalGenre == '全部' ||
-          ChannelCategoryClassifier.internationalGenreFor(c.groupTitle) == _selectedInternationalGenre)).toList();
+          _matchesInternationalGenre(c, _selectedInternationalGenre))).toList();
     }
     ref.read(sourceMaintenanceCoordinatorProvider).routeStates.queueCategory(
         channels.map((channel) => channel.streamUrl));
@@ -1400,8 +1402,8 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
           lastVerifiedAt.isBefore(recent)) continue;
       final key = _automaticChannelKey(channel);
       (validByChannel[key.isEmpty ? channel.id : key] ??= <String>{})
-          .add(channel.streamUrl);
-      verifiedUrls.add(channel.streamUrl);
+          .add(canonicalRouteUrl(channel.streamUrl));
+      verifiedUrls.add(canonicalRouteUrl(channel.streamUrl));
     }
     setState(() {
       _verifiedRouteCounts = validByChannel.map(
@@ -1485,9 +1487,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
     final found = <String>{};
     for (final channel in _allChannels) {
       if (_countryFor(channel) == _selectedInternationalCountry) {
-        found.add(ChannelCategoryClassifier.internationalGenreFor(
-          channel.groupTitle,
-        ));
+        found.addAll(_internationalGenresOf(channel));
       }
     }
     return [
@@ -1821,7 +1821,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
             previewOnly: prepareOnly,
             preferRequestedRoute: preferredUrl != null ||
                 (prepareOnly && channel.providerId != WebsiteChannelCatalogService.providerId &&
-                    _verifiedRouteUrls.contains(channel.streamUrl)),
+                    _verifiedRouteUrls.contains(canonicalRouteUrl(channel.streamUrl))),
             onlyRequestedRoute: onlyRequestedRoute,
           )
             : true;

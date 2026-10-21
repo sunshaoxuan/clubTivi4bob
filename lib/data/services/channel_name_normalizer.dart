@@ -92,10 +92,10 @@ class ChannelNameNormalizer {
       ' ',
     );
 
-    // Keep letters, digits and CJK scripts. Convert punctuation to spaces so
+    // Keep Unicode letters, combining marks and digits. Convert punctuation so
     // English word matching remains useful.
     value = value
-        .replaceAll(RegExp(r'[^a-z0-9㐀-䶿一-鿿぀-ヿ가-힯]+', unicode: true), ' ')
+        .replaceAll(RegExp(r'[^\p{L}\p{M}\p{N}]+', unicode: true), ' ')
         .replaceAll(RegExp(r'\s+'), ' ')
         .trim();
 

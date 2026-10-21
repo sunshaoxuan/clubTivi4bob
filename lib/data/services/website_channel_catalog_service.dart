@@ -123,7 +123,8 @@ class WebsiteChannelCatalogService {
         throw const FormatException('Stale website snapshot');
       final identityBinding = ServerEpgBinding(database);
       if (installedVersion == manifest.version && installed &&
-          await identityBinding.catalogIdentityVersion() == manifest.version) {
+          await identityBinding.catalogIdentityVersion() == manifest.version &&
+          await identityBinding.hasPresentationContext()) {
         state.value = WebsiteCatalogProgress(
           phase: '网站频道已是最新',
           imported: manifest.routeCount,
@@ -444,6 +445,33 @@ Future<List<Map<String, Object?>>> _decodeCatalog(
       categories,
       channel['countryCode'] as String?,
     );
+    final groups = <String>[group];
+    final aliases = channel['categoryIds'];
+    if (aliases != null) {
+      if (aliases is! List || aliases.isEmpty || aliases.length > 16 ||
+          !aliases.contains(channel['categoryId']) ||
+          aliases.toSet().length != aliases.length) {
+        throw const FormatException('Invalid alternate channel classifications');
+      }
+      final primary = group.split(' / ');
+      for (final alias in aliases) {
+        final category = alias is String ? categories[alias] : null;
+        if (category == null) {
+          throw const FormatException('Unknown alternate channel category');
+        }
+        final alternate = _catalogGroupFor(category, categories,
+          channel['countryCode'] as String?);
+        final parts = alternate.split(' / ');
+        if (primary.length != 3 || parts.length != 3 ||
+            primary.first != '国际' || primary[1] == '未识别地区' ||
+            parts[0] != primary[0] || parts[1] != primary[1] ||
+            !ChannelCategoryClassifier.internationalGenres.contains(primary[2]) ||
+            !ChannelCategoryClassifier.internationalGenres.contains(parts[2])) {
+          throw const FormatException('Conflicting alternate channel identity');
+        }
+        if (!groups.contains(alternate)) groups.add(alternate);
+      }
+    }
     for (final route in channel['routes'] as List) {
       if (route is! Map ||
           route['id'] is! String ||
@@ -468,6 +496,8 @@ Future<List<Map<String, Object?>>> _decodeCatalog(
         'routeId': route['id'] as String,
         'catalogChannelId': channel['id'] as String,
         'catalogIdentityHash': identityHash,
+        'countryCode': channel['countryCode'] as String?,
+        'regionCode': channel['regionCode'] as String?,
         'name': name,
         'mergeId': channel['mergeId'] is String
             ? channel['mergeId'] as String
@@ -475,6 +505,7 @@ Future<List<Map<String, Object?>>> _decodeCatalog(
         'url': url,
         'transferred': route['transferred'] == true,
         'group': group,
+        'groups': groups,
         'epgId': channel['epgId'] as String?,
         'logoUrl': channel['logoUrl'] as String?,
         'order': channel['sortOrder'] is int ? channel['sortOrder'] as int : 0,

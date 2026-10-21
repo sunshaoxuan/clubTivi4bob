@@ -70,6 +70,86 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   setUp(() => SharedPreferences.setMockInitialValues({}));
 
+  test('catalog import preserves country and region boundaries for duplicate cards', () async {
+    final payload = _catalog();
+    final template = (payload['channels'] as List).single as Map;
+    payload['channels'] = [
+      for (final id in ['one', 'two', 'other-region'])
+        <String, Object?>{...template, 'id': id, 'countryCode': 'cn',
+          'regionCode': id == 'other-region' ? 'south' : 'north',
+          'routes': [{'id': 'route-$id', 'url': 'https://media.example.org/$id'}]},
+    ];
+    final database = db.AppDatabase.forTesting(NativeDatabase.memory());
+    final api = _CatalogApi(payload);
+    final service = WebsiteChannelCatalogService(database: database, api: api);
+    addTearDown(() async { service.dispose(); await database.close(); });
+    expect(await service.sync(), 3, reason: '${service.lastError}');
+    // Upgraded databases refill context even when the catalog version is unchanged.
+    await database.customStatement('DELETE FROM catalog_presentation_context');
+    expect(await service.sync(), 3, reason: '${service.lastError}');
+    var rows = await database.getAllChannels();
+    var keys = await database.channelPresentationKeys(rows);
+    expect(keys['bobtv-channel-catalog:route-one'], keys['bobtv-channel-catalog:route-two']);
+    expect(keys.values.toSet(), hasLength(2));
+    // A later authoritative metadata change rebuilds the grouping atomically.
+    ((payload['channels'] as List)[1] as Map)['regionCode'] = 'east';
+    payload['version'] = '2026-09-28.2';
+    api.version = '2026-09-28.2';
+    expect(await service.sync(), 3, reason: '${service.lastError}');
+    rows = await database.getAllChannels();
+    keys = await database.channelPresentationKeys(rows);
+    expect(keys.values.toSet(), hasLength(3));
+    expect(await database.pendingSharedEvents(), isEmpty);
+  });
+
+  test('one service retains multiple genre memberships and one favorite identity', () async {
+    final payload = _catalog();
+    payload['categories'] = [
+      {'id': 'world', 'name': '国际', 'parentId': null},
+      {'id': 'my', 'name': '马来西亚', 'parentId': 'world'},
+      {'id': 'drama', 'name': '剧集', 'parentId': 'my'},
+      {'id': 'movie', 'name': '电影', 'parentId': 'my'},
+    ];
+    final channel = (payload['channels'] as List).single as Map;
+    channel['name'] = 'Astro AOD';
+    channel['categoryId'] = 'drama';
+    channel['categoryIds'] = ['drama', 'movie'];
+    channel['routes'] = [
+      {'id': 'one', 'url': 'https://media.example.org/aod'},
+      {'id': 'two', 'url': 'https://media.example.org/aod2'},
+    ];
+    final database = db.AppDatabase.forTesting(NativeDatabase.memory());
+    final service = WebsiteChannelCatalogService(database: database, api: _CatalogApi(payload));
+    addTearDown(() async { service.dispose(); await database.close(); });
+    expect(await service.sync(), 2, reason: '${service.lastError}');
+    final rows = await database.getAllChannels();
+    final groups = await database.publicCatalogCategoryGroups(rows.map((r) => r.id));
+    expect(groups.values.every((g) => g.toSet().containsAll(
+      ['国际 / 马来西亚 / 剧集', '国际 / 马来西亚 / 电影'])), isTrue);
+    await database.addChannelToDefaultFavorites(rows.first.id);
+    expect(await database.getAllFavoritedChannelIds(), hasLength(2));
+    expect((await database.channelPresentationKeys(rows)).values.toSet(), hasLength(1));
+    // An explicit pending classification must take precedence over old aliases.
+    await (database.update(database.channels)..where((c) => c.id.equals(rows.first.id)))
+        .write(const db.ChannelsCompanion(groupTitle: Value('国际 / 马来西亚 / 音乐')));
+    expect((await database.publicCatalogCategoryGroups([rows.first.id])), isEmpty);
+  });
+
+  test('alternate classifications cannot cross countries or unknown categories', () async {
+    for (final aliases in [<Object>['cn-cctv', 'missing'], <Object>['cn-cctv', 1],
+        <Object>['cn-cctv', 'cn-cctv']]) {
+      final payload = _catalog();
+      ((payload['channels'] as List).single as Map)['categoryIds'] = aliases;
+      final database = db.AppDatabase.forTesting(NativeDatabase.memory());
+      final service = WebsiteChannelCatalogService(database: database, api: _CatalogApi(payload));
+      try {
+        expect(await service.sync(), 0);
+        expect(service.state.value.error, isTrue);
+        expect(await database.getAllChannels(), isEmpty);
+      } finally { service.dispose(); await database.close(); }
+    }
+  });
+
   test('an offline deletion is not resurrected by a newer snapshot', () async {
     final database = db.AppDatabase.forTesting(NativeDatabase.memory());
     final api = _CatalogApi(_catalog());

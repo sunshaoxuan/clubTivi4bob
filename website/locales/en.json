@@ -26,7 +26,7 @@
   "features": "Features",
   "home": {
     "headline": "Watch TV on Windows and Mac.",
-    "intro": "Browse channels, preview another program without sound, and switch when ready. The public channel catalog is updated in the background.",
+    "intro": "Routes for the same service share one card, with duplicate addresses removed. The public catalog updates in the background while favorites and manual settings are preserved.",
     "image_alt": "BobTV running in simplified mode, with sports playback and a channel list.",
     "mode": "BOBTV / Simplified mode",
     "screenshot": "Actual app screenshot",
@@ -198,6 +198,11 @@
     "history_title": "Recent changes",
     "history": [
       [
+        "2026-10-22",
+        "v1.1.8 · Channel grouping, route deduplication and merge fixes",
+        "Version 1.1.8 updates Windows x64 / ARM64 and macOS Intel / Apple Silicon. Routes for the same service share one card, duplicate addresses count once, and same-name merge choices remain selectable. Favorites, route provenance and manual settings are preserved. Region, television/radio and time-shift distinctions remain separate. Android remains available at 1.1.7."
+      ],
+      [
         "2026-10-17",
         "v1.1.7 · Score-first playback, direct preview transfer and a lighter client",
         "Try the highest known current-network score first, then the next candidate on decoder failure. Remove parallel startup media probes. Transfer a decoded preview's existing player without a repeated route sync or buffering recovery gate. Public names, categories, routes and EPG come from the server; remove browse-time inference and category-wide scans. Preserve manual settings, private sources and offline data. Physical switching latency and playback acceptance remain pending."
@@ -283,7 +288,7 @@
   },
   "downloads": {
     "signing_notice": "The free SignPath Foundation application was not approved. No trusted Windows certificate was issued and SignPath.io production signing is not in use. Edge may still require a security confirmation on the first browser download.",
-    "intro": "Version 1.1.7 provides Windows x64 / ARM64, macOS Intel / Apple Silicon and Android packages. Prefers the highest known current-network route score, removes parallel startup probes and transfers an existing decoded preview directly. Public names, categories, routes and EPG come from the server with less local processing. Manual mappings and offline data are preserved. Physical switching latency and playback continuity still require device testing.",
+    "intro": "Version 1.1.8 updates Windows x64 / ARM64 and macOS Intel / Apple Silicon. Routes for the same service share one card, duplicate addresses count once, and same-name merge choices remain selectable. Favorites, route provenance and manual settings are preserved. Region, television/radio and time-shift distinctions remain separate. Android remains available at 1.1.7.",
     "latest": "Latest installers",
     "local": "Downloads hosted on this site",
     "sections": [

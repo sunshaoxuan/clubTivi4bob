@@ -18,12 +18,20 @@ class ServerEpgBinding {
               .getSingleOrNull())
           ?.read<String>('version');
 
+  Future<bool> hasPresentationContext() async =>
+      (await database.customSelect(
+        'SELECT 1 FROM catalog_epg_routes r LEFT JOIN catalog_presentation_context p '
+        'ON p.local_channel_id=r.local_channel_id WHERE p.local_channel_id IS NULL LIMIT 1',
+      ).get()).isEmpty;
+
   /// Called within the same transaction as a public-catalog import.
   Future<void> replaceCatalogIdentities(
     String version,
     List<Map<String, Object?>> records,
   ) async {
     await database.customStatement('DELETE FROM catalog_epg_routes');
+    await database.customStatement('DELETE FROM catalog_route_categories');
+    await database.customStatement('DELETE FROM catalog_presentation_context');
     await database.batch((batch) {
       for (final row in records) {
         batch.customStatement(
@@ -37,6 +45,11 @@ class ServerEpgBinding {
             row['group'],
           ],
         );
+        batch.customStatement('INSERT INTO catalog_presentation_context VALUES(?,?,?)',
+          ['$publicCatalogProviderId:${row['routeId']}', row['countryCode'], row['regionCode']]);
+        batch.customStatement('INSERT INTO catalog_route_categories VALUES(?,?)',
+          ['$publicCatalogProviderId:${row['routeId']}',
+           jsonEncode(row['groups'] ?? [row['group']])]);
       }
     });
     await database.customStatement(

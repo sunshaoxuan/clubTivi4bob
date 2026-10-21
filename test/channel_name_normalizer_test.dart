@@ -3,6 +3,15 @@ import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   group('ChannelNameNormalizer', () {
+    test('keeps non-Latin names and their regions distinct', () {
+      expect(ChannelNameNormalizer.normalize('Россия 1'), 'россия1');
+      expect(ChannelNameNormalizer.normalize('Домашний (+2)'), 'домашнийplus2');
+      expect(ChannelNameNormalizer.normalize('Говорит Москва (2)'), isNot(
+        ChannelNameNormalizer.normalize('Россия 2')));
+      expect(ChannelNameNormalizer.normalize('قناة الأخبار'), isNotEmpty);
+      expect(ChannelNameNormalizer.normalize('ΕΡΤ 1'), 'ερτ1');
+    });
+
     test('keeps Chinese channel names distinct', () {
       expect(ChannelNameNormalizer.normalize('湖南卫视'), '湖南卫视');
       expect(ChannelNameNormalizer.normalize('湖北卫视'), '湖北卫视');

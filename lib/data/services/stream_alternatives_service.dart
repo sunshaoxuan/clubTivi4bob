@@ -7,6 +7,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../datasources/local/database.dart' as db;
 import '../models/channel.dart' hide Provider;
 import 'channel_name_normalizer.dart';
+import 'route_identity.dart';
 import 'source_visibility.dart';
 import 'stream_health_tracker.dart';
 import 'website_channel_catalog_service.dart';
@@ -51,6 +52,8 @@ class StreamAlternativesService {
   /// All channels cached for fuzzy fallback.
   List<Channel> _allChannels = [];
   Map<String, String> _mergeIds = {};
+  Map<String, String> _presentationKeys = {};
+  Map<String, List<Channel>> _presentationIndex = {};
   Map<String, String> _catalogIds = {};
   Map<String, List<Channel>> _catalogIndex = {};
   final Map<String, List<Channel>> _mergeIndex = {};
@@ -71,7 +74,7 @@ class StreamAlternativesService {
   /// Find the channel ID that owns the given stream URL, or null.
   String? channelIdForUrl(String url) {
     for (final ch in _allChannels) {
-      if (ch.streamUrl == url) return ch.id;
+      if (canonicalRouteUrl(ch.streamUrl) == canonicalRouteUrl(url)) return ch.id;
     }
     return null;
   }
@@ -101,6 +104,8 @@ class StreamAlternativesService {
     _providerNames = next._providerNames;
     _allChannels = next._allChannels;
     _mergeIds = next._mergeIds;
+    _presentationKeys = next._presentationKeys;
+    _presentationIndex = next._presentationIndex;
     _catalogIds = next._catalogIds;
     _catalogIndex = next._catalogIndex;
     _mergeIndex..clear()..addAll(next._mergeIndex);
@@ -127,6 +132,8 @@ class StreamAlternativesService {
     _catalogIds = await _db.publicCatalogChannelIds(channels
       .where((c) => c.providerId == WebsiteChannelCatalogService.providerId)
       .map((c) => c.id));
+    _presentationKeys = await _db.channelPresentationKeys(channels);
+    _presentationIndex.clear();
     _allChannels = channels.map(_dbToChannel).toList();
     _mergeIds = await _db.channelMergeIds(channels.map((c) => c.streamUrl));
     _mergeIndex.clear();
@@ -175,7 +182,15 @@ class StreamAlternativesService {
       final ch = _allChannels[index];
       if (ch.streamUrl.isEmpty) continue;
       if (_shouldHideChannel(ch)) continue;
-      final mergeId = _mergeIds[ch.streamUrl];
+      if (_hasInvalidStreamMetadata(ch) &&
+          ch.providerId != WebsiteChannelCatalogService.providerId) {
+        continue;
+      }
+      final identity = _presentationKeys[ch.id];
+      if (identity != null) {
+        (_presentationIndex[identity] ??= []).add(ch);
+      }
+      final mergeId = _mergeIds[canonicalRouteUrl(ch.streamUrl)];
       if (mergeId != null) {
         _mergeIndex.putIfAbsent(mergeId, () => []).add(ch);
       }
@@ -260,22 +275,33 @@ class StreamAlternativesService {
     String? originalName,
     required String excludeUrl,
   }) {
-    final merged = _mergeIds[excludeUrl];
+    final identity = _presentationKeys[channelId];
+    if (identity != null && !identity.startsWith('legacy:')) {
+      final excluded = canonicalRouteUrl(excludeUrl);
+      final urls = (_presentationIndex[identity] ?? const <Channel>[])
+          .where((c) => !_shouldHideChannel(c))
+          .map((c) => canonicalRouteUrl(c.streamUrl))
+          .where((url) => url != excluded).toSet().toList();
+      return _health.rankUrls(urls).map((e) => e.key).toList();
+    }
+    final merged = _mergeIds[canonicalRouteUrl(excludeUrl)];
     if (merged != null) {
       final routes = (_mergeIndex[merged] ?? [])
-          .where((c) => !_shouldHideChannel(c) && c.streamUrl != excludeUrl)
-          .map((c) => c.streamUrl)
+          .where((c) => !_shouldHideChannel(c))
+          .map((c) => canonicalRouteUrl(c.streamUrl))
+          .where((url) => url != canonicalRouteUrl(excludeUrl))
           .toSet();
       return _health.rankUrls(routes.toList()).map((e) => e.key).toList();
     }
     if (_catalogIds.containsKey(channelId) ||
         channelId.startsWith('${WebsiteChannelCatalogService.providerId}:')) {
       final routes = (_catalogIndex[_catalogIds[channelId]] ?? const <Channel>[])
-        .where((c) => c.streamUrl != excludeUrl && !_shouldHideChannel(c))
-        .map((c) => c.streamUrl).toSet().toList();
+        .where((c) => !_shouldHideChannel(c))
+        .map((c) => canonicalRouteUrl(c.streamUrl))
+        .where((url) => url != canonicalRouteUrl(excludeUrl)).toSet().toList();
       return _health.rankUrls(routes).map((e) => e.key).toList();
     }
-    final seen = <String>{excludeUrl};
+    final seen = <String>{canonicalRouteUrl(excludeUrl)};
     final results = <String>[];
     final requestedSportsService =
         ChannelNameNormalizer.cctvSportsServiceKey(channelName ?? '') ??
@@ -301,8 +327,8 @@ class StreamAlternativesService {
         if (ch.id != channelId &&
             ch.streamUrl.isNotEmpty &&
             isCompatible(ch) &&
-            seen.add(ch.streamUrl)) {
-          results.add(ch.streamUrl);
+            seen.add(canonicalRouteUrl(ch.streamUrl))) {
+          results.add(canonicalRouteUrl(ch.streamUrl));
         }
       }
     }
@@ -366,10 +392,10 @@ class StreamAlternativesService {
             if (ch.id != channelId &&
                 ch.streamUrl.isNotEmpty &&
                 isCompatible(ch) &&
-                seen.add(ch.streamUrl)) {
+                seen.add(canonicalRouteUrl(ch.streamUrl))) {
               final lower = ch.name.toLowerCase();
               if (words.every((w) => lower.contains(w))) {
-                results.add(ch.streamUrl);
+                results.add(canonicalRouteUrl(ch.streamUrl));
               }
             }
           }
@@ -448,15 +474,20 @@ class StreamAlternativesService {
     String? originalName,
     required String excludeUrl,
   }) {
-    if (channelId.startsWith('${WebsiteChannelCatalogService.providerId}:')) {
-      final routes = (_catalogIndex[_catalogIds[channelId]] ?? const <Channel>[])
-        .where((c) => c.streamUrl != excludeUrl && !_shouldHideChannel(c));
+    final identity = _presentationKeys[channelId];
+    if (identity != null && !identity.startsWith('legacy:')) {
+      final seen = <String>{canonicalRouteUrl(excludeUrl)};
+      final routes = (_presentationIndex[identity] ?? const <Channel>[])
+          .where((c) => !_shouldHideChannel(c) && seen.add(canonicalRouteUrl(c.streamUrl)));
       return [for (final channel in routes) AlternativeDetail(channel: channel,
         matchReasons: const {'confirmed'}, healthScore: _health.getScore(channel.streamUrl),
         providerName: providerName(channel.providerId))]
         ..sort((a, b) => b.healthScore.compareTo(a.healthScore));
     }
-    final seen = <String>{excludeUrl};
+    if (channelId.startsWith('${WebsiteChannelCatalogService.providerId}:')) {
+      return const [];
+    }
+    final seen = <String>{canonicalRouteUrl(excludeUrl)};
     final requestedSportsService =
         ChannelNameNormalizer.cctvSportsServiceKey(channelName ?? '') ??
         ChannelNameNormalizer.cctvSportsServiceKey(originalName ?? '') ??
@@ -494,13 +525,15 @@ class StreamAlternativesService {
       final confidence = _matchConfidence[reason] ?? 0.3;
       final epgMatch = reason == 'EPG+call sign' || reason == 'EPG';
       for (final ch in channels) {
-        if (ch.id != channelId && ch.streamUrl.isNotEmpty && isCompatible(ch)) {
-          final existing = resultsByUrl[ch.streamUrl];
+        final url = canonicalRouteUrl(ch.streamUrl);
+        if (ch.id != channelId && ch.streamUrl.isNotEmpty &&
+            url != canonicalRouteUrl(excludeUrl) && isCompatible(ch)) {
+          final existing = resultsByUrl[url];
           if (existing != null) {
             // Add this reason to existing entry
             existing.matchReasons.add(reason);
           } else {
-            seen.add(ch.streamUrl);
+            seen.add(canonicalRouteUrl(ch.streamUrl));
             final streamHealth = _health.getScore(ch.streamUrl);
             final composite = confidence * 0.6 + streamHealth * 0.4;
             final detail = AlternativeDetail(
@@ -515,7 +548,7 @@ class StreamAlternativesService {
                       ch.tvgId != null &&
                       ch.tvgId == epgChannelId),
             );
-            resultsByUrl[ch.streamUrl] = detail;
+            resultsByUrl[url] = detail;
           }
         }
       }

@@ -42,8 +42,9 @@ import 'desktop_pip_session.dart';
 import 'window_manager_pip_backend.dart';
 import 'desktop_pip_controls.dart';
 import 'fullscreen_programme_overlay.dart';
+import 'window_playback_session.dart';
 
-/// Full-screen video player with overlay controls and keyboard navigation.
+/// Window-filling or fullscreen player with shared playback and overlay controls.
 class PlayerScreen extends ConsumerStatefulWidget {
   final String streamUrl;
   final String channelName;
@@ -51,6 +52,7 @@ class PlayerScreen extends ConsumerStatefulWidget {
   final List<String> alternativeUrls;
   final List<Map<String, dynamic>> channels;
   final int currentIndex;
+  final bool startFullscreen;
 
   const PlayerScreen({
     super.key,
@@ -60,6 +62,7 @@ class PlayerScreen extends ConsumerStatefulWidget {
     this.alternativeUrls = const [],
     this.channels = const [],
     this.currentIndex = 0,
+    this.startFullscreen = true,
   });
 
   @override
@@ -77,6 +80,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   DesktopFullscreenSession? _fullscreenSession;
   FullscreenWindowSnapshot? _fullscreenReturnSnapshot;
   MobileFullscreenSession? _mobileFullscreenSession;
+  WindowPlaybackSession? _windowPlaybackSession;
+  bool _restoreFullscreenAfterPip = true;
   DesktopPipSession? _pipSession;
   bool _pipMode = false;
   bool _pipTransition = false;
@@ -164,12 +169,28 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
         }),
       );
     }
-    if (_supportsNativeFullscreen) {
+    if (_usesWindowPlayback) {
+      _windowPlaybackSession = WindowPlaybackSession(
+        createBackend: WindowManagerFullscreenBackend.new,
+        onChanged: (value) {
+          if (!mounted) return;
+          setState(() => _nativeFullscreen = value);
+          if (!value) _onPointerActivity();
+        },
+        onError: (error, stack) => AppDiagnostics.instance.recordError(
+          'window_playback_fullscreen',
+          error,
+          stack,
+        ),
+      );
+    } else if (_supportsNativeFullscreen) {
       _createFullscreenSession();
     }
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) unawaited(_enterNativeFullscreen());
-    });
+    if (!_usesWindowPlayback) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) unawaited(_enterNativeFullscreen());
+      });
+    }
     _startPlayback();
     _activePlayerSubscription = ref
         .read(playerServiceProvider)
@@ -351,10 +372,22 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
 
     // If channels list is empty, this is a show/VOD stream — always start fresh
     final isShowStream = widget.channels.isEmpty;
+    final preserveWindowPlayback =
+        _usesWindowPlayback &&
+        !isShowStream &&
+        WindowPlaybackSession.canReusePlayback(
+          activeUrl: playerService.currentUrl,
+          activeChannelId: playerService.currentChannelId,
+          selectedChannelId: widget.channels[_channelIndex]['id'] as String?,
+          selectedUrls: urls,
+        );
+    final shouldStartPlayback = _usesWindowPlayback
+        ? !preserveWindowPlayback
+        : isShowStream ||
+              !(playerService.player.state.playing ||
+                  playerService.player.state.buffering);
 
-    if (isShowStream ||
-        !(playerService.player.state.playing ||
-            playerService.player.state.buffering)) {
+    if (shouldStartPlayback) {
       playerService.play(
         urls[_currentUrlIndex],
         channelId: widget.channels.isNotEmpty
@@ -671,6 +704,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   bool get _supportsNativeFullscreen =>
       Platform.isWindows || Platform.isLinux || Platform.isMacOS;
 
+  bool get _usesWindowPlayback =>
+      _supportsNativeFullscreen && !widget.startFullscreen;
+
   void _createFullscreenSession() {
     _fullscreenSession = DesktopFullscreenSession(
       backend: WindowManagerFullscreenBackend(),
@@ -705,9 +741,26 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   }
 
   Future<void> _toggleNativeFullscreen() async {
-    if (_pipTransition) return;
+    if (_pipTransition || _leavingPlayer) return;
     if (_pipMode) {
       await _restorePip();
+      return;
+    }
+    if (_usesWindowPlayback) {
+      try {
+        await _windowPlaybackSession!.toggleFullscreen();
+      } catch (error, stack) {
+        AppDiagnostics.instance.recordError(
+          'window_playback_fullscreen',
+          error,
+          stack,
+        );
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('无法切换全屏，请重试')),
+          );
+        }
+      }
       return;
     }
     // This route is the fullscreen presentation, including while entering.
@@ -724,6 +777,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
         'restoreWindowFullscreen': _fullscreenReturnSnapshot?.wasFullscreen,
       });
       await _fullscreenSession?.exit(forceWindowed: forceWindowed);
+      await _windowPlaybackSession?.exitFullscreen();
       await _mobileFullscreenSession?.exit();
       AppDiagnostics.instance.log('fullscreen_exit_completed');
     } catch (error, stack) {
@@ -755,6 +809,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
         key == LogicalKeyboardKey.goBack) {
       if (_showChannelList) {
         setState(() => _showChannelList = false);
+        return KeyEventResult.handled;
+      }
+      if (_usesWindowPlayback && _windowPlaybackSession!.fullscreenRequested) {
+        unawaited(_toggleNativeFullscreen());
         return KeyEventResult.handled;
       }
       if (_nativeFullscreen) {
@@ -1232,6 +1290,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     _bufferingSubscription?.cancel();
     _epgRefreshTimer?.cancel();
     _fullscreenSession?.dispose();
+    _windowPlaybackSession?.dispose();
     final pip = _pipSession;
     if (pip != null) {
       unawaited(
@@ -1289,7 +1348,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
               child: Stack(
                 fit: StackFit.expand,
                 children: [
-                  // Video — fill entire screen
+                  // Video fills the available player client area.
                   ValueListenableBuilder<VideoController?>(
                     valueListenable: playerService.activeVideoController,
                     builder: (context, controller, _) => Video(
@@ -1388,6 +1447,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                           setState(() => _showChannelList = !_showChannelList),
                       onFullscreenToggle: _toggleNativeFullscreen,
                       isFullscreen: _nativeFullscreen,
+                      fullscreenTooltip: _usesWindowPlayback
+                          ? _nativeFullscreen
+                                ? '退出全屏，返回全窗口'
+                                : '全屏播放'
+                          : '返回频道，保持窗口全屏',
                     ),
 
                   if (!_pipMode)
@@ -2015,6 +2079,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     }
     _pipTransition = true;
     try {
+      _restoreFullscreenAfterPip =
+          !_usesWindowPlayback ||
+          _windowPlaybackSession!.fullscreenRequested;
+      await _windowPlaybackSession?.exitFullscreen();
       _fullscreenReturnSnapshot ??= _fullscreenSession?.returnSnapshot;
       await _fullscreenSession?.exit(forceWindowed: true);
       _fullscreenSession?.dispose();
@@ -2033,8 +2101,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       _pipSession = null;
       if (mounted) {
         setState(() => _pipMode = false);
-        _createFullscreenSession();
-        await _enterNativeFullscreen();
+        await _restorePlayerPresentation();
         if (mounted) {
           ScaffoldMessenger.of(
             context,
@@ -2054,8 +2121,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       await _pipSession?.exit();
       _pipSession = null;
       if (!mounted) return false;
-      _createFullscreenSession();
-      await _enterNativeFullscreen();
+      await _restorePlayerPresentation();
       if (!mounted) return false;
       setState(() => _pipMode = false);
       AppDiagnostics.instance.log('desktop_pip_restored');
@@ -2071,6 +2137,17 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     } finally {
       if (mounted) setState(() => _pipTransition = false);
     }
+  }
+
+  Future<void> _restorePlayerPresentation() async {
+    if (_usesWindowPlayback) {
+      if (_restoreFullscreenAfterPip) {
+        await _windowPlaybackSession!.enterFullscreen();
+      }
+      return;
+    }
+    _createFullscreenSession();
+    await _enterNativeFullscreen();
   }
 
   void _onAndroidPipChanged() {

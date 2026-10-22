@@ -64,6 +64,7 @@ GoRouter createRouter() {
                   ?.cast<Map<String, dynamic>>() ??
               const [],
           currentIndex: extra['currentIndex'] as int? ?? 0,
+          startFullscreen: extra['startFullscreen'] as bool? ?? true,
         );
       },
     ),

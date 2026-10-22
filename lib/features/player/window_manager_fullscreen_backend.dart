@@ -7,6 +7,7 @@ import 'desktop_fullscreen_session.dart';
 import 'windows_window_chrome.dart';
 import '../../core/app_diagnostics.dart';
 import '../../core/desktop_window_sizing.dart';
+import '../../core/desktop_window_pin.dart';
 
 /// Cocoa completes fullscreen through native events or verified native state.
 /// Windows/Linux keep their explicit titlebar and geometry restoration.
@@ -16,15 +17,19 @@ class WindowManagerFullscreenBackend extends WindowListener
     bool? isMacOS,
     bool? isWindows,
     DesktopWindowSizing? sizing,
+    DesktopWindowPin? pinning,
   }) : _isMacOS = isMacOS ?? Platform.isMacOS,
        _isWindows = isWindows ?? Platform.isWindows,
-       _sizing = sizing ?? DesktopWindowSizing.instance {
+       _sizing = sizing ?? DesktopWindowSizing.instance,
+       _pinning = pinning ?? DesktopWindowPin.instance {
     windowManager.addListener(this);
   }
 
   final bool _isMacOS;
   final bool _isWindows;
   final DesktopWindowSizing _sizing;
+  final DesktopWindowPin _pinning;
+  void Function()? _releasePinning;
   final _changes = StreamController<bool>.broadcast(sync: true);
   Completer<void>? _transition;
   bool? _transitionTarget;
@@ -36,6 +41,8 @@ class WindowManagerFullscreenBackend extends WindowListener
 
   @override
   Future<FullscreenWindowSnapshot> capture() async {
+    _releasePinning ??= _pinning.lockForPresentation();
+    await _pinning.idle;
     final fullscreen = await windowManager.isFullScreen();
     return FullscreenWindowSnapshot(
       bounds: await windowManager.getBounds(),
@@ -151,11 +158,18 @@ class WindowManagerFullscreenBackend extends WindowListener
     } finally {
       _releaseSizing?.call();
       _releaseSizing = null;
+      _releasePinning?.call();
+      _releasePinning = null;
     }
   }
 
   Future<void> _restore(FullscreenWindowSnapshot snapshot) async {
-    await windowManager.setAlwaysOnTop(snapshot.alwaysOnTop);
+    // A native Mac fullscreen Space must not inherit a floating window level.
+    // The pin controller reapplies the explicit preference after native exit.
+    final nativeMacFullscreen = _isMacOS && await isFullscreen();
+    await windowManager.setAlwaysOnTop(
+      nativeMacFullscreen ? false : _pinning.restoreValue(snapshot.alwaysOnTop),
+    );
     if (_isMacOS) {
       if (await windowManager.isMinimized()) return;
       // A caller already in a native fullscreen Space has no ordinary frame
@@ -235,6 +249,8 @@ class WindowManagerFullscreenBackend extends WindowListener
     _disposed = true;
     _releaseSizing?.call();
     _releaseSizing = null;
+    _releasePinning?.call();
+    _releasePinning = null;
     windowManager.removeListener(this);
     unawaited(_changes.close());
   }

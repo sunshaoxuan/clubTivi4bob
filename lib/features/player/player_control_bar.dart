@@ -5,6 +5,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:media_kit/media_kit.dart';
 
 import 'player_service.dart';
+import '../../core/platform_info.dart';
+import 'desktop_window_pin_button.dart';
 
 /// TiviMate-style fullscreen player control bar.
 ///
@@ -31,6 +33,7 @@ class PlayerControlBar extends ConsumerStatefulWidget {
   final bool subtitlesEnabled;
   final int audioTrackCount;
   final bool isFullscreen;
+  final String fullscreenTooltip;
 
   const PlayerControlBar({
     super.key,
@@ -53,6 +56,7 @@ class PlayerControlBar extends ConsumerStatefulWidget {
     this.subtitlesEnabled = false,
     this.audioTrackCount = 0,
     this.isFullscreen = false,
+    this.fullscreenTooltip = '返回频道，保持窗口全屏',
   });
 
   @override
@@ -464,7 +468,7 @@ class _PlayerControlBarState extends ConsumerState<PlayerControlBar> {
                         onTap: widget.onCastTap,
                       ),
                       Tooltip(
-                        message: '返回频道，保持窗口全屏',
+                        message: widget.fullscreenTooltip,
                         child: _iconBtn(
                           widget.isFullscreen
                               ? Icons.fullscreen_exit
@@ -472,6 +476,8 @@ class _PlayerControlBarState extends ConsumerState<PlayerControlBar> {
                           onTap: widget.onFullscreenToggle,
                         ),
                       ),
+                      if (PlatformInfo.isDesktop && !widget.isFullscreen)
+                        const DesktopWindowPinButton(compact: true),
                       _iconBtn(Icons.info_outline, onTap: widget.onInfo),
                       _iconBtn(Icons.edit_outlined, onTap: widget.onRename),
                       _iconBtn(Icons.settings, onTap: widget.onSettings),
@@ -480,40 +486,45 @@ class _PlayerControlBarState extends ConsumerState<PlayerControlBar> {
                         _badge(_resolutionLabel(), fontSize: 10),
                         const SizedBox(width: 6),
                       ],
-                      _badge('EPG', fontSize: 10),
-                      const SizedBox(width: 6),
-                      Tooltip(
-                        richMessage: WidgetSpan(
-                          child: _FpsSparkline(history: _fpsHistory),
+                      if (MediaQuery.sizeOf(context).width >= 1000) ...[
+                        _badge('EPG', fontSize: 10),
+                        const SizedBox(width: 6),
+                        Tooltip(
+                          richMessage: WidgetSpan(
+                            child: _FpsSparkline(history: _fpsHistory),
+                          ),
+                          waitDuration: const Duration(milliseconds: 300),
+                          preferBelow: false,
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF1A1A2E),
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: Colors.white24),
+                          ),
+                          padding: const EdgeInsets.all(10),
+                          child: _badge('$_fpsLabel fps', fontSize: 10),
                         ),
-                        waitDuration: const Duration(milliseconds: 300),
-                        preferBelow: false,
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF1A1A2E),
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: Colors.white24),
-                        ),
-                        padding: const EdgeInsets.all(10),
-                        child: _badge('$_fpsLabel fps', fontSize: 10),
-                      ),
-                      const SizedBox(width: 4),
-                      Tooltip(
-                        richMessage: WidgetSpan(
-                          child: _BufferSparkline(
-                            history: _bufferHistory,
-                            tier: _bufferTier,
+                        const SizedBox(width: 4),
+                        Tooltip(
+                          richMessage: WidgetSpan(
+                            child: _BufferSparkline(
+                              history: _bufferHistory,
+                              tier: _bufferTier,
+                            ),
+                          ),
+                          waitDuration: const Duration(milliseconds: 300),
+                          preferBelow: false,
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF1A1A2E),
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: Colors.white24),
+                          ),
+                          padding: const EdgeInsets.all(10),
+                          child: _badge(
+                            'buf: ${_bufferDuration}s',
+                            fontSize: 10,
                           ),
                         ),
-                        waitDuration: const Duration(milliseconds: 300),
-                        preferBelow: false,
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF1A1A2E),
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: Colors.white24),
-                        ),
-                        padding: const EdgeInsets.all(10),
-                        child: _badge('buf: ${_bufferDuration}s', fontSize: 10),
-                      ),
+                      ],
                     ],
                   ),
                 ),

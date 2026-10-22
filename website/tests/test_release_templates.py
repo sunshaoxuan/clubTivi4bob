@@ -22,11 +22,12 @@ def test_release_templates_preserve_languages_and_settings(locale):
         assert f'lang="{locale}"' in rendered
         assert 'installed-devices' in rendered
         if page == 'index':
-            assert '1.1.8 · Windows / macOS · Android 1.1.7' in rendered
+            assert '1.1.9 · Windows / macOS · Android 1.1.7' in rendered
             assert 'settings-title' in rendered
             assert 'v1.0.6' in rendered
             assert 'server-title' in rendered
             assert 'tablets-title' in rendered
         elif page == 'downloads':
             assert 'id="release-list"' in rendered
-            assert '1.1.8' in rendered
+            assert '1.1.9' in rendered
+            assert '1.1.7' in rendered

@@ -52,6 +52,7 @@ import 'compact_category_row.dart';
 import 'simple_home_content.dart';
 import 'simple_channel_panel_frame.dart';
 import '../player/player_service.dart';
+import '../player/player_presentation_buttons.dart';
 import '../player/alternative_preview_overlay.dart';
 import '../player/stream_info_badges.dart';
 import '../providers/provider_manager.dart';
@@ -80,7 +81,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
   Map<String, String> _presentationKeys = {};
   Map<String, List<String>> _catalogCategoryGroups = {};
   bool _initialLoadDone = false;
-  bool _fullscreenRouteOpen = false;
+  bool _playerRouteOpen = false;
   late final ChannelProgrammePreview _inlineProgrammePreview;
   final _inlineProgrammeStripKey = GlobalKey();
   String? _lastVisibleProgrammeChannel;
@@ -2576,7 +2577,14 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
   }
 
   Future<void> _goFullscreen(db.Channel channel) async {
-    if (_fullscreenRouteOpen || !mounted) return;
+    await _openPlayer(channel);
+  }
+
+  Future<void> _openPlayer(
+    db.Channel channel, {
+    bool startFullscreen = true,
+  }) async {
+    if (_playerRouteOpen || !mounted) return;
     final fullscreenChannels = ChannelListIdentity.includingCurrent(
       _filteredChannels, channel, (c) => c.id,
     );
@@ -2609,8 +2617,9 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
       'channel': channel.name,
       'epgId': channelMaps[currentIndex]['epgId'],
       'currentIndex': currentIndex,
+      'startFullscreen': startFullscreen,
     });
-    _fullscreenRouteOpen = true;
+    _playerRouteOpen = true;
     try {
       await context.push(
         '/player',
@@ -2621,10 +2630,11 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
           'alternativeUrls': _automaticAlternativeUrls(channel),
           'channels': channelMaps,
           'currentIndex': currentIndex,
+          'startFullscreen': startFullscreen,
         },
       );
     } finally {
-      _fullscreenRouteOpen = false;
+      _playerRouteOpen = false;
     }
     if (mounted) {
       final database = ref.read(databaseProvider);
@@ -3456,10 +3466,12 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                     color: Colors.amber,
                   ),
                 ),
-                IconButton(
-                  tooltip: '全屏播放',
-                  onPressed: () => _goFullscreen(channel),
-                  icon: const Icon(Icons.fullscreen_rounded, color: Color(0xFFADC5FF)),
+                PlayerPresentationButtons(
+                  showWindowPin: PlatformInfo.isDesktop,
+                  onWindowPlayback: PlatformInfo.isDesktop
+                      ? () => _openPlayer(channel, startFullscreen: false)
+                      : null,
+                  onFullscreen: () => _goFullscreen(channel),
                 ),
               ],
             ],
@@ -4802,23 +4814,19 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                                   ),
                                 ),
                               ),
-                              // Fullscreen
-                              SizedBox(
-                                height: 28,
-                                width: 28,
-                                child: ExcludeFocus(
-                                  excluding: Platform.isAndroid,
-                                  child: IconButton(
-                                    onPressed: () =>
-                                        _goFullscreen(_previewChannel!),
-                                    icon: const Icon(
-                                      Icons.fullscreen_rounded,
-                                      size: 16,
-                                    ),
-                                    padding: EdgeInsets.zero,
-                                    color: Colors.white70,
-                                    tooltip: '全屏',
-                                  ),
+                              ExcludeFocus(
+                                excluding: Platform.isAndroid,
+                                child: PlayerPresentationButtons(
+                                  compact: true,
+                                  showWindowPin: PlatformInfo.isDesktop,
+                                  onWindowPlayback: PlatformInfo.isDesktop
+                                      ? () => _openPlayer(
+                                          _previewChannel!,
+                                          startFullscreen: false,
+                                        )
+                                      : null,
+                                  onFullscreen: () =>
+                                      _goFullscreen(_previewChannel!),
                                 ),
                               ),
                             ],

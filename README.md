@@ -65,6 +65,14 @@ throughput still need testing. See [tablet platform status and limits](docs/tabl
 
 * AirPlay video casting on Windows, including a native Mac receiver path with 720p H.264 video and stereo audio. On the receiving Mac, allow Everyone and disable Require Password; no PIN is requested. Other compatible receivers use a mouse operated pairing keypad and bounded HLS relay. Open the fullscreen player's cast button. Desktop mirroring, password protected receivers and audio-only speakers are not supported. Native-Mac pause/volume controls are not yet enabled. See [AirPlay build and compatibility notes](tools/airplay/README.md).
 
+### Window-filling playback and window pin in 1.1.9
+
+Windows and macOS add separate window-filling and native fullscreen actions.
+The window-filling player retains the native frame and current player, including
+paused playback. An always-on-top pin can be toggled from either the channel
+preview or window player. The choice lasts for this app run and is restored
+after fullscreen or picture-in-picture. Android remains at 1.1.7.
+
 ### Channel grouping and merge fixes in 1.1.8
 
 Windows and macOS group compatible routes into one card and count each canonical address once. Same-name merge entries remain selectable. Country, region, guide, media and time-shift distinctions are preserved, and Unicode channel names retain their scripts. Android remains at 1.1.7.

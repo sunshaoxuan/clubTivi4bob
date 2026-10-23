@@ -52,7 +52,7 @@ def test_slow_event_write_does_not_block_live_retirement_reads(tmp_path, monkeyp
     asyncio.run(check())
 
 
-def test_busy_writer_returns_retryable_503_and_preserves_idempotent_retirement(tmp_path, monkeypatch):
+def test_busy_writer_queues_and_preserves_idempotent_retirement(tmp_path, monkeypatch):
     app = application(tmp_path, monkeypatch)
     client = TestClient(app)
     lock = sqlite3.connect(tmp_path / 'channel_inventory.sqlite3')
@@ -60,20 +60,32 @@ def test_busy_writer_returns_retryable_503_and_preserves_idempotent_retirement(t
     try:
         started = time.monotonic()
         response = client.post('/api/v1/channel-catalog/events', json=EVENT)
-        assert response.status_code == 503
-        assert response.headers['retry-after'] == '1'
+        assert response.status_code == 202
+        assert response.headers['retry-after'] == '15'
+        assert response.json()['queued'] is True
+        assert response.json()['receipts'][0]['status'] == 'retry'
         assert time.monotonic() - started < 2.5
         # A WAL reader remains usable while another process owns the write lock.
         assert client.post('/api/v1/channel-catalog/route-state',
             json={'schemaVersion': 1, 'urls': [URL]}).status_code == 200
         profile = client.get('/api/v1/channel-catalog/network-profile')
-        assert profile.status_code == 503 and profile.headers['retry-after'] == '1'
+        assert profile.status_code == 200  # Network quotas have an independent store.
     finally:
         lock.rollback()
         lock.close()
+    from catalog_event_queue import drain
+    assert drain(tmp_path)['processed'] == 1
     first = client.post('/api/v1/channel-catalog/events', json=EVENT)
     assert first.status_code == 202
     assert client.post('/api/v1/channel-catalog/events', json=EVENT).json() == first.json()
+    # Lost acknowledgments can be read even while another writer owns the WAL.
+    lock = sqlite3.connect(tmp_path / 'channel_inventory.sqlite3')
+    lock.execute('BEGIN IMMEDIATE')
+    try:
+        assert client.post('/api/v1/channel-catalog/events', json=EVENT).json() == first.json()
+    finally:
+        lock.rollback()
+        lock.close()
     assert client.post('/api/v1/channel-catalog/route-state',
         json={'schemaVersion': 1, 'urls': [URL]}).json()['urls'] == [URL]
     with inventory.database(tmp_path) as conn:

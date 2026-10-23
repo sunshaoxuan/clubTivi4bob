@@ -198,6 +198,7 @@ void main() {
   test(
     'offline transfer followed by classification keeps operation order and revisions',
     () async {
+      var clock = DateTime.utc(2026, 10, 23);
       await database.transferRoute(a, await third());
       await database.setManualChannelCategory([
         a,
@@ -211,11 +212,14 @@ void main() {
         database: database,
         api: api,
         fingerprintOverride: 'a' * 64,
+        now: () => clock,
       );
       addTearDown(sync.dispose);
       expect(await sync.flushEvents(), 0);
       expect(await database.pendingSharedEvents(), hasLength(2));
       api.offline = false;
+      expect(await sync.flushEvents(), 0);
+      clock = clock.add(const Duration(minutes: 1));
       expect(await sync.flushEvents(), 2);
       expect(api.received.map((e) => e['kind']), ['transfer', 'classify']);
       expect(api.received.last['baseRevision'], 1);

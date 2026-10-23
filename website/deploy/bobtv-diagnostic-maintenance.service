@@ -1,0 +1,21 @@
+[Unit]
+Description=BobTV diagnostic expiry and bounded sync inbox recovery
+After=bobtv.service
+
+[Service]
+Type=oneshot
+User=bobtv
+Group=bobtv
+WorkingDirectory=/opt/bobtv/site
+Environment=BOBTV_DATA_DIR=/var/lib/bobtv
+Environment=BOBTV_DIAGNOSTICS_DIR=/var/lib/bobtv-diagnostics
+ExecStart=/opt/bobtv/venv/bin/python diagnostic_maintenance.py
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ReadWritePaths=/var/lib/bobtv
+ReadWritePaths=/var/lib/bobtv-diagnostics
+MemoryMax=256M
+CPUQuota=40%
+TimeoutStartSec=90

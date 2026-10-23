@@ -15,6 +15,7 @@ import '../../features/providers/provider_manager.dart';
 import 'bobtv_api_client.dart';
 import 'bobtv_log_projection.dart';
 import 'client_fingerprint_service.dart';
+import 'diagnostic_sync_service.dart';
 
 class BobTvCatalogState {
   const BobTvCatalogState({
@@ -31,11 +32,10 @@ class BobTvCatalogState {
 
 class BobTvCommunityService {
   BobTvCommunityService(this.database, {BobTvApiClient? api})
-      : api = api ?? BobTvApiClient();
+    : api = api ?? BobTvApiClient();
 
   static const providerId = 'bobtv-reviewed';
   static const _feedbackKey = 'bobtv_health_feedback_enabled';
-  static const _autoLogsKey = 'bobtv_auto_logs_enabled';
   static const _reportTimesKey = 'bobtv_report_times_v1';
   static const _reportInterval = Duration(minutes: 5);
 
@@ -44,17 +44,20 @@ class BobTvCommunityService {
   final state = ValueNotifier(const BobTvCatalogState());
   Map<String, BobTvReviewedSource> _sources = {};
   final Map<String, DateTime> _reportTimes = {};
-  Timer? _logTimer;
   Future<void>? _refreshing;
   bool _started = false;
   bool _disposed = false;
   bool healthFeedbackEnabled = false;
   bool automaticLogsEnabled = false;
   DateTime? _reportsPausedUntil;
+  final diagnostics = DiagnosticSyncService();
 
   String? sourceIdForRoute(String? channelId, String? url) {
-    if (channelId == null || url == null ||
-        !channelId.startsWith('$providerId:')) return null;
+    if (channelId == null ||
+        url == null ||
+        !channelId.startsWith('$providerId:')) {
+      return null;
+    }
     final id = channelId.substring(providerId.length + 1);
     return _sources[id]?.url == url ? id : null;
   }
@@ -64,7 +67,8 @@ class BobTvCommunityService {
     _started = true;
     final prefs = await SharedPreferences.getInstance();
     healthFeedbackEnabled = prefs.getBool(_feedbackKey) ?? false;
-    automaticLogsEnabled = prefs.getBool(_autoLogsKey) ?? false;
+    await diagnostics.start();
+    automaticLogsEnabled = diagnostics.enabled;
     try {
       final cached = await database.getChannelsForProvider(providerId);
       _sources = {
@@ -78,7 +82,11 @@ class BobTvCommunityService {
       };
       state.value = BobTvCatalogState(count: _sources.length);
     } catch (error, stackTrace) {
-      AppDiagnostics.instance.recordError('bobtv_catalog_cache', error, stackTrace);
+      AppDiagnostics.instance.recordError(
+        'bobtv_catalog_cache',
+        error,
+        stackTrace,
+      );
     }
     try {
       final saved = jsonDecode(prefs.getString(_reportTimesKey) ?? '{}');
@@ -91,11 +99,8 @@ class BobTvCommunityService {
     } catch (_) {}
     // The shared website catalog owns automatic channel synchronization.
     // This legacy reviewed-source endpoint remains available on explicit refresh.
-    _logTimer = Timer.periodic(const Duration(hours: 6), (_) {
-      if (automaticLogsEnabled) {
-        unawaited(_uploadAutomaticLogs());
-      }
-    });
+    // DiagnosticSyncService owns the versioned consent and durable 30-day
+    // outbox. Legacy opt-in does not authorize the expanded diagnostic schema.
   }
 
   Future<void> refreshCatalog() => _refreshing ??= _fetchAndApplyCatalog()
@@ -104,7 +109,9 @@ class BobTvCommunityService {
   Future<void> _fetchAndApplyCatalog() async {
     if (_disposed) return;
     state.value = BobTvCatalogState(
-      count: _sources.length, fresh: state.value.fresh, loading: true,
+      count: _sources.length,
+      fresh: state.value.fresh,
+      loading: true,
     );
     try {
       final received = await _retryLimited(api.fetchSources);
@@ -114,9 +121,13 @@ class BobTvCommunityService {
       if (received.isNotEmpty) {
         final providers = await database.getAllProviders();
         if (!providers.any((provider) => provider.id == providerId)) {
-          await database.upsertProvider(db.ProvidersCompanion.insert(
-            id: providerId, name: 'BobTV 已审核', type: 'reviewed',
-          ));
+          await database.upsertProvider(
+            db.ProvidersCompanion.insert(
+              id: providerId,
+              name: 'BobTV 已审核',
+              type: 'reviewed',
+            ),
+          );
         }
         await database.upsertChannels([
           for (final source in received)
@@ -126,9 +137,13 @@ class BobTvCommunityService {
               name: source.name,
               streamUrl: source.url,
               groupTitle: const Value('BobTV 已审核'),
-              favorite: Value(byId['$providerId:${source.id}']?.favorite ?? false),
+              favorite: Value(
+                byId['$providerId:${source.id}']?.favorite ?? false,
+              ),
               hidden: Value(byId['$providerId:${source.id}']?.hidden ?? false),
-              sortOrder: Value(byId['$providerId:${source.id}']?.sortOrder ?? 0),
+              sortOrder: Value(
+                byId['$providerId:${source.id}']?.sortOrder ?? 0,
+              ),
             ),
         ]);
       }
@@ -154,7 +169,7 @@ class BobTvCommunityService {
 
   Future<void> setAutomaticLogsEnabled(bool value) async {
     automaticLogsEnabled = value;
-    await (await SharedPreferences.getInstance()).setBool(_autoLogsKey, value);
+    await diagnostics.setEnabled(value);
   }
 
   Future<void> reportPlayback({
@@ -177,15 +192,22 @@ class BobTvCommunityService {
     try {
       await (await SharedPreferences.getInstance()).setString(
         _reportTimesKey,
-        jsonEncode(_reportTimes.map((key, value) =>
-            MapEntry(key, value.toIso8601String()))),
+        jsonEncode(
+          _reportTimes.map(
+            (key, value) => MapEntry(key, value.toIso8601String()),
+          ),
+        ),
       );
       await api.postPlaybackReport(
-        sourceId: sourceId, fingerprint: apiFingerprint, playable: playable,
+        sourceId: sourceId,
+        fingerprint: apiFingerprint,
+        playable: playable,
       );
     } on BobTvApiException catch (error) {
       if (error.statusCode == 429 || error.statusCode == 503) {
-        _reportsPausedUntil = now.add(error.retryAfter ?? const Duration(minutes: 5));
+        _reportsPausedUntil = now.add(
+          error.retryAfter ?? const Duration(minutes: 5),
+        );
       } else if (error.statusCode == 404) {
         unawaited(refreshCatalog());
       }
@@ -205,14 +227,26 @@ class BobTvCommunityService {
     if (_disposed || !consent) throw const FormatException('Consent required');
     final fingerprint = await ClientFingerprintService.instance.initialize();
     if (fingerprint == null) throw StateError('Client fingerprint unavailable');
-    final device = Platform.isWindows ? 'Windows' : Platform.isAndroid
-        ? 'Android' : Platform.isIOS ? 'iOS' : Platform.isMacOS
-        ? 'macOS' : Platform.isLinux ? 'Linux' : 'Other';
-    return _retryLimited(() => api.submitCandidate(
-      name: name, url: url, device: device,
-      fingerprint: ClientFingerprintService.instance.apiFingerprint!,
-      consent: true,
-    ));
+    final device = Platform.isWindows
+        ? 'Windows'
+        : Platform.isAndroid
+        ? 'Android'
+        : Platform.isIOS
+        ? 'iOS'
+        : Platform.isMacOS
+        ? 'macOS'
+        : Platform.isLinux
+        ? 'Linux'
+        : 'Other';
+    return _retryLimited(
+      () => api.submitCandidate(
+        name: name,
+        url: url,
+        device: device,
+        fingerprint: ClientFingerprintService.instance.apiFingerprint!,
+        consent: true,
+      ),
+    );
   }
 
   Future<bool> uploadLogSnapshot() async {
@@ -220,8 +254,11 @@ class BobTvCommunityService {
     final directoryPath = AppDiagnostics.instance.logDirectoryPath;
     if (directoryPath == null) throw StateError('Diagnostics unavailable');
     final directory = Directory(directoryPath);
-    final files = await directory.list().where((item) =>
-        item is File && p.extension(item.path) == '.log').cast<File>().toList();
+    final files = await directory
+        .list()
+        .where((item) => item is File && p.extension(item.path) == '.log')
+        .cast<File>()
+        .toList();
     files.sort((a, b) => b.lastModifiedSync().compareTo(a.lastModifiedSync()));
     final lines = <String>[];
     for (final file in files.take(2)) {
@@ -229,11 +266,13 @@ class BobTvCommunityService {
       lines.addAll(all.length > 1000 ? all.sublist(all.length - 1000) : all);
     }
     if (lines.isEmpty) {
-      lines.add(jsonEncode({
-        'time': DateTime.now().toUtc().toIso8601String(),
-        'event': 'diagnostic_snapshot',
-        'platform': Platform.operatingSystem,
-      }));
+      lines.add(
+        jsonEncode({
+          'time': DateTime.now().toUtc().toIso8601String(),
+          'event': 'diagnostic_snapshot',
+          'platform': Platform.operatingSystem,
+        }),
+      );
     }
     var snapshot = BobTvLogProjection.project(lines);
     if (snapshot.isEmpty) {
@@ -248,24 +287,28 @@ class BobTvCommunityService {
     return _retryLimited(() => api.uploadLogSnapshot(snapshot));
   }
 
-  Future<void> _uploadAutomaticLogs() async {
-    try {
-      if (automaticLogsEnabled && !_disposed) await uploadLogSnapshot();
-    } catch (error, stackTrace) {
-      AppDiagnostics.instance.recordError('bobtv_auto_logs', error, stackTrace);
-    }
-  }
-
   Future<List<BobTvRelease>> fetchReleases() =>
       _retryLimited(api.fetchReleases);
 
   Future<File> downloadRelease(BobTvRelease release) async {
-    final root = Platform.isWindows &&
+    final root =
+        Platform.isWindows &&
             (Platform.environment['LOCALAPPDATA']?.isNotEmpty ?? false)
-        ? Directory(p.join(Platform.environment['LOCALAPPDATA']!,
-            'HotelTV', 'Update', 'Downloads'))
-        : Directory(p.join((await getApplicationSupportDirectory()).path,
-            'BobTV', 'Downloads'));
+        ? Directory(
+            p.join(
+              Platform.environment['LOCALAPPDATA']!,
+              'HotelTV',
+              'Update',
+              'Downloads',
+            ),
+          )
+        : Directory(
+            p.join(
+              (await getApplicationSupportDirectory()).path,
+              'BobTV',
+              'Downloads',
+            ),
+          );
     return api.downloadRelease(release, root);
   }
 
@@ -276,8 +319,11 @@ class BobTvCommunityService {
         return await operation();
       } on BobTvApiException catch (error) {
         final status = error.statusCode;
-        if (attempt >= 2 || status == null ||
-            status != 429 && status != 503 && status < 500) rethrow;
+        if (attempt >= 2 ||
+            status == null ||
+            status != 429 && status != 503 && status < 500) {
+          rethrow;
+        }
         final delay = status == 429 || status == 503
             ? error.retryAfter ?? Duration(seconds: 2 << attempt)
             : Duration(seconds: 2 << attempt);
@@ -295,7 +341,7 @@ class BobTvCommunityService {
 
   void dispose() {
     _disposed = true;
-    _logTimer?.cancel();
+    diagnostics.dispose();
     api.close();
     state.dispose();
   }

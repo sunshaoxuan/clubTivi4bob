@@ -4,6 +4,7 @@ After=network-online.target
 Wants=network-online.target
 
 [Service]
+StateDirectory=bobtv-relay
 User=bobtv-relay
 Group=bobtv-relay
 WorkingDirectory=/opt/bobtv-relay

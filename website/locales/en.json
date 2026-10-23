@@ -25,8 +25,8 @@
   "download": "Download BobTV",
   "features": "Features",
   "home": {
-    "headline": "Watch TV on Windows and Mac.",
-    "intro": "Window-filling playback and an always-on-top pin join the separate system fullscreen control. Favorites and manual settings are preserved.",
+    "headline": "Watch TV on desktop and Android.",
+    "intro": "Windows, macOS and Android share version 1.1.10+103. Sync the public catalog and guide, recover resource timeouts, and optionally sync up to 30 days of redacted diagnostics after explicit consent.",
     "image_alt": "BobTV running in simplified mode, with sports playback and a channel list.",
     "mode": "BOBTV / Simplified mode",
     "screenshot": "Actual app screenshot",
@@ -199,6 +199,11 @@
     "history": [
       [
         "2026-10-23",
+        "v1.1.10 · Unified versions, diagnostic sync and timeout recovery",
+        "All three platforms share version 1.1.10+103 and common feature source. Optional 30-day redacted diagnostic sync requires new consent, can be disabled, and uses durable cndrp forwarding in mainland China. Resource connection, header and body timeouts can switch nodes. Catalog writes recover through a bounded inbox while retaining event IDs and offline data. Desktop-only window controls retain platform differences."
+      ],
+      [
+        "2026-10-23",
         "v1.1.9 · Window-filling playback and window pin",
         "Windows and macOS gain window-filling playback and an always-on-top pin. Fill the app window while retaining its frame and reuse the current player when changing presentation. Unpin at any time; the pin choice is restored after fullscreen or picture-in-picture. Android remains at 1.1.7."
       ],
@@ -293,7 +298,7 @@
   },
   "downloads": {
     "signing_notice": "The free SignPath Foundation application was not approved. No trusted Windows certificate was issued and SignPath.io production signing is not in use. Edge may still require a security confirmation on the first browser download.",
-    "intro": "Version 1.1.9 updates Windows x64 / ARM64 and macOS Intel / Apple Silicon with window-filling playback and an always-on-top pin. System fullscreen remains a separate action, and presentation changes reuse the current player. Unpin at any time; the preference lasts for the current app run. Android remains at 1.1.7.",
+    "intro": "Windows, macOS and Android share version 1.1.10+103. Sync the public catalog and guide, recover resource timeouts, and optionally sync up to 30 days of redacted diagnostics after explicit consent. All three platforms share version 1.1.10+103 and common feature source. Optional 30-day redacted diagnostic sync requires new consent, can be disabled, and uses durable cndrp forwarding in mainland China. Resource connection, header and body timeouts can switch nodes. Catalog writes recover through a bounded inbox while retaining event IDs and offline data. Desktop-only window controls retain platform differences.",
     "latest": "Latest installers",
     "local": "Downloads hosted on this site",
     "sections": [

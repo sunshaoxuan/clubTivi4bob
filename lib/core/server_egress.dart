@@ -164,6 +164,11 @@ class ServerEgress {
   static HttpClient createClient() =>
       _ServerOnlyHttpOverrides().createHttpClient(null);
 
+  /// Explicit node transport for bounded whole-response retries. The same
+  /// public-network guard applies; callers cannot reach arbitrary upstreams.
+  static HttpClient createPinnedResourceClient() =>
+      _ServerOnlyHttpOverrides().rawClient(null);
+
   static HttpClient createMediaClient() =>
       _ServerOnlyHttpOverrides().rawClient(null, media: true);
 

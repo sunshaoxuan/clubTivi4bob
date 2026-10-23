@@ -2,7 +2,13 @@ param([int]$CurrentPid, [int]$WorkerPid, [string]$Version, [string]$RunId, [stri
 $ErrorActionPreference='Stop'
 $root=$PSScriptRoot
 $uiLog=Join-Path $root 'progress-ui.log'
-function Log([string]$message){Add-Content -LiteralPath $uiLog -Value ([DateTime]::UtcNow.ToString('o')+' '+$message) -Encoding utf8}
+function Log([string]$message){
+  try{
+    Add-Content -LiteralPath $uiLog -Value ([DateTime]::UtcNow.ToString('o')+' '+$message) -Encoding utf8 -ErrorAction Stop
+  }catch{
+    # Diagnostic logging must never interrupt window initialization or status updates.
+  }
+}
 if($RunId -notmatch '^[A-Za-z0-9-]{1,100}$'){throw 'Invalid updater run ID'}
 $statusPath=Join-Path $root ('status-'+$RunId+'.json')
 # Only show the separate progress window after the player has been closed.

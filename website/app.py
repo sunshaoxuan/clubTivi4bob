@@ -23,6 +23,7 @@ from egress_gateway import router as egress_router
 from resource_nodes import router as resource_node_router, trusted_client
 from device_favorites import router as device_favorites_router
 from epg_catalog import router as epg_router
+from diagnostics_api import router as diagnostics_router
 
 BASE = Path(__file__).resolve().parent
 DATA = Path(os.environ.get("BOBTV_DATA_DIR", BASE / "data"))
@@ -43,6 +44,7 @@ app.include_router(egress_router)
 app.include_router(resource_node_router)
 app.include_router(device_favorites_router)
 app.include_router(epg_router)
+app.include_router(diagnostics_router)
 
 
 @app.middleware('http')

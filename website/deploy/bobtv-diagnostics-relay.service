@@ -1,0 +1,20 @@
+[Unit]
+Description=BobTV bounded diagnostic upload relay
+After=network-online.target
+
+[Service]
+Type=oneshot
+User=bobtv-relay
+Group=bobtv-relay
+WorkingDirectory=/opt/bobtv-relay
+EnvironmentFile=/etc/bobtv-relay/relay.env
+ExecStart=/opt/bobtv-relay/venv/bin/python diagnostic_relay_worker.py
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+StateDirectory=bobtv-relay
+ReadWritePaths=/var/lib/bobtv-relay
+MemoryMax=160M
+CPUQuota=30%
+TimeoutStartSec=120

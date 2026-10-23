@@ -6,31 +6,59 @@ import 'resource_node_router.dart';
 /// Routes raw dart:io, package:http and cached-image requests as well as Dio.
 /// Failover happens before request headers/body are sent, including uploads.
 class ResourceRoutingHttpClient implements HttpClient {
-  ResourceRoutingHttpClient(this.inner, this.router);
+  ResourceRoutingHttpClient(
+    this.inner,
+    this.router, {
+    this.openTimeout = const Duration(seconds: 8),
+    this.headerTimeout = const Duration(seconds: 12),
+  });
   final HttpClient inner;
   final ResourceNodeRouter router;
+  final Duration openTimeout, headerTimeout;
+
+  Future<HttpClientRequest> _open(String method, Uri target) async {
+    var expired = false;
+    final opening = inner.openUrl(method, target).then((request) {
+      if (expired) request.abort(const HttpException('Resource open expired'));
+      return request;
+    });
+    return opening.timeout(
+      openTimeout,
+      onTimeout: () {
+        expired = true;
+        throw TimeoutException('Resource open deadline');
+      },
+    );
+  }
 
   @override
   Future<HttpClientRequest> openUrl(String method, Uri url) async {
     var target = await router.resolve(url);
     HttpClientRequest request;
     try {
-      request = await inner.openUrl(method, target);
-    } on SocketException {
+      request = await _open(method, target);
+    } catch (error) {
+      if (error is! SocketException &&
+          error is! HandshakeException &&
+          error is! TimeoutException) {
+        rethrow;
+      }
       if (!ResourceNodeRouter.eligible(target)) rethrow;
       router.failed(target);
       final alternative = await router.resolve(url);
       if (alternative == target) rethrow;
       target = alternative;
-      request = await inner.openUrl(method, target);
-    } on HandshakeException {
-      if (!ResourceNodeRouter.eligible(target)) rethrow;
-      router.failed(target);
-      target = await router.resolve(url);
-      request = await inner.openUrl(method, target);
+      request = await _open(method, target);
     }
     return ResourceNodeRouter.eligible(target)
-        ? _ResourceRequest(request, inner, router, target)
+        ? _ResourceRequest(
+            request,
+            inner,
+            router,
+            target,
+            openTimeout,
+            headerTimeout,
+          )
         : request;
   }
 
@@ -126,39 +154,69 @@ class ResourceRoutingHttpClient implements HttpClient {
 
 /// Upload failures update the next selection but never resubmit a sent body.
 class _ResourceRequest implements HttpClientRequest {
-  _ResourceRequest(this.inner, this.client, this.router, this.target);
+  _ResourceRequest(
+    this.inner,
+    this.client,
+    this.router,
+    this.target,
+    this.openTimeout,
+    this.headerTimeout,
+  );
   final HttpClientRequest inner;
   final HttpClient client;
   final ResourceNodeRouter router;
   final Uri target;
+  final Duration openTimeout, headerTimeout;
+  HttpClientRequest? _retryRequest;
   Future<HttpClientResponse>? _closing;
   bool _aborted = false;
 
   Future<HttpClientResponse> _finish() async {
     HttpClientResponse? response;
     try {
-      response = await inner.close();
+      response = await inner.close().timeout(headerTimeout);
       if (!const {502, 503, 504}.contains(response.statusCode)) return response;
     } catch (error) {
       if (_aborted ||
           !(error is SocketException ||
               error is HandshakeException ||
-          error is HttpException)) {
+              error is HttpException ||
+              error is TimeoutException)) {
         rethrow;
       }
       router.failed(target);
+      inner.abort(error);
       if (!const {'GET', 'HEAD'}.contains(method)) rethrow;
       return _retry();
     }
     router.failed(target);
     if (!const {'GET', 'HEAD'}.contains(method)) return response;
-    await response.drain<void>();
+    await response.drain<void>().timeout(
+      headerTimeout,
+      onTimeout: () {
+        inner.abort();
+      },
+    );
     return _retry();
   }
 
   Future<HttpClientResponse> _retry() async {
     final alternate = await router.resolve(target);
-    final next = await client.openUrl(method, alternate);
+    var expired = false;
+    final opening = client.openUrl(method, alternate).then((request) {
+      if (expired || _aborted) {
+        request.abort(const HttpException('Resource retry expired'));
+      }
+      return request;
+    });
+    final next = await opening.timeout(
+      openTimeout,
+      onTimeout: () {
+        expired = true;
+        throw TimeoutException('Resource retry open deadline');
+      },
+    );
+    _retryRequest = next;
     next.followRedirects = followRedirects;
     next.maxRedirects = maxRedirects;
     headers.forEach((name, values) {
@@ -170,7 +228,13 @@ class _ResourceRequest implements HttpClientRequest {
         next.headers.set(name, values);
       }
     });
-    return next.close();
+    try {
+      return await next.close().timeout(headerTimeout);
+    } catch (error) {
+      next.abort(error);
+      router.failed(alternate);
+      rethrow;
+    }
   }
 
   @override
@@ -211,6 +275,7 @@ class _ResourceRequest implements HttpClientRequest {
   void abort([Object? exception, StackTrace? stackTrace]) {
     _aborted = true;
     inner.abort(exception, stackTrace);
+    _retryRequest?.abort(exception, stackTrace);
   }
 
   @override

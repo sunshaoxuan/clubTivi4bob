@@ -5,6 +5,8 @@ import 'dart:io';
 import 'package:flutter/widgets.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
+import 'diagnostic_log_store.dart';
+import 'app_version.dart';
 
 /// Durable application diagnostics for unattended desktop playback.
 ///
@@ -23,6 +25,7 @@ class AppDiagnostics with WidgetsBindingObserver {
   Directory? _logDirectory;
   File? _logFile;
   File? _sessionMarker;
+  DiagnosticLogStore? safeStore;
   Timer? _heartbeatTimer;
   Future<void> _writeQueue = Future<void>.value();
   DateTime? _startedAt;
@@ -41,6 +44,16 @@ class AppDiagnostics with WidgetsBindingObserver {
     final directory = directoryOverride ?? await _resolveLogDirectory();
     await directory.create(recursive: true);
     _logDirectory = directory;
+    safeStore = DiagnosticLogStore(
+      Directory(p.join(directory.path, 'safe-diagnostics')),
+      legacyDirectory: directory,
+    );
+    try {
+      await safeStore!.initialize();
+    } catch (_) {
+      safeStore =
+          null; // Diagnostic storage must never prevent application startup.
+    }
     _logFile = await _selectLogFile(directory);
     _sessionMarker = File(p.join(directory.path, 'active_session.json'));
 
@@ -172,8 +185,15 @@ class AppDiagnostics with WidgetsBindingObserver {
       final entry = <String, Object?>{
         'time': DateTime.now().toUtc().toIso8601String(),
         'event': event,
+        'appVersion': bobTvVersion,
+        'platform': Platform.operatingSystem,
         ...data,
       };
+      try {
+        await safeStore?.record(entry);
+      } catch (_) {
+        /* Never suppress raw local diagnostics. */
+      }
       await file.writeAsString(
         '${jsonEncode(entry)}\n',
         mode: FileMode.append,

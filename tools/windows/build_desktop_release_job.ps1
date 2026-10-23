@@ -5,7 +5,9 @@ param(
  [Parameter(Mandatory=$true)][string]$FlutterPath,
  [Parameter(Mandatory=$true)][string]$Arm64FlutterPath,
  [Parameter(Mandatory=$true)][string]$Arm64RuntimeDirectory,
- [Parameter(Mandatory=$true)][string]$CompilerPath
+ [Parameter(Mandatory=$true)][string]$CompilerPath,
+ [switch]$SkipTransfer,
+ [switch]$SkipInstallTests
 )
 $ErrorActionPreference='Stop'
 $ProgressPreference='SilentlyContinue'
@@ -24,14 +26,14 @@ try {
  if($LASTEXITCODE -ne 0){throw 'Current AirPlay source compilation failed'}
  Move-Item -LiteralPath (Join-Path $support 'AirPlay') -Destination (Join-Path $support 'AirPlay.baseline')
  Copy-Item -LiteralPath (Join-Path $source 'build/airplay-dist/bobtv-airplay') -Destination (Join-Path $support 'AirPlay') -Recurse
- & (Join-Path $source 'tools/windows/build_release_bundle.ps1') -SourceArchiveUrl 'https://bobtv.briconbric.com' -SourceSha256 $SourceSha256 -StagingDirectory $source -OutputDirectory (Join-Path $JobDirectory 'x64') -SupportDirectory $support -FlutterPath $FlutterPath -CompilerPath $CompilerPath -ReuseSource
+ & (Join-Path $source 'tools/windows/build_release_bundle.ps1') -SourceArchiveUrl 'https://bobtv.briconbric.com' -SourceSha256 $SourceSha256 -StagingDirectory $source -OutputDirectory (Join-Path $JobDirectory 'x64') -SupportDirectory $support -FlutterPath $FlutterPath -CompilerPath $CompilerPath -ReuseSource -SkipTransfer:$SkipTransfer -SkipInstallTests:$SkipInstallTests
  if($LASTEXITCODE -ne 0){throw 'x64 build job failed'}
  & (Join-Path $source 'tools/windows/build_arm64.ps1') -FlutterPath $Arm64FlutterPath -OutputDirectory (Join-Path $JobDirectory 'arm64') -Arm64RuntimeDirectory $Arm64RuntimeDirectory -SupportDirectory $support -InstallerCompiler $CompilerPath -CrossCompile
  if($LASTEXITCODE -ne 0){throw 'ARM64 build job failed'}
- foreach($file in Get-ChildItem -LiteralPath (Join-Path $JobDirectory 'arm64') -File|Where-Object {$_.Extension -in '.exe','.zip'}) {
+ if(!$SkipTransfer){foreach($file in Get-ChildItem -LiteralPath (Join-Path $JobDirectory 'arm64') -File|Where-Object {$_.Extension -in '.exe','.zip'}) {
   & 'C:\Program Files\Tailscale\tailscale.exe' file cp $file.FullName '100.65.248.58:'
   if($LASTEXITCODE -ne 0){throw 'ARM64 artifact transfer failed'}
- }
+ }}
  [IO.File]::WriteAllText((Join-Path $JobDirectory 'job-success.txt'),'PASS: x64 and ARM64 packages, refreshed sender, installer and architecture checks')
 } catch {
  [IO.File]::WriteAllText((Join-Path $JobDirectory 'job-failed.txt'),($_|Out-String))

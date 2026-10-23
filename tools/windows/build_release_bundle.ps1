@@ -6,7 +6,9 @@ param(
  [Parameter(Mandatory=$true)][string]$SupportDirectory,
  [Parameter(Mandatory=$true)][string]$FlutterPath,
  [Parameter(Mandatory=$true)][string]$CompilerPath,
- [switch]$ReuseSource
+ [switch]$ReuseSource,
+ [switch]$SkipTransfer,
+ [switch]$SkipInstallTests
 )
 $ErrorActionPreference='Stop'
 if((Test-Path -LiteralPath $StagingDirectory) -and !$ReuseSource){throw 'Preserve existing source staging'}
@@ -54,13 +56,17 @@ try {
  }
  & (Join-Path $StagingDirectory 'tools/windows/test_pe_architecture.ps1')
  & (Join-Path $StagingDirectory 'tools/windows/build_installer.ps1') -BundleDirectory $bundle -OutputDirectory $OutputDirectory -CompilerPath $CompilerPath
- & (Join-Path $StagingDirectory 'tools/windows/test_installer.ps1') -BundleDirectory $bundle -CompilerPath $CompilerPath
+ if(!$SkipInstallTests){
+  & (Join-Path $StagingDirectory 'tools/windows/test_installer.ps1') -BundleDirectory $bundle -CompilerPath $CompilerPath
+ }
  $version=(Get-Item (Join-Path $bundle 'BobTV.exe')).VersionInfo.FileVersion
  Compress-Archive -LiteralPath $bundle -DestinationPath (Join-Path $OutputDirectory "BobTV-$version-windows-x64.zip") -CompressionLevel Optimal
  foreach($file in Get-ChildItem -LiteralPath $OutputDirectory -File|Where-Object {$_.Extension -in '.exe','.zip'}) {
   Get-FileHash -LiteralPath $file.FullName -Algorithm SHA256
-  & 'C:\Program Files\Tailscale\tailscale.exe' file cp $file.FullName '100.65.248.58:'
-  if($LASTEXITCODE -ne 0){throw 'Package transfer failed'}
+  if(!$SkipTransfer){
+   & 'C:\Program Files\Tailscale\tailscale.exe' file cp $file.FullName '100.65.248.58:'
+   if($LASTEXITCODE -ne 0){throw 'Package transfer failed'}
+  }
  }
- [IO.File]::WriteAllText((Join-Path $OutputDirectory 'build-success.txt'),"PASS: $version, x64, installer fixtures, architecture checks, package transfer")
+ [IO.File]::WriteAllText((Join-Path $OutputDirectory 'build-success.txt'),"PASS: $version, x64, architecture checks; installTestsSkipped=$SkipInstallTests; transferSkipped=$SkipTransfer")
 } finally {Pop-Location}

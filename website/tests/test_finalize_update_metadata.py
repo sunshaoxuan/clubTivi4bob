@@ -32,7 +32,7 @@ def fixture(tmp_path, monkeypatch):
 def test_finalization_requires_key_for_managed_windows(tmp_path, monkeypatch):
     version, _ = fixture(tmp_path, monkeypatch)
     monkeypatch.setattr(sys, 'argv', ['finalize', str(tmp_path), version,
-                                    '--platforms', 'windows-x64'])
+                                    '--staging', '--platforms', 'windows-x64'])
     with pytest.raises(ValueError, match='publisher signing key'):
         module.main()
     assert not (tmp_path / 'BobTV-update-metadata.json').exists()
@@ -48,7 +48,7 @@ def test_finalization_signs_setup_and_verifies_pinned_key(tmp_path, monkeypatch)
                     '-out', str(public)], check=True, capture_output=True)
     monkeypatch.setattr(sys.modules['mirror_releases'], 'UPDATE_PUBLIC_KEY', public)
     monkeypatch.setattr(sys, 'argv', ['finalize', str(tmp_path), version,
-                                    '--platforms', 'windows-x64',
+                                    '--staging', '--platforms', 'windows-x64',
                                     '--signing-key', str(private)])
     module.main()
     metadata = json.loads((tmp_path / 'BobTV-update-metadata.json').read_text())

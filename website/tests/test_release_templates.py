@@ -22,7 +22,7 @@ def test_release_templates_preserve_languages_and_settings(locale):
         assert f'lang="{locale}"' in rendered
         assert 'installed-devices' in rendered
         if page == 'index':
-            assert '1.1.11+106 · Windows / macOS · Android 1.1.10+103' in rendered
+            assert '1.1.11+106 · Windows / macOS / Android' in rendered
             assert copy['home']['history'][0][1].startswith('v1.1.11 · ')
             assert any(item[1].startswith('v1.1.10 · ')
                        for item in copy['home']['history'])
@@ -33,9 +33,9 @@ def test_release_templates_preserve_languages_and_settings(locale):
         elif page == 'downloads':
             assert 'id="release-list"' in rendered
             assert '1.1.11+106' in rendered
-            assert '1.1.10+103' in rendered
+            assert '1.1.10+103' not in copy['downloads']['intro']
             assert '1.1.11+106' in copy['downloads']['intro']
-            assert '1.1.10+103' in copy['downloads']['intro']
+            assert '1.1.10+103' not in copy['downloads']['intro']
             assert '30' in copy['downloads']['intro']
             assert 'ad-hoc' in rendered
 
@@ -44,7 +44,7 @@ def test_release_templates_preserve_languages_and_settings(locale):
 def test_static_release_copies_preserve_android_and_diagnostic_notice(page):
     rendered = (ROOT / f'{page}.html').read_text()
     assert '1.1.11+106' in rendered
-    assert '1.1.10+103' in rendered
+    assert '1.1.10+103' not in json.loads((ROOT / 'locales' / 'zh-CN.json').read_text())['downloads']['intro']
     assert '30 天' in rendered
     assert '同意' in rendered
     assert '关闭' in rendered

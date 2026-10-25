@@ -26,7 +26,7 @@
   "features": "Features",
   "home": {
     "headline": "Watch TV on desktop and Android.",
-    "intro": "Windows and macOS advance to 1.1.11+106. Open a channel card to view matched current and upcoming programmes, with fixes for guide imports, sync retries and shutdown. Android remains available at 1.1.10+103.",
+    "intro": "Windows, macOS and Android now share 1.1.11+106. Open a channel card to view matched current and upcoming programmes, with fixes for guide imports and sync retries, plus desktop shutdown improvements.",
     "image_alt": "BobTV running in simplified mode, with sports playback and a channel list.",
     "mode": "BOBTV / Simplified mode",
     "screenshot": "Actual app screenshot",
@@ -200,7 +200,7 @@
       [
         "2026-10-25",
         "v1.1.11 · Channel guides, orderly shutdown and Keychain access",
-        "Desktop version 1.1.11+106 fixes EPG matching and card expansion across channel types, with explicit missing-data and loading-failure states. Invalid XMLTV programmes are skipped individually and custom sources keep their configured automatic refresh. Shutdown waits for background work and the database to close. Disabled features do not read Keychain credentials, and denied access pauses automatic attempts. Sync retries are spaced out while local edits, manual mappings and caches are retained. Android stays at 1.1.10+103."
+        "Windows, macOS and Android version 1.1.11+106 fixes EPG matching and card expansion across channel types, with explicit missing-data and loading-failure states. Invalid XMLTV programmes are skipped individually and custom sources keep their configured automatic refresh. Shutdown waits for background work and the database to close. Disabled features do not read Keychain credentials, and denied access pauses automatic attempts. Sync retries are spaced out while local edits, manual mappings and caches are retained. Android ARM32, ARM64 and x64 are built from the same fixed application source and use the same version as desktop."
       ],
       [
         "2026-10-24",
@@ -303,7 +303,7 @@
   },
   "downloads": {
     "signing_notice": "The free SignPath Foundation application was not approved. No trusted Windows certificate was issued and SignPath.io production signing is not in use. Edge may still require a security confirmation on the first browser download.",
-    "intro": "Windows x64 / ARM64 and macOS Intel / Apple Silicon advance to 1.1.11+106. Fixes cover guide matching and card expansion across channel types, invalid XMLTV records, automatic refresh of custom sources, sync retries, shutdown and Keychain access. Guide coverage still depends on source data. Android ARM32 / ARM64 / x64 stays at 1.1.10+103 with existing downloads and update channels. Diagnostic sync remains off by default, requires explicit consent, includes at most 30 days of redacted records and can be disabled at any time.",
+    "intro": "Windows x64 / ARM64, macOS Intel / Apple Silicon and Android ARM32 / ARM64 / x64 share 1.1.11+106 and the same fixed application source. Fixes cover guide matching and card expansion, invalid XMLTV records and automatic refresh of custom sources. Desktop builds also improve shutdown and macOS Keychain access. Guide coverage still depends on source data. Diagnostic sync remains off by default, requires explicit consent, includes at most 30 days of redacted records and can be disabled at any time.",
     "latest": "Latest installers",
     "local": "Downloads hosted on this site",
     "sections": [

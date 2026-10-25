@@ -63,7 +63,7 @@ test('A real ARM64 Windows asset enables its CPU choice',async()=>{
  assert.match(links(windows)[0].href,/windows-arm64-Setup\.exe$/);
  assert.ok(walk(windows).some(item=>item.textContent.includes('Surface 实机')));
 });
-test('A desktop release retains the existing Android version for every CPU',async()=>{
+test('Historical mixed-version manifests retain valid Android downloads',async()=>{
  const list=await render([
   {version:'v1.1.11',platform:'Windows x64',filename:'BobTV-1.1.11+106-windows-x64-Setup.exe'},
   {version:'v1.1.11',platform:'Windows x64',filename:'BobTV-1.1.11+106-windows-x64.zip'},
@@ -89,4 +89,19 @@ test('A desktop release retains the existing Android version for every CPU',asyn
  button(mac,'x64').listeners.click();
  assert.match(links(mac)[0].href,/1\.1\.11%2B106-macos-x64\.dmg$/);
  assert.ok(links(list).filter(item=>item.href.includes('android-')).every(item=>item.href.includes('1.1.10%2B103')));
+});
+
+test('The unified release selects the same new Android version for every CPU',async()=>{
+ const items=[{version:'v1.1.11',platform:'Windows x64',filename:'BobTV-1.1.11+106-windows-x64-Setup.exe'},{version:'v1.1.11',platform:'macOS Apple Silicon',filename:'BobTV-1.1.11+106-macos-arm64.dmg'}];
+ for(const [cpu,label] of [['arm64','ARM64'],['arm','ARM32'],['x64','x64']]){
+  items.push({version:'v1.1.11',platform:'Android '+label,filename:`BobTV-1.1.11+106-android-${cpu}.apk`});
+  items.push({version:'v1.1.10',platform:'Android '+label,filename:`BobTV-1.1.10+103-android-${cpu}.apk`});
+ }
+ const list=await render(items);const android=list.children[0].children[1].children.find(x=>x['data-platform']==='android');
+ for(const cpu of ['arm64','arm','x64']){
+  button(android,cpu).listeners.click();
+  assert.ok(links(android)[0].href.endsWith(`1.1.11%2B106-android-${cpu}.apk`));
+  assert.match(links(android)[0]['aria-label'],/v1\.1\.11/);
+  assert.ok(!walk(android).some(x=>x.className==='release-family-note release-platform-pending'));
+ }
 });

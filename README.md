@@ -10,7 +10,8 @@ The application is built with Flutter and uses `media_kit`, libmpv, FFmpeg, Rive
 
 ### Latest release
 
-Windows x64/ARM64 and macOS Intel/Apple Silicon advance to `1.1.11+106`.
+Windows x64/ARM64, macOS Intel/Apple Silicon and Android ARM32/ARM64/x64
+share `1.1.11+106` and the same fixed application source.
 Channel cards expand matched current and upcoming programmes across channel
 types, with explicit missing-data and failure states. The shared guide pipeline
 isolates invalid XMLTV programmes and retains automatic refresh for custom
@@ -22,8 +23,8 @@ window and engine teardown. Disabled features do not read their Keychain
 credentials; denied access pauses automatic attempts until explicit recovery.
 Sync retries are spaced out while preserving pending local edits.
 
-Android ARM32/ARM64/x64 remains at `1.1.10+103`; its existing APKs and update
-channels remain available. Optional redacted diagnostic sync still requires
+All seven platform update channels use the same release version and build.
+The Android APKs retain the existing publisher certificate for in-place upgrades. Optional redacted diagnostic sync still requires
 explicit consent, retains at most 30 days and can be disabled at any time.
 The macOS DMGs are hosted on the BobTV site. The app is ad-hoc signed and has no
 Apple Developer ID signature or notarization; update ZIPs are separately

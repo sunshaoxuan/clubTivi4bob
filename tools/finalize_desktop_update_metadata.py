@@ -31,8 +31,11 @@ def main():
     parser.add_argument('--signing-key', type=Path,
                         default=os.environ.get('BOBTV_UPDATE_SIGNING_KEY'))
     parser.add_argument("--platforms", nargs="+", choices=PLATFORMS,
-                        default=["windows-x64", "macos-x64", "macos-arm64"])
+                        default=list(PLATFORMS))
+    parser.add_argument("--staging", action="store_true", help="Create platform build staging metadata; never a complete official release")
     args = parser.parse_args()
+    if set(args.platforms) != set(PLATFORMS) and not args.staging:
+        raise ValueError("Official releases require all seven platforms at the same version; use --staging only for intermediate platform builds")
     version_parts(args.version)
     root = args.directory.resolve()
     metadata = root / "BobTV-update-metadata.json"

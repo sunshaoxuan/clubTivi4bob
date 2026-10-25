@@ -21,5 +21,5 @@ for entry in 'armeabi-v7a:arm' 'arm64-v8a:arm64' 'x86_64:x64'; do
     "$output/BobTV-$version-android-$architecture.apk"
 done
 "${BOBTV_ANDROID_PYTHON:-python3}" tools/finalize_desktop_update_metadata.py \
-  "$output" "$version" --platforms android-arm64 android-arm android-x64
+  "$output" "$version" --staging --platforms android-arm64 android-arm android-x64
 shasum -a 256 "$output"/*.apk

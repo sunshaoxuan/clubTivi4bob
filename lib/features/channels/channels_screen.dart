@@ -62,6 +62,7 @@ import 'channel_debug_dialog.dart';
 import 'channel_list_identity.dart';
 import 'channel_startup_progress.dart';
 import 'channel_programme_preview.dart';
+import 'channel_programme_status.dart';
 import 'channel_programme_strip.dart';
 import 'inline_expanded_channel_grid.dart';
 import 'channel_card_feedback.dart';
@@ -242,6 +243,12 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
         at: at,
         limit: limit,
       ),
+      resolve: (id, fallback) async {
+        final index = ChannelListIdentity.indexOf(_filteredChannels, id, (c) => c.id);
+        return resolveLiveEpgId(ref.read(databaseProvider), channelId: id,
+          providerId: index < 0 ? null : _filteredChannels[index].providerId,
+          fallbackId: null);
+      },
       onError: (error, stack) => AppDiagnostics.instance.recordError(
         'inline_channel_epg',
         error,
@@ -469,7 +476,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
         .refreshAllSources()
         .then((_) async {
           debugPrint('[EPG] Background refresh complete');
-          if (!mounted) return;
+          if (!mounted || epgService.stopping) return;
           await _loadEpgData(
             ref.read(databaseProvider),
             _allChannels,
@@ -865,7 +872,8 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
     });
     final epgMap = <String, String>{};
     for (final m in mappings) {
-      final directKey = '${m.epgSourceId}_${m.epgChannelId}';
+      final directKey = (m.epgChannelId.startsWith('${m.epgSourceId}_')
+          ? m.epgChannelId : '${m.epgSourceId}_${m.epgChannelId}');
       if (m.locked || m.source == 'manual' || m.source == 'server') {
         epgMap[m.channelId] = currentSourceIds.contains(m.epgSourceId) && validIds.contains(directKey)
           ? directKey : '';
@@ -1603,14 +1611,8 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
     if (index >= 0) await _selectChannel(index, force: force);
   }
 
-  Future<void> _onSimpleChannelTap(db.Channel channel) async {
-    unawaited(_inlineProgrammePreview.select(
-      channelId: channel.id,
-      epgChannelId: _getEpgId(channel),
-      timeshiftHours: _epgTimeshifts[channel.id] ?? 0,
-    ));
-    await _selectChannelById(channel.id);
-  }
+  Future<void> _onSimpleChannelTap(db.Channel channel) =>
+      _selectChannelById(channel.id);
 
   void _refreshInlineProgrammeStrip({bool forceRefresh = false}) {
     final index = ChannelListIdentity.indexOf(
@@ -1629,7 +1631,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
   void _onInlineProgrammeChanged() {
     if (!mounted) return;
     final id = _inlineProgrammePreview.selectedChannelId;
-    final visible = _inlineProgrammePreview.programmes.isNotEmpty;
+    final visible = id != null;
     final reveal = visible && _lastVisibleProgrammeChannel != id;
     _lastVisibleProgrammeChannel = visible ? id : null;
     setState(() {});
@@ -1656,6 +1658,10 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
   }) async {
     if (index < 0 || index >= _filteredChannels.length) return;
     final channel = _filteredChannels[index];
+    unawaited(_inlineProgrammePreview.select(
+      channelId: channel.id, epgChannelId: _getEpgId(channel),
+      timeshiftHours: _epgTimeshifts[channel.id] ?? 0,
+    ));
     final playerService = ref.read(playerServiceProvider);
     final isPlayingChannel = playerService.currentUrl != null &&
         (playerService.currentChannelId == channel.id ||
@@ -3662,12 +3668,13 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                         _inlineProgrammePreview.selectedChannelId,
                         (c) => c.id,
                       );
-                      final hasGuide =
-                          guideIndex >= 0 &&
-                          _inlineProgrammePreview.programmes.isNotEmpty;
+                      final hasGuide = guideIndex >= 0;
+                      final hasProgrammes = _inlineProgrammePreview.programmes.isNotEmpty;
                       final singleLineGuide = constraints.maxHeight < 230;
                       final guideHeight = hasGuide
-                          ? ChannelProgrammeStrip.compactHeight(MediaQuery.textScalerOf(context), singleLine: singleLineGuide, dense: tiny)
+                          ? hasProgrammes
+                            ? ChannelProgrammeStrip.compactHeight(MediaQuery.textScalerOf(context), singleLine: singleLineGuide, dense: tiny)
+                            : 96.0
                           : 0.0;
                       return InlineExpandedChannelGrid(
                         cardHeight: TabletPresentation.compactCardHeight(constraints.maxHeight, guideHeight, tiny: tiny),
@@ -3682,7 +3689,11 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                         expandedContent: hasGuide
                             ? Container(
                                 key: _inlineProgrammeStripKey,
-                                child: ChannelProgrammeStrip(
+                                child: !hasProgrammes ? ChannelProgrammeStatus(
+                                  loading: _inlineProgrammePreview.loading,
+                                  failed: _inlineProgrammePreview.failed,
+                                  hasMapping: _inlineProgrammePreview.hasMapping,
+                                ) : ChannelProgrammeStrip(
                                   key: ValueKey(
                                     'programme-strip-${_inlineProgrammePreview.selectedChannelId}',
                                   ),

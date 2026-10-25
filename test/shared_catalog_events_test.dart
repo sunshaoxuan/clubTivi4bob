@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:async';
 import 'dart:convert';
 import 'package:clubtivi/data/datasources/local/database.dart' as db;
 import 'package:clubtivi/data/services/channel_inventory_sync_service.dart';
@@ -16,12 +17,14 @@ class EventApi extends BobTvApiClient {
   bool offline = false;
   bool retrySingleSuccess = false;
   bool queued = false;
+  Completer<void>? gate;
   final events = <Map<String, Object?>>[];
   @override
   Future<List<Map<String, dynamic>>> uploadChannelEvents({
     required String fingerprint,
     required List<Map<String, Object?>> events,
   }) async {
+    if (gate != null) await gate!.future;
     if (offline) throw const SocketException('offline');
     lastSyncQueued = queued;
     lastSyncRetryAfter = queued ? const Duration(seconds: 15) : null;
@@ -84,13 +87,41 @@ void main() {
     expect(await service.flushEvents(), 0);
     expect(api.events, hasLength(1));
     expect((await database.pendingSharedEvents()).single['id'], initial);
+    expect(service.state.value.waiting, isTrue);
+    expect(service.state.value.error, isFalse);
     api.queued = false;
     expect(await service.flushEvents(), 0);
     expect(api.events, hasLength(1));
     clock = clock.add(const Duration(seconds: 16));
-    expect(await service.flushEvents(), 1);
+    api.gate = Completer<void>();
+    final confirmation = service.flushEvents();
+    await Future<void>.delayed(Duration.zero);
+    expect(service.state.value.waiting, isTrue);
+    expect(service.state.value.phase.startsWith('正在'), isFalse);
+    api.gate!.complete();
+    expect(await confirmation, 1);
+    expect(service.state.value.waiting, isFalse);
+    expect(service.state.value.complete, isTrue);
     expect(api.events.last['id'], initial);
     expect(await database.pendingSharedEvents(), isEmpty);
+  });
+  test('a failed confirmation poll remains a genuine retry error', () async {
+    var clock = DateTime.utc(2026, 10, 24);
+    final database = db.AppDatabase.forTesting(NativeDatabase.memory());
+    addTearDown(database.close);
+    await seed(database);
+    final api = EventApi()..queued = true;
+    final service = ChannelInventorySyncService(database: database, api: api,
+      fingerprintOverride: 'a' * 64, now: () => clock);
+    addTearDown(service.dispose);
+    await service.flushEvents();
+    expect(service.state.value.waiting, isTrue);
+    clock = clock.add(const Duration(seconds: 16));
+    api.offline = true;
+    await service.flushEvents();
+    expect(service.state.value.error, isTrue);
+    expect(service.state.value.waiting, isFalse);
+    expect(await database.pendingSharedEvents(), hasLength(1));
   });
   test('retry receipts cannot starve later health observations', () async {
     final database = db.AppDatabase.forTesting(NativeDatabase.memory());

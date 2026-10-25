@@ -71,6 +71,12 @@ class ServerEpgRuntime with WidgetsBindingObserver, WindowListener {
     service.onAppResumed();
   }
 
+  Future<void> shutdown() async {
+    dispose();
+    await _subscription?.cancel();
+    await service.shutdown();
+  }
+
   void dispose() {
     if (_disposed) return;
     _disposed = true;

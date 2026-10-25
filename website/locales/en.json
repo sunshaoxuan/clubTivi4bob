@@ -26,7 +26,7 @@
   "features": "Features",
   "home": {
     "headline": "Watch TV on desktop and Android.",
-    "intro": "Windows, macOS and Android share version 1.1.10+103. Sync the public catalog and guide, recover resource timeouts, and optionally sync up to 30 days of redacted diagnostics after explicit consent.",
+    "intro": "Windows and macOS advance to 1.1.11+106. Open a channel card to view matched current and upcoming programmes, with fixes for guide imports, sync retries and shutdown. Android remains available at 1.1.10+103.",
     "image_alt": "BobTV running in simplified mode, with sports playback and a channel list.",
     "mode": "BOBTV / Simplified mode",
     "screenshot": "Actual app screenshot",
@@ -39,7 +39,7 @@
         "items": [
           [
             "Program timeline",
-            "View the current program and upcoming schedule next to the selected channel."
+            "On Windows and macOS, open a channel card to expand its matched current and upcoming programmes. Missing data and loading failures have explicit states. Guide coverage depends on data supplied by your configured sources."
           ],
           [
             "Favorites and volume",
@@ -198,6 +198,11 @@
     "history_title": "Recent changes",
     "history": [
       [
+        "2026-10-25",
+        "v1.1.11 · Channel guides, orderly shutdown and Keychain access",
+        "Desktop version 1.1.11+106 fixes EPG matching and card expansion across channel types, with explicit missing-data and loading-failure states. Invalid XMLTV programmes are skipped individually and custom sources keep their configured automatic refresh. Shutdown waits for background work and the database to close. Disabled features do not read Keychain credentials, and denied access pauses automatic attempts. Sync retries are spaced out while local edits, manual mappings and caches are retained. Android stays at 1.1.10+103."
+      ],
+      [
         "2026-10-24",
         "v1.1.10 · Unified versions, diagnostic sync and timeout recovery",
         "All three platforms share version 1.1.10+103 and common feature source. Optional 30-day redacted diagnostic sync requires new consent, can be disabled, and uses durable cndrp forwarding in mainland China. Resource connection, header and body timeouts can switch nodes. Catalog writes recover through a bounded inbox while retaining event IDs and offline data. Desktop-only window controls retain platform differences."
@@ -298,7 +303,7 @@
   },
   "downloads": {
     "signing_notice": "The free SignPath Foundation application was not approved. No trusted Windows certificate was issued and SignPath.io production signing is not in use. Edge may still require a security confirmation on the first browser download.",
-    "intro": "Windows, macOS and Android share version 1.1.10+103. Sync the public catalog and guide, recover resource timeouts, and optionally sync up to 30 days of redacted diagnostics after explicit consent. All three platforms share version 1.1.10+103 and common feature source. Optional 30-day redacted diagnostic sync requires new consent, can be disabled, and uses durable cndrp forwarding in mainland China. Resource connection, header and body timeouts can switch nodes. Catalog writes recover through a bounded inbox while retaining event IDs and offline data. Desktop-only window controls retain platform differences.",
+    "intro": "Windows x64 / ARM64 and macOS Intel / Apple Silicon advance to 1.1.11+106. Fixes cover guide matching and card expansion across channel types, invalid XMLTV records, automatic refresh of custom sources, sync retries, shutdown and Keychain access. Guide coverage still depends on source data. Android ARM32 / ARM64 / x64 stays at 1.1.10+103 with existing downloads and update channels. Diagnostic sync remains off by default, requires explicit consent, includes at most 30 days of redacted records and can be disabled at any time.",
     "latest": "Latest installers",
     "local": "Downloads hosted on this site",
     "sections": [
@@ -313,7 +318,7 @@
           ],
           [
             "macOS",
-            "Open the DMG and drag BobTV.app to Applications. For unattended updates, install in a writable Applications folder in your home directory. Do not run the app long-term from the read-only disk image. This release has no Apple Developer ID signature or notarization; macOS may require manual approval to open it."
+            "Open the DMG hosted on this site and drag BobTV.app to Applications. For automatic updates after exit, install in a writable Applications folder in your home directory. Do not run the app long-term from the read-only disk image. The app is ad-hoc signed, without an Apple Developer ID signature or notarization; automatic-update ZIPs are separately verified with a BobTV publisher signature. First launch may still require manual approval. Disabled features do not read their Keychain credentials, and denied access pauses automatic attempts until you explicitly resume it."
           ],
           [
             "Updates",
@@ -336,7 +341,7 @@
           ],
           [
             "Sync status",
-            "Pending retry means the network or service is temporarily unavailable. Local changes are saved and retried automatically."
+            "Failed syncs retry at spaced intervals to avoid rapid status changes. Local changes remain saved while waiting; repeated clicks are unnecessary."
           ],
           [
             "Public and personal",

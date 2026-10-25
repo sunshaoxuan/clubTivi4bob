@@ -28,13 +28,21 @@ class XmltvParser {
       if (channel != null) channels.add(channel);
     }
 
+    final channelIds = channels.map((c) => c.id).toSet();
     // Parse programmes
     for (final element in tv.findElements('programme')) {
       final programme = _parseProgramme(element, sourceId);
-      if (programme != null) programmes.add(programme);
+      if (programme != null && channelIds.contains(programme.channelId)) {
+        programmes.add(programme);
+      }
     }
 
-    return XmltvResult(channels: channels, programmes: programmes);
+    return XmltvResult(
+      channels: channels,
+      programmes: programmes,
+      rejectedProgrammes:
+          tv.findElements('programme').length - programmes.length,
+    );
   }
 
   /// Parse XMLTV from bytes (handles gzip decompression automatically).
@@ -96,23 +104,35 @@ class XmltvParser {
 
     final start = _parseXmltvDate(startStr);
     final stop = _parseXmltvDate(stopStr);
-    if (start == null || stop == null) return null;
+    if (start == null || stop == null || !stop.isAfter(start)) return null;
 
     final title = element.findElements('title').firstOrNull?.innerText.trim();
     if (title == null || title.isEmpty) return null;
 
-    final subtitle =
-        element.findElements('sub-title').firstOrNull?.innerText.trim();
-    final description =
-        element.findElements('desc').firstOrNull?.innerText.trim();
-    final category =
-        element.findElements('category').firstOrNull?.innerText.trim();
+    final subtitle = element
+        .findElements('sub-title')
+        .firstOrNull
+        ?.innerText
+        .trim();
+    final description = element
+        .findElements('desc')
+        .firstOrNull
+        ?.innerText
+        .trim();
+    final category = element
+        .findElements('category')
+        .firstOrNull
+        ?.innerText
+        .trim();
 
     final iconElement = element.findElements('icon').firstOrNull;
     final iconUrl = iconElement?.getAttribute('src');
 
-    final episodeNum =
-        element.findElements('episode-num').firstOrNull?.innerText.trim();
+    final episodeNum = element
+        .findElements('episode-num')
+        .firstOrNull
+        ?.innerText
+        .trim();
 
     final rating = element
         .findElements('rating')
@@ -169,8 +189,14 @@ class XmltvParser {
       final minute = int.parse(dateStr.substring(10, 12));
       final second = int.parse(dateStr.substring(12, 14));
 
-      return DateTime.utc(year, month, day, hour, minute, second)
-          .subtract(tzOffset);
+      return DateTime.utc(
+        year,
+        month,
+        day,
+        hour,
+        minute,
+        second,
+      ).subtract(tzOffset);
     } catch (_) {
       return null;
     }
@@ -181,9 +207,11 @@ class XmltvParser {
 class XmltvResult {
   final List<EpgChannel> channels;
   final List<EpgProgramme> programmes;
+  final int rejectedProgrammes;
 
   const XmltvResult({
     required this.channels,
     required this.programmes,
+    this.rejectedProgrammes = 0,
   });
 }

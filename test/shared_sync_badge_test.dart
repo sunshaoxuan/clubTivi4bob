@@ -24,6 +24,14 @@ void main() {
     expect(find.byType(CircularProgressIndicator), findsOneWidget);
     catalog.value = const WebsiteCatalogProgress(complete: true);
     upload.value = const WebsiteCatalogProgress(
+      phase: '网站已接收变更，等待确认，本机修改已保存',
+      waiting: true,
+    );
+    await tester.pump();
+    expect(find.text('等待确认'), findsOneWidget);
+    expect(find.text('同步待重试'), findsNothing);
+    expect(find.byType(CircularProgressIndicator), findsNothing);
+    upload.value = const WebsiteCatalogProgress(
       phase: '同步待重试，本机修改已保存',
       error: true,
     );

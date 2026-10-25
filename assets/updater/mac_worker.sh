@@ -110,7 +110,7 @@ failure_exit() {
     9) message='安装目录无法写入，请将 BobTV 放到当前用户可写的应用程序目录' ;;
     11) message='当前版本的启动检查未完成，请稍后重试' ;;
     22|28|35|56) message='更新下载连接失败或超时，请检查网络后重试' ;;
-    *) message="更新未完成（错误码 $code），请查看 worker.log 后重试" ;;
+    *) message="更新未完成（错误码 ${code}），请查看 worker.log 后重试" ;;
   esac
   write_status failed "$version" 0 "$message"
 }
@@ -249,6 +249,15 @@ for binary in \
   [[ -f "$binary" && " $(lipo -archs "$binary") " == *" $machine_arch "* ]] || exit 7
 done
 codesign --verify --deep --strict "$replacement"
+# Preserve an installed certificate-backed app identity. Never replace it with
+# ad-hoc code or another publisher, even if the update archive is authenticated.
+installed_signing="$(codesign -d -r- --verbose=2 "$app" 2>&1 || true)"
+installed_team="$(printf '%s\n' "$installed_signing" | sed -n 's/^TeamIdentifier=//p')"
+if [[ -n "$installed_team" && "$installed_team" != 'not set' ]]; then
+  installed_requirement="$(printf '%s\n' "$installed_signing" | sed -n 's/^designated => //p')"
+  [[ -n "$installed_requirement" ]] || exit 7
+  codesign --verify --strict -R "=$installed_requirement" "$replacement"
+fi
 [[ "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' \
   "$app/Contents/Info.plist")" == 'com.briconbric.bobtv' ]] || exit 8
 write_status ready "$version" 100

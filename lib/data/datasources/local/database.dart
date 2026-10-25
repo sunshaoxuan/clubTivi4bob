@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:isolate';
 import 'dart:convert';
 import 'package:drift/drift.dart';
 import 'package:drift/native.dart';
@@ -46,9 +47,28 @@ const _uuid = Uuid();
 class AppDatabase extends _$AppDatabase {
   Future<void>? _favoriteExpansion;
   bool _favoriteExpansionDone = false;
-  AppDatabase() : super(_openConnection());
+  factory AppDatabase() => AppDatabase._(_DatabaseWorker());
 
-  AppDatabase.forTesting(super.e);
+  AppDatabase._(_DatabaseWorker worker)
+      : _worker = worker,
+        super(_openConnection(worker));
+
+  AppDatabase.forTesting(super.e) : _worker = null;
+
+  final _DatabaseWorker? _worker;
+
+  Future<void>? _closing;
+
+  // Provider disposal and explicit exit share the native close acknowledgement.
+  @override
+  Future<void> close() => _closing ??= _close();
+
+  Future<void> _close() async {
+    await super.close();
+    // Drift's terminate request can reply before SQLite function destructors
+    // finish. Keep the Flutter VM alive until the owning isolate has exited.
+    await _worker?.waitForExit();
+  }
 
   @override
   int get schemaVersion => 8;
@@ -2180,7 +2200,32 @@ class AppDatabase extends _$AppDatabase {
           .go();
 }
 
-LazyDatabase _openConnection() {
+class _DatabaseWorker {
+  ReceivePort? _exitPort;
+  Future<dynamic>? _exited;
+
+  SendPort observeExit() {
+    final port = _exitPort = ReceivePort('BobTV SQLite shutdown');
+    _exited = port.first;
+    return port.sendPort;
+  }
+
+  Future<void> waitForExit() async {
+    if (_exited == null) return; // The lazy connection was never opened.
+    try {
+      await _exited;
+    } finally {
+      _exitPort?.close();
+    }
+  }
+}
+
+// A separate closure scope keeps the ReceivePort and database off the message
+// sent to the worker. Only the SendPort crosses the isolate boundary.
+void Function() _observeDatabaseExit(SendPort port) =>
+    () => Isolate.current.addOnExitListener(port);
+
+LazyDatabase _openConnection(_DatabaseWorker worker) {
   return LazyDatabase(() async {
     final dir = await getApplicationSupportDirectory();
     final file = File(p.join(dir.path, 'clubtivi', 'clubtivi.db'));
@@ -2195,7 +2240,10 @@ LazyDatabase _openConnection() {
       }
     }
 
-    return NativeDatabase.createInBackground(file);
+    return NativeDatabase.createInBackground(
+      file,
+      isolateSetup: _observeDatabaseExit(worker.observeExit()),
+    );
   });
 }
 

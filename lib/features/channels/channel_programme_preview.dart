@@ -15,13 +15,17 @@ class ChannelProgrammePreview extends ChangeNotifier {
   ChannelProgrammePreview({
     required ChannelProgrammeLoader load,
     DateTime Function()? clock,
+    Future<String?> Function(String channelId, String? fallbackId)? resolve,
     void Function(Object error, StackTrace stackTrace)? onError,
   }) : _load = load,
        _clock = clock ?? DateTime.now,
+       _resolve = resolve,
        _onError = onError;
 
   static const _cacheDuration = Duration(seconds: 60);
   final ChannelProgrammeLoader _load;
+  final Future<String?> Function(String channelId, String? fallbackId)?
+  _resolve;
   final DateTime Function() _clock;
   final void Function(Object, StackTrace)? _onError;
   String? _selectedChannelId;
@@ -29,6 +33,7 @@ class ChannelProgrammePreview extends ChangeNotifier {
   int _timeshiftHours = 0;
   List<db.EpgProgramme> _programmes = const [];
   bool _loading = false;
+  bool _failed = false;
   bool _disposed = false;
   int _generation = 0;
   DateTime? _loadedAt;
@@ -38,6 +43,8 @@ class ChannelProgrammePreview extends ChangeNotifier {
   List<db.EpgProgramme> get programmes => _programmes;
   int get timeshiftHours => _timeshiftHours;
   bool get loading => _loading;
+  bool get failed => _failed;
+  bool get hasMapping => _epgChannelId != null;
 
   Future<void> select({
     required String channelId,
@@ -55,7 +62,7 @@ class ChannelProgrammePreview extends ChangeNotifier {
         channelId == _selectedChannelId &&
         usableEpgId == _epgChannelId &&
         timeshiftHours == _timeshiftHours;
-    if (sameChoice && !forceRefresh) {
+    if (sameChoice && !forceRefresh && !_failed && _resolve == null) {
       if (_loading && _pendingLoad != null) return _pendingLoad!;
       final cacheAge = _loadedAt == null ? null : now.difference(_loadedAt!);
       if (cacheAge != null &&
@@ -72,10 +79,11 @@ class ChannelProgrammePreview extends ChangeNotifier {
     _loadedAt = null;
     _pendingLoad = null;
     if (!sameChoice) _programmes = const [];
-    _loading = usableEpgId != null;
+    _failed = false;
+    _loading = usableEpgId != null || _resolve != null;
     notifyListeners();
 
-    if (usableEpgId == null) {
+    if (usableEpgId == null && _resolve == null) {
       _programmes = const [];
       _loadedAt = now;
       return Future.value();
@@ -84,6 +92,7 @@ class ChannelProgrammePreview extends ChangeNotifier {
     final request = _loadProgrammes(
       generation,
       usableEpgId,
+      channelId,
       now.subtract(Duration(hours: timeshiftHours)),
     );
     _pendingLoad = request;
@@ -92,16 +101,29 @@ class ChannelProgrammePreview extends ChangeNotifier {
 
   Future<void> _loadProgrammes(
     int generation,
-    String epgChannelId,
+    String? epgChannelId,
+    String channelId,
     DateTime at,
   ) async {
     try {
-      final programmes = await _load(epgChannelId, at, 3);
+      final resolved = _resolve == null
+          ? epgChannelId
+          : await _resolve(channelId, epgChannelId);
+      if (_disposed || generation != _generation) return;
+      _epgChannelId = resolved == null || resolved.trim().isEmpty
+          ? null
+          : resolved;
+      if (_epgChannelId == null) {
+        _programmes = const [];
+        return;
+      }
+      final programmes = await _load(_epgChannelId!, at, 3);
       if (_disposed || generation != _generation) return;
       _programmes = List.unmodifiable(programmes);
     } catch (error, stackTrace) {
       if (_disposed || generation != _generation) return;
       _programmes = const [];
+      _failed = true;
       try {
         _onError?.call(error, stackTrace);
       } catch (_) {
@@ -121,6 +143,8 @@ class ChannelProgrammePreview extends ChangeNotifier {
     if (_disposed) return;
     ++_generation;
     _selectedChannelId = null;
+    _epgChannelId = null;
+    _failed = false;
     _epgChannelId = null;
     _timeshiftHours = 0;
     _programmes = const [];

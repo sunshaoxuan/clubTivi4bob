@@ -1,4 +1,3 @@
-import 'dart:io';
 import 'dart:math';
 import 'dart:convert';
 
@@ -6,6 +5,7 @@ import 'package:crypto/crypto.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 import 'client_fingerprint_service.dart';
+import 'app_credential_store.dart';
 
 class DeviceFavoritesCredential {
   const DeviceFavoritesCredential({
@@ -25,19 +25,9 @@ class DeviceFavoritesIdentity {
   DeviceFavoritesIdentity({
     FlutterSecureStorage? storage,
     Future<String?> Function()? fingerprintLoader,
-  }) : storage =
-           storage ??
-           (Platform.isMacOS
-               ? const FlutterSecureStorage(
-                   mOptions: MacOsOptions(
-                     usesDataProtectionKeychain: false,
-                     accessibility:
-                         KeychainAccessibility.first_unlock_this_device,
-                   ),
-                 )
-               : const FlutterSecureStorage()),
+  }) : storage = AppCredentialStore('favorites', storage: storage),
        fingerprintLoader = fingerprintLoader ?? _fingerprint;
-  final FlutterSecureStorage storage;
+  final AppCredentialStore storage;
   final Future<String?> Function() fingerprintLoader;
   Future<DeviceFavoritesCredential?>? _loading;
   DeviceFavoritesCredential? _saved;
@@ -52,21 +42,24 @@ class DeviceFavoritesIdentity {
     return _loading ??= _load().whenComplete(() => _loading = null);
   }
 
-  Future<DeviceFavoritesCredential?> _load() async {
+  /// Called only by the user's authorization action in settings.
+  Future<DeviceFavoritesCredential?> authorize() => _load(interactive: true);
+
+  Future<DeviceFavoritesCredential?> _load({bool interactive = false}) async {
     final fingerprint = await fingerprintLoader();
     if (fingerprint == null) return null;
     if (!RegExp(r'^[a-f0-9]{64}$').hasMatch(fingerprint)) {
       throw const FormatException('Invalid private device fingerprint');
     }
     final key = 'bobtv_private_favorites_v1_$fingerprint';
-    var token = await storage.read(key: key);
+    var token = await storage.read(key, interactive: interactive);
     if (token == null) {
       final random = Random.secure();
       token =
           'btvf1_${List.generate(32, (_) => random.nextInt(256).toRadixString(16).padLeft(2, '0')).join()}';
-      await storage.write(key: key, value: token);
+      await storage.write(key, token, interactive: interactive);
       // Confirm persistence before claiming that this device can recover it.
-      if (await storage.read(key: key) != token) {
+      if (await storage.read(key, interactive: interactive) != token) {
         throw StateError('Private favorite credential was not saved');
       }
     }

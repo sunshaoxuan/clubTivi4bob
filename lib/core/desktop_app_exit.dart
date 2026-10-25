@@ -59,7 +59,7 @@ class DesktopAppExitController {
         'reason': reason,
       });
     } catch (failure, stack) {
-      error.value = '播放器清理未完成，暂不关闭。请重试。';
+      error.value = '资源清理未完成，暂不关闭。请重试。';
       AppDiagnostics.instance.recordError(
         'desktop_exit_cleanup',
         failure,

@@ -6,6 +6,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../data/services/bobtv_api_client.dart';
 import '../../data/services/bobtv_community_service.dart';
 import '../../data/services/device_favorites_privacy.dart';
+import '../../data/services/device_favorites_identity.dart';
+import '../../data/services/app_credential_store.dart';
+import '../../data/services/ai_runtime_settings.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'settings_design.dart';
 
 class BobTvServiceSettings extends ConsumerStatefulWidget {
@@ -19,6 +23,8 @@ class BobTvServiceSettings extends ConsumerStatefulWidget {
 class _BobTvServiceSettingsState extends ConsumerState<BobTvServiceSettings> {
   bool _busy = false;
   bool? _favoritesBackupEnabled;
+  bool _credentialPaused = false;
+  bool _aiCredentialPaused = false;
 
   @override
   void initState() {
@@ -31,7 +37,18 @@ class _BobTvServiceSettingsState extends ConsumerState<BobTvServiceSettings> {
 
   Future<void> _loadFavoritePrivacy() async {
     final value = await DeviceFavoritesPrivacy.enabled();
-    if (mounted) setState(() => _favoritesBackupEnabled = value);
+    final paused = await AppCredentialStore('favorites').paused;
+    final prefs = await SharedPreferences.getInstance();
+    final aiPaused =
+        (prefs.getBool('bobtv_ai_enabled_v1') ?? false) &&
+        await AppCredentialStore('ai').paused;
+    if (mounted) {
+      setState(() {
+        _favoritesBackupEnabled = value;
+        _credentialPaused = paused;
+        _aiCredentialPaused = aiPaused;
+      });
+    }
   }
 
   void _notice(String message) {
@@ -48,6 +65,9 @@ class _BobTvServiceSettingsState extends ConsumerState<BobTvServiceSettings> {
       await action();
     } on BobTvApiException catch (error) {
       _notice('服务暂时不可用（HTTP ${error.statusCode ?? '连接失败'}）');
+    } on CredentialAccessPaused {
+      await _loadFavoritePrivacy();
+      _notice('钥匙串访问未获授权，已暂停后台访问，本机数据已保留');
     } on FormatException {
       _notice('提交内容不符合服务要求，请检查名称和 HTTPS 地址');
     } catch (_) {
@@ -246,7 +266,11 @@ class _BobTvServiceSettingsState extends ConsumerState<BobTvServiceSettings> {
                 ? null
                 : (enabled) => unawaited(
                     _run(() async {
+                      if (enabled) {
+                        await DeviceFavoritesIdentity().authorize();
+                      }
                       await DeviceFavoritesPrivacy.setEnabled(enabled);
+                      await _loadFavoritePrivacy();
                       if (mounted) {
                         setState(() => _favoritesBackupEnabled = enabled);
                       }
@@ -254,6 +278,46 @@ class _BobTvServiceSettingsState extends ConsumerState<BobTvServiceSettings> {
                     }),
                   ),
           ),
+          if (_aiCredentialPaused)
+            ListTile(
+              leading: const Icon(Icons.lock_outline),
+              title: const Text('AI 服务密钥需要重新授权'),
+              subtitle: const Text('后台访问已暂停，授权后才能恢复 AI 服务'),
+              trailing: TextButton(
+                onPressed: _busy
+                    ? null
+                    : () => unawaited(
+                        _run(() async {
+                          try {
+                            await AiRuntimeSettings.instance.authorize();
+                          } finally {
+                            await _loadFavoritePrivacy();
+                          }
+                        }),
+                      ),
+                child: const Text('重新授权'),
+              ),
+            ),
+          if (_favoritesBackupEnabled == true && _credentialPaused)
+            ListTile(
+              leading: const Icon(Icons.lock_outline),
+              title: const Text('收藏备份需要重新授权'),
+              subtitle: const Text('后台访问已暂停，本机收藏不受影响'),
+              trailing: TextButton(
+                onPressed: _busy
+                    ? null
+                    : () => unawaited(
+                        _run(() async {
+                          try {
+                            await DeviceFavoritesIdentity().authorize();
+                          } finally {
+                            await _loadFavoritePrivacy();
+                          }
+                        }),
+                      ),
+                child: const Text('重新授权'),
+              ),
+            ),
           SwitchListTile(
             secondary: const Icon(Icons.monitor_heart_rounded),
             title: const Text('分享播放状态'),

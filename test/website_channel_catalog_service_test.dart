@@ -16,6 +16,10 @@ class _CatalogApi extends BobTvApiClient {
 
   Map<String, Object?>? catalog;
   String version = '2026-09-28.1';
+  int manifestCalls = 0;
+  int downloads = 0;
+  Object? failure;
+  int? declaredRouteCount;
   @override
   Future<List<String>> fetchCatalogBlockedRoutes() async => const [];
 
@@ -23,12 +27,14 @@ class _CatalogApi extends BobTvApiClient {
 
   @override
   Future<BobTvChannelCatalogManifest?> fetchChannelCatalogManifest() async {
+    manifestCalls++;
+    if (failure != null) throw failure!;
     if (catalog == null) return null;
     final digest = sha256.convert(bytes).toString();
     return BobTvChannelCatalogManifest(
       version: version,
       channelCount: (catalog!['channels'] as List).length,
-      routeCount: (catalog!['channels'] as List).fold<int>(
+      routeCount: declaredRouteCount ?? (catalog!['channels'] as List).fold<int>(
         0,
         (count, channel) => count + (channel['routes'] as List).length,
       ),
@@ -41,7 +47,10 @@ class _CatalogApi extends BobTvApiClient {
   @override
   Future<List<int>> downloadChannelCatalog(
     BobTvChannelCatalogManifest manifest,
-  ) async => bytes;
+  ) async {
+    downloads++;
+    return bytes;
+  }
 }
 
 Map<String, Object?> _catalog() => {
@@ -340,6 +349,97 @@ void main() {
     },
   );
 
+  test('excluded routes do not reject valid peers or break raw route counts', () async {
+    final database = db.AppDatabase.forTesting(NativeDatabase.memory());
+    final payload = _mixedCatalog();
+    final api = _CatalogApi(payload);
+    final service = WebsiteChannelCatalogService(database: database, api: api);
+    addTearDown(() async { service.dispose(); await database.close(); });
+    expect(await service.sync(), 1, reason: '${service.lastError}');
+    expect(service.state.value.complete, isTrue);
+    expect(service.state.value.error, isFalse);
+    expect((await database.getAllChannels()).single.name, 'CCTV-5+ 体育赛事');
+    expect(await database.sharedCatalogVersion(), api.version);
+    expect(await service.sync(), 0);
+    expect(api.downloads, 1);
+    expect(service.state.value.error, isFalse);
+  });
+
+  test('malformed excluded routes still reject the snapshot atomically', () async {
+    final database = db.AppDatabase.forTesting(NativeDatabase.memory());
+    final payload = _mixedCatalog();
+    (payload['channels'] as List)[1]['routes'][0]['url'] = 'http://127.0.0.1/private';
+    final service = WebsiteChannelCatalogService(database: database, api: _CatalogApi(payload));
+    addTearDown(() async { service.dispose(); await database.close(); });
+    expect(await service.sync(), 0);
+    expect(service.state.value.error, isTrue);
+    expect(await database.getAllProviders(), isEmpty);
+  });
+
+  test('filtering cannot conceal an incorrect source route count', () async {
+    final database = db.AppDatabase.forTesting(NativeDatabase.memory());
+    final api = _CatalogApi(_mixedCatalog())..declaredRouteCount = 2;
+    final service = WebsiteChannelCatalogService(database: database, api: api);
+    addTearDown(() async { service.dispose(); await database.close(); });
+    expect(await service.sync(), 0);
+    expect(service.state.value.error, isTrue);
+    expect(await database.getAllProviders(), isEmpty);
+  });
+
+  test('all-excluded snapshot preserves the previously usable catalog', () async {
+    final database = db.AppDatabase.forTesting(NativeDatabase.memory());
+    final api = _CatalogApi(_catalog());
+    final service = WebsiteChannelCatalogService(database: database, api: api);
+    addTearDown(() async { service.dispose(); await database.close(); });
+    expect(await service.sync(), 1);
+    api.version = '2026-09-28.2';
+    api.catalog = {..._catalog(), 'version': api.version};
+    (api.catalog!['channels'] as List).single['name'] = '购物频道';
+    expect(await service.sync(), 0);
+    expect(service.state.value.error, isTrue);
+    expect((await database.getAllChannels()).single.name, 'CCTV-5+ 体育赛事');
+    expect(await database.sharedCatalogVersion(), '2026-09-28.1');
+  });
+
+  test('route hints during backoff keep retry status stable and do not refetch', () async {
+    final database = db.AppDatabase.forTesting(NativeDatabase.memory());
+    final api = _CatalogApi(_catalog())..failure = const FormatException('fixture');
+    var clock = DateTime.utc(2026, 10, 24);
+    final service = WebsiteChannelCatalogService(database: database, api: api, now: () => clock);
+    addTearDown(() async { service.dispose(); await database.close(); });
+    var notifications = 0;
+    service.state.addListener(() => notifications++);
+    await service.sync();
+    final failedNotifications = notifications;
+    for (var i = 0; i < 20; i++) { await service.sync(); }
+    expect(api.manifestCalls, 1);
+    expect(notifications, failedNotifications);
+    expect(service.state.value.error, isTrue);
+    api.failure = null;
+    clock = clock.add(const Duration(seconds: 30));
+    expect(await service.sync(), 1);
+    expect(service.state.value.error, isFalse);
+    expect(api.manifestCalls, 2);
+    await service.sync();
+    expect(api.manifestCalls, 3);
+  });
+
+  test('catalog backoff respects upstream Retry-After', () async {
+    final database = db.AppDatabase.forTesting(NativeDatabase.memory());
+    final api = _CatalogApi(_catalog())..failure = const BobTvApiException(
+      'fixture', statusCode: 429, retryAfter: Duration(minutes: 5));
+    var clock = DateTime.utc(2026, 10, 24);
+    final service = WebsiteChannelCatalogService(database: database, api: api, now: () => clock);
+    addTearDown(() async { service.dispose(); await database.close(); });
+    await service.sync();
+    clock = clock.add(const Duration(minutes: 4));
+    await service.sync();
+    expect(api.manifestCalls, 1);
+    clock = clock.add(const Duration(minutes: 1));
+    api.failure = null;
+    expect(await service.sync(), 1);
+  });
+
   test(
     'rejects malformed snapshot before touching the local database',
     () async {
@@ -525,4 +625,22 @@ void main() {
       );
     },
   );
+}
+
+Map<String, Object?> _mixedCatalog() {
+  final payload = _catalog();
+  payload['categories'] = [
+    ...(payload['categories'] as List),
+    {'id': 'uk', 'parentId': null, 'name': '英国'},
+    {'id': 'shop', 'parentId': 'uk', 'name': '购物'},
+  ];
+  final template = Map<String, Object?>.from((payload['channels'] as List).single);
+  payload['channels'] = [
+    ...(payload['channels'] as List),
+    {...template, 'id': 'shop-channel', 'name': 'Luxury', 'categoryId': 'shop',
+      'routes': [{'id': 'shop-route', 'url': 'https://media.example.org/shopping.m3u8'}]},
+    {...template, 'id': 'platform-channel', 'name': 'Example',
+      'routes': [{'id': 'platform-route', 'url': 'https://video.huya.com/live.m3u8'}]},
+  ];
+  return payload;
 }

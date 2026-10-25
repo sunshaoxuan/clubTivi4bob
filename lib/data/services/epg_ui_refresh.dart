@@ -83,7 +83,9 @@ Future<String?> resolveLiveEpgId(
           .where((s) => s.id == mapping.epgSourceId && s.enabled)
           .firstOrNull;
       if (source == null) return null;
-      return '${mapping.epgSourceId}_${mapping.epgChannelId}';
+      return mapping.epgChannelId.startsWith('${mapping.epgSourceId}_')
+          ? mapping.epgChannelId
+          : '${mapping.epgSourceId}_${mapping.epgChannelId}';
     }
   }
   if (fallbackId?.startsWith('${serverEpgSourceId}_') == true) return null;

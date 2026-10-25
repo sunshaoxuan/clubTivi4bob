@@ -1,5 +1,6 @@
 import '../../core/server_egress.dart';
 import 'dart:io';
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:drift/drift.dart';
@@ -11,9 +12,54 @@ import '../datasources/local/database.dart' as db;
 import '../datasources/parsers/xmltv_parser.dart';
 import '../models/server_epg_snapshot.dart';
 import '../../features/providers/provider_manager.dart';
+import 'local_epg_binding.dart';
 
 class EpgRefreshService {
   final db.AppDatabase _db;
+  final _work = <Future<void>>{};
+  final _downloads = <Dio>{};
+  bool _stopping = false;
+  Timer? _refreshTimer;
+  Future<void>? _refreshing;
+
+  /// Keep XMLTV current while the player remains open, including fullscreen.
+  /// Each check respects the refresh interval configured for that source.
+  void startAutomaticRefresh({
+    Duration checkEvery = const Duration(minutes: 15),
+  }) {
+    if (_stopping || _refreshTimer != null) return;
+    if (checkEvery <= Duration.zero) throw ArgumentError.value(checkEvery);
+    _refreshTimer = Timer.periodic(checkEvery, (_) {
+      unawaited(
+        refreshAllSources().catchError((Object error) {
+          debugPrint(
+            '[EPG] Automatic refresh unavailable: ${error.runtimeType}',
+          );
+        }),
+      );
+    });
+  }
+
+  bool get stopping => _stopping;
+
+  Future<void> _track(Future<void> Function() operation) {
+    if (_stopping) return Future.value();
+    final work = Future<void>.sync(operation);
+    _work.add(work);
+    return work.whenComplete(() => _work.remove(work));
+  }
+
+  Future<void> shutdown() async {
+    _stopping = true;
+    _refreshTimer?.cancel();
+    _refreshTimer = null;
+    for (final dio in _downloads.toList()) {
+      dio.close(force: true);
+    }
+    await Future.wait(
+      _work.toList().map((work) => work.catchError((Object _) {})),
+    );
+  }
 
   static const chinaSourceId = 'hotel-cn-epg';
   static const chinaSourceName = '中国电视节目表';
@@ -21,16 +67,16 @@ class EpgRefreshService {
   static const extendedChinaSourceId = 'hotel-cn-epg-extended';
   static const extendedChinaSourceName = '中国扩展节目表';
   static const extendedChinaSourceUrl = 'https://epg.112114.xyz/pp.xml';
-  static const _legacyDefaultUrls = {
-    'http://epg.best/16b5b-ypkixv.xml.gz',
-    'https://raw.githubusercontent.com/usa-local-epg/usa-locals/main/usalocals.xml.gz',
-  };
 
   EpgRefreshService(this._db);
 
   /// Refresh a single EPG source by ID.
-  Future<void> refreshSource(String sourceId) async {
+  Future<void> refreshSource(String sourceId) =>
+      _track(() => _refreshSource(sourceId));
+
+  Future<void> _refreshSource(String sourceId) async {
     final sources = await _db.getAllEpgSources();
+    if (_stopping) return;
     final source = sources.firstWhere((s) => s.id == sourceId);
     debugPrint('[EPG] Refreshing source: ${source.name} (${source.url})');
 
@@ -41,6 +87,7 @@ class EpgRefreshService {
         headers: {'User-Agent': 'BobTV/1.0'},
       ),
     );
+    _downloads.add(dio);
     try {
       final response = await dio.get<List<int>>(
         source.url,
@@ -56,10 +103,11 @@ class EpgRefreshService {
         _DecompressParseArgs(bytes, sourceId),
       );
       debugPrint(
-        '[EPG] Parsed ${result.channels.length} channels, ${result.programmes.length} programmes',
+        '[EPG] Parsed ${result.channels.length} channels, ${result.programmes.length} programmes, skipped ${result.rejectedProgrammes} invalid records',
       );
-      await importParsed(sourceId, result);
+      if (!_stopping) await importParsed(sourceId, result);
     } finally {
+      _downloads.remove(dio);
       dio.close();
     }
   }
@@ -67,6 +115,12 @@ class EpgRefreshService {
   /// Validate before changing cache; readers only see a complete committed guide.
   /// This importer is shared groundwork for the future server-version receiver.
   Future<void> importParsed(
+    String sourceId,
+    XmltvResult result, {
+    DateTime? at,
+  }) => _track(() => _importParsed(sourceId, result, at: at));
+
+  Future<void> _importParsed(
     String sourceId,
     XmltvResult result, {
     DateTime? at,
@@ -135,11 +189,17 @@ class EpgRefreshService {
       }
 
       await _db.updateEpgSourceRefreshTime(sourceId);
+      await LocalEpgBinding(_db).reconcile(at: now);
     });
   }
 
-  /// Refresh all enabled EPG sources (skips sources refreshed within the last 4 hours).
-  Future<void> refreshAllSources({bool force = false}) async {
+  /// Refresh all enabled XMLTV sources according to their configured interval.
+  Future<void> refreshAllSources({bool force = false}) =>
+      _refreshing ??= _track(
+        () => _refreshAllSources(force: force),
+      ).whenComplete(() => _refreshing = null);
+
+  Future<void> _refreshAllSources({bool force = false}) async {
     final sources = await _db.getAllEpgSources();
     final now = DateTime.now();
     for (final source in sources.where((s) => s.enabled)) {
@@ -147,7 +207,8 @@ class EpgRefreshService {
       if (source.id == serverEpgSourceId) continue;
       if (!force &&
           source.lastRefresh != null &&
-          now.difference(source.lastRefresh!).inHours < 4) {
+          now.difference(source.lastRefresh!) <
+              Duration(hours: source.refreshIntervalHours.clamp(1, 168))) {
         debugPrint(
           '[EPG] Skipping ${source.name} — refreshed ${now.difference(source.lastRefresh!).inMinutes}m ago',
         );
@@ -159,21 +220,18 @@ class EpgRefreshService {
         debugPrint('[EPG] Error refreshing ${source.name}: $e');
       }
     }
+    if (!_stopping) await LocalEpgBinding(_db).reconcile();
   }
 
   /// Ensure the hotel TV build has a Chinese XMLTV source.
-  Future<void> addDefaultSources() async {
-    var existing = await _db.getAllEpgSources();
+  Future<void> addDefaultSources() => _track(_addDefaultSources);
 
-    // Remove the two upstream defaults installed by older builds. They do not
-    // contain the Chinese channels used by this hotel TV configuration.
-    for (final source in existing.where(
-      (source) => _legacyDefaultUrls.contains(source.url),
-    )) {
-      await _db.deleteEpgSource(source.id);
-    }
+  Future<void> _addDefaultSources() async {
+    final existing = await _db.getAllEpgSources();
+    // Seed only an unconfigured installation. Existing global, custom and
+    // disabled sources belong to the user and must remain unchanged.
+    if (existing.any((source) => source.id != serverEpgSourceId)) return;
 
-    existing = await _db.getAllEpgSources();
     final existingUrls = existing.map((source) => source.url).toSet();
     if (!existingUrls.contains(chinaSourceUrl)) {
       await _insertSource(
@@ -231,7 +289,10 @@ class EpgRefreshService {
 }
 
 final epgRefreshServiceProvider = Provider<EpgRefreshService>((ref) {
-  return EpgRefreshService(ref.watch(databaseProvider));
+  final service = EpgRefreshService(ref.watch(databaseProvider));
+  service.startAutomaticRefresh();
+  ref.onDispose(() => unawaited(service.shutdown()));
+  return service;
 });
 
 /// Args for the background isolate (must be serializable).

@@ -94,6 +94,7 @@ class ChannelInventorySyncService {
     if (_eventRetryAt?.isAfter(now()) ?? false) return 0;
     var acknowledged = 0;
     var mergeConflict = false;
+    var waitingForServer = false;
     try {
       await database.migrateLegacySharedEdits();
       if (fingerprintOverride == null) {
@@ -154,7 +155,7 @@ class ChannelInventorySyncService {
           });
         }
         if (batch.isEmpty) continue;
-        if (!_disposed) {
+        if (!_disposed && !state.value.waiting) {
           state.value = WebsiteCatalogProgress(
             phase: '正在同步频道变更',
             total: pending.length,
@@ -290,7 +291,9 @@ class ChannelInventorySyncService {
           completed++;
         }
         acknowledged += completed;
-        if (completed == 0 && api.lastSyncQueued && receipts.any((r) => r['status'] == 'retry')) {
+        final queued = api.lastSyncQueued && receipts.any((r) => r['status'] == 'retry');
+        waitingForServer = waitingForServer || queued;
+        if (completed == 0 && queued) {
           await _deferEvents(
             api.lastSyncRetryAfter ?? const Duration(seconds: 15),
           );
@@ -304,12 +307,15 @@ class ChannelInventorySyncService {
         state.value = WebsiteCatalogProgress(
           phase: mergeConflict
               ? '频道变更未同步，公共库已变化，请重新选择'
+              : stillPending && waitingForServer
+              ? '网站已接收变更，等待确认，本机修改已保存'
               : stillPending
               ? '同步待重试，本机修改已保存'
               : '频道变更已同步',
           imported: acknowledged,
           complete: !stillPending,
-          error: stillPending || mergeConflict,
+          error: (stillPending && !waitingForServer) || mergeConflict,
+          waiting: stillPending && waitingForServer && !mergeConflict,
         );
       }
     } catch (error, stack) {
@@ -549,7 +555,18 @@ class ChannelInventorySyncService {
     }
   }
 
+  /// Stop scheduling work and join every operation that can still use the DB.
+  Future<void> shutdown() async {
+    dispose();
+    await Future.wait<Object?>([
+      ?_running,
+      ?_eventsRunning,
+      ?_legacyRunning,
+    ]);
+  }
+
   void dispose() {
+    if (_disposed) return;
     _disposed = true;
     api.close();
     state.dispose();

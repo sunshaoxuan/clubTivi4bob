@@ -300,6 +300,12 @@ class ServerEpgSyncService {
     );
   }
 
+  /// Stop scheduling work and join every operation that can still use the DB.
+  Future<void> shutdown() async {
+    dispose();
+    await Future.wait<Object?>([?_running]);
+  }
+
   void dispose() {
     if (_disposed) return;
     _disposed = true;

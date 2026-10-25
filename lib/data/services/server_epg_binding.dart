@@ -4,6 +4,7 @@ import 'package:drift/drift.dart';
 import '../datasources/local/database.dart' as db;
 import '../models/catalog_epg_identity.dart';
 import '../models/server_epg_snapshot.dart';
+import 'local_epg_binding.dart';
 
 /// Only exact, reviewed public catalog identities may select the managed guide.
 class ServerEpgBinding {
@@ -19,10 +20,13 @@ class ServerEpgBinding {
           ?.read<String>('version');
 
   Future<bool> hasPresentationContext() async =>
-      (await database.customSelect(
-        'SELECT 1 FROM catalog_epg_routes r LEFT JOIN catalog_presentation_context p '
-        'ON p.local_channel_id=r.local_channel_id WHERE p.local_channel_id IS NULL LIMIT 1',
-      ).get()).isEmpty;
+      (await database
+              .customSelect(
+                'SELECT 1 FROM catalog_epg_routes r LEFT JOIN catalog_presentation_context p '
+                'ON p.local_channel_id=r.local_channel_id WHERE p.local_channel_id IS NULL LIMIT 1',
+              )
+              .get())
+          .isEmpty;
 
   /// Called within the same transaction as a public-catalog import.
   Future<void> replaceCatalogIdentities(
@@ -45,11 +49,21 @@ class ServerEpgBinding {
             row['group'],
           ],
         );
-        batch.customStatement('INSERT INTO catalog_presentation_context VALUES(?,?,?)',
-          ['$publicCatalogProviderId:${row['routeId']}', row['countryCode'], row['regionCode']]);
-        batch.customStatement('INSERT INTO catalog_route_categories VALUES(?,?)',
-          ['$publicCatalogProviderId:${row['routeId']}',
-           jsonEncode(row['groups'] ?? [row['group']])]);
+        batch.customStatement(
+          'INSERT INTO catalog_presentation_context VALUES(?,?,?)',
+          [
+            '$publicCatalogProviderId:${row['routeId']}',
+            row['countryCode'],
+            row['regionCode'],
+          ],
+        );
+        batch.customStatement(
+          'INSERT INTO catalog_route_categories VALUES(?,?)',
+          [
+            '$publicCatalogProviderId:${row['routeId']}',
+            jsonEncode(row['groups'] ?? [row['group']]),
+          ],
+        );
       }
     });
     await database.customStatement(
@@ -107,7 +121,10 @@ class ServerEpgBinding {
           row.readNullable<String>('mapped_source') == serverEpgSourceId &&
           row.readNullable<String>('mapping_kind') == 'server' &&
           row.readNullable<int>('mapping_locked') == 0;
-      if (alreadyMapped && !ours ||
+      final localFallback =
+          row.readNullable<String>('mapping_kind') == LocalEpgBinding.kind &&
+          row.readNullable<int>('mapping_locked') == 0;
+      if (alreadyMapped && !ours && !localFallback ||
           row.read<String>('name') != row.read<String>('catalog_name') ||
           row.readNullable<String>('tvg_id') !=
               row.readNullable<String>('catalog_epg_id') ||
@@ -153,6 +170,7 @@ class ServerEpgBinding {
       }
     }
     await database.upsertMappings(bindings);
+    await LocalEpgBinding(database).reconcile();
     return valid.length;
   });
 }

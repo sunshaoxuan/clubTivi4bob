@@ -10,23 +10,25 @@ The application is built with Flutter and uses `media_kit`, libmpv, FFmpeg, Rive
 
 ### Latest release
 
-`1.1.6+99` adds shared, awaited native-player cleanup before desktop shutdown,
-bounded renderer detachment for hidden windows, and auditable exit reasons.
-It also adds server-owned EPG version checks, checksum-verified transactional
-imports, foreground/reconnect checks and live guide refresh without reopening
-the player. Unchanged versions avoid full downloads. Manual mappings, private
-sources and cached schedules remain protected, with visible cache-expiry status.
-The server-side programme discovery and source-recovery workers are operational,
-but approved public programme coverage and production two-version hot-update
-acceptance are incomplete. A first client upgrade is required for the new logic.
-Existing fullscreen restoration, adaptive menus, retirement protection and
-whole-channel favorites are retained.
-Android ARM32/ARM64/x64, macOS Intel/Apple Silicon and Windows x64/ARM64
-packages are available. Windows offers Setup installers and portable ZIPs;
-all seven platform update channels use architecture-specific packages.
-See [release details](docs/releases/1.1.6.md). Native Windows, macOS and Android
-playback/reconnect acceptance for the new EPG path remains pending; shared-code
-and package validation do not replace platform-specific physical testing.
+Windows x64/ARM64 and macOS Intel/Apple Silicon advance to `1.1.11+106`.
+Channel cards expand matched current and upcoming programmes across channel
+types, with explicit missing-data and failure states. The shared guide pipeline
+isolates invalid XMLTV programmes and retains automatic refresh for custom
+sources, manual mappings and offline caches. Guide coverage depends on the
+configured sources and their available schedules.
+
+Desktop shutdown drains background work and closes the database before native
+window and engine teardown. Disabled features do not read their Keychain
+credentials; denied access pauses automatic attempts until explicit recovery.
+Sync retries are spaced out while preserving pending local edits.
+
+Android ARM32/ARM64/x64 remains at `1.1.10+103`; its existing APKs and update
+channels remain available. Optional redacted diagnostic sync still requires
+explicit consent, retains at most 30 days and can be disabled at any time.
+The macOS DMGs are hosted on the BobTV site. The app is ad-hoc signed and has no
+Apple Developer ID signature or notarization; update ZIPs are separately
+verified with a BobTV publisher signature. Windows trusted Authenticode signing
+remains unavailable. See [release details](docs/releases/1.1.11.md).
 Publication does not restart installed applications. Primary downloads and
 updates are also available through [the resource relay manifest](https://cndrp.com/bobtv/releases.json).
 

@@ -277,4 +277,49 @@ void main() {
       expect(errors, 0);
     },
   );
+  test(
+    'fresh channel mappings replace stale cached IDs on every click',
+    () async {
+      var guide = 'world_bbc';
+      final loaded = <String>[];
+      final preview = ChannelProgrammePreview(
+        clock: () => now,
+        resolve: (id, fallback) async => guide,
+        load: (id, at, limit) async {
+          loaded.add(id);
+          return [programme(id, channel: id)];
+        },
+      );
+      addTearDown(preview.dispose);
+      await preview.select(channelId: 'bbc', epgChannelId: 'stale');
+      guide = 'world_bbc_updated';
+      await preview.select(channelId: 'bbc', epgChannelId: 'stale');
+      expect(loaded, ['world_bbc', 'world_bbc_updated']);
+      expect(preview.programmes.single.title, 'world_bbc_updated');
+    },
+  );
+
+  test(
+    'late mapping lookup cannot replace a different selected card',
+    () async {
+      final old = Completer<String?>();
+      final loaded = <String>[];
+      final preview = ChannelProgrammePreview(
+        clock: () => now,
+        resolve: (id, fallback) =>
+            id == 'old' ? old.future : Future.value('new-guide'),
+        load: (id, at, limit) async {
+          loaded.add(id);
+          return [programme(id, channel: id)];
+        },
+      );
+      addTearDown(preview.dispose);
+      final pending = preview.select(channelId: 'old', epgChannelId: null);
+      await preview.select(channelId: 'new', epgChannelId: null);
+      old.complete('old-guide');
+      await pending;
+      expect(preview.selectedChannelId, 'new');
+      expect(loaded, ['new-guide']);
+    },
+  );
 }

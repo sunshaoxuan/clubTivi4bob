@@ -1,6 +1,7 @@
 """Split a freshly compiled Universal app and refresh its frozen sender policy."""
 import argparse
 import json
+import os
 from pathlib import Path
 import shutil
 import subprocess
@@ -21,6 +22,10 @@ def prepare(universal, previous, output):
         raise ValueError('A new output directory and a fresh Universal app are required')
     output.mkdir(parents=True)
     report = []
+    identity = os.environ.get("BOBTV_CODESIGN_IDENTITY", "-")
+    signing = ["--sign", identity]
+    if identity != "-":
+        signing += ["--options", "runtime"]
     for architecture, cpu, deployment in [('x64', 'x86_64', '10.15'), ('arm64', 'arm64', '11.0')]:
         baseline = previous / architecture / 'BobTV.app/Contents/Resources'
         for component in ['AirPlay']:
@@ -57,9 +62,9 @@ def prepare(universal, previous, output):
             binaries.append(file)
         refresh(resources / 'AirPlay/bobtv-airplay/bobtv-airplay', ROOT / 'tools/airplay')
         for binary in binaries:
-            run('codesign', '--force', '--sign', '-', binary)
-        run('codesign', '--force', '--deep', '--sign', '-', progress)
-        run('codesign', '--force', '--deep', '--entitlements', ROOT / 'macos/Runner/Release.entitlements', '--sign', '-', app)
+            run('codesign', '--force', *signing, binary)
+        run('codesign', '--force', '--deep', *signing, progress)
+        run('codesign', '--force', '--deep', '--entitlements', ROOT / 'macos/Runner/Release.entitlements', *signing, app)
         run('codesign', '--verify', '--deep', '--strict', app)
         report.append({'architecture': architecture, 'nativeFiles': len(binaries),
                        'app': str(app), 'freshUniversalRunner': True,

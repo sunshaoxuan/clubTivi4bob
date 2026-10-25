@@ -152,12 +152,15 @@ void main() {
     () async {
       FlutterSecureStorage.setMockInitialValues({});
       final first = await DeviceFavoritesIdentity(
+        storage: const FlutterSecureStorage(),
         fingerprintLoader: () async => credentialA.fingerprint,
       ).load();
       final original = await DeviceFavoritesIdentity(
+        storage: const FlutterSecureStorage(),
         fingerprintLoader: () async => credentialA.fingerprint,
       ).load();
       final other = await DeviceFavoritesIdentity(
+        storage: const FlutterSecureStorage(),
         fingerprintLoader: () async => credentialB.fingerprint,
       ).load();
       expect(first!.token, original!.token);
@@ -175,6 +178,7 @@ void main() {
       });
       await expectLater(
         DeviceFavoritesIdentity(
+          storage: const FlutterSecureStorage(),
           fingerprintLoader: () async => credentialA.fingerprint,
         ).load(),
         throwsFormatException,

@@ -23,12 +23,14 @@ class WebsiteCatalogProgress {
     this.total = 0,
     this.complete = false,
     this.error = false,
+    this.waiting = false,
   });
   final String phase;
   final int imported;
   final int total;
   final bool complete;
   final bool error;
+  final bool waiting;
 }
 
 /// Synchronizes an immutable website snapshot without modifying user sources.
@@ -37,7 +39,9 @@ class WebsiteChannelCatalogService {
     required this.database,
     BobTvApiClient? api,
     this.onSharedScores,
-  }) : api = api ?? BobTvApiClient();
+    DateTime Function()? now,
+  }) : api = api ?? BobTvApiClient(),
+       _now = now ?? DateTime.now;
 
   static const providerId = publicCatalogProviderId;
   static const _versionKey = 'bobtv_website_catalog_version_v1';
@@ -77,11 +81,18 @@ class WebsiteChannelCatalogService {
   final Future<void> Function(Map<String, double>)? onSharedScores;
   final state = ValueNotifier(const WebsiteCatalogProgress());
   Future<int>? _running;
+  final DateTime Function() _now;
+  DateTime? _retryAt;
+  int _failures = 0;
   bool _disposed = false;
   Object? lastError;
 
-  Future<int> sync() =>
-      _running ??= _sync().whenComplete(() => _running = null);
+  Future<int> sync() {
+    if (_disposed || (_retryAt?.isAfter(_now()) ?? false)) {
+      return Future.value(0);
+    }
+    return _running ??= _sync().whenComplete(() => _running = null);
+  }
 
   Future<int> importBundled() => _running ??= _sync(
     source: _BundledCatalogApi(),
@@ -315,10 +326,28 @@ class WebsiteChannelCatalogService {
       AppDiagnostics.instance.log('website_channel_catalog_synced', {
         'version': manifest.version,
         'routes': imported,
+        'sourceRoutes': manifest.routeCount,
+        'acceptedRoutes': records.length,
       });
       return imported;
     } catch (error, stackTrace) {
       lastError = error;
+      if (source == null && !_disposed) {
+        _failures++;
+        var delay = Duration(seconds: 30 * (1 << (_failures - 1).clamp(0, 5)));
+        if (delay > const Duration(minutes: 15)) {
+          delay = const Duration(minutes: 15);
+        }
+        if (error is BobTvApiException &&
+            error.retryAfter != null && error.retryAfter! > delay) {
+          delay = error.retryAfter!;
+        }
+        _retryAt = _now().add(delay);
+        AppDiagnostics.instance.log('website_channel_catalog_retry_scheduled', {
+          'retryAfterSeconds': delay.inSeconds,
+          'failures': _failures,
+        });
+      }
       if (!_disposed) {
         state.value = const WebsiteCatalogProgress(
           phase: '网站频道暂不可用，继续使用本机频道',
@@ -332,11 +361,24 @@ class WebsiteChannelCatalogService {
       );
       return 0;
     } finally {
+      if (source == null && lastError == null) {
+        _retryAt = null;
+        _failures = 0;
+      }
       source?.close();
     }
   }
 
+  /// Stop scheduling work and join every operation that can still use the DB.
+  Future<void> shutdown() async {
+    dispose();
+    await Future.wait<Object?>([
+      ?_running,
+    ]);
+  }
+
   void dispose() {
+    if (_disposed) return;
     _disposed = true;
     api.close();
     state.dispose();
@@ -420,6 +462,7 @@ Future<List<Map<String, Object?>>> _decodeCatalog(
     throw const FormatException('Channel count mismatch');
   }
   final result = <Map<String, Object?>>[];
+  var sourceRouteCount = 0;
   final ids = <String>{};
   for (final channel in channels) {
     if (channel is! Map ||
@@ -480,6 +523,10 @@ Future<List<Map<String, Object?>>> _decodeCatalog(
           !BobTvApiClient.isPublicCatalogUrl(route['url'] as String)) {
         throw const FormatException('Invalid website route');
       }
+      sourceRouteCount++;
+      if (sourceRouteCount > routeCount) {
+        throw const FormatException('Too many website routes');
+      }
       if (route['transferred'] != null && route['transferred'] is! bool) {
         throw const FormatException('Invalid route ownership');
       }
@@ -490,7 +537,9 @@ Future<List<Map<String, Object?>>> _decodeCatalog(
         groupTitle: group,
         streamUrl: url,
       )) {
-        throw const FormatException('Non-television website route');
+        // A structurally valid snapshot may include content excluded by the
+        // local catalog policy. Exclude that route without rejecting its peers.
+        continue;
       }
       result.add({
         'routeId': route['id'] as String,
@@ -515,13 +564,14 @@ Future<List<Map<String, Object?>>> _decodeCatalog(
             ? (route['healthScore'] as num).toDouble().clamp(0, 1)
             : .5,
       });
-      if (result.length > routeCount) {
-        throw const FormatException('Too many website routes');
-      }
+
     }
   }
-  if (result.length != routeCount) {
+  if (sourceRouteCount != routeCount) {
     throw const FormatException('Route count mismatch');
+  }
+  if (routeCount > 0 && result.isEmpty) {
+    throw const FormatException('No supported routes in website catalog');
   }
   final seenEndpoints = <String>{};
   return result

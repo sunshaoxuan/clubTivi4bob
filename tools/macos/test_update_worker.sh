@@ -46,3 +46,5 @@ if bash assets/updater/mac_worker.sh update "$root" "$app" "$pid" \
   exit 1
 fi
 wait "$holder"
+
+bash tools/macos/test_distribution_signature.sh

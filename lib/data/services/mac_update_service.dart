@@ -12,6 +12,7 @@ import '../../core/app_diagnostics.dart';
 import '../../core/app_version.dart';
 import '../../core/server_egress.dart';
 import 'desktop_update_state.dart';
+import 'mac_update_candidate.dart';
 import 'update_manifest.dart';
 
 /// macOS update transport. The detached shell worker performs installation
@@ -47,8 +48,11 @@ class MacUpdateService {
   Future<void> _initialize() async {
     try {
       final support = await getApplicationSupportDirectory();
-      _directory = Directory(p.join(support.path, 'Update'));
+      _directory = Directory(
+        macUpdateInstallationDirectory(support.path, _appPath),
+      );
       await _directory!.create(recursive: true);
+      await _prepareInstallationState(support.path);
       _directoryReady.complete();
       await _readInstalledStatus();
       await _startHealthMonitor();
@@ -378,9 +382,32 @@ class MacUpdateService {
     }
   }
 
+  Future<void> _prepareInstallationState(String supportPath) async {
+    final script = await _writeWorker();
+    final result = await Process.run('/bin/bash', [
+      script.path,
+      'prepare',
+      _directory!.path,
+      _appPath,
+      '$pid',
+      bobTvVersion,
+      p.join(supportPath, 'Update'),
+    ]);
+    if (result.exitCode != 0) {
+      throw StateError('更新状态迁移未完成（${result.exitCode}），原回退文件已保留');
+    }
+  }
+
   Future<void> _startHealthMonitor() async {
     final candidate = File(p.join(_directory!.path, 'candidate.txt'));
-    if (!await candidate.exists()) return;
+    if (!await candidate.exists() ||
+        !macUpdateCandidateBelongsToApp(
+          await candidate.readAsString(),
+          _appPath,
+          version: bobTvVersion,
+        )) {
+      return;
+    }
     final marker = File(p.join(_directory!.path, 'startup.marker'));
     if (await marker.exists() &&
         (await marker.readAsString()).trim() == '$pid') {
@@ -390,7 +417,14 @@ class MacUpdateService {
     final script = await _writeWorker();
     await Process.start(
       '/bin/bash',
-      [script.path, 'monitor', _directory!.path, _appPath, '$pid'],
+      [
+        script.path,
+        'monitor',
+        _directory!.path,
+        _appPath,
+        '$pid',
+        bobTvVersion,
+      ],
       mode: ProcessStartMode.detached,
       runInShell: false,
     );
@@ -401,10 +435,24 @@ class MacUpdateService {
     if (_started) await _healthMonitorReady.future;
     if (_directory == null) {
       final support = await getApplicationSupportDirectory();
-      _directory = Directory(p.join(support.path, 'Update'));
+      _directory = Directory(
+        macUpdateInstallationDirectory(support.path, _appPath),
+      );
+    }
+    final candidate = File(p.join(_directory!.path, 'candidate.txt'));
+    if (!await candidate.exists() ||
+        !macUpdateCandidateBelongsToApp(
+          await candidate.readAsString(),
+          _appPath,
+          version: bobTvVersion,
+        )) {
+      return;
     }
     final marker = File(p.join(_directory!.path, 'startup.marker'));
-    if (!await marker.exists()) return;
+    if (!await marker.exists() ||
+        (await marker.readAsString()).trim() != '$pid') {
+      return;
+    }
     await File(
       p.join(_directory!.path, 'startup.healthy'),
     ).writeAsString('$pid', flush: true);

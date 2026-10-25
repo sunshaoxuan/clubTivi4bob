@@ -11,7 +11,7 @@ The application is built with Flutter and uses `media_kit`, libmpv, FFmpeg, Rive
 ### Latest release
 
 Windows x64/ARM64, macOS Intel/Apple Silicon and Android ARM32/ARM64/x64
-share `1.1.12+107` and the same fixed application source.
+share `1.1.13+108` and the same fixed application source.
 Channel cards expand matched current and upcoming programmes across channel
 types, with explicit missing-data and failure states. The shared guide pipeline
 isolates invalid XMLTV programmes and retains automatic refresh for custom

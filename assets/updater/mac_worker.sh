@@ -61,6 +61,93 @@ write_status() {
   fi
 }
 
+archive_startup_state() {
+  local source="$1" destination="$2" saved name
+  mkdir -p "$destination/DeferredCandidates"
+  saved="$(mktemp -d "$destination/DeferredCandidates/state.XXXXXX")"
+  for name in candidate.txt startup.marker startup.healthy; do
+    [[ ! -f "$source/$name" ]] || mv "$source/$name" "$saved/$name"
+  done
+  printf '%s startup state preserved in %s\n' "$(date -u +%FT%TZ)" "$saved"
+}
+
+if [[ "$mode" == 'prepare' ]]; then
+  /usr/bin/lockf -t 10 "$root/startup.lock" /bin/bash "$0" \
+    prepare-locked "$root" "$app" "$watched_pid" "$version" "$archive_url"
+  exit $?
+fi
+
+if [[ "$mode" == 'prepare-locked' || "$mode" == 'migrate-legacy-locked' ||
+      "$mode" == 'archive-obsolete-locked' ]]; then
+  legacy="$archive_url"
+  [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+\+[0-9]+$ &&
+     "$legacy" == "$HOME/Library/Application Support/"* && "$legacy" != "$root" &&
+     ! -L "$legacy" && ! -L "$root" ]] || exit 4
+  key="$(printf '%s' "$app" | /usr/bin/openssl dgst -sha256)"
+  [[ "$root" == "$legacy/Installations/${key##* }" ]] || exit 4
+  if [[ "$mode" == 'archive-obsolete-locked' ]]; then
+    if [[ -f "$candidate" && ( "$(sed -n '4p' "$candidate")" != "$app" ||
+        "$(sed -n '1p' "$candidate")" != "$version" ) ]]; then
+      archive_startup_state "$root" "$root"
+    fi
+    exit 0
+  fi
+  if [[ "$mode" == 'prepare-locked' ]]; then
+    if [[ -f "$candidate" && ( "$(sed -n '4p' "$candidate")" != "$app" ||
+        "$(sed -n '1p' "$candidate")" != "$version" ) ]]; then
+      # Do not mistake an in-progress installer for an obsolete launch record.
+      # Nonblocking acquisition also avoids lock-order inversion with monitors.
+      if /usr/bin/lockf -t 0 "$root/update.lock" /bin/bash "$0" \
+          archive-obsolete-locked "$root" "$app" "$watched_pid" "$version" "$legacy"; then
+        :
+      else
+        code=$?
+        (( code == 75 )) || exit "$code"
+      fi
+    fi
+    if [[ ! -f "$candidate" && -f "$legacy/candidate.txt" &&
+        "$(sed -n '4p' "$legacy/candidate.txt")" == "$app" &&
+        "$(sed -n '1p' "$legacy/candidate.txt")" == "$version" ]]; then
+      /usr/bin/lockf -t 10 "$legacy/update.lock" /bin/bash "$0" \
+        migrate-legacy-locked "$root" "$app" "$watched_pid" "$version" "$legacy"
+    fi
+    exit 0
+  fi
+  # Recheck after acquiring the legacy installer's lock. Never adopt a record
+  # for another app or replace a candidate already owned by this installation.
+  [[ ! -f "$candidate" && -f "$legacy/candidate.txt" &&
+      "$(sed -n '4p' "$legacy/candidate.txt")" == "$app" &&
+      "$(sed -n '1p' "$legacy/candidate.txt")" == "$version" ]] || exit 0
+  old_backup="$(sed -n '2p' "$legacy/candidate.txt")"
+  leaf="${old_backup#"$legacy/Backups/"}"
+  attempts="$(sed -n '3p' "$legacy/candidate.txt")"
+  if [[ "$old_backup" != "$legacy/Backups/"* ||
+      ! "$leaf" =~ ^[A-Za-z0-9][A-Za-z0-9._+-]*$ ||
+      ! "$attempts" =~ ^[0-2]$ || -L "$legacy/Backups" ||
+      -L "$old_backup" || ! -d "$old_backup/BobTV.app" ]]; then
+    archive_startup_state "$legacy" "$root"
+    exit 0
+  fi
+  mkdir -p "$root/Backups"
+  migrated="$(mktemp -d "$root/Backups/legacy.XXXXXX")"
+  rmdir "$migrated"
+  # Preserve the legacy backup and its pointer across interruptions during migration.
+  /usr/bin/ditto "$old_backup" "$migrated"
+  if ! { printf '%s\n%s\n%s\n%s\n' "$version" "$migrated" "$attempts" "$app" > "$candidate.tmp" &&
+      mv "$candidate.tmp" "$candidate"; }; then
+    rm -f "$candidate.tmp"
+    exit 4
+  fi
+  archive_startup_state "$legacy" "$root"
+  printf '%s\n%s\n%s\n%s\n' "$version" "$app" "$old_backup" "$migrated" > "$migrated/state-migration.txt"
+  # Keep an installed receipt only when it matches this running version.
+  if [[ -f "$legacy/status.json" ]] && grep -Fq "\"version\":\"$version\"" "$legacy/status.json"; then
+    cp "$legacy/status.json" "$root/status.json"
+  fi
+  printf '%s legacy rollback adopted for the owning installation\n' "$(date -u +%FT%TZ)"
+  exit 0
+fi
+
 if [[ "$mode" == 'update' ]]; then
   write_status starting "$version" 0
   if /usr/bin/lockf -t 0 "$root/update.lock" /bin/bash "$0" \
@@ -115,18 +202,41 @@ failure_exit() {
   write_status failed "$version" 0 "$message"
 }
 
+candidate_digest() {
+  local value
+  value="$(/usr/bin/openssl dgst -sha256 "$candidate")" || return 1
+  printf '%s' "${value##* }"
+}
+
 if [[ "$mode" == 'monitor' ]]; then
-  wait_for_exit
   [[ -f "$candidate" ]] || exit 0
+  token="$(candidate_digest)"
+  seconds=0
+  while kill -0 "$watched_pid" 2>/dev/null; do
+    [[ -f "$candidate" && "$(candidate_digest)" == "$token" ]] || exit 0
+    [[ -f "$healthy" && "$(cat "$healthy")" == "$watched_pid" ]] && break
+    sleep 1
+    seconds=$((seconds + 1))
+    (( seconds < 43200 )) || exit 3
+  done
+  /usr/bin/lockf -t 10 "$root/startup.lock" /bin/bash "$0" \
+    startup-locked "$root" "$app" "$watched_pid" "$version" "$token"
+  exit $?
+fi
+
+if [[ "$mode" == 'startup-locked' ]]; then
+  [[ -f "$candidate" && -n "$archive_url" && "$(candidate_digest)" == "$archive_url" ]] || exit 0
   candidate_version="$(sed -n '1p' "$candidate")"
   backup="$(sed -n '2p' "$candidate")"
   previous_attempts="$(sed -n '3p' "$candidate")"
   candidate_app="$(sed -n '4p' "$candidate")"
   [[ "$candidate_version" =~ ^[0-9]+\.[0-9]+\.[0-9]+\+[0-9]+$ &&
      "$previous_attempts" =~ ^[0-2]$ &&
-     "$candidate_app" == "$app" ]] || exit 4
+     "$candidate_app" == "$app" &&
+     ( -z "$version" || "$candidate_version" == "$version" ) ]] || exit 4
   if [[ -f "$healthy" && "$(cat "$healthy")" == "$watched_pid" ]]; then
-    rm -f "$candidate" "$healthy" "$marker"
+    rm -f "$candidate" "$marker"
+    printf '%s startup confirmed for installation version=%s pid=%s\n' "$(date -u +%FT%TZ)" "$candidate_version" "$watched_pid"
     exit 0
   fi
   [[ -f "$marker" && "$(cat "$marker")" == "$watched_pid" ]] || exit 0
@@ -138,7 +248,10 @@ if [[ "$mode" == 'monitor' ]]; then
     mv -f "$candidate.tmp" "$candidate"
     exit 0
   fi
+  leaf="${backup#"$root/Backups/"}"
   [[ "$backup" == "$root/Backups/"* &&
+     "$leaf" =~ ^[A-Za-z0-9][A-Za-z0-9._+-]*$ &&
+     ! -L "$root" && ! -L "$root/Backups" && ! -L "$backup" &&
      -d "$backup/BobTV.app" && -w "$(dirname "$app")" ]] || exit 4
   failed="$root/FailedApps/$candidate_version-$(date +%s)"
   mkdir -p "$failed"
@@ -148,6 +261,16 @@ if [[ "$mode" == 'monitor' ]]; then
     exit 5
   fi
   printf '%s\n' "$candidate_version" >> "$skipped"
+  # Restoring an old client also restores its global-state protocol. Give that
+  # client its skip receipt so it cannot immediately retry the failed version.
+  capability="$app/Contents/Frameworks/App.framework/Resources/flutter_assets/assets/updater/mac-installation-state-v2"
+  legacy="${root%/Installations/*}"
+  key="$(printf '%s' "$app" | /usr/bin/openssl dgst -sha256)"
+  if [[ ! -f "$capability" && "$legacy" != "$root" &&
+      "$root" == "$legacy/Installations/${key##* }" && ! -L "$legacy" ]]; then
+    printf '%s\n' "$candidate_version" >> "$legacy/skipped_versions.txt"
+    printf '%s\n%s\n' "$candidate_version" "$app" > "$root/legacy-rollback-receipt.txt"
+  fi
   printf '{"schema":1,"failedVersion":"%s"}\n' "$candidate_version" \
     > "$root/failure-${candidate_version//+/_}.json"
   rm -f "$candidate" "$healthy" "$marker"
@@ -169,12 +292,15 @@ trap failure_exit EXIT
 if [[ -f "$candidate" ]]; then
   write_status starting "$version" 0 '等待当前版本完成启动检查'
   for (( attempt=0; attempt<90; attempt++ )); do
-    [[ -f "$healthy" ]] && break
+    [[ ! -f "$candidate" ]] && break
+    [[ -f "$healthy" && "$(cat "$healthy")" == "$watched_pid" ]] && break
     sleep 1
   done
-  [[ -f "$healthy" && "$(cat "$healthy")" == "$watched_pid" &&
-      "$(sed -n '4p' "$candidate")" == "$app" ]] || exit 11
-  rm -f "$candidate" "$marker" "$healthy"
+  if [[ -f "$candidate" ]]; then
+    [[ -f "$healthy" && "$(cat "$healthy")" == "$watched_pid" &&
+        "$(sed -n '4p' "$candidate")" == "$app" ]] || exit 11
+    rm -f "$candidate" "$marker" "$healthy"
+  fi
 fi
 [[ -w "$(dirname "$app")" ]] || exit 9
 
@@ -278,6 +404,7 @@ if ! mv "$replacement" "$app"; then
   write_status failed "$version" 0
   exit 10
 fi
+rm -f "$marker" "$healthy"
 printf '%s\n%s\n0\n%s\n' "$version" "$backup" "$app" > "$candidate.tmp"
 mv -f "$candidate.tmp" "$candidate"
 rm -rf "$old"

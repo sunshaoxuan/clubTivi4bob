@@ -70,8 +70,8 @@ def test_created_country_and_full_subcategory_hierarchy_publish_idempotently(tmp
         item = categories[current]
         path.insert(0, item['name'])
         current = item['parentId']
-    assert ' / '.join(path) == group
-    assert len(categories) == 7
+    assert ' / '.join(path) == group.replace('国际 / 科威特 / ', '国际 / 科威特 / 电视 / ', 1)
+    assert len(categories) == 8
     assert data['channels'][0]['routes'][0]['revision'] == 1
     ingest([{'url':URL,'name':'NRBTV','group':'中国 / 北京','source':'old','blocked':False}], 'c'*64,tmp_path)
     process(tmp_path, limit=0)

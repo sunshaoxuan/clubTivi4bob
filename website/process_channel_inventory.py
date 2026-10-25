@@ -17,6 +17,7 @@ from urllib.parse import urljoin, urlsplit
 from catalog_inventory import DATA, database, ingest, validate_media_url
 from route_identity import canonical_route_url
 from publish_channel_catalog import publish
+from catalog_channel_identity import coalesce_classification_variants
 
 
 def _public_target(url):
@@ -236,7 +237,12 @@ def process(data_dir=DATA, limit=120, verifier=probe):
                     channels[channel["id"]] = {**channel, "routes": routes}
                     for item in current["categories"]: categories.setdefault(item["id"], item)
         if not channels and not current: return {"checked": checked, "published": False}
-        used = {channel['categoryId'] for channel in channels.values()}
+        channels = {channel['id']: channel for channel in coalesce_classification_variants(
+            list(channels.values()), categories, previous=current,
+            protected_urls={row['url'] for row in rows
+                            if row['manual_name'] or row['merge_id']})}
+        used = {category for channel in channels.values()
+                for category in channel.get('categoryIds', [channel['categoryId']])}
         for identity in list(used):
             parent = categories[identity]['parentId']
             while parent:

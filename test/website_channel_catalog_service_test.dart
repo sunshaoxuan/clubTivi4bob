@@ -79,6 +79,69 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   setUp(() => SharedPreferences.setMockInitialValues({}));
 
+  test('global other and radio imports preserve geography and separate media', () async {
+    final payload = _catalog();
+    payload['categories'] = [
+      {'id': 'other', 'name': '其他', 'parentId': null},
+      {'id': 'pending', 'name': '待识别', 'parentId': 'other'},
+      {'id': 'radio', 'name': '广播', 'parentId': null},
+      {'id': 'world', 'name': '国际', 'parentId': null},
+      {'id': 'us', 'name': '美国', 'parentId': 'world'},
+      {'id': 'tv', 'name': '电视', 'parentId': 'us'},
+      {'id': 'news', 'name': '新闻', 'parentId': 'tv'},
+    ];
+    final template = (payload['channels'] as List).single as Map;
+    payload['channels'] = [
+      for (final (id, category, country) in [
+        ('pending-station', 'pending', null), ('us-radio', 'radio', 'US'),
+        ('cn-radio', 'radio', 'CN'), ('unknown-radio', 'radio', null),
+        ('us-news', 'news', 'US'),
+      ])
+        {...template, 'id': id, 'categoryId': category, 'countryCode': country, 'routes': [
+          {'id': 'route-$id', 'url': 'https://media.example.org/$id.m3u8'},
+        ]},
+    ];
+    final database = db.AppDatabase.forTesting(NativeDatabase.memory());
+    addTearDown(database.close);
+    final service = WebsiteChannelCatalogService(database: database, api: _CatalogApi(payload));
+    addTearDown(service.dispose);
+    await service.sync();
+    final rows = await database.getAllChannels();
+    final groups = rows.map((row) => row.groupTitle).toSet();
+    expect(groups, containsAll(['其他 / 待识别', '国际 / 美国 / 广播', '中国 / 广播', '其他 / 广播', '国际 / 美国 / 电视 / 新闻']));
+    final other = await database.getChannelCategoryCandidates('其他');
+    expect(other, hasLength(2));
+    expect(WebsiteChannelCatalogService.countryForGroup('其他 / 待识别'), '未识别地区');
+  });
+
+  test('catalog imports English and Chinese country labels into one country', () async {
+    final payload = _catalog();
+    payload['categories'] = [
+      {'id': 'world', 'parentId': null, 'name': '国际'},
+      {'id': 'english', 'parentId': 'world', 'name': 'United States'},
+      {'id': 'chinese', 'parentId': 'world', 'name': '美国'},
+    ];
+    final template = (payload['channels'] as List).single as Map;
+    payload['channels'] = [
+      for (final id in ['english', 'chinese'])
+        {...template, 'id': id, 'categoryId': id, 'routes': [
+          {'id': 'route-$id', 'url': 'https://media.example.org/$id.m3u8'},
+        ]},
+    ];
+    final database = db.AppDatabase.forTesting(NativeDatabase.memory());
+    addTearDown(database.close);
+    final service = WebsiteChannelCatalogService(database: database, api: _CatalogApi(payload));
+    addTearDown(service.dispose);
+    await service.sync();
+    final rows = await database.getAllChannels();
+    expect(rows, hasLength(2));
+    expect(rows.map((row) => row.groupTitle).toSet(), {'国际 / 美国'});
+    expect(rows.map((row) => row.streamUrl).toSet(), {
+      'https://media.example.org/english.m3u8',
+      'https://media.example.org/chinese.m3u8',
+    });
+  });
+
   test('catalog import preserves country and region boundaries for duplicate cards', () async {
     final payload = _catalog();
     final template = (payload['channels'] as List).single as Map;

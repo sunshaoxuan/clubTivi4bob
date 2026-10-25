@@ -1,0 +1,17 @@
+[Unit]
+Description=BobTV incremental country and radio/TV classification
+After=network-online.target
+
+[Service]
+Type=oneshot
+User=bobtv
+Group=bobtv
+WorkingDirectory=/opt/bobtv/site
+Environment=BOBTV_DATA_DIR=/var/lib/bobtv
+ExecStart=/opt/bobtv/venv/bin/python /opt/bobtv/site/catalog_taxonomy_worker.py
+TimeoutStartSec=240
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ReadWritePaths=/var/lib/bobtv

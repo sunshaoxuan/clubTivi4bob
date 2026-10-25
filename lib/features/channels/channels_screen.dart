@@ -53,6 +53,7 @@ import 'simple_home_content.dart';
 import 'simple_channel_panel_frame.dart';
 import '../player/player_service.dart';
 import '../player/player_presentation_buttons.dart';
+import '../player/radio_playback_surface.dart';
 import '../player/alternative_preview_overlay.dart';
 import '../player/stream_info_badges.dart';
 import '../providers/provider_manager.dart';
@@ -111,6 +112,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
   String _selectedGroup = '央视';
   String _selectedInternationalCountry = '';
   String _selectedInternationalGenre = '全部';
+  String _selectedInternationalMedia = '电视';
   List<String> _internationalCountries = [];
   List<String> _pinnedInternationalCountries = [];
   Map<String, ChannelCategoryDestination> _manualCategories = {};
@@ -559,11 +561,14 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
               ) ??
               const <String>[])
           .where((country) => country.trim().isNotEmpty)
+          .map(ChannelCategoryClassifier.normalizeCountryName)
           .toSet()
           .toList();
       if (isFirstLoad) {
         _selectedInternationalCountry =
-            prefs.getString(_lastCountryPreferenceKey) ?? '';
+            ChannelCategoryClassifier.normalizeCountryName(
+              prefs.getString(_lastCountryPreferenceKey) ?? '',
+            );
       }
       _hideIpv6Sources =
           prefs.getBool(SourceVisibility.hideIpv6PreferenceKey) ?? false;
@@ -1053,6 +1058,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
         channels = channels.where((c) {
           if (_selectedGroup == '国际') {
             return _countryFor(c) == _selectedInternationalCountry &&
+                _internationalMediaOf(c) == _selectedInternationalMedia &&
                 (_selectedInternationalGenre == '全部' ||
                     _matchesInternationalGenre(c, _selectedInternationalGenre));
           }
@@ -1197,6 +1203,22 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
   Iterable<String> _internationalGenresOf(db.Channel channel) =>
       (_catalogCategoryGroups[channel.id] ?? [channel.groupTitle ?? ''])
           .map(ChannelCategoryClassifier.internationalGenreFor);
+
+  String _internationalMediaOf(db.Channel channel) =>
+      ChannelCategoryClassifier.internationalMediaFor(
+        name: channel.name, groupTitle: channel.groupTitle, streamUrl: channel.streamUrl,
+      );
+
+  void _selectInternationalMedia(String media) {
+    if (_selectedInternationalMedia == media) return;
+    setState(() {
+      _selectedInternationalMedia = media;
+      _selectedInternationalGenre = '全部';
+      _selectedIndex = -1;
+      _applyFilters();
+    });
+    unawaited(_refreshRouteAvailability(_allChannels, _categoryLoadGeneration));
+  }
 
   bool _matchesInternationalGenre(db.Channel channel, String genre) =>
       _internationalGenresOf(channel).contains(genre);
@@ -1378,6 +1400,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
     // available for cross-category merge searches on explicit request.
     if (_selectedGroup == '国际') {
       channels = channels.where((c) => _countryFor(c) == _selectedInternationalCountry &&
+        _internationalMediaOf(c) == _selectedInternationalMedia &&
         (_selectedInternationalGenre == '全部' ||
           _matchesInternationalGenre(c, _selectedInternationalGenre))).toList();
     }
@@ -1495,7 +1518,8 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
     }
     final found = <String>{};
     for (final channel in _allChannels) {
-      if (_countryFor(channel) == _selectedInternationalCountry) {
+      if (_countryFor(channel) == _selectedInternationalCountry &&
+          _internationalMediaOf(channel) == _selectedInternationalMedia) {
         found.addAll(_internationalGenresOf(channel));
       }
     }
@@ -1511,6 +1535,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
     if (_selectedInternationalCountry == country) return;
     setState(() {
       _selectedInternationalCountry = country;
+      _selectedInternationalMedia = '电视';
       _selectedInternationalGenre = '全部';
       _selectedIndex = -1;
       _applyFilters();
@@ -3492,14 +3517,26 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
     final initialController = service.videoController;
     return ValueListenableBuilder<VideoController?>(
       valueListenable: service.activeVideoController,
-      builder: (context, controller, _) => RepaintBoundary(
-        child: Video(
-          key: ValueKey(controller ?? initialController),
-          controller: controller ?? initialController,
-          controls: NoVideoControls,
-          fit: TabletPresentation.videoFit,
-        ),
-      ),
+      builder: (context, controller, _) {
+        final channel = _previewChannel;
+        final active = controller ?? initialController;
+        if (channel != null && _allowsAudioOnly(channel)) {
+          return RadioPlaybackSurface.forPlayer(
+            key: ValueKey(active.player),
+            player: active.player,
+            channelName: _channelDisplayName(channel),
+            logoUrl: channel.tvgLogo,
+          );
+        }
+        return RepaintBoundary(
+          child: Video(
+            key: ValueKey(controller ?? initialController),
+            controller: controller ?? initialController,
+            controls: NoVideoControls,
+            fit: TabletPresentation.videoFit,
+          ),
+        );
+      },
     );
   }
 
@@ -3508,7 +3545,8 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
   Widget _buildCompactCategories({required bool tiny}) {
     final favorites = _selectedGroup == 'Favorites' || _selectedGroup.startsWith('fav:');
     final international = _selectedGroup == '国际';
-    final mainland = !favorites && !international;
+    final other = _selectedGroup == '其他';
+    final mainland = !favorites && !international && !other;
     final province = ChannelCategoryClassifier.provinceCategories.contains(_selectedGroup.split(' / ').first);
     final section = _compactChinaSection ?? (province ? '地方台' : _selectedGroup.split(' / ').first);
     final customGroups = _groups.where((g) => !ChannelCategoryClassifier.categories.contains(g)).toList();
@@ -3521,13 +3559,14 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
           if (!mainland) _selectGroupAndPlayFirst('央视');
         }),
         CompactCategoryOption(id: 'international', label: '国际', selected: international && !_pinnedInternationalCountries.contains(_selectedInternationalCountry), onTap: () => _selectGroupAndPlayFirst('国际')),
+        CompactCategoryOption(id: 'other', label: '其他', selected: other, onTap: () => _selectGroupAndPlayFirst('其他')),
         for (final country in _pinnedInternationalCountries)
           CompactCategoryOption(id: country, label: country, selected: international && _selectedInternationalCountry == country, onTap: () => _selectPinnedCountry(country), onContextMenu: (p) => _showCountryPinMenu(country, p)),
       ]),
     ];
     if (mainland) {
       levels.add(CompactCategoryRow(tiny: tiny, level: 2, title: '频道分类', options: [
-        for (final group in ['央视', '数字', '广播', '其他', '地方台', ...customRoots])
+        for (final group in ['央视', '数字', '广播', '地方台', ...customRoots])
           CompactCategoryOption(id: group, label: group, selected: section == group, onTap: () {
             setState(() => _compactChinaSection = group);
             if (group == '地方台') { return; }
@@ -3552,11 +3591,15 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
       if (_internationalCountries.isNotEmpty) { levels.add(CompactCategoryRow(tiny: tiny, level: 2, title: '国家或地区', options: [
         for (final country in _internationalCountries) CompactCategoryOption(id: country, label: country, selected: country == _selectedInternationalCountry, onTap: () => _selectInternationalCountry(country), onContextMenu: (p) => _showCountryPinMenu(country, p)),
       ])); }
+      levels.add(CompactCategoryRow(tiny: tiny, level: 3, title: '广播或电视', options: [
+        for (final media in ['电视', '广播'])
+          CompactCategoryOption(id: media, label: media, selected: media == _selectedInternationalMedia, onTap: () => _selectInternationalMedia(media)),
+      ]));
       final genres = _internationalGenresForSelectedCountry();
-      if (genres.isNotEmpty) { levels.add(CompactCategoryRow(tiny: tiny, level: 3, title: '频道类型', options: [
+      if (_selectedInternationalMedia == '电视' && genres.isNotEmpty) { levels.add(CompactCategoryRow(tiny: tiny, level: 4, title: '节目类型', options: [
         for (final genre in genres) CompactCategoryOption(id: genre, label: genre, selected: genre == _selectedInternationalGenre, onTap: () => _selectInternationalGenre(genre)),
       ])); }
-    } else if (_favoriteLists.isNotEmpty) {
+    } else if (favorites && _favoriteLists.isNotEmpty) {
       levels.add(CompactCategoryRow(tiny: tiny, level: 2, title: '收藏列表', options: [
         CompactCategoryOption(id: 'all', label: '全部收藏', selected: _selectedGroup == 'Favorites', onTap: () => _selectGroupAndPlayFirst('Favorites')),
         for (final list in _favoriteLists) CompactCategoryOption(id: list.id, label: list.name, selected: _selectedGroup == 'fav:${list.id}', onTap: () => _selectGroupAndPlayFirst('fav:${list.id}')),
@@ -5214,11 +5257,11 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
           _buildTreeSection(
             'groups',
             Icons.folder_rounded,
-            '电视地区',
+            '频道分类',
             [
               if (filteredProvinceGroups.isNotEmpty ||
                   filteredMainGroups.any((g) =>
-                      const ['央视', '广播', '数字', '其他'].contains(g)))
+                      const ['央视', '广播', '数字'].contains(g)))
                 _buildTreeSection('china', Icons.map_rounded, '中国', [
                   if (filteredMainGroups.contains('央视'))
                     _buildTreeItem('央视', '央视', null, indent: 1,
@@ -5233,10 +5276,12 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                           _buildTreeItem(group, group, null, indent: 2),
                       ],
                     ),
-                  for (final group in const ['数字', '广播', '其他'])
+                  for (final group in const ['数字', '广播'])
                     if (filteredMainGroups.contains(group))
                       _buildTreeItem(group, group, null, indent: 1),
                 ]),
+              if (filteredMainGroups.contains('其他'))
+                _buildTreeItem('其他', '其他', Icons.help_outline_rounded, indent: 1),
               if (filteredMainGroups.contains('国际')) ...[
                 _buildTreeItem('国际频道', '国际', Icons.public_rounded,
                     indent: 1),
@@ -5252,6 +5297,11 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                           country == _selectedInternationalCountry,
                     ),
                     if (country == _selectedInternationalCountry)
+                      for (final media in ['电视', '广播'])
+                        _buildTreeItem(media, 'international-media:$media', null, indent: 3,
+                          onSelect: () => _selectInternationalMedia(media),
+                          selectedOverride: media == _selectedInternationalMedia),
+                    if (country == _selectedInternationalCountry && _selectedInternationalMedia == '电视')
                       for (final genre in _internationalGenresForSelectedCountry())
                         _buildTreeItem(
                           genre,

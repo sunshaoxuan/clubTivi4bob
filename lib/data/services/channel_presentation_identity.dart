@@ -37,6 +37,16 @@ class ChannelPresentationRoute {
 class ChannelPresentationIdentity {
   const ChannelPresentationIdentity._();
 
+  static const _nationalTelevisionCategories = {'央视', '数字', '卫视'};
+
+  static bool _isNationalTelevisionPath(List<String> path) =>
+      path.length >= 2 &&
+      path.first == '中国' &&
+      _nationalTelevisionCategories.contains(path[1]) &&
+      (path.length == 2 ||
+          (path.length == 3 &&
+              ChannelCategoryClassifier.internationalGenres.contains(path[2])));
+
   // Service name, domestic scope, media/quality and compatible guide metadata
   // identify a presentation group. Persistent server and EPG IDs stay intact.
   static String _publicKey(ChannelPresentationRoute route) {
@@ -44,6 +54,9 @@ class ChannelPresentationIdentity {
     // Older snapshots stored domestic category leaves without the country root.
     if (path.length == 1 && {'央视', '数字', '卫视', '广播'}.contains(path.first)) {
       path = ['中国', ...path];
+    }
+    if (path.length >= 3 && path.first == '国际' && path[2] == '电视') {
+      path = [...path.take(2), ...path.skip(3)];
     }
     final name = ChannelNameNormalizer.normalize(route.name);
     final domestic =
@@ -65,9 +78,7 @@ class ChannelPresentationIdentity {
       // Genre memberships do not define separate services. Local regions and
       // custom subcategories continue to be explicit identity boundaries.
       final scope = domestic
-          ? (path.length == 2 && {'央视', '数字', '卫视'}.contains(path[1])
-                ? '中国 / 全国电视'
-                : path.join(' / '))
+          ? (_isNationalTelevisionPath(path) ? '中国 / 全国电视' : path.join(' / '))
           : path.take(2).join(' / ');
       final guide = route.tvgId;
       final guideIdentity =
@@ -121,8 +132,9 @@ class ChannelPresentationIdentity {
       if (route.catalogId == null ||
           route.mergeId != null ||
           route.regionCode != null ||
-          (route.countryCode != null && route.countryCode != 'cn'))
+          (route.countryCode != null && route.countryCode != 'cn')) {
         continue;
+      }
       final key = publicKeys[route.catalogId]!;
       if (!key.startsWith('service:')) continue;
       final scope =
@@ -146,9 +158,7 @@ class ChannelPresentationIdentity {
       final localPath = group.split(' / ');
       final nationalOrUnspecified =
           !group.startsWith('国际') &&
-          (!group.startsWith('中国 / ') ||
-              (localPath.length == 2 &&
-                  {'央视', '数字', '卫视'}.contains(localPath[1])));
+          (!group.startsWith('中国 / ') || _isNationalTelevisionPath(localPath));
       if ((country.isEmpty || country == '中国') &&
           nationalOrUnspecified &&
           (route.tvgId == null ||

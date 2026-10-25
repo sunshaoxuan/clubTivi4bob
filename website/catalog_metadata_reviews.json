@@ -1,0 +1,61 @@
+{
+  "schemaVersion": 1,
+  "reviews": [
+    {
+      "expectedIdentity": {"id": "channel-660f616f2daf011b430dc9be", "name": "台北广播电台FM93.1", "epgId": null, "countryCode": "CN", "regionCode": null},
+      "routeSha256": ["07aa52c8d60a3f3d2576385b4851c04923ab48b9f9722a4bcd6ac0eab8400a5f"],
+      "countryCode": "TW", "regionCode": null,
+      "reviewedAt": "2026-10-16T23:37:00Z",
+      "evidenceUrls": ["https://english.tbs.gov.taipei/", "https://tradio.gov.taipei/", "https://rds.ginnet.cloud/player/mv8/tpv8/live/live0130lo-yfyo/fm"]
+    },
+    {
+      "expectedIdentity": {"id": "channel-d0e7b4315a733439fc14a5e1", "name": "台北广播电台AM1134", "epgId": null, "countryCode": "CN", "regionCode": null},
+      "routeSha256": ["2be825d96ca6cb2f30828e9139f358c09403ba86b9fab8664497925b37706b3b"],
+      "countryCode": "TW", "regionCode": null,
+      "reviewedAt": "2026-10-16T23:37:00Z",
+      "evidenceUrls": ["https://english.tbs.gov.taipei/", "https://tradio.gov.taipei/", "https://rds.ginnet.cloud/player/mv8/tpv8/live/live0130lo-yfyo/am"]
+    },
+    {
+      "expectedIdentity": {"id": "channel-3b9b9e4b1a2e3ec6866d1bc3", "name": "警察广播台中分台", "epgId": null, "countryCode": "CN", "regionCode": null},
+      "routeSha256": ["02d8acb043ad07df6a71807373e7b5726567a10e8f3ae4cf8941e19ffa2d31cc"],
+      "countryCode": "TW", "regionCode": null,
+      "reviewedAt": "2026-10-17T02:43:00Z",
+      "evidenceUrls": ["https://www.pbs.npa.gov.tw/ch/index", "https://www.pbs.gov.tw/live/js/my.js"]
+    },
+    {
+      "expectedIdentity": {"id": "channel-8ca60a553c5962c14fb43430", "name": "台中广播电台", "epgId": null, "countryCode": "CN", "regionCode": null},
+      "routeSha256": ["d6603f37edadf51c5b05b48a7f441186d9d63ca3ccae9ed588e8af6a9e3ffdb3"],
+      "countryCode": "TW", "regionCode": null,
+      "reviewedAt": "2026-10-17T04:29:00Z",
+      "evidenceUrls": ["https://www.fm1007lucky.com/tw/about/index.html", "https://www.taiwanradio.org.tw/index.php/about-us/member/item/42-79"]
+    },
+    {
+      "expectedIdentity": {"id": "channel-471f1b9c367d9dd0c158035c", "name": "台中古典音乐台", "epgId": null, "countryCode": "CN", "regionCode": null},
+      "routeSha256": ["e96fdfdcaa0c05af7d8cf488da86582e928fa974fdb56c8e36e80518daa5fa94"],
+      "countryCode": "TW", "regionCode": null,
+      "reviewedAt": "2026-10-17T05:03:00Z",
+      "evidenceUrls": ["https://www.family977.com.tw/", "https://page.line.me/fm977"]
+    },
+    {
+      "expectedIdentity": {"id": "channel-0cb2510668eacd72e36302d9", "name": "RTHK3", "epgId": null, "countryCode": "CN", "regionCode": null},
+      "routeSha256": ["c3cc6c0ad6e1bdd0e4a044b25705661121a3860e6157d90ba0ef778a6bdbe90f"],
+      "countryCode": "HK", "regionCode": null,
+      "reviewedAt": "2026-10-17T05:15:32Z",
+      "evidenceUrls": ["https://www.rthk.hk/radio/radio3", "https://www.rthk.hk/aboutus", "https://webstatic.rthk.hk/assets/about/pdf/CEDB-1-c1_2627.pdf"]
+    },
+    {
+      "expectedIdentity": {"id": "channel-f9575f6ac5f72cf9df249366", "name": "RTHK普通话", "epgId": null, "countryCode": "CN", "regionCode": null},
+      "routeSha256": ["b006ff1a697021d9ac12a23213df750fe3e15b7d80595e0d5f443abf28e8607c"],
+      "countryCode": "HK", "regionCode": null,
+      "reviewedAt": "2026-10-17T06:12:15Z",
+      "evidenceUrls": ["https://www.rthk.hk/radio/pth", "https://webstatic.rthk.hk/assets/about/pdf/CEDB-1-c1_2627.pdf"]
+    },
+    {
+      "expectedIdentity": {"id": "channel-0c91ed6a2aed18bdb72391a4", "name": "BBC Radio 1 Dance", "epgId": null, "countryCode": "CN", "regionCode": null},
+      "routeSha256": ["0bd851fd82bf0f817fec82ffd40961956a32e903906d62d747270f321773529e"],
+      "countryCode": "GB", "regionCode": null,
+      "reviewedAt": "2026-10-18T16:49:00Z",
+      "evidenceUrls": ["https://radiospi.api.bbci.co.uk/radiodns/spi/3.1/SI.xml", "https://help.bbc.com/hc/en-us/articles/42652680528659-Update-on-access-to-BBC-Sounds-outside-the-UK", "https://radiodns.org/campaigns/project-logo/walkthrough-finding-radio-station-logos/"]
+    }
+  ]
+}

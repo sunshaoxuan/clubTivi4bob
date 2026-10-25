@@ -26,7 +26,7 @@
   "features": "Features",
   "home": {
     "headline": "Watch TV on desktop and Android.",
-    "intro": "Windows, macOS and Android now share 1.1.11+106. Open a channel card to view matched current and upcoming programmes, with fixes for guide imports and sync retries, plus desktop shutdown improvements.",
+    "intro": "Windows, macOS and Android advance together to 1.1.12+107. Country aliases share Simplified Chinese labels in the Chinese interface. Other is a top-level category, and television and radio have separate country branches. Programme guides, favourites and manual choices are retained.",
     "image_alt": "BobTV running in simplified mode, with sports playback and a channel list.",
     "mode": "BOBTV / Simplified mode",
     "screenshot": "Actual app screenshot",
@@ -198,6 +198,11 @@
     "history_title": "Recent changes",
     "history": [
       [
+        "2026-10-26",
+        "v1.1.12 · Country categories and separate TV/radio browsing",
+        "Windows, macOS and Android advance together to 1.1.12+107. Country aliases share Simplified Chinese labels in the Chinese interface. Other is a top-level category, and television and radio have separate country branches. Programme guides, favourites and manual choices are retained. Unidentified channels stay in Other while background batches review country and service type. Removed the unconfigured daily AI request cap; retries follow actual upstream rate limits."
+      ],
+      [
         "2026-10-25",
         "v1.1.11 · Channel guides, orderly shutdown and Keychain access",
         "Windows, macOS and Android version 1.1.11+106 fixes EPG matching and card expansion across channel types, with explicit missing-data and loading-failure states. Invalid XMLTV programmes are skipped individually and custom sources keep their configured automatic refresh. Shutdown waits for background work and the database to close. Disabled features do not read Keychain credentials, and denied access pauses automatic attempts. Sync retries are spaced out while local edits, manual mappings and caches are retained. Android ARM32, ARM64 and x64 are built from the same fixed application source and use the same version as desktop."
@@ -303,7 +308,7 @@
   },
   "downloads": {
     "signing_notice": "The free SignPath Foundation application was not approved. No trusted Windows certificate was issued and SignPath.io production signing is not in use. Edge may still require a security confirmation on the first browser download.",
-    "intro": "Windows x64 / ARM64, macOS Intel / Apple Silicon and Android ARM32 / ARM64 / x64 share 1.1.11+106 and the same fixed application source. Fixes cover guide matching and card expansion, invalid XMLTV records and automatic refresh of custom sources. Desktop builds also improve shutdown and macOS Keychain access. Guide coverage still depends on source data. Diagnostic sync remains off by default, requires explicit consent, includes at most 30 days of redacted records and can be disabled at any time.",
+    "intro": "Windows, macOS and Android advance together to 1.1.12+107. Country aliases share Simplified Chinese labels in the Chinese interface. Other is a top-level category, and television and radio have separate country branches. Programme guides, favourites and manual choices are retained. Unidentified channels stay in Other while background batches review country and service type. Removed the unconfigured daily AI request cap; retries follow actual upstream rate limits. Optional diagnostic sync remains off by default, needs explicit consent and includes at most 30 days of redacted records.",
     "latest": "Latest installers",
     "local": "Downloads hosted on this site",
     "sections": [

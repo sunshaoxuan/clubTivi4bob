@@ -606,6 +606,15 @@ String _catalogGroupFor(
   }
   final root = chain.first;
   final leaf = chain.last;
+  if (root == '其他') return chain.join(' / ');
+  if (root == '广播') {
+    final code = countryCode?.toLowerCase();
+    if (code == 'cn') return '中国 / ${chain.join(' / ')}';
+    final country = ChannelCategoryClassifier.internationalCountryNames[code];
+    return country == null
+        ? '其他 / ${chain.join(' / ')}'
+        : '国际 / $country / ${chain.join(' / ')}';
+  }
   if (root == '中国') {
     final explicit = ChannelCategoryDestination.fromGroup(chain.join(' / '));
     if (explicit != null) return explicit.group;
@@ -614,8 +623,14 @@ String _catalogGroupFor(
         : '其他';
     return '中国 / $categoryName';
   }
-  if (root == '国际') return chain.join(' / ');
-  if (ChannelCategoryClassifier.internationalCountryNames.containsValue(root)) {
+  if (root == '国际') {
+    if (chain.length >= 2) {
+      chain[1] = ChannelCategoryClassifier.normalizeCountryName(chain[1]);
+    }
+    return chain.join(' / ');
+  }
+  chain[0] = ChannelCategoryClassifier.normalizeCountryName(root);
+  if (ChannelCategoryClassifier.internationalCountryNames.containsValue(chain[0])) {
     return '国际 / ${chain.join(' / ')}';
   }
   final country = ChannelCategoryClassifier

@@ -1,18 +1,10 @@
+import 'country_names.dart';
+
 class ChannelCategoryClassifier {
-  static const internationalCountryNames = <String, String>{
-    'ar': '阿根廷', 'at': '奥地利', 'au': '澳大利亚', 'be': '比利时',
-    'br': '巴西', 'ca': '加拿大', 'ch': '瑞士', 'cl': '智利',
-    'co': '哥伦比亚', 'cu': '古巴', 'de': '德国', 'dk': '丹麦',
-    'eg': '埃及', 'es': '西班牙', 'fi': '芬兰', 'fr': '法国',
-    'gb': '英国', 'gr': '希腊', 'hk': '香港', 'id': '印度尼西亚', 'il': '以色列',
-    'in': '印度', 'ir': '伊朗', 'is': '冰岛', 'it': '意大利',
-    'jp': '日本', 'kp': '朝鲜', 'kr': '韩国', 'mx': '墨西哥',
-    'mo': '澳门', 'my': '马来西亚', 'nl': '荷兰', 'no': '挪威', 'nz': '新西兰',
-    'ph': '菲律宾', 'pl': '波兰', 'pt': '葡萄牙', 'rs': '塞尔维亚',
-    'ru': '俄罗斯', 'rw': '卢旺达', 'sa': '沙特阿拉伯', 'se': '瑞典',
-    'sg': '新加坡', 'th': '泰国', 'tr': '土耳其', 'tw': '台湾', 'ua': '乌克兰',
-    'uk': '英国', 'us': '美国', 'vn': '越南', 'za': '南非',
-  };
+  static const internationalCountryNames = CountryNames.byCode;
+
+  static String normalizeCountryName(String name) =>
+      CountryNames.normalize(name);
 
   static const internationalGenres = <String>[
     '综合', '新闻', '体育', '电影', '剧集', '娱乐', '儿童', '纪录片', '音乐', '宗教', '公共事务',
@@ -23,6 +15,10 @@ class ChannelCategoryClassifier {
     String? groupTitle,
     String? tvgId,
   }) {
+    final parts = (groupTitle ?? '').split(' / ');
+    if (parts.length >= 2 && parts.first == '国际') {
+      return normalizeCountryName(parts[1]);
+    }
     final id = (tvgId ?? '').trim().toLowerCase();
     final suffix = RegExp(r'\.([a-z]{2})$').firstMatch(id)?.group(1);
     if (suffix != null && internationalCountryNames.containsKey(suffix)) {
@@ -96,7 +92,8 @@ class ChannelCategoryClassifier {
     if (parts.first == '国际') {
       // Preserve explicit catalog choices, including user-created names and
       // subcategories. Keyword inference is only for unstructured providers.
-      return parts.length > 2 ? parts.skip(2).join(' / ') : '综合';
+      final offset = parts.length > 2 && parts[2] == '电视' ? 3 : 2;
+      return parts.length > offset ? parts.skip(offset).join(' / ') : '综合';
     }
     final group = (groupTitle ?? '').toLowerCase();
     if (_containsAny(group, const ['news', '新闻', '資訊', '资讯'])) return '新闻';
@@ -110,6 +107,15 @@ class ChannelCategoryClassifier {
     if (_containsAny(group, const ['religious', '宗教'])) return '宗教';
     if (_containsAny(group, const ['legislative', 'government', '公共'])) return '公共事务';
     return '综合';
+  }
+
+  static String internationalMediaFor({required String name, String? groupTitle, String? streamUrl}) {
+    final parts = (groupTitle ?? '').split(' / ');
+    if (parts.length > 2 && parts[0] == '国际') {
+      if (parts[2] == '广播') return '广播';
+      if (parts[2] == '电视') return '电视';
+    }
+    return isRadioChannel(name: name, groupTitle: groupTitle, streamUrl: streamUrl) ? '广播' : '电视';
   }
 
   static const provinceCategories = <String>[
@@ -626,6 +632,7 @@ class ChannelCategoryClassifier {
     String? tvgId,
     String? streamUrl,
   }) {
+    if (groupTitle == '其他' || (groupTitle ?? '').startsWith('其他 / ')) return '其他';
     final text = '$name ${groupTitle ?? ''} ${tvgId ?? ''}'.toLowerCase();
     final identity = '$name ${tvgId ?? ''}'.toLowerCase();
     final group = (groupTitle ?? '').toLowerCase();
@@ -644,7 +651,13 @@ class ChannelCategoryClassifier {
       tvgId: tvgId,
       streamUrl: streamUrl,
     )) {
-      return '广播';
+      if (group.startsWith('中国 / ') ||
+          provinceFor(name: name, groupTitle: groupTitle, tvgId: tvgId) != null ||
+          _containsAny(identity, const ['中国', '中央', 'cnr', 'cri'])) {
+        return '广播';
+      }
+      final country = internationalCountryFor(name: name, groupTitle: groupTitle, tvgId: tvgId);
+      return country == '未识别地区' ? '其他' : '国际';
     }
 
     if (_containsAny(identity, _centralTerms)) {
@@ -831,6 +844,9 @@ class ChannelCategoryClassifier {
     String? tvgId,
     String? streamUrl,
   }) {
+    final parts = (groupTitle ?? '').split(' / ');
+    if (parts.length > 2 && parts.first == '国际' && parts[2] == '电视') return false;
+    if (parts.length > 2 && parts.first == '国际' && parts[2] == '广播') return true;
     final identity = '$name ${tvgId ?? ''}'.toLowerCase();
     final group = (groupTitle ?? '').toLowerCase();
     if (_containsAny(identity, const ['广播', '电台', 'radio'])) return true;

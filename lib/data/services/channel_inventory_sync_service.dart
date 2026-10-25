@@ -130,14 +130,14 @@ class ChannelInventorySyncService {
           final payload = Map<String, Object?>.from(row['payload'] as Map);
           if (row['kind'] == 'upsert') {
             final group = payload['group'] as String? ?? '其他';
-            if (!group.startsWith('中国 / ') && !group.startsWith('国际 / ')) {
+            if (group != '其他' && !group.startsWith('其他 / ') && !group.startsWith('中国 / ') && !group.startsWith('国际 / ')) {
               final category = ChannelCategoryClassifier.classify(
                 name: payload['name'] as String,
                 groupTitle: group,
                 streamUrl: url,
               );
               payload['group'] = category == '国际'
-                  ? '国际 / ${ChannelCategoryClassifier.internationalCountryFor(name: payload['name'] as String, groupTitle: group)}'
+                  ? '国际 / ${ChannelCategoryClassifier.internationalCountryFor(name: payload['name'] as String, groupTitle: group)}${ChannelCategoryClassifier.isRadioChannel(name: payload['name'] as String, groupTitle: group, streamUrl: url) ? ' / 广播' : ''}'
                   : category == '其他'
                   ? '其他'
                   : '中国 / $category';
@@ -425,7 +425,7 @@ class ChannelInventorySyncService {
                 streamUrl: channel.streamUrl,
               );
           var group = category == '国际'
-              ? '国际 / ${countries[CountryNameInput(channel.name, channel.groupTitle).key] ?? ChannelCategoryClassifier.internationalCountryFor(name: channel.name, groupTitle: channel.groupTitle, tvgId: channel.tvgId)}'
+              ? '国际 / ${countries[CountryNameInput(channel.name, channel.groupTitle).key] ?? ChannelCategoryClassifier.internationalCountryFor(name: channel.name, groupTitle: channel.groupTitle, tvgId: channel.tvgId)}${ChannelCategoryClassifier.isRadioChannel(name: channel.name, groupTitle: channel.groupTitle, tvgId: channel.tvgId, streamUrl: channel.streamUrl) ? ' / 广播' : ''}'
               : category == '其他'
               ? '其他'
               : '中国 / $category';

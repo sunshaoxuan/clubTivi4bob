@@ -1,0 +1,11 @@
+[Unit]
+Description=Gradually classify BobTV pending channels
+
+[Timer]
+OnBootSec=2min
+OnUnitInactiveSec=5min
+Persistent=true
+Unit=bobtv-catalog-taxonomy.service
+
+[Install]
+WantedBy=timers.target

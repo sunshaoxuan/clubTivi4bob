@@ -961,12 +961,16 @@ class AppDatabase extends _$AppDatabase {
       }
       final rows = await customSelect(
         'SELECT * FROM channels WHERE '
-        '(provider_id = ? AND group_title IN (?, ?)) OR '
+        '(group_title = ? OR group_title LIKE ?) OR '
+        '(provider_id = ? AND (group_title IN (?, ?) OR group_title LIKE ?)) OR '
         '(provider_id != ? AND NOT (${conditions.join(' OR ')}))',
         variables: [
+          Variable.withString('其他'),
+          Variable.withString('其他 / %'),
           Variable.withString('bobtv-channel-catalog'),
           Variable.withString('其他'),
           Variable.withString('中国 / 其他'),
+          Variable.withString('其他 / %'),
           Variable.withString('bobtv-channel-catalog'),
           ...variables,
         ],
@@ -1060,10 +1064,12 @@ class AppDatabase extends _$AppDatabase {
   Future<List<String>> getStructuredCategoryGroups() async {
     final rows = await customSelect(
       'SELECT DISTINCT group_title FROM channels '
-      'WHERE group_title LIKE ? OR group_title LIKE ? ORDER BY group_title',
+      'WHERE group_title LIKE ? OR group_title LIKE ? OR group_title = ? OR group_title LIKE ? ORDER BY group_title',
       variables: [
         Variable.withString('中国 / %'),
         Variable.withString('国际 / %'),
+        Variable.withString('其他'),
+        Variable.withString('其他 / %'),
       ],
       readsFrom: {channels},
     ).get();

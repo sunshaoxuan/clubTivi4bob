@@ -206,17 +206,195 @@ void main() {
     },
   );
 
-  test('international genres share one service while countries and guides stay distinct', () {
+  test(
+    'international genres share one service while countries and guides stay distinct',
+    () {
+      final keys = ChannelPresentationIdentity.keys([
+        publicRoute('news', name: '凤凰中文', group: '国际 / 香港 / 新闻'),
+        publicRoute(
+          'general',
+          name: '凤凰中文',
+          group: '国际 / 香港 / 综合',
+          epg: '凤凰中文',
+          countryCode: 'hk',
+        ),
+        publicRoute('other-country', name: '凤凰中文', group: '国际 / 台湾 / 综合'),
+        publicRoute(
+          'other-guide',
+          name: '凤凰中文',
+          group: '国际 / 香港 / 新闻',
+          epg: 'regional-service',
+        ),
+      ]);
+      expect(keys['news'], keys['general']);
+      expect(keys.values.toSet(), hasLength(3));
+    },
+  );
+
+  test('national genre memberships share a service across root categories', () {
     final keys = ChannelPresentationIdentity.keys([
-      publicRoute('news', name: '凤凰中文', group: '国际 / 香港 / 新闻'),
-      publicRoute('general', name: '凤凰中文', group: '国际 / 香港 / 综合',
-        epg: '凤凰中文', countryCode: 'hk'),
-      publicRoute('other-country', name: '凤凰中文', group: '国际 / 台湾 / 综合'),
-      publicRoute('other-guide', name: '凤凰中文', group: '国际 / 香港 / 新闻', epg: 'regional-service'),
+      for (final root in ['央视', '数字', '卫视'])
+        for (final genre in [
+          '',
+          ...[
+            '综合',
+            '新闻',
+            '体育',
+            '电影',
+            '剧集',
+            '娱乐',
+            '儿童',
+            '纪录片',
+            '音乐',
+            '宗教',
+            '公共事务',
+          ],
+        ])
+          publicRoute(
+            '$root/$genre',
+            name: '第一剧场',
+            group: '中国 / $root${genre.isEmpty ? '' : ' / $genre'}',
+          ),
+      publicRoute('custom', name: '第一剧场', group: '中国 / 央视 / 自定义'),
+      publicRoute('nested', name: '第一剧场', group: '中国 / 央视 / 剧集 / 地方版'),
+      publicRoute('local', name: '第一剧场', group: '中国 / 北京 / 剧集'),
+      publicRoute('radio', name: '第一剧场', group: '中国 / 广播 / 剧集'),
+      publicRoute(
+        'guide',
+        name: '第一剧场',
+        group: '中国 / 数字 / 剧集',
+        epg: 'different-service',
+      ),
+      publicRoute('uhd', name: '第一剧场 4K', group: '中国 / 数字 / 剧集'),
+      publicRoute(
+        'region',
+        name: '第一剧场',
+        group: '中国 / 数字 / 剧集',
+        regionCode: 'north',
+      ),
+      publicRoute(
+        'country',
+        name: '第一剧场',
+        group: '中国 / 数字 / 剧集',
+        countryCode: 'sg',
+      ),
     ]);
-    expect(keys['news'], keys['general']);
-    expect(keys.values.toSet(), hasLength(3));
+    expect(keys.values.take(36).toSet(), hasLength(1));
+    expect(keys.values.toSet(), hasLength(9));
   });
+
+  for (final anchorId in ['root', 'genre', 'old']) {
+    test(
+      'favorite from $anchorId groups national root and genre routes on reload',
+      () async {
+        final database = db.AppDatabase.forTesting(NativeDatabase.memory());
+        addTearDown(database.close);
+        await seed(database);
+        await database.withoutSharedReporting(() async {
+          await database.upsertProvider(
+            db.ProvidersCompanion.insert(
+              id: 'legacy',
+              name: 'Legacy',
+              type: 'm3u',
+            ),
+          );
+          await database.upsertChannels([
+            for (final entry in {
+              'root': '中国 / 央视',
+              'genre': '中国 / 数字 / 剧集',
+              'genre-copy': '中国 / 央视 / 剧集',
+              'old': '中国 / 央视 / 剧集',
+            }.entries)
+              db.ChannelsCompanion.insert(
+                id: entry.key,
+                providerId: entry.key == 'old' ? 'legacy' : provider,
+                name: '第一剧场',
+                groupTitle: Value(entry.value),
+                streamUrl:
+                    'https://media.example.org/${entry.key == 'genre-copy' ? 'root' : entry.key}',
+              ),
+          ]);
+        });
+        // Existing favorites written by earlier versions must reconcile too.
+        final list = await database.createFavoriteList('Regression');
+        await database.customStatement(
+          'INSERT INTO favorite_list_channels(list_id,channel_id,sort_order) VALUES(?,?,0)',
+          [list.id, anchorId],
+        );
+        await database.reconcileFavoriteMemberships(force: true);
+        expect(await database.getAllFavoritedChannelIds(), {
+          'root',
+          'genre',
+          'genre-copy',
+          'old',
+        });
+        final rows = await database.getChannelsInList(list.id);
+        final keys = await database.channelPresentationKeys(rows);
+        expect(
+          ChannelPresentationIdentity.representatives(
+            rows,
+            idOf: (c) => c.id,
+            keyOf: (c) => keys[c.id]!,
+            scoreOf: (_) => 0,
+          ),
+          hasLength(1),
+        );
+        final choice = (await database.searchChannelMergeChoices(
+          query: '第一剧场',
+        )).single;
+        expect(choice.routeCount, 3);
+        await database.removeChannelFromList(
+          list.id,
+          anchorId == 'root' ? 'genre' : 'root',
+        );
+        expect(await database.getAllFavoritedChannelIds(), isEmpty);
+        await database.addChannelToList(list.id, anchorId);
+        expect(await database.getAllFavoritedChannelIds(), {
+          'root',
+          'genre',
+          'genre-copy',
+          'old',
+        });
+        expect((await database.getAllChannels()).length, 7);
+      },
+    );
+  }
+
+  final favoritesAudit = Platform.environment['BOBTV_FAVORITES_AUDIT_COPY'];
+  test(
+    'installed favorite replay collapses First Theater category memberships',
+    () async {
+      final database = db.AppDatabase.forTesting(
+        NativeDatabase(File(favoritesAudit!)),
+      );
+      addTearDown(database.close);
+      final ids = await database.getAllFavoritedChannelIds();
+      final rows = (await database.getChannelsByIds(
+        ids,
+      )).where((c) => c.name == '第一剧场').toList();
+      expect(rows, isNotEmpty);
+      final keys = await database.channelPresentationKeys(rows);
+      final cards = ChannelPresentationIdentity.representatives(
+        rows,
+        idOf: (c) => c.id,
+        keyOf: (c) => keys[c.id]!,
+        scoreOf: (_) => 0,
+      );
+      // Counts only; no private stream addresses or device credentials.
+      // ignore: avoid_print
+      print(
+        jsonEncode({
+          'databaseCopyOnly': true,
+          'sourceRows': rows.length,
+          'favoriteCards': cards.length,
+        }),
+      );
+      expect(cards.length, 1);
+    },
+    skip: favoritesAudit == null
+        ? 'Set BOBTV_FAVORITES_AUDIT_COPY to a backup'
+        : false,
+  );
 
   final auditCopy = Platform.environment['BOBTV_CHANNEL_FIX_AUDIT_COPY'];
   test(

@@ -1,3 +1,4 @@
+import 'package:clubtivi/features/player/radio_playback_surface.dart';
 import 'dart:io';
 
 import 'package:clubtivi/app/router.dart';
@@ -127,7 +128,7 @@ class _Alternatives extends Fake implements StreamAlternativesService {
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
-  for (final viewport in [const Size(984, 611), const Size(800, 500)]) {
+  for (final viewport in [const Size(984, 611), const Size(800, 500), const Size(1920, 1080)]) {
     for (final playing in [true, false]) {
       testWidgets(
         'window player fills $viewport and returns without reopening media, playing=$playing',
@@ -242,7 +243,9 @@ void main() {
                 .startFullscreen,
             isFalse,
           );
-          expect(tester.getSize(find.byType(Video)), viewport);
+          expect(tester.getSize(find.byType(RadioPlaybackSurface)), viewport);
+          expect(find.byType(Video), findsNothing);
+          expect(find.byKey(const ValueKey('radio-waveform')), findsOneWidget);
           expect(find.text('选台，原有筛选与滚动状态'), findsNothing);
           expect(find.byTooltip('全屏播放'), findsOneWidget);
           expect(find.byTooltip('窗口置顶'), findsOneWidget);

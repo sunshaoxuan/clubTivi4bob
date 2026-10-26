@@ -1,3 +1,4 @@
+import 'radio_playback_surface.dart';
 import '../../core/server_image.dart';
 import 'dart:async';
 import 'dart:convert';
@@ -1348,15 +1349,32 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
               child: Stack(
                 fit: StackFit.expand,
                 children: [
-                  // Video fills the available player client area.
                   ValueListenableBuilder<VideoController?>(
                     valueListenable: playerService.activeVideoController,
-                    builder: (context, controller, _) => Video(
-                      key: ValueKey(controller ?? initialVideoController),
-                      controller: controller ?? initialVideoController,
-                      controls: NoVideoControls,
-                      fit: TabletPresentation.videoFit,
-                    ),
+                    builder: (context, controller, _) {
+                      final active = controller ?? initialVideoController;
+                      final radio = widget.channels.isNotEmpty
+                          ? _allowsAudioOnly(widget.channels[_channelIndex])
+                          : ChannelCategoryClassifier.isRadioChannel(
+                              name: _currentChannelName,
+                              groupTitle: _groupTitle,
+                              streamUrl: widget.streamUrl,
+                            );
+                      if (radio) {
+                        return RadioPlaybackSurface.forPlayer(
+                          key: ValueKey(active.player),
+                          player: active.player,
+                          channelName: _currentChannelName,
+                          logoUrl: _currentChannelLogo,
+                        );
+                      }
+                      return Video(
+                        key: ValueKey(active),
+                        controller: active,
+                        controls: NoVideoControls,
+                        fit: TabletPresentation.videoFit,
+                      );
+                    },
                   ),
 
                   if (!_pipMode)

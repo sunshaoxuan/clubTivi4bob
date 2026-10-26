@@ -22,8 +22,8 @@ def test_release_templates_preserve_languages_and_settings(locale):
         assert f'lang="{locale}"' in rendered
         assert 'installed-devices' in rendered
         if page == 'index':
-            assert '1.1.13+108 · Windows / macOS / Android' in rendered
-            assert copy['home']['history'][0][1].startswith('v1.1.13 · ')
+            assert '1.1.14+109 · Windows / macOS / Android' in rendered
+            assert copy['home']['history'][0][1].startswith('v1.1.14 · ')
             assert any(item[1].startswith('v1.1.10 · ')
                        for item in copy['home']['history'])
             assert 'settings-title' in rendered
@@ -32,9 +32,9 @@ def test_release_templates_preserve_languages_and_settings(locale):
             assert 'tablets-title' in rendered
         elif page == 'downloads':
             assert 'id="release-list"' in rendered
-            assert '1.1.13+108' in rendered
+            assert '1.1.14+109' in rendered
             assert '1.1.10+103' not in copy['downloads']['intro']
-            assert '1.1.13+108' in copy['downloads']['intro']
+            assert '1.1.14+109' in copy['downloads']['intro']
             assert '1.1.10+103' not in copy['downloads']['intro']
             assert '30' in copy['downloads']['intro']
             assert 'ad-hoc' in rendered
@@ -43,7 +43,7 @@ def test_release_templates_preserve_languages_and_settings(locale):
 @pytest.mark.parametrize('page', ['index', 'downloads'])
 def test_static_release_copies_preserve_android_and_diagnostic_notice(page):
     rendered = (ROOT / f'{page}.html').read_text()
-    assert '1.1.13+108' in rendered
+    assert '1.1.14+109' in rendered
     assert '1.1.10+103' not in json.loads((ROOT / 'locales' / 'zh-CN.json').read_text())['downloads']['intro']
     assert '30 天' in rendered
     assert '同意' in rendered

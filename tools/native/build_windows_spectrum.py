@@ -14,6 +14,7 @@ import os
 from pathlib import Path
 import re
 import shutil
+import stat
 import subprocess
 import tarfile
 import urllib.request
@@ -86,14 +87,27 @@ def build(arch, cache, output):
         return fetch(base + fields['FILENAME'][0], cache / 'packages' / fields['FILENAME'][0], fields['SHA256SUM'][0])
     with ThreadPoolExecutor(max_workers=8) as pool:
         packages = list(pool.map(download, sorted(selected.items())))
+    stamps = cache / ('package-stamps-' + repo)
+    stamps.mkdir(exist_ok=True)
     for package in packages:
-        with tar_open(package) as tar: tar.extractall(extracted)
+        stamp = stamps / package.name
+        if stamp.exists() and stamp.read_text() == digest(package):
+            continue
+        with tar_open(package) as tar:
+            for member in tar:
+                destination = extracted / member.name
+                if destination.is_file():
+                    destination.chmod(destination.stat().st_mode | stat.S_IWUSR)
+                tar.extract(member, extracted)
+        stamp.write_text(digest(package))
     sysroot = extracted / repo
     ffversion = selected[prefix + 'ffmpeg']['VERSION'][0].split('-')[0]
     source_tar = fetch(f'https://ffmpeg.org/releases/ffmpeg-{ffversion}.tar.xz', cache / f'ffmpeg-{ffversion}.tar.xz')
-    source = cache / f'ffmpeg-{ffversion}'
+    source_root = cache / ('ffmpeg-source-' + arch)
+    source_root.mkdir(exist_ok=True)
+    source = source_root / f'ffmpeg-{ffversion}'
     if not source.exists():
-        with tar_open(source_tar) as tar: tar.extractall(cache)
+        with tar_open(source_tar) as tar: tar.extractall(source_root)
     shutil.copy2(ROOT / 'tools/native/af_bobtv_spectrum.c', source / 'libavfilter/af_bobtv_spectrum.c')
     registry = source / 'libavfilter/allfilters.c'
     text = registry.read_text()
@@ -116,7 +130,7 @@ def build(arch, cache, output):
     # same-version public avutil/swscale/swresample ABI in the MSYS2 runtime.
     flags = [str(source / 'configure'), '--disable-everything', '--disable-autodetect',
              '--disable-programs', '--disable-doc', '--disable-avdevice', '--disable-avformat',
-             '--disable-avcodec', '--disable-postproc', '--disable-x86asm', '--enable-shared',
+             '--disable-avcodec', '--disable-x86asm', '--enable-shared',
              '--disable-static', '--enable-avfilter', '--enable-swresample', '--enable-swscale',
              '--enable-filter=aformat,aresample,format,scale,overlay,yadif,bwdif,volume,pan,equalizer,loudnorm,bobtv_spectrum',
              '--target-os=mingw32', '--enable-cross-compile', '--arch=' + ('x86_64' if arch == 'x64' else 'aarch64'),
@@ -157,7 +171,9 @@ def build(arch, cache, output):
     shutil.copy2(ROOT / 'tools/native/af_bobtv_spectrum.c', notices)
     shutil.copy2(Path(__file__), notices)
     shutil.copy2(source / 'COPYING.LGPLv2.1', notices)
-    record = {'architecture': arch, 'repo': repo, 'ffmpegVersion': ffversion,
+    if (sysroot / 'share/licenses').exists():
+        shutil.copytree(sysroot / 'share/licenses', notices / 'MSYS2', dirs_exist_ok=True)
+    record = {'architecture': arch, 'repo': repo, 'ffmpegVersion': ffversion, 'ffmpegSourceSha256': digest(source_tar),
               'fftSourceSha256': digest(ROOT / 'tools/native/af_bobtv_spectrum.c'),
               'llvm': {'name': LLVM_NAME, 'sha256': LLVM_SHA256},
               'packages': {name: {'version': value['VERSION'][0], 'filename': value['FILENAME'][0], 'sha256': value['SHA256SUM'][0],

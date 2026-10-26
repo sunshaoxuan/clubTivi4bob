@@ -180,3 +180,8 @@ set(
   "${ANGLE_SRC}/zlib.dll"
   PARENT_SCOPE
 )
+
+set(BOBTV_ANGLE_FILES
+  "${ANGLE_SRC}/d3dcompiler_47.dll" "${ANGLE_SRC}/libEGL.dll" "${ANGLE_SRC}/libGLESv2.dll"
+  "${ANGLE_SRC}/vk_swiftshader.dll" "${ANGLE_SRC}/vulkan-1.dll" "${ANGLE_SRC}/zlib.dll")
+include("${CMAKE_CURRENT_SOURCE_DIR}/bobtv_audio_runtime.cmake")

@@ -9,6 +9,7 @@ import argparse
 import ctypes as c
 import json
 import math
+import os
 import re
 from pathlib import Path
 import struct
@@ -17,8 +18,14 @@ import time
 import wave
 
 
-def load(frameworks):
-    pending = list(frameworks.glob('*.framework'))
+def load(frameworks=None, library=None):
+    if library is not None:
+        if os.name == 'nt':
+            os.add_dll_directory(str(library.parent))
+        lib = c.CDLL(str(library))
+    else:
+        lib = None
+    pending = list(frameworks.glob('*.framework')) if frameworks else []
     for _ in range(len(pending)):
         for framework in pending[:]:
             try:
@@ -26,7 +33,8 @@ def load(frameworks):
                 pending.remove(framework)
             except OSError:
                 pass
-    lib = c.CDLL(str(frameworks / 'Mpv.framework/Mpv'))
+    if lib is None:
+        lib = c.CDLL(str(frameworks / 'Mpv.framework/Mpv'))
     lib.mpv_create.restype = c.c_void_p
     lib.mpv_initialize.argtypes = [c.c_void_p]
     lib.mpv_set_option_string.argtypes = [c.c_void_p, c.c_char_p, c.c_char_p]
@@ -77,8 +85,8 @@ def tone(path, frequency, amplitude=16000, opposite=False, rate=48000):
     return bytes(samples)
 
 
-def main(frameworks, filter_file):
-    lib = load(frameworks)
+def main(frameworks, filter_file, library=None):
+    lib = load(frameworks, library)
     graph = filter_file.read_text().strip()
     labels = re.findall(r'@([^:]+):lavfi=', graph)
     assert len(labels) == 1, labels
@@ -181,7 +189,10 @@ def main(frameworks, filter_file):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--frameworks', type=Path, required=True)
+    parser.add_argument('--frameworks', type=Path)
+    parser.add_argument('--library', type=Path)
     parser.add_argument('--filter-file', type=Path, required=True)
     arguments = parser.parse_args()
-    main(arguments.frameworks.resolve(), arguments.filter_file.resolve())
+    if not arguments.frameworks and not arguments.library: parser.error('Provide frameworks or a native library')
+    main(arguments.frameworks.resolve() if arguments.frameworks else None, arguments.filter_file.resolve(),
+         arguments.library.resolve() if arguments.library else None)

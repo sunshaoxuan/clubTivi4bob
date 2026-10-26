@@ -1,0 +1,59 @@
+import java.io.File
+import java.nio.file.Files
+import java.security.MessageDigest
+
+group 'com.alexmercerind.media_kit_libs_android_video'
+version '1.0'
+
+buildscript {
+    repositories {
+        google()
+        mavenCentral()
+    }
+
+    dependencies {
+        classpath 'com.android.tools.build:gradle:8.13.0'
+    }
+}
+
+rootProject.allprojects {
+    repositories {
+        google()
+        mavenCentral()
+    }
+}
+
+apply plugin: 'com.android.library'
+
+android {
+    // Conditional for compatibility with AGP <4.2.
+    if (project.android.hasProperty("namespace")) {
+        namespace 'com.alexmercerind.media_kit_libs_android_video'
+    }
+
+    compileSdkVersion 36
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_1_8
+        targetCompatibility JavaVersion.VERSION_1_8
+    }
+
+    defaultConfig {
+        minSdkVersion 16
+    }
+
+    dependencies {
+        implementation fileTree(dir: "$buildDir/output", include: "*.jar")
+    }
+}
+
+def sourceRoot = new File(projectDir, "../../..").canonicalFile
+
+task downloadDependencies(type: Exec) {
+    def interpreter = System.getenv("BOBTV_PYTHON") ?: (System.getProperty("os.name").toLowerCase().contains("windows") ? "python" : "python3")
+    commandLine interpreter, new File(sourceRoot, "tools/native/prepare_audio_runtime.py").path,
+        "android", "--output", "$buildDir/output"
+}
+
+assemble.dependsOn(downloadDependencies)
+preBuild.dependsOn(downloadDependencies)

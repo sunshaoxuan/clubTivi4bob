@@ -84,6 +84,8 @@ dev_dependencies:
   flutter_launcher_icons: ^0.14.4
 
 dependency_overrides:
+  media_kit_libs_android_video:
+    path: third_party/media_kit_libs_android_video
   media_kit_libs_windows_video:
     path: third_party/media_kit_libs_windows_video
   media_kit_video:

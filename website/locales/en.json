@@ -26,7 +26,7 @@
   "features": "Features",
   "home": {
     "headline": "Watch TV on desktop and Android.",
-    "intro": "Windows, macOS and Android advance together to 1.1.13+108. Fix Mac updates blocked by stale records from a test build or another installation, while retaining failed-startup rollback protection.",
+    "intro": "Windows, macOS and Android advance together to 1.1.14+109. Radio playback and muted preview cards show a live spectrum measured from decoded audio. Fullscreen adapts to the display width with up to 128 thin bars.",
     "image_alt": "BobTV running in simplified mode, with sports playback and a channel list.",
     "mode": "BOBTV / Simplified mode",
     "screenshot": "Actual app screenshot",
@@ -198,6 +198,11 @@
     "history_title": "Recent changes",
     "history": [
       [
+        "2026-10-27",
+        "v1.1.14 · Live radio spectrum and fullscreen display",
+        "Windows, macOS and Android advance together to 1.1.14+109. Radio playback and muted preview cards show a live spectrum measured from decoded audio. Fullscreen adapts to the display width with up to 128 thin bars."
+      ],
+      [
         "2026-10-26",
         "v1.1.13 · Mac update state isolation and recovery",
         "Windows, macOS and Android advance together to 1.1.13+108. Fix Mac updates blocked by stale records from a test build or another installation, while retaining failed-startup rollback protection. Update state is isolated per installation. Valid legacy rollback records migrate safely, and stale process receipts cannot confirm another launch. If an older client is already blocked, replace it once using the DMG; favourites, sources and local data are retained."
@@ -313,7 +318,7 @@
   },
   "downloads": {
     "signing_notice": "The free SignPath Foundation application was not approved. No trusted Windows certificate was issued and SignPath.io production signing is not in use. Edge may still require a security confirmation on the first browser download.",
-    "intro": "Windows, macOS and Android advance together to 1.1.13+108. Fix Mac updates blocked by stale records from a test build or another installation, while retaining failed-startup rollback protection. Update state is isolated per installation. Valid legacy rollback records migrate safely, and stale process receipts cannot confirm another launch. If an older client is already blocked, replace it once using the DMG; favourites, sources and local data are retained. Optional diagnostic sync remains off by default and requires explicit consent for at most 30 days of redacted records.",
+    "intro": "Windows, macOS and Android advance together to 1.1.14+109. Radio playback and muted preview cards show a live spectrum measured from decoded audio. Fullscreen adapts to the display width with up to 128 thin bars. Optional diagnostic sync remains off by default and requires explicit consent for at most 30 days of redacted records.",
     "latest": "Latest installers",
     "local": "Downloads hosted on this site",
     "sections": [

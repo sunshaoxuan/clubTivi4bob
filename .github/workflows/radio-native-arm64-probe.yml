@@ -3,7 +3,7 @@ on:
   push:
     branches: [validation/bobtv-1.1.14-native-arm64]
 permissions:
-  contents: write # Read unpublished draft assets in this repository.
+  contents: read
 jobs:
   signal:
     name: ${{ matrix.platform }} packaged FFT

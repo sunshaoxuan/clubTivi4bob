@@ -35,7 +35,13 @@ def prepare(platform, arch, output):
             temporary.replace(path)
         if digest(path) != item['sha256']: raise RuntimeError('Runtime checksum mismatch: ' + path.name)
         if platform == 'android':
-            shutil.copy2(path, output / ('default-' + architecture + '.jar'))
+            target = output / ('default-' + architecture + '.jar')
+            with zipfile.ZipFile(path) as incoming, zipfile.ZipFile(target, 'w') as outgoing:
+                for entry in incoming.infolist():
+                    data = incoming.read(entry.filename)
+                    if entry.filename == 'META-INF/bobtv-native-runtime.json':
+                        entry.filename = f'META-INF/bobtv-native-runtime-{architecture}.json'
+                    outgoing.writestr(entry, data)
         else:
             with zipfile.ZipFile(path) as archive:
                 for member in archive.namelist():

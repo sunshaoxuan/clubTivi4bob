@@ -1,7 +1,7 @@
 # The Flutter wrapper keeps its stable libmpv API headers. Runtime DLLs are locked
 # independently and provide the same FFT analyzer on both Windows architectures.
 find_package(Python3 COMPONENTS Interpreter REQUIRED)
-get_filename_component(BOBTV_SOURCE_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/../../.." ABSOLUTE)
+get_filename_component(BOBTV_SOURCE_ROOT "${CMAKE_SOURCE_DIR}/.." ABSOLUTE)
 if(FLUTTER_TARGET_PLATFORM STREQUAL "windows-arm64")
   set(BOBTV_AUDIO_ARCH "arm64")
 else()

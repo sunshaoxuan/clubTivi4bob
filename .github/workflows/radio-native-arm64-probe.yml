@@ -3,7 +3,7 @@ on:
   push:
     branches: [validation/bobtv-1.1.14-native-arm64]
 permissions:
-  contents: read
+  contents: write # Read unpublished draft assets in this repository.
 jobs:
   signal:
     name: ${{ matrix.platform }} packaged FFT
@@ -42,13 +42,16 @@ jobs:
         shell: bash
         run: |
           python - <<'PYCODE'
-          import hashlib,os,platform,zipfile
+          import hashlib,os,platform,zipfile,subprocess
           from pathlib import Path
           assert platform.machine().lower() in ('arm64','aarch64'),platform.machine()
           name='BobTV-1.1.14+109-'+os.environ['PACKAGE_PLATFORM']+'.zip'
           path=Path('runtime')/name
           assert hashlib.sha256(path.read_bytes()).hexdigest()==os.environ['EXPECTED_SHA']
-          with zipfile.ZipFile(path) as archive: archive.extractall('unpacked')
+          if platform.system() == 'Darwin':
+              subprocess.run(['ditto','-x','-k',str(path),'unpacked'],check=True)
+          else:
+              with zipfile.ZipFile(path) as archive: archive.extractall('unpacked')
           Path('filter.txt').write_text('@bobtv_radio_spectrum:lavfi=[bobtv_spectrum]:o=[threads=1]')
           PYCODE
       - name: Exercise the shipped 128-band PCM analyzer

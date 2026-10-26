@@ -33,6 +33,12 @@ android {
 
     compileSdkVersion 36
 
+    // Each verified input JAR carries an architecture manifest. Keep those in
+    // the release build evidence; omit duplicate build records from app resources.
+    packagingOptions {
+        resources.excludes += ['META-INF/bobtv-native-runtime.json']
+    }
+
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_1_8
         targetCompatibility JavaVersion.VERSION_1_8

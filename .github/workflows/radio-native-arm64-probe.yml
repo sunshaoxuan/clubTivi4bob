@@ -1,0 +1,68 @@
+name: BobTV packaged ARM64 native audio verification
+on:
+  push:
+    branches: [validation/bobtv-1.1.14-native-arm64]
+permissions:
+  contents: read
+jobs:
+  signal:
+    name: ${{ matrix.platform }} packaged FFT
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-15
+            platform: macos-arm64
+            python: '3.12'
+            sha256: 31eec459e1178ed960501da2468f5d8c9292abc16004bdc2bec204bad2591ad4
+          - os: windows-11-arm
+            platform: windows-arm64
+            python: '3.13'
+            sha256: ca0faa70f0cb4a2a5f23ed88f36bdb126d05cde0e737a6a216f421e046c6cf62
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: 5a5c7ff9dd983dadff67c164a6435f9544c9c3cc
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+          architecture: arm64
+      - name: Download the exact draft application package
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          gh release download v1.1.14 --repo '${{ github.repository }}' --pattern 'BobTV-1.1.14+109-${{ matrix.platform }}.zip' --dir runtime
+      - name: Verify native architecture and package integrity
+        env:
+          PACKAGE_PLATFORM: ${{ matrix.platform }}
+          EXPECTED_SHA: ${{ matrix.sha256 }}
+        shell: bash
+        run: |
+          python - <<'PYCODE'
+          import hashlib,os,platform,zipfile
+          from pathlib import Path
+          assert platform.machine().lower() in ('arm64','aarch64'),platform.machine()
+          name='BobTV-1.1.14+109-'+os.environ['PACKAGE_PLATFORM']+'.zip'
+          path=Path('runtime')/name
+          assert hashlib.sha256(path.read_bytes()).hexdigest()==os.environ['EXPECTED_SHA']
+          with zipfile.ZipFile(path) as archive: archive.extractall('unpacked')
+          Path('filter.txt').write_text('@bobtv_radio_spectrum:lavfi=[bobtv_spectrum]:o=[threads=1]')
+          PYCODE
+      - name: Exercise the shipped 128-band PCM analyzer
+        env:
+          PACKAGE_PLATFORM: ${{ matrix.platform }}
+        shell: bash
+        run: |
+          if [[ "$PACKAGE_PLATFORM" == macos-arm64 ]]; then
+            python tools/test_radio_audio_spectrum_native.py --frameworks unpacked/BobTV.app/Contents/Frameworks --filter-file filter.txt > native-signal-result.json
+          else
+            python tools/test_radio_audio_spectrum_native.py --library unpacked/BobTV/libmpv-2.dll --filter-file filter.txt > native-signal-result.json
+          fi
+          cat native-signal-result.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: native-signal-${{ matrix.platform }}
+          path: native-signal-result.json

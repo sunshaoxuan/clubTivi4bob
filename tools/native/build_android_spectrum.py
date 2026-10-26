@@ -72,6 +72,12 @@ def build(arch, cache, output):
     if not sdk_link.exists(): sdk_link.symlink_to(sdk, target_is_directory=True)
     if not (sdk / 'ndk' / NDK).is_dir():
         raise RuntimeError(f'Install Android NDK {NDK} in the build host SDK first')
+    libxml_script = scripts / 'scripts/libxml2.sh'
+    libxml_script.write_text(libxml_script.read_text().replace('|| ./autogen.sh', '|| NOCONFIGURE=1 ./autogen.sh'))
+    # Clang 19 tightened target-feature checks for this older optional ARM AES
+    # intrinsic. Keep the portable AES implementation on the pinned TLS source.
+    mbed_config = scripts / 'deps/mbedtls/include/mbedtls/mbedtls_config.h'
+    mbed_config.write_text(mbed_config.read_text().replace('#define MBEDTLS_AESCE_C', '/* MBEDTLS_AESCE_C disabled for NDK 28 compatibility */'))
     depinfo = scripts / 'include/depinfo.sh'
     depinfo.write_text(depinfo.read_text().replace('25.2.9519653', NDK))
     flavor = (scripts / 'flavors/default.sh').read_text()
@@ -80,7 +86,7 @@ def build(arch, cache, output):
     # Avoid changing the shared SDK or launching helper applications.
     env = {**os.environ, 'cores': '4'}
     upstream_arch, abi, triple = ABIS[arch]
-    run('bash', 'build.sh', '--arch', upstream_arch, cwd=scripts, env=env)
+    run('bash', '-e', 'build.sh', '--arch', upstream_arch, cwd=scripts, env=env)
     runtime = scripts / 'prefix' / abi / 'lib/libmpv.so'
     if not runtime.is_file(): raise RuntimeError(f'Missing built runtime: {runtime}')
     toolchain = sdk / 'ndk' / NDK / 'toolchains/llvm/prebuilt/linux-x86_64'

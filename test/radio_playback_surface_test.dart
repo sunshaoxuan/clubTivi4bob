@@ -3,39 +3,18 @@ import 'dart:io';
 import 'dart:ui' as ui;
 
 import 'package:clubtivi/features/player/radio_playback_surface.dart';
-import 'package:fake_async/fake_async.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  test(
-    'paint clock is bounded to 20 Hz and stops without accumulating work',
-    () {
-      fakeAsync((time) {
-        final clock = RadioWaveClock();
-        var changes = 0;
-        clock.addListener(() => changes++);
-        clock.setRunning(true);
-        expect(changes, 1);
-        time.elapse(const Duration(seconds: 1));
-        expect(changes, 21);
-        clock.setRunning(true);
-        expect(changes, 21);
-        clock.setRunning(false);
-        final phase = clock.phase;
-        time.elapse(const Duration(seconds: 5));
-        expect(clock.phase, phase);
-        expect(changes, 22);
-        clock.setRunning(true);
-        clock.dispose();
-        time.elapse(const Duration(seconds: 5));
-        expect(time.periodicTimerCount, 0);
-      });
-    },
-  );
-
+  test('frequency lines double as the available drawing width increases', () {
+    expect(RadioWaveform.bandCountForWidth(120), 16);
+    expect(RadioWaveform.bandCountForWidth(320), 32);
+    expect(RadioWaveform.bandCountForWidth(780), 64);
+    expect(RadioWaveform.bandCountForWidth(1400), 128);
+  });
   Future<void> pumpSurface(
     WidgetTester tester, {
     Size size = const Size(800, 450),

@@ -1,0 +1,49 @@
+name: BobTV Android native signal verification
+on:
+  push:
+    branches: [release/bobtv-1.1.14]
+    paths:
+      - tools/native/probe_android_spectrum.c
+      - .github/workflows/radio-native-android-probe.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  signal:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: radio-native-android-x64
+          run-id: 40370544218
+          github-token: ${{ github.token }}
+          path: runtime
+      - name: Compile native ABI probe
+        run: |
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" 'ndk;28.2.13676358' > "$RUNNER_TEMP/ndk-setup.log"
+          "$ANDROID_HOME/ndk/28.2.13676358/toolchains/llvm/prebuilt/linux-x86_64/bin/x86_64-linux-android21-clang" tools/native/probe_android_spectrum.c -ldl -lm -o probe
+      - name: Enable emulator acceleration
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          arch: x86_64
+          target: google_apis
+          disable-animations: true
+          script: |
+            adb shell mkdir -p /data/local/tmp/bobtv-fft
+            adb push probe runtime/x86_64/libmpv.so runtime/x86_64/libc++_shared.so /data/local/tmp/bobtv-fft/
+            adb shell chmod 755 /data/local/tmp/bobtv-fft/probe
+            adb shell 'cd /data/local/tmp/bobtv-fft && LD_LIBRARY_PATH=. ./probe ./libmpv.so' | tee android-signal-result.txt
+            grep -q 'PASS: Android packaged runtime' android-signal-result.txt
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: android-native-signal-result
+          path: android-signal-result.txt

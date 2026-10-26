@@ -68,6 +68,7 @@ import 'channel_programme_strip.dart';
 import 'inline_expanded_channel_grid.dart';
 import 'channel_card_feedback.dart';
 import 'channel_card_playback_binding.dart';
+import 'radio_card_spectrum.dart';
 import 'shared_sync_badge.dart';
 import 'simple_channel_panel_header.dart';
 import '../player/desktop_exit_button.dart';
@@ -3833,6 +3834,19 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
         logoUrl != null &&
         (logoUrl.startsWith('https://') || logoUrl.startsWith('http://'));
     final name = _channelDisplayName(channel);
+    final radio = _allowsAudioOnly(channel);
+    Widget? cardSpectrum;
+    if (radio && previewController != null) {
+      cardSpectrum = RadioCardSpectrum.forPlayer(previewController.player);
+    } else if (radio && selected) {
+      final service = ref.read(playerServiceProvider);
+      cardSpectrum = ValueListenableBuilder<VideoController?>(
+        valueListenable: service.activeVideoController,
+        builder: (context, controller, _) => RadioCardSpectrum.forPlayer(
+          (controller ?? service.videoController).player,
+        ),
+      );
+    }
     return GestureDetector(
       onSecondaryTapUp: onContextMenu == null
           ? null
@@ -3873,7 +3887,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                   child: Stack(
                     fit: StackFit.expand,
                     children: [
-                      if (previewController != null)
+                      if (previewController != null && !radio)
                         Positioned.fill(
                           child: IgnorePointer(
                             child: RepaintBoundary(
@@ -3969,7 +3983,10 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                                 )),
                               ],
                             ),
-                            const Spacer(),
+                            if (cardSpectrum != null)
+                              Expanded(child: cardSpectrum)
+                            else
+                              const Spacer(),
                             Text(
                               name,
                               maxLines: 1,

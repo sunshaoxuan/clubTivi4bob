@@ -11,17 +11,12 @@ The application is built with Flutter and uses `media_kit`, libmpv, FFmpeg, Rive
 ### Latest release
 
 Windows x64/ARM64, macOS Intel/Apple Silicon and Android ARM32/ARM64/x64
-share `1.1.13+108` and the same fixed application source.
-Channel cards expand matched current and upcoming programmes across channel
-types, with explicit missing-data and failure states. The shared guide pipeline
-isolates invalid XMLTV programmes and retains automatic refresh for custom
-sources, manual mappings and offline caches. Guide coverage depends on the
-configured sources and their available schedules.
-
-Desktop shutdown drains background work and closes the database before native
-window and engine teardown. Disabled features do not read their Keychain
-credentials; denied access pauses automatic attempts until explicit recovery.
-Sync retries are spaced out while preserving pending local edits.
+share `1.1.14+109` and the same fixed application source.
+Radio playback and muted preview cards show a live 128-band FFT spectrum
+measured from decoded PCM audio. Fullscreen retains the spectrum and adapts
+between 16, 32, 64 and 128 thin bars to fit the available width. Silence,
+volume changes and playback state are reflected in the display. Analysis
+preserves the audio samples and the existing playback filters.
 
 All seven platform update channels use the same release version and build.
 The Android APKs retain the existing publisher certificate for in-place upgrades. Optional redacted diagnostic sync still requires
@@ -29,7 +24,7 @@ explicit consent, retains at most 30 days and can be disabled at any time.
 The macOS DMGs are hosted on the BobTV site. The app is ad-hoc signed and has no
 Apple Developer ID signature or notarization; update ZIPs are separately
 verified with a BobTV publisher signature. Windows trusted Authenticode signing
-remains unavailable. See [release details](docs/releases/1.1.11.md).
+remains unavailable. See [release details](docs/releases/1.1.14.md).
 Publication does not restart installed applications. Primary downloads and
 updates are also available through [the resource relay manifest](https://cndrp.com/bobtv/releases.json).
 

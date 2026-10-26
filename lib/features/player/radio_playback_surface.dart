@@ -1,10 +1,10 @@
-import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:media_kit/media_kit.dart';
 
 import '../../core/server_image.dart';
+import 'radio_audio_spectrum.dart';
 
 /// Render-only radio artwork. Does not open media or change channel metadata.
 class RadioPlaybackSurface extends StatelessWidget {
@@ -14,6 +14,7 @@ class RadioPlaybackSurface extends StatelessWidget {
     this.logoUrl,
     this.playing = const Stream<bool>.empty(),
     this.buffering = const Stream<bool>.empty(),
+    this.spectrum,
     this.initialPlaying = false,
     this.initialBuffering = false,
   });
@@ -27,6 +28,7 @@ class RadioPlaybackSurface extends StatelessWidget {
     key: key,
     channelName: channelName,
     logoUrl: logoUrl,
+    spectrum: RadioAudioSpectrum.forPlayer(player),
     playing: player.stream.playing,
     buffering: player.stream.buffering,
     initialPlaying: player.state.playing,
@@ -37,6 +39,7 @@ class RadioPlaybackSurface extends StatelessWidget {
   final String? logoUrl;
   final Stream<bool> playing;
   final Stream<bool> buffering;
+  final RadioAudioSpectrum? spectrum;
   final bool initialPlaying;
   final bool initialBuffering;
 
@@ -128,7 +131,7 @@ class RadioPlaybackSurface extends StatelessWidget {
                   ],
                   const SizedBox(height: 12),
                   SizedBox(
-                    width: math.min(width * 0.74, 400),
+                    width: math.min(width * 0.78, 1400),
                     height: waveHeight,
                     child: StreamBuilder<bool>(
                       stream: playing,
@@ -137,6 +140,7 @@ class RadioPlaybackSurface extends StatelessWidget {
                         stream: buffering,
                         initialData: initialBuffering,
                         builder: (context, loading) => RadioWaveform(
+                          spectrum: spectrum,
                           playing:
                               playback.data == true && loading.data != true,
                         ),
@@ -153,11 +157,25 @@ class RadioPlaybackSurface extends StatelessWidget {
   );
 }
 
-/// Playback-state animation, deliberately not labelled as a real audio spectrum.
-/// Only this small canvas repaints, at most 20 times per second.
+/// Only measured band levels repaint this canvas. No synthetic paint clock.
 class RadioWaveform extends StatefulWidget {
-  const RadioWaveform({super.key, required this.playing});
+  const RadioWaveform({
+    super.key,
+    required this.playing,
+    this.spectrum,
+    this.signalOnly = false,
+  });
   final bool playing;
+  final RadioAudioSpectrum? spectrum;
+  final bool signalOnly;
+
+  static int bandCountForWidth(double width) => width < 180
+      ? 16
+      : width < 480
+      ? 32
+      : width < 900
+      ? 64
+      : 128;
 
   @override
   State<RadioWaveform> createState() => _RadioWaveformState();
@@ -165,10 +183,8 @@ class RadioWaveform extends StatefulWidget {
 
 class _RadioWaveformState extends State<RadioWaveform>
     with WidgetsBindingObserver {
-  final _clock = RadioWaveClock();
-  bool _visible = true;
+  RadioAudioSpectrum? _attached;
   bool _foreground = true;
-  bool _reduceMotion = false;
 
   @override
   void initState() {
@@ -181,8 +197,6 @@ class _RadioWaveformState extends State<RadioWaveform>
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    _visible = TickerMode.valuesOf(context).enabled;
-    _reduceMotion = MediaQuery.disableAnimationsOf(context);
     _sync();
   }
 
@@ -195,80 +209,96 @@ class _RadioWaveformState extends State<RadioWaveform>
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     _foreground = state == AppLifecycleState.resumed;
-    _sync();
+    setState(_sync);
   }
 
-  void _sync() => _clock.setRunning(
-    widget.playing && _visible && _foreground && !_reduceMotion,
-  );
+  bool get _enabled =>
+      widget.playing &&
+      _foreground &&
+      TickerMode.valuesOf(context).enabled &&
+      !MediaQuery.disableAnimationsOf(context);
+
+  void _sync() {
+    final next = _enabled ? widget.spectrum : null;
+    if (identical(next, _attached)) return;
+    _attached?.release();
+    _attached = next;
+    _attached?.acquire();
+  }
 
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
-    _clock.dispose();
+    _attached?.release();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) => Semantics(
-    label: '播放状态音波动画，非实时频谱',
+    label: '实时音频频谱',
     child: RepaintBoundary(
       key: const ValueKey('radio-waveform'),
-      child: CustomPaint(painter: _RadioWavePainter(_clock)),
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          CustomPaint(
+            painter: _RadioWavePainter(
+              widget.spectrum,
+              enabled: _enabled,
+              signalOnly: widget.signalOnly,
+            ),
+          ),
+          if (widget.spectrum != null)
+            ValueListenableBuilder<bool?>(
+              valueListenable: widget.spectrum!.supported,
+              builder: (context, supported, _) => supported == false && _enabled
+                  ? const Center(
+                      child: Text(
+                        '频谱暂不可用',
+                        style: TextStyle(
+                          color: Color(0xFF91D9E9),
+                          fontSize: 12,
+                        ),
+                      ),
+                    )
+                  : const SizedBox.shrink(),
+            ),
+        ],
+      ),
     ),
   );
 }
 
-/// Small paint clock with no widget-tree rebuilds or player/native calls.
-class RadioWaveClock extends ChangeNotifier {
-  Timer? _timer;
-  double phase = 0;
-  bool get running => _timer != null;
-
-  void setRunning(bool value) {
-    if (value == running) return;
-    _timer?.cancel();
-    _timer = null;
-    if (value) {
-      _timer = Timer.periodic(const Duration(milliseconds: 50), (_) {
-        phase = (phase + 0.12) % (math.pi * 2);
-        notifyListeners();
-      });
-    }
-    notifyListeners();
-  }
-
-  @override
-  void dispose() {
-    _timer?.cancel();
-    _timer = null;
-    super.dispose();
-  }
-}
-
 class _RadioWavePainter extends CustomPainter {
-  _RadioWavePainter(this.clock) : super(repaint: clock);
-  final RadioWaveClock clock;
+  _RadioWavePainter(
+    this.spectrum, {
+    required this.enabled,
+    required this.signalOnly,
+  }) : super(repaint: spectrum);
+  final RadioAudioSpectrum? spectrum;
+  final bool enabled;
+  final bool signalOnly;
 
   @override
   void paint(Canvas canvas, Size size) {
     if (size.isEmpty) return;
-    const count = 32;
+    final count = RadioWaveform.bandCountForWidth(size.width);
     final step = size.width / count;
-    final barWidth = math.min(5.0, step * 0.45);
+    final barWidth = math.min(3.0, step * 0.45);
     final paint = Paint()..color = const Color(0xFF80D7E9);
     for (var index = 0; index < count; index++) {
-      final edge = math.sin(math.pi * (index + 0.5) / count);
-      final pulse = clock.running
-          ? (math.sin(index * 0.68 + clock.phase) * 0.5 + 0.5) *
-                (math.sin(index * 0.21 - clock.phase * 2) * 0.25 + 0.75)
-          : 0.0;
-      final height = math.min(
-        size.height,
-        3 + pulse * edge * (size.height - 3),
-      );
+      var level = 0.0;
+      if (enabled && spectrum?.available == true) {
+        final values = signalOnly ? spectrum!.signalLevels : spectrum!.levels;
+        final start = index * values.length ~/ count;
+        final end = (index + 1) * values.length ~/ count;
+        for (var bin = start; bin < end; bin++) {
+          level = math.max(level, values[bin]);
+        }
+      }
+      final height = math.min(size.height, 3 + level * (size.height - 3));
       final rect = Rect.fromCenter(
-        center: Offset(step * (index + 0.5), size.height / 2),
+        center: Offset(step * (index + 0.5), size.height - height / 2),
         width: barWidth,
         height: height,
       );
@@ -281,5 +311,7 @@ class _RadioWavePainter extends CustomPainter {
 
   @override
   bool shouldRepaint(_RadioWavePainter oldDelegate) =>
-      oldDelegate.clock != clock;
+      oldDelegate.spectrum != spectrum ||
+      oldDelegate.enabled != enabled ||
+      oldDelegate.signalOnly != signalOnly;
 }

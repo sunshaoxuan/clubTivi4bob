@@ -90,7 +90,7 @@ def test_product_pages_reflect_published_releases():
     assert "github.com" not in home.lower()
     downloads = client.get("/downloads").text
     assert 'id="release-list"' in downloads and "BobTV.exe" in downloads
-    assert "最新安装包" in downloads
+    assert "下载最新版本" in downloads
     assert 'id="first-launch-title"' in downloads and "1.1.15+110" in downloads
     assert "1.1.10+103" not in downloads and "ad-hoc" in downloads
     assert "管理员授权" in downloads and "只读磁盘映像" in downloads

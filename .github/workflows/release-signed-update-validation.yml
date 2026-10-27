@@ -54,7 +54,7 @@ jobs:
           $setup=(Get-ChildItem runtime -Filter '*-Setup.exe').FullName
           & tools/windows/test_installer_update_signature.ps1 -SetupPath $setup -SignaturePath runtime/Setup.sig
           & tools/windows/test_managed_update.ps1 -BundleDirectory unpacked/BobTV -SetupPath $setup -SignaturePath runtime/Setup.sig
-          & tools/windows/test_update_rollback.ps1
+          & release-validation/tools/windows/test_update_rollback.ps1
       - name: Validate packaged x64 native audio
         if: matrix.architecture == 'x64'
         shell: pwsh

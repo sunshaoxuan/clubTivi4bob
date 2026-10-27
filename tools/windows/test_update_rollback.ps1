@@ -27,7 +27,7 @@ for ($attempt = 1; $attempt -le 3; $attempt++) {
     if ([IO.File]::ReadAllText("$app\data\app.so") -ne 'candidate') { throw 'Rollback occurred too early' }
   }
 }
-if ([IO.File]::ReadAllText("$app\data\app.so") -ne 'previous') { throw 'Previous package not restored' }
+if ([IO.File]::ReadAllText("$app\data\app.so") -ne 'previous') { throw ('Previous package not restored. Worker log: '+[IO.File]::ReadAllText("$root\worker.log")) }
 if ((Test-Path "$app\new-only.txt") -or (Test-Path "$root\candidate.ini")) { throw 'Candidate files were not cleared' }
 if ([IO.File]::ReadAllText("$root\skipped_versions.txt").Trim() -ne $version) { throw 'Failed version not skipped' }
 $report = Get-Content "$root\failure-0.9.1_999.json" -Raw | ConvertFrom-Json

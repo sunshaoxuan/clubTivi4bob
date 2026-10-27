@@ -1,7 +1,7 @@
 name: BobTV coordinated Windows release candidates
 on:
   push:
-    branches: [release/1.1.15]
+    branches: [release/1.1.15-operations]
   workflow_dispatch:
 permissions:
   contents: read
@@ -17,8 +17,11 @@ jobs:
       matrix:
         architecture: [x64, arm64]
     steps:
+      - name: Preserve checksum-locked LF source bytes
+        run: git config --global core.autocrlf false
       - uses: actions/checkout@v4
         with:
+          ref: 03b20a9aa0d89bc7709645324736f69310c6d213
           persist-credentials: false
       - uses: subosito/flutter-action@v2
         with:

@@ -1925,6 +1925,24 @@ class AppDatabase extends _$AppDatabase {
           c.streamUrl.isIn(urls.skip(offset).take(300)))).get();
       for (final route in rows) { routes[route.id] = route; }
     }
+    // Resolve the full authoritative service before assigning presentation keys.
+    // Category/favorite queries may contain only one of its route labels.
+    final selectedCatalogIds = await publicCatalogChannelIds(routes.values
+        .where((c) => c.providerId == 'bobtv-channel-catalog').map((c) => c.id));
+    final identities = selectedCatalogIds.values.toSet().toList();
+    for (var offset = 0; offset < identities.length; offset += 400) {
+      final page = identities.skip(offset).take(400).toList();
+      final rows = await customSelect(
+        'SELECT c.* FROM channels c JOIN catalog_epg_routes r '
+        'ON r.local_channel_id=c.id WHERE c.provider_id=? '
+        'AND r.catalog_channel_id IN (SELECT value FROM json_each(?))',
+        variables: [Variable('bobtv-channel-catalog'), Variable(jsonEncode(page))],
+      ).get();
+      for (final row in rows) {
+        final route = channels.map(row.data);
+        routes[route.id] = route;
+      }
+    }
     final catalogIds = await publicCatalogChannelIds(routes.values
         .where((c) => c.providerId == 'bobtv-channel-catalog').map((c) => c.id));
     final context = <String, QueryRow>{};

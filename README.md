@@ -1,5 +1,7 @@
 # BobTV
 
+Current release: **1.1.16+111**. Favorites and category views use consistent public channel identities; see [release notes](docs/releases/1.1.16.md).
+
 ## BobTV website and API
 
 The source for [bobtv.briconbric.com](https://bobtv.briconbric.com), including its frontend, Python backend, deployment configuration, and tests, lives in [`website/`](website/README.md). The [application API contract](website/API.md) is maintained alongside the site. Shared desktop code lives in `lib/`, with isolated Windows and macOS integrations. Published packages are mirrored to the BobTV host so visitors download from that host.

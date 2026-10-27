@@ -360,6 +360,36 @@ void main() {
     );
   }
 
+  test('catalog identity is stable in category and favorite subsets', () async {
+    final database = db.AppDatabase.forTesting(NativeDatabase.memory());
+    addTearDown(database.close);
+    await seed(database);
+    await database.withoutSharedReporting(() async {
+      await database.upsertChannels([
+        db.ChannelsCompanion.insert(id: 'standard', providerId: provider,
+          name: '第一剧场', groupTitle: const Value('中国 / 央视'),
+          streamUrl: 'https://media.example.org/standard'),
+        db.ChannelsCompanion.insert(id: 'inconsistent', providerId: provider,
+          name: '第一剧场 4K', groupTitle: const Value('中国 / 数字 / 剧集'),
+          streamUrl: 'https://media.example.org/inconsistent'),
+      ]);
+      for (final id in ['standard', 'inconsistent']) {
+        await database.customStatement('INSERT INTO catalog_epg_routes VALUES(?,?,?,?,?,?)',
+          [id, 'authoritative-theater', 'hash', '第一剧场', null, '中国 / 央视']);
+      }
+    });
+    final all = await database.getChannelsByIds({'standard', 'inconsistent'});
+    final full = await database.channelPresentationKeys(all);
+    expect(full.values.toSet(), {'catalog:authoritative-theater'});
+    for (final row in all) {
+      expect((await database.channelPresentationKeys([row]))[row.id], full[row.id]);
+    }
+    await database.addChannelToDefaultFavorites('standard');
+    expect(await database.getAllFavoritedChannelIds(), {'standard', 'inconsistent'});
+    await database.removeChannelFromList('default', 'inconsistent');
+    expect(await database.getAllFavoritedChannelIds(), isEmpty);
+  });
+
   final favoritesAudit = Platform.environment['BOBTV_FAVORITES_AUDIT_COPY'];
   test(
     'installed favorite replay collapses First Theater category memberships',

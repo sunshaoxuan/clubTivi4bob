@@ -26,7 +26,7 @@
   "features": "Features",
   "home": {
     "headline": "Watch TV on desktop and Android.",
-    "intro": "Windows, macOS and Android advance together to 1.1.15+110. Windows update downloads retry temporary connection failures, report verified completion and provide a close control with white button text. Region filters combine confirmed geographic regions without programme-type children, preserving channels, favorites and manual groups.",
+    "intro": "Windows, macOS and Android are aligned at 1.1.16+111. Favorites and category views use consistent channel identities. Overview and genre memberships share one favorite card, with duplicate route addresses removed. Category loading and restored favorites retain authoritative identities while preserving region, quality and manual merge distinctions.",
     "image_alt": "BobTV running in simplified mode, with sports playback and a channel list.",
     "mode": "BOBTV / Simplified mode",
     "screenshot": "Actual app screenshot",
@@ -199,6 +199,11 @@
     "history": [
       [
         "2026-10-28",
+        "v1.1.16 · Favorite deduplication and channel identity fixes",
+        "Windows, macOS and Android are aligned at 1.1.16+111. Favorites and category views use consistent channel identities. Overview and genre memberships share one favorite card, with duplicate route addresses removed. Category loading and restored favorites retain authoritative identities while preserving region, quality and manual merge distinctions."
+      ],
+      [
+        "2026-10-28",
         "v1.1.15 · Update recovery and region filters",
         "Windows, macOS and Android advance together to 1.1.15+110. Windows update downloads retry temporary connection failures, report verified completion and provide a close control with white button text. Region filters combine confirmed geographic regions without programme-type children, preserving channels, favorites and manual groups."
       ],
@@ -323,7 +328,7 @@
   },
   "downloads": {
     "signing_notice": "The free SignPath Foundation application was not approved. No trusted Windows certificate was issued and SignPath.io production signing is not in use. Edge may still require a security confirmation on the first browser download.",
-    "intro": "Windows, macOS and Android advance together to 1.1.15+110. Windows update downloads retry temporary connection failures, report verified completion and provide a close control with white button text. Region filters combine confirmed geographic regions without programme-type children, preserving channels, favorites and manual groups. Optional diagnostic sync remains off by default and requires explicit consent for at most 30 days of redacted records.",
+    "intro": "Windows, macOS and Android are aligned at 1.1.16+111. Favorites and category views use consistent channel identities. Overview and genre memberships share one favorite card, with duplicate route addresses removed. Category loading and restored favorites retain authoritative identities while preserving region, quality and manual merge distinctions. Diagnostic sync is off by default; explicit consent permits up to 30 days of redacted records and can be disabled at any time.",
     "latest": "Latest installers",
     "local": "Downloads hosted on this site",
     "sections": [

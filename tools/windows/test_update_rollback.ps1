@@ -1,7 +1,20 @@
 $ErrorActionPreference = 'Stop'
 if ($env:CI -ne 'true') { throw 'Rollback fixtures are restricted to CI' }
 $env:BOBTV_UPDATE_TESTING = '1'
-$fixture = Join-Path $env:TEMP ('BobTVUpdaterTests\rollback-' + [guid]::NewGuid().ToString('N'))
+# TEMP in hosted Windows is an 8.3 alias; production LOCALAPPDATA is a
+# long path. Normalize the isolated fixture before computing relative backup
+# paths, matching the actual application staging directory.
+Add-Type -TypeDefinition @'
+using System; using System.Text; using System.Runtime.InteropServices;
+public static class BobTvRollbackFixturePath {
+ [DllImport("kernel32.dll", CharSet=CharSet.Unicode, SetLastError=true)]
+ public static extern uint GetLongPathName(string path, StringBuilder result, uint size);
+}
+'@
+$buffer=[Text.StringBuilder]::new(32768)
+if([BobTvRollbackFixturePath]::GetLongPathName($env:TEMP,$buffer,32768) -eq 0){throw 'Cannot normalize fixture TEMP'}
+$fixture = Join-Path $buffer.ToString() ('BobTVUpdaterTests\rollback-' + [guid]::NewGuid().ToString('N'))
+Write-Output ('Rollback fixture uses canonical path: '+$fixture)
 $root = Join-Path $fixture 'Update'
 $app = Join-Path $fixture 'App'
 $backup = Join-Path $root 'Backups\previous'

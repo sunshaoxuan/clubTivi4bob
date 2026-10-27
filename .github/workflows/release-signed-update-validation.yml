@@ -1,0 +1,56 @@
+name: BobTV signed 1.1.15 update validation
+on:
+  push:
+    branches: [release/1.1.15-validation]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  signed-update:
+    runs-on: windows-2022
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        architecture: [x64, arm64]
+    steps:
+      - name: Preserve checksum-locked source bytes
+        run: git config --global core.autocrlf false
+      - uses: actions/checkout@v4
+        with:
+          ref: 03b20a9aa0d89bc7709645324736f69310c6d213
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Fetch exact publisher-signed draft candidates
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: pwsh
+        run: |
+          gh release download v1.1.15 --repo '${{ github.repository }}' --pattern '*windows-${{ matrix.architecture }}*' --pattern 'BobTV-update-metadata.json' --dir runtime
+          if($LASTEXITCODE){throw 'Draft release candidate download failed'}
+          $metadata=Get-Content runtime/BobTV-update-metadata.json -Raw|ConvertFrom-Json
+          if($metadata.version -ne '1.1.15+110' -or $metadata.packages.Count -ne 7){throw 'Incomplete aligned release metadata'}
+          $package=$metadata.packages|Where-Object {$_.platform -eq 'windows-${{ matrix.architecture }}'}
+          foreach($record in @($package,$package.installer)){
+            $path=Join-Path runtime $record.filename
+            if((Get-Item $path).Length -ne $record.bytes -or (Get-FileHash $path -Algorithm SHA256).Hash.ToLower() -ne $record.sha256){throw 'Candidate size/hash mismatch'}
+          }
+          [IO.File]::WriteAllBytes((Join-Path $PWD 'runtime/Setup.sig'),[Convert]::FromBase64String($package.installer.signature))
+          Expand-Archive -LiteralPath (Join-Path runtime $package.filename) -DestinationPath unpacked
+      - name: Verify CNG signature, consent, cancellation, retry and restoration
+        shell: pwsh
+        run: |
+          $setup=(Get-ChildItem runtime -Filter '*-Setup.exe').FullName
+          & tools/windows/test_installer_update_signature.ps1 -SetupPath $setup -SignaturePath runtime/Setup.sig
+          & tools/windows/test_managed_update.ps1 -BundleDirectory unpacked/BobTV -SetupPath $setup -SignaturePath runtime/Setup.sig
+          & tools/windows/test_update_rollback.ps1
+      - name: Validate packaged x64 native audio
+        if: matrix.architecture == 'x64'
+        shell: pwsh
+        run: |
+          [IO.File]::WriteAllText((Join-Path $PWD 'filter.txt'),'@bobtv_radio_spectrum:lavfi=[bobtv_spectrum]:o=[threads=1]')
+          python tools/test_radio_audio_spectrum_native.py --library unpacked/BobTV/libmpv-2.dll --filter-file filter.txt > native-signal.json
+          if($LASTEXITCODE){throw 'Packaged PCM analyzer failed'}
+          Get-Content native-signal.json

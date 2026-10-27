@@ -62,9 +62,14 @@ jobs:
           if($LASTEXITCODE){throw 'Flutter update regression'}
           & tools/windows/test_update_recovery_logic.ps1
           & release-validation/tools/windows/test_update_helpers.ps1
+          foreach($name in @('worker.ps1','installer_worker.ps1','progress_ui.ps1','publisher_signature.ps1')){
+            $sourceHash=(Get-FileHash (Join-Path $env:GITHUB_WORKSPACE ('assets/updater/'+$name))).Hash
+            $bundleHash=(Get-FileHash (Join-Path $env:BOBTV_BUNDLE ('data/flutter_assets/assets/updater/'+$name))).Hash
+            if($sourceHash -ne $bundleHash){throw "Packaged updater source mismatch: $name"}
+          }
           # The cross-build job also retains its native x64 fixture.
           $fixture=Join-Path $env:RUNNER_TEMP 'BobTVBuild/x64-support/BobTV/BobTV.exe'
-          & tools/windows/test_update_progress_ui.ps1 -ExecutablePath $fixture
+          & release-validation/tools/windows/test_update_progress_ui.ps1 -ExecutablePath $fixture
       - name: Package installer and portable update
         shell: pwsh
         run: |
@@ -85,6 +90,15 @@ jobs:
         with:
           name: BobTV-1.1.15-windows-${{ matrix.architecture }}
           path: release-candidates/*
+          retention-days: 1
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        if: always() && env.BOBTV_BUNDLE != ''
+        with:
+          name: BobTV-compiled-1.1.15-${{ matrix.architecture }}
+          path: |
+            ${{ env.BOBTV_BUNDLE }}
+            ${{ env.BOBTV_PROVENANCE }}
           retention-days: 1
           if-no-files-found: error
       - uses: actions/upload-artifact@v4

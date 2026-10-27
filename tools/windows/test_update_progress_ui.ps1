@@ -44,6 +44,8 @@ try{
     $snapshot=Get-Content "$root\screenshots\$phase.json" -Raw|ConvertFrom-Json
     if($snapshot.launchEnabled -ne ($phase -eq 'installed')){throw "Launch button unsafe in phase $phase"}
   }
+  Copy-Item "$root\screenshots\installed.json" "$root\screenshots\installed-success.json"
+  Copy-Item "$root\screenshots\installed.png" "$root\screenshots\installed-success.png"
   $snapshot=Get-Content "$root\screenshots\downloading.json" -Raw|ConvertFrom-Json
   if($snapshot.launchEnabled){throw 'Launch enabled while downloading'}
   if($snapshot.launchForeColor -ne 'White' -or !$snapshot.closeEnabled){throw 'White text or close control missing'}
@@ -65,13 +67,51 @@ public static class BobTVCloseFixture {
   public static extern IntPtr FindWindowEx(IntPtr parent, IntPtr after, string cls, string text);
   [DllImport("user32.dll")]
   public static extern bool PostMessage(IntPtr window, uint message, IntPtr w, IntPtr l);
+  private delegate bool WindowVisitor(IntPtr window, IntPtr parameter);
+  [DllImport("user32.dll")]
+  private static extern bool EnumWindows(WindowVisitor visitor, IntPtr parameter);
+  [DllImport("user32.dll")]
+  private static extern uint GetWindowThreadProcessId(IntPtr window, out uint processId);
+  public static IntPtr CloseButton(uint processId) {
+    IntPtr found = IntPtr.Zero;
+    EnumWindows(delegate(IntPtr window, IntPtr parameter) {
+      uint owner;
+      GetWindowThreadProcessId(window, out owner);
+      if (owner != processId) return true;
+      // Pass an actual null class pointer inside C#: PowerShell coerces $null
+      // string arguments to empty strings, which match no window class.
+      found = FindWindowEx(window, IntPtr.Zero, null, "关闭窗口");
+      return found == IntPtr.Zero;
+    }, IntPtr.Zero);
+    return found;
+  }
 }
 '@
   $child.Refresh()
-  $closeHandle=[BobTVCloseFixture]::FindWindowEx($child.MainWindowHandle,[IntPtr]::Zero,$null,'关闭窗口')
+  Copy-Item "$root\screenshots\installed.json" "$root\screenshots\installed-missing-application.json"
+  Copy-Item "$root\screenshots\installed.png" "$root\screenshots\installed-missing-application.png"
+  $legacyHandle=$child.MainWindowHandle
+  $properNullHandle=[BobTVCloseFixture]::FindWindowEx($legacyHandle,[IntPtr]::Zero,[NullString]::Value,'关闭窗口')
+  $closeHandle=[BobTVCloseFixture]::CloseButton([uint32]$child.Id)
+  Write-Output ('Native close lookup: main='+$legacyHandle+'; properNull='+$properNullHandle+'; processScoped='+$closeHandle)
   if($closeHandle -eq [IntPtr]::Zero){throw 'Native close control not found'}
   if(![BobTVCloseFixture]::PostMessage($closeHandle,0x00F5,[IntPtr]::Zero,[IntPtr]::Zero)){throw 'Close click dispatch failed'}
   if(!$child.WaitForExit(10000)){throw 'Close button did not exit the progress window'}
+  if($child.ExitCode -ne 0){throw 'Progress window did not exit normally after button click'}
+  Write-Output 'PASS: actual native close-button click exits with missing application safely disabled.'
+  # A separate successful-install window must close itself after its documented
+  # 20-second countdown. This adds coverage, without extending prior waits.
+  Move-Item "$root\hidden-BobTV.exe" "$root\BobTV.exe"
+  Remove-Item "$root\screenshots\installed.json","$root\screenshots\installed.png"
+  Set-State installed 100
+  $child=Start-Process powershell.exe -WindowStyle Hidden -PassThru -ArgumentList @(
+    '-NoProfile','-NonInteractive','-STA','-ExecutionPolicy','Bypass','-File',('"'+$script+'"'),
+    '-CurrentPid','99999999','-WorkerPid',"$PID",'-Version',('"'+$fixtureVersion+'"'),'-RunId','preview',
+    '-AppDir',('"'+$root+'"')) -RedirectStandardError "$root\auto-close-stderr.log" -RedirectStandardOutput "$root\auto-close-stdout.log"
+  if(!$child.WaitForExit(35000)){throw 'Successful installation window did not close after its 20-second countdown'}
+  $snapshot=Get-Content "$root\screenshots\installed.json" -Raw|ConvertFrom-Json
+  if(!$snapshot.launchEnabled -or $child.ExitCode -ne 0){throw 'Auto-close did not retain verified installation and normal exit'}
+  Write-Output 'PASS: successful installation enables verified launch and closes automatically.'
   Write-Output 'PASS: download/consent/exit/install stages drawn, launch disabled until verified install, safe cancellation offers old version, missing executable cannot launch.'
 }finally{
   $child.Refresh()

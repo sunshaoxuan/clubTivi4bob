@@ -1,0 +1,44 @@
+name: BobTV native progress close fixture
+on:
+  push:
+    branches: [release/1.1.15-ui-validation]
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  progress:
+    runs-on: windows-2022
+    timeout-minutes: 8
+    strategy:
+      fail-fast: false
+      matrix:
+        architecture: [x64, arm64]
+    steps:
+      - name: Preserve frozen updater bytes
+        run: git config --global core.autocrlf false
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Reuse compiled fixture executable from previous run
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: pwsh
+        run: |
+          gh run download 40552045500 --repo '${{ github.repository }}' --name 'BobTV-1.1.15-windows-${{ matrix.architecture }}-diagnostics' --dir previous-diagnostics
+          if($LASTEXITCODE){throw 'Existing fixture download failed'}
+          # The fixture reads the frozen release updater; no application code is changed.
+          $source=(Get-FileHash assets/updater/progress_ui.ps1).Hash
+          if($source.ToLower() -ne '2893782dfc0ca1671adef15df987c249d627935086cd86d4bd6c01ce22d7a930'){throw 'Fixture updater differs from frozen release source'}
+          Write-Output "Tested production updater SHA256=$source"
+      - name: Test real close button and automatic successful completion
+        shell: pwsh
+        run: |
+          & tools/windows/test_update_progress_ui.ps1 -ExecutablePath previous-diagnostics/standalone-progress/hidden-BobTV.exe
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: BobTV-progress-close-${{ matrix.architecture }}
+          path: windows-live-update-diagnostics/**
+          retention-days: 1
+          if-no-files-found: error

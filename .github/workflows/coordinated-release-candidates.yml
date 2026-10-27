@@ -50,13 +50,18 @@ jobs:
         shell: pwsh
         run: |
           & tools/windows/prepare_signpath_bundle.ps1 -Architecture '${{ matrix.architecture }}' -FlutterDirectory $env:FLUTTER_ROOT -OutputDirectory (Join-Path $env:RUNNER_TEMP 'BobTVBuild')
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          path: release-validation
+          persist-credentials: false
       - name: Test update recovery and real progress window
         shell: pwsh
         run: |
           flutter test test/region_navigation_test.dart test/windows_update_authorization_poll_test.dart test/desktop_update_feedback_test.dart test/update_manifest_test.dart
           if($LASTEXITCODE){throw 'Flutter update regression'}
           & tools/windows/test_update_recovery_logic.ps1
-          & tools/windows/test_update_helpers.ps1
+          & release-validation/tools/windows/test_update_helpers.ps1
           # The cross-build job also retains its native x64 fixture.
           $fixture=Join-Path $env:RUNNER_TEMP 'BobTVBuild/x64-support/BobTV/BobTV.exe'
           & tools/windows/test_update_progress_ui.ps1 -ExecutablePath $fixture

@@ -21,7 +21,7 @@ if([IO.File]::ReadAllText($file) -ne 'new binary'){throw 'Changed file not insta
 $script:stopped=@()
 $script:mockProcesses=@(
  [pscustomobject]@{ProcessId=101;Name='powershell.exe';CommandLine=('powershell -File "'+$fixture+'\app\Tools\hoteltv_crash_monitor.ps1"');ExecutablePath='C:\Windows\powershell.exe'},
- [pscustomobject]@{ProcessId=102;Name='procdump64.exe';ExecutablePath=$file;CommandLine=''},
+ [pscustomobject]@{ProcessId=102;Name='procdump64.exe';ExecutablePath=([IO.Path]::GetFullPath($file));CommandLine=''},
  [pscustomobject]@{ProcessId=201;Name='procdump64.exe';ExecutablePath='C:\Unrelated\Tools\procdump64.exe';CommandLine=''},
  [pscustomobject]@{ProcessId=202;Name='powershell.exe';CommandLine='powershell -File "C:\Unrelated\Tools\hoteltv_crash_monitor.ps1"';ExecutablePath='C:\Windows\powershell.exe'}
 )
@@ -30,6 +30,6 @@ function Stop-Process {param($Id,[switch]$Force,$ErrorAction) $script:stopped+= 
 function Get-Process {param($Id,$ErrorAction) $p=[pscustomobject]@{Id=$Id};$p|Add-Member -MemberType ScriptMethod -Name WaitForExit -Value {param($milliseconds) return $true};return $p}
 function Write-Log {param($message)}
 Suspend-AppCrashMonitor "$fixture\app"
-if(($script:stopped -join ',') -ne '101,102'){throw 'Monitor stop escaped the application scope'}
+if(($script:stopped -join ',') -ne '101,102'){throw ('Monitor stop escaped the application scope; actual='+($script:stopped -join ',')+'; fixture='+$fixture+'; executable='+$script:mockProcesses[1].ExecutablePath)}
 if(!$script:resumeCrashMonitor){throw 'Monitor restart intent missing'}
 Write-Output 'PASS: identical locked helper skipped, changed files verified, only app-scoped monitor stopped, restart retained.'

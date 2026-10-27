@@ -5,6 +5,7 @@ on:
   workflow_dispatch:
 permissions:
   contents: read
+  actions: read
 jobs:
   signed-update:
     runs-on: windows-2022
@@ -20,6 +21,11 @@ jobs:
         with:
           ref: 03b20a9aa0d89bc7709645324736f69310c6d213
           persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          path: release-validation
+          persist-credentials: false
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
@@ -28,8 +34,11 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         shell: pwsh
         run: |
-          gh release download v1.1.15 --repo '${{ github.repository }}' --pattern '*windows-${{ matrix.architecture }}*' --pattern 'BobTV-update-metadata.json' --dir runtime
-          if($LASTEXITCODE){throw 'Draft release candidate download failed'}
+          gh run download 40555160764 --repo '${{ github.repository }}' --name 'BobTV-1.1.15-windows-${{ matrix.architecture }}' --dir runtime
+          if($LASTEXITCODE){throw 'Passed build artifact download failed'}
+          Copy-Item release-validation/tools/validation/release-1.1.15-update-metadata.json runtime/BobTV-update-metadata.json
+          $provenance=Get-Content runtime/build-provenance.json -Raw|ConvertFrom-Json
+          if($provenance.sourceCommit -ne '03b20a9aa0d89bc7709645324736f69310c6d213' -or $provenance.version -ne '1.1.15+110'){throw 'Build provenance mismatch'}
           $metadata=Get-Content runtime/BobTV-update-metadata.json -Raw|ConvertFrom-Json
           if($metadata.version -ne '1.1.15+110' -or $metadata.packages.Count -ne 7){throw 'Incomplete aligned release metadata'}
           $package=$metadata.packages|Where-Object {$_.platform -eq 'windows-${{ matrix.architecture }}'}

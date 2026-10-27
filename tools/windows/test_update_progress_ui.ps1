@@ -46,6 +46,7 @@ try{
   }
   $snapshot=Get-Content "$root\screenshots\downloading.json" -Raw|ConvertFrom-Json
   if($snapshot.launchEnabled){throw 'Launch enabled while downloading'}
+  if($snapshot.launchForeColor -ne 'White' -or !$snapshot.closeEnabled){throw 'White text or close control missing'}
   Set-State ready 100 $true
   for($n=0;$n -lt 30 -and !(Test-Path "$root\screenshots\ready.json");$n++){Start-Sleep -Milliseconds 500}
   $snapshot=Get-Content "$root\screenshots\ready.json" -Raw|ConvertFrom-Json
@@ -56,6 +57,21 @@ try{
   Start-Sleep -Seconds 2
   $snapshot=Get-Content "$root\screenshots\installed.json" -Raw|ConvertFrom-Json
   if($snapshot.launchEnabled){throw 'Launch enabled with missing application'}
+  Add-Type -TypeDefinition @'
+using System;
+using System.Runtime.InteropServices;
+public static class BobTVCloseFixture {
+  [DllImport("user32.dll", CharSet=CharSet.Unicode)]
+  public static extern IntPtr FindWindowEx(IntPtr parent, IntPtr after, string cls, string text);
+  [DllImport("user32.dll")]
+  public static extern bool PostMessage(IntPtr window, uint message, IntPtr w, IntPtr l);
+}
+'@
+  $child.Refresh()
+  $closeHandle=[BobTVCloseFixture]::FindWindowEx($child.MainWindowHandle,[IntPtr]::Zero,$null,'关闭窗口')
+  if($closeHandle -eq [IntPtr]::Zero){throw 'Native close control not found'}
+  if(![BobTVCloseFixture]::PostMessage($closeHandle,0x00F5,[IntPtr]::Zero,[IntPtr]::Zero)){throw 'Close click dispatch failed'}
+  if(!$child.WaitForExit(10000)){throw 'Close button did not exit the progress window'}
   Write-Output 'PASS: download/consent/exit/install stages drawn, launch disabled until verified install, safe cancellation offers old version, missing executable cannot launch.'
 }finally{
   $child.Refresh()

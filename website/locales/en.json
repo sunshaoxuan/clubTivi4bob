@@ -26,7 +26,7 @@
   "features": "Features",
   "home": {
     "headline": "Watch TV on desktop and Android.",
-    "intro": "Windows, macOS and Android advance together to 1.1.14+109. Radio playback and muted preview cards show a live spectrum measured from decoded audio. Fullscreen adapts to the display width with up to 128 thin bars.",
+    "intro": "Windows, macOS and Android advance together to 1.1.15+110. Windows update downloads retry temporary connection failures, report verified completion and provide a close control with white button text. Region filters combine confirmed geographic regions without programme-type children, preserving channels, favorites and manual groups.",
     "image_alt": "BobTV running in simplified mode, with sports playback and a channel list.",
     "mode": "BOBTV / Simplified mode",
     "screenshot": "Actual app screenshot",
@@ -198,6 +198,11 @@
     "history_title": "Recent changes",
     "history": [
       [
+        "2026-10-28",
+        "v1.1.15 · Update recovery and region filters",
+        "Windows, macOS and Android advance together to 1.1.15+110. Windows update downloads retry temporary connection failures, report verified completion and provide a close control with white button text. Region filters combine confirmed geographic regions without programme-type children, preserving channels, favorites and manual groups."
+      ],
+      [
         "2026-10-27",
         "v1.1.14 · Live radio spectrum and fullscreen display",
         "Windows, macOS and Android advance together to 1.1.14+109. Radio playback and muted preview cards show a live spectrum measured from decoded audio. Fullscreen adapts to the display width with up to 128 thin bars."
@@ -318,7 +323,7 @@
   },
   "downloads": {
     "signing_notice": "The free SignPath Foundation application was not approved. No trusted Windows certificate was issued and SignPath.io production signing is not in use. Edge may still require a security confirmation on the first browser download.",
-    "intro": "Windows, macOS and Android advance together to 1.1.14+109. Radio playback and muted preview cards show a live spectrum measured from decoded audio. Fullscreen adapts to the display width with up to 128 thin bars. Optional diagnostic sync remains off by default and requires explicit consent for at most 30 days of redacted records.",
+    "intro": "Windows, macOS and Android advance together to 1.1.15+110. Windows update downloads retry temporary connection failures, report verified completion and provide a close control with white button text. Region filters combine confirmed geographic regions without programme-type children, preserving channels, favorites and manual groups. Optional diagnostic sync remains off by default and requires explicit consent for at most 30 days of redacted records.",
     "latest": "Latest installers",
     "local": "Downloads hosted on this site",
     "sections": [

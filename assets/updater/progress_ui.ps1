@@ -185,7 +185,7 @@ $timer.Add_Tick({
         New-Item -ItemType Directory -Path $folder -Force|Out-Null
         $bitmap=New-Object Drawing.Bitmap($form.Width,$form.Height)
         try{$form.DrawToBitmap($bitmap,(New-Object Drawing.Rectangle(0,0,$form.Width,$form.Height)));$bitmap.Save((Join-Path $folder ($status.phase+'.png')),[Drawing.Imaging.ImageFormat]::Png)}finally{$bitmap.Dispose()}
-        @{phase=$status.phase;launchEnabled=$open.Enabled;launchText=$open.Text}|ConvertTo-Json -Compress|Set-Content -LiteralPath (Join-Path $folder ($status.phase+'.json')) -Encoding UTF8
+        @{phase=$status.phase;launchEnabled=$open.Enabled;launchText=$open.Text;launchForeColor=$open.ForeColor.Name;closeEnabled=$close.Enabled}|ConvertTo-Json -Compress|Set-Content -LiteralPath (Join-Path $folder ($status.phase+'.json')) -Encoding UTF8
       }
     }
   }catch{

@@ -90,12 +90,11 @@ def test_product_pages_reflect_published_releases():
     assert "github.com" not in home.lower()
     downloads = client.get("/downloads").text
     assert 'id="release-list"' in downloads and "BobTV.exe" in downloads
-    assert "Apple Silicon" in downloads and "下载最新版本" in downloads
+    assert "最新安装包" in downloads
     assert 'id="first-launch-title"' in downloads and "1.1.15+110" in downloads
     assert "1.1.10+103" not in downloads and "ad-hoc" in downloads
-    assert "Windows x64 / ARM64" in downloads
-    assert "管理员权限安装" in downloads and "只读磁盘映像" in downloads
-    assert "后台下载、校验及退出后安装" in downloads
+    assert "管理员授权" in downloads and "只读磁盘映像" in downloads
+    assert "下载并校验 Setup" in downloads and "取消授权可继续使用旧版" in downloads
     assert "v0.9.1-bob.11" not in downloads
     assert 'class="downloads-page"' in downloads
     script = client.get("/assets/downloads.js").text
@@ -103,6 +102,7 @@ def test_product_pages_reflect_published_releases():
     assert "${release.version} · ${format}" in script
     assert "const families" in script and "data-cpu" in script
     assert "Windows ARM64" in script and "Android ARM64" in script
+    assert "Apple Silicon" in script and "Windows x64" in script
     diagnostics = client.get("/diagnostics").text
     assert 'class="diagnostics-page"' in diagnostics
     assert 'id="upload-form"' in diagnostics and 'id="log-file"' in diagnostics

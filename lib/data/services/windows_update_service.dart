@@ -503,6 +503,26 @@ class WindowsUpdateService {
       // Check liveness before ignoring an old consent receipt. Otherwise a dead
       // helper can leave the application displaying authorization forever.
       if (!terminal && !await _isWorkerRunning()) {
+        // A helper can publish its terminal receipt between the first read and
+        // the liveness check. Read again after observing exit before failing.
+        if (await file.exists()) {
+          final finalData = jsonDecode(await file.readAsString());
+          if (finalData is Map<String, dynamic>) {
+            final finalState = WindowsUpdateState.fromWorkerStatus(
+              finalData,
+              version: _workerLaunchedForVersion!,
+              runId: _runId,
+              workerPid: _workerPid,
+            );
+            if (finalState?.phase == WindowsUpdatePhase.installed ||
+                finalState?.phase == WindowsUpdatePhase.failed) {
+              _installRequested = false;
+              _installRequestId = null;
+              state.value = finalState!;
+              return;
+            }
+          }
+        }
         _installRequested = false;
         _installRequestId = null;
         state.value = WindowsUpdateState(

@@ -100,3 +100,21 @@ def apply_channel_paths(payload, changes):
         channel.pop('categoryIds', None)
     result['categories'] = list(categories.values())
     return normalize_catalog_taxonomy(result)
+
+
+CHINA_REGIONS = frozenset('北京 天津 河北 山西 内蒙古 辽宁 吉林 黑龙江 上海 江苏 浙江 安徽 福建 江西 山东 河南 湖北 湖南 广东 广西 海南 重庆 四川 贵州 云南 西藏 陕西 甘肃 青海 宁夏 新疆 香港 澳门 台湾'.split())
+
+def automatic_region_path(path):
+    """Bound machine assignments to confirmed geography; retain manual paths elsewhere."""
+    if path and path[0] == '中国':
+        parts = path[2:] if path[1:2] == ['地方'] else path[1:]
+        if parts and parts[0] in CHINA_REGIONS:
+            return ['中国', parts[0]]
+        if len(parts) > 1 and parts[0] == '广播' and parts[1] in CHINA_REGIONS:
+            return ['中国', '广播', parts[1]]
+        if parts and parts[0] in ('央视', '数字', '广播'):
+            return ['中国', parts[0]]
+        return ['其他', '待识别']
+    if len(path) >= 2 and path[0] == '国际' and path[1] in _DATA['names'].values():
+        return [*path[:2], '广播' if '广播' in path[2:] else '电视']
+    return ['其他', '待识别']

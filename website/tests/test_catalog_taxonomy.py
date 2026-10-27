@@ -57,3 +57,21 @@ def test_reviewed_move_preserves_every_channel_and_route():
     assert path(result,result['channels'][0]['categoryId'])==['国际','科威特','广播']
     for old,new in zip(original['channels'],result['channels']):
         assert old['id']==new['id'] and old['routes']==new['routes'] and old.get('epgId')==new.get('epgId')
+
+
+def test_automatic_assignments_stop_at_known_geography_without_mutation():
+    from catalog_taxonomy import automatic_region_path
+    for region, genre in [('上海', '财经'), ('云南', '新闻'), ('北京', '儿童')]:
+        original = ['中国', region, genre]
+        assert automatic_region_path(original) == ['中国', region]
+        assert original == ['中国', region, genre]
+        assert automatic_region_path(['中国','地方',region,genre]) == ['中国',region]
+    assert automatic_region_path(['国际','美国','电视','新闻']) == ['国际','美国','电视']
+    assert automatic_region_path(['中国','不明地区','新闻']) == ['其他','待识别']
+    assert automatic_region_path(['国际','不明国家','体育']) == ['其他','待识别']
+
+
+def test_automatic_radio_keeps_confirmed_region_without_genre_tail():
+    from catalog_taxonomy import automatic_region_path
+    assert automatic_region_path(['中国','广播','上海','音乐']) == ['中国','广播','上海']
+    assert automatic_region_path(['国际','英国','广播','音乐']) == ['国际','英国','广播']

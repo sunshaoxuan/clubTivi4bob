@@ -3576,7 +3576,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
           }),
       ]));
       if (section == '地方台') {
-        final provinces = [...ChannelCategoryClassifier.provinceCategories, ...customGroups.where((g) => ChannelCategoryClassifier.provinceCategories.contains(g.split(' / ').first))];
+        final provinces = ChannelCategoryClassifier.provinceCategories;
         levels.add(CompactCategoryRow(tiny: tiny, level: 3, title: '地区', options: [
           for (final group in provinces.toSet()) CompactCategoryOption(id: group, label: group, selected: _selectedGroup == group, onTap: () => _selectGroupAndPlayFirst(group)),
         ]));

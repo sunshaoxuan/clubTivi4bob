@@ -8,7 +8,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from catalog_inventory import database
-from catalog_taxonomy import apply_channel_paths, classified_path
+from catalog_taxonomy import apply_channel_paths, classified_path, automatic_region_path
 from country_names import _DATA
 import reclassify_public_catalog as audit
 from publish_channel_catalog import publish, _atomic_write
@@ -80,7 +80,7 @@ def run(data_dir=DATA):
         for result in results:
             result['time'] = now
             if result['status'] == 'classified':
-                result['newPath'] = classified_path(result['newPath'], {})
+                result['newPath'] = automatic_region_path(result['newPath'])
         with (data_dir / 'catalog-process.lock').open('a') as publication_lock:
             fcntl.flock(publication_lock, fcntl.LOCK_EX)
             manifest, payload, _ = audit.load_catalog(data_dir)

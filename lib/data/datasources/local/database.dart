@@ -1041,7 +1041,11 @@ class AppDatabase extends _$AppDatabase {
     // Website routes already carry reviewed categories. Include them by
     // category metadata so a channel name without category keywords is not
     // silently omitted from the shared list.
-    final websiteGroup = category == '国际' ? '国际 / %' : '中国 / $category';
+    final websiteGroup = category == '国际'
+        ? '国际 / %'
+        : ChannelCategoryClassifier.provinceCategories.contains(category)
+        ? '中国 / $category / %'
+        : '中国 / $category';
     final rows = await customSelect(
       'SELECT * FROM channels WHERE '
       '(provider_id = ? AND (group_title = ? OR group_title = ? '

@@ -67,6 +67,17 @@ function Get-UpdateMachine([string]$path) {
   } finally {$reader.Dispose();$stream.Dispose()}
 }
 
+function Invoke-UpdateDownload([scriptblock]$transfer) {
+  for($attempt=1;$attempt -le 3;$attempt++){
+    try { & $transfer; return }
+    catch {
+      if($attempt -ge 3){throw}
+      Write-Log ('Download attempt '+$attempt+' failed: '+$_.Exception.Message)
+      Start-Sleep -Seconds $attempt
+    }
+  }
+}
+
 function Write-Status([string]$phase, [string]$version, [int]$percent,
                       [string]$message) {
   if($script:lastWrittenPhase -eq $phase -and
@@ -397,47 +408,51 @@ try {
   if (!(Test-Path -LiteralPath $archive) -or
       (Get-Item -LiteralPath $archive).Length -ne $Bytes -or
       (Get-Sha256 $archive) -ine $Sha256) {
-    Add-Type -AssemblyName System.Net.Http
-    $handler = New-Object Net.Http.HttpClientHandler
-    $handler.AllowAutoRedirect = $false
-    $http = New-Object Net.Http.HttpClient($handler)
-    $http.Timeout = [TimeSpan]::FromSeconds(45)
-    $http.DefaultRequestHeaders.UserAgent.ParseAdd('BobTV/0.9.1 updater')
-    try {
-      $response = $http.GetAsync(
-        $uri, [Net.Http.HttpCompletionOption]::ResponseHeadersRead
-      ).GetAwaiter().GetResult()
-      if ([int]$response.StatusCode -ne 200) { throw 'Download failed' }
-      $stream = $response.Content.ReadAsStreamAsync().GetAwaiter().GetResult()
-      $output = [IO.File]::Open(
-        $partial, [IO.FileMode]::Create, [IO.FileAccess]::Write,
-        [IO.FileShare]::None)
+    Invoke-UpdateDownload {
+      $script:receivedBytes=0L;Write-Status 'downloading' $Version 0 '正在重新连接更新下载'
+      [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12
+      Add-Type -AssemblyName System.Net.Http
+      $handler = New-Object Net.Http.HttpClientHandler
+      $handler.AllowAutoRedirect = $false
+      $http = New-Object Net.Http.HttpClient($handler)
+      $http.Timeout = [TimeSpan]::FromSeconds(45)
+      $http.DefaultRequestHeaders.UserAgent.ParseAdd('BobTV/0.9.1 updater')
       try {
-        $buffer = New-Object byte[] (1024 * 1024)
-        [long]$received = 0
-        $lastPercent = -1
-        while ($true) {
-          $read=$stream.ReadAsync($buffer,0,$buffer.Length)
-          if(!$read.Wait(30000)){throw '下载连接连续 30 秒没有收到数据，请重试'}
-          $count=$read.GetAwaiter().GetResult()
-          if($count -le 0){break}
-          $output.Write($buffer, 0, $count)
-          $received += $count
-          $script:receivedBytes = $received
-          if ($received -gt $Bytes) { throw 'Downloaded file too large' }
-          $percent = [int][Math]::Floor(100.0 * $received / $Bytes)
-          if ($percent -ne $lastPercent) {
-            Write-Status 'downloading' $Version $percent '正在下载更新'
-            $lastPercent = $percent
+        $response = $http.GetAsync(
+          $uri, [Net.Http.HttpCompletionOption]::ResponseHeadersRead
+        ).GetAwaiter().GetResult()
+        if ([int]$response.StatusCode -ne 200) { throw 'Download failed' }
+        $stream = $response.Content.ReadAsStreamAsync().GetAwaiter().GetResult()
+        $output = [IO.File]::Open(
+          $partial, [IO.FileMode]::Create, [IO.FileAccess]::Write,
+          [IO.FileShare]::None)
+        try {
+          $buffer = New-Object byte[] (1024 * 1024)
+          [long]$received = 0
+          $lastPercent = -1
+          while ($true) {
+            $read=$stream.ReadAsync($buffer,0,$buffer.Length)
+            if(!$read.Wait(30000)){throw '下载连接连续 30 秒没有收到数据，请重试'}
+            $count=$read.GetAwaiter().GetResult()
+            if($count -le 0){break}
+            $output.Write($buffer, 0, $count)
+            $received += $count
+            $script:receivedBytes = $received
+            if ($received -gt $Bytes) { throw 'Downloaded file too large' }
+            $percent = [int][Math]::Floor(100.0 * $received / $Bytes)
+            if ($percent -ne $lastPercent) {
+              Write-Status 'downloading' $Version $percent '正在下载更新'
+              $lastPercent = $percent
+            }
           }
+        } finally {
+          $output.Dispose()
+          $stream.Dispose()
         }
       } finally {
-        $output.Dispose()
-        $stream.Dispose()
+        $http.Dispose()
+        $handler.Dispose()
       }
-    } finally {
-      $http.Dispose()
-      $handler.Dispose()
     }
     Write-Status 'verifying' $Version 100 '下载完成，正在校验文件大小与完整性'
     if ((Get-Item -LiteralPath $partial).Length -ne $Bytes -or
@@ -506,6 +521,9 @@ try {
   $installedVersion=(Get-Item (Join-Path $AppDir $exe)).VersionInfo.FileVersion
   if($installedVersion -match '^\d+\.\d+\.\d+\+\d+$' -and
      (Compare-BobVersion $installedVersion $Version) -ge 0) {
+    if($installedVersion -ne $Version){throw 'A newer application is already installed'}
+    if(!(Test-Path -LiteralPath (Join-Path $AppDir 'data\app.so'))){throw 'Installed app data missing'}
+    Write-Status 'installed' $Version 100 '当前已是目标版本，可以启动 BobTV'
     Write-Log ('No install needed: already at ' + $installedVersion)
     return
   }

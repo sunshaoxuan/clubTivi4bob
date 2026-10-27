@@ -69,7 +69,10 @@ class ChannelCategoryDestination {
             : ['电视', '广播'],
       );
     }
-    if (path.length == 2 && path.first != '中国' && path.first != '其他' && path[1] == '电视') {
+    if (path.length == 2 &&
+        path.first != '中国' &&
+        path.first != '其他' &&
+        path[1] == '电视') {
       suggestions.addAll(ChannelCategoryClassifier.internationalGenres);
     }
     if (path.length == 2 && path.first == '中国' && path[1] == '地方') {
@@ -150,7 +153,11 @@ class ChannelCategoryDestination {
       : path.skip(1).toList();
   String get category => path.first == '其他'
       ? '其他'
-      : path.first == '中国' ? _chinaPath.join(' / ') : '国际';
+      : path.first == '中国'
+      ? (ChannelCategoryClassifier.provinceCategories.contains(_chinaPath.first)
+            ? _chinaPath.first
+            : _chinaPath.join(' / '))
+      : '国际';
   String get country => path.first == '其他' ? '未识别地区' : path.first;
   String get group => path.first == '其他'
       ? path.join(' / ')

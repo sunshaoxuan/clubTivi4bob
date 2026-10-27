@@ -288,6 +288,7 @@ def classification_prompt():
 
 
 def classify_batch(batch, settings, data_dir=DATA):
+    from catalog_taxonomy import automatic_region_path
     with ThreadPoolExecutor(max_workers=4) as pool:
         logos = list(pool.map(lambda item: first_logo(item['logoUrls'], data_dir), batch))
     descriptors = []
@@ -324,6 +325,8 @@ def classify_batch(batch, settings, data_dir=DATA):
     for index, target in enumerate(batch):
         decision = indexed.get(index, {})
         path = ai_path(decision)
+        if path:
+            path = automatic_region_path(path)
         confidence = decision.get('confidence')
         valid_confidence = type(confidence) in (int, float) and 0 <= confidence <= 1
         output.append({
@@ -680,7 +683,8 @@ def apply_results(data_dir=DATA, run_id=None):
         for decision in decisions:
             if decision['status'] != 'classified' or not decision.get('newPath'):
                 continue
-            group = ' / '.join(decision['newPath'])
+            from catalog_taxonomy import automatic_region_path
+            group = ' / '.join(automatic_region_path(decision['newPath']))
             for digest in decision.get('routeDigests', []):
                 row = conn.execute('SELECT group_name,manual_category,blocked,deleted FROM routes WHERE digest=?', (digest,)).fetchone()
                 if not row or row['blocked'] or row['deleted']:

@@ -79,3 +79,19 @@ def test_publication_failure_rolls_back_manifest_and_route_groups(setup_worker,m
     assert manifest.read_bytes()==saved
     with database(data) as conn:
         assert conn.execute('SELECT group_name FROM routes WHERE digest=?',(digest,)).fetchone()[0]=='其他'
+
+
+def test_automatic_province_assignment_has_no_program_type_child(setup_worker):
+    data, before, result, digest = setup_worker
+    result['newPath'] = ['中国', '上海', '财经']
+    result['aiProgramType'] = '财经'
+    status = worker.run(data)
+    assert status['applied'] == 1
+    _, after, cats = worker.audit.load_catalog(data)
+    assert worker.audit.group_path(after['channels'][0]['categoryId'], cats) == ['中国', '上海']
+    assert after['channels'][0]['routes'] == before['channels'][0]['routes']
+    assert after['channels'][0]['epgId'] == before['channels'][0]['epgId']
+    with database(data) as conn:
+        assert conn.execute('SELECT group_name FROM routes WHERE digest=?', (digest,)).fetchone()[0] == '中国 / 上海'
+    decisions = [json.loads(line) for line in (data / 'taxonomy-classification/decisions.jsonl').read_text().splitlines()]
+    assert decisions[-1]['aiProgramType'] == '财经'

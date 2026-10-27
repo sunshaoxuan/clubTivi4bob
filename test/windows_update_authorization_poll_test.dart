@@ -97,4 +97,21 @@ void main() {
       service.state.dispose();
     },
   );
+  test(
+    'receipt published during process exit wins over stale installing snapshot',
+    () async {
+      final service = await fixture('installing', request: 'current');
+      messenger.setMockMethodCallHandler(channel, (call) async {
+        final file = File('${directory.path}/status-run.json');
+        final data =
+            jsonDecode(await file.readAsString()) as Map<String, dynamic>;
+        data['phase'] = 'installed';
+        await file.writeAsString(jsonEncode(data));
+        return false;
+      });
+      await service.pollWorkerStatusForTesting();
+      expect(service.state.value.phase, WindowsUpdatePhase.installed);
+      service.state.dispose();
+    },
+  );
 }

@@ -17,6 +17,20 @@ if($player){$player.WaitForExit()}
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
 [Windows.Forms.Application]::EnableVisualStyles()
+# WinForms' disabled themed Button paints black text regardless of ForeColor.
+Add-Type -ReferencedAssemblies System.Windows.Forms,System.Drawing -TypeDefinition @'
+public class BobTVUpdateButton : System.Windows.Forms.Button {
+  protected override void OnPaint(System.Windows.Forms.PaintEventArgs e) {
+    e.Graphics.Clear(BackColor);
+    using (var pen = new System.Drawing.Pen(System.Drawing.Color.FromArgb(157,173,197)))
+      e.Graphics.DrawRectangle(pen, 0, 0, Width-1, Height-1);
+    System.Windows.Forms.TextRenderer.DrawText(e.Graphics, Text, Font, ClientRectangle,
+      System.Drawing.Color.White, System.Windows.Forms.TextFormatFlags.HorizontalCenter |
+      System.Windows.Forms.TextFormatFlags.VerticalCenter);
+  }
+}
+'@
+
 $form=New-Object Windows.Forms.Form
 $form.Text='BobTV 更新'
 $form.ClientSize=New-Object Drawing.Size(500,340)
@@ -45,12 +59,21 @@ $bar.Location=New-Object Drawing.Point(24,116)
 $bar.Size=New-Object Drawing.Size(440,10)
 $bar.Style='Marquee'; $bar.MarqueeAnimationSpeed=25
 $form.Controls.Add($bar)
-$open=New-Object Windows.Forms.Button
+$open=New-Object BobTVUpdateButton
+$open.ForeColor=[Drawing.Color]::White
+$open.BackColor=$form.BackColor
 $open.Text='立即启动 BobTV'
 $open.Location=New-Object Drawing.Point(300,265)
 $open.Size=New-Object Drawing.Size(165,30)
 $open.Enabled=$false
 $open.FlatStyle='Flat'; $form.Controls.Add($open)
+$close=New-Object BobTVUpdateButton
+$close.Text='关闭窗口'; $close.BackColor=$form.BackColor
+$close.Location=New-Object Drawing.Point(24,265)
+$close.Size=New-Object Drawing.Size(120,30)
+$close.Add_Click({$form.Close()})
+$form.Controls.Add($close)
+$form.CancelButton=$close
 function Get-CompletedExecutable {
   if(!(Test-Path -LiteralPath $statusPath)){return $null}
   $completed=[IO.File]::ReadAllText($statusPath)|ConvertFrom-Json
@@ -91,6 +114,12 @@ $timer.Add_Tick({
         $bar.Style='Continuous'; $bar.Value=0
       }
       return
+    }
+    if($status.phase -notin @('installed','failed') -and
+       !(Get-Process -Id $WorkerPid -ErrorAction SilentlyContinue)){
+      $final=[IO.File]::ReadAllText($statusPath)|ConvertFrom-Json
+      if($final.runId -eq $RunId -and $final.version -eq $Version -and
+         [int]$final.workerPid -eq $WorkerPid){$status=$final}
     }
     $phase.Text=switch($status.phase){
       'starting' {'正在准备下载'}
@@ -135,7 +164,7 @@ $timer.Add_Tick({
         if(!$script:finishedAt){$script:finishedAt=[DateTime]::UtcNow}
         $remaining=20-[int]([DateTime]::UtcNow-$script:finishedAt).TotalSeconds
         $note.Text="安装完成，旧版备份已保留。此窗口将在 $remaining 秒后关闭。"
-        if($remaining -le 0){$form.Close()}
+        if($remaining -le 0){$form.Close();return}
       }else{
         $script:finishedAt=$null
         $phase.Text='安装结果未通过检查'

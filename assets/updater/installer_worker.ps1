@@ -31,7 +31,7 @@ function Write-Log([string]$text){Log $text}
 $tokens=$null;$parseErrors=$null
 $legacy=[Management.Automation.Language.Parser]::ParseFile((Join-Path $PSScriptRoot 'worker.ps1'),[ref]$tokens,[ref]$parseErrors)
 if($parseErrors.Count){throw 'Invalid application-lock helper source'}
-foreach($name in @('Suspend-AppCrashMonitor','Resume-AppCrashMonitor')){
+foreach($name in @('Suspend-AppCrashMonitor','Resume-AppCrashMonitor','Invoke-UpdateDownload')){
   $definition=$legacy.Find({param($node) $node -is [Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -eq $name},$true)
   if(!$definition){throw 'Application-lock helper missing'}
   . ([ScriptBlock]::Create($definition.Extent.Text))
@@ -79,28 +79,32 @@ function Download-Installer([string]$url,[string]$hash,[long]$size,[string]$sign
   if(!(Test-Path -LiteralPath $target) -or (Get-Item -LiteralPath $target).Length -ne $size -or (Hash $target) -ne $hash){
     Status 'downloading' 0 $message
     $partial=$target+'.part'
-    Add-Type -AssemblyName System.Net.Http
-    $handler=New-Object Net.Http.HttpClientHandler;$handler.AllowAutoRedirect=$false
-    $http=New-Object Net.Http.HttpClient($handler);$http.Timeout=[TimeSpan]::FromSeconds(45)
-    $http.DefaultRequestHeaders.UserAgent.ParseAdd('BobTV/1.1 updater')
-    try{
-      $response=$http.GetAsync($uri,[Net.Http.HttpCompletionOption]::ResponseHeadersRead).GetAwaiter().GetResult()
-      if([int]$response.StatusCode -ne 200){throw 'Setup download failed'}
-      $input=$response.Content.ReadAsStreamAsync().GetAwaiter().GetResult()
-      $output=[IO.File]::Open($partial,[IO.FileMode]::Create,[IO.FileAccess]::Write,[IO.FileShare]::None)
+    Invoke-UpdateDownload {
+      $script:received=0L;Status 'downloading' 0 $message
+      [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12
+      Add-Type -AssemblyName System.Net.Http
+      $handler=New-Object Net.Http.HttpClientHandler;$handler.AllowAutoRedirect=$false
+      $http=New-Object Net.Http.HttpClient($handler);$http.Timeout=[TimeSpan]::FromSeconds(45)
+      $http.DefaultRequestHeaders.UserAgent.ParseAdd('BobTV/1.1 updater')
       try{
-        $buffer=New-Object byte[] (1MB);$last=-1
-        while($true){
-          $read=$input.ReadAsync($buffer,0,$buffer.Length)
-          if(!$read.Wait(30000)){throw '下载连续30秒没有收到数据，请重试'}
-          $count=$read.GetAwaiter().GetResult();if($count -le 0){break}
-          $output.Write($buffer,0,$count);$script:received+=$count
-          if($script:received -gt $size){throw 'Setup grew unexpectedly'}
-          $percent=[int][Math]::Floor(100.0*$script:received/$size)
-          if($percent -ne $last){Status 'downloading' $percent $message;$last=$percent}
-        }
-      }finally{$output.Dispose();$input.Dispose()}
-    }finally{$http.Dispose();$handler.Dispose()}
+        $response=$http.GetAsync($uri,[Net.Http.HttpCompletionOption]::ResponseHeadersRead).GetAwaiter().GetResult()
+        if([int]$response.StatusCode -ne 200){throw 'Setup download failed'}
+        $input=$response.Content.ReadAsStreamAsync().GetAwaiter().GetResult()
+        $output=[IO.File]::Open($partial,[IO.FileMode]::Create,[IO.FileAccess]::Write,[IO.FileShare]::None)
+        try{
+          $buffer=New-Object byte[] (1MB);$last=-1
+          while($true){
+            $read=$input.ReadAsync($buffer,0,$buffer.Length)
+            if(!$read.Wait(30000)){throw '下载连续30秒没有收到数据，请重试'}
+            $count=$read.GetAwaiter().GetResult();if($count -le 0){break}
+            $output.Write($buffer,0,$count);$script:received+=$count
+            if($script:received -gt $size){throw 'Setup grew unexpectedly'}
+            $percent=[int][Math]::Floor(100.0*$script:received/$size)
+            if($percent -ne $last){Status 'downloading' $percent $message;$last=$percent}
+          }
+        }finally{$output.Dispose();$input.Dispose()}
+      }finally{$http.Dispose();$handler.Dispose()}
+    }
     if((Get-Item -LiteralPath $partial).Length -ne $size -or (Hash $partial) -ne $hash){throw 'Setup checksum mismatch'}
     Move-Item -LiteralPath $partial -Destination $target -Force
   }

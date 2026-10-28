@@ -44,6 +44,13 @@ def check(site, staging, data):
         candidate = {'url': url, 'source': 'https://example.org/test-only', 'countryCode': 'MY', 'decoded': True}
         result = recovery.admit(target_dir, recovery.identity(payload, channel), channel['id'], [candidate], profile, int(time.time()))
         assert result['added'] == 1
+        # Keep the complete published snapshot. Limit the isolated inventory's
+        # reclassification work to this target and its canary, preserving all
+        # other published cards through the existing publisher's fallback path.
+        # This transaction touches the temporary clone only.
+        with sqlite3.connect(target_dir / 'channel_inventory.sqlite3') as isolated:
+            keep = [route['url'] for route in channel['routes']] + [url]
+            isolated.execute('DELETE FROM routes WHERE url NOT IN (' + ','.join('?' for _ in keep) + ')', keep)
         process(target_dir, limit=0)
         _, after = recovery.catalog(target_dir)
         owners = [c['id'] for c in after['channels'] if any(r['url'] == url for r in c['routes'])]
@@ -51,7 +58,7 @@ def check(site, staging, data):
         assert {c['id'] for c in payload['channels']} <= {c['id'] for c in after['channels']}
         _, public = recovery.catalog(data)
         assert not any(r['url'] == url for c in public['channels'] for r in c['routes'])
-        return {'isolatedAdmission': True, 'deployedPublisherPreserved': True,
+        return {'isolatedAdmission': True, 'deployedPublisherPreserved': True, 'targetOnlyInventory': True,
             'sameChannelIdentityAfterRefresh': True, 'originalChannels': len(payload['channels']),
             'testChannelsAfterRefresh': len(after['channels']), 'productionCanaryRoutes': 0}
 

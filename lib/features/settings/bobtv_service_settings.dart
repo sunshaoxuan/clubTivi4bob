@@ -6,6 +6,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../data/services/bobtv_api_client.dart';
 import '../../data/services/bobtv_community_service.dart';
 import '../../data/services/device_favorites_privacy.dart';
+import '../../data/services/device_favorites_identity.dart';
+import '../../data/services/app_credential_store.dart';
+import '../../data/services/ai_runtime_settings.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'settings_design.dart';
 
 class BobTvServiceSettings extends ConsumerStatefulWidget {
@@ -19,6 +23,8 @@ class BobTvServiceSettings extends ConsumerStatefulWidget {
 class _BobTvServiceSettingsState extends ConsumerState<BobTvServiceSettings> {
   bool _busy = false;
   bool? _favoritesBackupEnabled;
+  bool _credentialPaused = false;
+  bool _aiCredentialPaused = false;
 
   @override
   void initState() {
@@ -31,7 +37,18 @@ class _BobTvServiceSettingsState extends ConsumerState<BobTvServiceSettings> {
 
   Future<void> _loadFavoritePrivacy() async {
     final value = await DeviceFavoritesPrivacy.enabled();
-    if (mounted) setState(() => _favoritesBackupEnabled = value);
+    final paused = await AppCredentialStore('favorites').paused;
+    final prefs = await SharedPreferences.getInstance();
+    final aiPaused =
+        (prefs.getBool('bobtv_ai_enabled_v1') ?? false) &&
+        await AppCredentialStore('ai').paused;
+    if (mounted) {
+      setState(() {
+        _favoritesBackupEnabled = value;
+        _credentialPaused = paused;
+        _aiCredentialPaused = aiPaused;
+      });
+    }
   }
 
   void _notice(String message) {
@@ -48,6 +65,9 @@ class _BobTvServiceSettingsState extends ConsumerState<BobTvServiceSettings> {
       await action();
     } on BobTvApiException catch (error) {
       _notice('服务暂时不可用（HTTP ${error.statusCode ?? '连接失败'}）');
+    } on CredentialAccessPaused {
+      await _loadFavoritePrivacy();
+      _notice('钥匙串访问未获授权，已暂停后台访问，本机数据已保留');
     } on FormatException {
       _notice('提交内容不符合服务要求，请检查名称和 HTTPS 地址');
     } catch (_) {
@@ -246,7 +266,11 @@ class _BobTvServiceSettingsState extends ConsumerState<BobTvServiceSettings> {
                 ? null
                 : (enabled) => unawaited(
                     _run(() async {
+                      if (enabled) {
+                        await DeviceFavoritesIdentity().authorize();
+                      }
                       await DeviceFavoritesPrivacy.setEnabled(enabled);
+                      await _loadFavoritePrivacy();
                       if (mounted) {
                         setState(() => _favoritesBackupEnabled = enabled);
                       }
@@ -254,6 +278,46 @@ class _BobTvServiceSettingsState extends ConsumerState<BobTvServiceSettings> {
                     }),
                   ),
           ),
+          if (_aiCredentialPaused)
+            ListTile(
+              leading: const Icon(Icons.lock_outline),
+              title: const Text('AI 服务密钥需要重新授权'),
+              subtitle: const Text('后台访问已暂停，授权后才能恢复 AI 服务'),
+              trailing: TextButton(
+                onPressed: _busy
+                    ? null
+                    : () => unawaited(
+                        _run(() async {
+                          try {
+                            await AiRuntimeSettings.instance.authorize();
+                          } finally {
+                            await _loadFavoritePrivacy();
+                          }
+                        }),
+                      ),
+                child: const Text('重新授权'),
+              ),
+            ),
+          if (_favoritesBackupEnabled == true && _credentialPaused)
+            ListTile(
+              leading: const Icon(Icons.lock_outline),
+              title: const Text('收藏备份需要重新授权'),
+              subtitle: const Text('后台访问已暂停，本机收藏不受影响'),
+              trailing: TextButton(
+                onPressed: _busy
+                    ? null
+                    : () => unawaited(
+                        _run(() async {
+                          try {
+                            await DeviceFavoritesIdentity().authorize();
+                          } finally {
+                            await _loadFavoritePrivacy();
+                          }
+                        }),
+                      ),
+                child: const Text('重新授权'),
+              ),
+            ),
           SwitchListTile(
             secondary: const Icon(Icons.monitor_heart_rounded),
             title: const Text('分享播放状态'),
@@ -277,8 +341,8 @@ class _BobTvServiceSettingsState extends ConsumerState<BobTvServiceSettings> {
           ),
           SwitchListTile(
             secondary: const Icon(Icons.bug_report_outlined),
-            title: const Text('自动上传诊断摘要'),
-            subtitle: const Text('仅上传允许的事件和资源统计字段，默认关闭'),
+            title: const Text('最近 30 天诊断同步'),
+            subtitle: const Text('首次同意后定期增量上传，可随时关闭；国内经 cndrp 中继'),
             value: service.automaticLogsEnabled,
             onChanged: _busy
                 ? null
@@ -286,8 +350,8 @@ class _BobTvServiceSettingsState extends ConsumerState<BobTvServiceSettings> {
                     _run(() async {
                       if (enabled &&
                           !await _confirm(
-                            '自动上传诊断摘要',
-                            '每六小时上传一次筛选后的时间、事件、来源标识、故障标记、运行时间、内存和平台字段。原始日志、地址和异常堆栈不会上传。',
+                            '同意同步最近 30 天的脱敏诊断',
+                            '将同步本机最近 30 天仍可用的事件、版本、平台、请求阶段、节点、耗时、状态码及资源统计。原始异常、堆栈、播放地址、私人订阅、凭据、收藏和观看内容不会上传。国内经 cndrp 私有队列转交主节点，两个节点最多保留 30 天。可随时关闭并停止后续上传；已发出的请求不能撤回。存储容量保护可能缩短本机可用历史。',
                           )) {
                         return;
                       }
@@ -295,6 +359,14 @@ class _BobTvServiceSettingsState extends ConsumerState<BobTvServiceSettings> {
                       if (mounted) setState(() {});
                     }),
                   ),
+          ),
+          ValueListenableBuilder<String>(
+            valueListenable: service.diagnostics.status,
+            builder: (context, value, _) => ListTile(
+              leading: const Icon(Icons.sync_rounded),
+              title: Text(value),
+              subtitle: const Text('中继暂存与主节点接收分别显示，关闭上传不影响播放'),
+            ),
           ),
           ListTile(
             leading: const Icon(Icons.upload_file_rounded),

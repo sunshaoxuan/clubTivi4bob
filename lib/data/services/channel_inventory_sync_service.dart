@@ -20,10 +20,16 @@ class ChannelInventorySyncService {
     required this.database,
     BobTvApiClient? api,
     this.fingerprintOverride,
-  }) : api = api ?? BobTvApiClient();
+    DateTime Function()? now,
+  }) : api = api ?? BobTvApiClient(),
+       now = now ?? DateTime.now;
   final db.AppDatabase database;
   final BobTvApiClient api;
   final String? fingerprintOverride;
+  final DateTime Function() now;
+  DateTime? _eventRetryAt;
+  int _eventFailures = 0;
+  bool _retryLoaded = false;
   final state = ValueNotifier(const WebsiteCatalogProgress());
   Future<void>? _running;
   bool _disposed = false;
@@ -76,12 +82,24 @@ class ChannelInventorySyncService {
 
   Future<int> _flushEvents() async {
     if (_disposed) return 0;
+    if (!_retryLoaded) {
+      _retryLoaded = true;
+      _eventRetryAt = DateTime.tryParse(
+        (await SharedPreferences.getInstance()).getString(
+              'bobtv_event_retry_at_v2',
+            ) ??
+            '',
+      );
+    }
+    if (_eventRetryAt?.isAfter(now()) ?? false) return 0;
     var acknowledged = 0;
     var mergeConflict = false;
+    var waitingForServer = false;
     try {
       await database.migrateLegacySharedEdits();
-      if (fingerprintOverride == null)
+      if (fingerprintOverride == null) {
         await ClientFingerprintService.instance.initialize();
+      }
       final fingerprint =
           fingerprintOverride ??
           ClientFingerprintService.instance.apiFingerprint;
@@ -97,12 +115,14 @@ class ChannelInventorySyncService {
           // A merge has a multi-route revision vector. Serialize it after
           // earlier metadata and before another merge, then re-read the queue.
           if (batch.any((e) => ['merge', 'transfer'].contains(e['kind'])) ||
-              (['merge', 'transfer'].contains(row['kind']) && batch.isNotEmpty))
+              (['merge', 'transfer'].contains(row['kind']) && batch.isNotEmpty)) {
             break;
+          }
           final url = row['url'] as String;
           if (row['kind'] == 'classify' &&
-              batch.any((e) => e['url'] == url && e['kind'] == 'upsert'))
+              batch.any((e) => e['url'] == url && e['kind'] == 'upsert')) {
             continue;
+          }
           if (!BobTvApiClient.isPublicCatalogUrl(url)) {
             await database.acknowledgeSharedEvent(row['id'] as String);
             continue;
@@ -110,14 +130,14 @@ class ChannelInventorySyncService {
           final payload = Map<String, Object?>.from(row['payload'] as Map);
           if (row['kind'] == 'upsert') {
             final group = payload['group'] as String? ?? '其他';
-            if (!group.startsWith('中国 / ') && !group.startsWith('国际 / ')) {
+            if (group != '其他' && !group.startsWith('其他 / ') && !group.startsWith('中国 / ') && !group.startsWith('国际 / ')) {
               final category = ChannelCategoryClassifier.classify(
                 name: payload['name'] as String,
                 groupTitle: group,
                 streamUrl: url,
               );
               payload['group'] = category == '国际'
-                  ? '国际 / ${ChannelCategoryClassifier.internationalCountryFor(name: payload['name'] as String, groupTitle: group)}'
+                  ? '国际 / ${ChannelCategoryClassifier.internationalCountryFor(name: payload['name'] as String, groupTitle: group)}${ChannelCategoryClassifier.isRadioChannel(name: payload['name'] as String, groupTitle: group, streamUrl: url) ? ' / 广播' : ''}'
                   : category == '其他'
                   ? '其他'
                   : '中国 / $category';
@@ -135,12 +155,13 @@ class ChannelInventorySyncService {
           });
         }
         if (batch.isEmpty) continue;
-        if (!_disposed)
+        if (!_disposed && !state.value.waiting) {
           state.value = WebsiteCatalogProgress(
             phase: '正在同步频道变更',
             total: pending.length,
             imported: acknowledged,
           );
+        }
         final receipts = await api.uploadChannelEvents(
           fingerprint: fingerprint,
           events: batch,
@@ -159,8 +180,9 @@ class ChannelInventorySyncService {
                 'retry',
               ].contains(receipt['status']) ||
               receipt['revision'] is! int ||
-              (receipt['revision'] as int) < 0)
+              (receipt['revision'] as int) < 0) {
             throw const FormatException('Invalid sync event receipt');
+          }
           final event = matches.single;
           if (receipt['status'] == 'retry') continue;
           if (event['kind'] == 'merge') {
@@ -260,37 +282,70 @@ class ChannelInventorySyncService {
             }
             await database.acknowledgeSharedEvent(event['id'] as String);
           });
-          if (receipt['status'] != 'applied')
+          if (receipt['status'] != 'applied') {
             AppDiagnostics.instance.log('channel_sync_${receipt['status']}', {
               'eventId': event['id'],
               'kind': event['kind'],
             });
+          }
           completed++;
         }
         acknowledged += completed;
+        final queued = api.lastSyncQueued && receipts.any((r) => r['status'] == 'retry');
+        waitingForServer = waitingForServer || queued;
+        if (completed == 0 && queued) {
+          await _deferEvents(
+            api.lastSyncRetryAfter ?? const Duration(seconds: 15),
+          );
+          break;
+        }
+        if (completed > 0) _eventFailures = 0;
         await Future<void>.delayed(const Duration(milliseconds: 30));
       }
       final stillPending = (await database.pendingSharedEvents()).isNotEmpty;
-      if (!_disposed)
+      if (!_disposed) {
         state.value = WebsiteCatalogProgress(
           phase: mergeConflict
               ? '频道变更未同步，公共库已变化，请重新选择'
+              : stillPending && waitingForServer
+              ? '网站已接收变更，等待确认，本机修改已保存'
               : stillPending
               ? '同步待重试，本机修改已保存'
               : '频道变更已同步',
           imported: acknowledged,
           complete: !stillPending,
-          error: stillPending || mergeConflict,
+          error: (stillPending && !waitingForServer) || mergeConflict,
+          waiting: stillPending && waitingForServer && !mergeConflict,
         );
+      }
     } catch (error, stack) {
-      if (!_disposed)
+      _eventFailures++;
+      var delay = Duration(seconds: 15 * (1 << _eventFailures.clamp(0, 8)));
+      if (error is BobTvApiException &&
+          error.retryAfter != null &&
+          error.retryAfter! > delay) {
+        delay = error.retryAfter!;
+      }
+      await _deferEvents(delay);
+      if (!_disposed) {
         state.value = const WebsiteCatalogProgress(
           phase: '同步待重试，本机修改已保存',
           error: true,
         );
+      }
       AppDiagnostics.instance.recordError('channel_events_sync', error, stack);
     }
     return acknowledged;
+  }
+
+  Future<void> _deferEvents(Duration delay) async {
+    _eventRetryAt = now().add(
+      delay > const Duration(days: 1) ? const Duration(days: 1) : delay,
+    );
+    await (await SharedPreferences.getInstance()).setString(
+      'bobtv_event_retry_at_v2',
+      _eventRetryAt!.toUtc().toIso8601String(),
+    );
   }
 
   Future<void> sync({bool refreshAfterRunning = false}) {
@@ -370,7 +425,7 @@ class ChannelInventorySyncService {
                 streamUrl: channel.streamUrl,
               );
           var group = category == '国际'
-              ? '国际 / ${countries[CountryNameInput(channel.name, channel.groupTitle).key] ?? ChannelCategoryClassifier.internationalCountryFor(name: channel.name, groupTitle: channel.groupTitle, tvgId: channel.tvgId)}'
+              ? '国际 / ${countries[CountryNameInput(channel.name, channel.groupTitle).key] ?? ChannelCategoryClassifier.internationalCountryFor(name: channel.name, groupTitle: channel.groupTitle, tvgId: channel.tvgId)}${ChannelCategoryClassifier.isRadioChannel(name: channel.name, groupTitle: channel.groupTitle, tvgId: channel.tvgId, streamUrl: channel.streamUrl) ? ' / 广播' : ''}'
               : category == '其他'
               ? '其他'
               : '中国 / $category';
@@ -500,7 +555,18 @@ class ChannelInventorySyncService {
     }
   }
 
+  /// Stop scheduling work and join every operation that can still use the DB.
+  Future<void> shutdown() async {
+    dispose();
+    await Future.wait<Object?>([
+      ?_running,
+      ?_eventsRunning,
+      ?_legacyRunning,
+    ]);
+  }
+
   void dispose() {
+    if (_disposed) return;
     _disposed = true;
     api.close();
     state.dispose();

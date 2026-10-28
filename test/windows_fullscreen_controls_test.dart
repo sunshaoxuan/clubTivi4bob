@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:clubtivi/app/windows_fullscreen_controls.dart';
 import 'package:clubtivi/features/player/desktop_fullscreen_session.dart';
+import 'package:clubtivi/core/desktop_window_pin.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -233,5 +234,53 @@ void main() {
     expect(find.text('原生窗口'), findsOneWidget);
     expect(find.byTooltip('关闭 BobTV'), findsNothing);
     expect(calls, isEmpty);
+  });
+
+  testWidgets('native restore preserves the explicit window pin', (
+    tester,
+  ) async {
+    var top = false;
+    final messenger =
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+    messenger.setMockMethodCallHandler(const MethodChannel('window_manager'), (
+      call,
+    ) async {
+      calls.add(call);
+      if (call.method == 'isFullScreen') return fullscreen;
+      if (call.method == 'isAlwaysOnTop') return top;
+      if (call.method == 'setAlwaysOnTop') {
+        top = (call.arguments as Map)['isAlwaysOnTop'] as bool;
+      }
+      if (call.method == 'setFullScreen') {
+        fullscreen = (call.arguments as Map)['isFullScreen'] as bool;
+      }
+      return null;
+    });
+    fullscreen = false;
+    final pin = DesktopWindowPin();
+    addTearDown(pin.dispose);
+    await pin.toggle();
+    fullscreen = true;
+    calls.clear();
+    await tester.pumpWidget(
+      MaterialApp(
+        home: WindowsFullscreenControls(
+          enabled: true,
+          pinning: pin,
+          child: const Scaffold(),
+        ),
+      ),
+    );
+    await tester.pump();
+    await tester.tap(find.byTooltip('恢复窗口'));
+    await tester.pumpAndSettle();
+    expect(fullscreen, isFalse);
+    expect(top, isTrue);
+    expect(pin.pinned, isTrue);
+    expect(
+      calls.where((call) => call.method == 'setAlwaysOnTop').single.arguments,
+      {'isAlwaysOnTop': true},
+    );
+    await tester.pumpWidget(const SizedBox.shrink());
   });
 }

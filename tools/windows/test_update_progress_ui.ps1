@@ -19,7 +19,12 @@ function Set-State([string]$phase,[Nullable[int]]$percent,[bool]$cancelled=$fals
     requiresAuthorization=$true;authorizationCancelled=$cancelled;oldVersion=$fixtureVersion}|ConvertTo-Json -Compress
   $temporary=$file+'.tmp'
   [IO.File]::WriteAllText($temporary,$payload,(New-Object Text.UTF8Encoding($false)))
-  if(Test-Path $file){[IO.File]::Replace($temporary,$file,[NullString]::Value,$true)}else{[IO.File]::Move($temporary,$file)}
+  for($attempt=0;;$attempt++){
+    try{
+      if(Test-Path $file){[IO.File]::Replace($temporary,$file,[NullString]::Value,$true)}else{[IO.File]::Move($temporary,$file)}
+      break
+    }catch [IO.IOException]{if($attempt -ge 99){throw};Start-Sleep -Milliseconds 20}
+  }
 }
 Set-State downloading 37
 $child=Start-Process powershell.exe -WindowStyle Hidden -PassThru -ArgumentList @(

@@ -179,17 +179,16 @@ function Copy-AppFile([string]$source, [string]$destination) {
 }
 
 function Suspend-AppCrashMonitor([string]$path) {
-  $script:crashMonitorDir=$path
+  # Retire only the legacy external monitor. Native crash recording stays active.
+  # Do not retain restart intent: updates and rollbacks must never revive it.
   $monitor=Join-Path $path 'Tools\hoteltv_crash_monitor.ps1'
   $escaped=[regex]::Escape($monitor)
-  $script:resumeCrashMonitor=$false
   $processes=@(Get-CimInstance Win32_Process)
   foreach($process in $processes){
     if($process.Name -ieq 'powershell.exe' -and
        $process.CommandLine -match ('["\s]'+$escaped+'["\s]')){
       Stop-Process -Id $process.ProcessId -Force -ErrorAction Stop
-      $script:resumeCrashMonitor=$true
-      Write-Log ('Paused BobTV crash monitor PID='+$process.ProcessId)
+      Write-Log ('Stopped legacy BobTV crash monitor PID='+$process.ProcessId)
     }
   }
   $toolsPrefix=[IO.Path]::GetFullPath((Join-Path $path 'Tools')).TrimEnd('\')+'\'
@@ -204,19 +203,6 @@ function Suspend-AppCrashMonitor([string]$path) {
       }
     }
   }
-}
-
-function Resume-AppCrashMonitor([string]$path) {
-  if(!$script:resumeCrashMonitor){return}
-  $path=$script:crashMonitorDir
-  $monitor=Join-Path $path 'Tools\hoteltv_crash_monitor.ps1'
-  $tool=Join-Path $path 'Tools\procdump64.exe'
-  if(!(Test-Path -LiteralPath $monitor) -or !(Test-Path -LiteralPath $tool)){return}
-  $dumps=Join-Path (Split-Path $root) 'CrashDumps'
-  Start-Process powershell.exe -WindowStyle Hidden -ArgumentList @(
-    '-NoProfile','-ExecutionPolicy','Bypass','-File',('"'+$monitor+'"'),
-    '-ProcDumpPath',('"'+$tool+'"'),'-DumpFolder',('"'+$dumps+'"')) | Out-Null
-  Write-Log 'Resumed BobTV crash monitor'
 }
 
 function Copy-Contents([string]$source, [string]$destination) {
@@ -575,8 +561,6 @@ try {
     Write-Status 'failed' $Version 0 ('更新未完成：' + $_.Exception.Message + '。详细记录见 worker.log 和 launcher.log。')
   }
 } finally {
-  try { Resume-AppCrashMonitor $AppDir }
-  catch { Write-Log ('Crash monitor restart deferred: '+$_.Exception.Message) }
   if ($locked) { $mutex.ReleaseMutex() }
   $mutex.Dispose()
 }

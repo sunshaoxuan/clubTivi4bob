@@ -2,7 +2,7 @@
 Description=Resume bounded authoritative BobTV EPG publication
 
 [Timer]
-OnBootSec=4min
+OnActiveSec=4min
 OnUnitInactiveSec=60s
 AccuracySec=10s
 RandomizedDelaySec=10s

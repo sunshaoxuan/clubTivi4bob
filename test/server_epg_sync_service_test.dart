@@ -487,6 +487,26 @@ void main() {
     },
   );
 
+  test(
+    'shutdown joins an in-flight EPG request before database close',
+    () async {
+      api.gate = Completer<void>();
+      final request = service.check();
+      while (api.checks == 0) {
+        await Future<void>.delayed(const Duration(milliseconds: 1));
+      }
+      var stopped = false;
+      final shutdown = service.shutdown().then((_) => stopped = true);
+      await Future<void>.delayed(Duration.zero);
+      expect(stopped, isFalse);
+      expect(await service.check(), isFalse);
+      api.gate!.complete();
+      await shutdown;
+      expect(await request, isFalse);
+      expect(await titles(), isEmpty);
+    },
+  );
+
   test('concurrent triggers share one request and one import', () async {
     api.gate = Completer<void>();
     final a = service.check();

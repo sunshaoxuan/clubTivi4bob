@@ -140,17 +140,8 @@ def ai(content, task, settings):
     if (endpoint.scheme != 'https' or not endpoint.hostname or
             endpoint.username or endpoint.password or endpoint.query or endpoint.fragment):
         raise ValueError('AI endpoint must use HTTPS without URL credentials')
-    now = int(time.time())
-    # Only trusted operator jobs may opt out. Public task payloads never supply
-    # settings. Opted-out jobs also do not consume other workers' local budget.
-    if settings.get('enforceLocalBudget', True):
-        with database() as conn:
-            conn.execute('BEGIN IMMEDIATE')
-            conn.execute('DELETE FROM ai_requests WHERE started<?', (now - 86400,))
-            hourly = conn.execute('SELECT count(*) FROM ai_requests WHERE started>?', (now - 3600,)).fetchone()[0]
-            daily = conn.execute('SELECT count(*) FROM ai_requests').fetchone()[0]
-            if hourly >= 60 or daily >= 500: raise BudgetDeferred()
-            conn.execute('INSERT INTO ai_requests VALUES (?)', (now,))
+    # Request availability follows the configured upstream service. Historical
+    # request counters must never become an invented hourly or daily quota.
     # Endpoint is administrator-controlled; never accepted from public requests.
     user_content = content if isinstance(content, list) else json.dumps(content, ensure_ascii=False)
     try:

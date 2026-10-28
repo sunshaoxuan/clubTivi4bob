@@ -16,6 +16,7 @@ class SharedSyncBadge extends StatelessWidget {
     builder: (context, _) {
       final states = [catalog.value, upload.value];
       final error = states.any((s) => s.error);
+      final waiting = states.any((s) => s.waiting);
       final busy = states.any(
         (s) => !s.complete && !s.error && s.phase.startsWith('正在'),
       );
@@ -23,6 +24,8 @@ class SharedSyncBadge extends StatelessWidget {
           ? '同步待重试'
           : busy
           ? '同步中'
+          : waiting
+          ? '等待确认'
           : '已同步';
       final detail = states
           .where((s) => s.phase.isNotEmpty)
@@ -52,7 +55,11 @@ class SharedSyncBadge extends StatelessWidget {
                   )
                 else
                   Icon(
-                    error ? Icons.cloud_off_rounded : Icons.cloud_done_rounded,
+                    error
+                        ? Icons.cloud_off_rounded
+                        : waiting
+                        ? Icons.schedule_rounded
+                        : Icons.cloud_done_rounded,
                     size: 13,
                     color: error ? Colors.amber : const Color(0xFF82CDBF),
                   ),

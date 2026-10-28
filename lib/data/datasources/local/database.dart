@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:isolate';
 import 'dart:convert';
 import 'package:drift/drift.dart';
 import 'package:drift/native.dart';
@@ -14,7 +15,7 @@ import '../../services/manual_channel_category.dart';
 import '../../services/channel_merge.dart';
 import '../../services/channel_route_transfer.dart';
 import '../../services/bobtv_api_client.dart';
-import '../../services/favorite_channel_identity.dart';
+import '../../services/channel_presentation_identity.dart';
 import 'tables.dart';
 
 part 'database.g.dart';
@@ -46,9 +47,28 @@ const _uuid = Uuid();
 class AppDatabase extends _$AppDatabase {
   Future<void>? _favoriteExpansion;
   bool _favoriteExpansionDone = false;
-  AppDatabase() : super(_openConnection());
+  factory AppDatabase() => AppDatabase._(_DatabaseWorker());
 
-  AppDatabase.forTesting(super.e);
+  AppDatabase._(_DatabaseWorker worker)
+      : _worker = worker,
+        super(_openConnection(worker));
+
+  AppDatabase.forTesting(super.e) : _worker = null;
+
+  final _DatabaseWorker? _worker;
+
+  Future<void>? _closing;
+
+  // Provider disposal and explicit exit share the native close acknowledgement.
+  @override
+  Future<void> close() => _closing ??= _close();
+
+  Future<void> _close() async {
+    await super.close();
+    // Drift's terminate request can reply before SQLite function destructors
+    // finish. Keep the Flutter VM alive until the owning isolate has exited.
+    await _worker?.waitForExit();
+  }
 
   @override
   int get schemaVersion => 8;
@@ -95,8 +115,16 @@ class AppDatabase extends _$AppDatabase {
       'identity_hash TEXT NOT NULL, name TEXT NOT NULL, epg_id TEXT, group_name TEXT)',
     );
     await customStatement(
+      'CREATE TABLE IF NOT EXISTS catalog_presentation_context '
+      '(local_channel_id TEXT PRIMARY KEY, country_code TEXT, region_code TEXT)',
+    );
+    await customStatement(
       'CREATE TABLE IF NOT EXISTS catalog_epg_identity_version '
       '(id INTEGER PRIMARY KEY CHECK(id=1), version TEXT NOT NULL)',
+    );
+    await customStatement(
+      'CREATE TABLE IF NOT EXISTS catalog_route_categories '
+      '(local_channel_id TEXT PRIMARY KEY, groups_json TEXT NOT NULL)',
     );
     await customStatement(
       'CREATE TABLE IF NOT EXISTS server_epg_receipt '
@@ -292,6 +320,27 @@ class AppDatabase extends _$AppDatabase {
         [version],
       );
     }
+  }
+
+  Future<Map<String, List<String>>> publicCatalogCategoryGroups(
+    Iterable<String> ids,
+  ) async {
+    final result = <String, List<String>>{};
+    final unique = ids.toSet().toList();
+    for (var offset = 0; offset < unique.length; offset += 300) {
+      final rows = await customSelect('''
+        SELECT a.local_channel_id,a.groups_json FROM catalog_route_categories a
+        JOIN catalog_epg_routes r ON r.local_channel_id=a.local_channel_id
+        JOIN channels c ON c.id=a.local_channel_id
+        WHERE c.group_title=r.group_name AND a.local_channel_id IN
+          (SELECT value FROM json_each(?))
+      ''', variables: [Variable(jsonEncode(unique.skip(offset).take(300).toList()))]).get();
+      for (final row in rows) {
+        result[row.read<String>('local_channel_id')] =
+            (jsonDecode(row.read<String>('groups_json')) as List).cast<String>();
+      }
+    }
+    return result;
   }
 
   Future<int> sharedRouteRevision(String url) async {
@@ -581,51 +630,85 @@ class AppDatabase extends _$AppDatabase {
     String? group,
     int offset = 0,
     int limit = 80,
+    Map<String, List<Channel>>? snapshot,
   }) async {
-    final pattern =
-        '%${query.toLowerCase().replaceAll('!', '!!').replaceAll('%', '!%').replaceAll('_', '!_')}%';
-    final rows = await customSelect(
-      'SELECT MIN(c.id) AS id,c.name,COALESCE(c.group_title,\'其他\') AS g,'
-      'm.merge_id,COUNT(DISTINCT c.stream_url) AS n FROM channels c '
-      'LEFT JOIN channel_merge_overrides m ON m.url=c.stream_url '
-      'WHERE c.hidden=0 AND lower(c.name) LIKE ? ESCAPE \'!\' '
-      '${group == null ? '' : "AND COALESCE(c.group_title,'其他')=? "}'
-      'GROUP BY c.name,g,m.merge_id ORDER BY c.name,g LIMIT ? OFFSET ?',
-      variables: [
-        Variable(pattern),
-        if (group != null) Variable(group),
-        Variable(limit.clamp(1, 80)),
-        Variable(offset),
-      ],
-      readsFrom: {channels},
-    ).get();
-    return rows
-        .map(
-          (row) => ChannelMergeChoice(
-            id: row.read<String>('id'),
-            name: row.read<String>('name'),
-            group: row.read<String>('g'),
-            routeCount: row.read<int>('n'),
-            mergeId: row.readNullable<String>('merge_id'),
-          ),
-        )
-        .toList();
+    final members = snapshot ?? await channelMergeSnapshot();
+    final queryLower = query.toLowerCase();
+    final choices = <ChannelMergeChoice>[];
+    for (final entry in members.entries) {
+      final matches = entry.value.where((c) =>
+          (group == null || (c.groupTitle ?? '其他') == group) &&
+          c.name.toLowerCase().contains(queryLower)).toList();
+      if (matches.isEmpty) continue;
+      final first = matches.first;
+      choices.add(ChannelMergeChoice(
+        id: entry.value.first.id, identityKey: entry.key,
+        name: first.name, group: first.groupTitle ?? '其他',
+        routeCount: entry.value.map((c) => canonicalRouteUrl(c.streamUrl)).toSet().length,
+      ));
+    }
+    choices.sort((a, b) {
+      final name = a.name.compareTo(b.name);
+      if (name != 0) return name;
+      final category = a.group.compareTo(b.group);
+      return category != 0 ? category : a.id.compareTo(b.id);
+    });
+    return choices.skip(offset < 0 ? 0 : offset).take(limit.clamp(1, 80)).toList();
   }
 
-  Future<List<Channel>> channelsForMergeChoice(
-    ChannelMergeChoice choice,
-  ) async {
-    final rows = await customSelect(
-      choice.mergeId == null
-          ? "SELECT * FROM channels WHERE name=? AND COALESCE(group_title,'其他')=?"
-          : 'SELECT * FROM channels WHERE stream_url IN '
-                '(SELECT url FROM channel_merge_overrides WHERE merge_id=?)',
-      variables: choice.mergeId == null
-          ? [Variable(choice.name), Variable(choice.group)]
-          : [Variable(choice.mergeId!)],
-      readsFrom: {channels},
-    ).get();
-    return rows.map((row) => channels.map(row.data)).toList();
+  /// An explicit picker may reuse this snapshot for search and pagination.
+  /// Selected identities are read again before committing a merge or transfer.
+  Future<Map<String, List<Channel>>> channelMergeSnapshot() async {
+    final visible = await (select(channels)
+      ..where((c) => c.hidden.equals(false))
+      ..orderBy([(c) => OrderingTerm.asc(c.id)])).get();
+    final keys = await channelPresentationKeys(visible);
+    final result = <String, List<Channel>>{};
+    for (final channel in visible) {
+      (result[keys[channel.id]!] ??= []).add(channel);
+    }
+    return result;
+  }
+
+  Future<ChannelMergeChoice> channelMergeChoiceForChannel(Channel channel,
+      {Map<String, List<Channel>>? snapshot}) async {
+    final groups = snapshot ?? await channelMergeSnapshot();
+    for (final entry in groups.entries) {
+      if (!entry.value.any((c) => c.id == channel.id)) continue;
+      return ChannelMergeChoice(
+        id: entry.value.first.id, identityKey: entry.key,
+        name: channel.name, group: channel.groupTitle ?? '其他',
+        routeCount: entry.value.map((c) => canonicalRouteUrl(c.streamUrl)).toSet().length,
+      );
+    }
+    throw StateError('Channel no longer exists');
+  }
+
+  Future<List<Channel>> channelsForMergeChoice(ChannelMergeChoice choice) =>
+      channelsForMergeChoices([choice]);
+
+  Future<List<Channel>> channelsForMergeChoices(Iterable<ChannelMergeChoice> choices) async {
+    final groups = await channelMergeSnapshot();
+    final members = <String, Channel>{};
+    for (final choice in choices) {
+      List<Channel>? selected;
+      if (choice.mergeId != null) {
+        selected = groups['manual:${choice.mergeId}'];
+      } else {
+        for (final entry in groups.entries) {
+          if (entry.value.any((c) => c.id == choice.id) &&
+              (choice.identityKey == null || choice.identityKey == entry.key)) {
+            selected = entry.value;
+            break;
+          }
+        }
+      }
+      if (selected == null || selected.isEmpty) {
+        throw StateError('Channel changed; reopen the selection');
+      }
+      for (final channel in selected) { members[channel.id] = channel; }
+    }
+    return members.values.toList();
   }
 
   Future<Set<String>> pendingSharedMergeUrls() async {
@@ -878,12 +961,16 @@ class AppDatabase extends _$AppDatabase {
       }
       final rows = await customSelect(
         'SELECT * FROM channels WHERE '
-        '(provider_id = ? AND group_title IN (?, ?)) OR '
+        '(group_title = ? OR group_title LIKE ?) OR '
+        '(provider_id = ? AND (group_title IN (?, ?) OR group_title LIKE ?)) OR '
         '(provider_id != ? AND NOT (${conditions.join(' OR ')}))',
         variables: [
+          Variable.withString('其他'),
+          Variable.withString('其他 / %'),
           Variable.withString('bobtv-channel-catalog'),
           Variable.withString('其他'),
           Variable.withString('中国 / 其他'),
+          Variable.withString('其他 / %'),
           Variable.withString('bobtv-channel-catalog'),
           ...variables,
         ],
@@ -977,10 +1064,12 @@ class AppDatabase extends _$AppDatabase {
   Future<List<String>> getStructuredCategoryGroups() async {
     final rows = await customSelect(
       'SELECT DISTINCT group_title FROM channels '
-      'WHERE group_title LIKE ? OR group_title LIKE ? ORDER BY group_title',
+      'WHERE group_title LIKE ? OR group_title LIKE ? OR group_title = ? OR group_title LIKE ? ORDER BY group_title',
       variables: [
         Variable.withString('中国 / %'),
         Variable.withString('国际 / %'),
+        Variable.withString('其他'),
+        Variable.withString('其他 / %'),
       ],
       readsFrom: {channels},
     ).get();
@@ -1818,31 +1907,73 @@ class AppDatabase extends _$AppDatabase {
     return rows.map((row) => row.readTable(channels)).toList();
   }
 
-  String _favoriteKey(Channel channel, [Map<String, String> catalogIds = const {}]) =>
-    channel.providerId == 'bobtv-channel-catalog'
-      ? 'catalog:${catalogIds[channel.id] ?? channel.id}'
-      : favoriteChannelIdentity(name: channel.name,
-          group: channel.groupTitle, tvgName: channel.tvgName, tvgId: channel.tvgId);
+  /// Shared by cards, route counts and favorite membership on every platform.
+  /// Looking up an exact URL can bridge a legacy row even when its public row
+  /// is outside the active category or has not itself been favorited.
+  Future<Map<String, String>> channelPresentationKeys(
+    Iterable<Channel> selected,
+  ) async {
+    final routes = {for (final route in selected) route.id: route};
+    final urls = routes.values.map((c) => canonicalRouteUrl(c.streamUrl)).toSet().toList();
+    for (var offset = 0; offset < urls.length; offset += 300) {
+      final rows = await (select(channels)..where((c) =>
+          c.providerId.equals('bobtv-channel-catalog') &
+          c.streamUrl.isIn(urls.skip(offset).take(300)))).get();
+      for (final route in rows) { routes[route.id] = route; }
+    }
+    // Resolve the full authoritative service before assigning presentation keys.
+    // Category/favorite queries may contain only one of its route labels.
+    final selectedCatalogIds = await publicCatalogChannelIds(routes.values
+        .where((c) => c.providerId == 'bobtv-channel-catalog').map((c) => c.id));
+    final identities = selectedCatalogIds.values.toSet().toList();
+    for (var offset = 0; offset < identities.length; offset += 400) {
+      final page = identities.skip(offset).take(400).toList();
+      final rows = await customSelect(
+        'SELECT c.* FROM channels c JOIN catalog_epg_routes r '
+        'ON r.local_channel_id=c.id WHERE c.provider_id=? '
+        'AND r.catalog_channel_id IN (SELECT value FROM json_each(?))',
+        variables: [Variable('bobtv-channel-catalog'), Variable(jsonEncode(page))],
+      ).get();
+      for (final row in rows) {
+        final route = channels.map(row.data);
+        routes[route.id] = route;
+      }
+    }
+    final catalogIds = await publicCatalogChannelIds(routes.values
+        .where((c) => c.providerId == 'bobtv-channel-catalog').map((c) => c.id));
+    final context = <String, QueryRow>{};
+    final publicIds = catalogIds.keys.toList();
+    for (var offset = 0; offset < publicIds.length; offset += 400) {
+      final page = publicIds.skip(offset).take(400).toList();
+      final rows = await customSelect(
+        'SELECT * FROM catalog_presentation_context WHERE local_channel_id IN '
+        '(SELECT value FROM json_each(?))',
+        variables: [Variable(jsonEncode(page))],
+      ).get();
+      for (final row in rows) { context[row.read<String>('local_channel_id')] = row; }
+    }
+    final mergeIds = await channelMergeIds(routes.values.map((c) => c.streamUrl));
+    return ChannelPresentationIdentity.keys(routes.values.map((c) =>
+      ChannelPresentationRoute(id: c.id, name: c.name, url: c.streamUrl,
+        group: c.groupTitle, tvgName: c.tvgName, tvgId: c.tvgId,
+        countryCode: context[c.id]?.readNullable<String>('country_code'),
+        regionCode: context[c.id]?.readNullable<String>('region_code'),
+        mergeId: mergeIds[canonicalRouteUrl(c.streamUrl)],
+        catalogId: c.providerId == 'bobtv-channel-catalog'
+            ? catalogIds[c.id] ?? c.id : null)));
+  }
 
   Future<Set<String>> _favoriteEquivalentIds(String channelId) async {
     final selected = await (select(channels)..where((c) => c.id.equals(channelId))).getSingleOrNull();
     if (selected == null) return {};
-    if (selected.providerId == 'bobtv-channel-catalog') {
-      final rows = await customSelect('''
-        SELECT c.id FROM catalog_epg_routes a
-        JOIN catalog_epg_routes r ON r.catalog_channel_id=a.catalog_channel_id
-        JOIN channels c ON c.id=r.local_channel_id
-        WHERE a.local_channel_id=? AND c.provider_id='bobtv-channel-catalog'
-        AND NOT EXISTS(SELECT 1 FROM blocked_stream_routes b WHERE b.stream_url=c.stream_url)
-      ''', variables: [Variable.withString(channelId)]).get();
-      return rows.isEmpty ? {channelId} : {for (final row in rows) row.read<String>('id')};
-    }
-    final key = _favoriteKey(selected);
+    final all = await select(channels).get();
+    final keys = await channelPresentationKeys(all);
+    final key = keys[channelId];
     final blocked = await getBlockedStreamUrls();
     // Explicit favorite actions can search all providers and classifications.
     // This is not a background stream probe or whole-catalog media scan.
-    return {for (final c in await select(channels).get())
-      if (c.providerId != 'bobtv-channel-catalog' && _favoriteKey(c) == key &&
+    return {for (final c in all)
+      if (keys[c.id] == key &&
           !blocked.contains(canonicalRouteUrl(c.streamUrl))) c.id};
   }
 
@@ -1862,17 +1993,15 @@ class AppDatabase extends _$AppDatabase {
     if (members.isEmpty) return;
     final anchors = {for (final c in await getChannelsByIds(members.map((m) => m.channelId).toSet())) c.id: c};
     final newRoutes = await getChannelsByIds(ids);
-    final catalogIds = await publicCatalogChannelIds([
-      ...anchors.values, ...newRoutes,
-    ].where((c) => c.providerId == 'bobtv-channel-catalog').map((c) => c.id));
+    final keys = await channelPresentationKeys([...anchors.values, ...newRoutes]);
     final listsByKey = <String, Set<String>>{};
     for (final member in members) {
       final anchor = anchors[member.channelId];
-      if (anchor != null) (listsByKey[_favoriteKey(anchor, catalogIds)] ??= {}).add(member.listId);
+      if (anchor != null) (listsByKey[keys[anchor.id]!] ??= {}).add(member.listId);
     }
     await batch((b) {
       for (final route in newRoutes) {
-        for (final list in listsByKey[_favoriteKey(route, catalogIds)] ?? <String>{}) {
+        for (final list in listsByKey[keys[route.id]] ?? <String>{}) {
           b.insert(favoriteListChannels, FavoriteListChannelsCompanion.insert(
               listId: list, channelId: route.id), mode: InsertMode.insertOrIgnore);
         }
@@ -2095,7 +2224,32 @@ class AppDatabase extends _$AppDatabase {
           .go();
 }
 
-LazyDatabase _openConnection() {
+class _DatabaseWorker {
+  ReceivePort? _exitPort;
+  Future<dynamic>? _exited;
+
+  SendPort observeExit() {
+    final port = _exitPort = ReceivePort('BobTV SQLite shutdown');
+    _exited = port.first;
+    return port.sendPort;
+  }
+
+  Future<void> waitForExit() async {
+    if (_exited == null) return; // The lazy connection was never opened.
+    try {
+      await _exited;
+    } finally {
+      _exitPort?.close();
+    }
+  }
+}
+
+// A separate closure scope keeps the ReceivePort and database off the message
+// sent to the worker. Only the SendPort crosses the isolate boundary.
+void Function() _observeDatabaseExit(SendPort port) =>
+    () => Isolate.current.addOnExitListener(port);
+
+LazyDatabase _openConnection(_DatabaseWorker worker) {
   return LazyDatabase(() async {
     final dir = await getApplicationSupportDirectory();
     final file = File(p.join(dir.path, 'clubtivi', 'clubtivi.db'));
@@ -2110,7 +2264,10 @@ LazyDatabase _openConnection() {
       }
     }
 
-    return NativeDatabase.createInBackground(file);
+    return NativeDatabase.createInBackground(
+      file,
+      isolateSetup: _observeDatabaseExit(worker.observeExit()),
+    );
   });
 }
 

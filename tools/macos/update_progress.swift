@@ -135,7 +135,7 @@ final class UpdateProgress: NSObject, NSApplicationDelegate, NSWindowDelegate {
         let percent = min(100, max(0, (state["percent"] as? NSNumber)?.doubleValue ?? 0))
         let titles = ["starting": "正在准备下载", "downloading": "正在下载更新 \(Int(percent))%",
                       "verifying": "正在校验安装包", "ready": "下载完成，等待播放器退出",
-                      "backingUp": "正在备份旧版", "installing": "正在安装更新",
+                      "backingUp": "正在准备临时回退", "installing": "正在安装更新",
                       "installed": "更新已完成", "failed": "更新未完成"]
         phase.stringValue = titles[status] ?? "正在处理更新"
         if !["installed", "failed"].contains(status) {
@@ -152,7 +152,7 @@ final class UpdateProgress: NSObject, NSApplicationDelegate, NSWindowDelegate {
             spinner.stopAnimation(nil); spinner.isHidden = true; launch.isEnabled = true
             if finishedAt == nil { finishedAt = Date() }
             let remaining = max(0, 20 - Int(Date().timeIntervalSince(finishedAt!)))
-            note.stringValue = "旧版备份已保留。此窗口将在 \(remaining) 秒后关闭。"
+            note.stringValue = "启动验证后自动清理回退文件，\(remaining) 秒后关闭。"
             if remaining == 0 { NSApp.terminate(nil) }
         } else if status == "failed" {
             failure(phase.stringValue, detail.stringValue)
@@ -165,7 +165,7 @@ final class UpdateProgress: NSObject, NSApplicationDelegate, NSWindowDelegate {
         phase.stringValue = title; detail.stringValue = message
         spinner.stopAnimation(nil); spinner.isHidden = true
         bar.stopAnimation(nil); bar.isIndeterminate = false
-        launch.isEnabled = true; note.stringValue = "可重新启动 BobTV 重试，旧版备份不会被删除。"
+        launch.isEnabled = true; note.stringValue = "可重新启动 BobTV 重试。启动检查通过前保留临时回退文件。"
     }
     @objc func openPlayer() { NSWorkspace.shared.open(app); NSApp.terminate(nil) }
     func windowWillClose(_ notification: Notification) { timer?.invalidate(); NSApp.terminate(nil) }

@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:clubtivi/features/player/desktop_fullscreen_session.dart';
 import 'package:clubtivi/features/player/window_manager_fullscreen_backend.dart';
 import 'package:clubtivi/core/desktop_window_sizing.dart';
+import 'package:clubtivi/core/desktop_window_pin.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -124,13 +125,17 @@ void main() {
         .setMockMethodCallHandler(channel, null);
   });
 
-  WindowManagerFullscreenBackend createBackend({required bool isMacOS}) {
+  WindowManagerFullscreenBackend createBackend({
+    required bool isMacOS,
+    DesktopWindowPin? pinning,
+  }) {
     hasBackend = true;
     native.synchronousFullscreen = !isMacOS;
     backend = WindowManagerFullscreenBackend(
       isMacOS: isMacOS,
       isWindows: !isMacOS,
       sizing: DesktopWindowSizing(isWindows: !isMacOS, pixelRatio: () => 1),
+      pinning: pinning,
     );
     return backend;
   }
@@ -671,6 +676,31 @@ void main() {
   );
 
   for (final isMacOS in [true, false]) {
+    for (final pinned in [true, false]) {
+      test(
+        'explicit pin=$pinned survives stale fullscreen snapshot on Mac=$isMacOS',
+        () async {
+          final pin = DesktopWindowPin();
+          addTearDown(pin.dispose);
+          await pin.toggle();
+          if (!pinned) await pin.toggle();
+          createBackend(isMacOS: isMacOS, pinning: pin);
+          final snapshot = await backend.capture();
+          expect(pin.canToggle, isFalse);
+          native.alwaysOnTop = !pinned;
+          await backend.restore(
+            FullscreenWindowSnapshot(
+              bounds: snapshot.bounds,
+              maximized: snapshot.maximized,
+              alwaysOnTop: !pinned,
+            ),
+          );
+          expect(native.alwaysOnTop, pinned);
+          expect(pin.pinned, pinned);
+          expect(pin.canToggle, isTrue);
+        },
+      );
+    }
     for (final originalAlwaysOnTop in [true, false]) {
       test(
         '${isMacOS ? 'Mac' : 'Windows'} restores always-on-top=$originalAlwaysOnTop',
@@ -690,4 +720,29 @@ void main() {
       );
     }
   }
+
+  test(
+    'pinned Mac caller in a fullscreen Space keeps a normal native level',
+    () async {
+      final pin = DesktopWindowPin();
+      addTearDown(pin.dispose);
+      await pin.toggle();
+      native.fullscreen = true;
+      createBackend(isMacOS: true, pinning: pin);
+      await backend.restore(
+        FullscreenWindowSnapshot(
+          bounds: _snapshot.bounds,
+          maximized: false,
+          alwaysOnTop: true,
+          wasFullscreen: true,
+        ),
+      );
+      expect(native.alwaysOnTop, isFalse);
+      expect(pin.pinned, isTrue);
+      native.fullscreen = false;
+      pin.onWindowLeaveFullScreen();
+      await pin.idle;
+      expect(native.alwaysOnTop, isTrue);
+    },
+  );
 }

@@ -11,7 +11,7 @@ if((Get-Item "$app\clubtivi.exe").VersionInfo.FileVersion -ne '1.0.4+89'){throw 
 $tokens=$null;$errors=$null
 $ast=[Management.Automation.Language.Parser]::ParseInput([IO.File]::ReadAllText("$source\assets\updater\worker.ps1",[Text.Encoding]::UTF8),[ref]$tokens,[ref]$errors)
 if($errors.Count){throw 'Updater parser errors'}
-$names=@('Suspend-AppCrashMonitor','Resume-AppCrashMonitor','Write-Log','Get-Sha256','Copy-AppFile','Copy-Contents')
+$names=@('Suspend-AppCrashMonitor','Write-Log','Get-Sha256','Copy-AppFile','Copy-Contents')
 foreach($f in $ast.FindAll({param($node) $node -is [Management.Automation.Language.FunctionDefinitionAst]},$true)){
  if($f.Name -in $names){. ([scriptblock]::Create($f.Extent.Text))}
 }
@@ -52,7 +52,5 @@ try {
  Move-Item -LiteralPath "$backup\app" -Destination $app
  throw
 }
-Resume-AppCrashMonitor $app
 Start-ScheduledTask 'BobTV-Local86-Test'
-Start-ScheduledTask 'BobTV-CrashMonitor-Test86'
 @{version='1.0.5+90';backup=$backup;userDataUntouched=$true;freshBundle=$true}|ConvertTo-Json -Compress

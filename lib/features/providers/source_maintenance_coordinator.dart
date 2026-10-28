@@ -31,7 +31,9 @@ class SourceMaintenanceCoordinator {
     fetch: (urls) async {
       final client = BobTvApiClient(baseUri: websiteCatalog.api.baseUri);
       try {
-        return await client.fetchRouteState(urls).timeout(const Duration(seconds: 3));
+        return await client
+            .fetchRouteState(urls)
+            .timeout(const Duration(seconds: 3));
       } finally {
         client.close();
       }
@@ -53,6 +55,9 @@ class SourceMaintenanceCoordinator {
   Timer? _snapshotTimer;
   Timer? _catalogTimer;
   Timer? _changesTimer;
+  Future<void>? _initialization;
+  Future<void>? _bootstrap;
+  Future<void>? _changes;
   bool _changesRunning = false;
   bool _started = false;
   bool _disposed = false;
@@ -69,7 +74,9 @@ class SourceMaintenanceCoordinator {
   void start() {
     if (_started || _disposed) return;
     _started = true;
-    unawaited(regionalRoutes?.initialize() ?? Future<void>.value());
+    unawaited(
+      _initialization = regionalRoutes?.initialize() ?? Future<void>.value(),
+    );
     AppDiagnostics.instance.log('background_work_policy', {
       'globalGithubScanning': false,
       'globalRouteScanning': false,
@@ -80,7 +87,7 @@ class SourceMaintenanceCoordinator {
     _snapshotTimer = Timer(
       const Duration(seconds: 2),
       () => unawaited(
-        _importInitialSnapshot().catchError(
+        (_bootstrap = _importInitialSnapshot()).catchError(
           (Object error, StackTrace stack) => AppDiagnostics.instance
               .recordError('shared_catalog_bootstrap', error, stack),
         ),
@@ -101,7 +108,14 @@ class SourceMaintenanceCoordinator {
     unawaited(privateFavorites.sync());
   }
 
-  Future<void> _syncSharedChanges({bool pull = false}) async {
+  Future<void> _syncSharedChanges({bool pull = false}) {
+    if (_disposed) return Future.value();
+    return _changes ??= _runSharedChanges(
+      pull: pull,
+    ).whenComplete(() => _changes = null);
+  }
+
+  Future<void> _runSharedChanges({bool pull = false}) async {
     if (_changesRunning || _disposed) return;
     _changesRunning = true;
     try {
@@ -124,12 +138,15 @@ class SourceMaintenanceCoordinator {
     )) {
       await websiteCatalog.importBundled();
     }
+    if (_disposed) return;
     await websiteCatalog.sync();
+    if (_disposed) return;
     if (!(await manager.database.getAllProviders()).any(
       (p) => p.id == WebsiteChannelCatalogService.providerId,
     )) {
       await _importBundledSnapshot();
     }
+    if (_disposed) return;
     await inventory.syncLegacyInventoryOnce();
   }
 
@@ -152,7 +169,22 @@ class SourceMaintenanceCoordinator {
     }
   }
 
+  Future<void> shutdown() async {
+    dispose();
+    await Future.wait<Object?>([
+      ?_initialization,
+      ?_bootstrap,
+      ?_changes,
+      websiteCatalog.shutdown(),
+      routeStates.shutdown(),
+      inventory.shutdown(),
+      privateFavorites.shutdown(),
+      if (regionalRoutes != null) regionalRoutes!.shutdown(),
+    ]);
+  }
+
   void dispose() {
+    if (_disposed) return;
     _disposed = true;
     _snapshotTimer?.cancel();
     _catalogTimer?.cancel();

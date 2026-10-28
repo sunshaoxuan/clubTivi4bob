@@ -30,7 +30,8 @@ class RegionalRouteService {
   bool _disposed = false;
   int _networkGeneration = 0;
 
-  String get networkId => '${_profile?['networkId'] as String? ?? 'ZZ:*:*'}|direct';
+  String get networkId =>
+      '${_profile?['networkId'] as String? ?? 'ZZ:*:*'}|direct';
 
   Map<String, Object?> observation(Map<String, Object?> values) => {
     'transport': 'direct',
@@ -40,6 +41,7 @@ class RegionalRouteService {
 
   Future<void> initialize() async {
     await tracker.load();
+    if (_disposed) return;
     tracker.setNetworkContext(networkId);
     try {
       final prefs = await SharedPreferences.getInstance();
@@ -48,6 +50,7 @@ class RegionalRouteService {
         await _applyProfile(value);
       }
     } catch (_) {}
+    if (_disposed) return;
     tracker.prepareCandidates = prepare;
     await refresh();
   }
@@ -87,6 +90,7 @@ class RegionalRouteService {
   }
 
   Future<void> _applyProfile(Map<String, dynamic> profile) async {
+    if (_disposed) return;
     if (_profile?['issuedAt'] is int &&
         profile['issuedAt'] is int &&
         (profile['issuedAt'] as int) < (_profile!['issuedAt'] as int))
@@ -124,9 +128,9 @@ class RegionalRouteService {
     for (var offset = 0; offset < urls.length && offset < 400; offset += 200) {
       final page = urls.skip(offset).take(200).toList();
       final key = '$networkId:${page.join('\n')}';
-      await (_rankings[key] ??= _rank(
-        page,
-      ).whenComplete(() { _rankings.remove(key); }));
+      await (_rankings[key] ??= _rank(page).whenComplete(() {
+        _rankings.remove(key);
+      }));
     }
   }
 
@@ -194,7 +198,14 @@ class RegionalRouteService {
       (profile['expiresAt'] as int) >
           DateTime.now().millisecondsSinceEpoch ~/ 1000;
 
+  /// Stop scheduling work and join every operation that can still use the DB.
+  Future<void> shutdown() async {
+    dispose();
+    await Future.wait<Object?>([?_refreshing, ..._rankings.values]);
+  }
+
   void dispose() {
+    if (_disposed) return;
     _disposed = true;
     tracker.prepareCandidates = null;
     api.close();

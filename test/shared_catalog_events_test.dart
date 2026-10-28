@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:async';
 import 'dart:convert';
 import 'package:clubtivi/data/datasources/local/database.dart' as db;
 import 'package:clubtivi/data/services/channel_inventory_sync_service.dart';
@@ -15,20 +16,28 @@ const url = 'https://media.example.org/news.m3u8';
 class EventApi extends BobTvApiClient {
   bool offline = false;
   bool retrySingleSuccess = false;
+  bool queued = false;
+  Completer<void>? gate;
   final events = <Map<String, Object?>>[];
   @override
   Future<List<Map<String, dynamic>>> uploadChannelEvents({
     required String fingerprint,
     required List<Map<String, Object?>> events,
   }) async {
+    if (gate != null) await gate!.future;
     if (offline) throw const SocketException('offline');
+    lastSyncQueued = queued;
+    lastSyncRetryAfter = queued ? const Duration(seconds: 15) : null;
     this.events.addAll(events);
     return [
       for (final e in events)
         {
           'id': e['id'],
           'status':
-              retrySingleSuccess && e['kind'] == 'health' && e['success'] == 1
+              queued ||
+                  (retrySingleSuccess &&
+                      e['kind'] == 'health' &&
+                      e['success'] == 1)
               ? 'retry'
               : 'applied',
           'revision': e['kind'] == 'classify'
@@ -61,6 +70,59 @@ Future<void> seed(db.AppDatabase database) async {
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   setUp(() => SharedPreferences.setMockInitialValues({}));
+  test('queued batches retain IDs and wait for Retry-After', () async {
+    var clock = DateTime.utc(2026, 10, 23);
+    final database = db.AppDatabase.forTesting(NativeDatabase.memory());
+    addTearDown(database.close);
+    await seed(database);
+    final initial = (await database.pendingSharedEvents()).single['id'];
+    final api = EventApi()..queued = true;
+    final service = ChannelInventorySyncService(
+      database: database,
+      api: api,
+      fingerprintOverride: 'a' * 64,
+      now: () => clock,
+    );
+    addTearDown(service.dispose);
+    expect(await service.flushEvents(), 0);
+    expect(api.events, hasLength(1));
+    expect((await database.pendingSharedEvents()).single['id'], initial);
+    expect(service.state.value.waiting, isTrue);
+    expect(service.state.value.error, isFalse);
+    api.queued = false;
+    expect(await service.flushEvents(), 0);
+    expect(api.events, hasLength(1));
+    clock = clock.add(const Duration(seconds: 16));
+    api.gate = Completer<void>();
+    final confirmation = service.flushEvents();
+    await Future<void>.delayed(Duration.zero);
+    expect(service.state.value.waiting, isTrue);
+    expect(service.state.value.phase.startsWith('正在'), isFalse);
+    api.gate!.complete();
+    expect(await confirmation, 1);
+    expect(service.state.value.waiting, isFalse);
+    expect(service.state.value.complete, isTrue);
+    expect(api.events.last['id'], initial);
+    expect(await database.pendingSharedEvents(), isEmpty);
+  });
+  test('a failed confirmation poll remains a genuine retry error', () async {
+    var clock = DateTime.utc(2026, 10, 24);
+    final database = db.AppDatabase.forTesting(NativeDatabase.memory());
+    addTearDown(database.close);
+    await seed(database);
+    final api = EventApi()..queued = true;
+    final service = ChannelInventorySyncService(database: database, api: api,
+      fingerprintOverride: 'a' * 64, now: () => clock);
+    addTearDown(service.dispose);
+    await service.flushEvents();
+    expect(service.state.value.waiting, isTrue);
+    clock = clock.add(const Duration(seconds: 16));
+    api.offline = true;
+    await service.flushEvents();
+    expect(service.state.value.error, isTrue);
+    expect(service.state.value.waiting, isFalse);
+    expect(await database.pendingSharedEvents(), hasLength(1));
+  });
   test('retry receipts cannot starve later health observations', () async {
     final database = db.AppDatabase.forTesting(NativeDatabase.memory());
     addTearDown(database.close);
@@ -129,6 +191,7 @@ void main() {
     expect((await database.pendingSharedEvents()).first['kind'], 'retire');
   });
   test('durable queue survives offline failure and database restart', () async {
+    var clock = DateTime.utc(2026, 10, 23);
     final dir = await Directory.systemTemp.createTemp('bobtv-sync-test-');
     final file = File('${dir.path}/test.sqlite');
     var database = db.AppDatabase.forTesting(NativeDatabase(file));
@@ -138,6 +201,7 @@ void main() {
       database: database,
       api: api,
       fingerprintOverride: 'a' * 64,
+      now: () => clock,
     );
     expect(await service.flushEvents(), 0);
     expect(await database.pendingSharedEvents(), hasLength(1));
@@ -148,7 +212,13 @@ void main() {
       database: database,
       api: EventApi(),
       fingerprintOverride: 'a' * 64,
+      now: () => clock,
     );
+    expect(
+      await next.flushEvents(),
+      0,
+    ); // Restart preserves network backoff too.
+    clock = clock.add(const Duration(minutes: 1));
     expect(await next.flushEvents(), 1);
     expect(await database.pendingSharedEvents(), isEmpty);
     next.dispose();

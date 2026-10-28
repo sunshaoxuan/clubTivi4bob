@@ -19,6 +19,7 @@ class ResourceNodeRouter {
   Uri _selected = primary;
   DateTime? _expires;
   Future<void>? _probing;
+  int _epoch = 0;
   final Map<Uri, DateTime> _unavailable = {};
 
   Uri get selected => _selected;
@@ -64,6 +65,7 @@ class ResourceNodeRouter {
   }
 
   Future<void> _refresh() async {
+    final epoch = _epoch;
     Future<Duration?> measure(Uri base) async {
       if (_unavailable[base]?.isAfter(now()) ?? false) return null;
       try {
@@ -74,6 +76,7 @@ class ResourceNodeRouter {
     }
 
     final times = await Future.wait([measure(primary), measure(relay)]);
+    if (epoch != _epoch) return; // A stale probe cannot undo a newer failure.
     final original = times[0], cached = times[1];
     _selected = cached != null && (original == null || cached < original)
         ? relay
@@ -92,6 +95,7 @@ class ResourceNodeRouter {
   }
 
   void failed(Uri uri) {
+    _epoch++;
     final base = uri.host == relay.host ? relay : primary;
     _unavailable[base] = now().add(const Duration(minutes: 1));
     _selected = base == relay ? primary : relay;

@@ -1,0 +1,12 @@
+{
+  "installedVersion": "1.1.12+107",
+  "appPath": "/Users/shou/Applications/BobTV.app",
+  "processId": 29529,
+  "startupHealthConfirmed": true,
+  "workerPhase": "installed",
+  "publisherArchiveSha256": "2e45cc3df6ce9886b5d9b049f86ea35cdb1090732db8428f1ffeeda06e644423",
+  "foreignStateArchived": true,
+  "oldBackupsPreserved": true,
+  "sourceOwnershipGuardTestsPassed": true,
+  "sourceGuardPublished": false
+}

@@ -6,6 +6,7 @@ import '../../core/app_diagnostics.dart';
 import '../datasources/local/database.dart' as db;
 import 'bobtv_api_client.dart';
 import 'device_favorites_identity.dart';
+import 'app_credential_store.dart';
 import 'device_favorites_privacy.dart';
 import 'device_favorites_store.dart';
 import 'website_channel_catalog_service.dart';
@@ -157,6 +158,13 @@ class DeviceFavoritesSyncService {
         );
       }
       _retryAt = null;
+    } on CredentialAccessPaused {
+      if (!_disposed) {
+        state.value = const WebsiteCatalogProgress(
+          phase: '收藏备份已暂停，请在设置中重新授权，本机收藏已保留',
+          complete: true,
+        );
+      }
     } catch (error) {
       if (_disposed) return;
       if (error is BobTvApiException && error.statusCode == 409) {
@@ -179,7 +187,14 @@ class DeviceFavoritesSyncService {
     }
   }
 
+  /// Stop scheduling work and join every operation that can still use the DB.
+  Future<void> shutdown() async {
+    dispose();
+    await Future.wait<Object?>([?_running]);
+  }
+
   void dispose() {
+    if (_disposed) return;
     _disposed = true;
     api.close();
     state.dispose();

@@ -7,6 +7,7 @@ import 'package:window_manager/window_manager.dart';
 import '../features/player/windows_window_chrome.dart';
 import '../features/player/desktop_fullscreen_session.dart';
 import '../core/desktop_app_exit.dart';
+import '../core/desktop_window_pin.dart';
 
 /// Mouse-accessible window chrome across every Windows fullscreen route.
 /// macOS continues to use its native, edge-reveal titlebar.
@@ -15,9 +16,11 @@ class WindowsFullscreenControls extends StatefulWidget {
     super.key,
     required this.child,
     this.enabled,
+    this.pinning,
   });
   final Widget child;
   final bool? enabled;
+  final DesktopWindowPin? pinning;
 
   @override
   State<WindowsFullscreenControls> createState() =>
@@ -91,7 +94,9 @@ class _WindowsFullscreenControlsState extends State<WindowsFullscreenControls>
         if (mounted) await _readState();
         return;
       }
-      await windowManager.setAlwaysOnTop(false);
+      final pinning = widget.pinning ?? DesktopWindowPin.instance;
+      await pinning.idle;
+      await windowManager.setAlwaysOnTop(pinning.restoreValue(false));
       await windowManager.setFullScreen(false);
       await restoreWindowsWindowChrome();
       // Windows may not emit a leave event when the previous placement was

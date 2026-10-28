@@ -65,13 +65,20 @@ def migrate(conn):
 
 
 def _validate_data_attribution(configuration, data_license, attribution):
+    if configuration.get('format') == 'taipei-monthly-csv' and data_license != 'Open Government Data License 1.0':
+        raise EpgError('taipei_data_license_mismatch')
     if configuration.get('format') == 'tvmaze-json' and data_license != 'CC BY-SA 4.0':
         raise EpgError('tvmaze_data_license_mismatch')
-    if data_license == 'CC BY-SA 4.0':
+    credit_policies = {
+        'CC BY-SA 4.0': ('https://creativecommons.org/licenses/by-sa/4.0/', True),
+        'Open Government Data License 1.0': ('https://data.gov.tw/license', False),
+    }
+    if data_license in credit_policies:
+        license_url, share_alike = credit_policies[data_license]
         required = {'sourceLabel', 'attributionUrl', 'licenseUrl', 'modificationNotice', 'shareAlikeRequired'}
         if (not isinstance(attribution, dict) or set(attribution) != required
-                or attribution['shareAlikeRequired'] is not True
-                or attribution['licenseUrl'] != 'https://creativecommons.org/licenses/by-sa/4.0/'
+                or attribution['shareAlikeRequired'] is not share_alike
+                or attribution['licenseUrl'] != license_url
                 or any(not isinstance(attribution[key], str) or not 1 <= len(attribution[key].strip()) <= 512
                     for key in ('sourceLabel', 'modificationNotice'))):
             raise EpgError('source_attribution_required')
@@ -197,7 +204,7 @@ def _approved(conn, channel_id):
         raise EpgError('approved_mapping_and_data_grant_required')
     if row['catalog_identity_hash'] != row['identity_hash'] or row['source_identity_hash'] != source_identity(row):
         raise EpgError('mapping_identity_drift')
-    if row['data_license'] == 'CC BY-SA 4.0' and not conn.execute(
+    if row['data_license'] in ('CC BY-SA 4.0', 'Open Government Data License 1.0') and not conn.execute(
             'SELECT 1 FROM epg_data_attributions WHERE source_id=?', (row['source_id'],)).fetchone():
         raise EpgError('source_attribution_required')
     # An existing approval row is insufficient after source URL, licence,
@@ -356,7 +363,10 @@ def build_payload(conn, now=None):
             checked_rows.append((row, provenance))
         if len(checked_rows) != len(rows):
             continue
-        if not any(p['starts'] <= now < p['stops'] for p in rows) or not any(p['starts'] > now for p in rows):
+        # A real source gap at now does not invalidate its dated future rows.
+        # Coverage reports measure current + future separately; never invent a
+        # current programme or drop the entire channel merely to fill a gap.
+        if not any(p['starts'] > now for p in rows):
             continue
         channel = json.loads(mapping['payload'])
         channels.append({**channel, 'sourceId': mapping['source_id'], 'originalChannelId': mapping['original_id'],
@@ -422,7 +432,7 @@ def _publication_revision(conn):
 
 
 def _coverage_deadline(payload, now):
-    """Conservative deadline while every included channel is current + future.
+    """Conservative deadline while every included channel has future data.
 
     Compute outside the activation transaction. Crossing a programme boundary
     triggers a fresh preflight, even if another current programme could take over.
@@ -435,7 +445,11 @@ def _coverage_deadline(payload, now):
         if programme['startUtc'] > now:
             future_start = max(future_start, programme['startUtc'])
         coverage[programme['channelId']] = current_stop, future_start
-    deadline = min(min(bounds) for bounds in coverage.values())
+    # Future-only channels remain eligible through a genuine current gap. A
+    # channel's last future start is still a hard activation boundary; if it has
+    # a current row, keep the existing stricter current-stop preflight bound.
+    deadline = min(min(current_stop or future_start, future_start)
+        for current_stop, future_start in coverage.values())
     if deadline <= now:
         raise EpgError('no_publishable_current_future_data')
     return deadline

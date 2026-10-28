@@ -12,6 +12,7 @@ import '../../core/app_diagnostics.dart';
 import '../../core/app_version.dart';
 import '../../core/server_egress.dart';
 import 'desktop_update_state.dart';
+import 'mac_update_candidate.dart';
 import 'update_manifest.dart';
 
 /// macOS update transport. The detached shell worker performs installation
@@ -362,7 +363,7 @@ class MacUpdateService {
       state.value = WindowsUpdateState(
         WindowsUpdatePhase.installed,
         version: bobTvVersion,
-        message: '已成功升级至 $bobTvVersion，旧版备份已保留。',
+        message: '已成功升级至 $bobTvVersion，启动检查通过后自动清理临时回退文件。',
       );
       Timer(const Duration(seconds: 40), () {
         if (state.value.phase == WindowsUpdatePhase.installed) {
@@ -380,7 +381,10 @@ class MacUpdateService {
 
   Future<void> _startHealthMonitor() async {
     final candidate = File(p.join(_directory!.path, 'candidate.txt'));
-    if (!await candidate.exists()) return;
+    if (!await candidate.exists() ||
+        !macUpdateCandidateBelongsToApp(await candidate.readAsString(), _appPath)) {
+      return;
+    }
     final marker = File(p.join(_directory!.path, 'startup.marker'));
     if (await marker.exists() &&
         (await marker.readAsString()).trim() == '$pid') {
@@ -403,8 +407,13 @@ class MacUpdateService {
       final support = await getApplicationSupportDirectory();
       _directory = Directory(p.join(support.path, 'Update'));
     }
+    final candidate = File(p.join(_directory!.path, 'candidate.txt'));
+    if (!await candidate.exists() ||
+        !macUpdateCandidateBelongsToApp(await candidate.readAsString(), _appPath)) {
+      return;
+    }
     final marker = File(p.join(_directory!.path, 'startup.marker'));
-    if (!await marker.exists()) return;
+    if (!await marker.exists() || (await marker.readAsString()).trim() != '$pid') return;
     await File(
       p.join(_directory!.path, 'startup.healthy'),
     ).writeAsString('$pid', flush: true);

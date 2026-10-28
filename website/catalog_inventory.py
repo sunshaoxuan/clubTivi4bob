@@ -193,7 +193,10 @@ def _bounded_write(operation, *args):
 
 @router.get("/blocked")
 def blocked_routes():
-    with database() as conn:
+    from network_routes import inventory_reader
+    if not (DATA / 'channel_inventory.sqlite3').is_file():
+        return JSONResponse({'schemaVersion': 1, 'urls': []}, headers={'Cache-Control': 'no-store'})
+    with inventory_reader(DATA) as conn:
         urls = [row[0] for row in conn.execute("SELECT url FROM routes WHERE blocked=1 OR deleted=1 ORDER BY digest")]
     return JSONResponse({"schemaVersion": 1, "urls": urls}, headers={"Cache-Control": "no-store"})
 
@@ -216,7 +219,10 @@ async def route_state(request: Request):
     except (ValueError, TypeError, AttributeError):
         raise HTTPException(422, 'Invalid route-state request') from None
     def read_state():
-        with database() as conn:
+        from network_routes import inventory_reader
+        if not (DATA / 'channel_inventory.sqlite3').is_file():
+            return []
+        with inventory_reader(DATA) as conn:
             return conn.execute('SELECT url,blocked,deleted,revision FROM routes WHERE url IN (' +
                                 ','.join('?' for _ in urls) + ')', urls).fetchall()
     rows = await run_in_threadpool(read_state)
@@ -423,7 +429,35 @@ async def sync_events(request: Request, background_tasks: BackgroundTasks):
         if not isinstance(events,list) or not 1 <= len(events) <= 200: raise ValueError()
     except (ValueError,TypeError,AttributeError):
         raise HTTPException(422,'Invalid sync events') from None
-    receipt = await run_in_threadpool(_bounded_write, ingest_events, events, payload['fingerprint'])
+    # Common retransmissions can use WAL reads without acquiring a writer.
+    def cached_receipts():
+        from network_routes import inventory_reader
+        reporter = hashlib.sha256(payload['fingerprint'].encode()).hexdigest()
+        if not all(isinstance(e, dict) and isinstance(e.get('id'), str) for e in events):
+            return None
+        try:
+            with inventory_reader(DATA) as conn:
+                saved = [conn.execute('SELECT receipt FROM sync_receipts WHERE reporter=? AND event_id=?',
+                                     (reporter, e['id'])).fetchone() for e in events]
+        except sqlite3.OperationalError:
+            return None  # New installation/schema initialization owns writes.
+        return {'schemaVersion': 1, 'receipts': [json.loads(row[0]) for row in saved]} if all(saved) else None
+    receipt = await run_in_threadpool(cached_receipts)
+    if receipt is not None:
+        return JSONResponse(receipt, status_code=202)
+    try:
+        receipt = await run_in_threadpool(_bounded_write, ingest_events, events, payload['fingerprint'])
+    except HTTPException as error:
+        if error.status_code != 503 or error.detail != 'Channel state temporarily busy':
+            raise
+        from catalog_event_queue import enqueue
+        import logging
+        logging.getLogger('bobtv.sync').warning('catalog_write_busy action=durable_inbox event_count=%d', len(events))
+        try:
+            receipt = await run_in_threadpool(enqueue, DATA, payload)
+        except ValueError:
+            raise HTTPException(422, 'Invalid sync events') from None
+        return JSONResponse(receipt, status_code=202, headers={'Retry-After': '15', 'Cache-Control': 'no-store'})
     background_tasks.add_task(_publish_changes)
     return JSONResponse(receipt,status_code=202)
 

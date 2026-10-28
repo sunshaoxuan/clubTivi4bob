@@ -66,7 +66,7 @@ def validate(payload):
     route_urls = set()
     for channel in channels:
         required = {"id", "name", "categoryId", "countryCode", "regionCode", "sortOrder", "epgId", "logoUrl", "routes"}
-        if not isinstance(channel, dict) or set(channel) - {'mergeId'} != required:
+        if not isinstance(channel, dict) or set(channel) - {'mergeId', 'categoryIds'} != required:
             raise ValueError("Invalid channel")
         if 'mergeId' in channel and (not isinstance(channel['mergeId'],str) or not re.fullmatch(r'[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}',channel['mergeId'])):
             raise ValueError('Invalid merged channel ID')
@@ -75,6 +75,19 @@ def validate(payload):
             raise ValueError("Duplicate or invalid channel ID")
         if channel["categoryId"] not in category_ids or not isinstance(channel["name"], str) or not 1 <= len(channel["name"]) <= 128:
             raise ValueError("Invalid channel classification")
+        if 'categoryIds' in channel:
+            from catalog_channel_identity import _scope
+            aliases = channel['categoryIds']
+            lookup = {item['id']: item for item in categories}
+            scope = _scope(channel, lookup)
+            if (not isinstance(aliases, list) or not 1 <= len(aliases) <= 16
+                    or any(not isinstance(value, str) for value in aliases)
+                    or len(set(aliases)) != len(aliases)
+                    or channel['categoryId'] not in aliases or scope is None
+                    or any(value not in category_ids or
+                           _scope({**channel, 'categoryId': value}, lookup) != scope
+                           for value in aliases)):
+                raise ValueError('Invalid alternate channel classifications')
         if type(channel["sortOrder"]) is not int or not isinstance(channel["routes"], list) or not channel["routes"]:
             raise ValueError("Invalid channel routes")
         for field in ("countryCode", "regionCode", "epgId", "logoUrl"):
@@ -125,6 +138,15 @@ def _atomic_write(path, data):
 
 def publish(payload, data_dir=DATA):
     channel_count, route_count = validate(payload)
+    from country_names import normalize_catalog_countries
+    payload = normalize_catalog_countries(payload)
+    from catalog_taxonomy import normalize_catalog_taxonomy
+    payload = normalize_catalog_taxonomy(payload)
+    validate(payload)
+    # Reviewed geographic corrections apply to every publication path, including
+    # the classified-catalog refresher, without rebuilding IDs or categories.
+    from catalog_metadata_reviews import apply_reviews
+    apply_reviews(payload['channels'])
     raw = json.dumps(payload, ensure_ascii=False, separators=(",", ":"), sort_keys=True).encode("utf-8")
     compressed = gzip.compress(raw, mtime=0)
     if len(compressed) > MAX_COMPRESSED:

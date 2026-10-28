@@ -7,7 +7,12 @@ import 'channel_category_classifier.dart';
 class ChannelCategoryDestination {
   ChannelCategoryDestination(List<String> path)
     : _safeInput = path.every((name) => nameError(name) == null),
-      path = List.unmodifiable(path.map(normalizeName));
+      path = List.unmodifiable([
+        for (var index = 0; index < path.length; index++)
+          index == 0
+              ? ChannelCategoryClassifier.normalizeCountryName(path[index])
+              : normalizeName(path[index]),
+      ]);
   final List<String> path;
   final bool _safeInput;
 
@@ -37,6 +42,7 @@ class ChannelCategoryDestination {
 
   static List<String> get countries => [
     '中国',
+    '其他',
     ...(ChannelCategoryClassifier.internationalCountryNames.values
         .toSet()
         .toList()
@@ -50,15 +56,21 @@ class ChannelCategoryDestination {
     List<String> path, {
     Iterable<ChannelCategoryDestination> existing = const [],
   }) {
-    if (path.length >= maxDepth) return [];
+    final mediaLevel = path.length > 1 && path[1] == '电视' ? 1 : 0;
+    if (path.length >= maxDepth + mediaLevel) return [];
     final suggestions = <String>[];
     if (path.isEmpty) suggestions.addAll(countries);
     if (path.length == 1) {
       suggestions.addAll(
         path.first == '中国'
-            ? ['央视', '地方', '数字', '广播', '其他']
-            : ChannelCategoryClassifier.internationalGenres,
+            ? ['央视', '地方', '数字', '广播']
+            : path.first == '其他'
+            ? ['待识别', '电视', '广播']
+            : ['电视', '广播'],
       );
+    }
+    if (path.length == 2 && path.first != '中国' && path.first != '其他' && path[1] == '电视') {
+      suggestions.addAll(ChannelCategoryClassifier.internationalGenres);
     }
     if (path.length == 2 && path.first == '中国' && path[1] == '地方') {
       suggestions.addAll(ChannelCategoryClassifier.provinceCategories);
@@ -79,15 +91,19 @@ class ChannelCategoryDestination {
 
   static ChannelCategoryDestination? fromGroup(String? group) {
     final parts = (group ?? '').split(' / ');
-    if (parts.length < 2) return null;
+    if (parts.length < 2 && parts.first != '其他') return null;
     List<String> path;
-    if (parts.first == '中国') {
+    if (parts.length >= 2 && parts.first == '中国' && parts[1] == '其他') {
+      path = ['其他', '待识别', ...parts.skip(2)];
+    } else if (parts.first == '中国') {
       path = [
         '中国',
         if (ChannelCategoryClassifier.provinceCategories.contains(parts[1]))
           '地方',
         ...parts.skip(1),
       ];
+    } else if (parts.first == '其他') {
+      path = parts;
     } else if (parts.first == '国际' && parts[1] != '中国') {
       path = parts.skip(1).toList();
     } else {
@@ -114,7 +130,7 @@ class ChannelCategoryDestination {
   bool get valid {
     if (!_safeInput ||
         path.isEmpty ||
-        path.length > maxDepth ||
+        path.length > maxDepth + (path.length > 1 && path[1] == '电视' ? 1 : 0) ||
         path.first == '国际') {
       return false;
     }
@@ -132,9 +148,13 @@ class ChannelCategoryDestination {
           ChannelCategoryClassifier.provinceCategories.contains(path[2])
       ? path.skip(2).toList()
       : path.skip(1).toList();
-  String get category => path.first == '中国' ? _chinaPath.join(' / ') : '国际';
-  String get country => path.first;
-  String get group => path.first == '中国'
+  String get category => path.first == '其他'
+      ? '其他'
+      : path.first == '中国' ? _chinaPath.join(' / ') : '国际';
+  String get country => path.first == '其他' ? '未识别地区' : path.first;
+  String get group => path.first == '其他'
+      ? path.join(' / ')
+      : path.first == '中国'
       ? '中国 / ${_chinaPath.join(' / ')}'
       : '国际 / ${path.join(' / ')}';
 }

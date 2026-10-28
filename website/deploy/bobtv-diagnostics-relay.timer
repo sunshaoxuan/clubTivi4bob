@@ -1,0 +1,12 @@
+[Unit]
+Description=Forward queued BobTV diagnostics independently of clients
+
+[Timer]
+OnBootSec=45s
+OnUnitInactiveSec=60s
+RandomizedDelaySec=10s
+Persistent=true
+Unit=bobtv-diagnostics-relay.service
+
+[Install]
+WantedBy=timers.target

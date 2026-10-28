@@ -10,18 +10,23 @@ import 'desktop_fullscreen_session.dart';
 import 'desktop_pip_session.dart';
 import 'windows_window_chrome.dart';
 import '../../core/desktop_window_sizing.dart';
+import '../../core/desktop_window_pin.dart';
 
 class WindowManagerPipBackend implements DesktopPipBackend {
   WindowManagerPipBackend({
     bool? isMacOS,
     bool? isWindows,
     DesktopWindowSizing? sizing,
+    DesktopWindowPin? pinning,
   }) : _isMacOS = isMacOS ?? Platform.isMacOS,
        _isWindows = isWindows ?? Platform.isWindows,
-       _sizing = sizing ?? DesktopWindowSizing.instance;
+       _sizing = sizing ?? DesktopWindowSizing.instance,
+       _pinning = pinning ?? DesktopWindowPin.instance;
   final bool _isMacOS;
   final bool _isWindows;
   final DesktopWindowSizing _sizing;
+  final DesktopWindowPin _pinning;
+  void Function()? _releasePinning;
   static const _boundsKey = 'desktop_pip_bounds_v1';
   bool _allWorkspaces = false;
   bool _resizable = true;
@@ -30,16 +35,24 @@ class WindowManagerPipBackend implements DesktopPipBackend {
 
   @override
   Future<FullscreenWindowSnapshot> capture() async {
-    _resizable = await windowManager.isResizable();
-    if (_isWindows) _maximizable = await windowManager.isMaximizable();
-    if (_isMacOS) {
-      _allWorkspaces = await windowManager.isVisibleOnAllWorkspaces();
+    _releasePinning ??= _pinning.lockForPresentation();
+    await _pinning.idle;
+    try {
+      _resizable = await windowManager.isResizable();
+      if (_isWindows) _maximizable = await windowManager.isMaximizable();
+      if (_isMacOS) {
+        _allWorkspaces = await windowManager.isVisibleOnAllWorkspaces();
+      }
+      return FullscreenWindowSnapshot(
+        bounds: await windowManager.getBounds(),
+        maximized: await windowManager.isMaximized(),
+        alwaysOnTop: await windowManager.isAlwaysOnTop(),
+      );
+    } catch (_) {
+      _releasePinning?.call();
+      _releasePinning = null;
+      rethrow;
     }
-    return FullscreenWindowSnapshot(
-      bounds: await windowManager.getBounds(),
-      maximized: await windowManager.isMaximized(),
-      alwaysOnTop: await windowManager.isAlwaysOnTop(),
-    );
   }
 
   @override
@@ -110,6 +123,8 @@ class WindowManagerPipBackend implements DesktopPipBackend {
     } finally {
       _releaseSizing?.call();
       _releaseSizing = null;
+      _releasePinning?.call();
+      _releasePinning = null;
     }
   }
 
@@ -131,7 +146,9 @@ class WindowManagerPipBackend implements DesktopPipBackend {
     final bounds = await _sizing.constrain(snapshot.bounds);
     await _sizing.restoreMinimumSize(bounds);
     await windowManager.setResizable(_resizable);
-    await windowManager.setAlwaysOnTop(snapshot.alwaysOnTop);
+    await windowManager.setAlwaysOnTop(
+      _pinning.restoreValue(snapshot.alwaysOnTop),
+    );
     await windowManager.setBounds(bounds);
     if (snapshot.maximized) await windowManager.maximize();
   }

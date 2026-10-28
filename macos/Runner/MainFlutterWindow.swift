@@ -1,5 +1,6 @@
 import Cocoa
 import FlutterMacOS
+import Security
 
 class MainFlutterWindow: NSWindow {
   override func performClose(_ sender: Any?) {
@@ -25,6 +26,30 @@ class MainFlutterWindow: NSWindow {
     }
     self.contentViewController = flutterViewController
     self.setFrame(windowFrame, display: true)
+
+    let credentials = FlutterMethodChannel(
+      name: "com.briconbric.bobtv/credentials",
+      binaryMessenger: flutterViewController.engine.binaryMessenger)
+    credentials.setMethodCallHandler { call, reply in
+      guard let args = call.arguments as? [String: Any],
+        let key = args["key"] as? String else {
+        reply(FlutterError(code: "invalid_arguments", message: nil, details: nil))
+        return
+      }
+      let interactive = args["interactive"] as? Bool ?? false
+      DispatchQueue.global(qos: .userInitiated).async {
+        let (status, value) = BobTVCredentialStore.perform(call.method,
+          key: key, value: args["value"] as? String, interactive: interactive)
+        // Never log an account, token, or key value.
+        NSLog("BobTV credential operation=%@ interactive=%@ status=%d",
+          call.method, interactive.description, status)
+        DispatchQueue.main.async {
+          if status == errSecSuccess { reply(value) }
+          else { reply(FlutterError(code: "keychain_access",
+            message: "Credential access unavailable", details: Int(status))) }
+        }
+      }
+    }
 
     RegisterGeneratedPlugins(registry: flutterViewController)
 

@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import '../../data/datasources/local/database.dart' as db;
 import '../../data/services/channel_merge.dart';
+import '../../data/services/route_identity.dart';
 import '../../data/services/manual_channel_category.dart';
 import 'channel_category_picker.dart';
 
@@ -25,6 +26,8 @@ class _ChannelMergeDialogState extends State<ChannelMergeDialog> {
   final _name = TextEditingController();
   final _search = TextEditingController();
   List<ChannelMergeChoice> _choices = [];
+  String? _seedId;
+  Map<String, List<db.Channel>>? _choiceSnapshot;
   List<String> _groups = [];
   String? _group;
   String _destination = '';
@@ -44,20 +47,21 @@ class _ChannelMergeDialogState extends State<ChannelMergeDialog> {
     _name.text = widget.channel.name;
     _destination = widget.channel.groupTitle ?? '其他';
     _group = _destination;
-    _selected[widget.channel.id] = ChannelMergeChoice(
-      id: widget.channel.id,
-      name: widget.channel.name,
-      group: _destination,
-      routeCount: widget.seedUrls.toSet().length,
-    );
     unawaited(_initialize());
   }
 
   Future<void> _initialize() async {
     try {
+      final snapshot = await widget.database.channelMergeSnapshot();
+      final seed = await widget.database.channelMergeChoiceForChannel(widget.channel, snapshot: snapshot);
       final groups = await widget.database.channelMergeGroups();
       if (!mounted) return;
-      setState(() => _groups = groups);
+      setState(() {
+        _groups = groups;
+        _choiceSnapshot = snapshot;
+        _seedId = seed.id;
+        _selected[seed.id] = seed;
+      });
       await _load();
     } catch (_) {
       if (mounted)
@@ -76,6 +80,7 @@ class _ChannelMergeDialogState extends State<ChannelMergeDialog> {
     });
     try {
       final rows = await widget.database.searchChannelMergeChoices(
+        snapshot: _choiceSnapshot,
         query: _search.text,
         group: _group,
         offset: more ? _choices.length : 0,
@@ -104,12 +109,8 @@ class _ChannelMergeDialogState extends State<ChannelMergeDialog> {
     });
     try {
       final members = <String, db.Channel>{};
-      for (final choice in _selected.values) {
-        for (final channel in await widget.database.channelsForMergeChoice(
-          choice,
-        )) {
-          members[channel.id] = channel;
-        }
+      for (final channel in await widget.database.channelsForMergeChoices(_selected.values)) {
+        members[channel.id] = channel;
       }
       final seed = await widget.database.getChannelsByStreamUrls(
         widget.seedUrls,
@@ -118,7 +119,7 @@ class _ChannelMergeDialogState extends State<ChannelMergeDialog> {
       if (!mounted) return;
       setState(() {
         _members = members.values.toList();
-        _urls = members.values.map((c) => c.streamUrl).toSet().toList();
+        _urls = members.values.map((c) => canonicalRouteUrl(c.streamUrl)).toSet().toList();
         _review = true;
         _saving = false;
       });
@@ -236,7 +237,7 @@ class _ChannelMergeDialogState extends State<ChannelMergeDialog> {
                       InputChip(
                         label: Text(choice.name),
                         onDeleted:
-                            _saving || _review || choice.id == widget.channel.id
+                            _saving || _review || choice.id == _seedId
                             ? null
                             : () => setState(() => _selected.remove(choice.id)),
                       ),
@@ -306,10 +307,7 @@ class _ChannelMergeDialogState extends State<ChannelMergeDialog> {
                     final choice = _choices[index];
                     final selected = _selected.containsKey(choice.id);
                     final isSeed =
-                        choice.id == widget.channel.id ||
-                        (choice.name == widget.channel.name &&
-                            choice.group ==
-                                (widget.channel.groupTitle ?? '其他'));
+                        choice.id == _seedId;
                     return CheckboxListTile(
                       value: selected || isSeed,
                       onChanged: isSeed || _saving

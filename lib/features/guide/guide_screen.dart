@@ -79,14 +79,16 @@ class _GuideScreenState extends ConsumerState<GuideScreen> {
     // Resolve mappings — handle stale source IDs from deleted/re-created sources
     final epgMap = <String, String>{};
     for (final m in mappings) {
-      final direct = '${m.epgSourceId}_${m.epgChannelId}';
+      final direct = (m.epgChannelId.startsWith('${m.epgSourceId}_')
+          ? m.epgChannelId : '${m.epgSourceId}_${m.epgChannelId}');
       if (m.locked || m.source == 'manual' || m.source == 'server') {
         epgMap[m.channelId] = currentSourceIds.contains(m.epgSourceId) && validIds.contains(direct)
           ? direct : '';
         continue;
       }
       if (currentSourceIds.contains(m.epgSourceId)) {
-        epgMap[m.channelId] = '${m.epgSourceId}_${m.epgChannelId}';
+        epgMap[m.channelId] = (m.epgChannelId.startsWith('${m.epgSourceId}_')
+          ? m.epgChannelId : '${m.epgSourceId}_${m.epgChannelId}');
       } else {
         for (final srcId in currentSourceIds) {
           final candidate = '${srcId}_${m.epgChannelId}';

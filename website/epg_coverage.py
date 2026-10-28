@@ -59,7 +59,7 @@ def _published(conn, directory, mappings, now, outcome):
         if programme['channelId'] not in channels:
             raise EpgError('coverage_snapshot_content_mismatch')
         grouped[programme['channelId']].append(programme)
-    count = 0
+    count, future_count = 0, 0
     for identity, mapping in mappings.items():
         if channels.get(identity) != _channel(mapping):
             continue
@@ -79,15 +79,18 @@ def _published(conn, directory, mappings, now, outcome):
         ordered = sorted(rows, key=lambda row: row['startUtc'])
         if any(a['stopUtc'] > b['startUtc'] for a, b in zip(ordered, ordered[1:])):
             continue
-        count += int(any(row['startUtc'] <= now < row['stopUtc'] for row in rows)
-            and any(row['startUtc'] > now for row in rows))
+        has_future = any(row['startUtc'] > now for row in rows)
+        future_count += int(has_future)
+        count += int(has_future and any(row['startUtc'] <= now < row['stopUtc'] for row in rows))
     outcome['publishedCurrentAndFutureChannels'] = count
+    outcome['publishedChannelsWithFutureProgrammes'] = future_count
     outcome['publishedSnapshotVerifiedLocally'] = True
 
 
 def summarize(conn, now, public_directory=None):
     outcome = {'catalogChannels': 0, 'verifiedMappings': 0, 'currentAndFutureChannels': 0,
-        'publishedCurrentAndFutureChannels': 0, 'publishedEpgVersion': None,
+        'publishedCurrentAndFutureChannels': 0, 'channelsWithFutureProgrammes': 0,
+        'publishedChannelsWithFutureProgrammes': 0, 'publishedEpgVersion': None,
         'publishedSnapshotVerifiedLocally': False, 'coverageError': None}
     conn.execute('SAVEPOINT epg_coverage_read')
     try:
@@ -107,7 +110,12 @@ def summarize(conn, now, public_directory=None):
         outcome['verifiedMappings'] = len(mappings)
         try:
             eligible = store.build_payload(conn, now)
-            outcome['currentAndFutureChannels'] = sum(item['id'] in mappings for item in eligible['channels'])
+            current = {row['channelId'] for row in eligible['programmes']
+                if row['startUtc'] <= now < row['stopUtc']}
+            future = {row['channelId'] for row in eligible['programmes'] if row['startUtc'] > now}
+            approved = set(mappings)
+            outcome['currentAndFutureChannels'] = len(current & future & approved)
+            outcome['channelsWithFutureProgrammes'] = len(future & approved)
         except EpgError as error:
             if str(error) != 'no_publishable_current_future_data':
                 raise
@@ -117,6 +125,7 @@ def summarize(conn, now, public_directory=None):
     except (EpgError, OSError, ValueError, TypeError, KeyError):
         outcome['coverageError'] = 'coverage_evidence_invalid'
         outcome['publishedCurrentAndFutureChannels'] = 0
+        outcome['publishedChannelsWithFutureProgrammes'] = 0
         outcome['publishedSnapshotVerifiedLocally'] = False
         return outcome
     finally:

@@ -194,15 +194,18 @@ def test_status_handles_partial_heartbeat_and_shows_queue(tmp_path, monkeypatch)
     assert result.json()['queue']['queued'] == 1
 
 
-def test_ai_global_budget_prevents_more_upstream_calls(tmp_path, monkeypatch):
+def test_ai_historical_counters_do_not_create_an_hourly_or_daily_quota(tmp_path, monkeypatch):
     import time
-    import pytest
     client(tmp_path, monkeypatch)
     with jobs.database() as conn:
-        conn.executemany('INSERT INTO ai_requests VALUES (?)', [(int(time.time()),)]*60)
-    monkeypatch.setattr(worker,'fetch',lambda *_args,**_kwargs: (_ for _ in ()).throw(AssertionError('Must not call AI')))
-    with pytest.raises(worker.BudgetDeferred):
-        worker.ai([], 'test', {'baseUrl':'https://ai.example.org/v1','apiKey':'hidden','model':'test'})
+        conn.executemany('INSERT INTO ai_requests VALUES (?)', [(int(time.time()),)]*1000)
+    requests = []
+    def fetch(*args, **kwargs):
+        requests.append(args)
+        return json.dumps({'choices':[{'message':{'content':'{"ok":true}'}}]}).encode()
+    monkeypatch.setattr(worker, 'fetch', fetch)
+    assert worker.ai([], 'test', {'baseUrl':'https://ai.example.org/v1','apiKey':'hidden','model':'test'}) == {'ok':True}
+    assert len(requests) == 1
 
 
 def test_operator_audit_can_bypass_counts_without_consuming_other_workers_budget(tmp_path, monkeypatch):
@@ -226,9 +229,8 @@ def test_operator_audit_can_bypass_counts_without_consuming_other_workers_budget
     assert requests[0]['response_format'] == {'type': 'json_object'}
     with jobs.database() as conn:
         assert conn.execute('SELECT count(*) FROM ai_requests').fetchone()[0] == 500
-    with pytest.raises(worker.BudgetDeferred):
-        worker.ai([], 'test', {**settings, 'enforceLocalBudget': True})
-    assert len(requests) == 1
+    assert worker.ai([], 'test', {**settings, 'enforceLocalBudget': True}) == {'ok': True}
+    assert len(requests) == 2
 
 
 def test_budget_defer_does_not_consume_failure_attempt(tmp_path, monkeypatch):

@@ -1,7 +1,7 @@
 #!/bin/bash
 set -euo pipefail
 
-# Run on a Mac after building BobTV.app. Apple notarization is optional.
+# Run on a Mac after building BobTV.app with Developer ID.
 # The BobTV publisher key is required for self-hosted automatic updates.
 app="${1:-}"
 arch="${2:-}"
@@ -15,7 +15,7 @@ fi
 : "${BOBTV_UPDATE_SIGNING_KEY:?Set BOBTV_UPDATE_SIGNING_KEY to the local private key path}"
 [[ -f "$BOBTV_UPDATE_SIGNING_KEY" && ! -L "$BOBTV_UPDATE_SIGNING_KEY" ]] || exit 2
 
-codesign --verify --deep --strict "$app"
+"$repository/tools/macos/verify_distribution_signature.sh" "$app"
 version="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' \
   "$app/Contents/Info.plist")"
 build="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' \

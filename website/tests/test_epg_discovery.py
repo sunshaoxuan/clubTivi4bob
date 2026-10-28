@@ -251,9 +251,10 @@ def test_catalog_integrity_and_bounded_run_do_not_publish(tmp_path):
     catalog(tmp_path, [channel(str(i)) for i in range(12)])
     times = iter([0, 1, 2, 30])
     first = discovery.run(tmp_path, NOW, clock=lambda: next(times))
-    assert first['processedThisRun'] == 10 and first['states'] == {'pending': 2, 'review': 10}
+    assert first['processedThisRun'] == 0 and first['states'] == {'pending': 12}
+    assert first['identityReviewedEligibleChannels'] == 0 and first['sourceFirstMatchingEnabled'] is False
     assert first['publishedEpgVersion'] is None and first['verifiedCatalogMatches'] == 0
-    assert discovery.run(tmp_path, NOW)['processedThisRun'] == 2
+    assert discovery.run(tmp_path, NOW)['processedThisRun'] == 0
     assert discovery.run(tmp_path, NOW)['processedThisRun'] == 0
     manifest = json.loads((tmp_path / 'channel-catalog/manifest.json').read_text())
     (tmp_path / 'channel-catalog/snapshots' / (manifest['sha256'] + '.json.gz')).write_bytes(b'bad')

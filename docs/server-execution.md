@@ -76,8 +76,8 @@ provincial suffixes and common station genres such as agriculture, military,
 fashion and law. Routes explicitly marked `manual_category` are preserved.
 
 The job stages a private per-channel JSONL audit under
-`/var/lib/bobtv/reclassification/`, resumes by route identity, and respects the
-shared 60-per-hour and 500-per-day AI request limits. `--apply-on-complete`
+`/var/lib/bobtv/reclassification/`, resumes by route identity, and follows the configured upstream service limits.
+There is no application-defined hourly or daily AI request quota. `--apply-on-complete`
 creates and verifies a focused inventory and catalog backup before changing
 route groups, then rebuilds the public snapshot. It rechecks channel identities
 after publication and resumes if a concurrent catalog refresh introduced new

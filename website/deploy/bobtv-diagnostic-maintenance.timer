@@ -1,0 +1,12 @@
+[Unit]
+Description=Recover BobTV sync inbox and expire diagnostic data
+
+[Timer]
+OnBootSec=30s
+OnUnitInactiveSec=20s
+RandomizedDelaySec=3s
+Persistent=true
+Unit=bobtv-diagnostic-maintenance.service
+
+[Install]
+WantedBy=timers.target

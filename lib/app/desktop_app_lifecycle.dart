@@ -11,9 +11,11 @@ import '../core/app_diagnostics.dart';
 import '../core/desktop_app_exit.dart';
 import '../core/player_resources.dart';
 import '../data/services/server_epg_runtime.dart';
+import '../data/services/epg_refresh_service.dart';
 import '../features/casting/cast_service.dart';
 import '../features/player/player_service.dart';
 import '../features/providers/source_maintenance_coordinator.dart';
+import '../features/providers/provider_manager.dart' show databaseProvider;
 import '../features/recording/recording_service.dart';
 import '../features/remote/web_remote_server.dart';
 
@@ -79,13 +81,13 @@ class _DesktopAppLifecycleState extends State<DesktopAppLifecycle>
     );
     AppDiagnostics.instance.log('desktop_renderers_detached');
     final container = _container!;
-    if (container.exists(serverEpgRuntimeProvider)) {
-      container.read(serverEpgRuntimeProvider).dispose();
-    }
-    if (container.exists(sourceMaintenanceCoordinatorProvider)) {
-      container.read(sourceMaintenanceCoordinatorProvider).dispose();
-    }
     final work = <Future<void>>[
+      if (container.exists(epgRefreshServiceProvider))
+        container.read(epgRefreshServiceProvider).shutdown(),
+      if (container.exists(serverEpgRuntimeProvider))
+        container.read(serverEpgRuntimeProvider).shutdown(),
+      if (container.exists(sourceMaintenanceCoordinatorProvider))
+        container.read(sourceMaintenanceCoordinatorProvider).shutdown(),
       if (container.exists(playerServiceProvider))
         container.read(playerServiceProvider).dispose(),
       if (container.exists(castServiceProvider))
@@ -104,6 +106,14 @@ class _DesktopAppLifecycleState extends State<DesktopAppLifecycle>
     // permission to close over an unfinished native callback.
     await Future.wait(work).timeout(const Duration(seconds: 20));
     await resources.disposeAll().timeout(const Duration(seconds: 20));
+    if (container.exists(databaseProvider)) {
+      AppDiagnostics.instance.log('desktop_database_close_begin');
+      await container
+          .read(databaseProvider)
+          .close()
+          .timeout(const Duration(seconds: 20));
+      AppDiagnostics.instance.log('desktop_database_close_completed');
+    }
     AppDiagnostics.instance.log('desktop_resources_drained', {
       'players': resources.resourceCount,
     });
@@ -167,7 +177,7 @@ class _DesktopAppLifecycleState extends State<DesktopAppLifecycle>
                     if (error == null) const CircularProgressIndicator(),
                     const SizedBox(height: 16),
                     Text(
-                      error ?? '正在清理播放器并退出…',
+                      error ?? '正在清理资源并退出…',
                       style: const TextStyle(color: Colors.white70),
                     ),
                     if (error != null)

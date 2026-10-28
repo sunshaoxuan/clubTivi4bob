@@ -11,7 +11,9 @@ expected_hash="${7:-}"
 expected_bytes="${8:-}"
 package_signature="${9:-}"
 run_id="${10:-}"
+candidate_token="${11:-}"
 [[ -z "$run_id" || "$run_id" =~ ^[A-Za-z0-9-]{1,100}$ ]] || exit 2
+[[ -z "$candidate_token" || "$candidate_token" =~ ^[a-f0-9]{64}$ ]] || exit 2
 
 if [[ "$root" != "$HOME/Library/Application Support/"* ||
       "$app" != *.app || "$app" == '/' ||
@@ -42,9 +44,9 @@ write_status() {
       downloading) message='正在下载更新' ;;
       verifying) message='正在校验文件、签章和安装包内容' ;;
       ready) message='已下载并校验通过，关闭 BobTV 后自动安装' ;;
-      backingUp) message='正在备份旧版，请稍候' ;;
+      backingUp) message='正在准备临时回退文件，请稍候' ;;
       installing) message='正在安装更新，请稍候' ;;
-      installed) message='安装完成，旧版已备份，下次启动即为新版本' ;;
+      installed) message='安装完成，新版通过启动检查后自动清理临时回退文件' ;;
       failed) message='更新未完成，请查看 worker.log 并重试' ;;
     esac
   fi
@@ -109,15 +111,51 @@ failure_exit() {
     8) message='更新签章校验未通过，已停止安装' ;;
     9) message='安装目录无法写入，请将 BobTV 放到当前用户可写的应用程序目录' ;;
     11) message='当前版本的启动检查未完成，请稍后重试' ;;
+    12) message='另一份 BobTV 正在运行，请关闭另一份后重试更新' ;;
     22|28|35|56) message='更新下载连接失败或超时，请检查网络后重试' ;;
     *) message="更新未完成（错误码 $code），请查看 worker.log 后重试" ;;
   esac
   write_status failed "$version" 0 "$message"
 }
 
+candidate_digest() {
+  local digest
+  digest="$(/usr/bin/openssl dgst -sha256 "$candidate")" || return 1
+  printf '%s' "${digest##* }"
+}
+
+valid_rollback_path() {
+  local leaf
+  [[ "$backup" == "$root/Backups/"* && ! -L "$root" &&
+     ! -L "$root/Backups" && ! -L "$backup" ]] || return 1
+  leaf="${backup#"$root/Backups/"}"
+  [[ "$leaf" =~ ^[A-Za-z0-9][A-Za-z0-9._+-]*$ ]]
+}
+
+finish_startup() {
+  /usr/bin/lockf -t 10 "$root/startup.lock" /bin/bash "$0" \
+    startup-locked "$root" "$app" "$watched_pid" '' '' '' '' '' '' "$candidate_token"
+}
+
 if [[ "$mode" == 'monitor' ]]; then
-  wait_for_exit
   [[ -f "$candidate" ]] || exit 0
+  candidate_token="$(candidate_digest)"
+  seconds=0
+  while kill -0 "$watched_pid" 2>/dev/null; do
+    [[ -f "$candidate" ]] || exit 0
+    [[ -f "$healthy" && "$(cat "$healthy")" == "$watched_pid" ]] && break
+    sleep 2
+    seconds=$((seconds + 2))
+    (( seconds < 43200 )) || exit 3
+  done
+  finish_startup
+  exit 0
+fi
+
+if [[ "$mode" == 'startup-locked' ]]; then
+  [[ -f "$candidate" ]] || exit 0
+  # A monitor from an earlier launch must never remove a newer candidate.
+  [[ -n "$candidate_token" && "$(candidate_digest)" == "$candidate_token" ]] || exit 0
   candidate_version="$(sed -n '1p' "$candidate")"
   backup="$(sed -n '2p' "$candidate")"
   previous_attempts="$(sed -n '3p' "$candidate")"
@@ -125,10 +163,18 @@ if [[ "$mode" == 'monitor' ]]; then
   [[ "$candidate_version" =~ ^[0-9]+\.[0-9]+\.[0-9]+\+[0-9]+$ &&
      "$previous_attempts" =~ ^[0-2]$ &&
      "$candidate_app" == "$app" ]] || exit 4
+  valid_rollback_path || exit 4
   if [[ -f "$healthy" && "$(cat "$healthy")" == "$watched_pid" ]]; then
-    rm -f "$candidate" "$healthy" "$marker"
+    # This is the sole pending rollback, not a permanent per-version backup.
+    # Keep the small PID receipt so startup checks can observe it. The app
+    # removes its own marker after writing the receipt.
+    rm -rf "$backup"
+    rm -f "$candidate"
+    printf '%s temporary rollback cleared after healthy startup version=%s\n' \
+      "$(date -u +%FT%TZ)" "$candidate_version"
     exit 0
   fi
+  kill -0 "$watched_pid" 2>/dev/null && exit 11
   [[ -f "$marker" && "$(cat "$marker")" == "$watched_pid" ]] || exit 0
   attempts=$(( previous_attempts + 1 ))
   rm -f "$marker"
@@ -138,8 +184,8 @@ if [[ "$mode" == 'monitor' ]]; then
     mv -f "$candidate.tmp" "$candidate"
     exit 0
   fi
-  [[ "$backup" == "$root/Backups/"* &&
-     -d "$backup/BobTV.app" && -w "$(dirname "$app")" ]] || exit 4
+  [[ -d "$backup/BobTV.app" && ! -L "$backup/BobTV.app" &&
+     -w "$(dirname "$app")" ]] || exit 4
   failed="$root/FailedApps/$candidate_version-$(date +%s)"
   mkdir -p "$failed"
   mv "$app" "$failed/BobTV.app"
@@ -147,6 +193,7 @@ if [[ "$mode" == 'monitor' ]]; then
     mv "$failed/BobTV.app" "$app"
     exit 5
   fi
+  rmdir "$backup"
   printf '%s\n' "$candidate_version" >> "$skipped"
   printf '{"schema":1,"failedVersion":"%s"}\n' "$candidate_version" \
     > "$root/failure-${candidate_version//+/_}.json"
@@ -166,15 +213,38 @@ fi
    "$archive_url" != *'?'* && "$archive_url" != *'#'* ]] || exit 2
 if [[ -f "$skipped" ]] && grep -Fxq "$version" "$skipped"; then exit 0; fi
 trap failure_exit EXIT
+# A shared support directory may contain a pending record from a test build or
+# another installation. Keep its rollback evidence, without blocking this app.
+if [[ -f "$candidate" && "$(sed -n '4p' "$candidate")" != "$app" ]]; then
+  foreign_app="$(sed -n '4p' "$candidate")"
+  while IFS= read -r other_pid; do
+    [[ -z "$other_pid" ]] && continue
+    if [[ "$(ps -p "$other_pid" -o comm= 2>/dev/null || true)" == "$foreign_app/Contents/MacOS/BobTV" ]]; then
+      exit 12
+    fi
+  done < <(pgrep -x BobTV || true)
+  mkdir -p "$root/DeferredCandidates"
+  deferred="$(mktemp -d "$root/DeferredCandidates/foreign.XXXXXX")"
+  mv "$candidate" "$deferred/candidate.txt"
+  for receipt in "$marker" "$healthy"; do
+    [[ ! -f "$receipt" ]] || mv "$receipt" "$deferred/"
+  done
+  printf '%s foreign installation startup state preserved in %s\n' "$(date -u +%FT%TZ)" "$deferred"
+fi
 if [[ -f "$candidate" ]]; then
+  candidate_token="$(candidate_digest)"
   write_status starting "$version" 0 '等待当前版本完成启动检查'
   for (( attempt=0; attempt<90; attempt++ )); do
-    [[ -f "$healthy" ]] && break
+    [[ ! -f "$candidate" ]] && break
+    [[ -f "$healthy" && "$(cat "$healthy")" == "$watched_pid" ]] && break
     sleep 1
   done
-  [[ -f "$healthy" && "$(cat "$healthy")" == "$watched_pid" &&
-      "$(sed -n '4p' "$candidate")" == "$app" ]] || exit 11
-  rm -f "$candidate" "$marker" "$healthy"
+  if [[ -f "$candidate" ]]; then
+    [[ -f "$healthy" && "$(cat "$healthy")" == "$watched_pid" &&
+        "$(sed -n '4p' "$candidate")" == "$app" ]] || exit 11
+    finish_startup
+    [[ ! -f "$candidate" ]] || exit 11
+  fi
 fi
 [[ -w "$(dirname "$app")" ]] || exit 9
 
@@ -249,6 +319,16 @@ for binary in \
   [[ -f "$binary" && " $(lipo -archs "$binary") " == *" $machine_arch "* ]] || exit 7
 done
 codesign --verify --deep --strict "$replacement"
+# Preserve an installed certificate-backed app identity. Never replace it with
+# ad-hoc code or another publisher, even if the update archive is authenticated.
+installed_signing="$(codesign -d -r- --verbose=2 "$app" 2>&1 || true)"
+installed_team="$(printf '%s\n' "$installed_signing" | sed -n 's/^TeamIdentifier=//p')"
+if [[ -n "$installed_team" && "$installed_team" != 'not set' ]]; then
+  installed_requirement="$(printf '%s\n' "$installed_signing" | sed -n 's/^designated => //p')"
+  [[ -n "$installed_requirement" ]] || exit 7
+  codesign --verify --strict -R "$installed_requirement" "$replacement"
+fi
+
 [[ "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' \
   "$app/Contents/Info.plist")" == 'com.briconbric.bobtv' ]] || exit 8
 write_status ready "$version" 100
@@ -257,19 +337,19 @@ wait_for_exit
 [[ -w "$(dirname "$app")" ]] || exit 9
 wait_for_app_idle
 backup="$root/Backups/${version//+/_}-$(date +%s)-$$"
+valid_rollback_path || exit 9
 write_status backingUp "$version" 0
 mkdir -p "$backup"
-ditto "$app" "$backup/BobTV.app"
-diff -qr "$app" "$backup/BobTV.app" >/dev/null || exit 9
-old="$app.bobtv-previous-$$"
+# Move the existing bundle once; do not make another full copy of every release.
+mv "$app" "$backup/BobTV.app"
 write_status installing "$version" 100
-mv "$app" "$old"
 if ! mv "$replacement" "$app"; then
-  mv "$old" "$app"
+  mv "$backup/BobTV.app" "$app"
+  rmdir "$backup"
   write_status failed "$version" 0
   exit 10
 fi
+rm -f "$marker" "$healthy"
 printf '%s\n%s\n0\n%s\n' "$version" "$backup" "$app" > "$candidate.tmp"
 mv -f "$candidate.tmp" "$candidate"
-rm -rf "$old"
 write_status installed "$version" 100

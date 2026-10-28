@@ -23,12 +23,14 @@ class WebsiteCatalogProgress {
     this.total = 0,
     this.complete = false,
     this.error = false,
+    this.waiting = false,
   });
   final String phase;
   final int imported;
   final int total;
   final bool complete;
   final bool error;
+  final bool waiting;
 }
 
 /// Synchronizes an immutable website snapshot without modifying user sources.
@@ -37,7 +39,9 @@ class WebsiteChannelCatalogService {
     required this.database,
     BobTvApiClient? api,
     this.onSharedScores,
-  }) : api = api ?? BobTvApiClient();
+    DateTime Function()? now,
+  }) : api = api ?? BobTvApiClient(),
+       _now = now ?? DateTime.now;
 
   static const providerId = publicCatalogProviderId;
   static const _versionKey = 'bobtv_website_catalog_version_v1';
@@ -77,11 +81,18 @@ class WebsiteChannelCatalogService {
   final Future<void> Function(Map<String, double>)? onSharedScores;
   final state = ValueNotifier(const WebsiteCatalogProgress());
   Future<int>? _running;
+  final DateTime Function() _now;
+  DateTime? _retryAt;
+  int _failures = 0;
   bool _disposed = false;
   Object? lastError;
 
-  Future<int> sync() =>
-      _running ??= _sync().whenComplete(() => _running = null);
+  Future<int> sync() {
+    if (_disposed || (_retryAt?.isAfter(_now()) ?? false)) {
+      return Future.value(0);
+    }
+    return _running ??= _sync().whenComplete(() => _running = null);
+  }
 
   Future<int> importBundled() => _running ??= _sync(
     source: _BundledCatalogApi(),
@@ -123,7 +134,8 @@ class WebsiteChannelCatalogService {
         throw const FormatException('Stale website snapshot');
       final identityBinding = ServerEpgBinding(database);
       if (installedVersion == manifest.version && installed &&
-          await identityBinding.catalogIdentityVersion() == manifest.version) {
+          await identityBinding.catalogIdentityVersion() == manifest.version &&
+          await identityBinding.hasPresentationContext()) {
         state.value = WebsiteCatalogProgress(
           phase: '网站频道已是最新',
           imported: manifest.routeCount,
@@ -314,10 +326,28 @@ class WebsiteChannelCatalogService {
       AppDiagnostics.instance.log('website_channel_catalog_synced', {
         'version': manifest.version,
         'routes': imported,
+        'sourceRoutes': manifest.routeCount,
+        'acceptedRoutes': records.length,
       });
       return imported;
     } catch (error, stackTrace) {
       lastError = error;
+      if (source == null && !_disposed) {
+        _failures++;
+        var delay = Duration(seconds: 30 * (1 << (_failures - 1).clamp(0, 5)));
+        if (delay > const Duration(minutes: 15)) {
+          delay = const Duration(minutes: 15);
+        }
+        if (error is BobTvApiException &&
+            error.retryAfter != null && error.retryAfter! > delay) {
+          delay = error.retryAfter!;
+        }
+        _retryAt = _now().add(delay);
+        AppDiagnostics.instance.log('website_channel_catalog_retry_scheduled', {
+          'retryAfterSeconds': delay.inSeconds,
+          'failures': _failures,
+        });
+      }
       if (!_disposed) {
         state.value = const WebsiteCatalogProgress(
           phase: '网站频道暂不可用，继续使用本机频道',
@@ -331,11 +361,24 @@ class WebsiteChannelCatalogService {
       );
       return 0;
     } finally {
+      if (source == null && lastError == null) {
+        _retryAt = null;
+        _failures = 0;
+      }
       source?.close();
     }
   }
 
+  /// Stop scheduling work and join every operation that can still use the DB.
+  Future<void> shutdown() async {
+    dispose();
+    await Future.wait<Object?>([
+      ?_running,
+    ]);
+  }
+
   void dispose() {
+    if (_disposed) return;
     _disposed = true;
     api.close();
     state.dispose();
@@ -419,6 +462,7 @@ Future<List<Map<String, Object?>>> _decodeCatalog(
     throw const FormatException('Channel count mismatch');
   }
   final result = <Map<String, Object?>>[];
+  var sourceRouteCount = 0;
   final ids = <String>{};
   for (final channel in channels) {
     if (channel is! Map ||
@@ -444,6 +488,33 @@ Future<List<Map<String, Object?>>> _decodeCatalog(
       categories,
       channel['countryCode'] as String?,
     );
+    final groups = <String>[group];
+    final aliases = channel['categoryIds'];
+    if (aliases != null) {
+      if (aliases is! List || aliases.isEmpty || aliases.length > 16 ||
+          !aliases.contains(channel['categoryId']) ||
+          aliases.toSet().length != aliases.length) {
+        throw const FormatException('Invalid alternate channel classifications');
+      }
+      final primary = group.split(' / ');
+      for (final alias in aliases) {
+        final category = alias is String ? categories[alias] : null;
+        if (category == null) {
+          throw const FormatException('Unknown alternate channel category');
+        }
+        final alternate = _catalogGroupFor(category, categories,
+          channel['countryCode'] as String?);
+        final parts = alternate.split(' / ');
+        if (primary.length != 3 || parts.length != 3 ||
+            primary.first != '国际' || primary[1] == '未识别地区' ||
+            parts[0] != primary[0] || parts[1] != primary[1] ||
+            !ChannelCategoryClassifier.internationalGenres.contains(primary[2]) ||
+            !ChannelCategoryClassifier.internationalGenres.contains(parts[2])) {
+          throw const FormatException('Conflicting alternate channel identity');
+        }
+        if (!groups.contains(alternate)) groups.add(alternate);
+      }
+    }
     for (final route in channel['routes'] as List) {
       if (route is! Map ||
           route['id'] is! String ||
@@ -451,6 +522,10 @@ Future<List<Map<String, Object?>>> _decodeCatalog(
           !ids.add('route:${route['id']}') ||
           !BobTvApiClient.isPublicCatalogUrl(route['url'] as String)) {
         throw const FormatException('Invalid website route');
+      }
+      sourceRouteCount++;
+      if (sourceRouteCount > routeCount) {
+        throw const FormatException('Too many website routes');
       }
       if (route['transferred'] != null && route['transferred'] is! bool) {
         throw const FormatException('Invalid route ownership');
@@ -462,12 +537,16 @@ Future<List<Map<String, Object?>>> _decodeCatalog(
         groupTitle: group,
         streamUrl: url,
       )) {
-        throw const FormatException('Non-television website route');
+        // A structurally valid snapshot may include content excluded by the
+        // local catalog policy. Exclude that route without rejecting its peers.
+        continue;
       }
       result.add({
         'routeId': route['id'] as String,
         'catalogChannelId': channel['id'] as String,
         'catalogIdentityHash': identityHash,
+        'countryCode': channel['countryCode'] as String?,
+        'regionCode': channel['regionCode'] as String?,
         'name': name,
         'mergeId': channel['mergeId'] is String
             ? channel['mergeId'] as String
@@ -475,6 +554,7 @@ Future<List<Map<String, Object?>>> _decodeCatalog(
         'url': url,
         'transferred': route['transferred'] == true,
         'group': group,
+        'groups': groups,
         'epgId': channel['epgId'] as String?,
         'logoUrl': channel['logoUrl'] as String?,
         'order': channel['sortOrder'] is int ? channel['sortOrder'] as int : 0,
@@ -484,13 +564,14 @@ Future<List<Map<String, Object?>>> _decodeCatalog(
             ? (route['healthScore'] as num).toDouble().clamp(0, 1)
             : .5,
       });
-      if (result.length > routeCount) {
-        throw const FormatException('Too many website routes');
-      }
+
     }
   }
-  if (result.length != routeCount) {
+  if (sourceRouteCount != routeCount) {
     throw const FormatException('Route count mismatch');
+  }
+  if (routeCount > 0 && result.isEmpty) {
+    throw const FormatException('No supported routes in website catalog');
   }
   final seenEndpoints = <String>{};
   return result
@@ -525,6 +606,15 @@ String _catalogGroupFor(
   }
   final root = chain.first;
   final leaf = chain.last;
+  if (root == '其他') return chain.join(' / ');
+  if (root == '广播') {
+    final code = countryCode?.toLowerCase();
+    if (code == 'cn') return '中国 / ${chain.join(' / ')}';
+    final country = ChannelCategoryClassifier.internationalCountryNames[code];
+    return country == null
+        ? '其他 / ${chain.join(' / ')}'
+        : '国际 / $country / ${chain.join(' / ')}';
+  }
   if (root == '中国') {
     final explicit = ChannelCategoryDestination.fromGroup(chain.join(' / '));
     if (explicit != null) return explicit.group;
@@ -533,8 +623,14 @@ String _catalogGroupFor(
         : '其他';
     return '中国 / $categoryName';
   }
-  if (root == '国际') return chain.join(' / ');
-  if (ChannelCategoryClassifier.internationalCountryNames.containsValue(root)) {
+  if (root == '国际') {
+    if (chain.length >= 2) {
+      chain[1] = ChannelCategoryClassifier.normalizeCountryName(chain[1]);
+    }
+    return chain.join(' / ');
+  }
+  chain[0] = ChannelCategoryClassifier.normalizeCountryName(root);
+  if (ChannelCategoryClassifier.internationalCountryNames.containsValue(chain[0])) {
     return '国际 / ${chain.join(' / ')}';
   }
   final country = ChannelCategoryClassifier

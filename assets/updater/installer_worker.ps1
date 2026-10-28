@@ -31,7 +31,7 @@ function Write-Log([string]$text){Log $text}
 $tokens=$null;$parseErrors=$null
 $legacy=[Management.Automation.Language.Parser]::ParseFile((Join-Path $PSScriptRoot 'worker.ps1'),[ref]$tokens,[ref]$parseErrors)
 if($parseErrors.Count){throw 'Invalid application-lock helper source'}
-foreach($name in @('Suspend-AppCrashMonitor','Resume-AppCrashMonitor')){
+foreach($name in @('Suspend-AppCrashMonitor')){
   $definition=$legacy.Find({param($node) $node -is [Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -eq $name},$true)
   if(!$definition){throw 'Application-lock helper missing'}
   . ([ScriptBlock]::Create($definition.Extent.Text))
@@ -223,6 +223,5 @@ try{
   if($Version -match '^\d+\.\d+\.\d+\+\d+$' -and $RunId){Status 'failed' 0 ('更新未完成：'+$failure+'。下载和备份已保留。')}
   exit 1
 }finally{
-  try{Resume-AppCrashMonitor $AppDir}catch{Log ('monitor_resume_failed: '+$_.Exception.Message)}
   if($locked){$mutex.ReleaseMutex()};$mutex.Dispose()
 }

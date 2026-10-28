@@ -1,0 +1,12 @@
+[Unit]
+Description=Continue reviewed BobTV identity-search canary
+
+[Timer]
+OnBootSec=4min
+OnUnitInactiveSec=2min
+AccuracySec=10s
+RandomizedDelaySec=10s
+Persistent=true
+
+[Install]
+WantedBy=timers.target

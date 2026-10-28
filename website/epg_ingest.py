@@ -93,8 +93,19 @@ def registry(path=REGISTRY):
                 raise EpgError('invalid_source_replacement')
         if type(source.get('refreshSeconds')) is not int or not 900 <= source['refreshSeconds'] <= 7 * 86400:
             raise EpgError('invalid_refresh_interval')
-        if source.get('format', 'xmltv') not in ('xmltv', 'tvmaze-json', 'cctv-json'):
+        if 'minimumRetrySeconds' in source and (type(source['minimumRetrySeconds']) is not int
+                or not 900 <= source['minimumRetrySeconds'] <= min(86400, source['refreshSeconds'])):
+            raise EpgError('invalid_minimum_retry_interval')
+        if source.get('format', 'xmltv') not in ('xmltv', 'tvmaze-json', 'cctv-json', 'taipei-monthly-csv'):
             raise EpgError('unsupported_source_format')
+        if source.get('format') == 'taipei-monthly-csv':
+            if (source['id'] != 'taipei-radio-opendata-v1'
+                    or source['url'] != 'https://data.gov.tw/dataset/121175'
+                    or source.get('countryCode') != 'TW'
+                    or source.get('calendarTimezone') != 'Asia/Taipei'
+                    or source.get('redirectUrls') or source.get('redirectPolicy')
+                    or source['refreshSeconds'] < 3600):
+                raise EpgError('invalid_taipei_source')
         if source.get('format') == 'tvmaze-json':
             if (source['url'] != 'https://api.tvmaze.com/schedule'
                     or not re.fullmatch(r'[A-Z]{2}', source.get('countryCode', ''))
@@ -128,6 +139,9 @@ def source_day(source, now):
 
 
 def fetch_source(source, now):
+    if source.get('format') == 'taipei-monthly-csv':
+        from epg_taipei import fetch_schedule
+        return fetch_schedule(now)
     if source.get('format') == 'cctv-json':
         from epg_cctv import fetch_schedule
         return fetch_schedule(source['channelId'], source_day(source, now).replace('-', ''))
@@ -138,6 +152,9 @@ def fetch_source(source, now):
 
 
 def parse_source(source, payload, now):
+    if source.get('format') == 'taipei-monthly-csv':
+        from epg_taipei import parse_schedule
+        return parse_schedule(payload, now)
     if source.get('format') == 'cctv-json':
         from epg_cctv import parse_schedule
         value = parse_schedule(payload, source['channelId'], source_day(source, now).replace('-', ''), now)
@@ -427,7 +444,7 @@ def seed_cached_identities(directory, sources, cache_directory, now=None):
     seeded = []
     try:
         for source in sources:
-            if source.get('format') in ('tvmaze-json', 'cctv-json'):
+            if source.get('format') in ('tvmaze-json', 'cctv-json', 'taipei-monthly-csv'):
                 continue  # Legacy egress cache contains XMLTV, never JSON schedules.
             if conn.execute('SELECT 1 FROM source_identities WHERE source_id=? LIMIT 1', (source['id'],)).fetchone():
                 continue
@@ -486,7 +503,16 @@ def probe_batch(directory, sources, now=None, fetcher=None, batch_size=1):
         attempted = 0
         for source in sources:
             row = conn.execute('SELECT * FROM source_health WHERE id=?', (source['id'],)).fetchone()
-            if source.get('format') == 'cctv-json' and row['state'] == 'manual_review':
+            if row['state'] == 'manual_review':
+                continue
+            if row['last_error'] in ('http_401', 'http_403'):
+                # Older workers only paused CCTV. Reconcile existing denied
+                # sources without another access attempt or a fake fetch time.
+                with conn:
+                    conn.execute("UPDATE source_health SET state='manual_review' WHERE id=?",
+                        (source['id'],))
+                    conn.execute('INSERT INTO probe_audit(source_id,checked_at,state,error_code) VALUES(?,?,?,?)',
+                        (source['id'], now, 'manual_review', row['last_error']))
                 continue
             if row['next_retry'] > now or attempted >= batch_size:
                 continue
@@ -506,6 +532,7 @@ def probe_batch(directory, sources, now=None, fetcher=None, batch_size=1):
                     conn.execute('INSERT INTO probe_audit(source_id,checked_at,state,error_code) VALUES(?,?,?,?)',
                         (source['id'], now, 'failed', 'worker_interrupted'))
                 resume_delay = max(120, min(6 * 3600, 60 * 2 ** min(row['failures'], 9)))
+                resume_delay = max(resume_delay, source.get('minimumRetrySeconds', 0))
                 conn.execute('UPDATE source_health SET state=?,last_attempt=?,failures=?,next_retry=? WHERE id=?',
                     ('probing', now, row['failures'] + 1, now + resume_delay, source['id']))
                 conn.execute('INSERT INTO probe_audit(source_id,checked_at,state) VALUES(?,?,?)',
@@ -519,7 +546,15 @@ def probe_batch(directory, sources, now=None, fetcher=None, batch_size=1):
                 if not quality['acceptedProgrammes']:
                     raise EpgError('empty_or_expired_data')
                 state = 'healthy'
-                if (source.get('format') in ('tvmaze-json', 'cctv-json') and not quality['currentAndFutureChannels']
+                if (source.get('format') == 'taipei-monthly-csv'
+                        and quality.get('currentConflictRecords') and quality['futureChannels']):
+                    # The exact licensed CSV can have an ambiguous current hour
+                    # while retaining valid, dated future records. Keep those
+                    # records as partial data; current coverage stays zero and
+                    # the per-channel conflict review remains active.
+                    state = 'partial'
+                    quality['coverageStatus'] = 'current_slot_conflict_requires_review'
+                elif (source.get('format') in ('tvmaze-json', 'cctv-json') and not quality['currentAndFutureChannels']
                         and (quality['currentChannels'] or quality['futureChannels'])):
                     state = 'partial'
                     quality['coverageStatus'] = 'sparse_current_or_future_only'
@@ -528,7 +563,7 @@ def probe_batch(directory, sources, now=None, fetcher=None, batch_size=1):
             except EpgError as exc:
                 state, error = 'failed', str(exc)
                 retry_after = exc.retry_after
-                if source.get('format') == 'cctv-json' and error in ('http_401', 'http_403'):
+                if error in ('http_401', 'http_403'):
                     state = 'manual_review'
             except (OSError, urllib.error.URLError, TimeoutError):
                 state, error = 'failed', 'network_failure'
@@ -536,11 +571,16 @@ def probe_batch(directory, sources, now=None, fetcher=None, batch_size=1):
                 state, error = 'failed', 'invalid_or_unsafe_source'
             failures = row['failures'] + 1 if error else 0
             delay = max(retry_after, min(6 * 3600, 60 * 2 ** min(failures - 1, 9))) + random.randint(0, 5) if error else source['refreshSeconds']
+            if error:
+                delay = max(delay, source.get('minimumRetrySeconds', 0))
             if (source.get('format') == 'cctv-json'
                     or source.get('format') == 'tvmaze-json' and metadata is not None):
                 # Provider caches output for an hour. Empty/invalid dated data
                 # must not be re-downloaded each minute while that cache is fresh.
                 delay = max(delay, source['refreshSeconds'])
+            if not error and source.get('format') == 'taipei-monthly-csv':
+                from epg_taipei import success_refresh_delay
+                delay = success_refresh_delay(now, delay)
             with conn:
                 if not error:
                     save_identities(conn, source['id'], parsed, digest, now, now, 'server_fetch')
@@ -559,6 +599,9 @@ def probe_batch(directory, sources, now=None, fetcher=None, batch_size=1):
                 # Unapproved sources remain metadata-only diagnostics.
                 from epg_store import cache_validated_payload
                 try:
+                    if source.get('format') == 'taipei-monthly-csv':
+                        from epg_taipei import refresh_existing_credit
+                        refresh_existing_credit(conn, quality['resourceTitle'])
                     cache_validated_payload(conn, directory, source['id'], payload, now)
                 except (EpgError, OSError, sqlite3.Error):
                     with conn:

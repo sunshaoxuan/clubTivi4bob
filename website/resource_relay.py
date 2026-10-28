@@ -7,6 +7,7 @@ import asyncio
 from contextlib import asynccontextmanager
 import ipaddress
 import os
+import sqlite3
 import time
 from urllib.parse import parse_qs
 
@@ -17,6 +18,12 @@ from fastapi.middleware.cors import CORSMiddleware
 from starlette.background import BackgroundTask
 
 from resource_nodes import PROBE_BODY, PROBE_VERSION, signature
+from diagnostic_relay_worker import store as diagnostic_store
+from diagnostic_store import StoreLimit
+from diagnostics_api import read_batch
+from starlette.concurrency import run_in_threadpool
+import hashlib
+import hmac
 
 ORIGIN = 'https://bobtv.briconbric.com'
 PREFIX = '/bobtv'
@@ -97,6 +104,39 @@ async def probe(request: Request):
         media_type='application/octet-stream', headers={
             'Content-Length': str(len(PROBE_BODY)), 'Cache-Control': 'no-store',
             'X-BobTV-Probe': PROBE_VERSION, 'X-BobTV-Node': 'cndrp'})
+
+
+@app.post(PREFIX + '/api/v1/diagnostics/batches')
+async def queue_diagnostics(request: Request):
+    body = await read_batch(request)
+    peer = request.client.host if request.client else 'unknown'
+    quota = hmac.new(request.app.state.secret.encode(),
+                     (str(int(time.time()) // 86400) + ':' + peer).encode(), hashlib.sha256).hexdigest()
+    try:
+        receipt = await run_in_threadpool(diagnostic_store().put, body, quota=quota)
+    except (ValueError, TypeError, OverflowError):
+        raise HTTPException(422, 'Invalid structured diagnostics') from None
+    except StoreLimit:
+        raise HTTPException(429, 'Diagnostic relay quota reached', headers={'Retry-After': '3600'}) from None
+    except (sqlite3.OperationalError, OSError):
+        raise HTTPException(503, 'Diagnostic relay temporarily busy', headers={
+            'Retry-After': '30', 'Cache-Control': 'private, no-store'}) from None
+    return Response(__import__('json').dumps(receipt), media_type='application/json',
+                    status_code=200 if receipt['state'] == 'origin_accepted' else 202,
+                    headers={'Cache-Control': 'private, no-store', 'X-BobTV-Node': 'cndrp', 'Retry-After': '60'})
+
+
+@app.get(PREFIX + '/api/v1/diagnostics/batches/{digest}')
+async def diagnostic_receipt(digest: str):
+    try:
+        value = await run_in_threadpool(diagnostic_store().receipt, digest)
+    except (sqlite3.OperationalError, OSError):
+        raise HTTPException(503, 'Diagnostic relay temporarily busy', headers={
+            'Retry-After': '30', 'Cache-Control': 'private, no-store'}) from None
+    if not value:
+        raise HTTPException(404, 'Diagnostic receipt unavailable')
+    return Response(__import__('json').dumps(value), media_type='application/json',
+                    headers={'Cache-Control': 'private, no-store', 'X-BobTV-Node': 'cndrp'})
 
 
 @app.api_route(PREFIX + '/{path:path}', methods=['GET', 'HEAD', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'])

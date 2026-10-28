@@ -4,8 +4,11 @@ from functools import lru_cache
 from contextlib import closing
 import hashlib
 import json
+import logging
 import re
 import sqlite3
+from threading import Lock
+from time import monotonic
 
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import FileResponse, JSONResponse, Response
@@ -17,6 +20,36 @@ from epg_ingest import EpgError
 router = APIRouter(prefix='/api/v1/epg')
 DIRECTORY = Path(DATA) / 'epg' / 'public'
 DATABASE = Path(DATA) / 'epg' / 'epg.sqlite3'
+_failure_logger = logging.getLogger('bobtv.epg.manifest')
+_failure_log_lock = Lock()
+_failure_log_times = {}
+
+
+def _record_manifest_failure(error):
+    """Bounded reason codes only; never exception text, paths or credentials."""
+    primary = None
+    if isinstance(error, sqlite3.Error):
+        code = getattr(error, 'sqlite_errorcode', None)
+        primary = code & 0xff if type(code) is int else None
+        reason = {sqlite3.SQLITE_BUSY: 'database_busy', sqlite3.SQLITE_LOCKED: 'database_locked'}.get(
+            primary, 'database_error')
+    elif isinstance(error, EpgError):
+        reason = str(error) if str(error) in {
+            'invalid_publication_receipt', 'publication_snapshot_unavailable',
+            'invalid_publication_snapshot'} else 'publication_validation_error'
+    elif isinstance(error, OSError):
+        reason = 'filesystem_error'
+    else:
+        reason = 'publication_value_error'
+    now = monotonic()
+    # A finite reason set bounds memory; at most one log per reason per minute.
+    with _failure_log_lock:
+        previous = _failure_log_times.get(reason)
+        if previous is not None and now - previous < 60:
+            return
+        _failure_log_times[reason] = now
+    _failure_logger.warning('epg_manifest_unavailable reason=%s sqlite_primary_code=%s',
+        reason, primary if primary is not None else 'none')
 
 
 @lru_cache(maxsize=32)
@@ -54,7 +87,8 @@ def manifest(request: Request):
         if value is None:
             return JSONResponse({'schemaVersion': 1, 'version': None, 'channelCount': 0}, headers=headers)
         checked_snapshot(value['sha256'], value['compressedBytes'])
-    except (EpgError, sqlite3.Error, OSError, ValueError):
+    except (EpgError, sqlite3.Error, OSError, ValueError) as error:
+        _record_manifest_failure(error)
         return JSONResponse({'error': 'epg_publication_unavailable'}, status_code=503, headers=headers)
     raw = json.dumps(value, sort_keys=True, separators=(',', ':')).encode()
     headers['ETag'] = '"' + hashlib.sha256(raw).hexdigest() + '"'

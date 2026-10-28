@@ -122,6 +122,42 @@
         "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0/",
         "restriction": "Attribution, license link, transformation notice and ShareAlike required before publication. Exact regional/delay catalog identity not established. Sparse episodes never imply a full broadcast schedule."
       }
+    },
+    {
+      "id": "taipei-radio-opendata-v1",
+      "url": "https://data.gov.tw/dataset/121175",
+      "format": "taipei-monthly-csv",
+      "countryCode": "TW",
+      "calendarTimezone": "Asia/Taipei",
+      "redirectUrls": [],
+      "refreshSeconds": 21600,
+      "minimumRetrySeconds": 3600,
+      "publicationAllowed": false,
+      "scope": "Two exact Taipei Broadcasting Station FM93.1 and AM1134 identities; monthly licensed weekday bounds only",
+      "dataLicense": {
+        "status": "reviewed_open_government_data_attribution_required",
+        "evidenceUrl": "https://data.gov.tw/dataset/121175",
+        "licenseUrl": "https://data.gov.tw/license",
+        "restriction": "Open Government Data License 1.0. Preserve providing agency, 2026 monthly resource name, license link and normalization notice. Mapping remains separately approved."
+      }
+    },
+    {
+      "id": "frikanalen-official-diagnostic-v1",
+      "url": "https://frikanalen.no/xmltv/upcoming/",
+      "format": "xmltv",
+      "calendarTimezone": "Europe/Oslo",
+      "redirectUrls": [],
+      "refreshSeconds": 3600,
+      "minimumRetrySeconds": 3600,
+      "scope": "First-party public XMLTV candidate; bounded metadata-only validation, exact feed and live programme bounds still unverified",
+      "publicationAllowed": false,
+      "dataLicense": {
+        "status": "aggregator_use_evidence_found_not_granted",
+        "reviewedAt": "2026-10-16",
+        "evidenceUrl": "https://frikanalen.no/api/tvanytime",
+        "documentationSha256": "26b7a4b6a4f924a52bedeff56612cdfb886267095b35cf64b69123ad60543736",
+        "restriction": "First-party documentation explicitly addresses EPG aggregators and schedule redistribution, with XMLTV as the same schedule. No named open-data licence, installed data grant, exact catalogue mapping or current/future programme coverage is established. No raw programme cache or publication without independent existing approvals."
+      }
     }
   ]
 }

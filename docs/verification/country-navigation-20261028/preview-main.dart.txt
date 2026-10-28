@@ -1,0 +1,52 @@
+import 'package:flutter/material.dart';
+import 'data/services/country_names.dart';
+import 'features/channels/compact_category_row.dart';
+
+void main() {
+  WidgetsFlutterBinding.ensureInitialized().ensureSemantics();
+  runApp(const Preview());
+}
+
+class Preview extends StatefulWidget {
+  const Preview({super.key});
+  @override State<Preview> createState() => _PreviewState();
+}
+
+class _PreviewState extends State<Preview> {
+  String selected = '美国';
+  String pinned = '';
+  final countries = CountryNames.byCode.values.toSet().toList();
+  @override Widget build(BuildContext context) => MaterialApp(
+    debugShowCheckedModeBanner: false,
+    theme: ThemeData.dark(useMaterial3: true),
+    builder: (context, child) => MediaQuery(
+      data: MediaQuery.of(context).copyWith(textScaler: TextScaler.linear(
+        double.tryParse(Uri.base.queryParameters['scale'] ?? '') ?? 1)),
+      child: child!),
+    home: Builder(builder: (context) => Scaffold(
+      backgroundColor: const Color(0xFF101B2D),
+      body: SafeArea(child: Padding(padding: const EdgeInsets.all(16), child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const Text('BobTV · 国家导航验证', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700)),
+          const SizedBox(height: 12),
+          const Text('生产菜单组件 / 本地国家名称数据', style: TextStyle(color: Colors.white70)),
+          const SizedBox(height: 16),
+          CompactCategoryRow(level: 2, title: '国家或地区', countryIndex: true,
+            options: [for(final name in countries) CompactCategoryOption(
+              id: 'country:$name', label: name, selected: selected == name,
+              onTap: () => setState(() => selected = name),
+              onContextMenu: (offset) async {
+                final result = await showMenu<String>(context: context,
+                  position: RelativeRect.fromLTRB(offset.dx, offset.dy, offset.dx, offset.dy),
+                  items: [PopupMenuItem(value: name, child: Text('置顶$name'))]);
+                if (result != null) setState(() => pinned = result);
+              },
+            )]),
+          const SizedBox(height: 20),
+          Text('当前选择：$selected'),
+          if (pinned.isNotEmpty) Text('置顶：$pinned'),
+        ]))),
+    )),
+  );
+}

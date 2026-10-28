@@ -1,0 +1,15 @@
+{
+  "base": "6e7e14353dde75f60ab5eeeead7da5b81e4181e5",
+  "frozenAt": "2026-10-28T23:46:17.081271+09:00",
+  "sha256": {
+    "lib/features/channels/channels_screen.dart": "ee91a9285eb9eb650cf79972353ccf60ef35261ab9f35b6f1887f39b8d82c9cb",
+    "lib/features/channels/compact_category_row.dart": "1321f85c9453edc39c72c806dd75a98b8c2eb40e733c4360b3c4fb473418a241",
+    "lib/data/services/country_name_index.dart": "d10aa6342f961ccf2516e6a155fabba1db1faea9889fcac20d2fdac76d96ad00",
+    "test/country_name_index_test.dart": "f8cbb911ba312a8b2037b30a77348441fecbebb312eb77106e8b824fe6f5d10f",
+    "test/country_navigation_test.dart": "99189a2e55099b4e7ac9297a66ad17632dad464b3a5e05e6d40c6cd2c66fd31f",
+    "pubspec.yaml": "2e03ce9e9c5ee0ded163d11ef866c40dfb4bb78579a96c526da2240419f8a593",
+    "pubspec.lock": "790e3b97e518558eae83bcc4530737756ca5a23a3a248976496bbbd837bb9fbb",
+    "analysis_options.yaml": "b63207cf529949ec4727b68c23dbb38ce255b6f6f4ae1effcb5c1dcf2852d238"
+  },
+  "unchangedAfterChecks": true
+}

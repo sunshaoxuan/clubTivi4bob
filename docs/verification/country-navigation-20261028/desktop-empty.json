@@ -1,0 +1,31 @@
+{
+"controls":[
+  {"label":"关闭国家菜单","rect":{"bottom":140,"height":44,"left":830,"right":874,"top":96,"width":44,"x":830,"y":96},"role":"button"},
+  {"label":"搜索国家或地区","rect":{"bottom":215,"height":54,"left":414,"right":874,"top":161,"width":460,"x":414,"y":161},"role":"INPUT"},
+  {"label":"清空搜索","rect":{"bottom":209,"height":48,"left":818,"right":866,"top":161,"width":48,"x":818,"y":161},"role":"button"},
+  {"label":"全部","rect":{"bottom":286,"height":44,"left":414,"right":474,"top":242,"width":60,"x":414,"y":242},"role":"button"},
+  {"label":"A","rect":{"bottom":286,"height":44,"left":480,"right":524,"top":242,"width":44,"x":480,"y":242},"role":"button"},
+  {"label":"B","rect":{"bottom":286,"height":44,"left":530,"right":574,"top":242,"width":44,"x":530,"y":242},"role":"button"},
+  {"label":"C","rect":{"bottom":286,"height":44,"left":580,"right":624,"top":242,"width":44,"x":580,"y":242},"role":"button"},
+  {"label":"D","rect":{"bottom":286,"height":44,"left":630,"right":674,"top":242,"width":44,"x":630,"y":242},"role":"button"},
+  {"label":"E","rect":{"bottom":286,"height":44,"left":680,"right":724,"top":242,"width":44,"x":680,"y":242},"role":"button"},
+  {"label":"F","rect":{"bottom":286,"height":44,"left":730,"right":774,"top":242,"width":44,"x":730,"y":242},"role":"button"},
+  {"label":"G","rect":{"bottom":286,"height":44,"left":780,"right":824,"top":242,"width":44,"x":780,"y":242},"role":"button"},
+  {"label":"H","rect":{"bottom":336,"height":44,"left":414,"right":458,"top":292,"width":44,"x":414,"y":292},"role":"button"},
+  {"label":"J","rect":{"bottom":336,"height":44,"left":464,"right":508,"top":292,"width":44,"x":464,"y":292},"role":"button"},
+  {"label":"K","rect":{"bottom":336,"height":44,"left":514,"right":558,"top":292,"width":44,"x":514,"y":292},"role":"button"},
+  {"label":"L","rect":{"bottom":336,"height":44,"left":564,"right":608,"top":292,"width":44,"x":564,"y":292},"role":"button"},
+  {"label":"M","rect":{"bottom":336,"height":44,"left":614,"right":658,"top":292,"width":44,"x":614,"y":292},"role":"button"},
+  {"label":"N","rect":{"bottom":336,"height":44,"left":664,"right":708,"top":292,"width":44,"x":664,"y":292},"role":"button"},
+  {"label":"O","rect":{"bottom":336,"height":44,"left":714,"right":758,"top":292,"width":44,"x":714,"y":292},"role":"button"},
+  {"label":"P","rect":{"bottom":336,"height":44,"left":764,"right":808,"top":292,"width":44,"x":764,"y":292},"role":"button"},
+  {"label":"R","rect":{"bottom":336,"height":44,"left":814,"right":858,"top":292,"width":44,"x":814,"y":292},"role":"button"},
+  {"label":"S","rect":{"bottom":386,"height":44,"left":414,"right":458,"top":342,"width":44,"x":414,"y":342},"role":"button"},
+  {"label":"T","rect":{"bottom":386,"height":44,"left":464,"right":508,"top":342,"width":44,"x":464,"y":342},"role":"button"},
+  {"label":"W","rect":{"bottom":386,"height":44,"left":514,"right":558,"top":342,"width":44,"x":514,"y":342},"role":"button"},
+  {"label":"X","rect":{"bottom":386,"height":44,"left":564,"right":608,"top":342,"width":44,"x":564,"y":342},"role":"button"},
+  {"label":"Y","rect":{"bottom":386,"height":44,"left":614,"right":658,"top":342,"width":44,"x":614,"y":342},"role":"button"},
+  {"label":"Z","rect":{"bottom":386,"height":44,"left":664,"right":708,"top":342,"width":44,"x":664,"y":342},"role":"button"}
+],
+"viewport":{"dpr":1,"height":800,"width":1280}
+}

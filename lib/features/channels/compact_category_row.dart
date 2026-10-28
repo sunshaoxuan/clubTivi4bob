@@ -2,6 +2,8 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
+import '../../data/services/country_name_index.dart';
+
 class CompactCategoryOption {
   const CompactCategoryOption({
     required this.id,
@@ -18,8 +20,8 @@ class CompactCategoryOption {
   final ValueChanged<Offset>? onContextMenu;
 }
 
-/// Each hierarchy level occupies exactly one row. Overflow opens a menu joined
-/// to its button, so catalog size never increases the navigation's height.
+/// Each hierarchy level occupies exactly one row. Countries use a searchable
+/// dialog; other overflow menus remain joined to their navigation button.
 class CompactCategoryRow extends StatefulWidget {
   const CompactCategoryRow({
     super.key,
@@ -27,12 +29,14 @@ class CompactCategoryRow extends StatefulWidget {
     required this.title,
     required this.options,
     this.tiny = false,
+    this.countryIndex = false,
   });
 
   final int level;
   final String title;
   final List<CompactCategoryOption> options;
   final bool tiny;
+  final bool countryIndex;
 
   @override
   State<CompactCategoryRow> createState() => _CompactCategoryRowState();
@@ -46,6 +50,21 @@ class _CompactCategoryRowState extends State<CompactCategoryRow> {
 
   Future<void> _showOptions() async {
     if (_menuOpen) return;
+    if (widget.countryIndex) {
+      setState(() => _menuOpen = true);
+      final choice = await showDialog<CompactCategoryOption>(
+        context: context,
+        builder: (context) => _CountryMenu(
+          title: widget.title,
+          level: widget.level,
+          options: List<CompactCategoryOption>.of(widget.options),
+        ),
+      );
+      if (!mounted) return;
+      setState(() => _menuOpen = false);
+      choice?.onTap();
+      return;
+    }
     final box = _moreKey.currentContext?.findRenderObject();
     if (box is! RenderBox) return;
     final anchor = box.localToGlobal(Offset.zero) & box.size;
@@ -332,9 +351,15 @@ class _CompactCategoryRowState extends State<CompactCategoryRow> {
                     : const Color(0xFF26374F),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.vertical(
-                    top: Radius.circular(_menuOpen && _opensUpwards ? 0 : 16),
+                    top: Radius.circular(
+                      _menuOpen && !widget.countryIndex && _opensUpwards
+                          ? 0
+                          : 16,
+                    ),
                     bottom: Radius.circular(
-                      _menuOpen && !_opensUpwards ? 0 : 16,
+                      _menuOpen && !widget.countryIndex && !_opensUpwards
+                          ? 0
+                          : 16,
                     ),
                   ),
                   side: BorderSide(
@@ -372,6 +397,406 @@ class _CompactCategoryRowState extends State<CompactCategoryRow> {
       },
     ),
   );
+}
+
+class _CountryMenu extends StatefulWidget {
+  const _CountryMenu({
+    required this.title,
+    required this.level,
+    required this.options,
+  });
+
+  final String title;
+  final int level;
+  final List<CompactCategoryOption> options;
+
+  @override
+  State<_CountryMenu> createState() => _CountryMenuState();
+}
+
+class _CountryMenuState extends State<_CountryMenu> {
+  final _search = TextEditingController();
+  final _bodyScroll = ScrollController();
+  final _listScroll = ScrollController();
+  final _indexScroll = ScrollController();
+  String? _initial;
+
+  @override
+  void dispose() {
+    _search.dispose();
+    _bodyScroll.dispose();
+    _listScroll.dispose();
+    _indexScroll.dispose();
+    super.dispose();
+  }
+
+  void _resetScroll() {
+    if (_bodyScroll.hasClients) _bodyScroll.jumpTo(0);
+    if (_listScroll.hasClients) _listScroll.jumpTo(0);
+  }
+
+  Widget _letter(String? initial) {
+    final selected = _initial == initial;
+    return ConstrainedBox(
+      constraints: BoxConstraints(minWidth: initial == null ? 60 : 44),
+      child: TextButton(
+        key: ValueKey('country-initial-${initial ?? 'all'}'),
+        style: TextButton.styleFrom(
+          foregroundColor: selected
+              ? const Color(0xFF14213B)
+              : const Color(0xFFDCE6F8),
+          backgroundColor: selected
+              ? const Color(0xFFAFC7FF)
+              : const Color(0xFF26374F),
+          minimumSize: const Size(44, 44),
+          visualDensity: VisualDensity.standard,
+          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 10),
+          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10),
+          ),
+          textStyle: const TextStyle(
+            fontSize: 14,
+            height: 1.2,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        onPressed: () {
+          setState(() {
+            _initial = initial;
+            _search.clear();
+          });
+          _resetScroll();
+        },
+        child: Text(initial ?? '全部'),
+      ),
+    );
+  }
+
+  Widget _country(CompactCategoryOption option) => GestureDetector(
+    onLongPressStart: option.onContextMenu == null
+        ? null
+        : (details) => option.onContextMenu!(details.globalPosition),
+    onSecondaryTapUp: option.onContextMenu == null
+        ? null
+        : (details) => option.onContextMenu!(details.globalPosition),
+    child: TextButton(
+      key: ValueKey('menu-category-${widget.level}-${option.id}'),
+      style: TextButton.styleFrom(
+        foregroundColor: option.selected
+            ? const Color(0xFF14213B)
+            : const Color(0xFFDCE6F8),
+        backgroundColor: option.selected
+            ? const Color(0xFFAFC7FF)
+            : const Color(0xFF26374F),
+        minimumSize: const Size(44, 44),
+        visualDensity: VisualDensity.standard,
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        textStyle: TextStyle(
+          fontSize: 14,
+          height: 1.2,
+          fontWeight: option.selected ? FontWeight.w700 : FontWeight.w500,
+        ),
+      ),
+      onPressed: () => Navigator.pop(context, option),
+      child: Text(option.label, textAlign: TextAlign.center),
+    ),
+  );
+
+  Widget _results(Map<String, List<CompactCategoryOption>> groups) {
+    if (groups.isEmpty) {
+      return const Padding(
+        padding: EdgeInsets.symmetric(vertical: 24),
+        child: Center(
+          child: Text(
+            '没有匹配的国家或地区',
+            style: TextStyle(color: Color(0xFFDCE6F8), fontSize: 14),
+          ),
+        ),
+      );
+    }
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        for (final entry in groups.entries) ...[
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 8),
+            child: Text(
+              entry.key,
+              style: const TextStyle(
+                color: Color(0xFFAFC7FF),
+                fontSize: 14,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+          Wrap(
+            spacing: 6,
+            runSpacing: 6,
+            children: [for (final option in entry.value) _country(option)],
+          ),
+        ],
+      ],
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final initials =
+        widget.options
+            .map((o) => CountryNameIndex.initial(o.label))
+            .toSet()
+            .toList()
+          ..sort(CountryNameIndex.compareInitials);
+    final visible =
+        widget.options
+            .where(
+              (option) =>
+                  (_initial == null ||
+                      CountryNameIndex.initial(option.label) == _initial) &&
+                  CountryNameIndex.matches(option.label, _search.text),
+            )
+            .toList()
+          ..sort((a, b) {
+            final group = CountryNameIndex.compareInitials(
+              CountryNameIndex.initial(a.label),
+              CountryNameIndex.initial(b.label),
+            );
+            return group != 0 ? group : a.label.compareTo(b.label);
+          });
+    final groups = <String, List<CompactCategoryOption>>{};
+    for (final option in visible) {
+      groups
+          .putIfAbsent(CountryNameIndex.initial(option.label), () => [])
+          .add(option);
+    }
+    return Dialog(
+      insetPadding: const EdgeInsets.all(12),
+      backgroundColor: const Color(0xFF1A2B43),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: const BorderSide(color: Color(0xFF829CC8)),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: ConstrainedBox(
+        key: ValueKey('category-menu-${widget.level}'),
+        constraints: const BoxConstraints(maxWidth: 480, maxHeight: 620),
+        child: SizedBox(
+          width: 480,
+          child: Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(14, 6, 6, 6),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        widget.title,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 16,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    SizedBox(
+                      width: 44,
+                      height: 44,
+                      child: IconButton(
+                        key: const ValueKey('country-menu-close'),
+                        tooltip: '关闭国家菜单',
+                        onPressed: () => Navigator.pop(context),
+                        icon: const Icon(
+                          Icons.close_rounded,
+                          size: 20,
+                          color: Colors.white70,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const Divider(height: 1, color: Colors.white12),
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.all(14),
+                  child: LayoutBuilder(
+                    builder: (context, constraints) {
+                      final scale = MediaQuery.textScalerOf(context);
+                      final letterHeight = math.max(
+                        44.0,
+                        scale.scale(14) * 1.2 + 20,
+                      );
+                      final columns = math.max(
+                        1,
+                        ((constraints.maxWidth + 6) / 50).floor(),
+                      );
+                      final rows = ((initials.length + 2) / columns).ceil();
+                      final indexHeight = rows * (letterHeight + 6) - 6;
+                      final compactIndex =
+                          constraints.maxHeight < indexHeight + 190;
+                      final letters = <Widget>[
+                        _letter(null),
+                        for (final initial in initials) _letter(initial),
+                      ];
+                      final scrollWholeBody =
+                          constraints.maxHeight <
+                          scale.scale(14) * 1.2 * 3 + 220;
+                      // Keep the editor's ancestry stable while insets resize
+                      // the dialog, including its native/web input connection.
+                      final body = SizedBox(
+                        height: scrollWholeBody ? null : constraints.maxHeight,
+                        child: Column(
+                          mainAxisSize: scrollWholeBody
+                              ? MainAxisSize.min
+                              : MainAxisSize.max,
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            TextField(
+                              key: const ValueKey('country-search'),
+                              controller: _search,
+                              textAlignVertical: TextAlignVertical.center,
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 14,
+                                height: 1.2,
+                              ),
+                              decoration: InputDecoration(
+                                visualDensity: VisualDensity.standard,
+                                constraints: const BoxConstraints(
+                                  minHeight: 48,
+                                ),
+                                hintText: '搜索国家或地区',
+                                hintStyle: const TextStyle(
+                                  color: Color(0xFFAABAD2),
+                                ),
+                                filled: true,
+                                fillColor: const Color(0xFF111F34),
+                                contentPadding: const EdgeInsets.symmetric(
+                                  horizontal: 12,
+                                  vertical: 14,
+                                ),
+                                isDense: true,
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                suffixIcon: _search.text.isEmpty
+                                    ? null
+                                    : IconButton(
+                                        key: const ValueKey(
+                                          'country-search-clear',
+                                        ),
+                                        tooltip: '清空搜索',
+                                        visualDensity: VisualDensity.standard,
+                                        onPressed: () {
+                                          setState(() => _search.clear());
+                                          _resetScroll();
+                                        },
+                                        icon: const Icon(
+                                          Icons.close_rounded,
+                                          size: 18,
+                                        ),
+                                      ),
+                              ),
+                              onChanged: (_) {
+                                setState(() => _initial = null);
+                                _resetScroll();
+                              },
+                            ),
+                            const SizedBox(height: 10),
+                            const Text(
+                              '按拼音首字母',
+                              style: TextStyle(
+                                color: Color(0xFFAABAD2),
+                                fontSize: 12,
+                              ),
+                            ),
+                            const SizedBox(height: 6),
+                            if (compactIndex)
+                              SizedBox(
+                                height: letterHeight + 8,
+                                child: Scrollbar(
+                                  controller: _indexScroll,
+                                  thumbVisibility: true,
+                                  child: SingleChildScrollView(
+                                    controller: _indexScroll,
+                                    scrollDirection: Axis.horizontal,
+                                    padding: const EdgeInsets.only(bottom: 8),
+                                    child: Row(
+                                      children: [
+                                        for (
+                                          var i = 0;
+                                          i < letters.length;
+                                          i++
+                                        ) ...[
+                                          if (i > 0) const SizedBox(width: 6),
+                                          letters[i],
+                                        ],
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              )
+                            else
+                              Wrap(
+                                spacing: 6,
+                                runSpacing: 6,
+                                children: letters,
+                              ),
+                            const SizedBox(height: 10),
+                            Text(
+                              '${_initial ?? '全部'} · ${visible.length} 个国家或地区',
+                              style: const TextStyle(
+                                color: Color(0xFFAABAD2),
+                                fontSize: 12,
+                              ),
+                            ),
+                            const SizedBox(height: 6),
+                            if (scrollWholeBody)
+                              _results(groups)
+                            else
+                              Expanded(
+                                child: Scrollbar(
+                                  controller: _listScroll,
+                                  thumbVisibility: true,
+                                  child: SingleChildScrollView(
+                                    controller: _listScroll,
+                                    padding: const EdgeInsets.only(
+                                      right: 10,
+                                      bottom: 4,
+                                    ),
+                                    child: _results(groups),
+                                  ),
+                                ),
+                              ),
+                          ],
+                        ),
+                      );
+                      return Scrollbar(
+                        controller: _bodyScroll,
+                        thumbVisibility: scrollWholeBody,
+                        child: SingleChildScrollView(
+                          controller: _bodyScroll,
+                          physics: const ClampingScrollPhysics(),
+                          padding: scrollWholeBody
+                              ? const EdgeInsets.only(right: 10, bottom: 4)
+                              : EdgeInsets.zero,
+                          child: body,
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 /// Prefer larger menu controls when the choices fit. Navigation rows retain

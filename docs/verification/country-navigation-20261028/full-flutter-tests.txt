@@ -1,0 +1,981 @@
+00:00 +0: loading C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/airplay_cast_test.dart
+00:00 +0: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/airplay_cast_test.dart: unsupported receiver cannot send pairing or playback requests
+00:00 +1: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/airplay_cast_test.dart: stop queued during connect cannot leave a cast active
+00:00 +2: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/airplay_cast_test.dart: rapid changes discard superseded queued URLs
+00:00 +3: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/airplay_cast_test.dart: asynchronous receiver failures clear active status and surface message
+00:11 +4: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/android_app_exit_test.dart: exit is single-flight and closes only after cleanup
+00:11 +5: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/android_app_exit_test.dart: failed native exit retries without restarting disposed services
+00:11 +6: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/android_app_exit_test.dart: cleanup failure does not prevent the user from exiting
+00:11 +7: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/android_app_exit_test.dart: native Android close requests task removal
+00:11 +8: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/android_app_exit_test.dart: missing native extension falls back to Flutter activity close
+00:11 +9: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/android_app_exit_test.dart: route-owned decoder disposal completes before exit drains
+00:11 +10: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/android_app_exit_test.dart: main player disposal is idempotent without initializing a decoder
+00:11 +11: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/android_app_exit_test.dart: 初始化 retains touch-sized exit without covering content
+00:11 +12: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/android_app_exit_test.dart: 空频道 retains touch-sized exit without covering content
+00:11 +13: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/android_app_exit_test.dart: 简洁竖屏 retains touch-sized exit without covering content
+00:11 +14: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/android_app_exit_test.dart: 简洁横屏 retains touch-sized exit without covering content
+00:11 +15: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/android_app_exit_test.dart: 进阶 retains touch-sized exit without covering content
+00:11 +16: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/android_app_exit_test.dart: 设置 retains touch-sized exit without covering content
+00:11 +17: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/android_app_exit_test.dart: 全屏播放 retains touch-sized exit without covering content
+00:11 +18: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/android_app_exit_test.dart: 多画面 retains touch-sized exit without covering content
+00:11 +19: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/android_app_exit_test.dart: Android TV retains touch-sized exit without covering content
+00:11 +20: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/android_app_exit_test.dart: Android TV retains touch-sized exit without covering content
+00:11 +21: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/android_app_exit_test.dart: native PiP keeps all available space for the video
+00:12 +22: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/android_app_exit_test.dart: desktop layout remains completely unchanged
+00:12 +23: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/android_app_exit_test.dart: real exit detaches routes and disposes providers before native close
+00:12 +24: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/android_app_exit_test.dart: Android close is global and removes the task without force-crashing
+00:12 +25: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/bobtv_api_client_test.dart: empty reviewed catalog is a successful result
+00:12 +26: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/bobtv_api_client_test.dart: channel snapshot must match the website checksum
+00:12 +27: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/bobtv_api_client_test.dart: rejects invalid catalog without publishing partial entries
+00:12 +28: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/bobtv_api_client_test.dart: reports only exact allowed fields with 64-character fingerprint
+00:12 +29: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/bobtv_api_client_test.dart: candidate requires consent and public HTTPS URL
+00:12 +30: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/bobtv_api_client_test.dart: uploads NDJSON and accepts 201 receipt
+00:12 +31: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/bobtv_api_client_test.dart: reads release metadata without inferring an installation
+00:12 +32: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/bobtv_api_client_test.dart: surfaces a validation status without repeating a report
+00:13 +33: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/bobtv_api_timeout_test.dart: open timeout retries whole GET at the alternate node once
+00:14 +34: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/bobtv_api_timeout_test.dart: headers timeout retries whole GET at the alternate node once
+00:14 +35: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/bobtv_api_timeout_test.dart: body timeout retries whole GET at the alternate node once
+00:14 +36: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/bobtv_api_timeout_test.dart: POST after sending body is never replayed on timeout
+00:14 +37: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/bobtv_api_timeout_test.dart: origin backpressure respects Retry-After without node thrashing
+00:14 +38: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/bobtv_community_service_test.dart: community startup leaves catalog download to shared synchronization
+00:14 +39: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/bobtv_community_service_test.dart: separate reviewed provider keeps local sources during updates
+00:15 +40: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/bobtv_fingerprint_test.dart: keeps a 64-character installation fingerprint
+00:16 +41: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/bobtv_fingerprint_test.dart: keeps a 64-character installation fingerprint
+00:16 +42: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/bobtv_fingerprint_test.dart: keeps a 64-character installation fingerprint
+00:17 +43: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/bobtv_fingerprint_test.dart: keeps a 64-character installation fingerprint
+00:17 +44: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/bobtv_fingerprint_test.dart: keeps a 64-character installation fingerprint
+00:17 +45: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/channel_card_feedback_test.dart: pointer down paints spinner before route work starts
+00:18 +46: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/channel_card_feedback_test.dart: second click forces play without a second preview request
+00:18 +47: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/channel_card_feedback_test.dart: dragging or secondary click does not activate a channel
+00:18 +48: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/channel_card_feedback_test.dart: hover lights the card border
+00:18 +49: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/channel_card_feedback_test.dart: expanded surface omits its border in every playback state
+00:18 +50: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/channel_card_feedback_test.dart: expanded hover fades light before the join without an inner border
+00:18 +51: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/channel_card_feedback_test.dart: disposing a pending card does not update removed state
+00:18 +52: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/channel_card_playback_binding_test.dart: 100 route updates do not rebuild unrelated visible cards
+00:19 +53: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/channel_card_playback_binding_test.dart: animated preview does not repaint adjacent static cards
+00:19 +54: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/channel_card_route_grouping_test.dart: domestic public IDs share one service and preserve version boundaries
+00:19 +55: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/channel_card_route_grouping_test.dart: explicit country and region conflicts keep same-name public IDs separate
+00:19 +56: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/channel_card_route_grouping_test.dart: one authoritative catalog identity survives inconsistent route labels
+00:19 +57: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/channel_card_route_grouping_test.dart: one card, two canonical routes, favorites and playback use same identity
+00:19 +58: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/channel_card_route_grouping_test.dart: same-name choices stay distinct and selected members never expand by name
+00:19 +59: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/channel_card_route_grouping_test.dart: old domestic categories and self-name guide IDs identify one national service
+00:19 +60: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/channel_card_route_grouping_test.dart: international genres share one service while countries and guides stay distinct
+00:19 +61: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/channel_card_route_grouping_test.dart: national genre memberships share a service across root categories
+00:19 +62: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/channel_card_route_grouping_test.dart: favorite from root groups national root and genre routes on reload
+00:20 +63: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/channel_card_route_grouping_test.dart: favorite from genre groups national root and genre routes on reload
+00:20 +64: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/channel_card_route_grouping_test.dart: favorite from old groups national root and genre routes on reload
+00:20 +65: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/channel_card_route_grouping_test.dart: catalog identity is stable in category and favorite subsets
+00:20 +66: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/channel_card_route_grouping_test.dart: installed favorite replay collapses First Theater category memberships
+  Skip: Set BOBTV_FAVORITES_AUDIT_COPY to a backup
+00:20 +66 ~1: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/channel_card_route_grouping_test.dart: installed database copy groups Wind Theater without changing source rows
+  Skip: Set BOBTV_CHANNEL_FIX_AUDIT_COPY to a SQLite backup
+00:20 +66 ~2: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/channel_card_route_grouping_test.dart: same name and category does not disable another identity
+00:20 +66 ~2: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/channel_catalog_grouping_audit_test.dart: whole installed catalog replay with category and residual identity audit
+  Skip: Set BOBTV_CHANNEL_FIX_AUDIT_COPY to a SQLite backup
+00:20 +66 ~3: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/channel_card_route_grouping_test.dart: same name and category does not disable another identity
+00:20 +67 ~3: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/channel_card_route_grouping_test.dart: same name and category does not disable another identity
+00:21 +68 ~3: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/channel_card_route_grouping_test.dart: same name and category does not disable another identity
+00:21 +69 ~3: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/channel_card_route_grouping_test.dart: same name and category does not disable another identity
+00:21 +70 ~3: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/channel_card_route_grouping_test.dart: same name and category does not disable another identity
+00:22 +71 ~3: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/channel_category_classifier_test.dart: uses one stable geography-first category dimension
+00:22 +72 ~3: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/channel_category_classifier_test.dart: does not assign a province from a Latin substring
+00:22 +73 ~3: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/channel_category_classifier_test.dart: website classifications remain authoritative in candidate queries
+00:22 +74 ~3: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/channel_category_classifier_test.dart: identifies international country before source genre
+00:22 +75 ~3: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/channel_category_classifier_test.dart: shares a known country across identical stream URLs
+00:22 +76 ~3: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/channel_category_classifier_test.dart: does not infer a central channel from an upstream group name
+00:22 +77 ~3: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/channel_category_classifier_test.dart: recognizes audio-only radio channel metadata and URLs
+00:22 +78 ~3: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/channel_category_classifier_test.dart: sorts central channels by service number and quality variant
+00:22 +79 ~3: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/channel_category_classifier_test.dart: sorts a provincial satellite channel before local channels
+00:22 +80 ~3: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/channel_category_classifier_test.dart: database materializes only candidates for the selected category
+00:22 +81 ~3: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/channel_category_classifier_test.dart: filters platform livestreams during import and purges old rows
+00:22 +82 ~3: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/channel_category_classifier_test.dart: rejects website fragments and HTML pages as television routes
+00:22 +83 ~3: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/channel_category_classifier_test.dart: removes requested non-television catalog content
+00:22 +84 ~3: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/channel_category_classifier_test.dart: keeps adult and GitHub discovery groups by request
+00:22 +85 ~3: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/channel_category_picker_interaction_test.dart: input creates a missing country and continues into custom subcategories
+00:23 +86 ~3: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/channel_category_picker_interaction_test.dart: input creates a missing country and continues into custom subcategories
+00:23 +87 ~3: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/channel_category_picker_interaction_test.dart: input creates a missing country and continues into custom subcategories
+00:24 +87 ~3: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/channel_duplicate_live_audit_test.dart: read-only installed database presentation audit, no app control
+  Skip: Set BOBTV_DUPLICATE_AUDIT_DB for a read-only local audit
+00:24 +87 ~4: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/channel_category_picker_interaction_test.dart: input creates a missing country and continues into custom subcategories
+00:25 +88 ~4: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/channel_inventory_sync_service_test.dart: manual edit during upload queues one fresh background report
+00:25 +89 ~4: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/channel_inventory_sync_service_test.dart: manual edit during upload queues one fresh background report
+00:25 +90 ~4: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/channel_inventory_sync_service_test.dart: manual edit during upload queues one fresh background report
+00:25 +91 ~4: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/channel_inventory_sync_service_test.dart: manual edit during upload queues one fresh background report
+00:25 +92 ~4: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/channel_inventory_sync_service_test.dart: manual edit during upload queues one fresh background report
+00:25 +93 ~4: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/channel_category_picker_interaction_test.dart: saved custom countries and children are selectable after reopening
+00:25 +94 ~4: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/channel_category_picker_interaction_test.dart: saved custom countries and children are selectable after reopening
+00:25 +95 ~4: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/channel_category_picker_interaction_test.dart: saved custom countries and children are selectable after reopening
+00:26 +96 ~4: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/channel_category_picker_interaction_test.dart: saved custom countries and children are selectable after reopening
+00:27 +97 ~4: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/channel_category_picker_interaction_test.dart: saved custom countries and children are selectable after reopening
+00:27 +98 ~4: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/channel_category_picker_interaction_test.dart: saved custom countries and children are selectable after reopening
+00:27 +99 ~4: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/channel_category_picker_interaction_test.dart: saved custom countries and children are selectable after reopening
+00:27 +100 ~4: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/channel_category_picker_interaction_test.dart: saved custom countries and children are selectable after reopening
+00:27 +101 ~4: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/channel_category_picker_interaction_test.dart: saved custom countries and children are selectable after reopening
+00:27 +102 ~4: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/channel_category_picker_interaction_test.dart: saved custom countries and children are selectable after reopening
+00:27 +103 ~4: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/channel_category_picker_interaction_test.dart: saved custom countries and children are selectable after reopening
+00:27 +104 ~4: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/channel_category_picker_interaction_test.dart: saved custom countries and children are selectable after reopening
+00:27 +105 ~4: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/channel_category_picker_interaction_test.dart: saved custom countries and children are selectable after reopening
+00:27 +106 ~4: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/channel_category_picker_interaction_test.dart: saved custom countries and children are selectable after reopening
+00:27 +107 ~4: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/channel_category_picker_interaction_test.dart: saved custom countries and children are selectable after reopening
+00:27 +108 ~4: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/channel_category_picker_interaction_test.dart: saved custom countries and children are selectable after reopening
+00:27 +109 ~4: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/channel_category_picker_interaction_test.dart: saved custom countries and children are selectable after reopening
+00:27 +110 ~4: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/channel_category_picker_interaction_test.dart: saved custom countries and children are selectable after reopening
+00:27 +111 ~4: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/channel_category_picker_interaction_test.dart: saved custom countries and children are selectable after reopening
+00:27 +112 ~4: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/channel_category_picker_interaction_test.dart: saved custom countries and children are selectable after reopening
+00:27 +113 ~4: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/channel_category_picker_interaction_test.dart: saved custom countries and children are selectable after reopening
+00:28 +114 ~4: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/channel_category_picker_interaction_test.dart: saved custom countries and children are selectable after reopening
+00:28 +115 ~4: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/channel_category_picker_interaction_test.dart: saved custom countries and children are selectable after reopening
+00:28 +116 ~4: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/channel_category_picker_interaction_test.dart: saved custom countries and children are selectable after reopening
+00:28 +117 ~4: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/channel_category_picker_interaction_test.dart: saved custom countries and children are selectable after reopening
+00:28 +118 ~4: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/channel_category_picker_interaction_test.dart: saved custom countries and children are selectable after reopening
+00:28 +119 ~4: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/channel_category_picker_interaction_test.dart: saved custom countries and children are selectable after reopening
+00:28 +120 ~4: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/channel_category_picker_interaction_test.dart: saved custom countries and children are selectable after reopening
+00:28 +121 ~4: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/channel_category_picker_interaction_test.dart: saved custom countries and children are selectable after reopening
+00:28 +122 ~4: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/channel_category_picker_interaction_test.dart: saved custom countries and children are selectable after reopening
+00:28 +123 ~4: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/channel_category_picker_interaction_test.dart: saved custom countries and children are selectable after reopening
+00:28 +124 ~4: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/channel_category_picker_interaction_test.dart: saved custom countries and children are selectable after reopening
+00:28 +125 ~4: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/channel_category_picker_interaction_test.dart: saved custom countries and children are selectable after reopening
+00:28 +126 ~4: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/channel_category_picker_interaction_test.dart: saved custom countries and children are selectable after reopening
+00:28 +127 ~4: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/channel_category_picker_interaction_test.dart: normalized existing input reuses one option and return selects it
+00:28 +128 ~4: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/channel_category_picker_interaction_test.dart: normalized existing input reuses one option and return selects it
+00:28 +129 ~4: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/channel_category_picker_interaction_test.dart: normalized existing input reuses one option and return selects it
+00:28 +130 ~4: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/channel_category_picker_interaction_test.dart: normalized existing input reuses one option and return selects it
+00:28 +131 ~4: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/channel_category_picker_interaction_test.dart: normalized existing input reuses one option and return selects it
+00:28 +132 ~4: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/channel_category_picker_interaction_test.dart: normalized existing input reuses one option and return selects it
+00:28 +133 ~4: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/channel_category_picker_interaction_test.dart: normalized existing input reuses one option and return selects it
+00:28 +134 ~4: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/channel_category_picker_interaction_test.dart: normalized existing input reuses one option and return selects it
+00:28 +135 ~4: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/channel_category_picker_interaction_test.dart: normalized existing input reuses one option and return selects it
+00:28 +136 ~4: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/channel_category_picker_interaction_test.dart: normalized existing input reuses one option and return selects it
+00:28 +137 ~4: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/channel_category_picker_interaction_test.dart: normalized existing input reuses one option and return selects it
+00:29 +138 ~4: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/channel_category_picker_interaction_test.dart: normalized existing input reuses one option and return selects it
+00:29 +139 ~4: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/channel_category_picker_interaction_test.dart: normalized existing input reuses one option and return selects it
+00:29 +140 ~4: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/channel_category_picker_interaction_test.dart: normalized existing input reuses one option and return selects it
+00:30 +141 ~4: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/channel_programme_strip_test.dart: shows current and two next programmes in schedule order
+00:31 +142 ~4: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/channel_category_picker_interaction_test.dart: invalid input cannot create or accidentally apply the parent
+00:31 +143 ~4: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/channel_category_picker_interaction_test.dart: invalid input cannot create or accidentally apply the parent
+00:31 +144 ~4: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/channel_category_picker_interaction_test.dart: invalid input cannot create or accidentally apply the parent
+00:31 +145 ~4: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/channel_category_picker_interaction_test.dart: invalid input cannot create or accidentally apply the parent
+00:31 +146 ~4: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/channel_category_picker_interaction_test.dart: invalid input cannot create or accidentally apply the parent
+00:31 +147 ~4: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/channel_category_picker_interaction_test.dart: invalid input cannot create or accidentally apply the parent
+00:31 +148 ~4: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/channel_category_picker_interaction_test.dart: invalid input cannot create or accidentally apply the parent
+00:31 +149 ~4: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/channel_category_picker_interaction_test.dart: invalid input cannot create or accidentally apply the parent
+00:31 +150 ~4: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/channel_category_picker_interaction_test.dart: invalid input cannot create or accidentally apply the parent
+00:31 +151 ~4: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/channel_category_picker_interaction_test.dart: invalid input cannot create or accidentally apply the parent
+00:31 +152 ~4: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/channel_category_picker_interaction_test.dart: invalid input cannot create or accidentally apply the parent
+00:31 +153 ~4: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/channel_category_picker_interaction_test.dart: invalid input cannot create or accidentally apply the parent
+00:32 +154 ~4: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/channel_category_picker_interaction_test.dart: invalid input cannot create or accidentally apply the parent
+00:32 +155 ~4: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/channel_route_transfer_dialog_test.dart: transfer picker selects by identity and saves once at Size(1100.0, 850.0)
+00:32 +156 ~4: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/channel_route_transfer_dialog_test.dart: transfer picker selects by identity and saves once at Size(1100.0, 850.0)
+00:32 +157 ~4: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/channel_route_transfer_dialog_test.dart: transfer picker selects by identity and saves once at Size(1100.0, 850.0)
+00:32 +158 ~4: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/channel_route_transfer_dialog_test.dart: transfer picker selects by identity and saves once at Size(1100.0, 850.0)
+00:32 +159 ~4: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/channel_route_transfer_dialog_test.dart: transfer picker selects by identity and saves once at Size(1100.0, 850.0)
+00:32 +159 ~5: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/channel_route_transfer_dialog_test.dart: transfer picker selects by identity and saves once at Size(1100.0, 850.0)
+00:32 +160 ~5: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/channel_route_transfer_dialog_test.dart: transfer picker selects by identity and saves once at Size(1100.0, 850.0)
+00:32 +161 ~5: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/channel_route_transfer_dialog_test.dart: transfer picker selects by identity and saves once at Size(1100.0, 850.0)
+00:32 +162 ~5: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/channel_route_transfer_dialog_test.dart: transfer picker selects by identity and saves once at Size(1100.0, 850.0)
+00:32 +163 ~5: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/channel_route_transfer_dialog_test.dart: transfer picker selects by identity and saves once at Size(1100.0, 850.0)
+00:32 +164 ~5: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/channel_route_transfer_dialog_test.dart: transfer picker selects by identity and saves once at Size(1100.0, 850.0)
+00:32 +165 ~5: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/channel_route_transfer_dialog_test.dart: transfer picker selects by identity and saves once at Size(1100.0, 850.0)
+00:33 +166 ~5: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/channel_route_transfer_dialog_test.dart: transfer picker selects by identity and saves once at Size(1100.0, 850.0)
+00:33 +167 ~5: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/channel_route_transfer_dialog_test.dart: transfer picker selects by identity and saves once at Size(1100.0, 850.0)
+00:33 +168 ~5: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/channel_route_transfer_dialog_test.dart: transfer picker selects by identity and saves once at Size(1100.0, 850.0)
+00:33 +169 ~5: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/channel_route_transfer_dialog_test.dart: transfer picker selects by identity and saves once at Size(1100.0, 850.0)
+00:33 +170 ~5: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/channel_route_transfer_dialog_test.dart: transfer picker selects by identity and saves once at Size(1100.0, 850.0)
+00:33 +171 ~5: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/channel_route_transfer_dialog_test.dart: transfer picker selects by identity and saves once at Size(1100.0, 850.0)
+00:33 +172 ~5: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/channel_route_transfer_dialog_test.dart: transfer picker selects by identity and saves once at Size(1100.0, 850.0)
+00:33 +173 ~5: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/channel_category_picker_interaction_test.dart: repeated create callbacks and old callbacks cannot duplicate paths
+00:34 +174 ~5: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/channel_route_transfer_dialog_test.dart: transfer picker selects by identity and saves once at Size(600.0, 700.0)
+00:34 +175 ~5: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/compact_category_menu_test.dart: roomy windows menu enlarges controls and fits choices
+00:35 +176 ~5: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/channel_category_picker_interaction_test.dart: canceling a draft creation does not return a destination
+00:35 +177 ~5: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/channel_category_picker_interaction_test.dart: canceling a draft creation does not return a destination
+00:35 +178 ~5: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/channel_category_picker_interaction_test.dart: canceling a draft creation does not return a destination
+00:35 +179 ~5: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/channel_category_picker_interaction_test.dart: canceling a draft creation does not return a destination
+00:36 +180 ~5: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/channel_category_picker_interaction_test.dart: canceling a draft creation does not return a destination
+00:36 +180 ~6: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/channel_category_picker_interaction_test.dart: canceling a draft creation does not return a destination
+00:36 +181 ~6: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/channel_category_picker_interaction_test.dart: canceling a draft creation does not return a destination
+00:36 +182 ~6: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/channel_category_picker_interaction_test.dart: canceling a draft creation does not return a destination
+00:36 +183 ~6: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/channel_category_picker_interaction_test.dart: canceling a draft creation does not return a destination
+00:36 +184 ~6: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/compact_channel_layout_test.dart: windows Size(640.0, 360.0) reserves a complete card and its EPG with only three category rows
+00:36 +185 ~6: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/channel_category_picker_interaction_test.dart: creation remains usable at Size(360.0, 640.0)
+00:36 +186 ~6: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/channel_category_picker_interaction_test.dart: creation remains usable at Size(360.0, 640.0)
+00:36 +187 ~6: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/channel_category_picker_interaction_test.dart: creation remains usable at Size(360.0, 640.0)
+00:36 +188 ~6: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/channel_category_picker_interaction_test.dart: creation remains usable at Size(360.0, 640.0)
+00:36 +189 ~6: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/channel_category_picker_interaction_test.dart: creation remains usable at Size(360.0, 640.0)
+00:36 +190 ~6: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/channel_category_picker_interaction_test.dart: creation remains usable at Size(360.0, 640.0)
+00:36 +191 ~6: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/channel_category_picker_interaction_test.dart: creation remains usable at Size(360.0, 640.0)
+00:36 +192 ~6: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/channel_category_picker_interaction_test.dart: creation remains usable at Size(360.0, 640.0)
+00:36 +193 ~6: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/channel_category_picker_interaction_test.dart: creation remains usable at Size(360.0, 640.0)
+00:37 +194 ~6: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/channel_category_picker_interaction_test.dart: creation remains usable at Size(360.0, 640.0)
+00:37 +195 ~6: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/channel_category_picker_interaction_test.dart: creation remains usable at Size(360.0, 640.0)
+00:37 +196 ~6: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/channel_category_picker_interaction_test.dart: creation remains usable at Size(360.0, 640.0)
+00:37 +197 ~6: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/channel_category_picker_interaction_test.dart: creation remains usable at Size(360.0, 640.0)
+00:37 +198 ~6: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/channel_category_picker_interaction_test.dart: creation remains usable at Size(360.0, 640.0)
+00:37 +199 ~6: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/country_navigation_test.dart: initial filter keeps IDs and selects exactly once
+00:37 +200 ~6: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/country_navigation_test.dart: initial filter keeps IDs and selects exactly once
+00:37 +201 ~6: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/country_navigation_test.dart: initial filter keeps IDs and selects exactly once
+00:37 +202 ~6: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/country_navigation_test.dart: initial filter keeps IDs and selects exactly once
+00:37 +203 ~6: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/country_navigation_test.dart: initial filter keeps IDs and selects exactly once
+00:37 +204 ~6: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/country_navigation_test.dart: initial filter keeps IDs and selects exactly once
+00:37 +204 ~7: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/country_navigation_test.dart: initial filter keeps IDs and selects exactly once
+00:38 +205 ~7: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/country_navigation_test.dart: initial filter keeps IDs and selects exactly once
+00:38 +206 ~7: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/country_navigation_test.dart: initial filter keeps IDs and selects exactly once
+00:38 +207 ~7: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/country_navigation_test.dart: initial filter keeps IDs and selects exactly once
+00:38 +208 ~7: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/country_navigation_test.dart: initial filter keeps IDs and selects exactly once
+00:38 +209 ~7: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/country_navigation_test.dart: initial filter keeps IDs and selects exactly once
+00:38 +210 ~7: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/country_navigation_test.dart: initial filter keeps IDs and selects exactly once
+00:39 +211 ~7: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/channel_category_picker_interaction_test.dart: creation remains usable at Size(640.0, 480.0)
+00:39 +212 ~7: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/channel_category_picker_interaction_test.dart: creation remains usable at Size(640.0, 480.0)
+00:39 +213 ~7: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/country_navigation_test.dart: search, no results, clear and reopen reset only navigation
+00:39 +214 ~7: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/country_navigation_test.dart: search, no results, clear and reopen reset only navigation
+00:39 +215 ~7: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/country_navigation_test.dart: search, no results, clear and reopen reset only navigation
+00:39 +216 ~7: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/country_navigation_test.dart: search, no results, clear and reopen reset only navigation
+00:39 +217 ~7: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/country_navigation_test.dart: search, no results, clear and reopen reset only navigation
+00:40 +218 ~7: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/country_navigation_test.dart: search, no results, clear and reopen reset only navigation
+00:40 +219 ~7: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/country_navigation_test.dart: search, no results, clear and reopen reset only navigation
+00:40 +220 ~7: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/country_navigation_test.dart: search, no results, clear and reopen reset only navigation
+00:40 +221 ~7: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/country_navigation_test.dart: search, no results, clear and reopen reset only navigation
+00:41 +222 ~7: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/country_navigation_test.dart: search, no results, clear and reopen reset only navigation
+00:41 +223 ~7: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/country_navigation_test.dart: search, no results, clear and reopen reset only navigation
+00:41 +224 ~7: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/country_navigation_test.dart: search, no results, clear and reopen reset only navigation
+00:41 +225 ~7: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/country_navigation_test.dart: search, no results, clear and reopen reset only navigation
+00:41 +226 ~7: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/country_navigation_test.dart: search, no results, clear and reopen reset only navigation
+00:41 +227 ~7: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/country_navigation_test.dart: search, no results, clear and reopen reset only navigation
+00:41 +228 ~7: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/country_navigation_test.dart: search, no results, clear and reopen reset only navigation
+00:41 +229 ~7: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/country_navigation_test.dart: search, no results, clear and reopen reset only navigation
+00:41 +230 ~7: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/country_navigation_test.dart: search, no results, clear and reopen reset only navigation
+00:41 +231 ~7: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/country_navigation_test.dart: search, no results, clear and reopen reset only navigation
+00:41 +232 ~7: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/country_navigation_test.dart: search, no results, clear and reopen reset only navigation
+00:41 +233 ~7: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/country_navigation_test.dart: search, no results, clear and reopen reset only navigation
+00:41 +234 ~7: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/country_navigation_test.dart: search, no results, clear and reopen reset only navigation
+00:41 +235 ~7: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/country_navigation_test.dart: search, no results, clear and reopen reset only navigation
+00:41 +236 ~7: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/country_navigation_test.dart: search, no results, clear and reopen reset only navigation
+00:41 +237 ~7: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/country_navigation_test.dart: search, no results, clear and reopen reset only navigation
+00:41 +238 ~7: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/country_navigation_test.dart: search, no results, clear and reopen reset only navigation
+00:41 +239 ~7: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/country_navigation_test.dart: search, no results, clear and reopen reset only navigation
+00:41 +240 ~7: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/country_navigation_test.dart: search, no results, clear and reopen reset only navigation
+00:41 +241 ~7: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/country_navigation_test.dart: search, no results, clear and reopen reset only navigation
+00:41 +242 ~7: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/country_navigation_test.dart: search, no results, clear and reopen reset only navigation
+00:41 +243 ~7: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/country_navigation_test.dart: search, no results, clear and reopen reset only navigation
+00:41 +244 ~7: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/country_navigation_test.dart: search, no results, clear and reopen reset only navigation
+00:41 +245 ~7: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/country_navigation_test.dart: search, no results, clear and reopen reset only navigation
+00:41 +246 ~7: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/country_navigation_test.dart: search, no results, clear and reopen reset only navigation
+00:41 +247 ~7: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/country_navigation_test.dart: search, no results, clear and reopen reset only navigation
+00:41 +248 ~7: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/country_navigation_test.dart: search, no results, clear and reopen reset only navigation
+00:41 +249 ~7: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/country_navigation_test.dart: search, no results, clear and reopen reset only navigation
+00:41 +250 ~7: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/country_navigation_test.dart: search, no results, clear and reopen reset only navigation
+00:41 +251 ~7: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/country_navigation_test.dart: search, no results, clear and reopen reset only navigation
+00:41 +252 ~7: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/country_navigation_test.dart: search, no results, clear and reopen reset only navigation
+00:41 +253 ~7: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/country_navigation_test.dart: search, no results, clear and reopen reset only navigation
+00:41 +254 ~7: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/country_navigation_test.dart: search, no results, clear and reopen reset only navigation
+00:41 +255 ~7: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/country_navigation_test.dart: search, no results, clear and reopen reset only navigation
+00:42 +256 ~7: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/country_navigation_test.dart: search, no results, clear and reopen reset only navigation
+00:42 +257 ~7: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/country_navigation_test.dart: search, no results, clear and reopen reset only navigation
+00:42 +258 ~7: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/country_navigation_test.dart: search, no results, clear and reopen reset only navigation
+00:42 +259 ~7: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/country_navigation_test.dart: search, no results, clear and reopen reset only navigation
+00:42 +260 ~7: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/country_navigation_test.dart: search, no results, clear and reopen reset only navigation
+00:42 +261 ~7: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/country_navigation_test.dart: search, no results, clear and reopen reset only navigation
+00:42 +262 ~7: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/country_navigation_test.dart: search, no results, clear and reopen reset only navigation
+00:42 +263 ~7: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/country_navigation_test.dart: search, no results, clear and reopen reset only navigation
+00:42 +264 ~7: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/country_navigation_test.dart: search, no results, clear and reopen reset only navigation
+00:42 +265 ~7: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/country_navigation_test.dart: search, no results, clear and reopen reset only navigation
+00:42 +266 ~7: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/country_navigation_test.dart: search, no results, clear and reopen reset only navigation
+00:42 +267 ~7: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/country_navigation_test.dart: search, no results, clear and reopen reset only navigation
+00:42 +268 ~7: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/country_navigation_test.dart: search, no results, clear and reopen reset only navigation
+00:42 +269 ~7: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/country_navigation_test.dart: search, no results, clear and reopen reset only navigation
+00:42 +270 ~7: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/country_navigation_test.dart: search, no results, clear and reopen reset only navigation
+00:42 +271 ~7: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/country_navigation_test.dart: search, no results, clear and reopen reset only navigation
+00:43 +272 ~7: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/country_navigation_test.dart: search, no results, clear and reopen reset only navigation
+00:43 +273 ~7: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/country_navigation_test.dart: search, no results, clear and reopen reset only navigation
+00:43 +274 ~7: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/country_navigation_test.dart: search, no results, clear and reopen reset only navigation
+00:43 +275 ~7: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/country_navigation_test.dart: search, no results, clear and reopen reset only navigation
+00:43 +276 ~7: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/country_navigation_test.dart: search, no results, clear and reopen reset only navigation
+00:43 +277 ~7: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/country_navigation_test.dart: search, no results, clear and reopen reset only navigation
+00:43 +278 ~7: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/country_navigation_test.dart: search, no results, clear and reopen reset only navigation
+00:43 +279 ~7: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/country_navigation_test.dart: search, no results, clear and reopen reset only navigation
+00:43 +280 ~7: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/country_navigation_test.dart: search, no results, clear and reopen reset only navigation
+00:43 +281 ~7: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/country_navigation_test.dart: search, no results, clear and reopen reset only navigation
+00:43 +282 ~7: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/channel_category_picker_interaction_test.dart: old child and breadcrumb callbacks stay invalid after going back
+00:43 +283 ~7: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/channel_category_picker_interaction_test.dart: old child and breadcrumb callbacks stay invalid after going back
+00:43 +284 ~7: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/channel_category_picker_interaction_test.dart: old child and breadcrumb callbacks stay invalid after going back
+00:43 +285 ~7: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/channel_category_picker_interaction_test.dart: old child and breadcrumb callbacks stay invalid after going back
+00:43 +286 ~7: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/channel_category_picker_interaction_test.dart: old child and breadcrumb callbacks stay invalid after going back
+00:43 +287 ~7: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/channel_category_picker_interaction_test.dart: old child and breadcrumb callbacks stay invalid after going back
+00:43 +288 ~7: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/channel_category_picker_interaction_test.dart: old child and breadcrumb callbacks stay invalid after going back
+00:43 +289 ~7: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/channel_category_picker_interaction_test.dart: old child and breadcrumb callbacks stay invalid after going back
+00:43 +290 ~7: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/channel_category_picker_interaction_test.dart: old child and breadcrumb callbacks stay invalid after going back
+00:43 +291 ~7: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/channel_category_picker_interaction_test.dart: old child and breadcrumb callbacks stay invalid after going back
+00:43 +292 ~7: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/channel_category_picker_interaction_test.dart: old child and breadcrumb callbacks stay invalid after going back
+00:43 +293 ~7: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/channel_category_picker_interaction_test.dart: old child and breadcrumb callbacks stay invalid after going back
+00:43 +294 ~7: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/channel_category_picker_interaction_test.dart: old child and breadcrumb callbacks stay invalid after going back
+00:43 +295 ~7: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/channel_category_picker_interaction_test.dart: old child and breadcrumb callbacks stay invalid after going back
+00:43 +296 ~7: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/channel_category_picker_interaction_test.dart: old child and breadcrumb callbacks stay invalid after going back
+00:43 +297 ~7: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/channel_category_picker_interaction_test.dart: old child and breadcrumb callbacks stay invalid after going back
+00:44 +298 ~7: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/channel_category_picker_interaction_test.dart: old child and breadcrumb callbacks stay invalid after going back
+00:44 +299 ~7: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/channel_category_picker_interaction_test.dart: old child and breadcrumb callbacks stay invalid after going back
+00:44 +300 ~7: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/channel_category_picker_interaction_test.dart: old child and breadcrumb callbacks stay invalid after going back
+00:44 +301 ~7: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/channel_category_picker_interaction_test.dart: old child and breadcrumb callbacks stay invalid after going back
+00:44 +302 ~7: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/channel_category_picker_interaction_test.dart: old child and breadcrumb callbacks stay invalid after going back
+00:44 +303 ~7: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/channel_category_picker_interaction_test.dart: old child and breadcrumb callbacks stay invalid after going back
+00:44 +304 ~7: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/channel_category_picker_interaction_test.dart: old child and breadcrumb callbacks stay invalid after going back
+00:44 +305 ~7: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/channel_category_picker_interaction_test.dart: old child and breadcrumb callbacks stay invalid after going back
+00:44 +306 ~7: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/channel_category_picker_interaction_test.dart: old child and breadcrumb callbacks stay invalid after going back
+00:44 +307 ~7: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/channel_category_picker_interaction_test.dart: old child and breadcrumb callbacks stay invalid after going back
+00:44 +308 ~7: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/channel_category_picker_interaction_test.dart: old child and breadcrumb callbacks stay invalid after going back
+00:44 +309 ~7: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/channel_category_picker_interaction_test.dart: old child and breadcrumb callbacks stay invalid after going back
+00:44 +310 ~7: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/channel_category_picker_interaction_test.dart: old child and breadcrumb callbacks stay invalid after going back
+00:45 +311 ~7: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/channel_category_picker_interaction_test.dart: old child and breadcrumb callbacks stay invalid after going back
+00:45 +312 ~7: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/channel_category_picker_interaction_test.dart: old child and breadcrumb callbacks stay invalid after going back
+00:45 +313 ~7: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/desktop_window_pin_test.dart: both views show the same pin state and can cancel it
+00:45 +314 ~7: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/desktop_window_pin_test.dart: both views show the same pin state and can cancel it
+00:45 +315 ~7: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/desktop_window_pin_test.dart: both views show the same pin state and can cancel it
+00:45 +316 ~7: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/desktop_window_pin_test.dart: both views show the same pin state and can cancel it
+00:45 +317 ~7: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/country_navigation_test.dart: viewport Size(390.0, 844.0) keeps menu and long names accessible
+00:45 +318 ~7: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/country_navigation_test.dart: viewport Size(390.0, 844.0) keeps menu and long names accessible
+00:45 +319 ~7: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/country_navigation_test.dart: viewport Size(390.0, 844.0) keeps menu and long names accessible
+00:45 +320 ~7: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/country_navigation_test.dart: viewport Size(390.0, 844.0) keeps menu and long names accessible
+00:45 +321 ~7: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/country_navigation_test.dart: viewport Size(390.0, 844.0) keeps menu and long names accessible
+00:45 +322 ~7: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/country_navigation_test.dart: viewport Size(390.0, 844.0) keeps menu and long names accessible
+00:45 +323 ~7: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/country_navigation_test.dart: viewport Size(390.0, 844.0) keeps menu and long names accessible
+00:45 +324 ~7: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/country_navigation_test.dart: viewport Size(390.0, 844.0) keeps menu and long names accessible
+00:45 +325 ~7: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/country_navigation_test.dart: viewport Size(390.0, 844.0) keeps menu and long names accessible
+00:45 +326 ~7: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/country_navigation_test.dart: viewport Size(390.0, 844.0) keeps menu and long names accessible
+00:46 +327 ~7: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/country_navigation_test.dart: viewport Size(390.0, 844.0) keeps menu and long names accessible
+00:46 +328 ~7: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/country_navigation_test.dart: viewport Size(390.0, 844.0) keeps menu and long names accessible
+00:46 +329 ~7: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/country_navigation_test.dart: viewport Size(390.0, 844.0) keeps menu and long names accessible
+00:46 +330 ~7: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/country_navigation_test.dart: viewport Size(390.0, 844.0) keeps menu and long names accessible
+00:46 +331 ~7: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/country_navigation_test.dart: viewport Size(390.0, 844.0) keeps menu and long names accessible
+00:46 +332 ~7: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/country_navigation_test.dart: viewport Size(390.0, 844.0) keeps menu and long names accessible
+00:46 +333 ~7: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/channel_category_picker_interaction_test.dart: double apply closes only the picker and returns one valid result
+00:46 +334 ~7: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/channel_category_picker_interaction_test.dart: double apply closes only the picker and returns one valid result
+00:46 +335 ~7: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/channel_category_picker_interaction_test.dart: double apply closes only the picker and returns one valid result
+00:46 +336 ~7: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/channel_category_picker_interaction_test.dart: double apply closes only the picker and returns one valid result
+00:46 +337 ~7: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/channel_category_picker_interaction_test.dart: double apply closes only the picker and returns one valid result
+00:47 +338 ~7: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/channel_category_picker_interaction_test.dart: double apply closes only the picker and returns one valid result
+00:47 +339 ~7: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/channel_category_picker_interaction_test.dart: double apply closes only the picker and returns one valid result
+00:47 +339 ~7: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/device_favorites_http_e2e_test.dart: real private API: upload, original-device restore, other-device denial and no public favorite data
+  Skip: Set BOBTV_SYNC_E2E_PYTHON for the real private API fixture
+00:47 +339 ~8: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/channel_category_picker_interaction_test.dart: double apply closes only the picker and returns one valid result
+00:47 +340 ~8: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/channel_category_picker_interaction_test.dart: double apply closes only the picker and returns one valid result
+00:47 +341 ~8: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/channel_category_picker_interaction_test.dart: double apply closes only the picker and returns one valid result
+00:47 +342 ~8: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/country_navigation_test.dart: viewport Size(320.0, 700.0) keeps menu and long names accessible
+00:47 +343 ~8: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/country_navigation_test.dart: viewport Size(320.0, 700.0) keeps menu and long names accessible
+00:47 +344 ~8: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/country_navigation_test.dart: viewport Size(320.0, 700.0) keeps menu and long names accessible
+00:47 +345 ~8: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/country_navigation_test.dart: viewport Size(320.0, 700.0) keeps menu and long names accessible
+00:48 +346 ~8: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/country_navigation_test.dart: viewport Size(320.0, 700.0) keeps menu and long names accessible
+00:48 +347 ~8: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/country_navigation_test.dart: viewport Size(320.0, 700.0) keeps menu and long names accessible
+00:48 +348 ~8: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/channel_category_picker_interaction_test.dart: a stale apply cannot submit an earlier parent selection
+00:48 +349 ~8: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/channel_category_picker_interaction_test.dart: a stale apply cannot submit an earlier parent selection
+00:48 +350 ~8: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/channel_category_picker_interaction_test.dart: a stale apply cannot submit an earlier parent selection
+00:48 +351 ~8: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/channel_category_picker_interaction_test.dart: a stale apply cannot submit an earlier parent selection
+00:48 +352 ~8: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/country_navigation_test.dart: viewport Size(320.0, 360.0) keeps menu and long names accessible
+00:48 +353 ~8: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/country_navigation_test.dart: viewport Size(320.0, 360.0) keeps menu and long names accessible
+00:48 +354 ~8: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/country_navigation_test.dart: viewport Size(320.0, 360.0) keeps menu and long names accessible
+00:48 +355 ~8: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/country_navigation_test.dart: viewport Size(320.0, 360.0) keeps menu and long names accessible
+00:48 +356 ~8: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/country_navigation_test.dart: viewport Size(320.0, 360.0) keeps menu and long names accessible
+00:48 +357 ~8: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/country_navigation_test.dart: viewport Size(320.0, 360.0) keeps menu and long names accessible
+00:48 +358 ~8: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/country_navigation_test.dart: viewport Size(320.0, 360.0) keeps menu and long names accessible
+00:49 +359 ~8: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/country_navigation_test.dart: viewport Size(320.0, 360.0) keeps menu and long names accessible
+00:49 +360 ~8: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/country_navigation_test.dart: viewport Size(320.0, 360.0) keeps menu and long names accessible
+00:49 +360 ~8: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/device_favorites_sync_test.dart: clean original device restores by route hash after channel IDs change; other device stays empty
+WARNING (drift): It looks like you've created the database class AppDatabase multiple times. When these two databases use the same QueryExecutor, race conditions will occur and might corrupt the database.
+Try to follow the advice at https://drift.simonbinder.eu/faq/#using-the-database or, if you know what you're doing, set driftRuntimeOptions.dontWarnAboutMultipleDatabases = true
+Here is the stacktrace from when the database was opened a second time:
+#0      GeneratedDatabase._handleInstantiated (package:drift/src/runtime/api/db_base.dart:96:30)
+#1      GeneratedDatabase._whenConstructed (package:drift/src/runtime/api/db_base.dart:73:12)
+#2      new GeneratedDatabase (package:drift/src/runtime/api/db_base.dart:64:5)
+#3      new _$AppDatabase (package:clubtivi/data/datasources/local/database.g.dart:8667:36)
+#4      new AppDatabase.forTesting (package:clubtivi/data/datasources/local/database.dart)
+#5      main.<anonymous closure> (file:///C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/device_favorites_sync_test.dart:234:39)
+<asynchronous suspension>
+#6      Declarer.test.<anonymous closure>.<anonymous closure> (package:test_api/src/backend/declarer.dart:253:15)
+<asynchronous suspension>
+#7      Declarer.test.<anonymous closure> (package:test_api/src/backend/declarer.dart:250:11)
+<asynchronous suspension>
+#8      Invoker._waitForOutstandingCallbacks.<anonymous closure> (package:test_api/src/backend/invoker.dart:318:9)
+<asynchronous suspension>
+This warning will only appear on debug builds.
+WARNING (drift): It looks like you've created the database class AppDatabase multiple times. When these two databases use the same QueryExecutor, race conditions will occur and might corrupt the database.
+Try to follow the advice at https://drift.simonbinder.eu/faq/#using-the-database or, if you know what you're doing, set driftRuntimeOptions.dontWarnAboutMultipleDatabases = true
+Here is the stacktrace from when the database was opened a second time:
+#0      GeneratedDatabase._handleInstantiated (package:drift/src/runtime/api/db_base.dart:96:30)
+#1      GeneratedDatabase._whenConstructed (package:drift/src/runtime/api/db_base.dart:73:12)
+#2      new GeneratedDatabase (package:drift/src/runtime/api/db_base.dart:64:5)
+#3      new _$AppDatabase (package:clubtivi/data/datasources/local/database.g.dart:8667:36)
+#4      new AppDatabase.forTesting (package:clubtivi/data/datasources/local/database.dart)
+#5      main.<anonymous closure> (file:///C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/device_favorites_sync_test.dart:244:40)
+<asynchronous suspension>
+#6      Declarer.test.<anonymous closure>.<anonymous closure> (package:test_api/src/backend/declarer.dart:253:15)
+<asynchronous suspension>
+#7      Declarer.test.<anonymous closure> (package:test_api/src/backend/declarer.dart:250:11)
+<asynchronous suspension>
+#8      Invoker._waitForOutstandingCallbacks.<anonymous closure> (package:test_api/src/backend/invoker.dart:318:9)
+<asynchronous suspension>
+This warning will only appear on debug builds.
+00:49 +361 ~8: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/country_navigation_test.dart: viewport Size(320.0, 360.0) keeps menu and long names accessible
+00:49 +362 ~8: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/country_navigation_test.dart: viewport Size(320.0, 360.0) keeps menu and long names accessible
+00:49 +363 ~8: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/country_navigation_test.dart: viewport Size(320.0, 360.0) keeps menu and long names accessible
+00:49 +364 ~8: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/country_navigation_test.dart: viewport Size(320.0, 360.0) keeps menu and long names accessible
+00:49 +365 ~8: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/country_navigation_test.dart: viewport Size(320.0, 360.0) keeps menu and long names accessible
+00:49 +366 ~8: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/channel_category_picker_interaction_test.dart: a queued apply cannot discard a newly typed category name
+00:49 +367 ~8: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/channel_category_picker_interaction_test.dart: a queued apply cannot discard a newly typed category name
+00:49 +368 ~8: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/channel_category_picker_interaction_test.dart: a queued apply cannot discard a newly typed category name
+00:49 +369 ~8: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/channel_category_picker_interaction_test.dart: a queued apply cannot discard a newly typed category name
+00:49 +370 ~8: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/country_navigation_test.dart: short window can reach the last letter in the horizontal index
+00:49 +371 ~8: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/country_navigation_test.dart: short window can reach the last letter in the horizontal index
+00:49 +372 ~8: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/country_navigation_test.dart: short window can reach the last letter in the horizontal index
+00:50 +373 ~8: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/country_navigation_test.dart: short window can reach the last letter in the horizontal index
+00:50 +374 ~8: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/country_navigation_test.dart: short window can reach the last letter in the horizontal index
+00:50 +375 ~8: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/country_navigation_test.dart: short window can reach the last letter in the horizontal index
+00:50 +376 ~8: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/country_navigation_test.dart: short window can reach the last letter in the horizontal index
+00:50 +377 ~8: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/country_navigation_test.dart: short window can reach the last letter in the horizontal index
+00:50 +378 ~8: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/channel_category_picker_interaction_test.dart: search reports no results and navigation resets the query
+00:50 +379 ~8: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/channel_category_picker_interaction_test.dart: search reports no results and navigation resets the query
+00:50 +380 ~8: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/diagnostic_sync_service_test.dart: consented CN upload is pinned to relay and strictly redacted
+00:50 +381 ~8: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/country_navigation_test.dart: keyboard insets resize open menu and keep search results usable
+00:50 +382 ~8: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/country_navigation_test.dart: keyboard insets resize open menu and keep search results usable
+00:50 +383 ~8: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/country_navigation_test.dart: keyboard insets resize open menu and keep search results usable
+00:50 +384 ~8: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/country_navigation_test.dart: keyboard insets resize open menu and keep search results usable
+00:50 +385 ~8: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/country_navigation_test.dart: keyboard insets resize open menu and keep search results usable
+00:50 +386 ~8: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/country_navigation_test.dart: keyboard insets resize open menu and keep search results usable
+00:50 +387 ~8: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/country_navigation_test.dart: keyboard insets resize open menu and keep search results usable
+00:50 +388 ~8: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/country_navigation_test.dart: keyboard insets resize open menu and keep search results usable
+00:51 +389 ~8: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/country_navigation_test.dart: keyboard insets resize open menu and keep search results usable
+00:51 +390 ~8: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/country_navigation_test.dart: keyboard insets resize open menu and keep search results usable
+00:51 +391 ~8: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/country_navigation_test.dart: keyboard insets resize open menu and keep search results usable
+00:51 +392 ~8: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/country_navigation_test.dart: keyboard insets resize open menu and keep search results usable
+00:51 +393 ~8: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/country_navigation_test.dart: keyboard insets resize open menu and keep search results usable
+00:51 +394 ~8: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/country_navigation_test.dart: keyboard insets resize open menu and keep search results usable
+00:51 +395 ~8: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/country_navigation_test.dart: keyboard insets resize open menu and keep search results usable
+00:51 +396 ~8: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/country_navigation_test.dart: keyboard insets resize open menu and keep search results usable
+00:51 +397 ~8: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/compact_channel_layout_test.dart: level 2 menu joins its button and includes every option
+00:51 +398 ~8: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/country_navigation_test.dart: index includes special labels and does not select while filtering
+00:52 +399 ~8: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/compact_channel_layout_test.dart: level 3 menu joins its button and includes every option
+00:52 +400 ~8: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/country_navigation_test.dart: short window with keyboard scrolls controls and results
+00:52 +401 ~8: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/country_navigation_test.dart: short window with keyboard scrolls controls and results
+00:52 +402 ~8: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/country_navigation_test.dart: short window with keyboard scrolls controls and results
+00:52 +403 ~8: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/country_navigation_test.dart: short window with keyboard scrolls controls and results
+00:52 +403 ~9: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/country_navigation_test.dart: short window with keyboard scrolls controls and results
+00:53 +404 ~9: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/epg_guide_hot_update_test.dart: running guide replaces programmes without resetting its time scroll public=false
+00:53 +405 ~9: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/epg_guide_hot_update_test.dart: running guide replaces programmes without resetting its time scroll public=false
+00:53 +406 ~9: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/epg_guide_hot_update_test.dart: running guide replaces programmes without resetting its time scroll public=false
+00:53 +407 ~9: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/epg_guide_hot_update_test.dart: running guide replaces programmes without resetting its time scroll public=false
+00:53 +408 ~9: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/epg_guide_hot_update_test.dart: running guide replaces programmes without resetting its time scroll public=false
+00:54 +409 ~9: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/epg_guide_hot_update_test.dart: running guide replaces programmes without resetting its time scroll public=false
+00:54 +410 ~9: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/epg_guide_hot_update_test.dart: running guide replaces programmes without resetting its time scroll public=false
+00:54 +411 ~9: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/epg_guide_hot_update_test.dart: running guide replaces programmes without resetting its time scroll public=false
+00:54 +412 ~9: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/country_navigation_test.dart: keyboard layout switches preserve active search and selection
+00:54 +413 ~9: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/country_navigation_test.dart: keyboard layout switches preserve active search and selection
+00:54 +414 ~9: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/country_navigation_test.dart: keyboard layout switches preserve active search and selection
+00:55 +415 ~9: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/epg_guide_hot_update_test.dart: running guide replaces programmes without resetting its time scroll public=true
+00:55 +416 ~9: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/epg_shutdown_test.dart: EPG shutdown joins in-flight atomic import and prevents later DB work
+00:56 +417 ~9: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/epg_source_preservation_test.dart: startup preserves custom global, old default and disabled EPG sources
+00:56 +418 ~9: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/epg_transactional_import_test.dart: two consecutive imports replace only their own source
+00:57 +419 ~9: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/epg_transactional_import_test.dart: empty and expired-only imports preserve last valid guide
+00:57 +420 ~9: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/epg_transactional_import_test.dart: cross-source data and unknown channels cannot replace a source
+00:57 +421 ~9: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/epg_transactional_import_test.dart: database insertion failure rolls back programmes metadata and refresh time
+00:57 +422 ~9: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/failover_test.dart: candidate ranking keeps routes after the eighth entry
+00:57 +423 ~9: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/failover_test.dart: preflight does not reward an HTML response as a video source
+00:57 +424 ~9: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/failover_test.dart: route progress labels omit query tokens
+00:57 +425 ~9: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/failover_test.dart: ColdFailoverEngine returns null when buffering starts
+00:57 +426 ~9: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/failover_test.dart: ColdFailoverEngine switches to next URL on sustained buffering
+00:57 +427 ~9: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/failover_test.dart: ColdFailoverEngine resets attempt count when playback resumes
+00:57 +428 ~9: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/failover_test.dart: ColdFailoverEngine round-robins through all alternatives
+00:57 +429 ~9: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/failover_test.dart: ColdFailoverEngine stops after max attempts
+00:57 +430 ~9: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/failover_test.dart: ColdFailoverEngine switchToNext forces immediate failover
+00:57 +431 ~9: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/failover_test.dart: ColdFailoverEngine returns null with no alternatives
+00:57 +432 ~9: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/failover_test.dart: CrossProviderMatcher finds alternative streams by EPG ID
+00:58 +433 ~9: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/favorites_test.dart: favorites include every service route and newly imported routes
+00:58 +434 ~9: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/favorites_test.dart: old one-route favorites expand without sharing with another database
+00:58 +435 ~9: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/favorites_test.dart: first favorite creates a default list and appears in all favorites
+00:58 +436 ~9: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/fullscreen_programme_overlay_test.dart: Fullscreen shows current, next and third as lightweight text
+00:59 +437 ~9: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/fullscreen_programme_overlay_test.dart: Missing EPG keeps channel and return controls without fake programmes
+00:59 +438 ~9: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/fullscreen_return_navigation_test.dart: ordinary return pops player and preserves caller state
+00:59 +439 ~9: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/fullscreen_return_navigation_test.dart: ordinary return pops player and preserves caller state
+00:59 +440 ~9: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/fullscreen_return_navigation_test.dart: ordinary return pops player and preserves caller state
+00:59 +441 ~9: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/fullscreen_return_navigation_test.dart: ordinary return pops player and preserves caller state
+00:59 +442 ~9: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/fullscreen_return_navigation_test.dart: ordinary return pops player and preserves caller state
+00:59 +442 ~10: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/fullscreen_return_navigation_test.dart: ordinary return pops player and preserves caller state
+00:59 +442 ~10: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/github_ai_crawler_live_test.dart: live GitHub and OpenAI crawler smoke test
+  Skip: Local OpenAI configuration is unavailable
+00:59 +442 ~11: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/fullscreen_return_navigation_test.dart: ordinary return pops player and preserves caller state
+00:59 +443 ~11: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/fullscreen_return_navigation_test.dart: native return closes popup and its owning player together
+01:00 +444 ~11: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/fullscreen_return_navigation_test.dart: direct player launch without a caller navigates home
+01:00 +445 ~11: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/fullscreen_return_navigation_test.dart: direct player return also clears its popup before going home
+01:00 +446 ~11: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/github_ai_crawler_service_test.dart: OpenAiRuntimeConfig is disabled when either required value is missing
+01:00 +447 ~11: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/github_ai_crawler_service_test.dart: OpenAiRuntimeConfig is enabled when base URL and key are present
+01:00 +448 ~11: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/github_ai_crawler_service_test.dart: GitHub recursive link policy accepts a relative child document
+01:00 +449 ~11: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/github_ai_crawler_service_test.dart: GitHub recursive link policy accepts same repository raw and blob links
+01:00 +450 ~11: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/github_ai_crawler_service_test.dart: GitHub recursive link policy rejects traversal and links to another repository
+01:00 +451 ~11: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/github_ai_crawler_service_test.dart: discovered channel IDs are stable and route specific
+01:00 +452 ~11: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/github_ai_crawler_service_test.dart: stream URL validation permits player protocols
+01:00 +453 ~11: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/github_ai_crawler_service_test.dart: AI selected arbitrary document imports a candidate with provenance
+01:00 +454 ~11: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/github_ai_crawler_service_test.dart: selected M3U imports locally without document AI expansion
+01:00 +455 ~11: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/github_ai_crawler_service_test.dart: targeted recovery imports only verified matching television routes
+01:01 +456 ~11: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/github_ai_recovery_live_test.dart: live targeted CCTV5+ GitHub search and network probe
+  Skip: Local AI endpoint is unavailable
+01:02 +456 ~12: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/github_cctv5plus_recovery_test.dart: extracts only distinct public CCTV5+ routes
+01:02 +457 ~12: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/github_source_monitor_test.dart: extracts repository metadata from a raw GitHub URL
+01:02 +458 ~12: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/github_source_monitor_test.dart: extracts refs heads URLs without including refs in the path
+01:02 +459 ~12: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/github_source_monitor_test.dart: maps the external vbskycn feed to its GitHub origin
+01:02 +460 ~12: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/github_source_monitor_test.dart: recovers a playlist when the repository default branch moves
+01:03 +461 ~12: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/inline_expanded_channel_grid_test.dart: 1 columns, position 0: straight edges and smooth shoulders
+01:03 +462 ~12: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/inline_expanded_channel_grid_test.dart: 2 columns, position 0: straight edges and smooth shoulders
+01:03 +463 ~12: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/inline_expanded_channel_grid_test.dart: 2 columns, position 1: straight edges and smooth shoulders
+01:03 +464 ~12: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/inline_expanded_channel_grid_test.dart: 3 columns, position 0: straight edges and smooth shoulders
+01:03 +465 ~12: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/inline_expanded_channel_grid_test.dart: 3 columns, position 1: straight edges and smooth shoulders
+01:03 +466 ~12: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/inline_expanded_channel_grid_test.dart: 3 columns, position 2: straight edges and smooth shoulders
+01:03 +467 ~12: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/inline_expanded_channel_grid_test.dart: 4 columns, position 0: straight edges and smooth shoulders
+01:03 +468 ~12: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/inline_expanded_channel_grid_test.dart: 4 columns, position 1: straight edges and smooth shoulders
+01:03 +469 ~12: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/inline_expanded_channel_grid_test.dart: 4 columns, position 2: straight edges and smooth shoulders
+01:03 +470 ~12: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/inline_expanded_channel_grid_test.dart: 4 columns, position 3: straight edges and smooth shoulders
+01:03 +471 ~12: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/inline_expanded_channel_grid_test.dart: 5 columns, position 0: straight edges and smooth shoulders
+01:03 +472 ~12: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/inline_expanded_channel_grid_test.dart: 5 columns, position 1: straight edges and smooth shoulders
+01:03 +473 ~12: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/inline_expanded_channel_grid_test.dart: 5 columns, position 2: straight edges and smooth shoulders
+01:03 +474 ~12: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/inline_expanded_channel_grid_test.dart: 5 columns, position 3: straight edges and smooth shoulders
+01:03 +475 ~12: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/inline_expanded_channel_grid_test.dart: 5 columns, position 4: straight edges and smooth shoulders
+01:03 +476 ~12: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/inline_expanded_channel_grid_test.dart: all positions remain mirror-symmetric during guide expansion
+01:03 +477 ~12: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/inline_expanded_channel_grid_test.dart: every grid position and incomplete final row survives animation
+01:03 +478 ~12: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/inline_expanded_channel_grid_test.dart: every grid position and incomplete final row survives animation
+01:03 +479 ~12: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/inline_expanded_channel_grid_test.dart: every grid position and incomplete final row survives animation
+01:03 +480 ~12: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/inline_expanded_channel_grid_test.dart: every grid position and incomplete final row survives animation
+01:04 +481 ~12: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/inline_expanded_channel_grid_test.dart: every grid position and incomplete final row survives animation
+01:04 +482 ~12: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/lightweight_background_test.dart: fresh shared-catalog installation never scans a full inventory
+01:04 +482 ~13: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/lightweight_background_test.dart: fresh shared-catalog installation never scans a full inventory
+01:04 +483 ~13: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/inline_expanded_channel_grid_test.dart: left outside edge stays straight through the card-guide join
+01:04 +484 ~13: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/lightweight_background_test.dart: legacy inventory migrates once across launches and retries failures
+01:04 +485 ~13: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/lightweight_background_test.dart: legacy inventory migrates once across launches and retries failures
+01:04 +486 ~13: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/lightweight_background_test.dart: legacy inventory migrates once across launches and retries failures
+01:04 +487 ~13: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/inline_expanded_channel_grid_test.dart: guide expands below the selected card row
+01:04 +488 ~13: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/inline_expanded_channel_grid_test.dart: scan insertion keeps the guide attached to the channel ID
+01:04 +489 ~13: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/inline_expanded_channel_grid_test.dart: filtered-out selection leaves no misplaced guide
+01:04 +490 ~13: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/inline_expanded_channel_grid_test.dart: narrow single-column layout has no overflow
+01:04 +491 ~13: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/inline_expanded_channel_grid_test.dart: large channel inventory is built lazily
+01:05 +492 ~13: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/live_channel_inventory_test.dart: contribute an existing public catalog through the production uploader
+01:05 +492 ~14: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/live_website_catalog_test.dart: production catalog manifest and snapshot pass client validation
+01:05 +492 ~15: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/live_website_catalog_test.dart: fresh client initializes classified CCTV cards from production
+01:06 +492 ~16: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/local_cast_mute_test.dart: idle status never reads or writes the player
+01:06 +493 ~16: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/local_cast_mute_test.dart: restores initial mute=false without touching volume
+01:06 +494 ~16: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/local_cast_mute_test.dart: restores initial mute=true without touching volume
+01:06 +495 ~16: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/local_cast_mute_test.dart: stop during delayed activation restores local output
+01:06 +496 ~16: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/local_cast_mute_test.dart: failed restore can be retried
+01:06 +497 ~16: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/local_cast_mute_test.dart: disposal during read prevents a late mute write
+01:06 +498 ~16: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/local_catalog_epg_binding_test.dart: bad XMLTV rows cannot reject valid programmes; exact public fallback is shared
+01:07 +499 ~16: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/m3u_parser_test.dart: M3uParser parses basic M3U Plus playlist
+01:07 +500 ~16: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/m3u_parser_test.dart: M3uParser parses channel numbers from tvg-chno
+01:07 +501 ~16: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/m3u_parser_test.dart: M3uParser detects VOD from group-title
+01:07 +502 ~16: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/m3u_parser_test.dart: M3uParser detects VOD from Xtream URL pattern
+01:07 +503 ~16: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/m3u_parser_test.dart: M3uParser detects series from group-title
+01:07 +504 ~16: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/m3u_parser_test.dart: M3uParser handles missing #EXTM3U header gracefully
+01:07 +505 ~16: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/m3u_parser_test.dart: M3uParser generates stable IDs from tvg-id
+01:07 +506 ~16: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/m3u_parser_test.dart: M3uParser skips entries without a name
+01:07 +507 ~16: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/mac_update_candidate_test.dart: different installations isolate every update and rollback file
+01:07 +508 ~16: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/mac_update_candidate_test.dart: health proof requires the exact installation and running version
+01:08 +509 ~16: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/manual_category_move_test.dart: move updates only known routes immediately and preserves identifiers
+01:08 +510 ~16: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/manual_category_move_test.dart: external category edits and other field changes still reload
+01:08 +511 ~16: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/manual_category_move_test.dart: intermediate queued save does not overwrite a later visible move
+01:08 +512 ~16: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/manual_category_move_test.dart: large catalog retains unchanged row objects and skips duplicate reload
+01:09 +513 ~16: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/manual_channel_category_test.dart: destinations validate every level and retain country and genre
+01:09 +514 ~16: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/manual_channel_category_test.dart: explicit new countries and nested categories round trip without guessing
+01:09 +515 ~16: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/manual_channel_category_test.dart: invalid separators, reserved labels, excessive length and depth are rejected
+01:09 +516 ~16: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/manual_channel_category_test.dart: suggestions and navigation include saved custom paths without duplicates
+01:09 +517 ~16: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/manual_channel_category_test.dart: custom paths persist and query exact membership independently of names
+01:09 +518 ~16: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/manual_channel_category_test.dart: route corrections survive name, ID and provider refresh changes
+01:09 +519 ~16: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/manual_channel_category_test.dart: a later manual change replaces earlier destination
+01:09 +520 ~16: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/manual_channel_category_test.dart: picker drills into provinces and lets the user go back
+01:09 +521 ~16: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/manual_channel_category_test.dart: picker drills into provinces and lets the user go back
+01:09 +522 ~16: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/manual_channel_category_test.dart: picker drills into provinces and lets the user go back
+01:10 +523 ~16: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/manual_channel_category_test.dart: picker drills into provinces and lets the user go back
+01:10 +524 ~16: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/manual_channel_category_test.dart: picker drills into provinces and lets the user go back
+01:10 +525 ~16: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/manual_channel_category_test.dart: picker drills into provinces and lets the user go back
+01:10 +526 ~16: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/manual_channel_category_test.dart: picker drills into provinces and lets the user go back
+01:10 +527 ~16: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/manual_channel_category_test.dart: picker drills into provinces and lets the user go back
+01:10 +528 ~16: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/manual_channel_category_test.dart: picker drills into provinces and lets the user go back
+01:10 +529 ~16: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/manual_channel_category_test.dart: picker drills into provinces and lets the user go back
+01:10 +530 ~16: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/manual_channel_category_test.dart: picker drills into provinces and lets the user go back
+01:10 +531 ~16: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/manual_channel_category_test.dart: picker drills into provinces and lets the user go back
+01:10 +532 ~16: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/manual_channel_category_test.dart: picker drills into provinces and lets the user go back
+01:10 +533 ~16: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/manual_channel_category_test.dart: picker drills into provinces and lets the user go back
+01:10 +534 ~16: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/manual_channel_category_test.dart: picker drills into provinces and lets the user go back
+01:11 +535 ~16: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/player_presentation_buttons_test.dart: independent window and fullscreen controls, compact=false
+01:11 +536 ~16: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/player_presentation_buttons_test.dart: independent window and fullscreen controls, compact=true
+01:11 +537 ~16: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/player_resources_test.dart: duplicate disposal owns one native operation
+01:11 +538 ~16: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/player_presentation_buttons_test.dart: mobile retains the original fullscreen action alone
+01:11 +539 ~16: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/player_presentation_buttons_test.dart: mobile retains the original fullscreen action alone
+01:11 +540 ~16: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/player_presentation_buttons_test.dart: mobile retains the original fullscreen action alone
+01:11 +541 ~16: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/player_presentation_buttons_test.dart: mobile retains the original fullscreen action alone
+01:11 +542 ~16: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/player_presentation_buttons_test.dart: window buttons fit narrow footers at large text scales
+01:12 +543 ~16: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/prepared_channel_commit_gate_test.dart: UI commits preview before route sync or a scheduled frame
+01:12 +544 ~16: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/prepared_channel_commit_gate_test.dart: verified preview transfer never polls buffering or media readiness
+01:12 +545 ~16: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/prepared_channel_commit_gate_test.dart: verified preview promotion begins synchronously with no timer
+01:12 +546 ~16: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/prepared_channel_commit_gate_test.dart: native handoff is the only pending operation and clicks coalesce
+01:12 +547 ~16: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/prepared_channel_commit_gate_test.dart: existing decoder and controller ownership is transferred unchanged
+01:12 +548 ~16: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/prepared_channel_commit_gate_test.dart: new selection invalidates an older asynchronous native handoff
+01:12 +549 ~16: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/prepared_channel_commit_gate_test.dart: native promotion errors release the gate for a retry
+01:12 +550 ~16: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/prepared_channel_commit_gate_test.dart: cancelled or retired preview cannot replace active playback
+01:13 +551 ~16: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/prepared_channel_test.dart: video needs decoded dimensions and advancing playback
+01:13 +552 ~16: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/prepared_channel_test.dart: radio accepts progressing audio without video
+01:13 +553 ~16: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/public_catalog_compatibility_test.dart: public snapshot routes pass the actual client privacy validator
+  Skip: Set BOBTV_DIAGNOSTIC_CATALOG to a verified local snapshot
+01:13 +553 ~17: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/public_catalog_compatibility_test.dart: verified public snapshot imports through the production client decoder
+  Skip: Set BOBTV_DIAGNOSTIC_CATALOG to a verified local snapshot
+01:13 +553 ~18: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/radio_audio_spectrum_test.dart: 128 measured bands are partitioned into safe native channel layouts
+01:13 +554 ~18: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/radio_audio_spectrum_test.dart: band values come from PCM metadata with an absolute dBFS scale
+01:13 +555 ~18: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/radio_audio_spectrum_test.dart: one bounded sampler is shared and waits for each native read
+01:14 +556 ~18: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/radio_audio_spectrum_test.dart: handoff and missing data never replay previous audio levels
+01:14 +557 ~18: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/radio_audio_spectrum_test.dart: export the exact production filter for the native signal probe
+01:15 +558 ~18: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/radio_card_spectrum_test.dart: muted card shows real input levels and keeps taps available
+01:15 +559 ~18: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/radio_card_spectrum_test.dart: muted card shows real input levels and keeps taps available
+01:15 +560 ~18: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/radio_playback_surface_test.dart: station artwork is above waveform and keeps the exact name
+01:15 +561 ~18: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/radio_playback_surface_test.dart: station artwork is above waveform and keeps the exact name
+01:16 +562 ~18: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/radio_playback_surface_test.dart: small windows and large text do not overflow
+01:16 +563 ~18: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/radio_playback_surface_test.dart: pause and buffering update only the waveform state
+01:16 +564 ~18: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/radio_playback_surface_test.dart: animation does not rebuild the surrounding page
+01:16 +565 ~18: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/radio_playback_surface_test.dart: hidden, background and reduced-motion views stop scheduling paints
+01:16 +566 ~18: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/regional_route_service_test.dart: same network ranking never rewrites availability or interrupts playback
+01:16 +567 ~18: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/radio_playback_surface_test.dart: radio surface keeps parent tap controls usable
+01:16 +568 ~18: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/radio_playback_surface_test.dart: radio surface keeps parent tap controls usable
+01:16 +569 ~18: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/radio_playback_surface_test.dart: radio surface keeps parent tap controls usable
+01:16 +570 ~18: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/regional_route_service_test.dart: network changes isolate local success, failures and shared scores
+01:16 +570 ~19: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/regional_route_service_test.dart: network changes isolate local success, failures and shared scores
+01:16 +571 ~19: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/regional_route_service_test.dart: regional metrics survive reload without leaking between networks
+01:16 +572 ~19: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/regional_route_service_test.dart: changing network clears checks while retaining favorites and channels
+01:16 +573 ~19: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/regional_route_service_test.dart: offline API keeps unknown candidates and backs off repeated requests
+01:16 +574 ~19: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/regional_route_service_test.dart: ranking waits at most 600ms and emits detailed observations
+01:16 +575 ~19: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/regional_route_service_test.dart: ranking waits at most 600ms and emits detailed observations
+01:17 +576 ~19: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/regional_route_service_test.dart: ranking waits at most 600ms and emits detailed observations
+01:17 +577 ~19: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/resource_node_router_test.dart: chooses faster relay and preserves paths, query and canonical identity
+01:17 +578 ~19: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/resource_node_router_test.dart: primary remains selected when faster or relay unavailable
+01:17 +579 ~19: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/resource_node_router_test.dart: concurrent requests share one probe pair and cache decision
+01:17 +580 ~19: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/resource_node_router_test.dart: decision expires and adapts after network changes
+01:17 +581 ~19: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/resource_node_router_test.dart: connect failure falls back before an upload body is sent
+01:17 +582 ~19: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/resource_node_router_test.dart: media never probes or selects a resource node
+01:17 +583 ~19: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/resource_node_router_test.dart: HTTP 503 read falls back once; sent uploads are not replayed
+01:18 +584 ~19: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/retired_route_guard_test.dart: permanent exclusions survive empty and stale updates
+01:18 +585 ~19: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/retired_route_guard_test.dart: canonical duplicates are blocked without banning the entire host
+01:18 +586 ~19: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/retired_route_guard_test.dart: retired cached candidate never reaches a native open
+01:18 +587 ~19: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/retired_route_guard_test.dart: retirement during connection stops before promotion
+01:18 +588 ~19: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/retired_route_guard_test.dart: storage failure fails closed instead of trusting a stale candidate
+01:18 +589 ~19: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/retired_route_guard_test.dart: durable tombstone updates invalidate an already loaded candidate list
+01:18 +590 ~19: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/retired_route_guard_test.dart: lower weight on one device does not permanently ban another device
+WARNING (drift): It looks like you've created the database class AppDatabase multiple times. When these two databases use the same QueryExecutor, race conditions will occur and might corrupt the database.
+Try to follow the advice at https://drift.simonbinder.eu/faq/#using-the-database or, if you know what you're doing, set driftRuntimeOptions.dontWarnAboutMultipleDatabases = true
+Here is the stacktrace from when the database was opened a second time:
+#0      GeneratedDatabase._handleInstantiated (package:drift/src/runtime/api/db_base.dart:96:30)
+#1      GeneratedDatabase._whenConstructed (package:drift/src/runtime/api/db_base.dart:73:12)
+#2      new GeneratedDatabase (package:drift/src/runtime/api/db_base.dart:64:5)
+#3      new _$AppDatabase (package:clubtivi/data/datasources/local/database.g.dart:8667:36)
+#4      new AppDatabase.forTesting (package:clubtivi/data/datasources/local/database.dart)
+#5      main.<anonymous closure> (file:///C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/retired_route_guard_test.dart:167:37)
+#6      Declarer.test.<anonymous closure>.<anonymous closure> (package:test_api/src/backend/declarer.dart:253:25)
+<asynchronous suspension>
+#7      Declarer.test.<anonymous closure> (package:test_api/src/backend/declarer.dart:250:11)
+<asynchronous suspension>
+#8      Invoker._waitForOutstandingCallbacks.<anonymous closure> (package:test_api/src/backend/invoker.dart:318:9)
+<asynchronous suspension>
+This warning will only appear on debug builds.
+01:18 +591 ~19: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/retired_route_guard_test.dart: blocked play and discovery do not initialize a native decoder
+01:18 +592 ~19: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/route_identity_test.dart: endpoint identity preserves meaningful distinctions
+01:18 +593 ~19: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/route_identity_test.dart: candidate ranking tries an equivalent endpoint only once
+01:18 +594 ~19: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/route_identity_test.dart: retirement deletes legacy spellings and prevents rediscovery across providers
+01:19 +595 ~19: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/route_priority_test.dart: startup uses highest network score beyond route 24 without media probes
+01:19 +596 ~19: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/route_priority_test.dart: failed route is excluded and next highest route is selected
+01:19 +597 ~19: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/route_priority_test.dart: offline scoring keeps current-network cached best candidate
+01:19 +598 ~19: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/route_priority_test.dart: late ranking cannot select a superseded channel or retired route
+01:19 +599 ~19: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/route_priority_test.dart: failed routes move behind untried routes before candidate limits
+01:19 +600 ~19: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/route_priority_test.dart: decoded playback raises weight and a manual skip lowers it once
+01:19 +601 ~19: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/route_priority_test.dart: legacy saved failures remain effective after tracker reload
+01:19 +602 ~19: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/route_priority_test.dart: manual retirement blocks one address across providers
+01:19 +603 ~19: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/server_egress_test.dart: direct video headers preserve needed values and reject injection
+01:19 +604 ~19: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/server_egress_test.dart: legacy GitHub and AI calls are blocked before credentials leave
+01:19 +605 ~19: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/server_egress_test.dart: video origins are direct and legacy gateway identities are unwrapped
+01:19 +606 ~19: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/server_egress_test.dart: image and EPG routes include only the server origin
+01:19 +607 ~19: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/server_egress_test.dart: required media headers are carried without unrelated secrets
+01:19 +608 ~19: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/server_egress_test.dart: integration auth added by later interceptors is in TLS POST body
+01:19 +609 ~19: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/server_egress_test.dart: media byte probes preserve Range and connect directly
+01:19 +610 ~19: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/server_egress_test.dart: direct media probes retain required origin headers
+01:19 +611 ~19: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/server_egress_test.dart: last-resort guard blocks public direct connections before any socket
+01:20 +612 ~19: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/server_epg_attribution_widget_test.dart: government data shows its real license without a sharealike claim
+01:21 +613 ~19: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/server_epg_attribution_widget_test.dart: government data shows its real license without a sharealike claim
+01:21 +614 ~19: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/server_epg_binding_test.dart: catalog then guide links an exact public route and loads its programmes
+01:21 +615 ~19: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/server_epg_binding_test.dart: catalog then guide links an exact public route and loads its programmes
+01:21 +616 ~19: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/server_epg_attribution_widget_test.dart: unpublished guide does not offer an empty credit dialog
+01:21 +617 ~19: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/server_epg_binding_test.dart: unchanged guide repairs a previous raw-ID managed mapping
+01:21 +618 ~19: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/server_epg_binding_test.dart: guide arriving before catalog is linked by later catalog import
+01:21 +619 ~19: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/server_epg_binding_test.dart: upgraded client backfills identity metadata even with unchanged catalog version
+01:21 +620 ~19: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/server_epg_binding_test.dart: matching ID cannot override different countryCode context
+01:21 +621 ~19: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/server_epg_binding_test.dart: matching ID cannot override different regionCode context
+01:21 +622 ~19: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/server_epg_binding_test.dart: matching ID cannot override different name context
+01:21 +623 ~19: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/server_epg_http_test.dart: version requests bypass cache and immutable downloads verify SHA-256
+01:21 +624 ~19: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/server_epg_http_test.dart: version requests bypass cache and immutable downloads verify SHA-256
+01:21 +625 ~19: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/server_epg_binding_test.dart: manual private-source mapping remains locked through new guide imports
+01:21 +626 ~19: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/server_epg_http_test.dart: version endpoint rejects redirects and preserves upstream Retry-After
+01:21 +627 ~19: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/server_epg_binding_test.dart: local identity drift removes only automatic server mapping
+01:21 +628 ~19: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/server_epg_binding_test.dart: unmodified binding is idempotent with no mapping rewrites
+01:22 +629 ~19: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/server_epg_binding_test.dart: catalog fingerprint change invalidates old guide without affecting playback rows
+01:22 +630 ~19: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/server_epg_binding_test.dart: managed guide is excluded from the legacy fuzzy matcher
+01:22 +631 ~19: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/server_epg_binding_test.dart: managed entries in a mixed legacy source list cannot bypass exact binding
+01:22 +632 ~19: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/server_epg_binding_test.dart: legacy auto-mapper cannot replace an existing exact server binding
+01:22 +633 ~19: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/server_epg_binding_test.dart: catalog identity-write failure rolls back catalog rows and version
+01:22 +634 ~19: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/server_epg_live_contract_test.dart: actual licensed public snapshot imports, is idempotent and survives offline
+  Skip: Requires a freshly verified real production capture
+01:22 +634 ~20: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/server_epg_live_history_window_test.dart: actual late old-version capture retains the historical-age guard
+  Skip: Requires the actual late historical capture
+01:22 +634 ~21: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/server_epg_live_history_window_test.dart: actual subsequent published capture passes without relaxed validation
+  Skip: Requires the actual subsequent capture
+01:23 +634 ~22: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/server_epg_python_contract_test.dart: two Python-emitted versions import and bind without rewriting routes
+01:23 +635 ~22: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/server_epg_python_contract_test.dart: Python-emitted guide preserves a locked manual mapping and private rows
+01:23 +636 ~22: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/server_epg_python_contract_test.dart: damaged Python snapshot retains cache and reconnect installs the valid version
+01:24 +637 ~22: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/server_epg_sync_service_test.dart: government data credits import and hot update without false sharealike
+01:24 +638 ~22: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/server_epg_sync_service_test.dart: credits persist, survive offline restart and unchanged checks
+01:24 +639 ~22: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/server_epg_sync_service_test.dart: existing database gains the credit cache without losing private data
+01:24 +640 ~22: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/server_epg_sync_service_test.dart: credit transaction failure retains old credits and guide
+01:24 +641 ~22: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/server_epg_sync_service_test.dart: a newer version replaces credits and unlicensed version removes them
+01:24 +642 ~22: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/server_epg_sync_service_test.dart: rejects missing attribution and keeps the last valid guide
+01:25 +643 ~22: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/server_epg_sync_service_test.dart: rejects duplicate attribution and keeps the last valid guide
+01:25 +644 ~22: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/server_epg_sync_service_test.dart: rejects unrelated attribution and keeps the last valid guide
+01:25 +645 ~22: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/server_epg_sync_service_test.dart: rejects unsafe-url attribution and keeps the last valid guide
+01:25 +646 ~22: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/server_epg_sync_service_test.dart: rejects wrong-license attribution and keeps the last valid guide
+01:25 +647 ~22: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/server_epg_sync_service_test.dart: rejects blank-notice attribution and keeps the last valid guide
+01:25 +648 ~22: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/server_epg_sync_service_test.dart: rejects mixed-license attribution and keeps the last valid guide
+01:25 +649 ~22: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/server_epg_sync_service_test.dart: rejects invalid-list attribution and keeps the last valid guide
+01:25 +650 ~22: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/server_epg_sync_service_test.dart: rejects no-share-alike attribution and keeps the last valid guide
+01:25 +651 ~22: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/server_epg_sync_service_test.dart: two versions inside four hours atomically replace only managed data
+01:25 +652 ~22: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/server_epg_sync_service_test.dart: unchanged versions do not download or parse again
+01:25 +653 ~22: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/server_epg_sync_service_test.dart: production background-isolate decoder imports a complete version
+01:25 +654 ~22: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/server_epg_sync_service_test.dart: offline failure retains version and cache and exposes expiry
+01:25 +655 ~22: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/server_epg_sync_service_test.dart: checksum failure retains previous transaction and schedules retry
+01:25 +656 ~22: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/server_epg_sync_service_test.dart: failed database commit rolls back version identities and programmes
+01:25 +657 ~22: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/server_epg_sync_service_test.dart: shutdown joins an in-flight EPG request before database close
+01:25 +658 ~22: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/server_epg_sync_service_test.dart: concurrent triggers share one request and one import
+01:25 +659 ~22: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/server_epg_sync_service_test.dart: upstream Retry-After is respected by foreground and reconnect triggers
+01:25 +660 ~22: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/server_epg_sync_service_test.dart: reconnect immediately clears only SocketException backoff
+01:25 +661 ~22: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/server_epg_sync_service_test.dart: reconnect immediately clears only TimeoutException backoff
+01:25 +662 ~22: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/server_epg_sync_service_test.dart: reconnect does not bypass invalid-data backoff
+01:25 +663 ~22: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/server_epg_sync_service_test.dart: reconnect during an in-flight failed request schedules one catch-up
+01:25 +664 ~22: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/server_epg_sync_service_test.dart: foreground check can receive a new version before normal polling
+01:25 +665 ~22: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/server_epg_sync_service_test.dart: empty server manifest does not erase last valid cache
+01:25 +666 ~22: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/server_epg_sync_service_test.dart: periodic receiver sees two versions after startup without another start
+01:25 +667 ~22: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/settings_design_test.dart: AI detail shows server state without credential inputs
+01:25 +668 ~22: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/settings_design_test.dart: AI detail shows server state without credential inputs
+01:25 +669 ~22: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/settings_design_test.dart: AI detail shows server state without credential inputs
+01:25 +670 ~22: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/settings_design_test.dart: AI detail shows server state without credential inputs
+01:25 +671 ~22: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/settings_design_test.dart: AI detail shows server state without credential inputs
+01:25 +672 ~22: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/settings_design_test.dart: AI detail shows server state without credential inputs
+01:25 +673 ~22: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/settings_design_test.dart: AI detail shows server state without credential inputs
+01:25 +674 ~22: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/settings_design_test.dart: AI detail shows server state without credential inputs
+01:25 +675 ~22: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/settings_design_test.dart: AI detail shows server state without credential inputs
+01:26 +676 ~22: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/shared_catalog_events_test.dart: queued batches retain IDs and wait for Retry-After
+01:26 +677 ~22: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/settings_design_test.dart: Debrid detail lays out in a narrow window
+01:26 +678 ~22: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/settings_design_test.dart: Debrid detail lays out in a narrow window
+01:26 +679 ~22: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/settings_design_test.dart: Debrid detail lays out in a narrow window
+01:26 +680 ~22: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/settings_design_test.dart: Debrid detail lays out in a narrow window
+01:26 +680 ~22: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/shared_catalog_http_e2e_test.dart: real API: independent clients exchange metadata, weights and deletions
+  Skip: Set BOBTV_SYNC_E2E_PYTHON to a Python runtime with website dependencies
+01:26 +680 ~23: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/settings_design_test.dart: Debrid detail lays out in a narrow window
+01:26 +681 ~23: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/settings_design_test.dart: Debrid detail lays out in a narrow window
+01:26 +682 ~23: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/shared_catalog_events_test.dart: durable queue survives offline failure and database restart
+01:27 +683 ~23: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/settings_design_test.dart: all real settings categories at width 480.0
+01:27 +684 ~23: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/settings_design_test.dart: all real settings categories at width 480.0
+01:27 +685 ~23: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/settings_design_test.dart: all real settings categories at width 480.0
+01:27 +686 ~23: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/settings_design_test.dart: all real settings categories at width 480.0
+01:27 +687 ~23: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/settings_design_test.dart: all real settings categories at width 480.0
+01:27 +688 ~23: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/settings_design_test.dart: all real settings categories at width 480.0
+01:27 +689 ~23: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/settings_design_test.dart: all real settings categories at width 480.0
+01:27 +690 ~23: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/settings_design_test.dart: all real settings categories at width 1200.0
+01:28 +691 ~23: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/settings_design_test.dart: all real settings categories at width 1200.0
+01:28 +692 ~23: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/settings_design_test.dart: all real settings categories at width 1200.0
+01:28 +693 ~23: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/settings_design_test.dart: all real settings categories at width 1200.0
+01:28 +694 ~23: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/settings_design_test.dart: all real settings categories at width 1200.0
+01:28 +695 ~23: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/settings_design_test.dart: all real settings categories at width 1200.0
+01:28 +696 ~23: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/settings_design_test.dart: all real settings categories at width 1200.0
+01:28 +697 ~23: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/settings_design_test.dart: all real settings categories at width 1200.0
+01:28 +698 ~23: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/settings_design_test.dart: all real settings categories at width 1200.0
+01:28 +699 ~23: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/settings_design_test.dart: all real settings categories at width 1200.0
+01:28 +700 ~23: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/settings_design_test.dart: all real settings categories at width 1200.0
+01:28 +701 ~23: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/settings_design_test.dart: all real settings categories at width 1200.0
+01:28 +702 ~23: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/settings_design_test.dart: all real settings categories at width 1200.0
+01:29 +703 ~23: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/settings_design_test.dart: all real settings categories at width 1200.0
+01:29 +704 ~23: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/settings_design_test.dart: all real settings categories at width 1200.0
+01:29 +705 ~23: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/settings_design_test.dart: all real settings categories at width 1200.0
+01:29 +706 ~23: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/settings_design_test.dart: all real settings categories at width 1200.0
+01:29 +707 ~23: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/settings_design_test.dart: all real settings categories at width 1200.0
+01:29 +708 ~23: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/settings_design_test.dart: all real settings categories at width 1200.0
+01:29 +709 ~23: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/settings_design_test.dart: all real settings categories at width 1200.0
+01:29 +710 ~23: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/settings_design_test.dart: all real settings categories at width 3840.0
+01:29 +711 ~23: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/settings_design_test.dart: all real settings categories at width 3840.0
+01:29 +712 ~23: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/settings_design_test.dart: all real settings categories at width 3840.0
+01:30 +713 ~23: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/settings_design_test.dart: all real settings categories at width 3840.0
+01:30 +714 ~23: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/stream_alternatives_service_test.dart: public route without server identity does not guess by channel name
+01:30 +715 ~23: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/settings_design_test.dart: real settings retain saved playback, clock and EPG options
+01:30 +716 ~23: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/settings_design_test.dart: real settings retain saved playback, clock and EPG options
+01:30 +717 ~23: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/settings_design_test.dart: real settings retain saved playback, clock and EPG options
+01:30 +718 ~23: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/settings_design_test.dart: real settings retain saved playback, clock and EPG options
+01:31 +719 ~23: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/settings_design_test.dart: real settings retain saved playback, clock and EPG options
+01:31 +720 ~23: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/settings_design_test.dart: real settings retain saved playback, clock and EPG options
+01:31 +721 ~23: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/settings_design_test.dart: real settings retain saved playback, clock and EPG options
+01:31 +722 ~23: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/settings_design_test.dart: real settings retain saved playback, clock and EPG options
+01:31 +723 ~23: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/settings_design_test.dart: real settings retain saved playback, clock and EPG options
+01:31 +724 ~23: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/settings_design_test.dart: real settings retain saved playback, clock and EPG options
+01:31 +725 ~23: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/settings_design_test.dart: real settings retain saved playback, clock and EPG options
+01:31 +726 ~23: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/settings_design_test.dart: real settings retain saved playback, clock and EPG options
+01:31 +727 ~23: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/settings_design_test.dart: real settings retain saved playback, clock and EPG options
+01:31 +728 ~23: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/settings_design_test.dart: real settings retain saved playback, clock and EPG options
+01:31 +729 ~23: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/settings_design_test.dart: real settings retain saved playback, clock and EPG options
+01:31 +730 ~23: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/settings_design_test.dart: real settings retain saved playback, clock and EPG options
+01:31 +731 ~23: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/settings_design_test.dart: real settings retain saved playback, clock and EPG options
+01:31 +732 ~23: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/settings_design_test.dart: real settings retain saved playback, clock and EPG options
+01:32 +733 ~23: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/settings_design_test.dart: real settings retain saved playback, clock and EPG options
+01:32 +734 ~23: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/settings_design_test.dart: real settings retain saved playback, clock and EPG options
+01:32 +735 ~23: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/settings_design_test.dart: real settings retain saved playback, clock and EPG options
+01:32 +736 ~23: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/settings_design_test.dart: real settings retain saved playback, clock and EPG options
+01:32 +737 ~23: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/settings_design_test.dart: every existing section belongs to exactly one category
+01:32 +738 ~23: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/settings_design_test.dart: settings layout at width 360.0
+01:32 +739 ~23: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/settings_design_test.dart: settings layout at width 752.0
+01:32 +740 ~23: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/universal_channel_card_test.dart: every card expands through the same resolver for public/private foreign guides and missing data
+01:32 +741 ~23: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/universal_channel_card_test.dart: every card expands through the same resolver for public/private foreign guides and missing data
+01:32 +742 ~23: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/universal_channel_card_test.dart: every card expands through the same resolver for public/private foreign guides and missing data
+01:33 +743 ~23: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/universal_channel_card_test.dart: every card expands through the same resolver for public/private foreign guides and missing data
+01:33 +744 ~23: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/universal_channel_card_test.dart: every card expands through the same resolver for public/private foreign guides and missing data
+01:33 +745 ~23: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/universal_channel_card_test.dart: every card expands through the same resolver for public/private foreign guides and missing data
+01:33 +746 ~23: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/universal_channel_card_test.dart: every card expands through the same resolver for public/private foreign guides and missing data
+01:33 +747 ~23: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/universal_epg_binding_test.dart: public and private channels use all configured guides, independent of country and genre
+01:33 +748 ~23: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/upcoming_programmes_test.dart: includes a long current film and returns only the exact channel
+01:34 +749 ~23: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/upcoming_programmes_test.dart: bounds the requested result count and handles unknown EPG IDs
+01:34 +750 ~23: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/upcoming_programmes_test.dart: overlapping current rows leave space for upcoming programmes
+01:34 +751 ~23: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/upcoming_programmes_test.dart: a gap in the guide returns three future entries
+01:34 +752 ~23: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/update_manifest_test.dart: application version matches the release source
+01:34 +753 ~23: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/update_manifest_test.dart: channel sidebar reads the shared application version
+01:34 +754 ~23: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/update_manifest_test.dart: newer build is newer even within the same release
+01:34 +755 ~23: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/update_manifest_test.dart: manifest accepts only a same-host HTTPS package
+01:34 +756 ~23: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/update_manifest_test.dart: protected Windows installer is bound to publisher signature version and CPU
+01:35 +757 ~23: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/video_readiness_policy_test.dart: Television video readiness policy rejects an audio only route
+01:35 +758 ~23: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/video_readiness_policy_test.dart: Television video readiness policy waits for decoded video dimensions
+01:35 +759 ~23: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/video_readiness_policy_test.dart: Television video readiness policy accepts a decoded television picture
+01:35 +760 ~23: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/video_readiness_policy_test.dart: Television video readiness policy accepts an audio track for a radio channel
+01:35 +761 ~23: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/video_readiness_policy_test.dart: Television video readiness policy keeps rejecting audio-only media for a television channel
+01:35 +762 ~23: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/warm_failover_test.dart: WarmFailoverEngine starts and stops correctly
+01:35 +763 ~23: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/warm_failover_test.dart: WarmFailoverEngine getBestAlternative returns null when no healthy streams
+01:35 +764 ~23: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/warm_failover_test.dart: WarmFailoverEngine getHealthyAlternatives returns empty when nothing probed
+01:35 +765 ~23: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/warm_failover_test.dart: StreamHealth isStale returns true when never probed
+01:35 +766 ~23: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/warm_failover_test.dart: StreamHealth isStale returns false when recently probed
+01:35 +767 ~23: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/warm_failover_test.dart: StreamHealth isStale returns true when probed long ago
+01:35 +768 ~23: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/warm_failover_test.dart: StreamHealth defaults are correct
+01:36 +769 ~23: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/website_channel_catalog_service_test.dart: global other and radio imports preserve geography and separate media
+01:36 +770 ~23: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/website_channel_catalog_service_test.dart: catalog imports English and Chinese country labels into one country
+01:36 +771 ~23: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/website_channel_catalog_service_test.dart: catalog import preserves country and region boundaries for duplicate cards
+01:36 +772 ~23: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/website_channel_catalog_service_test.dart: one service retains multiple genre memberships and one favorite identity
+01:36 +773 ~23: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/website_channel_catalog_service_test.dart: alternate classifications cannot cross countries or unknown categories
+01:36 +774 ~23: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/website_channel_catalog_service_test.dart: an offline deletion is not resurrected by a newer snapshot
+01:36 +775 ~23: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/website_channel_catalog_service_test.dart: older dated snapshots cannot overwrite a newer catalog
+01:36 +776 ~23: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/website_channel_catalog_service_test.dart: acknowledged local category yields to newer shared revision
+01:36 +777 ~23: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/website_channel_catalog_service_test.dart: packaged starter initializes an empty database without network access
+01:36 +778 ~23: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/website_channel_catalog_service_test.dart: fresh installation receives server verification without a local scan
+01:36 +779 ~23: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/website_channel_catalog_service_test.dart: catalog route ID migration preserves favorite lists by URL
+01:36 +780 ~23: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/website_channel_catalog_service_test.dart: imports a classified website route and preserves its favorite
+01:36 +781 ~23: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/website_channel_catalog_service_test.dart: excluded routes do not reject valid peers or break raw route counts
+01:36 +782 ~23: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/website_channel_catalog_service_test.dart: malformed excluded routes still reject the snapshot atomically
+01:36 +783 ~23: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/website_channel_catalog_service_test.dart: filtering cannot conceal an incorrect source route count
+01:36 +784 ~23: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/website_channel_catalog_service_test.dart: all-excluded snapshot preserves the previously usable catalog
+01:36 +785 ~23: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/website_channel_catalog_service_test.dart: route hints during backoff keep retry status stable and do not refetch
+01:36 +786 ~23: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/website_channel_catalog_service_test.dart: catalog backoff respects upstream Retry-After
+01:36 +787 ~23: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/website_channel_catalog_service_test.dart: rejects malformed snapshot before touching the local database
+01:36 +788 ~23: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/website_channel_catalog_service_test.dart: two installations receive the same shared routes
+WARNING (drift): It looks like you've created the database class AppDatabase multiple times. When these two databases use the same QueryExecutor, race conditions will occur and might corrupt the database.
+Try to follow the advice at https://drift.simonbinder.eu/faq/#using-the-database or, if you know what you're doing, set driftRuntimeOptions.dontWarnAboutMultipleDatabases = true
+Here is the stacktrace from when the database was opened a second time:
+#0      GeneratedDatabase._handleInstantiated (package:drift/src/runtime/api/db_base.dart:96:30)
+#1      GeneratedDatabase._whenConstructed (package:drift/src/runtime/api/db_base.dart:73:12)
+#2      new GeneratedDatabase (package:drift/src/runtime/api/db_base.dart:64:5)
+#3      new _$AppDatabase (package:clubtivi/data/datasources/local/database.g.dart:8667:36)
+#4      new AppDatabase.forTesting (package:clubtivi/data/datasources/local/database.dart)
+#5      main.<anonymous closure> (file:///C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/website_channel_catalog_service_test.dart:529:35)
+#6      Declarer.test.<anonymous closure>.<anonymous closure> (package:test_api/src/backend/declarer.dart:253:25)
+<asynchronous suspension>
+#7      Declarer.test.<anonymous closure> (package:test_api/src/backend/declarer.dart:250:11)
+<asynchronous suspension>
+#8      Invoker._waitForOutstandingCallbacks.<anonymous closure> (package:test_api/src/backend/invoker.dart:318:9)
+<asynchronous suspension>
+This warning will only appear on debug builds.
+01:36 +789 ~23: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/website_channel_catalog_service_test.dart: withdrawn shared routes leave every device, even when favorited
+01:36 +790 ~23: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/website_channel_catalog_service_test.dart: locally blocked route stays blocked after website refresh
+01:36 +791 ~23: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/website_channel_catalog_service_test.dart: shared categories include routes without matching name keywords
+01:39 +792 ~23: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/widget_test.dart: App renders channels screen
+01:40 +793 ~23: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/windows_fullscreen_controls_test.dart: Top edge reveals controls after hiding, and native close works
+01:40 +794 ~23: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/windows_fullscreen_controls_test.dart: Top edge reveals controls after hiding, and native close works
+01:40 +795 ~23: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/windows_fullscreen_controls_test.dart: Top edge reveals controls after hiding, and native close works
+01:40 +796 ~23: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/windows_fullscreen_controls_test.dart: Top edge reveals controls after hiding, and native close works
+01:40 +797 ~23: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/windows_fullscreen_controls_test.dart: Top edge reveals controls after hiding, and native close works
+01:41 +798 ~23: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/windows_fullscreen_controls_test.dart: Top edge reveals controls after hiding, and native close works
+01:41 +799 ~23: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/windows_update_authorization_poll_test.dart: completed receipt remains completed after normal helper exit
+01:41 +800 ~23: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/windows_fullscreen_controls_test.dart: Restore exits native fullscreen, without closing the app
+01:41 +801 ~23: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/windows_fullscreen_controls_test.dart: Restore exits native fullscreen, without closing the app
+01:41 +802 ~23: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/windows_fullscreen_controls_test.dart: Restore first completes the owning video route
+01:41 +803 ~23: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/windows_fullscreen_controls_test.dart: Moving from top edge toward buttons keeps controls visible
+01:41 +804 ~23: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/windows_fullscreen_controls_test.dart: A busy video owner cannot trigger a second native exit
+01:41 +805 ~23: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/windows_fullscreen_controls_test.dart: Resize discovers fullscreen when native enter event is missing
+01:41 +806 ~23: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/windows_fullscreen_controls_test.dart: Native Mac chrome is left untouched
+01:41 +807 ~23: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/windows_fullscreen_controls_test.dart: native restore preserves the explicit window pin
+01:41 +808 ~23: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/window_manager_fullscreen_backend_test.dart: capture preserves native geometry, maximization and always-on-top
+01:41 +809 ~23: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/window_manager_fullscreen_backend_test.dart: Mac entry waits for native completion after method acknowledgement
+01:41 +810 ~23: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/window_manager_fullscreen_backend_test.dart: Mac re-entry repairs the floating state left by an older fullscreen owner
+01:41 +811 ~23: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/window_manager_fullscreen_backend_test.dart: Mac video return restores original window before repeated re-entry, original top=false
+01:41 +812 ~23: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/window_manager_fullscreen_backend_test.dart: Mac video return restores original window before repeated re-entry, original top=true
+01:41 +813 ~23: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/window_manager_fullscreen_backend_test.dart: Mac native exit from the player restores window state before re-entry
+01:41 +814 ~23: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/window_manager_fullscreen_backend_test.dart: Mac exit waits for native leave notification
+01:41 +815 ~23: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/window_manager_fullscreen_backend_test.dart: Mac native Escape cancels pending entry without the ten-second timeout
+01:41 +816 ~23: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/window_manager_fullscreen_backend_test.dart: Mac cancel before the method reply is handled and does not focus the old window
+01:41 +817 ~23: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/window_manager_fullscreen_backend_test.dart: Mac exit recovers when native state changes without a notification
+01:42 +818 ~23: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/window_manager_fullscreen_backend_test.dart: Mac exit recovers when native state changes without a notification
+01:42 +819 ~23: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/window_manager_fullscreen_backend_test.dart: Mac exit recovers when native state changes without a notification
+01:42 +820 ~23: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/window_manager_fullscreen_backend_test.dart: Mac exit recovers when native state changes without a notification
+01:42 +821 ~23: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/window_manager_fullscreen_backend_test.dart: Mac exit recovers when native state changes without a notification
+01:42 +822 ~23: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/window_playback_screen_test.dart: window player fills Size(984.0, 611.0) and returns without reopening media, playing=true
+01:43 +823 ~23: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/window_playback_screen_test.dart: window player fills Size(984.0, 611.0) and returns without reopening media, playing=true
+01:43 +824 ~23: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/window_playback_screen_test.dart: window player fills Size(984.0, 611.0) and returns without reopening media, playing=true
+01:43 +825 ~23: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/window_playback_screen_test.dart: window player fills Size(984.0, 611.0) and returns without reopening media, playing=true
+01:43 +826 ~23: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/window_playback_screen_test.dart: window player fills Size(984.0, 611.0) and returns without reopening media, playing=true
+01:43 +827 ~23: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/window_playback_screen_test.dart: window player fills Size(984.0, 611.0) and returns without reopening media, playing=true
+01:43 +828 ~23: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/window_playback_screen_test.dart: window player fills Size(984.0, 611.0) and returns without reopening media, playing=true
+01:43 +829 ~23: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/window_playback_screen_test.dart: window player fills Size(984.0, 611.0) and returns without reopening media, playing=true
+01:43 +830 ~23: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/window_playback_screen_test.dart: window player fills Size(984.0, 611.0) and returns without reopening media, playing=true
+01:43 +831 ~23: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/window_playback_screen_test.dart: window player fills Size(984.0, 611.0) and returns without reopening media, playing=true
+01:43 +832 ~23: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/window_playback_screen_test.dart: window player fills Size(984.0, 611.0) and returns without reopening media, playing=true
+01:43 +833 ~23: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/window_playback_screen_test.dart: window player fills Size(984.0, 611.0) and returns without reopening media, playing=true
+01:43 +834 ~23: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/window_playback_screen_test.dart: window player fills Size(984.0, 611.0) and returns without reopening media, playing=true
+01:43 +835 ~23: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/window_playback_screen_test.dart: window player fills Size(984.0, 611.0) and returns without reopening media, playing=true
+01:43 +836 ~23: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/window_playback_screen_test.dart: window player fills Size(984.0, 611.0) and returns without reopening media, playing=true
+01:43 +837 ~23: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/window_playback_screen_test.dart: window player fills Size(984.0, 611.0) and returns without reopening media, playing=true
+01:43 +838 ~23: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/window_playback_screen_test.dart: window player fills Size(984.0, 611.0) and returns without reopening media, playing=true
+01:43 +839 ~23: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/window_playback_screen_test.dart: window player fills Size(984.0, 611.0) and returns without reopening media, playing=true
+01:43 +840 ~23: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/window_playback_screen_test.dart: window player fills Size(984.0, 611.0) and returns without reopening media, playing=true
+01:43 +841 ~23: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/window_playback_screen_test.dart: window player fills Size(984.0, 611.0) and returns without reopening media, playing=true
+01:43 +842 ~23: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/window_playback_screen_test.dart: window player fills Size(984.0, 611.0) and returns without reopening media, playing=true
+01:43 +843 ~23: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/window_playback_screen_test.dart: window player fills Size(984.0, 611.0) and returns without reopening media, playing=true
+01:43 +844 ~23: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/window_playback_screen_test.dart: window player fills Size(984.0, 611.0) and returns without reopening media, playing=true
+01:43 +845 ~23: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/window_playback_screen_test.dart: window player fills Size(984.0, 611.0) and returns without reopening media, playing=true
+01:43 +846 ~23: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/window_playback_screen_test.dart: window player fills Size(984.0, 611.0) and returns without reopening media, playing=true
+01:43 +847 ~23: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/window_playback_screen_test.dart: window player fills Size(984.0, 611.0) and returns without reopening media, playing=true
+01:43 +848 ~23: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/window_playback_screen_test.dart: window player fills Size(984.0, 611.0) and returns without reopening media, playing=true
+01:43 +849 ~23: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/window_playback_screen_test.dart: window player fills Size(984.0, 611.0) and returns without reopening media, playing=true
+01:43 +850 ~23: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/window_playback_screen_test.dart: window player fills Size(984.0, 611.0) and returns without reopening media, playing=true
+01:43 +851 ~23: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/window_playback_screen_test.dart: window player fills Size(984.0, 611.0) and returns without reopening media, playing=true
+01:43 +852 ~23: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/window_playback_screen_test.dart: window player fills Size(984.0, 611.0) and returns without reopening media, playing=true
+01:43 +853 ~23: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/window_playback_screen_test.dart: window player fills Size(984.0, 611.0) and returns without reopening media, playing=true
+01:43 +854 ~23: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/window_playback_screen_test.dart: window player fills Size(984.0, 611.0) and returns without reopening media, playing=true
+01:43 +855 ~23: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/window_manager_fullscreen_backend_test.dart: explicit pin=false survives stale fullscreen snapshot on Mac=true
+01:43 +856 ~23: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/window_playback_screen_test.dart: window player fills Size(984.0, 611.0) and returns without reopening media, playing=false
+01:43 +857 ~23: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/window_playback_screen_test.dart: window player fills Size(984.0, 611.0) and returns without reopening media, playing=false
+01:43 +858 ~23: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/window_playback_screen_test.dart: window player fills Size(984.0, 611.0) and returns without reopening media, playing=false
+01:43 +859 ~23: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/window_playback_screen_test.dart: window player fills Size(984.0, 611.0) and returns without reopening media, playing=false
+01:43 +860 ~23: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/window_playback_screen_test.dart: window player fills Size(984.0, 611.0) and returns without reopening media, playing=false
+01:43 +861 ~23: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/window_playback_screen_test.dart: window player fills Size(984.0, 611.0) and returns without reopening media, playing=false
+01:43 +862 ~23: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/window_playback_screen_test.dart: window player fills Size(984.0, 611.0) and returns without reopening media, playing=false
+01:43 +863 ~23: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/window_playback_screen_test.dart: window player fills Size(984.0, 611.0) and returns without reopening media, playing=false
+01:43 +864 ~23: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/window_playback_screen_test.dart: window player fills Size(984.0, 611.0) and returns without reopening media, playing=false
+01:43 +865 ~23: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/window_playback_screen_test.dart: window player fills Size(984.0, 611.0) and returns without reopening media, playing=false
+01:43 +866 ~23: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/window_playback_screen_test.dart: window player fills Size(984.0, 611.0) and returns without reopening media, playing=false
+01:44 +867 ~23: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/window_playback_screen_test.dart: window player fills Size(800.0, 500.0) and returns without reopening media, playing=true
+01:44 +868 ~23: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/window_playback_screen_test.dart: window player fills Size(800.0, 500.0) and returns without reopening media, playing=false
+01:44 +869 ~23: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/window_playback_screen_test.dart: window player fills Size(1920.0, 1080.0) and returns without reopening media, playing=true
+01:44 +870 ~23: C:/Users/X02851/.codex/worktrees/bobtv-country-navigation/bobtv/test/window_playback_screen_test.dart: window player fills Size(1920.0, 1080.0) and returns without reopening media, playing=false
+01:44 +871 ~23: All tests passed!

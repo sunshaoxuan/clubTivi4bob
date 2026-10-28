@@ -1,0 +1,207 @@
+Analyzing bobtv...
+
+   info - Unnecessary use of multiple underscores. Try using '_' - lib\app\desktop_app_lifecycle.dart:128:45 - unnecessary_underscores
+   info - Statements in an if should be enclosed in a block. Try wrapping the statement in a block - lib\app\desktop_app_lifecycle.dart:153:7 - curly_braces_in_flow_control_structures
+   info - Statements in an if should be enclosed in a block. Try wrapping the statement in a block - lib\app\desktop_app_lifecycle.dart:155:7 - curly_braces_in_flow_control_structures
+   info - Unnecessary use of multiple underscores. Try using '_' - lib\app\desktop_app_lifecycle.dart:165:29 - unnecessary_underscores
+   info - Unnecessary use of multiple underscores. Try using '_' - lib\app\desktop_app_lifecycle.dart:174:37 - unnecessary_underscores
+   info - Unnecessary use of multiple underscores. Try using '_' - lib\app\desktop_app_lifecycle.dart:188:65 - unnecessary_underscores
+   info - Unnecessary 'late' modifier. Try removing the 'late' - lib\app\router.dart:109:1 - unnecessary_late
+   info - Statements in an if should be enclosed in a block. Try wrapping the statement in a block - lib\data\datasources\local\database.dart:235:15 - curly_braces_in_flow_control_structures
+   info - Statements in a for should be enclosed in a block. Try wrapping the statement in a block - lib\data\datasources\local\database.dart:374:7 - curly_braces_in_flow_control_structures
+   info - Statements in an if should be enclosed in a block. Try wrapping the statement in a block - lib\data\datasources\local\database.dart:406:7 - curly_braces_in_flow_control_structures
+   info - Statements in an if should be enclosed in a block. Try wrapping the statement in a block - lib\data\datasources\local\database.dart:508:9 - curly_braces_in_flow_control_structures
+   info - Statements in an if should be enclosed in a block. Try wrapping the statement in a block - lib\data\datasources\local\database.dart:537:9 - curly_braces_in_flow_control_structures
+   info - Statements in an if should be enclosed in a block. Try wrapping the statement in a block - lib\data\datasources\local\database.dart:588:9 - curly_braces_in_flow_control_structures
+   info - Statements in a for should be enclosed in a block. Try wrapping the statement in a block - lib\data\datasources\local\database.dart:617:9 - curly_braces_in_flow_control_structures
+   info - Statements in an if should be enclosed in a block. Try wrapping the statement in a block - lib\data\datasources\local\database.dart:759:7 - curly_braces_in_flow_control_structures
+   info - Statements in an if should be enclosed in a block. Try wrapping the statement in a block - lib\data\datasources\local\database.dart:801:9 - curly_braces_in_flow_control_structures
+   info - Statements in an if should be enclosed in a block. Try wrapping the statement in a block - lib\data\datasources\local\database.dart:827:9 - curly_braces_in_flow_control_structures
+   info - Statements in an if should be enclosed in a block. Try wrapping the statement in a block - lib\data\datasources\local\database.dart:894:9 - curly_braces_in_flow_control_structures
+   info - Statements in an if should be enclosed in a block. Try wrapping the statement in a block - lib\data\datasources\local\database.dart:1458:9 - curly_braces_in_flow_control_structures
+warning - The operand can't be 'null', so the condition is always 'false'. Try removing the condition, an enclosing condition, or the whole conditional statement - lib\data\services\backup_service.dart:72:18 - unnecessary_null_comparison
+warning - Dead code. Try removing the code, or fixing the code before it so that it can be reached - lib\data\services\backup_service.dart:72:27 - dead_code
+   info - Statements in an if should be enclosed in a block. Try wrapping the statement in a block - lib\data\services\bobtv_log_projection.dart:27:38 - curly_braces_in_flow_control_structures
+   info - Unnecessary braces in a string interpolation. Try removing the braces - lib\data\services\client_fingerprint_service.dart:144:44 - unnecessary_brace_in_string_interps
+   info - Statements in an if should be enclosed in a block. Try wrapping the statement in a block - lib\data\services\github_ai_crawler_service.dart:347:46 - curly_braces_in_flow_control_structures
+   info - Unnecessary constructor invocation. Try using a collection literal - lib\data\services\github_ai_crawler_service.dart:390:21 - prefer_collection_literals
+   info - Statements in an if should be enclosed in a block. Try wrapping the statement in a block - lib\data\services\github_ai_crawler_service.dart:468:31 - curly_braces_in_flow_control_structures
+   info - Statements in an if should be enclosed in a block. Try wrapping the statement in a block - lib\data\services\github_ai_crawler_service.dart:470:60 - curly_braces_in_flow_control_structures
+   info - Statements in an if should be enclosed in a block. Try wrapping the statement in a block - lib\data\services\github_ai_crawler_service.dart:537:63 - curly_braces_in_flow_control_structures
+   info - Statements in an if should be enclosed in a block. Try wrapping the statement in a block - lib\data\services\github_cctv5plus_recovery.dart:29:48 - curly_braces_in_flow_control_structures
+   info - Statements in an if should be enclosed in a block. Try wrapping the statement in a block - lib\data\services\github_cctv5plus_recovery.dart:38:51 - curly_braces_in_flow_control_structures
+   info - Statements in an if should be enclosed in a block. Try wrapping the statement in a block - lib\data\services\github_cctv5plus_recovery.dart:48:34 - curly_braces_in_flow_control_structures
+   info - Statements in an if should be enclosed in a block. Try wrapping the statement in a block - lib\data\services\public_inventory_policy.dart:30:5 - curly_braces_in_flow_control_structures
+   info - Statements in an if should be enclosed in a block. Try wrapping the statement in a block - lib\data\services\public_inventory_policy.dart:38:5 - curly_braces_in_flow_control_structures
+   info - Statements in an if should be enclosed in a block. Try wrapping the statement in a block - lib\data\services\regional_route_service.dart:76:9 - curly_braces_in_flow_control_structures
+   info - Statements in an if should be enclosed in a block. Try wrapping the statement in a block - lib\data\services\regional_route_service.dart:97:7 - curly_braces_in_flow_control_structures
+   info - Statements in an if should be enclosed in a block. Try wrapping the statement in a block - lib\data\services\regional_route_service.dart:150:9 - curly_braces_in_flow_control_structures
+   info - Use the null-aware marker '?' rather than a null check via an 'if'. Try using '?' - lib\data\services\stream_alternatives_service.dart:383:9 - use_null_aware_elements
+   info - The local variable '_matchConfidence' starts with an underscore. Try renaming the variable to not start with an underscore - lib\data\services\stream_alternatives_service.dart:510:11 - no_leading_underscores_for_local_identifiers
+warning - The '!' will have no effect because the receiver can't be null. Try removing the '!' operator - lib\data\services\stream_alternatives_service.dart:547:35 - unnecessary_non_null_assertion
+   info - Use the null-aware marker '?' rather than a null check via an 'if'. Try using '?' - lib\data\services\stream_health_tracker.dart:221:7 - use_null_aware_elements
+   info - Statements in an if should be enclosed in a block. Try wrapping the statement in a block - lib\data\services\website_channel_catalog_service.dart:134:9 - curly_braces_in_flow_control_structures
+   info - Statements in an if should be enclosed in a block. Try wrapping the statement in a block - lib\data\services\website_channel_catalog_service.dart:196:13 - curly_braces_in_flow_control_structures
+   info - Statements in an if should be enclosed in a block. Try wrapping the statement in a block - lib\data\services\website_channel_catalog_service.dart:243:15 - curly_braces_in_flow_control_structures
+   info - Statements in an if should be enclosed in a block. Try wrapping the statement in a block - lib\data\services\website_channel_catalog_service.dart:266:17 - curly_braces_in_flow_control_structures
+   info - Statements in an if should be enclosed in a block. Try wrapping the statement in a block - lib\features\casting\airplay_pair_dialog.dart:45:9 - curly_braces_in_flow_control_structures
+   info - Statements in an if should be enclosed in a block. Try wrapping the statement in a block - lib\features\casting\airplay_pair_dialog.dart:51:9 - curly_braces_in_flow_control_structures
+   info - Statements in an if should be enclosed in a block. Try wrapping the statement in a block - lib\features\casting\airplay_pair_dialog.dart:68:9 - curly_braces_in_flow_control_structures
+   info - Statements in an if should be enclosed in a block. Try wrapping the statement in a block - lib\features\casting\airplay_pair_dialog.dart:122:39 - curly_braces_in_flow_control_structures
+   info - Use the null-aware marker '?' rather than a null check via an 'if'. Try using '?' - lib\features\casting\cast_service.dart:70:9 - use_null_aware_elements
+   info - Statements in an if should be enclosed in a block. Try wrapping the statement in a block - lib\features\casting\cast_service.dart:223:9 - curly_braces_in_flow_control_structures
+   info - Use the null-aware marker '?' rather than a null check via an 'if'. Try using '?' - lib\features\casting\lg_webos_client.dart:156:7 - use_null_aware_elements
+warning - Unused import: '../../data/models/channel.dart'. Try removing the import directive - lib\features\channels\channel_debug_dialog.dart:10:8 - unused_import
+   info - The private field _hasChanges could be 'final'. Try making the field 'final' - lib\features\channels\channel_debug_dialog.dart:80:8 - prefer_final_fields
+warning - The value of the field '_hasChanges' isn't used. Try removing the field, or using it - lib\features\channels\channel_debug_dialog.dart:80:8 - unused_field
+warning - The operand can't be 'null', so the condition is always 'true'. Remove the condition - lib\features\channels\channel_debug_dialog.dart:135:15 - unnecessary_null_comparison
+warning - The operand can't be 'null', so the condition is always 'false'. Try removing the condition, an enclosing condition, or the whole conditional statement - lib\features\channels\channel_debug_dialog.dart:154:13 - unnecessary_null_comparison
+warning - The operand can't be 'null', so the condition is always 'false'. Try removing the condition, an enclosing condition, or the whole conditional statement - lib\features\channels\channel_debug_dialog.dart:163:13 - unnecessary_null_comparison
+   info - Unnecessary braces in a string interpolation. Try removing the braces - lib\features\channels\channel_debug_dialog.dart:880:49 - unnecessary_brace_in_string_interps
+   info - Statements in an if should be enclosed in a block. Try wrapping the statement in a block - lib\features\channels\channel_merge_dialog.dart:68:9 - curly_braces_in_flow_control_structures
+   info - Statements in a for should be enclosed in a block. Try wrapping the statement in a block - lib\features\channels\channel_merge_dialog.dart:118:35 - curly_braces_in_flow_control_structures
+   info - Statements in an if should be enclosed in a block. Try wrapping the statement in a block - lib\features\channels\channel_merge_dialog.dart:128:9 - curly_braces_in_flow_control_structures
+   info - Statements in an if should be enclosed in a block. Try wrapping the statement in a block - lib\features\channels\channel_merge_dialog.dart:144:7 - curly_braces_in_flow_control_structures
+   info - Statements in an if should be enclosed in a block. Try wrapping the statement in a block - lib\features\channels\channel_merge_dialog.dart:172:9 - curly_braces_in_flow_control_structures
+   info - Statements in an if should be enclosed in a block. Try wrapping the statement in a block - lib\features\channels\channel_merge_dialog.dart:303:23 - curly_braces_in_flow_control_structures
+   info - Statements in an if should be enclosed in a block. Try wrapping the statement in a block - lib\features\channels\channel_route_transfer_dialog.dart:57:9 - curly_braces_in_flow_control_structures
+   info - Statements in an if should be enclosed in a block. Try wrapping the statement in a block - lib\features\channels\channel_route_transfer_dialog.dart:84:9 - curly_braces_in_flow_control_structures
+   info - Statements in an if should be enclosed in a block. Try wrapping the statement in a block - lib\features\channels\channel_route_transfer_dialog.dart:106:9 - curly_braces_in_flow_control_structures
+   info - Statements in an if should be enclosed in a block. Try wrapping the statement in a block - lib\features\channels\channel_route_transfer_dialog.dart:242:29 - curly_braces_in_flow_control_structures
+warning - The value of the field '_validEpgChannelIds' isn't used. Try removing the field, or using it - lib\features\channels\channels_screen.dart:143:15 - unused_field
+   info - The private field _showGuideView could be 'final'. Try making the field 'final' - lib\features\channels\channels_screen.dart:150:8 - prefer_final_fields
+warning - The value of the field '_guideDayStart' isn't used. Try removing the field, or using it - lib\features\channels\channels_screen.dart:160:13 - unused_field
+warning - The value of the field '_showOverlay' isn't used. Try removing the field, or using it - lib\features\channels\channels_screen.dart:164:8 - unused_field
+   info - The private field _expandedSections could be 'final'. Try making the field 'final' - lib\features\channels\channels_screen.dart:183:15 - prefer_final_fields
+   info - The private field _lastClickShift could be 'final'. Try making the field 'final' - lib\features\channels\channels_screen.dart:222:8 - prefer_final_fields
+warning - The value of the field '_lastClickShift' isn't used. Try removing the field, or using it - lib\features\channels\channels_screen.dart:222:8 - unused_field
+   info - Statements in an if should be enclosed in a block. Try wrapping the statement in a block - lib\features\channels\channels_screen.dart:1422:44 - curly_braces_in_flow_control_structures
+   info - Statements in an if should be enclosed in a block. Try wrapping the statement in a block - lib\features\channels\channels_screen.dart:1435:44 - curly_braces_in_flow_control_structures
+   info - Don't use 'BuildContext's across async gaps. Try rewriting the code to not use the 'BuildContext', or guard the use with a 'mounted' check - lib\features\channels\channels_screen.dart:1818:30 - use_build_context_synchronously
+   info - Don't use 'BuildContext's across async gaps. Try rewriting the code to not use the 'BuildContext', or guard the use with a 'mounted' check - lib\features\channels\channels_screen.dart:2207:26 - use_build_context_synchronously
+   info - Statements in an if should be enclosed in a block. Try wrapping the statement in a block - lib\features\channels\channels_screen.dart:2231:7 - curly_braces_in_flow_control_structures
+warning - The declaration '_getChannelProgrammeTitles' isn't referenced. Try removing the declaration of '_getChannelProgrammeTitles' - lib\features\channels\channels_screen.dart:2783:16 - unused_element
+   info - Statements in an if should be enclosed in a block. Try wrapping the statement in a block - lib\features\channels\channels_screen.dart:3123:15 - curly_braces_in_flow_control_structures
+   info - Unnecessary 'const' keyword. Try removing the keyword - lib\features\channels\channels_screen.dart:3454:30 - unnecessary_const
+warning - The '!' will have no effect because the receiver can't be null. Try removing the '!' operator - lib\features\channels\channels_screen.dart:3916:50 - unnecessary_non_null_assertion
+   info - Unnecessary use of multiple underscores. Try using '_' - lib\features\channels\channels_screen.dart:3921:61 - unnecessary_underscores
+   info - Unnecessary use of multiple underscores. Try using '_' - lib\features\channels\channels_screen.dart:3921:65 - unnecessary_underscores
+   info - Statements in an if should be enclosed in a block. Try wrapping the statement in a block - lib\features\channels\channels_screen.dart:4185:21 - curly_braces_in_flow_control_structures
+   info - Statements in an if should be enclosed in a block. Try wrapping the statement in a block - lib\features\channels\channels_screen.dart:4245:29 - curly_braces_in_flow_control_structures
+   info - Use the null-aware marker '?' rather than a null check via an 'if'. Try using '?' - lib\features\channels\channels_screen.dart:5724:21 - use_null_aware_elements
+   info - Statements in a for should be enclosed in a block. Try wrapping the statement in a block - lib\features\channels\channels_screen.dart:6221:35 - curly_braces_in_flow_control_structures
+   info - Unnecessary use of multiple underscores. Try using '_' - lib\features\channels\channels_screen.dart:6354:57 - unnecessary_underscores
+   info - Unnecessary use of multiple underscores. Try using '_' - lib\features\channels\channels_screen.dart:6354:61 - unnecessary_underscores
+warning - The '!' will have no effect because the receiver can't be null. Try removing the '!' operator - lib\features\channels\channels_screen.dart:6459:46 - unnecessary_non_null_assertion
+   info - Unnecessary use of multiple underscores. Try using '_' - lib\features\channels\channels_screen.dart:6546:57 - unnecessary_underscores
+   info - Unnecessary use of multiple underscores. Try using '_' - lib\features\channels\channels_screen.dart:6546:61 - unnecessary_underscores
+warning - The declaration '_buildFailoverGroupRow' isn't referenced. Try removing the declaration of '_buildFailoverGroupRow' - lib\features\channels\channels_screen.dart:6873:10 - unused_element
+   info - Unnecessary use of multiple underscores. Try using '_' - lib\features\channels\channels_screen.dart:6981:53 - unnecessary_underscores
+   info - Unnecessary use of multiple underscores. Try using '_' - lib\features\channels\channels_screen.dart:6981:57 - unnecessary_underscores
+   info - Unnecessary use of multiple underscores. Try using '_' - lib\features\channels\channels_screen.dart:7159:59 - unnecessary_underscores
+   info - Unnecessary use of multiple underscores. Try using '_' - lib\features\channels\channels_screen.dart:7159:63 - unnecessary_underscores
+   info - 'onReorder' is deprecated and shouldn't be used. Use the onReorderItem callback instead. The onReorderItem callback adjusts the newIndex parameter for a removed item at the oldIndex. This feature was deprecated after v3.41.0-0.0.pre. Try replacing the use of the deprecated member with the replacement - lib\features\channels\channels_screen.dart:7968:25 - deprecated_member_use
+   info - Statements in an if should be enclosed in a block. Try wrapping the statement in a block - lib\features\channels\channels_screen.dart:8229:29 - curly_braces_in_flow_control_structures
+   info - Statements in an if should be enclosed in a block. Try wrapping the statement in a block - lib\features\channels\channels_screen.dart:8333:31 - curly_braces_in_flow_control_structures
+   info - Statements in an if should be enclosed in a block. Try wrapping the statement in a block - lib\features\channels\channels_screen.dart:8402:31 - curly_braces_in_flow_control_structures
+   info - 'RawKeyboard' is deprecated and shouldn't be used. Use HardwareKeyboard instead. This feature was deprecated after v3.18.0-2.0.pre. Try replacing the use of the deprecated member with the replacement - lib\features\channels\channels_screen.dart:8465:39 - deprecated_member_use
+   info - 'instance' is deprecated and shouldn't be used. Use HardwareKeyboard.instance instead. This feature was deprecated after v3.18.0-2.0.pre. Try replacing the use of the deprecated member with the replacement - lib\features\channels\channels_screen.dart:8465:51 - deprecated_member_use
+   info - Unnecessary use of multiple underscores. Try using '_' - lib\features\channels\channels_screen.dart:8645:61 - unnecessary_underscores
+   info - Unnecessary use of multiple underscores. Try using '_' - lib\features\channels\channels_screen.dart:8646:61 - unnecessary_underscores
+   info - Don't use 'BuildContext's across async gaps. Try rewriting the code to not use the 'BuildContext', or guard the use with a 'mounted' check - lib\features\epg_mapping\epg_mapping_screen.dart:38:13 - use_build_context_synchronously
+warning - The declaration '_totalWidth' isn't referenced. Try removing the declaration of '_totalWidth' - lib\features\guide\guide_screen.dart:33:21 - unused_element
+   info - Statements in an if should be enclosed in a block. Try wrapping the statement in a block - lib\features\guide\guide_screen.dart:452:9 - curly_braces_in_flow_control_structures
+   info - Statements in an if should be enclosed in a block. Try wrapping the statement in a block - lib\features\guide\guide_screen.dart:458:9 - curly_braces_in_flow_control_structures
+   info - Unnecessary use of multiple underscores. Try using '_' - lib\features\guide\guide_screen.dart:495:45 - unnecessary_underscores
+   info - Unnecessary use of multiple underscores. Try using '_' - lib\features\guide\guide_screen.dart:495:49 - unnecessary_underscores
+   info - Import of a library in the 'lib/src' directory of another package. Try importing a public library that exports this library, or removing the import - lib\features\player\adaptive_buffer.dart:4:8 - implementation_imports
+   info - Import of a library in the 'lib/src' directory of another package. Try importing a public library that exports this library, or removing the import - lib\features\player\multi_view_screen.dart:7:8 - implementation_imports
+   info - Don't use 'BuildContext's across async gaps. Try rewriting the code to not use the 'BuildContext', or guard the use with a 'mounted' check - lib\features\player\multi_view_screen.dart:100:26 - use_build_context_synchronously
+warning - The value of the field '_videoWidth' isn't used. Try removing the field, or using it - lib\features\player\player_control_bar.dart:76:8 - unused_field
+warning - The value of the field '_codecLabel' isn't used. Try removing the field, or using it - lib\features\player\player_control_bar.dart:87:10 - unused_field
+warning - The value of the field '_isInterlaced' isn't used. Try removing the field, or using it - lib\features\player\player_control_bar.dart:88:8 - unused_field
+   info - Statements in an if should be enclosed in a block. Try wrapping the statement in a block - lib\features\player\player_screen.dart:1055:9 - curly_braces_in_flow_control_structures
+   info - Unnecessary use of multiple underscores. Try using '_' - lib\features\player\player_screen.dart:1810:63 - unnecessary_underscores
+   info - Unnecessary use of multiple underscores. Try using '_' - lib\features\player\player_screen.dart:1810:67 - unnecessary_underscores
+   info - Import of a library in the 'lib/src' directory of another package. Try importing a public library that exports this library, or removing the import - lib\features\player\player_service.dart:8:8 - implementation_imports
+   info - Statements in an if should be enclosed in a block. Try wrapping the statement in a block - lib\features\player\player_service.dart:511:49 - curly_braces_in_flow_control_structures
+   info - Statements in an if should be enclosed in a block. Try wrapping the statement in a block - lib\features\player\player_service.dart:911:49 - curly_braces_in_flow_control_structures
+   info - Statements in an if should be enclosed in a block. Try wrapping the statement in a block - lib\features\player\player_service.dart:1124:50 - curly_braces_in_flow_control_structures
+   info - Statements in an if should be enclosed in a block. Try wrapping the statement in a block - lib\features\player\player_service.dart:1901:60 - curly_braces_in_flow_control_structures
+   info - Statements in an if should be enclosed in a block. Try wrapping the statement in a block - lib\features\player\player_service.dart:1904:64 - curly_braces_in_flow_control_structures
+   info - Statements in an if should be enclosed in a block. Try wrapping the statement in a block - lib\features\player\player_service.dart:2037:7 - curly_braces_in_flow_control_structures
+   info - Statements in an if should be enclosed in a block. Try wrapping the statement in a block - lib\features\player\player_service.dart:2450:64 - curly_braces_in_flow_control_structures
+   info - Statements in an if should be enclosed in a block. Try wrapping the statement in a block - lib\features\player\player_service.dart:2522:42 - curly_braces_in_flow_control_structures
+   info - Use the null-aware marker '?' rather than a null check via an 'if'. Try using '?' - lib\features\player\stream_info_badges.dart:93:7 - use_null_aware_elements
+   info - Use the null-aware marker '?' rather than a null check via an 'if'. Try using '?' - lib\features\player\stream_info_badges.dart:94:7 - use_null_aware_elements
+   info - Use the null-aware marker '?' rather than a null check via an 'if'. Try using '?' - lib\features\player\stream_info_badges.dart:95:7 - use_null_aware_elements
+   info - Use the null-aware marker '?' rather than a null check via an 'if'. Try using '?' - lib\features\player\stream_info_badges.dart:96:7 - use_null_aware_elements
+   info - Don't use 'BuildContext's across async gaps. Try rewriting the code to not use the 'BuildContext', or guard the use with a 'mounted' check - lib\features\providers\add_provider_dialog.dart:168:26 - use_build_context_synchronously
+   info - 'value' is deprecated and shouldn't be used. Use initialValue instead. This will set the initial value for the form field. This feature was deprecated after v3.33.0-1.0.pre. Try replacing the use of the deprecated member with the replacement - lib\features\providers\add_provider_dialog.dart:190:19 - deprecated_member_use
+   info - Don't use 'BuildContext's across async gaps. Try rewriting the code to not use the 'BuildContext', or guard the use with a 'mounted' check - lib\features\providers\providers_screen.dart:26:17 - use_build_context_synchronously
+   info - Don't use 'BuildContext's across async gaps. Try rewriting the code to not use the 'BuildContext', or guard the use with a 'mounted' check - lib\features\providers\providers_screen.dart:27:15 - use_build_context_synchronously
+   info - Don't use 'BuildContext's across async gaps. Try rewriting the code to not use the 'BuildContext', or guard the use with a 'mounted' check - lib\features\providers\providers_screen.dart:29:15 - use_build_context_synchronously
+   info - Don't use 'BuildContext's across async gaps. Try rewriting the code to not use the 'BuildContext', or guard the use with a 'mounted' check - lib\features\settings\debrid_services_screen.dart:59:40 - use_build_context_synchronously
+   info - Don't use 'BuildContext's across async gaps. Try rewriting the code to not use the 'BuildContext', or guard the use with a 'mounted' check - lib\features\settings\settings_screen.dart:214:30 - use_build_context_synchronously
+   info - Don't use 'BuildContext's across async gaps. Try rewriting the code to not use the 'BuildContext', or guard the use with a 'mounted' check - lib\features\settings\settings_screen.dart:215:28 - use_build_context_synchronously
+   info - Don't use 'BuildContext's across async gaps. Try rewriting the code to not use the 'BuildContext', or guard the use with a 'mounted' check - lib\features\settings\settings_screen.dart:217:15 - use_build_context_synchronously
+   info - Don't use 'BuildContext's across async gaps. Try rewriting the code to not use the 'BuildContext', or guard the use with a 'mounted' check - lib\features\settings\settings_screen.dart:643:26 - use_build_context_synchronously
+   info - Statements in an if should be enclosed in a block. Try wrapping the statement in a block - lib\features\settings\settings_screen.dart:1155:9 - curly_braces_in_flow_control_structures
+   info - Don't use 'BuildContext's across async gaps. Try rewriting the code to not use the 'BuildContext', or guard the use with a 'mounted' check - lib\features\settings\settings_screen.dart:1310:37 - use_build_context_synchronously
+   info - 'groupValue' is deprecated and shouldn't be used. Use a RadioGroup ancestor to manage group value instead. This feature was deprecated after v3.32.0-0.0.pre. Try replacing the use of the deprecated member with the replacement - lib\features\settings\settings_screen.dart:1470:19 - deprecated_member_use
+   info - 'onChanged' is deprecated and shouldn't be used. Use RadioGroup to handle value change instead. This feature was deprecated after v3.32.0-0.0.pre. Try replacing the use of the deprecated member with the replacement - lib\features\settings\settings_screen.dart:1471:19 - deprecated_member_use
+   info - 'groupValue' is deprecated and shouldn't be used. Use a RadioGroup ancestor to manage group value instead. This feature was deprecated after v3.32.0-0.0.pre. Try replacing the use of the deprecated member with the replacement - lib\features\settings\settings_screen.dart:1529:19 - deprecated_member_use
+   info - 'onChanged' is deprecated and shouldn't be used. Use RadioGroup to handle value change instead. This feature was deprecated after v3.32.0-0.0.pre. Try replacing the use of the deprecated member with the replacement - lib\features\settings\settings_screen.dart:1530:19 - deprecated_member_use
+   info - 'groupValue' is deprecated and shouldn't be used. Use a RadioGroup ancestor to manage group value instead. This feature was deprecated after v3.32.0-0.0.pre. Try replacing the use of the deprecated member with the replacement - lib\features\settings\settings_screen.dart:1595:19 - deprecated_member_use
+   info - 'onChanged' is deprecated and shouldn't be used. Use RadioGroup to handle value change instead. This feature was deprecated after v3.32.0-0.0.pre. Try replacing the use of the deprecated member with the replacement - lib\features\settings\settings_screen.dart:1596:19 - deprecated_member_use
+   info - Don't use 'BuildContext's across async gaps. Try rewriting the code to not use the 'BuildContext', or guard the use with a 'mounted' check - lib\features\shows\show_detail_screen.dart:120:17 - use_build_context_synchronously
+   info - Don't use 'BuildContext's across async gaps. Try rewriting the code to not use the 'BuildContext', or guard the use with a 'mounted' check - lib\features\shows\show_detail_screen.dart:121:15 - use_build_context_synchronously
+   info - Don't use 'BuildContext's across async gaps. Try rewriting the code to not use the 'BuildContext', or guard the use with a 'mounted' check - lib\features\shows\show_detail_screen.dart:123:15 - use_build_context_synchronously
+   info - Unnecessary use of multiple underscores. Try using '_' - lib\features\shows\show_detail_screen.dart:211:38 - unnecessary_underscores
+   info - Unnecessary use of multiple underscores. Try using '_' - lib\features\shows\show_detail_screen.dart:211:42 - unnecessary_underscores
+   info - Unnecessary use of multiple underscores. Try using '_' - lib\features\shows\show_detail_screen.dart:733:42 - unnecessary_underscores
+   info - Unnecessary use of multiple underscores. Try using '_' - lib\features\shows\show_detail_screen.dart:733:46 - unnecessary_underscores
+   info - Don't use 'BuildContext's across async gaps. Try rewriting the code to not use the 'BuildContext', or guard the use with a 'mounted' check - lib\features\shows\shows_screen.dart:74:17 - use_build_context_synchronously
+   info - Don't use 'BuildContext's across async gaps. Try rewriting the code to not use the 'BuildContext', or guard the use with a 'mounted' check - lib\features\shows\shows_screen.dart:75:15 - use_build_context_synchronously
+   info - Don't use 'BuildContext's across async gaps. Try rewriting the code to not use the 'BuildContext', or guard the use with a 'mounted' check - lib\features\shows\shows_screen.dart:77:15 - use_build_context_synchronously
+   info - Unnecessary use of multiple underscores. Try using '_' - lib\features\shows\shows_screen.dart:416:52 - unnecessary_underscores
+   info - Unnecessary use of multiple underscores. Try using '_' - lib\features\shows\shows_screen.dart:422:52 - unnecessary_underscores
+   info - Unnecessary use of multiple underscores. Try using '_' - lib\features\shows\shows_screen.dart:422:56 - unnecessary_underscores
+warning - The '!' will have no effect because the receiver can't be null. Try removing the '!' operator - test\bobtv_api_client_test.dart:98:61 - unnecessary_non_null_assertion
+   info - Unnecessary use of multiple underscores. Try using '_' - test\channel_card_playback_binding_test.dart:103:22 - unnecessary_underscores
+   info - Unnecessary use of multiple underscores. Try using '_' - test\channel_card_playback_binding_test.dart:103:26 - unnecessary_underscores
+   info - Statements in an if should be enclosed in a block. Try wrapping the statement in a block - test\channel_catalog_grouping_audit_test.dart:34:11 - curly_braces_in_flow_control_structures
+   info - The import of 'dart:ui' is unnecessary because all of the used elements are also provided by the import of 'package:flutter/material.dart'. Try removing the import directive - test\desktop_pip_test.dart:2:8 - unnecessary_import
+   info - Don't invoke 'print' in production code. Try using a logging framework - test\live_channel_inventory_test.dart:36:7 - avoid_print
+   info - Don't invoke 'print' in production code. Try using a logging framework - test\live_website_catalog_test.dart:67:7 - avoid_print
+warning - Unused import: 'package:flutter_secure_storage/flutter_secure_storage.dart'. Try removing the import directive - test\settings_design_test.dart:10:8 - unused_import
+   info - The import of 'dart:async' is unnecessary because all of the used elements are also provided by the import of 'package:flutter_test/flutter_test.dart'. Try removing the import directive - test\shared_catalog_http_e2e_test.dart:1:8 - unnecessary_import
+   info - Statements in an if should be enclosed in a block. Try wrapping the statement in a block - test\shared_catalog_http_e2e_test.dart:113:11 - curly_braces_in_flow_control_structures
+   info - Statements in an if should be enclosed in a block. Try wrapping the statement in a block - test\shared_catalog_http_e2e_test.dart:147:13 - curly_braces_in_flow_control_structures
+   info - Statements in an if should be enclosed in a block. Try wrapping the statement in a block - test\shared_catalog_http_e2e_test.dart:241:11 - curly_braces_in_flow_control_structures
+   info - Statements in an if should be enclosed in a block. Try wrapping the statement in a block - test\shared_catalog_http_e2e_test.dart:291:11 - curly_braces_in_flow_control_structures
+   info - Unnecessary use of multiple underscores. Try using '_' - tools\diagnostics\player_lifecycle_probe.dart:77:46 - unnecessary_underscores
+   info - Unnecessary use of multiple underscores. Try using '_' - tools\diagnostics\player_lifecycle_probe.dart:94:46 - unnecessary_underscores
+   info - Statements in an if should be enclosed in a block. Try wrapping the statement in a block - tools\diagnostics\player_lifecycle_probe.dart:149:11 - curly_braces_in_flow_control_structures
+   info - Statements in an if should be enclosed in a block. Try wrapping the statement in a block - tools\diagnostics\player_lifecycle_probe.dart:162:9 - curly_braces_in_flow_control_structures
+   info - Statements in an if should be enclosed in a block. Try wrapping the statement in a block - tools\diagnostics\player_lifecycle_probe.dart:203:9 - curly_braces_in_flow_control_structures
+   info - Statements in an if should be enclosed in a block. Try wrapping the statement in a block - tools\diagnostics\player_lifecycle_probe.dart:233:9 - curly_braces_in_flow_control_structures
+   info - Statements in an if should be enclosed in a block. Try wrapping the statement in a block - tools\diagnostics\player_lifecycle_probe.dart:238:9 - curly_braces_in_flow_control_structures
+   info - Statements in an if should be enclosed in a block. Try wrapping the statement in a block - tools\diagnostics\player_lifecycle_probe.dart:241:9 - curly_braces_in_flow_control_structures
+   info - Statements in an if should be enclosed in a block. Try wrapping the statement in a block - tools\diagnostics\player_lifecycle_probe.dart:268:7 - curly_braces_in_flow_control_structures
+   info - Don't use 'BuildContext's across async gaps. Try rewriting the code to not use the 'BuildContext', or guard the use with a 'mounted' check - tools\diagnostics\window_presentation_release_probe.dart:73:19 - use_build_context_synchronously
+   info - Don't use 'BuildContext's across async gaps. Try rewriting the code to not use the 'BuildContext', or guard the use with a 'mounted' check - tools\diagnostics\window_presentation_release_probe.dart:75:33 - use_build_context_synchronously
+   info - Can't use a relative path to import a library in 'lib'. Try fixing the relative path or changing the import to a 'package:' import - tools\test_live_resource_router.dart:3:8 - avoid_relative_lib_imports
+   info - Statements in an if should be enclosed in a block. Try wrapping the statement in a block - tools\test_live_resource_router.dart:17:7 - curly_braces_in_flow_control_structures
+   info - Statements in an if should be enclosed in a block. Try wrapping the statement in a block - tools\test_live_resource_router.dart:25:7 - curly_braces_in_flow_control_structures
+   info - Don't invoke 'print' in production code. Try using a logging framework - tools\test_live_resource_router.dart:26:5 - avoid_print
+   info - Unnecessary use of multiple underscores. Try using '_' - tools\windows\native_video_disposal_probe.dart:36:34 - unnecessary_underscores
+   info - Unnecessary use of multiple underscores. Try using '_' - tools\windows\native_video_disposal_probe.dart:40:41 - unnecessary_underscores
+   info - Statements in an if should be enclosed in a block. Try wrapping the statement in a block - tools\windows\native_video_disposal_probe.dart:97:9 - curly_braces_in_flow_control_structures
+   info - Statements in an if should be enclosed in a block. Try wrapping the statement in a block - tools\windows\native_video_disposal_probe.dart:182:11 - curly_braces_in_flow_control_structures
+   info - Statements in an if should be enclosed in a block. Try wrapping the statement in a block - tools\windows\native_video_disposal_probe.dart:189:9 - curly_braces_in_flow_control_structures
+   info - Statements in an if should be enclosed in a block. Try wrapping the statement in a block - tools\windows\native_video_disposal_probe.dart:195:9 - curly_braces_in_flow_control_structures
+   info - Statements in an if should be enclosed in a block. Try wrapping the statement in a block - tools\windows\native_video_disposal_probe.dart:200:9 - curly_braces_in_flow_control_structures
+   info - Statements in an if should be enclosed in a block. Try wrapping the statement in a block - tools\windows\native_video_disposal_probe.dart:213:9 - curly_braces_in_flow_control_structures
+
+203 issues found. (ran in 43.1s)

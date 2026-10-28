@@ -1,0 +1,22 @@
+[
+  {
+    "check": "full-flutter-tests",
+    "command": [
+      "C:\\tools\\flutter\\bin\\flutter.bat",
+      "test",
+      "--no-pub"
+    ],
+    "exitCode": 0
+  },
+  {
+    "check": "flutter-analyze",
+    "command": [
+      "C:\\tools\\flutter\\bin\\flutter.bat",
+      "analyze",
+      "--no-pub",
+      "--no-fatal-infos",
+      "--no-fatal-warnings"
+    ],
+    "exitCode": 0
+  }
+]

@@ -1,0 +1,32 @@
+{
+"controls":[
+  {"label":"关闭国家菜单","rect":{"bottom":162,"height":44,"left":328,"right":372,"top":118,"width":44,"x":328,"y":118},"role":"button"},
+  {"label":"搜索国家或地区","rect":{"bottom":237,"height":54,"left":26,"right":372,"top":183,"width":346,"x":26,"y":183},"role":"INPUT"},
+  {"label":"清空搜索","rect":{"bottom":231,"height":48,"left":316,"right":364,"top":183,"width":48,"x":316,"y":183},"role":"button"},
+  {"label":"全部","rect":{"bottom":308,"height":44,"left":26,"right":86,"top":264,"width":60,"x":26,"y":264},"role":"button"},
+  {"label":"A","rect":{"bottom":308,"height":44,"left":92,"right":136,"top":264,"width":44,"x":92,"y":264},"role":"button"},
+  {"label":"B","rect":{"bottom":308,"height":44,"left":142,"right":186,"top":264,"width":44,"x":142,"y":264},"role":"button"},
+  {"label":"C","rect":{"bottom":308,"height":44,"left":192,"right":236,"top":264,"width":44,"x":192,"y":264},"role":"button"},
+  {"label":"D","rect":{"bottom":308,"height":44,"left":242,"right":286,"top":264,"width":44,"x":242,"y":264},"role":"button"},
+  {"label":"E","rect":{"bottom":308,"height":44,"left":292,"right":336,"top":264,"width":44,"x":292,"y":264},"role":"button"},
+  {"label":"F","rect":{"bottom":358,"height":44,"left":26,"right":70,"top":314,"width":44,"x":26,"y":314},"role":"button"},
+  {"label":"G","rect":{"bottom":358,"height":44,"left":76,"right":120,"top":314,"width":44,"x":76,"y":314},"role":"button"},
+  {"label":"H","rect":{"bottom":358,"height":44,"left":126,"right":170,"top":314,"width":44,"x":126,"y":314},"role":"button"},
+  {"label":"J","rect":{"bottom":358,"height":44,"left":176,"right":220,"top":314,"width":44,"x":176,"y":314},"role":"button"},
+  {"label":"K","rect":{"bottom":358,"height":44,"left":226,"right":270,"top":314,"width":44,"x":226,"y":314},"role":"button"},
+  {"label":"L","rect":{"bottom":358,"height":44,"left":276,"right":320,"top":314,"width":44,"x":276,"y":314},"role":"button"},
+  {"label":"M","rect":{"bottom":408,"height":44,"left":26,"right":70,"top":364,"width":44,"x":26,"y":364},"role":"button"},
+  {"label":"N","rect":{"bottom":408,"height":44,"left":76,"right":120,"top":364,"width":44,"x":76,"y":364},"role":"button"},
+  {"label":"O","rect":{"bottom":408,"height":44,"left":126,"right":170,"top":364,"width":44,"x":126,"y":364},"role":"button"},
+  {"label":"P","rect":{"bottom":408,"height":44,"left":176,"right":220,"top":364,"width":44,"x":176,"y":364},"role":"button"},
+  {"label":"R","rect":{"bottom":408,"height":44,"left":226,"right":270,"top":364,"width":44,"x":226,"y":364},"role":"button"},
+  {"label":"S","rect":{"bottom":408,"height":44,"left":276,"right":320,"top":364,"width":44,"x":276,"y":364},"role":"button"},
+  {"label":"T","rect":{"bottom":458,"height":44,"left":26,"right":70,"top":414,"width":44,"x":26,"y":414},"role":"button"},
+  {"label":"W","rect":{"bottom":458,"height":44,"left":76,"right":120,"top":414,"width":44,"x":76,"y":414},"role":"button"},
+  {"label":"X","rect":{"bottom":458,"height":44,"left":126,"right":170,"top":414,"width":44,"x":126,"y":414},"role":"button"},
+  {"label":"Y","rect":{"bottom":458,"height":44,"left":176,"right":220,"top":414,"width":44,"x":176,"y":414},"role":"button"},
+  {"label":"Z","rect":{"bottom":458,"height":44,"left":226,"right":270,"top":414,"width":44,"x":226,"y":414},"role":"button"},
+  {"label":"圣文森特和格林纳丁斯","rect":{"bottom":572,"height":44,"left":26,"right":193.984375,"top":528,"width":167.984375,"x":26,"y":528},"role":"button"}
+],
+"viewport":{"dpr":1,"height":844,"width":390}
+}

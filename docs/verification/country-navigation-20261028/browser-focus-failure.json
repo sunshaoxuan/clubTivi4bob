@@ -1,0 +1,20 @@
+{
+  "beforeFocus": {
+    "end": 2,
+    "start": 2,
+    "tag": "INPUT",
+    "value": "美国"
+  },
+  "afterFocus": {
+    "end": null,
+    "start": null,
+    "tag": "BODY",
+    "value": ""
+  },
+  "continuedFocus": {
+    "end": null,
+    "start": null,
+    "tag": "BODY",
+    "value": ""
+  }
+}

@@ -3589,7 +3589,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
         }
       }
     } else if (international) {
-      if (_internationalCountries.isNotEmpty) { levels.add(CompactCategoryRow(tiny: tiny, level: 2, title: '国家或地区', options: [
+      if (_internationalCountries.isNotEmpty) { levels.add(CompactCategoryRow(tiny: tiny, level: 2, title: '国家或地区', countryIndex: true, options: [
         for (final country in _internationalCountries) CompactCategoryOption(id: country, label: country, selected: country == _selectedInternationalCountry, onTap: () => _selectInternationalCountry(country), onContextMenu: (p) => _showCountryPinMenu(country, p)),
       ])); }
       levels.add(CompactCategoryRow(tiny: tiny, level: 3, title: '广播或电视', options: [

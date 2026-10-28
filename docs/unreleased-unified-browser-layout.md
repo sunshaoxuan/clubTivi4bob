@@ -1,5 +1,20 @@
 # Unified responsive channel browser
 
+## Pending country navigation update (2026-10-28)
+
+The country overflow menu now groups displayed Chinese names by pinyin initial
+and Latin names by their first letter. Selecting an initial filters the country
+list; name search also accepts the existing country aliases and codes. The
+country picker uses a centered dialog with a search field and index, adapts to
+keyboard insets, and scrolls its body when the window is short. Long names wrap.
+Country IDs, selection callbacks and pin context menus remain attached to the
+existing options. Other category menus retain their anchored layout. This update
+has no new dependency or catalog migration and is not a published release.
+Validation and current source identity are recorded in
+[the country navigation task](country-initial-navigation-20261028.md).
+
+## Existing responsive layout
+
 Status: included in the `1.1.4+97` release source. An authorized local Mac test
 build has been installed; publication does not restart installed clients.
 

@@ -5,6 +5,11 @@ import 'package:clubtivi/core/resource_node_router.dart';
 import 'package:clubtivi/data/services/bobtv_api_client.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+// These are local fixture timings, not production transport settings. Keep a
+// wide gap so loopback setup under a busy build cannot mimic the failed node.
+const fixtureTimeout = Duration(milliseconds: 250);
+const fixtureFaultDelay = Duration(seconds: 1);
+
 class MappedHttp extends Fake implements HttpClient {
   MappedHttp(this.relayPort, this.originPort);
   final int relayPort, originPort;
@@ -15,7 +20,7 @@ class MappedHttp extends Fake implements HttpClient {
   Future<HttpClientRequest> openUrl(String method, Uri uri) async {
     attempts.add(uri.host);
     if (delayOpen && uri.host == 'cndrp.com') {
-      await Future<void>.delayed(const Duration(milliseconds: 100));
+      await Future<void>.delayed(fixtureFaultDelay);
     }
     return actual.openUrl(
       method,
@@ -51,7 +56,7 @@ void main() {
           }
         }
         if (isRelay && fault == 'headers') {
-          await Future<void>.delayed(const Duration(milliseconds: 100));
+          await Future<void>.delayed(fixtureFaultDelay);
         }
         if (isRelay && fault == 'busy') {
           req.response.statusCode = 503;
@@ -60,7 +65,7 @@ void main() {
         } else if (isRelay && fault == 'body') {
           req.response.write('{"sources":');
           await req.response.flush();
-          await Future<void>.delayed(const Duration(milliseconds: 100));
+          await Future<void>.delayed(fixtureFaultDelay);
           req.response.write('[]}');
         } else {
           req.response.write('{"sources":[]}');
@@ -81,14 +86,14 @@ void main() {
     api = BobTvApiClient(
       httpClient: http,
       router: router,
-      openTimeout: const Duration(milliseconds: 35),
-      headerTimeout: const Duration(milliseconds: 35),
-      bodyTimeout: const Duration(milliseconds: 35),
+      openTimeout: fixtureTimeout,
+      headerTimeout: fixtureTimeout,
+      bodyTimeout: fixtureTimeout,
     );
   });
   tearDown(() async {
     api.close();
-    await Future<void>.delayed(const Duration(milliseconds: 120));
+    await Future<void>.delayed(const Duration(milliseconds: 1100));
     await relay.close(force: true);
     await origin.close(force: true);
   });

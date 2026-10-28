@@ -33,5 +33,8 @@ jobs:
           cache: true
       - run: git rev-parse HEAD
       - run: flutter pub get
+      - name: Resolve retained standalone media investigation package
+        working-directory: third_party/media_kit
+        run: dart pub get --enforce-lockfile
       - run: flutter test --no-pub
       - run: flutter analyze --no-pub --no-fatal-infos --no-fatal-warnings

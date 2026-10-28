@@ -2,7 +2,7 @@
 Description=Resume bounded approved BobTV programme ingestion
 
 [Timer]
-OnBootSec=3min
+OnActiveSec=3min
 OnUnitInactiveSec=60s
 AccuracySec=10s
 RandomizedDelaySec=10s

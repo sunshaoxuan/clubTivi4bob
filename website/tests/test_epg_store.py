@@ -86,11 +86,93 @@ def test_code_license_or_missing_permission_cannot_grant_publication(conn, tmp_p
     assert conn.execute('SELECT count(*) FROM epg_programmes').fetchone()[0] == 0
 
 
+def test_current_gap_retains_real_future_rows_without_fabricating_current(conn, tmp_path):
+    grant(conn)
+    ingest(conn)
+    with conn:
+        conn.execute('DELETE FROM epg_programmes WHERE starts<=? AND stops>?', (NOW, NOW))
+    before = [tuple(row) for row in conn.execute('SELECT * FROM epg_programmes')]
+    payload = store.build_payload(conn, NOW)
+    assert len(payload['channels']) == 1
+    assert len(payload['programmes']) == 1
+    assert payload['programmes'][0]['title'] == 'Next fixture'
+    assert payload['programmes'][0]['startUtc'] == NOW + 3600
+    assert store._coverage_deadline(payload, NOW) == NOW + 3600
+    directory = tmp_path / 'public'
+    result = store.publish(conn, directory, now=NOW, node_fetcher=public_fetch(directory, []))
+    assert result['channelCount'] == result['programmeCount'] == 1
+    assert [tuple(row) for row in conn.execute('SELECT * FROM epg_programmes')] == before
+
+
+def test_future_only_publication_still_requires_both_node_proofs(conn, tmp_path):
+    grant(conn)
+    ingest(conn)
+    directory = tmp_path / 'public'
+    original = store.publish(conn, directory, now=NOW, node_fetcher=public_fetch(directory, []))
+    with conn:
+        conn.execute('DELETE FROM epg_programmes WHERE starts<=? AND stops>?', (NOW, NOW))
+    calls = []
+    def damaged_relay(url):
+        calls.append(url)
+        return b'corrupt' if len(calls) == 2 else public_fetch(directory, [])(url)
+    with pytest.raises(epg.EpgError, match='public_snapshot_checksum_mismatch'):
+        store.publish(conn, directory, now=NOW, node_fetcher=damaged_relay)
+    assert store.active_manifest(conn)['version'] == original['version']
+    assert conn.execute('SELECT count(*) FROM epg_publication_audit').fetchone()[0] == 1
+    result = store.publish(conn, directory, now=NOW, node_fetcher=public_fetch(directory, []))
+    assert result['version'] != original['version']
+    assert conn.execute('SELECT count(*) FROM epg_publication_audit').fetchone()[0] == 2
+
+
+def test_future_only_last_start_boundary_and_stale_rows_fail_closed(conn, tmp_path, monkeypatch):
+    grant(conn)
+    ingest(conn)
+    with conn:
+        conn.execute('DELETE FROM epg_programmes WHERE starts<=? AND stops>?', (NOW, NOW))
+    clock = [NOW]
+    monkeypatch.setattr(store.time, 'time', lambda: clock[0])
+    real_deadline = store._coverage_deadline
+    def cross_last_start(payload, now):
+        deadline = real_deadline(payload, now)
+        clock[0] = NOW + 3600
+        return deadline
+    monkeypatch.setattr(store, '_coverage_deadline', cross_last_start)
+    directory = tmp_path / 'public'
+    with pytest.raises(epg.EpgError, match='no_publishable_current_future_data'):
+        store.publish(conn, directory, node_fetcher=public_fetch(directory, []))
+    assert store.active_manifest(conn) is None
+    with pytest.raises(epg.EpgError, match='no_publishable_current_future_data'):
+        store.build_payload(conn, NOW + 7200)
+
+
 ATTRIBUTION = {'sourceLabel': 'Synthetic licensed fixture',
     'attributionUrl': 'https://fixture.example.org/',
     'licenseUrl': 'https://creativecommons.org/licenses/by-sa/4.0/',
     'modificationNotice': 'Synthetic normalization fixture only; dates and fields standardized.',
     'shareAlikeRequired': True}
+
+
+def test_open_government_data_requires_truthful_attribution_and_survives_publication(conn):
+    attribution = {**ATTRIBUTION, 'sourceLabel': 'Synthetic government-data fixture 2026',
+        'licenseUrl': 'https://data.gov.tw/license', 'shareAlikeRequired': False}
+    for bad in (None, {**attribution, 'shareAlikeRequired': True},
+                {**attribution, 'licenseUrl': ATTRIBUTION['licenseUrl']}):
+        with pytest.raises(epg.EpgError, match='source_attribution_required'):
+            store.approve_data_use(conn, 'fixture', source_url=SOURCE['url'],
+                evidence_url='https://fixture.example.org/permission',
+                data_license='Open Government Data License 1.0', programme_data_permission=True,
+                attribution=bad, now=NOW)
+    store.approve_data_use(conn, 'fixture', source_url=SOURCE['url'],
+        evidence_url='https://fixture.example.org/permission',
+        data_license='Open Government Data License 1.0', programme_data_permission=True,
+        attribution=attribution, now=NOW)
+    store.approve_mapping(conn, CHANNEL['id'], 'fixture', 'fixture', evidence=EVIDENCE, now=NOW)
+    ingest(conn)
+    payload = store.build_payload(conn, NOW)
+    assert payload['dataAttributions'] == [{'sourceId': 'fixture', **attribution}]
+    assert payload['programmes'][0]['provenance']['dataLicense'] == 'Open Government Data License 1.0'
+    with conn: conn.execute('DELETE FROM epg_data_attributions')
+    with pytest.raises(epg.EpgError, match='no_publishable'): store.build_payload(conn, NOW)
 
 
 def licensed_grant(conn, attribution=ATTRIBUTION):

@@ -72,8 +72,11 @@ def test_setup_download_is_manifest_gated_and_has_binary_mime(tmp_path, monkeypa
 def test_product_pages_reflect_published_releases():
     client = TestClient(module.app)
     home = client.get("/").text
+    version = next(line.split(':', 1)[1].strip()
+                   for line in (site.parent / 'pubspec.yaml').read_text().splitlines()
+                   if line.startswith('version:'))
     assert "v1.0.3" in home and "WINDOWS · MACOS" in home
-    assert "1.1.15+110 · Windows / macOS / Android" in home
+    assert f"{version} · Windows / macOS / Android" in home
     assert "cndrp" in home and "视频直连" in home
     assert "v1.0.5 · 服务器链路、频道合并与全屏修复" in home
     assert "跨分类合并多个频道" in home
@@ -91,7 +94,7 @@ def test_product_pages_reflect_published_releases():
     downloads = client.get("/downloads").text
     assert 'id="release-list"' in downloads and "BobTV.exe" in downloads
     assert "下载最新版本" in downloads
-    assert 'id="first-launch-title"' in downloads and "1.1.15+110" in downloads
+    assert 'id="first-launch-title"' in downloads and version in downloads
     assert "1.1.10+103" not in downloads and "ad-hoc" in downloads
     assert "管理员授权" in downloads and "只读磁盘映像" in downloads
     assert "下载并校验 Setup" in downloads and "取消授权可继续使用旧版" in downloads

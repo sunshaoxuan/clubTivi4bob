@@ -73,6 +73,8 @@ try {
   foreach($name in @('AirPlay','Tools','BobTV.ico')) {
     Copy-Item -LiteralPath (Join-Path $support $name) -Destination $bundle -Recurse
   }
+  # Keep old support bundles from bringing back the retired external monitor.
+  Copy-Item -LiteralPath (Join-Path $source 'tools/windows/hoteltv_crash_monitor.ps1') -Destination (Join-Path $bundle 'Tools/hoteltv_crash_monitor.ps1') -Force
   foreach($file in $crt){Copy-Item -LiteralPath $file.FullName -Destination $bundle}
   $notices=Join-Path $bundle 'ThirdPartyNotices/WindowsARM64'
   New-Item -ItemType Directory -Path $notices -Force|Out-Null

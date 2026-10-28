@@ -31,5 +31,6 @@ function Get-Process {param($Id,$ErrorAction) $p=[pscustomobject]@{Id=$Id};$p|Ad
 function Write-Log {param($message)}
 Suspend-AppCrashMonitor "$fixture\app"
 if(($script:stopped -join ',') -ne '101,102'){throw ('Monitor stop escaped the application scope; actual='+($script:stopped -join ',')+'; fixture='+$fixture+'; executable='+$script:mockProcesses[1].ExecutablePath)}
-if(!$script:resumeCrashMonitor){throw 'Monitor restart intent missing'}
-Write-Output 'PASS: identical locked helper skipped, changed files verified, only app-scoped monitor stopped, restart retained.'
+if(Get-Variable resumeCrashMonitor -Scope Script -ErrorAction SilentlyContinue){throw 'Retired monitor must not retain restart intent'}
+if($definitions.Name -contains 'Resume-AppCrashMonitor'){throw 'Retired monitor restart helper must not exist'}
+Write-Output 'PASS: identical locked helper skipped, changed files verified, only app-scoped legacy monitor stopped, no restart retained.'

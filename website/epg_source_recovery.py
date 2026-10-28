@@ -37,6 +37,12 @@ def migrate(conn):
 
 
 def country_scope(source):
+    if (source.get('id') == 'taipei-radio-opendata-v1'
+            and source.get('format') == 'taipei-monthly-csv'
+            and source.get('url') == 'https://data.gov.tw/dataset/121175'
+            and source.get('countryCode') == 'TW'
+            and source.get('calendarTimezone') == 'Asia/Taipei'):
+        return 'TW'
     if (source.get('id') == 'cctv2-official-diagnostic-v1'
             and source.get('format') == 'cctv-json'
             and source.get('url') == 'https://api.cntv.cn/epg/getEpgInfoByChannelNew'

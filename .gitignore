@@ -32,6 +32,7 @@ migrate_working_dir/
 .pub/
 /build/
 /coverage/
+/.task-validation-venv/
 /website/.test-output/
 /website/.capture/
 /website/data/

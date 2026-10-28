@@ -36,6 +36,23 @@ def test_candidates_and_unpublished_rows_are_not_public_coverage(conn, tmp_path)
     assert worker.coverage(conn, NOW)['currentAndFutureChannels'] == 1
 
 
+def test_current_gap_separates_future_availability_from_current_coverage(conn, tmp_path):
+    grant(conn)
+    ingest(conn)
+    with conn:
+        conn.execute('DELETE FROM epg_programmes WHERE starts<=? AND stops>?', (NOW, NOW))
+    result = coverage.summarize(conn, NOW, tmp_path / 'public')
+    assert result['verifiedMappings'] == result['channelsWithFutureProgrammes'] == 1
+    assert result['currentAndFutureChannels'] == result['publishedChannelsWithFutureProgrammes'] == 0
+    directory, _ = publish(conn, tmp_path)
+    result = coverage.summarize(conn, NOW, directory)
+    assert result['publishedChannelsWithFutureProgrammes'] == 1
+    assert result['currentAndFutureChannels'] == result['publishedCurrentAndFutureChannels'] == 0
+    assert result['coverageError'] is None and result['publishedSnapshotVerifiedLocally']
+    expired = coverage.summarize(conn, NOW + 7200, directory)
+    assert expired['channelsWithFutureProgrammes'] == expired['publishedChannelsWithFutureProgrammes'] == 0
+
+
 def test_active_snapshot_and_expiry_are_read_without_mutation(conn, tmp_path):
     grant(conn)
     ingest(conn)

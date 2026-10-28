@@ -1,5 +1,5 @@
 [Unit]
-Description=BobTV bounded persistent EPG source discovery
+Description=BobTV bounded channel-first automatic identity and EPG source search
 After=network-online.target
 Wants=network-online.target
 
@@ -9,8 +9,8 @@ User=bobtv
 Group=bobtv
 WorkingDirectory=/opt/bobtv/site
 Environment=BOBTV_DATA_DIR=/var/lib/bobtv
-ExecStart=/opt/bobtv/venv/bin/python /opt/bobtv/site/epg_source_discovery.py
-TimeoutStartSec=75
+ExecStart=/opt/bobtv/venv/bin/python /opt/bobtv/site/epg_auto_search_worker.py --max-channels 3
+TimeoutStartSec=180
 MemoryMax=384M
 CPUQuota=15%
 TasksMax=16

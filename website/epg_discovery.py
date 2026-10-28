@@ -17,6 +17,35 @@ import unicodedata
 from catalog_inventory import DATA
 from epg_ingest import EpgError, database, registry, seed_cached_identities
 
+REVIEW_POLICY = 'licensed_structured_country_identifier_v1'
+
+
+def network_name_token(value):
+    """Full-name typography only; never drop plus signs, numbers or words."""
+    value = canonical(value)
+    if not re.fullmatch(r'[a-z0-9]+(?:[ ._-]+[a-z0-9]+)*', value):
+        return None
+    return re.sub(r'[ ._-]', '', value)
+
+
+def structured_identifier(channel):
+    match = re.fullmatch(r'([A-Za-z0-9]+)\.([a-z]{2})(?:@([A-Za-z0-9+_-]+))?',
+        channel.get('epgId') or '')
+    if not match:
+        return None
+    country = {'uk': 'GB'}.get(match[2], match[2].upper())
+    if country != channel.get('countryCode'):
+        return None
+    variant = match[3]
+    # National US networks cannot establish affiliate station schedules.
+    if country == 'US' and variant:
+        return None
+    if variant and ('+' in variant or re.search(r'plus\d|delay|timeshift', variant, re.I)):
+        return None
+    return {'field': 'epgId', 'value': match[0], 'countryCode': country,
+        'networkToken': match[1].casefold(), 'retainedVariant': variant,
+        'feedVariantVerified': False}
+
 
 def canonical(value):
     value = re.sub(r'\s+', ' ', unicodedata.normalize('NFKC', value or '').strip()).casefold()
@@ -86,23 +115,37 @@ def priority(channel):
 
 def sync_catalog(conn, manifest, channels, now):
     migrate(conn)
+    # Fingerprinting and serialization scale with the public catalogue. Keep
+    # that CPU work outside the write transaction and avoid unchanged writes.
+    prepared = []
+    for channel in channels:
+        identity = {key: channel.get(key) for key in ('id', 'name', 'epgId', 'countryCode', 'regionCode')}
+        prepared.append((channel['id'], fingerprint(identity),
+            json.dumps(identity, ensure_ascii=False), priority(channel)))
+    current_ids = {item[0] for item in prepared}
     with conn:
-        conn.execute('UPDATE discovery_jobs SET active=0')
-        for channel in channels:
-            identity = {key: channel.get(key) for key in ('id', 'name', 'epgId', 'countryCode', 'regionCode')}
-            digest = fingerprint(identity)
-            old = conn.execute('SELECT identity_hash,active FROM discovery_jobs WHERE channel_id=?', (channel['id'],)).fetchone()
+        conn.execute('BEGIN IMMEDIATE')
+        existing = {row['channel_id']: row for row in conn.execute(
+            'SELECT channel_id,identity_hash,active,catalog_version,priority FROM discovery_jobs')}
+        removed = [(key,) for key, row in existing.items() if row['active'] and key not in current_ids]
+        conn.executemany('UPDATE discovery_jobs SET active=0 WHERE channel_id=?', removed)
+        unchanged_identity_updates = []
+        for channel_id, digest, payload, item_priority in prepared:
+            old = existing.get(channel_id)
             if old is None:
                 conn.execute('INSERT INTO discovery_jobs(channel_id,identity_hash,payload,catalog_version,priority,updated_at) VALUES(?,?,?,?,?,?)',
-                    (channel['id'], digest, json.dumps(identity, ensure_ascii=False), manifest['version'], priority(channel), now))
+                    (channel_id, digest, payload, manifest['version'], item_priority, now))
             elif old['identity_hash'] != digest:
                 conn.execute('''UPDATE discovery_jobs SET identity_hash=?,payload=?,catalog_version=?,active=1,priority=?,
                     state='pending',source_generation='',next_retry=0,lease_until=0,lease_token=NULL,candidates='[]',reason=NULL,updated_at=? WHERE channel_id=?''',
-                    (digest, json.dumps(identity, ensure_ascii=False), manifest['version'], priority(channel), now, channel['id']))
-            else:
-                conn.execute('UPDATE discovery_jobs SET active=1,catalog_version=?,priority=? WHERE channel_id=?',
-                    (manifest['version'], priority(channel), channel['id']))
-        conn.execute('INSERT OR REPLACE INTO epg_checkpoints VALUES(?,?)', ('catalog', json.dumps(manifest)))
+                    (digest, payload, manifest['version'], item_priority, now, channel_id))
+            elif (not old['active'] or old['catalog_version'] != manifest['version']
+                    or old['priority'] != item_priority):
+                unchanged_identity_updates.append((manifest['version'], item_priority, channel_id))
+        conn.executemany('UPDATE discovery_jobs SET active=1,catalog_version=?,priority=? WHERE channel_id=?',
+            unchanged_identity_updates)
+        conn.execute('''INSERT INTO epg_checkpoints VALUES(?,?) ON CONFLICT(name)
+            DO UPDATE SET value=excluded.value WHERE value!=excluded.value''', ('catalog', json.dumps(manifest)))
 
 
 def source_index(conn, now):
@@ -139,21 +182,29 @@ def source_index(conn, now):
         ids[canonical(entry['original_id'])].append(entry)
         for name in entry['names']:
             names[canonical(name)].append(entry)
-    return fingerprint(generation), ids, names
+            token = network_name_token(name)
+            if (token and entry['dataRightsReview'] and config.get('format') == 'tvmaze-json'
+                    and re.fullmatch(r'[A-Z]{2}', entry['context'].get('countryCode') or '')):
+                names[('licensed_country_network', entry['context']['countryCode'], token)].append(entry)
+    return fingerprint({'policy': REVIEW_POLICY, 'identities': generation}), ids, names
 
 
 def candidates_for(channel, ids, names):
     identity, name = canonical(channel.get('epgId')), canonical(channel.get('name'))
+    structured = structured_identifier(channel)
     if re.fullmatch(r'cctv\d+\+?', identity) and re.fullmatch(r'cctv\d+\+?', name) and identity != name:
         return []
     found = {}
-    for entry in (ids.get(identity, []) if identity else []) + names.get(name, []):
+    structured_entries = names.get(('licensed_country_network', structured['countryCode'],
+        structured['networkToken']), []) if structured else []
+    for entry in (ids.get(identity, []) if identity else []) + names.get(name, []) + structured_entries:
         context = entry.get('context', {})
         if context.get('countryCode') and context['countryCode'] != channel.get('countryCode'):
             continue  # A same-name source in a different/unknown country is not a proposal.
         source_names = {canonical(n) for n in entry['names']}
         id_exact = bool(identity and canonical(entry['original_id']) == identity)
         name_exact = bool(name and name in source_names)
+        structured_exact = bool(structured and entry in structured_entries)
         # Known distinct numbered channels and delay variants never share a proposal.
         cctv_names = {n for n in source_names if re.fullmatch(r'cctv\d+\+?', n)}
         if re.fullmatch(r'cctv\d+\+?', name) and cctv_names and name not in cctv_names:
@@ -164,11 +215,11 @@ def candidates_for(channel, ids, names):
         if not name_exact and delayed(name) != any(delayed(n) for n in source_names):
             continue
         key = entry['source_id'] + ':' + entry['original_id']
-        found[key] = {
+        candidate = {
             'sourceId': entry['source_id'], 'originalChannelId': entry['original_id'],
             'originalNames': entry['names'], 'sourceUrl': json.loads(entry['configuration'])['url'],
-            'identityEvidence': 'exact_id_and_name' if id_exact and name_exact else 'exact_id_only' if id_exact else 'exact_full_name_only',
-            'confidence': 0.98 if id_exact and name_exact else 0.65 if id_exact else 0.55,
+            'identityEvidence': 'exact_id_and_name' if id_exact and name_exact else 'exact_id_only' if id_exact else 'exact_full_name_only' if name_exact else 'structured_country_identifier_requires_feed_review',
+            'confidence': 0.98 if id_exact and name_exact else 0.65 if id_exact else 0.55 if name_exact else 0.45,
             'countryCode': channel.get('countryCode'), 'regionCode': channel.get('regionCode'),
             'sourceIdentityContext': context,
             'contextVerified': False, 'programmeDataRightsVerified': bool(entry.get('dataRightsReview')),
@@ -176,17 +227,25 @@ def candidates_for(channel, ids, names):
             'sourceContentSha256': entry['content_sha256'], 'sourceFetchedAt': entry['fetched_at'],
             'metadataOrigin': entry['origin'], 'automaticallyApplied': False,
         }
+        if structured_exact and not id_exact and not name_exact:
+            candidate['structuredIdentifierEvidence'] = structured
+        found[key] = candidate
     return sorted(found.values(), key=lambda x: (-x['confidence'], x['sourceId'], x['originalChannelId']))[:10]
 
 
-def process_batch(conn, generation, ids, names, now, batch_size=5):
+def process_batch(conn, generation, ids, names, now, batch_size=5, *, reviewed_ids=None):
     if not 1 <= batch_size <= 5:
         raise EpgError('batch_size_limit')
     token = fingerprint([time.time_ns(), now])
+    selected = sorted(reviewed_ids) if reviewed_ids is not None else None
+    if selected == []:
+        return 0
+    gate = '' if selected is None else ' AND channel_id IN (' + ','.join('?' for _ in selected) + ')'
     with conn:
         rows = conn.execute('''SELECT * FROM discovery_jobs WHERE active=1 AND lease_until<=?
           AND (source_generation!=? OR (state IN ('pending','unmatched') AND next_retry<=?))
-          ORDER BY priority,channel_id LIMIT ?''', (now, generation, now, batch_size)).fetchall()
+          ''' + gate + ' ORDER BY priority,channel_id LIMIT ?',
+          (now, generation, now, *(selected or []), batch_size)).fetchall()
         claimed = []
         for row in rows:
             changed = conn.execute('UPDATE discovery_jobs SET lease_until=?,lease_token=? WHERE channel_id=? AND lease_until<=? AND identity_hash=?',
@@ -215,16 +274,42 @@ def process_batch(conn, generation, ids, names, now, batch_size=5):
     return len(rows)
 
 
+def reviewed_targets(conn, channels):
+    """Never reverse-match a newly discovered source against unknown feeds.
+
+    Historical candidate/audit rows stay intact. Only explicit current research
+    identities can receive new proposals; existing approved mappings refresh in
+    their independent schedule worker and are not reopened here.
+    """
+    if not conn.execute("SELECT 1 FROM sqlite_master WHERE name='epg_channel_research_jobs'").fetchone():
+        return set()
+    by_id = {item['id']: item for item in channels}
+    eligible = set()
+    for row in conn.execute('SELECT channel_id,payload FROM epg_channel_research_jobs WHERE active=1 AND identity_evidence IS NOT NULL'):
+        channel = by_id.get(row['channel_id'])
+        if channel is None:
+            continue
+        target = json.loads(row['payload'])
+        if (any(target.get(key) != channel.get(key) for key in ('id','name','epgId','countryCode','regionCode'))
+                or target.get('routeSha256') != sorted({hashlib.sha256(r['url'].encode()).hexdigest() for r in channel.get('routes', [])})):
+            continue
+        eligible.add(row['channel_id'])
+    if conn.execute("SELECT 1 FROM sqlite_master WHERE name='epg_mapping_approvals'").fetchone():
+        eligible -= {row[0] for row in conn.execute('SELECT channel_id FROM epg_mapping_approvals WHERE revoked=0')}
+    return eligible
+
+
 def run(data_dir=DATA, now=None, runtime_seconds=25, clock=time.monotonic):
     now = int(time.time() if now is None else now)
     manifest, channels = load_catalog(data_dir)
     conn = database(Path(data_dir) / 'epg')
     try:
         sync_catalog(conn, manifest, channels, now)
+        eligible = reviewed_targets(conn, channels)
         generation, ids, names = source_index(conn, now)
         started, processed, batches = clock(), 0, 0
         while clock() - started < runtime_seconds:
-            count = process_batch(conn, generation, ids, names, now)
+            count = process_batch(conn, generation, ids, names, now, reviewed_ids=eligible)
             if not count:
                 break
             processed += count
@@ -235,6 +320,7 @@ def run(data_dir=DATA, now=None, runtime_seconds=25, clock=time.monotonic):
         result = {'stage': 'identity_candidate_review', 'checkedAtUtc': now,
             'catalogVersion': manifest['version'], 'catalogChannels': len(channels),
             'processedThisRun': processed, 'batchesThisRun': batches,
+            'identityReviewedEligibleChannels': len(eligible), 'sourceFirstMatchingEnabled': False,
             'states': states, 'verifiedCatalogMatches': coverage['verifiedMappings'],
             'currentAndFutureChannels': coverage['currentAndFutureChannels'],
             'publishedCurrentAndFutureChannels': coverage['publishedCurrentAndFutureChannels'],

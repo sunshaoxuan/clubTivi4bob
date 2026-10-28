@@ -147,6 +147,13 @@ def _run(directory, now, batch_size, enable_publication, node_fetcher):
         previous = conn.execute("SELECT value FROM epg_checkpoints WHERE name='programme_ingestion'").fetchone()
         before_coverage = json.loads(previous[0]).get('coverage', {}) if previous else {}
         outcome['coverageDeclined'] = outcome['coverage']['currentAndFutureChannels'] < before_coverage.get('currentAndFutureChannels', 0)
+        from epg_coverage_gaps import run as monitor_gaps
+        try:
+            outcome['channelCoverageMonitor'] = monitor_gaps(conn, directory, now, read_payload, batch_size)
+        except (EpgError, OSError, ValueError, sqlite3.Error) as error:
+            # A diagnostic failure cannot prevent the existing ingestion,
+            # publication or durable last-good checkpoint from progressing.
+            outcome['channelCoverageMonitor'] = {'state': 'failed', 'error': safe_error(error)}
         with conn:
             conn.execute('INSERT OR REPLACE INTO epg_checkpoints VALUES(?,?)',
                 ('programme_ingestion', json.dumps(outcome)))
@@ -167,7 +174,23 @@ def run(directory, *, now=None, batch_size=5, enable_publication=False, node_fet
             fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
         except BlockingIOError:
             return {'stage': 'programme_ingestion', 'state': 'already_running'}
-        return _run(directory, now, batch_size, enable_publication, node_fetcher)
+        try:
+            return _run(directory, now, batch_size, enable_publication, node_fetcher)
+        except sqlite3.OperationalError as error:
+            # Extended SQLite result codes preserve the primary code in the low byte.
+            # Contention can occur even on a read while another writer commits.
+            code = getattr(error, 'sqlite_errorcode', None)
+            if type(code) is not int or code & 0xff not in (sqlite3.SQLITE_BUSY, sqlite3.SQLITE_LOCKED):
+                raise
+            # _run closes its connection before this point. Keep the last durable
+            # checkpoint and any committed batch; never replace unknown coverage
+            # or publication outcomes with zero/false values. The existing 60s
+            # systemd timer provides bounded retry without an in-process loop.
+            return {'schemaVersion': 1, 'stage': 'programme_ingestion',
+                'checkedAtUtc': now, 'state': 'waiting_for_database',
+                'error': 'database_busy', 'retryOnNextTimer': True,
+                'retryNotBeforeUtc': now + 60, 'lastCheckpointRetained': True,
+                'partialWorkMayHaveCommitted': True}
 
 
 def main():

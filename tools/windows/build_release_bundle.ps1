@@ -41,6 +41,9 @@ try {
  foreach($name in @('AirPlay','Tools','BobTV.ico','vc-runtime-manifest.json','VC-RUNTIME-NOTICE.txt')) {
   Copy-Item -LiteralPath (Join-Path $SupportDirectory $name) -Destination $bundle -Recurse
  }
+ # Older support bundles contain an external monitor. Always replace its entry
+ # point with the inert source shim so packaging cannot reactivate that tool.
+ Copy-Item -LiteralPath (Join-Path $StagingDirectory 'tools/windows/hoteltv_crash_monitor.ps1') -Destination (Join-Path $bundle 'Tools/hoteltv_crash_monitor.ps1') -Force
  Get-ChildItem -LiteralPath $SupportDirectory -File|Where-Object {$_.Name -match '^(concrt|msvcp|vccorlib|vcruntime)140.*\.dll$'}|ForEach-Object {
   if((Get-AuthenticodeSignature $_.FullName).Status -ne 'Valid'){throw 'Runtime signature invalid'}
   Copy-Item -LiteralPath $_.FullName -Destination $bundle

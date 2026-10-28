@@ -56,7 +56,7 @@ def enqueue(kind, payload):
         ttl = 300 if row and row['state'] == 'failed' else (3600 if kind == 'discover' else 7 * 86400)
         if row and (row['state'] in ('queued', 'running') or now - row['updated'] < ttl):
             return dict(row)
-        if conn.execute("SELECT count(*) FROM jobs WHERE state IN ('queued','running')").fetchone()[0] >= 500:
+        if conn.execute("SELECT count(*) FROM jobs WHERE kind!='recover' AND state IN ('queued','running')").fetchone()[0] >= 500:
             raise HTTPException(503, 'Task queue is full', headers={'Retry-After': '60'})
         conn.execute("INSERT INTO jobs (id,kind,payload,state,created,updated) VALUES (?,?,?,'queued',?,?) ON CONFLICT(id) DO UPDATE SET state='queued',result=NULL,created=excluded.created,updated=excluded.updated,attempts=0,next_attempt=0,error_code=NULL", (identity, kind, encoded, now, now))
         conn.execute("DELETE FROM jobs WHERE updated<? AND state IN ('done','failed')", (now - 30 * 86400,))

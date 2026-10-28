@@ -221,6 +221,33 @@ def test_interrupted_lease_and_hourly_admission_are_bounded(tmp_path, target):
     assert recovery.claim(tmp_path, 1501) is None
 
 
+def test_full_inbox_keeps_consuming_and_backoff_cannot_starve_new_targets(tmp_path, target, monkeypatch):
+    ingest([{'name': 'Other Malaysia channel', 'url': NEW, 'group': '国际 / 马来西亚 / 电视 / 综合',
+             'source': 'reviewed', 'blocked': False, 'playableAt': None}], 'b' * 64, tmp_path)
+    process(tmp_path, verifier=lambda _: True)
+    with database(tmp_path) as conn:
+        conn.execute('UPDATE routes SET failures=1,checked_at=1000')
+    old = recovery.enqueue(target['id'], OLD, tmp_path, 1000)
+    monkeypatch.setattr(recovery, 'MAX_QUEUE', 1)
+    path = profile_path(tmp_path, profile_for(tmp_path, target))
+    result = recovery.run(tmp_path, now=1000, profile_path=path, search=lambda *_: {'candidates': []})
+    assert result['processed'] == 1 and result['jobs'][0]['id'] == old['id']
+    # The waiting retry no longer occupies a ready-inbox slot.
+    assert len(recovery.seed(tmp_path, now=1001)) == 1
+    # Even after the retry is due, an untouched target is admitted first.
+    next_job = recovery.claim(tmp_path, 5000)
+    assert next_job['id'] != old['id'] and next_job['attempts'] == 1
+
+
+def test_legacy_queue_budget_is_separate_from_route_recovery(tmp_path, target, monkeypatch):
+    monkeypatch.setattr(server_jobs, 'DATA', tmp_path)
+    monkeypatch.setattr(recovery, 'MAX_QUEUE', 1)
+    legacy = server_jobs.enqueue('category', [{'name': 'Existing classification'}])
+    route = recovery.enqueue(target['id'], OLD, tmp_path, 1000)
+    assert route['id'] != legacy['id']
+    assert server_jobs.enqueue('country', [{'name': 'Another classification'}])['state'] == 'queued'
+
+
 def test_api_uses_exact_catalog_identity_and_keeps_audit_private(tmp_path, target, monkeypatch):
     monkeypatch.setattr(server_jobs, 'DATA', tmp_path)
     app = FastAPI()

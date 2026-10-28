@@ -108,7 +108,7 @@ def enqueue(channel_id, failed_url=None, directory=DATA, now=None, reason='clien
         if old:
             # Repeated failures cannot reset an existing lease or retry floor.
             return dict(old)
-        if conn.execute("SELECT count(*) FROM jobs WHERE state IN ('queued','running')").fetchone()[0] >= MAX_QUEUE:
+        if conn.execute("SELECT count(*) FROM jobs WHERE kind='recover' AND (state='running' OR (state='queued' AND next_attempt<=?))", (now,)).fetchone()[0] >= MAX_QUEUE:
             raise ValueError('recovery_queue_full')
         conn.execute("INSERT INTO jobs(id,kind,payload,state,created,updated) VALUES(?,'recover',?,'queued',?,?)",
                      (key, encoded, now, now))
@@ -149,7 +149,14 @@ def seed(directory=DATA, now=None, limit=10):
                                 sort_keys=True, separators=(',', ':'))
             key = hashlib.sha256(('recover\0' + target).encode()).hexdigest()
             if key not in existing:
-                added.append(enqueue(channel['id'], failed[0], directory, now, 'no_healthy_alternative'))
+                try:
+                    added.append(enqueue(channel['id'], failed[0], directory, now, 'no_healthy_alternative'))
+                except ValueError as error:
+                    if str(error) == 'recovery_queue_full':
+                        break  # A full inbox must still consume its existing jobs.
+                    if str(error) in ('public_channel_required', 'public_channel_route_mismatch', 'retired_route_not_recoverable'):
+                        continue  # A concurrent catalog edit will be reseeded later.
+                    raise
                 existing.add(key)
         if len(added) >= max(1, min(25, limit)):
             break
@@ -307,7 +314,7 @@ def claim(directory, now):
                      (now + 300, now - 180))
         if conn.execute("SELECT count(*) FROM starts WHERE kind='recover' AND started>?", (now - 3600,)).fetchone()[0] >= MAX_HOURLY:
             return None
-        row = conn.execute("SELECT * FROM jobs WHERE kind='recover' AND state='queued' AND next_attempt<=? ORDER BY created,id LIMIT 1", (now,)).fetchone()
+        row = conn.execute("SELECT * FROM jobs WHERE kind='recover' AND state='queued' AND next_attempt<=? ORDER BY next_attempt,created,id LIMIT 1", (now,)).fetchone()
         if row is None:
             return None
         conn.execute("UPDATE jobs SET state='running',attempts=attempts+1,updated=? WHERE id=?", (now, row['id']))

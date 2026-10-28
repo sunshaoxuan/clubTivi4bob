@@ -45,7 +45,7 @@ def smoke_ts(executable):
     with tempfile.TemporaryDirectory(prefix='decoder-smoke-') as temporary:
         sample = Path(temporary) / 'sample.ts'
         subprocess.run([str(executable), '-nostdin', '-v', 'error', '-f', 'lavfi', '-i',
-            'testsrc=size=160x90:rate=25', '-t', '.4', '-threads', '1', '-c:v', 'mpeg2video',
+            'testsrc=size=160x90:rate=25', '-t', '0.4', '-threads', '1', '-c:v', 'mpeg2video',
             '-f', 'mpegts', str(sample)], capture_output=True, check=True, timeout=8)
         result = subprocess.run([str(executable), '-nostdin', '-v', 'error', '-threads', '1',
             '-filter_threads', '1', '-max_alloc', '33554432', '-protocol_whitelist', 'file,pipe',
@@ -66,7 +66,10 @@ def prepare_linux(directory, executable):
     expected_url = 'https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/' + LINUX_ASSET
     if asset['browser_download_url'] != expected_url:
         raise ValueError('Unexpected Linux decoder URL')
-    body = download(expected_url, 192 * 1024 * 1024)
+    cached = directory / LINUX_ASSET
+    body = cached.read_bytes() if cached.is_file() and cached.stat().st_size <= 192 * 1024 * 1024 else b''
+    if hashlib.sha256(body).hexdigest() != asset['digest'].split(':')[1]:
+        body = download(expected_url, 192 * 1024 * 1024)
     if hashlib.sha256(body).hexdigest() != asset['digest'].split(':')[1]:
         raise ValueError('Linux decoder checksum mismatch')
     with tarfile.open(fileobj=io.BytesIO(body), mode='r:xz') as archive:

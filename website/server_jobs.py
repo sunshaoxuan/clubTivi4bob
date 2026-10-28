@@ -15,9 +15,10 @@ router = APIRouter(prefix='/api/v1/server-tasks')
 
 
 @contextmanager
-def database():
-    DATA.mkdir(parents=True, exist_ok=True)
-    conn = sqlite3.connect(DATA / 'server_tasks.sqlite3', timeout=5)
+def database(data_dir=None):
+    directory = Path(data_dir or DATA)
+    directory.mkdir(parents=True, exist_ok=True)
+    conn = sqlite3.connect(directory / 'server_tasks.sqlite3', timeout=5)
     conn.row_factory = sqlite3.Row
     conn.execute('PRAGMA journal_mode=WAL')
     conn.execute('BEGIN IMMEDIATE')
@@ -63,7 +64,10 @@ def enqueue(kind, payload):
 
 
 def public_result(row):
-    items = json.loads(row['result'] or '[]') if row['state'] == 'done' else []
+    items = json.loads(row['result'] or '[]') if row['state'] == 'done' or row['kind'] == 'recover' else []
+    if row['kind'] == 'recover':
+        items = [{k: item[k] for k in ('state', 'added', 'catalogVersion', 'nextRetryAt', 'errorCode') if k in item}
+                 for item in items if isinstance(item, dict)]
     if row['kind'] in ('category','country'):
         threshold = .95 if row['kind'] == 'country' else .9
         items = [item for item in items if isinstance(item,dict) and type(item.get('confidence')) in (int,float) and threshold <= item['confidence'] <= 1]
@@ -90,6 +94,8 @@ def status():
     legacy = read_state(DATA / 'server-worker-status.json')
     fresh = any(lanes.values()) or (type(legacy.get('time')) is int and 0 <= now - legacy['time'] < 300)
     health = read_state(DATA / 'server-ai-health.json')
+    recovery = read_state(DATA / 'route-recovery-status.json')
+    recovery_fresh = type(recovery.get('time')) is int and 0 <= now - recovery['time'] < 300
     last_failure = health.get('lastFailure', 0)
     ai_available = fresh and type(health.get('lastSuccess')) is int and type(last_failure) is int and 0 <= now - health['lastSuccess'] < 6 * 3600 and last_failure < health['lastSuccess']
     with database() as conn:
@@ -98,6 +104,7 @@ def status():
     return {'execution': 'server', 'workerAvailable': fresh, 'aiAvailable': ai_available,
             'classificationAvailable': ai_available and (lanes['classification'] or not any(lanes.values())),
             'discoveryAvailable': ai_available and (lanes['discovery'] or not any(lanes.values())),
+            'routeRecoveryAvailable': recovery_fresh,
             'queue': {state: counts.get(state, 0) for state in ('queued','running','done','failed')},
             'oldestQueuedSeconds': max(0, now - oldest) if oldest else 0,
             'catalogPath': '/api/v1/channel-catalog/manifest'}
@@ -124,9 +131,16 @@ async def submit(request: Request):
         value = json.loads(body)
         if not isinstance(value, dict) or set(value) != {'kind', 'inputs'}: raise ValueError()
         kind, inputs = value['kind'], value['inputs']
-        if kind not in ('category', 'country', 'discover') or not isinstance(inputs, list) or not 1 <= len(inputs) <= 20: raise ValueError()
+        if kind not in ('category', 'country', 'discover', 'recover') or not isinstance(inputs, list) or not 1 <= len(inputs) <= 20: raise ValueError()
         cleaned = []
         for item in inputs:
+            if kind == 'recover':
+                if (len(inputs) != 1 or not isinstance(item, dict) or set(item) != {'channelId', 'failedUrl'}
+                        or not isinstance(item['channelId'], str) or not 1 <= len(item['channelId']) <= 128
+                        or not isinstance(item['failedUrl'], str) or len(item['failedUrl']) > 2048):
+                    raise ValueError()
+                cleaned.append(item)
+                continue
             if not isinstance(item, dict) or set(item) - {'name', 'group', 'tvgId'} or 'name' not in item: raise ValueError()
             if any(not isinstance(v, str) or len(v) > 192 or any(ord(c) < 32 for c in v) for v in item.values()): raise ValueError()
             if not item['name'].strip(): raise ValueError()
@@ -142,5 +156,16 @@ async def submit(request: Request):
         conn.execute('INSERT INTO limits VALUES (?,?,1) ON CONFLICT(origin) DO UPDATE SET count=CASE WHEN window=excluded.window THEN count+1 ELSE 1 END,window=excluded.window', (origin, window))
         if conn.execute('SELECT count FROM limits WHERE origin=?', (origin,)).fetchone()[0] > 180:
             raise HTTPException(429, headers={'Retry-After': '3600'})
-    row = enqueue(kind, cleaned)
+    try:
+        if kind == 'recover':
+            from channel_route_recovery import enqueue as recover
+            row = recover(cleaned[0]['channelId'], cleaned[0]['failedUrl'], DATA)
+        else:
+            row = enqueue(kind, cleaned)
+    except ValueError as error:
+        if str(error) == 'recovery_queue_full':
+            raise HTTPException(503, 'Task queue is full', headers={'Retry-After': '60'}) from None
+        raise HTTPException(422, 'Public channel recovery identity unavailable') from None
+    except (OSError, KeyError):
+        raise HTTPException(422, 'Public channel recovery identity unavailable') from None
     return JSONResponse(public_result(row), status_code=200 if row['state'] == 'done' else 202, headers={'Cache-Control': 'no-store'})

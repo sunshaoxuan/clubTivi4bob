@@ -9,6 +9,13 @@ class ServerTaskClient {
 
   Future<Map<String, dynamic>> status() => _request('GET', '/status');
 
+  Future<Map<String, dynamic>> result(String id) {
+    if (!RegExp(r'^[a-f0-9]{64}$').hasMatch(id)) {
+      throw const FormatException('Invalid server task ID');
+    }
+    return _request('GET', '/$id');
+  }
+
   Future<Map<String, dynamic>> submit(
     String kind,
     List<Map<String, String>> inputs,

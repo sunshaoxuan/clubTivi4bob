@@ -35,6 +35,7 @@ import '../../data/services/channel_merge.dart';
 import 'channel_catalog_status.dart';
 import 'manual_category_move.dart';
 import '../../data/services/server_task_client.dart';
+import '../../data/services/channel_route_recovery_service.dart';
 import '../../data/services/bobtv_community_service.dart';
 import '../../data/services/epg_refresh_service.dart';
 import '../../data/services/epg_ui_refresh.dart';
@@ -106,8 +107,9 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
   int _availabilityRevision = 0;
   final Map<String, String> _cardRouteSelection = {};
   final ManualRouteCycle _manualRouteCycle = ManualRouteCycle();
-  bool _serverRecoveryRunning = false;
-  final Map<String, DateTime> _serverRecoveryTimes = {};
+  late final ChannelRouteRecoveryService _routeRecovery;
+  int? _recoverySelectionGeneration;
+  String? _recoveryLocalChannelId;
   List<String> _groups = List.of(ChannelCategoryClassifier.categories);
   List<String> _structuredCategoryGroups = [];
   String _selectedGroup = '央视';
@@ -279,8 +281,37 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
         );
       }
     };
-    ps.onSourcesExhausted = (channelName) {
-      unawaited(_recoverChannelSources(channelName));
+    _routeRecovery = ChannelRouteRecoveryService(
+      submit: (id, url) => ServerTaskClient().submit('recover', [
+        {'channelId': id, 'failedUrl': url},
+      ]),
+      result: (id) => ServerTaskClient().result(id),
+      syncCatalog: () async {
+        await ref.read(sourceMaintenanceCoordinatorProvider).websiteCatalog.sync();
+      },
+      readRoutes: (id) async => [
+        for (final route in await ref.read(databaseProvider).publicRoutesForCatalogChannel(id))
+          RecoveryRoute(route.id, route.streamUrl),
+      ],
+      onAvailable: _retryRecoveredChannel,
+      onStatus: (state, retry) {
+        if (!mounted) return;
+        final stage = switch (state) {
+          'no_candidates' => '服务器暂未找到替补线路，将继续重查',
+          'needs_review' => '候选线路正在核实频道身份和使用许可',
+          'unavailable' => '补源服务暂不可达，将保留缓存并重试',
+          'deferred' => '服务器补源已退避，稍后重查',
+          _ => '服务器正在查找替补线路，找到后自动同步',
+        };
+        ps.routeSearchProgress.value = RouteSearchProgress(
+          stage: stage, index: 0, total: 0, active: false, background: true,
+        );
+      },
+    );
+    ps.onSourcesExhausted = (_) {
+      if (!mounted) return;
+      final channel = _allChannels.where((c) => c.id == ps.currentChannelId).firstOrNull;
+      if (channel != null) unawaited(_recoverChannelSources(channel, failedUrl: ps.currentUrl));
     };
     // Watch providers table — reload when providers or channels change
     final database = ref.read(databaseProvider);
@@ -494,6 +525,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
 
   @override
   void dispose() {
+    _routeRecovery.dispose();
     _epgUiRefresh?.dispose();
     _inlineProgrammePreview.removeListener(_onInlineProgrammeChanged);
     _inlineProgrammePreview.dispose();
@@ -1683,6 +1715,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
     bool onlyRequestedRoute = false,
   }) async {
     if (index < 0 || index >= _filteredChannels.length) return;
+    _routeRecovery.cancel();
     final channel = _filteredChannels[index];
     unawaited(_inlineProgrammePreview.select(
       channelId: channel.id, epgChannelId: _getEpgId(channel),
@@ -1897,7 +1930,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
         content: Text('新频道暂时无法播放，已保留原频道'),
         duration: Duration(seconds: 3),
       ));
-      unawaited(_recoverChannelSources(channel.name));
+      unawaited(_recoverChannelSources(channel, failedUrl: requestedUrl));
       return;
     }
     if (prepareOnly) {
@@ -1931,29 +1964,42 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
     _saveSession();
   }
 
-  Future<void> _recoverChannelSources(String channelName) async {
-    if (_serverRecoveryRunning) return;
-    final now = DateTime.now();
-    final previous = _serverRecoveryTimes[channelName];
-    if (previous != null && now.difference(previous) < const Duration(minutes: 5)) return;
-    _serverRecoveryRunning = true;
-    _serverRecoveryTimes[channelName] = now;
-    try {
-      await ServerTaskClient().submit('discover', [{'name': channelName}]);
-      if (mounted) {
-        final service = ref.read(playerServiceProvider);
-        service.routeSearchProgress.value = RouteSearchProgress(
-          stage: '已请求服务器查找新线路，结果将自动同步',
-          index: 0, total: 0, active: false, background: true,
-        );
-        await ref.read(sourceMaintenanceCoordinatorProvider).websiteCatalog.sync();
-      }
-    } catch (_, stack) {
-      AppDiagnostics.instance.recordError('server_route_discovery',
-        StateError('Server discovery unavailable'), stack);
-    } finally {
-      _serverRecoveryRunning = false;
+  Future<void> _recoverChannelSources(db.Channel channel, {String? failedUrl}) async {
+    if (!mounted || channel.providerId != WebsiteChannelCatalogService.providerId) return;
+    final generation = _channelSelectionGeneration;
+    final identities = await ref.read(databaseProvider).publicCatalogChannelIds([channel.id]);
+    if (!mounted || generation != _channelSelectionGeneration) return;
+    final catalogId = identities[channel.id];
+    if (catalogId == null || catalogId.startsWith('manual-transfer:')) return;
+    _recoverySelectionGeneration = generation;
+    _recoveryLocalChannelId = channel.id;
+    await _routeRecovery.request(catalogId, failedUrl ?? channel.streamUrl);
+  }
+
+  Future<void> _retryRecoveredChannel(String catalogId, List<RecoveryRoute> routes) async {
+    final generation = _recoverySelectionGeneration;
+    final localId = _recoveryLocalChannelId;
+    if (!mounted || generation != _channelSelectionGeneration || localId == null || routes.isEmpty) return;
+    final service = ref.read(playerServiceProvider);
+    final activeUrl = service.currentUrl;
+    final position = service.player.state.position;
+    // Give an already recovering decoder time to demonstrate actual progress.
+    // A healthy original/other channel must keep its video and audio ownership.
+    await Future<void>.delayed(const Duration(seconds: 2));
+    if (!mounted || generation != _channelSelectionGeneration) return;
+    if (activeUrl != service.currentUrl || (activeUrl != null &&
+        service.player.state.playing && !service.player.state.buffering &&
+        service.player.state.position > position)) {
+      return;
     }
+    final database = ref.read(databaseProvider);
+    final identities = await database.publicCatalogChannelIds([localId]);
+    if (!mounted || generation != _channelSelectionGeneration || identities[localId] != catalogId) return;
+    await _loadGroupChannels(_selectedGroup, preserveScroll: true);
+    if (!mounted || generation != _channelSelectionGeneration) return;
+    final index = _filteredChannels.indexWhere((channel) => channel.id == localId);
+    if (index < 0) return;
+    await _selectChannel(index, force: true, preferredUrl: routes.first.url, onlyRequestedRoute: true);
   }
 
   Future<void> _changeChannelCategory(db.Channel channel) async {

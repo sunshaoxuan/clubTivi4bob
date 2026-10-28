@@ -1,0 +1,12 @@
+[Unit]
+Description=Keep BobTV public route rescue independent of clients
+
+[Timer]
+OnActiveSec=90s
+OnUnitInactiveSec=60s
+AccuracySec=10s
+RandomizedDelaySec=10s
+Unit=bobtv-route-recovery.service
+
+[Install]
+WantedBy=timers.target

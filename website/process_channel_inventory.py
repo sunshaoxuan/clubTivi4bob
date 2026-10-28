@@ -237,8 +237,14 @@ def process(data_dir=DATA, limit=120, verifier=probe):
                     channels[channel["id"]] = {**channel, "routes": routes}
                     for item in current["categories"]: categories.setdefault(item["id"], item)
         if not channels and not current: return {"checked": checked, "published": False}
+        if current:
+            for item in current['categories']:
+                categories.setdefault(item['id'], item)
+        from channel_route_recovery import apply_bindings
+        with database(data_dir) as binding_conn:
+            bound_channels = apply_bindings(list(channels.values()), current, binding_conn)
         channels = {channel['id']: channel for channel in coalesce_classification_variants(
-            list(channels.values()), categories, previous=current,
+            bound_channels, categories, previous=current,
             protected_urls={row['url'] for row in rows
                             if row['manual_name'] or row['merge_id']})}
         used = {category for channel in channels.values()

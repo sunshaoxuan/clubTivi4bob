@@ -310,6 +310,8 @@ def ingest_events(events, fingerprint, data_dir=None, *, busy_timeout=30):
                     if not all(type(v) is int and 0 <= v <= 10 for v in (success,failure)) or not success+failure: raise ValueError('Invalid health observation')
                     from network_routes import record_health
                     record_health(conn, digest, reporter, event, Path(data_dir or DATA))
+                    from channel_route_recovery import record_failure_signal
+                    record_failure_signal(conn, row, event, int(time.time()))
                     if not event.get('networkToken'):
                         # Preserve legacy accounting without exporting newly
                         # attributed regional failures into the global score.

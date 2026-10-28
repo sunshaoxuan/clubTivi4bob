@@ -1,0 +1,39 @@
+{
+  "schemaVersion": 1,
+  "scope": "Exact channel identity and media-use approval only. GitHub code licences do not authorize media distribution. Empty publication grants keep candidates in review.",
+  "channels": [
+    {
+      "channelId": "channel-3a0709a7a9693981364a5a95",
+      "metadataHash": "c2187bb93442fa62c541606935302ad6e3f6d9d32520778630d2dfa6db1b1da4",
+      "name": "Astro AEC",
+      "operator": "Astro",
+      "countryCode": "MY",
+      "channelNumber": "306",
+      "language": "Mandarin",
+      "feedVariant": "Malaysia, original catalog CDN feed not independently verified",
+      "broadcastType": "television",
+      "aliases": ["Astro AEC"],
+      "identityVerified": false,
+      "publicationAllowed": false,
+      "identityEvidenceUrls": [
+        "https://www.astro.com.my/content/channels/Astro-AEC-182",
+        "https://astromedia.com.my/our_brands/video-advertising/astro-aec/"
+      ],
+      "authorizationEvidenceUrls": [],
+      "approvedDocuments": [],
+      "mediaHosts": [],
+      "checkedAt": "2026-10-28T16:55:16Z",
+      "research": {
+        "queries": ["\"Astro AEC\" \"m3u8\" github", "\"Astro AEC\" official live streaming Astro GO"],
+        "sources": [
+          {"url": "https://raw.githubusercontent.com/iptv-org/iptv/master/streams/my.m3u", "decision": "no Astro AEC entry"},
+          {"url": "https://www.astro.com.my/content/channels/Astro-AEC-182", "decision": "official identity CH306 confirmed; Watch now leads to Astro GO, no public media route verified"},
+          {"url": "https://github.com/PuteraPerlis74/Tv/blob/main/MY%20TEST", "decision": "search lead only; channel/feed identity and media-use permission unverified"},
+          {"url": "https://github.com/1996TV/iptv/blob/main/gdyd.m3u", "decision": "search lead only; excerpt has conflicting Hong Kong group, no identity inference or admission"}
+        ],
+        "blocker": "No replacement has passed original-feed identity, media permission and actual decode checks",
+        "nextReviewAt": "2026-10-29T16:55:16Z"
+      }
+    }
+  ]
+}

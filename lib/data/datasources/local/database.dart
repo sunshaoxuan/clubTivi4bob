@@ -270,6 +270,23 @@ class AppDatabase extends _$AppDatabase {
     return rows.firstOrNull?.read<String>('version');
   }
 
+  /// Server-owned identity only. Excludes retired and manually blocked routes.
+  Future<List<Channel>> publicRoutesForCatalogChannel(String catalogId) async {
+    final rows = await customSelect(
+      'SELECT c.* FROM channels c JOIN catalog_epg_routes r '
+      'ON r.local_channel_id=c.id WHERE r.catalog_channel_id=? '
+      'AND c.provider_id=?',
+      variables: [Variable.withString(catalogId),
+        Variable.withString('bobtv-channel-catalog')],
+      readsFrom: {channels},
+    ).get();
+    final blocked = await getBlockedStreamUrls();
+    final retired = await getRetiredChannelIds();
+    return rows.map((row) => channels.map(row.data)).where((channel) =>
+      !retired.contains(channel.id) &&
+      !blocked.contains(canonicalRouteUrl(channel.streamUrl))).toList();
+  }
+
   /// Exact server-owned channel identity for the selected local route rows.
   /// No name matching, classification or new persistent cache is involved.
   Future<Map<String, String>> publicCatalogChannelIds(Iterable<String> localIds) async {

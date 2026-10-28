@@ -144,7 +144,7 @@ def parse_candidates(text, source, channel, profile=None, *, country_context=Non
 
 
 def search_channel(channel, profile, directory, *, reader=read_public):
-    deadline = time.monotonic() + 65
+    deadline = time.monotonic() + 45
     cache = Path(directory) / 'route-recovery-cache'
     cache.mkdir(parents=True, exist_ok=True)
     # Only generated hash-named cache files are pruned, never catalog/history.
@@ -263,7 +263,7 @@ def decode_candidate(url, profile, *, reader=read_public, execute=subprocess.run
     if not decoder:
         raise SearchDeferred('media_decoder_unavailable', time.time() + 21600)
     hosts = set(profile.get('mediaHosts', []))
-    deadline = time.monotonic() + 18
+    deadline = time.monotonic() + 12
     prefix = b''
     for _ in range(4):
         body = reader(url, limit=2 * 1024 * 1024, deadline=deadline, allowed_hosts=hosts)

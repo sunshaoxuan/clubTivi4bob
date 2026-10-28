@@ -8,6 +8,25 @@ class RecoveryRoute {
   final String url;
 }
 
+enum RecoveryRetryMode { none, preserveActive, restart }
+
+RecoveryRetryMode recoveryRetryMode({
+  required String intendedChannelId,
+  required String? activeChannelId,
+  required bool activeChanged,
+  required bool hasActiveUrl,
+  required bool playbackAdvancing,
+}) {
+  if (activeChanged) return RecoveryRetryMode.none;
+  if (!hasActiveUrl) return RecoveryRetryMode.restart;
+  if (activeChannelId == intendedChannelId) {
+    return playbackAdvancing
+        ? RecoveryRetryMode.none
+        : RecoveryRetryMode.restart;
+  }
+  return RecoveryRetryMode.preserveActive;
+}
+
 /// Clients request one public identity, then consume BobTV's catalog only.
 /// Server backoff survives app exits; changing playback intent cancels local
 /// retries without cancelling the independent server research job.

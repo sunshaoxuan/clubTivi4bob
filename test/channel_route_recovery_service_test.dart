@@ -11,6 +11,51 @@ final job = 'a' * 64;
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   test(
+    'retry preserves a healthy other channel and leaves an already recovered target alone',
+    () {
+      expect(
+        recoveryRetryMode(
+          intendedChannelId: 'AEC',
+          activeChannelId: 'AEC',
+          activeChanged: false,
+          hasActiveUrl: true,
+          playbackAdvancing: true,
+        ),
+        RecoveryRetryMode.none,
+      );
+      expect(
+        recoveryRetryMode(
+          intendedChannelId: 'AEC',
+          activeChannelId: 'other',
+          activeChanged: false,
+          hasActiveUrl: true,
+          playbackAdvancing: true,
+        ),
+        RecoveryRetryMode.preserveActive,
+      );
+      expect(
+        recoveryRetryMode(
+          intendedChannelId: 'AEC',
+          activeChannelId: 'AEC',
+          activeChanged: false,
+          hasActiveUrl: true,
+          playbackAdvancing: false,
+        ),
+        RecoveryRetryMode.restart,
+      );
+      expect(
+        recoveryRetryMode(
+          intendedChannelId: 'AEC',
+          activeChannelId: 'other',
+          activeChanged: true,
+          hasActiveUrl: true,
+          playbackAdvancing: false,
+        ),
+        RecoveryRetryMode.none,
+      );
+    },
+  );
+  test(
     'same identity request polls only BobTV then retries an unseen route once',
     () async {
       var submitted = 0, synced = 0, delivered = 0;

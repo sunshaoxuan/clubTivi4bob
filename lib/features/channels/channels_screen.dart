@@ -1982,16 +1982,21 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
     if (!mounted || generation != _channelSelectionGeneration || localId == null || routes.isEmpty) return;
     final service = ref.read(playerServiceProvider);
     final activeUrl = service.currentUrl;
+    final activeChannelId = service.currentChannelId;
     final position = service.player.state.position;
     // Give an already recovering decoder time to demonstrate actual progress.
     // A healthy original/other channel must keep its video and audio ownership.
     await Future<void>.delayed(const Duration(seconds: 2));
     if (!mounted || generation != _channelSelectionGeneration) return;
-    if (activeUrl != service.currentUrl || (activeUrl != null &&
-        service.player.state.playing && !service.player.state.buffering &&
-        service.player.state.position > position)) {
-      return;
-    }
+    final retryMode = recoveryRetryMode(
+      intendedChannelId: localId,
+      activeChannelId: activeChannelId,
+      activeChanged: activeUrl != service.currentUrl || activeChannelId != service.currentChannelId,
+      hasActiveUrl: activeUrl != null,
+      playbackAdvancing: service.player.state.playing && !service.player.state.buffering &&
+          service.player.state.position > position,
+    );
+    if (retryMode == RecoveryRetryMode.none) return;
     final database = ref.read(databaseProvider);
     final identities = await database.publicCatalogChannelIds([localId]);
     if (!mounted || generation != _channelSelectionGeneration || identities[localId] != catalogId) return;
@@ -1999,7 +2004,8 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
     if (!mounted || generation != _channelSelectionGeneration) return;
     final index = _filteredChannels.indexWhere((channel) => channel.id == localId);
     if (index < 0) return;
-    await _selectChannel(index, force: true, preferredUrl: routes.first.url, onlyRequestedRoute: true);
+    await _selectChannel(index, force: retryMode == RecoveryRetryMode.restart,
+        preferredUrl: routes.first.url, onlyRequestedRoute: true);
   }
 
   Future<void> _changeChannelCategory(db.Channel channel) async {

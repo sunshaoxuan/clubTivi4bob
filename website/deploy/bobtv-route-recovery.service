@@ -11,7 +11,7 @@ WorkingDirectory=/opt/bobtv/site
 Environment=BOBTV_DATA_DIR=/var/lib/bobtv
 Environment=BOBTV_ROUTE_DECODER=/opt/bobtv/tools/route-recovery/ffmpeg
 ExecStart=/opt/bobtv/venv/bin/python /opt/bobtv/site/channel_route_recovery.py --limit 1
-TimeoutStartSec=150
+TimeoutStartSec=180
 MemoryMax=256M
 CPUQuota=15%
 TasksMax=24

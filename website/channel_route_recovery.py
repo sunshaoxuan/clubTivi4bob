@@ -314,7 +314,12 @@ def claim(directory, now):
                      (now + 300, now - 180))
         if conn.execute("SELECT count(*) FROM starts WHERE kind='recover' AND started>?", (now - 3600,)).fetchone()[0] >= MAX_HOURLY:
             return None
-        row = conn.execute("SELECT * FROM jobs WHERE kind='recover' AND state='queued' AND next_attempt<=? ORDER BY next_attempt,created,id LIMIT 1", (now,)).fetchone()
+        last = conn.execute("SELECT j.attempts FROM starts s JOIN jobs j ON j.id=s.job_id WHERE s.kind='recover' ORDER BY s.started DESC,s.rowid DESC LIMIT 1").fetchone()
+        # Alternate first research and due retries when both lanes have work.
+        # Neither an endless fresh-failure stream nor old retries owns the head.
+        fresh_first = last is None or last[0] > 1
+        row = conn.execute("SELECT * FROM jobs WHERE kind='recover' AND state='queued' AND next_attempt<=? ORDER BY CASE WHEN attempts=0 THEN ? ELSE ? END,next_attempt,created,id LIMIT 1",
+                           (now, 0 if fresh_first else 1, 1 if fresh_first else 0)).fetchone()
         if row is None:
             return None
         conn.execute("UPDATE jobs SET state='running',attempts=attempts+1,updated=? WHERE id=?", (now, row['id']))

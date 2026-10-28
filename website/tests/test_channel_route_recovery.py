@@ -234,8 +234,11 @@ def test_full_inbox_keeps_consuming_and_backoff_cannot_starve_new_targets(tmp_pa
     assert result['processed'] == 1 and result['jobs'][0]['id'] == old['id']
     # The waiting retry no longer occupies a ready-inbox slot.
     assert len(recovery.seed(tmp_path, now=1001)) == 1
-    # Even after the retry is due, an untouched target is admitted first.
-    next_job = recovery.claim(tmp_path, 5000)
+    # Both lanes get a turn: due retry, then the untouched target. Fresh-failure
+    # floods and repeatedly failing old targets cannot starve each other.
+    retry = recovery.claim(tmp_path, 5000)
+    assert retry['id'] == old['id'] and retry['attempts'] == 2
+    next_job = recovery.claim(tmp_path, 5001)
     assert next_job['id'] != old['id'] and next_job['attempts'] == 1
 
 

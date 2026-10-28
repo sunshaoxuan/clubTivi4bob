@@ -15,6 +15,7 @@ TimeoutStartSec=180
 MemoryMax=256M
 CPUQuota=15%
 TasksMax=24
+LimitCORE=0
 Nice=15
 UMask=0077
 NoNewPrivileges=true

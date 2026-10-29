@@ -1,6 +1,6 @@
 # BobTV
 
-Current release: **1.1.16+111**. Favorites and category views use consistent public channel identities; see [release notes](docs/releases/1.1.16.md).
+Current release: **1.1.17+112**. Server-side route recovery, catalog synchronization and automatic playback retry; see [release notes](docs/releases/1.1.17.md).
 
 ## BobTV website and API
 

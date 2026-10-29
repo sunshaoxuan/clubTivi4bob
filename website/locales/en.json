@@ -26,7 +26,7 @@
   "features": "Features",
   "home": {
     "headline": "Watch TV on desktop and Android.",
-    "intro": "Windows, macOS and Android are aligned at 1.1.16+111. Favorites and category views use consistent channel identities. Overview and genre memberships share one favorite card, with duplicate route addresses removed. Category loading and restored favorites retain authoritative identities while preserving region, quality and manual merge distinctions.",
+    "intro": "Windows, macOS and Android are aligned at 1.1.17+112. Failed routes are down-ranked and replacement research runs on the server. Verified channel identity, media permission and successful decoding gate public catalog admission. Running clients synchronize replacements and retry automatically; changing channel cancels the previous playback intent. Android physical-device testing was not performed for this release.",
     "image_alt": "BobTV running in simplified mode, with sports playback and a channel list.",
     "mode": "BOBTV / Simplified mode",
     "screenshot": "Actual app screenshot",
@@ -198,6 +198,11 @@
     "history_title": "Recent changes",
     "history": [
       [
+        "2026-10-29",
+        "v1.1.17 · Server-side route recovery and automatic retry",
+        "Windows, macOS and Android are aligned at 1.1.17+112. Failed routes are down-ranked and replacement research runs on the server. Verified channel identity, media permission and successful decoding gate public catalog admission. Running clients synchronize replacements and retry automatically; changing channel cancels the previous playback intent. Android physical-device testing was not performed for this release."
+      ],
+      [
         "2026-10-28",
         "v1.1.16 · Favorite deduplication and channel identity fixes",
         "Windows, macOS and Android are aligned at 1.1.16+111. Favorites and category views use consistent channel identities. Overview and genre memberships share one favorite card, with duplicate route addresses removed. Category loading and restored favorites retain authoritative identities while preserving region, quality and manual merge distinctions."
@@ -328,7 +333,7 @@
   },
   "downloads": {
     "signing_notice": "The free SignPath Foundation application was not approved. No trusted Windows certificate was issued and SignPath.io production signing is not in use. Edge may still require a security confirmation on the first browser download.",
-    "intro": "Windows, macOS and Android are aligned at 1.1.16+111. Favorites and category views use consistent channel identities. Overview and genre memberships share one favorite card, with duplicate route addresses removed. Category loading and restored favorites retain authoritative identities while preserving region, quality and manual merge distinctions. Diagnostic sync is off by default; explicit consent permits up to 30 days of redacted records and can be disabled at any time.",
+    "intro": "Windows, macOS and Android are aligned at 1.1.17+112. Failed routes are down-ranked and replacement research runs on the server. Verified channel identity, media permission and successful decoding gate public catalog admission. Running clients synchronize replacements and retry automatically; changing channel cancels the previous playback intent. Android physical-device testing was not performed for this release. Diagnostic sync is off by default; explicit consent permits up to 30 days of redacted records and can be disabled at any time.",
     "latest": "Latest installers",
     "local": "Downloads hosted on this site",
     "sections": [

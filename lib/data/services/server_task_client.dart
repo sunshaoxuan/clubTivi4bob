@@ -1,11 +1,19 @@
 import '../../core/server_egress.dart';
 import 'dart:async';
 import 'package:dio/dio.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+final serverTaskClientProvider = Provider<ServerTaskClient>(
+  (ref) => ServerTaskClient(),
+);
 
 /// No provider credentials or arbitrary prompts ever leave the client.
 class ServerTaskClient {
-  ServerTaskClient({Dio? dio}) : _provided = dio;
+  ServerTaskClient({Dio? dio, Uri? baseUri})
+    : _provided = dio,
+      _baseUri = baseUri ?? Uri.parse('https://bobtv.briconbric.com');
   final Dio? _provided;
+  final Uri _baseUri;
 
   Future<Map<String, dynamic>> status() => _request('GET', '/status');
 
@@ -56,7 +64,7 @@ class ServerTaskClient {
         );
     try {
       final response = await client.request<Map<String, dynamic>>(
-        'https://bobtv.briconbric.com/api/v1/server-tasks$path',
+        _baseUri.resolve('/api/v1/server-tasks$path').toString(),
         data: data,
         options: Options(
           method: method,

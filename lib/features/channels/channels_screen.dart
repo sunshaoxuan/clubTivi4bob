@@ -282,10 +282,10 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
       }
     };
     _routeRecovery = ChannelRouteRecoveryService(
-      submit: (id, url) => ServerTaskClient().submit('recover', [
+      submit: (id, url) => ref.read(serverTaskClientProvider).submit('recover', [
         {'channelId': id, 'failedUrl': url},
       ]),
-      result: (id) => ServerTaskClient().result(id),
+      result: (id) => ref.read(serverTaskClientProvider).result(id),
       syncCatalog: () async {
         await ref.read(sourceMaintenanceCoordinatorProvider).websiteCatalog.sync();
       },

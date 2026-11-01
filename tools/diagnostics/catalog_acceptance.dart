@@ -275,6 +275,8 @@ Future<void> main() async {
       ),
     ),
   );
+  await binding.endOfFrame;
+  await windowManager.show();
   final controls = LiveWidgetController(binding);
   Future<void> chooseCountry(String country) async {
     final row = controls.widget<CompactCategoryRow>(

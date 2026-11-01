@@ -3,46 +3,24 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="Windows、macOS、Android 各自一栏，再按 CPU 选择安装包。提供 Windows ARM64 原生安装包，Surface 实机仍待验证。">
+  <meta name="description" content="从 BobTV 本站下载 Windows 与 macOS 安装包，查看版本与 SHA-256 校验值。">
   <title>下载 | BobTV</title>
   <link rel="icon" type="image/png" href="/assets/favicon.png?v=2">
-  <link rel="stylesheet" href="/assets/site.css?v=13">
-  <link rel="alternate" hreflang="zh-CN" href="/downloads?lang=zh-CN"><link rel="alternate" hreflang="zh-TW" href="/downloads?lang=zh-TW"><link rel="alternate" hreflang="en" href="/downloads?lang=en"><link rel="alternate" hreflang="ja" href="/downloads?lang=ja">
-  <link rel="alternate" hreflang="x-default" href="/downloads?lang=en">
+  <link rel="stylesheet" href="/assets/site.css?v=9">
 </head>
 <body class="downloads-page">
-  <header class="site-header"><div class="container header-inner">
-    <a class="brand" href="/?lang=zh-CN" aria-label="BobTV"><span class="brand-mark">▶</span>Bob<span>TV</span></a>
-    <nav aria-label="主导航">
-
-      <a href="/?lang=zh-CN">产品</a>
-
-      <a href="/downloads?lang=zh-CN" aria-current="page">下载</a>
-
-      <a href="/diagnostics?lang=zh-CN">诊断日志</a>
-
-    </nav>
-    <form class="language-form" action="/downloads" method="get">
-      <label class="visually-hidden" for="language">语言</label>
-      <select id="language" name="lang" aria-label="语言">
-        <option value="zh-CN" selected>简体中文</option><option value="zh-TW">繁體中文</option><option value="en">English</option><option value="ja">日本語</option>
-      </select>
-    </form>
-  </div></header>
-
-<main class="page">
-  <section class="download-hero" aria-labelledby="download-title"><div class="container download-hero-inner"><p class="download-kicker">BOBTV / DESKTOP</p><h1 id="download-title">下载 BobTV</h1><p>Windows、macOS 与 Android 统一更新至 1.1.18+113。按当前国家或分类加载公共频道，复用缓存；修复单击取消收藏、收藏夹勾选和节目表状态显示。Android 已安排编译与自动化验证，未进行实机测试。诊断同步默认关闭，经明确同意后最多同步 30 天脱敏记录，可随时关闭。</p></div></section>
-  <div class="container download-content">
-    <section class="download-primary" aria-labelledby="release-title"><div class="download-heading"><div><p class="section-index">BOBTV</p><h2 id="release-title">最新安装包</h2></div><span class="download-secure">安装包由本站提供</span></div><div class="release-list" id="release-list" aria-live="polite">正在读取版本信息…</div></section>
-    <p class="download-signing-note"><a href="/code-signing">SignPath Foundation 免费签名申请未获批准，当前没有受信任 Windows 证书，也未使用 SignPath.io 正式签名。Edge 首次浏览器下载仍可能需要安全确认。</a></p>
-    <section class="download-help" aria-labelledby="install-title"><div class="download-help-title"><p class="section-index">01</p><h2 id="install-title">安装说明</h2><p>根据操作系统和处理器选择安装包。</p></div><div class="download-help-grid"><article><span class="help-number">01</span><h3>Windows</h3><p>运行 Setup 可选择安装位置和桌面图标。默认位置为 Program Files 下的 BoB\BoBTV，需要管理员授权。ZIP 便携包请完整解压后运行 BobTV.exe。个人频道和收藏保存在用户数据目录。</p></article><article><span class="help-number">02</span><h3>macOS</h3><p>打开本站提供的 DMG，将 BobTV.app 拖到 Applications。如需退出后自动更新，可安装到个人目录下可写的 Applications 文件夹。请勿长期从只读磁盘映像运行。本版应用采用 ad-hoc 签名，没有 Apple Developer ID 签名与公证；自动更新 ZIP 另有 BobTV 发布者签名校验。首次打开仍可能需要手动允许。关闭的功能不读取其钥匙串凭据，拒绝授权后暂停自动访问，等待主动恢复。</p></article><article><span class="help-number">03</span><h3>后续更新</h3><p>客户端在启动时、每六小时及返回前台时检查更新。Windows 安装版在应用内下载并校验 Setup，点击安装后请求管理员授权，再显示安装进度；取消授权可继续使用旧版。旧安装版需先安装一次本版 Setup。便携 Windows 与可写位置的 Mac 版退出后更新，连续三次启动失败会尝试回退。受保护位置的 Mac 版需手动替换。未有受信任代码签名，Edge 首次下载的安全提示仍可能出现。</p></article><article><span class="help-number">04</span><h3>Android</h3><p>Android 7 及以上可安装 APK。先选 ARM64；仅支持 32 位应用的旧设备选 ARM32。x64 包用于相应设备或模拟器。画面按原始比例显示，竖屏与横屏自动调整布局。首次更新可能需要允许 BobTV 安装应用，然后在系统窗口确认。</p></article></div></section><section class="download-help" aria-labelledby="first-launch-title"><div class="download-help-title"><p class="section-index">02</p><h2 id="first-launch-title">首次启动与频道同步</h2><p>BobTV 从 BobTV 网站同步频道和完整分类层级，自动比较主站与 cndrp 资源节点。来源发现与 AI 分类在服务器执行，视频直连节目源。客户端只按需检查当前频道线路。</p></div><div class="download-help-grid"><article><span class="help-number">01</span><h3>初始目录</h3><p>先显示本机或随包频道，再获取已分类和验证的公共清单。频道数量会随来源维护变化。</p></article><article><span class="help-number">02</span><h3>同步状态</h3><p>同步失败后会按间隔自动重试，避免状态快速反复切换。待重试时，本机修改仍已保存；不需要反复点击。</p></article><article><span class="help-number">03</span><h3>公共与个人</h3><p>公共分类、评分、淘汰和线路转移跨设备同步，已淘汰线路不会因其他设备播放成功恢复。收藏私有备份仅原设备可取回，历史和私人订阅保持本机独立。</p></article></div></section>
-  </div>
-</main>
-
-  <footer><div class="container footer-inner"><span>BobTV · 开源桌面播放器<span id="installed-devices"></span></span><span>使用前请确认第三方节目源的可用性及使用授权。<br><a href="/privacy">隐私政策</a> · <a href="/code-signing">代码签名政策 / Code signing policy</a></span></div></footer>
-  <script id="site-messages" type="application/json">{"android_note": "Android 7+\uff1b\u66f4\u65b0\u5b89\u88c5\u9700\u7cfb\u7edf\u786e\u8ba4\u3002\u5b9e\u673a\u4e0e\u5927\u9646\u7f51\u7edc\u5f85\u9a8c\u8bc1\u3002", "checking": "\u6b63\u5728\u68c0\u67e5\u65e5\u5fd7\u2026", "checksum": "SHA-256 \u6821\u9a8c\u503c", "cpu_note": "\u6bcf\u4e2a\u7cfb\u7edf\u4e00\u680f\uff0c\u6309 CPU \u9009\u62e9\u3002", "current": "\u6700\u65b0\u53d1\u5e03", "dmg": "DMG \u5b89\u88c5\u6620\u50cf", "download": "\u4e0b\u8f7d", "download_label": "\u4e0b\u8f7d {platform} {version}\uff0c{size}", "download_package": "\u4e0b\u8f7d\u5b89\u88c5\u5305", "empty": "\u6682\u65f6\u6ca1\u6709\u5b89\u88c5\u5305\uff0c\u8bf7\u7a0d\u540e\u67e5\u770b\u3002", "entries": "\u65e5\u5fd7\u6761\u76ee\u8fc7\u591a", "exe": "EXE \u5b89\u88c5\u7a0b\u5e8f", "failure": "\u4e0a\u4f20\u5931\u8d25\uff08{error}\uff09\u3002\u8bf7\u68c0\u67e5\u6587\u4ef6\u540e\u91cd\u8bd5\u3002", "file_limit": "\u8bf7\u9009\u62e9\u4e0d\u8d85\u8fc7 1 MiB \u7684\u65e5\u5fd7\u3002", "intel": "Intel Mac \u7248", "invalid": "JSONL \u65e5\u5fd7\u683c\u5f0f\u4e0d\u6b63\u786e", "loading": "\u6b63\u5728\u8bfb\u53d6\u7248\u672c\u4fe1\u606f\u2026", "macos_note": "\u5f53\u524d\u4f9d\u8d56\u8981\u6c42 macOS 13 \u6216\u66f4\u65b0\u7248\u672c\uff0c\u65e7\u7cfb\u7edf\u517c\u5bb9\u4ecd\u5f85\u5f00\u53d1\u3002\u9009\u5bf9\u82af\u7247\uff0c\u6253\u5f00 DMG \u540e\u62d6\u5230 Applications\u3002", "no_file": "\u672a\u9009\u62e9\u6587\u4ef6", "pending": "\u51c6\u5907\u4e2d", "platform_pending": "\u8be5\u5e73\u53f0\u5f53\u524d\u63d0\u4f9b {version}\uff0c\u73b0\u6709\u4e0b\u8f7d\u4e0e\u66f4\u65b0\u901a\u9053\u7ee7\u7eed\u53ef\u7528\u3002", "portable_download": "\u4e0b\u8f7d ZIP \u4fbf\u643a\u5305", "processed_limit": "\u8fc7\u6ee4\u540e\u65e5\u5fd7\u8d85\u8fc7 1 MiB", "published": "\u53d1\u5e03\u4e8e {date}", "release_error": "\u7248\u672c\u4fe1\u606f\u6682\u65f6\u4e0d\u53ef\u7528\uff0c\u8bf7\u7a0d\u540e\u91cd\u8bd5\u3002", "silicon": "Apple Silicon Mac \u7248", "success": "\u4e0a\u4f20\u5b8c\u6210\u3002\u8bca\u65ad\u7f16\u53f7\uff1a{id}", "surface_pending": "Surface ARM \u539f\u751f\u7248\u5f85\u7f16\u8bd1\u9a8c\u8bc1", "uploading": "\u6b63\u5728\u4e0a\u4f20\u2026", "version_note": "\u4e0b\u8f7d\u6309\u94ae\u6807\u660e\u5404\u5e73\u53f0\u7248\u672c\u3002", "windows": "Windows \u7248", "windows_arm64_note": "ARM64 \u539f\u751f\u5305\u5df2\u901a\u8fc7\u6784\u5efa\u4e0e\u67b6\u6784\u6821\u9a8c\uff1bSurface \u5b9e\u673a\u64ad\u653e\u3001AirPlay \u548c\u66f4\u65b0\u4ecd\u5f85\u9a8c\u8bc1\u3002", "windows_note": "Setup \u9700\u8981\u7ba1\u7406\u5458\u6388\u6743\uff0cZIP \u53ef\u5b8c\u6574\u89e3\u538b\u4f7f\u7528\u3002", "zip": "ZIP \u4fbf\u643a\u5305"}</script>
-  <script src="/assets/language.js?v=1" defer></script>
-  <script src="/assets/device-count.js?v=1" defer></script>
-  <script src="/assets/resources.js?v=1" defer></script><script src="/assets/downloads.js?v=11" defer></script>
+  <header class="site-header"><div class="container header-inner"><a class="brand" href="/" aria-label="BobTV 首页"><span class="brand-mark">▶</span>Bob<span>TV</span></a><nav aria-label="主导航"><a href="/">产品</a><a href="/downloads" aria-current="page">下载</a><a href="/diagnostics">诊断日志</a></nav></div></header>
+  <main class="page">
+    <section class="download-hero" aria-labelledby="download-title"><div class="container download-hero-inner"><p class="download-kicker"><span class="download-kicker-dot"></span> BOBTV / DESKTOP</p><h1 id="download-title">把喜欢的频道，<br><span>留在眼前。</span></h1><p>Windows、macOS 与 Android 统一更新至 1.1.18+113。按当前国家或分类加载公共频道，复用缓存；修复单击取消收藏、收藏夹勾选和节目表状态显示。Android 已安排编译与自动化验证，未进行实机测试。诊断同步默认关闭，经明确同意后最多同步 30 天脱敏记录，可随时关闭。</p></div></section>
+    <div class="container download-content">
+      <section class="download-primary" aria-labelledby="release-title"><div class="download-heading"><div><p class="section-index">GET BOBTV</p><h2 id="release-title">下载最新版本</h2></div><span class="download-secure"><span aria-hidden="true">●</span> 本站提供安装包</span></div><div class="release-list" id="release-list" aria-live="polite">正在读取版本信息…</div></section>
+      <p class="download-signing-note"><a href="/code-signing">SignPath Foundation 免费签名申请未获批准，当前没有受信任 Windows 证书，也未使用 SignPath.io 正式签名。Edge 首次下载仍可能需要安全确认。</a></p>
+      <section class="download-help" aria-labelledby="install-title"><div class="download-help-title"><p class="section-index">INSTALL NOTES</p><h2 id="install-title">安装很简单。</h2><p>选对设备，下载后即可开始使用。</p></div><div class="download-help-grid"><article><span class="help-number">01</span><h3>Windows</h3><p>提供 Setup 的版本可运行安装程序，选择安装位置及桌面图标；默认位置为 Program Files 下的 BoB\BoBTV。安装时需要管理员授权。ZIP 便携包仍可完整解压后运行 BobTV.exe，个人频道和收藏保存在用户数据目录。尚无受信任代码签名，Edge 首次下载仍可能提示安全确认。</p></article><article><span class="help-number">02</span><h3>macOS</h3><p>打开本站提供的 DMG，将 BobTV.app 拖到 Applications。如需退出后自动更新，可安装到个人目录下可写的 Applications 文件夹。请勿长期从只读磁盘映像运行。本版应用采用 ad-hoc 签名，没有 Apple Developer ID 签名与公证；自动更新 ZIP 另有 BobTV 发布者签名校验。首次打开仍可能需要手动允许。关闭的功能不读取其钥匙串凭据，拒绝授权后暂停自动访问，等待主动恢复。</p></article><article><span class="help-number">03</span><h3>后续更新</h3><p>客户端启动时及每六小时检查本站，检查中显示转圈。Windows 安装版在应用内下载并校验 Setup，点击安装后请求管理员权限安装，再显示安装进度；取消授权可继续使用旧版。旧安装版需先安装一次本版 Setup。便携 Windows 与可写位置的 Mac 版支持后台下载、校验及退出后安装，连续三次启动失败会尝试回退。Mac 安装在受保护位置时需手动替换。</p></article></div></section>
+      <section class="download-help" aria-labelledby="first-launch-title"><div class="download-help-title"><p class="section-index">FIRST LAUNCH</p><h2 id="first-launch-title">频道，也会一起准备好。</h2><p>BobTV 从本站同步频道和完整分类层级，来源发现与 AI 在服务器执行。客户端按需检查当前频道，资源在主站和 cndrp 节点间择优，视频直连原始源。</p></div><div class="download-help-grid"><article><span class="help-number">01</span><h3>首次打开</h3><p>先显示本机或随包频道目录，再从本站获取已经分类和验证的公共清单。频道数量随来源维护变化，无需自己逐条添加。</p></article><article><span class="help-number">02</span><h3>查看同步状态</h3><p>同步失败后会按间隔自动重试，避免状态快速反复切换。待重试时，本机修改仍已保存；不需要反复点击。</p></article><article><span class="help-number">03</span><h3>公共与个人</h3><p>公共分类、评分、淘汰及线路转移记录跨设备同步，淘汰线路不会因其他设备成功播放而恢复。收藏私有备份仅原设备可取回，历史及私人订阅留在本机。</p></article></div></section>
+    </div>
+  <section class="container download-help"><div class="download-help-title"><h2>Android 平板</h2></div><p>Android 7 及以上可安装 APK。先选 ARM64；仅支持 32 位应用的旧设备选 ARM32。x64 包用于相应设备或模拟器。画面按原始比例显示，竖屏与横屏自动调整布局。首次更新可能需要允许 BobTV 安装应用，然后在系统窗口确认。 实机播放与中国大陆网络仍需测试；Surface ARM 原生版待验证。</p></section></main>
+  <footer><div class="container footer-inner"><span>BobTV · 开源桌面播放器</span><span>第三方节目源的可用性与授权由使用者自行确认。<br><a href="/privacy">隐私政策</a> · <a href="/code-signing">代码签名政策 / Code signing policy</a></span></div></footer>
+  <script src="/assets/resources.js?v=1" defer></script>
+  <script src="/assets/downloads.js?v=11" defer></script>
 </body>
 </html>

@@ -100,6 +100,49 @@ Future<void> main() async {
   await output.create(recursive: true);
   final fixture = File(Platform.environment['BOBTV_CATALOG_QA_VIDEO']!);
   if (!fixture.existsSync()) throw StateError('Missing owned silent video');
+  final mediaServer = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+  final mediaUrl = 'http://127.0.0.1:${mediaServer.port}/owned-silent.avi';
+  mediaServer.listen((request) async {
+    if (request.uri.path != '/owned-silent.avi') {
+      request.response.statusCode = HttpStatus.notFound;
+      await request.response.close();
+      return;
+    }
+    final length = await fixture.length();
+    final match = RegExp(
+      r'^bytes=(\d+)-(\d*)$',
+    ).firstMatch(request.headers.value(HttpHeaders.rangeHeader) ?? '');
+    final start = match == null ? 0 : int.parse(match[1]!);
+    final end = match == null || match[2]!.isEmpty
+        ? length - 1
+        : int.parse(match[2]!).clamp(start, length - 1);
+    request.response.headers.set(
+      HttpHeaders.contentTypeHeader,
+      'video/x-msvideo',
+    );
+    request.response.headers.set(HttpHeaders.acceptRangesHeader, 'bytes');
+    if (start >= length) {
+      request.response.statusCode = HttpStatus.requestedRangeNotSatisfiable;
+      await request.response.close();
+      return;
+    }
+    if (match != null) {
+      request.response.statusCode = HttpStatus.partialContent;
+      request.response.headers.set(
+        HttpHeaders.contentRangeHeader,
+        'bytes $start-$end/$length',
+      );
+    }
+    request.response.contentLength = end - start + 1;
+    try {
+      if (request.method != 'HEAD') {
+        await request.response.addStream(fixture.openRead(start, end + 1));
+      }
+      await request.response.close();
+    } catch (_) {
+      /* The local decoder can close a range request early. */
+    }
+  });
   final checks = <String>[];
   final timings = <Map<String, Object?>>[];
   final errors = <String>[];
@@ -161,7 +204,7 @@ Future<void> main() async {
           providerId: owner,
           name: name,
           streamUrl: id == 'live'
-              ? fixture.uri.toString()
+              ? mediaUrl
               : 'https://example.invalid/$id.m3u8',
           groupTitle: Value(group),
           sortOrder: Value(i),
@@ -275,8 +318,9 @@ Future<void> main() async {
       ),
     ),
   );
-  await binding.endOfFrame;
   await windowManager.show();
+  await windowManager.focus();
+  await Future<void>.delayed(const Duration(milliseconds: 350));
   final controls = LiveWidgetController(binding);
   Future<void> chooseCountry(String country) async {
     final row = controls.widget<CompactCategoryRow>(

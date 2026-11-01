@@ -15,7 +15,9 @@ import uuid
 import epg_auto_search as search
 import epg_channel_research as queue
 import epg_evidence_review as review
-from epg_channel_research_worker import load_targets, protected_ids
+import epg_locked_recovery as recovery
+from epg_channel_research_worker import load_targets
+from epg_locked_recovery import research_protected_ids as protected_ids
 from epg_ingest import database, EpgError
 
 CHECKPOINT = 'channel_auto_search'
@@ -123,7 +125,7 @@ def target_hash(channel, path):
 
 
 def sync_known(conn, manifest, channels, paths, now):
-    by_id, protected = {c['id']: c for c in channels}, protected_ids(conn)
+    by_id, protected = {c['id']: c for c in channels}, protected_ids(conn, now)
     for row in conn.execute('SELECT channel_id FROM epg_channel_research_jobs').fetchall():
         cid = row[0]
         if cid not in by_id:
@@ -164,6 +166,7 @@ def choose(conn, manifest, channels, paths, protected, now, handled):
     # This is never an identity decision: all jobs and retry floors survive.
     eligible = [r for r in rows if r['channel_id'] in by_id
                 and r['channel_id'] not in handled and r['channel_id'] not in protected]
+    recovering = recovery.eligible_ids(conn, now)
     # Recompute from current public metadata for both old and new jobs. Keep
     # stored identities, attempts, evidence, leases and retry floors unchanged.
     # Retain the existing within-bucket playability score. This change only
@@ -171,7 +174,7 @@ def choose(conn, manifest, channels, paths, protected, now, handled):
     ranks = {r['channel_id']: 10 * (research_priority(by_id[r['channel_id']], paths[r['channel_id']]) // 10)
              + r['priority'] % 10
              for r in eligible}
-    eligible.sort(key=lambda r: (ranks[r['channel_id']] // 10,
+    eligible.sort(key=lambda r: (r['channel_id'] not in recovering, ranks[r['channel_id']] // 10,
         0 if r['identity_evidence'] is not None else 1, ranks[r['channel_id']],
         broadcast_rank(by_id[r['channel_id']], paths[r['channel_id']]),
         r['next_retry'], r['channel_id']))
@@ -209,7 +212,7 @@ def claim_target(conn, expected, now, *, admit=None):
     token = uuid.uuid4().hex
     conn.execute('BEGIN IMMEDIATE')
     try:
-        if expected['channel_id'] in protected_ids(conn):
+        if expected['channel_id'] in protected_ids(conn, now):
             conn.rollback()
             return None
         if admit is not None:
@@ -268,6 +271,22 @@ def checked_candidates(conn, evidence, request, now, checker):
                 check['linkedRouteSha256'] = sorted({hashlib.sha256(url.encode()).hexdigest()
                     for url in request.get('catalogRoutes', []) if hashlib.sha256(url.encode()).hexdigest() in references})
         else:
+            if conn.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='source_health'").fetchone():
+                deferred = None
+                for source in conn.execute('SELECT * FROM source_health WHERE next_retry>? AND (last_error IS NOT NULL OR state=\'probing\')', (now,)):
+                    configuration = json.loads(source['configuration'])
+                    urls = {source['url'], *configuration.get('redirectUrls', [])}
+                    if configuration.get('format') == 'taipei-monthly-csv':
+                        from epg_taipei import METADATA
+                        urls.add(METADATA)
+                    if url in urls:
+                        deferred = source
+                        break
+                if deferred is not None:
+                    checks.append({'url': url, 'result': 'source_retry_deferred', 'bodyBytes': 0,
+                        'reason': 'Existing source failure backoff retained; no upstream request.',
+                        'checkedAtUtc': now, 'cacheReused': True, 'sourceNextRetryAtUtc': deferred['next_retry']})
+                    continue
             try:
                 check = checker(url, request)
             except (OSError, TimeoutError, ValueError):
@@ -285,7 +304,7 @@ def finish(conn, claim, request, evidence, now, *, error=None, retry_at=None, ma
     conn.execute('BEGIN IMMEDIATE')
     try:
         row = queue._current(conn, claim, now)
-        if row['channel_id'] in protected_ids(conn):
+        if row['channel_id'] in protected_ids(conn, now):
             raise EpgError('auto_search_protected_mapping')
         newly_reviewed = bool(row['identity_evidence']) and not claim['identity_evidence']
         advanced = bool(evidence and evidence.get('sourceValidationHandoffs')) or newly_reviewed
@@ -346,26 +365,28 @@ def run(conn, manifest, channels, paths, settings_factory, shared_database, *, m
         'identityReviewExecutorImplemented': True, 'identitiesConfirmedThisRun': 0,
         'identityEvidencePacketsStaged': 0, 'sourceValidationHandoffs': 0,
         'newGrants': 0, 'newProgrammeRows': 0, 'published': False}
+    result['lockedMappingRecovery'] = recovery.sync(conn, manifest, channels, paths, now)
     by_id, protected = sync_known(conn, manifest, channels, paths, now)
     result['cachedIdentityEvidenceRecovery'] = review.recover_one_cached_identity(conn, now, protected)
     result['identityEvidencePacketsStaged'] += result['cachedIdentityEvidenceRecovery']['recoveredChannels']
     # Public source checks need no AI request and must not stop just because
     # the shared model admission window is full.
     if source_directory is not None:
-        result['sourceValidation'] = review.validate_one_source(conn, source_directory, now)
+        result['sourceValidation'] = review.validate_one_source(conn, source_directory, now,
+            preferred_ids=recovery.eligible_ids(conn, now))
     # Opt-in exact-route metadata is separate from model admission. It only
     # observes the selected target and cannot grant identity or EPG rights.
     pause = read_checkpoint(conn, CONTROL)
     metadata_requests = 0
     if route_directory_checker is not None and not pause.get('requiresManualAction'):
         checked_targets = route_directory_due(conn, now, channels, paths) if route_directory_due is not None else set()
-        selected = choose(conn, manifest, channels, paths, protected_ids(conn), now, checked_targets)
+        selected = choose(conn, manifest, channels, paths, protected_ids(conn, now), now, checked_targets)
         if selected is not None:
             cid = selected['channel_id']
             result['routeDirectoryIdentity'] = {'channelId': cid, 'name': by_id[cid]['name'],
                 **route_directory_checker(conn, selected, by_id[cid], paths[cid], now)}
             metadata_requests = int(bool(result['routeDirectoryIdentity'].get('networkRequests')))
-    result['routeDirectoryEvidence'] = review.attach_one_directory_observation(conn, now, protected_ids(conn)) if max_channels > metadata_requests else {'state': 'batch_budget_deferred', 'attachedChannels': 0}
+    result['routeDirectoryEvidence'] = review.attach_one_directory_observation(conn, now, protected_ids(conn, now)) if max_channels > metadata_requests else {'state': 'batch_budget_deferred', 'attachedChannels': 0}
     if pause.get('requiresManualAction') or pause.get('retryAtUtc', 0) > now:
         return save_checkpoint(conn, {**result,
             'state': 'waiting_manual_action' if pause.get('requiresManualAction') else 'waiting_shared_admission',
@@ -380,7 +401,12 @@ def run(conn, manifest, channels, paths, settings_factory, shared_database, *, m
         now = int(clock())
         # Pending checked evidence is reviewed before spending more quota on
         # web search. This local stage preserves each channel's network floor.
-        task = review.pending(conn, now)
+        recovering = recovery.eligible_ids(conn, now)
+        task = review.pending(conn, now, preferred_ids=recovering)
+        due_recovery = any(r[0] in recovering and r[0] not in handled for r in conn.execute(
+            'SELECT channel_id FROM epg_channel_research_jobs WHERE active=1 AND next_retry<=? AND lease_until<=?', (now, now)))
+        if due_recovery and task is not None and task['channel_id'] not in recovering:
+            task = None
         if task is not None and task['channel_id'] not in handled:
             cid = task['channel_id']
             result.update(selectedChannelId=cid, selectedChannelName=by_id[cid]['name'],
@@ -388,7 +414,7 @@ def run(conn, manifest, channels, paths, settings_factory, shared_database, *, m
             try:
                 settings = settings_factory()
                 search.validate_settings(settings)
-                claim = review.claim_review(conn, task, now, protected_ids(conn),
+                claim = review.claim_review(conn, task, now, protected_ids(conn, now),
                     admit=lambda: reserve(shared_database, now))
             except search.SearchDeferred as exc:
                 control(conn, now, exc.code, exc.retry_at, exc.requires_manual_action)
@@ -408,8 +434,9 @@ def run(conn, manifest, channels, paths, settings_factory, shared_database, *, m
                 response = transport(settings, review.review_request(json.loads(task['packet']), settings['model']))
                 if reload_targets is not None:
                     fresh_manifest, fresh_channels, fresh_paths = reload_targets()
+                    recovery.sync(conn, fresh_manifest, fresh_channels, fresh_paths, int(clock()))
                     sync_known(conn, fresh_manifest, fresh_channels, fresh_paths, int(clock()))
-                if cid in protected_ids(conn):
+                if cid in protected_ids(conn, int(clock())):
                     raise EpgError('auto_search_protected_mapping')
                 item = review.finish_review(conn, claim, task, response, int(clock()))
             except search.SearchDeferred as exc:
@@ -429,7 +456,7 @@ def run(conn, manifest, channels, paths, settings_factory, shared_database, *, m
             if error:
                 break
             continue
-        row = choose(conn, manifest, channels, paths, protected_ids(conn), now, handled)
+        row = choose(conn, manifest, channels, paths, protected_ids(conn, now), now, handled)
         if row is None:
             break
         cid = row['channel_id']
@@ -485,8 +512,11 @@ def run(conn, manifest, channels, paths, settings_factory, shared_database, *, m
         # In-flight route/category drift never inherits the old review.
         if reload_targets is not None:
             fresh_manifest, fresh_channels, fresh_paths = reload_targets()
+            recovery.sync(conn, fresh_manifest, fresh_channels, fresh_paths, int(clock()))
             sync_known(conn, fresh_manifest, fresh_channels, fresh_paths, int(clock()))
         try:
+            if cid in protected_ids(conn, int(clock())):
+                raise EpgError('auto_search_protected_mapping')
             if evidence is not None:
                 if request['stage'] == 'identity':
                     staged = review.stage_identity(conn, claim, request, evidence, int(clock()))

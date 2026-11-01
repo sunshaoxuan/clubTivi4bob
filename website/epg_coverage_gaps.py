@@ -118,7 +118,8 @@ def run(conn, directory, now, read_payload, limit=5):
             'lastSourceSuccessUtc': source['last_success'] if source else None,
             'nextSourceRetryUtc': source['next_retry'] if source else None,
             'sourceContentSha256': source['content_sha256'] if source else None,
-            'offAirConfirmed': False, 'upstreamRequests': 0, 'automaticReplacementSearchImplemented': False,
+            'offAirConfirmed': False, 'upstreamRequests': 0, 'automaticReplacementSearchImplemented': True,
+            'replacementSearchExecutor': 'channel_auto_search', 'replacementMappingAutomatic': False,
             'newMappings': 0, 'newGrants': 0, 'programmesChanged': False}
         encoded = json.dumps(evidence, ensure_ascii=False, sort_keys=True)
         digest = store.fingerprint(evidence)
@@ -138,4 +139,5 @@ def run(conn, directory, now, read_payload, limit=5):
                  state, reason, previous['first_seen'] if previous else now, now, now + 60, digest, encoded))
     return {'checkedChannels': checked, 'batchLimit': limit, 'changedCases': changed,
         'states': dict(Counter(row[0] for row in conn.execute('SELECT state FROM epg_coverage_gap_jobs'))),
-        'upstreamRequests': 0, 'automaticReplacementSearchImplemented': False}
+        'upstreamRequests': 0, 'automaticReplacementSearchImplemented': True,
+        'replacementSearchExecutor': 'channel_auto_search', 'replacementMappingAutomatic': False}

@@ -111,12 +111,12 @@ def attach_one_directory_observation(conn, now, protected, *, dry_run=False):
             return {'state': 'directory_observation_attach_eligible', 'channelId': cid,
                     'attachedChannels': 0, 'lookupState': observation['state'], 'reviewReady': ready,
                     'identityApproved': False, 'networkRequests': 0, 'aiRequests': 0}
-        from epg_channel_research_worker import protected_ids
+        from epg_locked_recovery import research_protected_ids as protected_ids
         conn.execute('BEGIN IMMEDIATE')
         try:
             current = conn.execute('SELECT * FROM epg_channel_research_jobs WHERE channel_id=?', (cid,)).fetchone()
             current_review = conn.execute('SELECT * FROM epg_research_evidence_reviews WHERE channel_id=?', (cid,)).fetchone()
-            if (current is None or dict(current) != dict(row) or cid in protected_ids(conn)
+            if (current is None or dict(current) != dict(row) or cid in protected_ids(conn, now)
                     or (dict(current_review) if current_review else None) != (dict(previous) if previous else None)):
                 conn.rollback()
                 continue
@@ -345,11 +345,12 @@ def decode_review(response, packet, now):
     return facts, None
 
 
-def pending(conn, now):
-    return conn.execute('''SELECT r.* FROM epg_research_evidence_reviews r
+def pending(conn, now, *, preferred_ids=()):
+    rows = conn.execute('''SELECT r.* FROM epg_research_evidence_reviews r
       JOIN epg_channel_research_jobs j ON j.channel_id=r.channel_id AND j.identity_hash=r.identity_hash
       WHERE r.state='pending' AND r.next_retry<=? AND j.active=1 AND j.identity_evidence IS NULL
-      AND j.lease_until<=? ORDER BY j.priority,r.checked_at,r.channel_id LIMIT 1''', (now, now)).fetchone()
+      AND j.lease_until<=? ORDER BY j.priority,r.checked_at,r.channel_id''', (now, now)).fetchall()
+    return next((r for r in rows if r['channel_id'] in preferred_ids), next(iter(rows), None))
 
 
 def recover_one_cached_identity(conn, now, protected, *, dry_run=False):
@@ -419,8 +420,8 @@ def recover_one_cached_identity(conn, now, protected, *, dry_run=False):
                     'recoveredChannels': 0, 'eligiblePages': len(checks),
                     'reviewReady': any(check['linkedRouteSha256'] for check in checks),
                     'identityApproved': False, 'networkRequests': 0, 'aiRequests': 0}
-        from epg_channel_research_worker import protected_ids
-        if cid in protected_ids(conn):
+        from epg_locked_recovery import research_protected_ids as protected_ids
+        if cid in protected_ids(conn, now):
             continue
         claim = claim_review(conn, {'channel_id': cid, 'identity_hash': row['identity_hash']}, now, protected)
         if claim is None:
@@ -575,18 +576,19 @@ def retained_access_exclusion(url):
     return None
 
 
-def validate_one_source(conn, directory, now, *, fetcher=None):
+def validate_one_source(conn, directory, now, *, fetcher=None, preferred_ids=()):
     """Consume one channel-bound handoff with the existing bounded validator.
 
     Only XMLTV needs no new adapter. Unknown HTML/JSON is a concrete adapter
     review task, never parsed by guessing. No unlicensed raw payload is saved.
     Same-URL health rows/cooldowns are shared by all confirmed target channels.
     """
-    from epg_channel_research_worker import protected_ids
+    from epg_locked_recovery import research_protected_ids as protected_ids
     from epg_ingest import probe_batch
     from source_registry import validate_public_url
     from pathlib import Path
     import fcntl
+    preference = ','.join('?' for _ in preferred_ids) or 'NULL'
     candidates = conn.execute('''SELECT c.*,j.payload,j.identity_evidence,j.lease_until FROM
       epg_research_source_candidates c JOIN epg_channel_research_jobs j
       ON j.channel_id=c.channel_id AND j.identity_hash=c.identity_hash
@@ -594,9 +596,10 @@ def validate_one_source(conn, directory, now, *, fetcher=None):
       AND c.state NOT IN ('format_adapter_review_required','waiting_access','retained_rights_exclusion')
       AND NOT EXISTS(SELECT 1 FROM source_health h WHERE h.url=c.url
         AND h.state!='superseded' AND h.id LIKE 'channel-xmltv-%' AND h.next_retry>?)
-      ORDER BY c.checked_at,c.channel_id,c.url LIMIT 5''', (now - 60, now)).fetchall()
+      ORDER BY CASE WHEN c.channel_id IN (''' + preference + ''') THEN 0 ELSE 1 END,
+      c.checked_at,c.channel_id,c.url LIMIT 5''', (now - 60, now, *sorted(preferred_ids))).fetchall()
     for candidate in candidates:
-        if candidate['channel_id'] in protected_ids(conn) or candidate['lease_until'] > now:
+        if candidate['channel_id'] in protected_ids(conn, now) or candidate['lease_until'] > now:
             continue
         url = candidate['url']
         validate_public_url(url)

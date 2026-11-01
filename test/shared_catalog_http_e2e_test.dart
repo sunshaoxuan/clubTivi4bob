@@ -103,17 +103,21 @@ void main() {
       expect(await first.pendingSharedEvents(), isEmpty);
       await first.setManualChannelCategory([
         url,
-      ], ChannelCategoryDestination(['美国', '宗教']));
+      ], ChannelCategoryDestination(['美国', '电视', '宗教']));
       await first.queueSharedEvent(url, 'health', {'success': 2, 'failure': 0});
       await first.queueSharedEvent(url, 'health', {'success': 0, 'failure': 1});
       expect(await uploader.flushEvents(), 3);
       for (var attempt = 0; attempt < 30; attempt++) {
         await secondCatalog.sync();
-        if ((await second.getAllChannels()).single.groupTitle == '国际 / 美国 / 宗教')
+        if ((await second.getAllChannels()).single.groupTitle ==
+            '国际 / 美国 / 电视 / 宗教')
           break;
         await Future<void>.delayed(const Duration(milliseconds: 50));
       }
-      expect((await second.getAllChannels()).single.groupTitle, '国际 / 美国 / 宗教');
+      expect(
+        (await second.getAllChannels()).single.groupTitle,
+        '国际 / 美国 / 电视 / 宗教',
+      );
       expect(await second.sharedRouteRevision(url), 1);
       expect(await second.pendingSharedEvents(), isEmpty);
       await probe.uploadChannelInventory(
@@ -132,10 +136,13 @@ void main() {
         'from process_channel_inventory import process; process(limit=0)',
       );
       await secondCatalog.sync();
-      expect((await second.getAllChannels()).single.groupTitle, '国际 / 美国 / 宗教');
+      expect(
+        (await second.getAllChannels()).single.groupTitle,
+        '国际 / 美国 / 电视 / 宗教',
+      );
       for (final path in [
-        ['科威特', '生活', '饮食', '烘焙', '面包', '技巧'],
-        ['中国', '文化', '戏曲', '地方戏', '剧种'],
+        ['科威特', '电视', '生活', '饮食', '烘焙', '面包', '技巧'],
+        ['中国', '电视', '文化', '戏曲', '地方戏', '剧种'],
       ]) {
         final destination = ChannelCategoryDestination(path);
         await first.setManualChannelCategory([url], destination);
@@ -180,7 +187,7 @@ void main() {
         } else {
           expect(
             ChannelCategoryClassifier.internationalGenreFor(synced.groupTitle),
-            path.skip(1).join(' / '),
+            path.skip(2).join(' / '),
           );
         }
         expect(await second.pendingSharedEvents(), isEmpty);

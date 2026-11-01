@@ -98,6 +98,9 @@ Future<void> main() async {
         ),
       ),
     );
+    await windowManager.show();
+    await windowManager.focus();
+    await Future<void>.delayed(const Duration(milliseconds: 350));
     final driver = LiveWidgetController(binding);
     Future<void> frame() async {
       await driver.pump();

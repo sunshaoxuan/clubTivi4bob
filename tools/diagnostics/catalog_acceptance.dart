@@ -351,6 +351,11 @@ Future<void> main() async {
           service.player.state.height == 96 &&
           service.player.state.position.inMilliseconds > 200,
     );
+    // Initial play applies the production audio profile. Audio has remained
+    // disabled throughout; now establish the user's mute setting for the
+    // category/guide continuity checks that follow that initialization.
+    await service.setVolume(0);
+    await until('muted volume event', () => service.player.state.volume == 0);
     require(sync.starts == 1, 'background runtime starts exactly once');
     require(
       find.text('节目表缓存已过期').evaluate().isEmpty,

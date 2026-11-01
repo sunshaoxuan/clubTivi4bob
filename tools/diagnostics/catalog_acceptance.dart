@@ -420,10 +420,29 @@ Future<void> main() async {
           positionEvents > eventsBefore,
       'country and programme updates preserve the active native player',
     );
+    Future<String?> audioProperty(String name) async {
+      try {
+        return await nativePlayer.getProperty(name);
+      } catch (_) {
+        return null;
+      }
+    }
+
+    final audio = {
+      'volume': service.player.state.volume,
+      'activeOutput': await audioProperty('ao'),
+      'configuredOutput': await audioProperty('options/ao'),
+      'selectedAudio': await audioProperty('aid'),
+      'audioCodec': await audioProperty('audio-codec'),
+    };
+    File('${output.path}/audio.json').writeAsStringSync(jsonEncode(audio));
+    // An audio-free video has no active AO. Verify the configured output and
+    // disabled audio selection instead of requiring an active audio device.
     require(
-      service.player.state.volume == 0 &&
-          await nativePlayer.getProperty('ao') == 'null',
-      'native playback stays muted with null audio output',
+      audio['volume'] == 0 &&
+          audio['selectedAudio'] == 'no' &&
+          (audio['configuredOutput']?.toString().contains('null') ?? false),
+      'native playback stays muted with disabled audio and configured null output',
     );
     require(
       (await database.getAllMappings()).single.locked,
@@ -441,6 +460,7 @@ Future<void> main() async {
         'queries': database.queries,
         'totalFixtureRows': rows.length,
         'audioOutput': 'null',
+        'audioProperties': audio,
         'volume': 0,
         'ownedAudioFreeFixture': true,
         'productionDataModified': false,

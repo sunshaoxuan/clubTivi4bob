@@ -112,4 +112,30 @@ void main() {
       expect(await database.getAllFavoritedChannelIds(), isEmpty);
     },
   );
+
+  test(
+    'removal cannot be undone by concurrent membership reconciliation',
+    () async {
+      final database = db.AppDatabase.forTesting(NativeDatabase.memory());
+      addTearDown(database.close);
+      await database.upsertProvider(
+        db.ProvidersCompanion.insert(id: 'p', name: 'Test', type: 'm3u'),
+      );
+      await database.upsertChannels([
+        for (final id in ['a', 'b'])
+          db.ChannelsCompanion.insert(
+            id: id,
+            providerId: 'p',
+            name: 'CCTV-6',
+            streamUrl: 'https://example.com/$id.m3u8',
+          ),
+      ]);
+      await database.addChannelToDefaultFavorites('a');
+      await Future.wait([
+        database.reconcileFavoriteMemberships(force: true),
+        database.removeChannelFromList('default', 'a'),
+      ]);
+      expect(await database.getAllFavoritedChannelIds(), isEmpty);
+    },
+  );
 }

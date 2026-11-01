@@ -1984,7 +1984,7 @@ class AppDatabase extends _$AppDatabase {
             ? catalogIds[c.id] ?? c.id : null)));
   }
 
-  Future<Set<String>> _favoriteEquivalentIds(String channelId) async {
+  Future<Set<String>> _favoriteEquivalentIds(String channelId, {bool includeBlocked = false}) async {
     final selected = await (select(channels)..where((c) => c.id.equals(channelId))).getSingleOrNull();
     if (selected == null) return {};
     final all = await select(channels).get();
@@ -1995,38 +1995,42 @@ class AppDatabase extends _$AppDatabase {
     // This is not a background stream probe or whole-catalog media scan.
     return {for (final c in all)
       if (keys[c.id] == key &&
-          !blocked.contains(canonicalRouteUrl(c.streamUrl))) c.id};
+          (includeBlocked || !blocked.contains(canonicalRouteUrl(c.streamUrl)))) c.id};
   }
 
   Future<void> addChannelToList(String listId, String channelId) async {
-    final ids = await _favoriteEquivalentIds(channelId);
-    await batch((b) {
-      for (final id in ids) {
-        b.insert(favoriteListChannels, FavoriteListChannelsCompanion.insert(
-            listId: listId, channelId: id), mode: InsertMode.insertOrIgnore);
-      }
+    await transaction(() async {
+      final ids = await _favoriteEquivalentIds(channelId);
+      await batch((b) {
+        for (final id in ids) {
+          b.insert(favoriteListChannels, FavoriteListChannelsCompanion.insert(
+              listId: listId, channelId: id), mode: InsertMode.insertOrIgnore);
+        }
+      });
     });
   }
 
   Future<void> _inheritFavoritesForIds(Set<String> ids) async {
     if (ids.isEmpty) return;
-    final members = await select(favoriteListChannels).get();
-    if (members.isEmpty) return;
-    final anchors = {for (final c in await getChannelsByIds(members.map((m) => m.channelId).toSet())) c.id: c};
-    final newRoutes = await getChannelsByIds(ids);
-    final keys = await channelPresentationKeys([...anchors.values, ...newRoutes]);
-    final listsByKey = <String, Set<String>>{};
-    for (final member in members) {
-      final anchor = anchors[member.channelId];
-      if (anchor != null) (listsByKey[keys[anchor.id]!] ??= {}).add(member.listId);
-    }
-    await batch((b) {
-      for (final route in newRoutes) {
-        for (final list in listsByKey[keys[route.id]] ?? <String>{}) {
-          b.insert(favoriteListChannels, FavoriteListChannelsCompanion.insert(
-              listId: list, channelId: route.id), mode: InsertMode.insertOrIgnore);
-        }
+    await transaction(() async {
+      final members = await select(favoriteListChannels).get();
+      if (members.isEmpty) return;
+      final anchors = {for (final c in await getChannelsByIds(members.map((m) => m.channelId).toSet())) c.id: c};
+      final newRoutes = await getChannelsByIds(ids);
+      final keys = await channelPresentationKeys([...anchors.values, ...newRoutes]);
+      final listsByKey = <String, Set<String>>{};
+      for (final member in members) {
+        final anchor = anchors[member.channelId];
+        if (anchor != null) (listsByKey[keys[anchor.id]!] ??= {}).add(member.listId);
       }
+      await batch((b) {
+        for (final route in newRoutes) {
+          for (final list in listsByKey[keys[route.id]] ?? <String>{}) {
+            b.insert(favoriteListChannels, FavoriteListChannelsCompanion.insert(
+                listId: list, channelId: route.id), mode: InsertMode.insertOrIgnore);
+          }
+        }
+      });
     });
   }
 
@@ -2058,13 +2062,37 @@ class AppDatabase extends _$AppDatabase {
   }
 
   Future<void> removeChannelFromList(String listId, String channelId) async {
-    final ids = await _favoriteEquivalentIds(channelId);
-    if (ids.isEmpty) ids.add(channelId);
-    for (var offset = 0; offset < ids.length; offset += 400) {
-      await (delete(favoriteListChannels)..where((t) =>
-          t.listId.equals(listId) & t.channelId.isIn(ids.skip(offset).take(400)))).go();
-    }
+    await transaction(() async {
+      final ids = await _favoriteEquivalentIds(channelId, includeBlocked: true);
+      if (ids.isEmpty) ids.add(channelId);
+      for (var offset = 0; offset < ids.length; offset += 400) {
+        await (delete(favoriteListChannels)..where((t) =>
+            t.listId.equals(listId) & t.channelId.isIn(ids.skip(offset).take(400)))).go();
+      }
+    });
   }
+
+  /// Remove one exact service from every list atomically. Keep the list IDs for
+  /// Undo; source rows, other same-name services and the lists themselves stay.
+  Future<List<String>> removeChannelFromAllFavorites(String channelId) => transaction(() async {
+    final ids = await _favoriteEquivalentIds(channelId, includeBlocked: true);
+    if (ids.isEmpty) ids.add(channelId);
+    final lists = <String>{};
+    for (var offset = 0; offset < ids.length; offset += 400) {
+      final page = ids.skip(offset).take(400).toList();
+      final members = await (select(favoriteListChannels)..where((t) => t.channelId.isIn(page))).get();
+      lists.addAll(members.map((m) => m.listId));
+      await (delete(favoriteListChannels)..where((t) => t.channelId.isIn(page))).go();
+    }
+    return lists.toList();
+  });
+
+  Future<void> restoreChannelFavoriteLists(String channelId, Iterable<String> listIds) => transaction(() async {
+    final existing = (await getAllFavoriteLists()).map((l) => l.id).toSet();
+    for (final id in listIds.toSet().intersection(existing)) {
+      await addChannelToList(id, channelId);
+    }
+  });
 
   Future<FavoriteList> createFavoriteList(String name) async {
     final id = _uuid.v4();

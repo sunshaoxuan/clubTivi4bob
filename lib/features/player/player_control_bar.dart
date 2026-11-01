@@ -450,10 +450,13 @@ class _PlayerControlBarState extends ConsumerState<PlayerControlBar> {
                             ),
                           ),
                         ),
-                      _iconBtn(
-                        widget.isFavorite ? Icons.star : Icons.star_border,
-                        color: widget.isFavorite ? Colors.amber : Colors.white,
-                        onTap: widget.onFavorite,
+                      Tooltip(
+                        message: widget.isFavorite ? '取消收藏' : '加入收藏',
+                        child: _iconBtn(
+                          widget.isFavorite ? Icons.star : Icons.star_border,
+                          color: widget.isFavorite ? Colors.amber : Colors.white,
+                          onTap: widget.onFavorite,
+                        ),
                       ),
                       Tooltip(
                         message: '画中画',

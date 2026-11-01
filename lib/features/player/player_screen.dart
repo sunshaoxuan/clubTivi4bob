@@ -28,6 +28,7 @@ import '../casting/cast_service.dart';
 import '../casting/cast_dialog.dart';
 import '../channels/channel_debug_dialog.dart';
 import '../channels/channel_route_transfer_dialog.dart';
+import '../channels/channel_favorites.dart';
 import '../../data/services/channel_route_transfer.dart';
 import '../providers/source_maintenance_coordinator.dart';
 import 'player_control_bar.dart';
@@ -75,6 +76,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   int _currentUrlIndex = 0;
   bool _showChannelList = false;
   bool _isFavorite = false;
+  bool _favoriteActionPending = false;
   int _channelSwitchGeneration = 0;
   bool _nativeFullscreen = false;
   bool _leavingPlayer = false;
@@ -130,9 +132,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
         tvgId: channel['tvgId']?.toString(),
         streamUrl: channel['streamUrl']?.toString(),
       );
-
-  // Favorite lists
-  List<db.FavoriteList> _favoriteLists = [];
 
   // Track selection state
   bool _subtitlesEnabled = false;
@@ -238,16 +237,15 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   }
 
   Future<void> _loadFavoriteState() async {
+    if (!mounted) return;
     if (widget.channels.isEmpty) return;
     final ch = widget.channels[_channelIndex];
     final channelId = ch['id'] as String? ?? '';
     if (channelId.isEmpty) return;
     final database = ref.read(databaseProvider);
-    final lists = await database.getAllFavoriteLists();
     final listsForChannel = await database.getListsForChannel(channelId);
     if (mounted) {
       setState(() {
-        _favoriteLists = lists;
         _isFavorite = listsForChannel.isNotEmpty;
       });
     }
@@ -1019,10 +1017,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
         _routeContextAction(
           -2,
           _isFavorite ? Icons.star_rounded : Icons.star_outline_rounded,
-          _isFavorite ? '管理收藏' : '加入收藏',
-          _isFavorite ? '调整收藏夹' : '一键保存到我的收藏',
+          _isFavorite ? '取消收藏' : '加入收藏',
+          _isFavorite ? '一键取消，支持撤销' : '一键保存到我的收藏',
           accent: const Color(0xFFFFD36B),
         ),
+        _routeContextAction(-8, Icons.folder_open_rounded, '管理收藏夹', '分别设置所属收藏夹'),
         const PopupMenuDivider(height: 14),
         _routeContextAction(
           -7,
@@ -1126,38 +1125,14 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       return;
     }
     if (choice == -2) {
-      if (_isFavorite) {
-        _toggleFavorite();
-      } else {
-        final channelId = widget.channels[_channelIndex]['id'] as String?;
-        if (channelId == null || channelId.isEmpty) return;
-        late final List<db.FavoriteList> lists;
-        try {
-          lists = await ref
-              .read(databaseProvider)
-              .addChannelToDefaultFavorites(channelId);
-        } catch (_) {
-          if (!mounted) return;
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('收藏失败，请稍后重试'),
-              duration: Duration(seconds: 2),
-            ),
-          );
-          return;
-        }
-        if (!mounted) return;
-        setState(() {
-          _favoriteLists = lists;
-          _isFavorite = true;
-        });
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('已加入我的收藏'),
-            duration: Duration(seconds: 2),
-          ),
-        );
-      }
+      await _toggleFavorite();
+      return;
+    }
+    if (choice == -8) {
+      if (widget.channels.isEmpty) return;
+      final channel = widget.channels[_channelIndex];
+      final id = channel['id'] as String? ?? '';
+      if (id.isNotEmpty) await _showFavoriteListSheet(id, channel['name'] as String? ?? '');
       return;
     }
     if (choice == -3) {
@@ -1456,7 +1431,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                         _leavePlayer();
                       },
                       onScreenshot: _takeScreenshot,
-                      onFavorite: _toggleFavorite,
+                      onFavorite: _favoriteActionPending ? null : _toggleFavorite,
                       onPip: _enterPip,
                       onInfo: _showInfoDialog,
                       onRename: _renameCurrentChannel,
@@ -1896,148 +1871,28 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     }
   }
 
-  void _toggleFavorite() {
-    if (widget.channels.isEmpty) return;
-    final ch = widget.channels[_channelIndex];
-    final channelId = ch['id'] as String? ?? '';
-    final channelName = ch['name'] as String? ?? '';
+  Future<void> _toggleFavorite() async {
+    if (widget.channels.isEmpty || _favoriteActionPending) return;
+    final channelId = widget.channels[_channelIndex]['id'] as String? ?? '';
     if (channelId.isEmpty) return;
-    _showFavoriteListSheet(channelId, channelName);
-  }
-
-  Future<void> _showFavoriteListSheet(
-    String channelId,
-    String channelName,
-  ) async {
     final database = ref.read(databaseProvider);
-    final listsForChannel = await database.getListsForChannel(channelId);
-    final checkedIds = listsForChannel.map((l) => l.id).toSet();
-
-    if (checkedIds.isEmpty) {
-      final lists = await database.addChannelToDefaultFavorites(channelId);
-      checkedIds.add('default');
-      if (mounted) {
-        setState(() {
-          _favoriteLists = lists;
-          _isFavorite = true;
-        });
-      }
-    }
-
-    if (!mounted) return;
-    await showModalBottomSheet<void>(
-      context: context,
-      backgroundColor: const Color(0xFF1A1A2E),
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-      ),
-      builder: (ctx) {
-        return StatefulBuilder(
-          builder: (ctx, setSheetState) {
-            return Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      const Icon(
-                        Icons.star_rounded,
-                        color: Colors.amber,
-                        size: 20,
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          '收藏「$channelName」',
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 15,
-                            fontWeight: FontWeight.bold,
-                          ),
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                      IconButton(
-                        tooltip: '关闭',
-                        onPressed: () => Navigator.of(ctx).pop(),
-                        icon: const Icon(Icons.close, color: Colors.white70),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  if (_favoriteLists.isEmpty)
-                    const Padding(
-                      padding: EdgeInsets.symmetric(vertical: 16),
-                      child: Center(
-                        child: Text(
-                          '暂无收藏列表',
-                          style: TextStyle(color: Colors.white38),
-                        ),
-                      ),
-                    ),
-                  ..._favoriteLists.map((list) {
-                    final isInList = checkedIds.contains(list.id);
-                    return CheckboxListTile(
-                      dense: true,
-                      value: isInList,
-                      activeColor: const Color(0xFFE17055),
-                      title: Text(
-                        '★ ${list.name}',
-                        style: const TextStyle(
-                          color: Colors.white70,
-                          fontSize: 13,
-                        ),
-                      ),
-                      onChanged: (val) async {
-                        if (val == true) {
-                          await database.addChannelToList(list.id, channelId);
-                          checkedIds.add(list.id);
-                        } else {
-                          await database.removeChannelFromList(
-                            list.id,
-                            channelId,
-                          );
-                          checkedIds.remove(list.id);
-                        }
-                        setSheetState(() {});
-                      },
-                    );
-                  }),
-                  const Divider(color: Colors.white12),
-                  TextButton.icon(
-                    onPressed: () async {
-                      final name = await _showCreateListDialog();
-                      if (name != null && name.isNotEmpty) {
-                        final newList = await database.createFavoriteList(name);
-                        await database.addChannelToList(newList.id, channelId);
-                        checkedIds.add(newList.id);
-                        final updated = await database.getAllFavoriteLists();
-                        setState(() => _favoriteLists = updated);
-                        setSheetState(() {});
-                      }
-                    },
-                    icon: const Icon(Icons.add_rounded, size: 18),
-                    label: const Text('新建列表'),
-                    style: TextButton.styleFrom(
-                      foregroundColor: Colors.cyanAccent,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                ],
-              ),
-            );
-          },
-        );
-      },
-    );
-    // Refresh favorite state after sheet closes
-    final listsAfter = await database.getListsForChannel(channelId);
-    if (mounted) {
-      setState(() => _isFavorite = listsAfter.isNotEmpty);
+    final wasFavorite = _isFavorite;
+    setState(() => _favoriteActionPending = true);
+    try {
+      await WidgetsBinding.instance.endOfFrame;
+      if (!mounted) return;
+      await toggleChannelFavorite(context: context, database: database,
+        channelId: channelId, isFavorite: wasFavorite, onChanged: _loadFavoriteState);
+    } finally {
+      if (mounted) setState(() => _favoriteActionPending = false);
     }
   }
+
+  Future<void> _showFavoriteListSheet(String channelId, String channelName) => showChannelFavoriteListSheet(
+    context: context, database: ref.read(databaseProvider),
+    channelId: channelId, channelName: channelName,
+    createListName: _showCreateListDialog, onChanged: _loadFavoriteState,
+  );
 
   Future<String?> _showCreateListDialog() async {
     String name = '';

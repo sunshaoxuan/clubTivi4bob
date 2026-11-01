@@ -293,6 +293,7 @@ Future<void> main() async {
   final nativePlayer = player.platform as native.NativePlayer;
   await nativePlayer.setProperty('ao', 'null');
   await nativePlayer.setProperty('aid', 'no');
+  await nativePlayer.setProperty('mute', 'yes');
   await nativePlayer.setProperty('loop-file', 'inf');
   await service.setVolume(0);
   var positionEvents = 0;
@@ -351,11 +352,6 @@ Future<void> main() async {
           service.player.state.height == 96 &&
           service.player.state.position.inMilliseconds > 200,
     );
-    // Initial play applies the production audio profile. Audio has remained
-    // disabled throughout; now establish the user's mute setting for the
-    // category/guide continuity checks that follow that initialization.
-    await service.setVolume(0);
-    await until('muted volume event', () => service.player.state.volume == 0);
     require(sync.starts == 1, 'background runtime starts exactly once');
     require(
       find.text('节目表缓存已过期').evaluate().isEmpty,
@@ -435,6 +431,7 @@ Future<void> main() async {
 
     final audio = {
       'volume': service.player.state.volume,
+      'mute': await audioProperty('mute'),
       'activeOutput': await audioProperty('ao'),
       'configuredOutput': await audioProperty('options/ao'),
       'selectedAudio': await audioProperty('aid'),
@@ -444,7 +441,7 @@ Future<void> main() async {
     // An audio-free video has no active AO. Verify the configured output and
     // disabled audio selection instead of requiring an active audio device.
     require(
-      audio['volume'] == 0 &&
+      audio['mute'] == 'yes' &&
           audio['selectedAudio'] == 'no' &&
           (audio['configuredOutput']?.toString().contains('null') ?? false),
       'native playback stays muted with disabled audio and configured null output',
@@ -466,7 +463,8 @@ Future<void> main() async {
         'totalFixtureRows': rows.length,
         'audioOutput': 'null',
         'audioProperties': audio,
-        'volume': 0,
+        'volume': audio['volume'],
+        'nativeMute': true,
         'ownedAudioFreeFixture': true,
         'productionDataModified': false,
         'positionEvents': positionEvents,

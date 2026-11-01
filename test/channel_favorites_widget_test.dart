@@ -148,21 +148,24 @@ void main() {
     'closing during a write still finishes without setState after dispose',
     (tester) async {
       final saving = Completer<void>();
-      var finished = false;
+      var finished = 0;
       await openSheet(
         tester,
+        selected: {'default', 'sports'},
         change: (_, _) async {
           await saving.future;
-          finished = true;
+          finished++;
         },
       );
       await tester.tap(find.text('我的收藏'));
+      await tester.pump();
+      await tester.tap(find.text('体育'));
       await tester.pump();
       await tester.tap(find.byTooltip('关闭'));
       await tester.pump(const Duration(milliseconds: 400));
       saving.complete();
       await tester.pumpAndSettle();
-      expect(finished, isTrue);
+      expect(finished, 2);
       expect(tester.takeException(), isNull);
     },
   );

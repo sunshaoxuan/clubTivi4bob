@@ -22,6 +22,33 @@ void main() {
 
   tearDown(() => database.close());
 
+  test('prepared identities match the original index and canceled rebuilds retain the previous routes', () async {
+    await database.upsertProvider(db.ProvidersCompanion.insert(
+      id: 'fixture', name: 'Fixture', type: 'm3u'));
+    await database.upsertChannels([
+      for (var i = 0; i < 250; i++) db.ChannelsCompanion.insert(
+        id: 'c$i', providerId: 'fixture', name: 'CCTV-6',
+        streamUrl: 'https://example.invalid/$i'),
+    ]);
+    final rows = await database.getAllChannels();
+    final metadata = ChannelIndexMetadata(
+      presentationKeys: await database.channelPresentationKeys(rows),
+      mergeIds: await database.channelMergeIds(rows.map((c) => c.streamUrl)),
+      catalogIds: await database.publicCatalogChannelIds(rows.map((c) => c.id)));
+    final plain = StreamAlternativesService(database, StreamHealthTracker());
+    final prepared = StreamAlternativesService(database, StreamHealthTracker());
+    await plain.rebuildForChannels(rows);
+    await prepared.rebuildForChannels(rows, metadata: metadata);
+    List<String> alternatives(StreamAlternativesService service) =>
+      service.getAlternatives(channelId: 'c0', channelName: 'CCTV-6',
+        excludeUrl: 'https://example.invalid/0');
+    expect(alternatives(prepared), alternatives(plain));
+    final pending = prepared.rebuildForChannels(rows.take(2).toList());
+    prepared.cancelPendingRebuild();
+    await pending;
+    expect(alternatives(prepared), alternatives(plain));
+  });
+
   test('public routes use server identities and never merge equal or normalized names', () async {
     const provider = WebsiteChannelCatalogService.providerId;
     await database.upsertProvider(db.ProvidersCompanion.insert(

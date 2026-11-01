@@ -6,6 +6,34 @@ import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  test('public country scopes retain navigation and exclude other countries and private rows', () async {
+    final database = db.AppDatabase.forTesting(NativeDatabase.memory());
+    addTearDown(database.close);
+    for (final provider in [WebsiteChannelCatalogService.providerId, 'private']) {
+      await database.upsertProvider(db.ProvidersCompanion.insert(
+        id: provider, name: provider, type: 'm3u'));
+    }
+    final groups = ['国际 / 马来西亚 / 电视 / 综合', '国际 / 美国 / 电视 / 新闻',
+      '国际 / USA / 广播', '中国 / 央视', '中国 / 数字 / 体育'];
+    await database.upsertChannels([
+      for (var i = 0; i < groups.length; i++) db.ChannelsCompanion.insert(
+        id: 'public$i', providerId: WebsiteChannelCatalogService.providerId,
+        name: 'CCTV name does not override reviewed category $i',
+        groupTitle: Value(groups[i]), streamUrl: 'https://example.invalid/public$i'),
+      db.ChannelsCompanion.insert(id: 'private', providerId: 'private', name: 'Private MY',
+        groupTitle: const Value('国际 / 马来西亚 / 电视'), streamUrl: 'https://example.invalid/private'),
+    ]);
+    expect((await database.getChannelCategoryCandidates('国际',
+      internationalCountry: '马来西亚', publicOnly: true)).map((c) => c.id), ['public0']);
+    expect((await database.getChannelCategoryCandidates('国际',
+      internationalCountry: '美国', publicOnly: true)).map((c) => c.id).toSet(), {'public1', 'public2'});
+    expect(await database.getInternationalCountryCounts(publicOnly: true), {'马来西亚': 1, '美国': 2});
+    expect((await database.getChannelCategoryCandidates('央视', publicOnly: true)).map((c) => c.id), ['public3']);
+    expect((await database.getChannelCategoryCandidates('数字', publicOnly: true)).map((c) => c.id), ['public4']);
+    expect((await database.getInternationalCountryCounts())['马来西亚'], 2);
+    expect((await database.getChannelCategoryCandidates('国际',
+      internationalCountry: '马来西亚')).map((c) => c.id), contains('private'));
+  });
   test('uses one stable geography-first category dimension', () {
     expect(
       ChannelCategoryClassifier.classify(

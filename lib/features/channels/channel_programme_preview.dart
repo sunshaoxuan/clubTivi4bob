@@ -45,6 +45,7 @@ class ChannelProgrammePreview extends ChangeNotifier {
   bool get loading => _loading;
   bool get failed => _failed;
   bool get hasMapping => _epgChannelId != null;
+  String? get epgChannelId => _epgChannelId;
 
   Future<void> select({
     required String channelId,

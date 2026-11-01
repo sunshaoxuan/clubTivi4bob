@@ -37,7 +37,7 @@ void main() {
           home: Scaffold(body: ServerEpgAttributionTile(state: state)),
         ),
       );
-      await tester.tap(find.text('服务器节目表署名与许可'));
+      await tester.tap(find.text('服务器节目表状态与许可'));
       await tester.pumpAndSettle();
       expect(
         find.text('节目数据许可：Open Government Data License 1.0'),
@@ -83,7 +83,7 @@ void main() {
         ),
       );
       scroll.jumpTo(300);
-      await tester.tap(find.text('服务器节目表署名与许可'));
+      await tester.tap(find.text('服务器节目表状态与许可'));
       await tester.pumpAndSettle();
       expect(find.text('节目数据许可：CC BY-SA 4.0'), findsOneWidget);
       expect(
@@ -110,7 +110,7 @@ void main() {
     },
   );
 
-  testWidgets('unpublished guide does not offer an empty credit dialog', (
+  testWidgets('unpublished guide still exposes automatic refresh details', (
     tester,
   ) async {
     final state = ValueNotifier(
@@ -121,10 +121,12 @@ void main() {
         home: Scaffold(body: ServerEpgAttributionTile(state: state)),
       ),
     );
-    expect(find.text('尚无需要署名的服务器节目表'), findsOneWidget);
-    await tester.tap(find.text('服务器节目表署名与许可'));
+    expect(find.text('查看自动更新状态与节目数据许可'), findsOneWidget);
+    await tester.tap(find.text('服务器节目表状态与许可'));
     await tester.pumpAndSettle();
-    expect(find.byType(AlertDialog), findsNothing);
+    expect(find.byType(AlertDialog), findsOneWidget);
+    expect(find.textContaining('暂无最新节目表'), findsOneWidget);
+    expect(find.textContaining('下次检查：'), findsOneWidget);
     await tester.pumpWidget(const SizedBox());
     state.dispose();
   });

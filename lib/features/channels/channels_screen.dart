@@ -7,6 +7,7 @@ import 'dart:ui' as ui;
 import 'package:drift/drift.dart' show Value;
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show listEquals, setEquals;
 import 'package:flutter/services.dart';
 
 import 'package:shared_preferences/shared_preferences.dart';
@@ -42,6 +43,8 @@ import '../../data/services/epg_refresh_service.dart';
 import '../../data/services/epg_ui_refresh.dart';
 import '../../data/models/server_epg_snapshot.dart';
 import '../../data/services/stream_alternatives_service.dart';
+import '../../data/services/category_load_cache.dart';
+import '../../app/server_epg_runtime_host.dart';
 import '../../data/services/manual_route_cycle.dart';
 import '../../data/services/channel_name_normalizer.dart';
 import '../../data/services/channel_presentation_identity.dart';
@@ -82,6 +85,9 @@ class ChannelsScreen extends ConsumerStatefulWidget {
   ConsumerState<ChannelsScreen> createState() => _ChannelsScreenState();
 }
 
+typedef _CategorySnapshot = ({List<db.Channel> channels,
+  ChannelIndexMetadata metadata, Map<String, List<String>> groups});
+
 class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
   Map<String, String> _presentationKeys = {};
   Map<String, List<String>> _catalogCategoryGroups = {};
@@ -118,6 +124,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
   String _selectedInternationalGenre = '全部';
   String _selectedInternationalMedia = '电视';
   List<String> _internationalCountries = [];
+  Map<String, int> _internationalCountryCounts = {};
   List<String> _pinnedInternationalCountries = [];
   Map<String, ChannelCategoryDestination> _manualCategories = {};
   final Map<String, ChannelCategoryDestination> _pendingManualCategories = {};
@@ -191,7 +198,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
   String _sidebarSearchQuery = '';
 
   StreamSubscription<List<db.Provider>>? _providersSub;
-  StreamSubscription<List<db.Channel>>? _channelsSub;
+  StreamSubscription<void>? _channelsSub;
   StreamSubscription<List<db.FavoriteList>>? _favoriteListsSub;
   StreamSubscription<List<db.FavoriteListChannel>>? _favoriteMembersSub;
   Timer? _favoritesReloadTimer;
@@ -202,6 +209,9 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
   bool _channelReloadQueued = false;
   bool _categoryLoading = false;
   int _categoryLoadGeneration = 0;
+  final _categoryCache = CategoryLoadCache<_CategorySnapshot>();
+  final _countryCache = CategoryLoadCache<Map<String, int>>(capacity: 2);
+  Timer? _catalogReloadTimer;
   // Favorite lists state
   List<db.FavoriteList> _favoriteLists = [];
   Set<String> _favoritedChannelIds = {};
@@ -317,15 +327,16 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
     };
     // Watch providers table — reload when providers or channels change
     final database = ref.read(databaseProvider);
-    Timer? debounce;
     _epgUiRefresh = EpgUiRefresh(database.watchEpgChanges(), () async {
       if (!mounted) return;
       await _loadEpgData(database, _allChannels, _favoritedChannelIds);
       if (mounted) await _refreshNowPlaying();
     }, onError: (error, stack) => AppDiagnostics.instance.recordError('channel_epg_hot_refresh', error, stack));
     void debouncedReload() {
-      debounce?.cancel();
-      debounce = Timer(const Duration(milliseconds: 500), () {
+      _categoryCache.invalidate();
+      _countryCache.invalidate();
+      _catalogReloadTimer?.cancel();
+      _catalogReloadTimer = Timer(const Duration(milliseconds: 500), () {
         if (mounted) _loadChannels();
       });
     }
@@ -333,19 +344,9 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
     _providersSub = database
         .select(database.providers)
         .watch()
+        .skip(1)
         .listen((_) => debouncedReload());
-    List<db.Channel>? previousChannelRows;
-    _channelsSub = database
-        .select(database.channels)
-        .watch()
-        .listen((rows) {
-          final retain = canRetainRowsAfterManualCategoryChange(
-            previousChannelRows, rows, _manualCategories,
-            pendingUrls: _pendingManualCategories.keys.toSet(),
-          );
-          previousChannelRows = rows;
-          if (!retain) debouncedReload();
-        });
+    _channelsSub = database.watchChannelChanges().listen((_) => debouncedReload());
     void reloadFavorites() {
       _favoritesReloadTimer?.cancel();
       _favoritesReloadTimer = Timer(const Duration(milliseconds: 120), () {
@@ -353,8 +354,10 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
       });
     }
     _favoriteListsSub = database.select(database.favoriteLists).watch()
+        .skip(1)
         .listen((_) => reloadFavorites());
     _favoriteMembersSub = database.select(database.favoriteListChannels).watch()
+        .skip(1)
         .listen((_) => reloadFavorites());
     ref.read(sourceMaintenanceCoordinatorProvider);
     // Refresh now-playing every 60 seconds so the info panel stays current
@@ -369,8 +372,10 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
     try {
       final database = ref.read(databaseProvider);
       final lists = await database.getAllFavoriteLists();
-      final ids = await database.getAllFavoritedChannelIds();
+      final ids = await database.getAllFavoritedChannelIds(reconcile: false);
       if (!mounted) return;
+      if (listEquals(lists, _favoriteLists) && setEquals(ids, _favoritedChannelIds)) return;
+      _categoryCache.invalidate();
       setState(() {
         _favoriteLists = lists;
         _favoritedChannelIds = ids;
@@ -552,6 +557,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
     _favoriteListsSub?.cancel();
     _favoriteMembersSub?.cancel();
     _favoritesReloadTimer?.cancel();
+    _catalogReloadTimer?.cancel();
     _longPressTimer?.cancel();
     _focusNode.dispose();
     super.dispose();
@@ -563,6 +569,8 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
       return;
     }
     _channelLoadInProgress = true;
+    _categoryCache.invalidate();
+    _countryCache.invalidate();
     try {
       final database = ref.read(databaseProvider);
       final isFirstLoad = !_initialLoadDone;
@@ -572,7 +580,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
       final results = await Future.wait([
         database.getAllProviders(),
         database.getAllFavoriteLists(),
-        database.getAllFavoritedChannelIds(),
+        database.getAllFavoritedChannelIds(reconcile: false),
         SharedPreferences.getInstance(),
         database.getStructuredCategoryGroups(),
       ]);
@@ -643,6 +651,14 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
       if (!mounted) return;
       if (isFirstLoad) {
         setState(() => _initialLoadDone = true);
+        // Historical membership expansion scans identity context. Existing
+        // favorites can paint immediately; reconcile once after the first frame.
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!mounted) return;
+          unawaited(database.reconcileFavoriteMemberships().catchError(
+            (Object error, StackTrace stack) => AppDiagnostics.instance
+              .recordError('favorite_background_reconcile', error, stack)));
+        });
         if (!_startupHealthScheduled) {
           _startupHealthScheduled = true;
           Future.delayed(const Duration(seconds: 30), () {
@@ -687,6 +703,8 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
     bool preserveScroll = false,
   }) async {
     final generation = ++_categoryLoadGeneration;
+    ref.read(streamAlternativesProvider).cancelPendingRebuild();
+    final clock = Stopwatch()..start();
     try {
     final database = ref.read(databaseProvider);
     final scrollAnchor = preserveScroll ? _captureScrollAnchor() : null;
@@ -704,27 +722,49 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
       });
     }
 
-    List<db.Channel> loaded;
     _manualCategories = {
       ...await ManualChannelCategory.load(),
       ..._pendingManualCategories,
     };
+    if (!mounted || generation != _categoryLoadGeneration) return;
+    final publicOnly = _simpleMode && _sharedCatalogAvailable &&
+        group != 'Favorites' && !group.startsWith('fav:');
+    if (group == '国际') {
+      final counts = Map<String, int>.of(await _countryCache.load('$publicOnly',
+        () => database.getInternationalCountryCounts(publicOnly: publicOnly)));
+      if (!mounted || generation != _categoryLoadGeneration) return;
+      for (final destination in _manualCategories.values) {
+        if (destination.category == '国际') counts.putIfAbsent(destination.country, () => 1);
+      }
+      _rebuildInternationalCountries(counts, group);
+    }
+    final country = group == '国际' ? _selectedInternationalCountry : null;
+    final cacheKey = jsonEncode([group, country, publicOnly,
+      _manualCategories.map((url, destination) => MapEntry(url, destination.group)),
+      if (group == 'Favorites') _favoritedChannelIds.toList()..sort(),
+    ]);
+    final cached = _categoryCache.contains(cacheKey);
+    final snapshot = await _categoryCache.load(cacheKey, () async {
+    List<db.Channel> loaded;
     if (group == 'Favorites') {
       loaded = _favoritedChannelIds.isEmpty
           ? const []
           : await database.getChannelsByIds(_favoritedChannelIds);
     } else if (group.startsWith('fav:')) {
-      loaded = await database.getChannelsInList(group.substring(4));
+      loaded = await database.getChannelsInList(group.substring(4), reconcile: false);
     } else {
-      final candidates = await database.getChannelCategoryCandidates(group);
+      final candidates = await database.getChannelCategoryCandidates(group,
+        internationalCountry: country, publicOnly: publicOnly);
       final manual = await database.getChannelsByStreamUrls(
-        _manualCategories.entries.where((entry) => entry.value.category == group)
+        _manualCategories.entries.where((entry) => entry.value.category == group &&
+          (country == null || entry.value.country == country))
             .map((entry) => entry.key),
       );
       loaded = {
         for (final channel in candidates) channel.id: channel,
         for (final channel in manual) channel.id: channel,
-      }.values.where((channel) => _categoryFor(channel) == group).toList();
+      }.values.where((channel) => _categoryFor(channel) == group &&
+        (country == null || _countryFor(channel) == country)).toList();
     }
 
     if (_simpleMode) {
@@ -738,17 +778,23 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
           )).toList();
     }
 
-    final presentationKeys = await database.channelPresentationKeys(loaded);
-    final categoryGroups = await database.publicCatalogCategoryGroups(
-      loaded.map((c) => c.id));
-    final mergeIds = await database.channelMergeIds(loaded.map((c) => c.streamUrl));
+    final metadata = await Future.wait([
+      database.channelPresentationKeys(loaded),
+      database.channelMergeIds(loaded.map((c) => c.streamUrl)),
+      database.publicCatalogChannelIds(loaded.map((c) => c.id)),
+    ]);
+    final categoryGroups = await database.publicCatalogCategoryGroups(loaded.map((c) => c.id));
+    return (channels: loaded, groups: categoryGroups,
+      metadata: ChannelIndexMetadata(presentationKeys: metadata[0],
+        mergeIds: metadata[1], catalogIds: metadata[2]));
+    });
     if (!mounted || generation != _categoryLoadGeneration) return;
+    final loaded = snapshot.channels;
     final unchanged = _sameChannelSnapshot(_allChannels, loaded);
     setState(() {
-      _presentationKeys = presentationKeys;
-      _catalogCategoryGroups = categoryGroups;
-      _rebuildInternationalCountries(loaded, group);
-      _channelMergeIds = mergeIds;
+      _presentationKeys = snapshot.metadata.presentationKeys;
+      _catalogCategoryGroups = snapshot.groups;
+      _channelMergeIds = snapshot.metadata.mergeIds;
       if (!unchanged) {
         _allChannels = loaded;
       }
@@ -758,11 +804,16 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
           '$group：载入 ${loaded.length} 条线路，合并为 ${_filteredChannels.length} 个频道';
       _categoryLoading = false;
     });
+    AppDiagnostics.instance.log('channel_category_loaded', {
+      'elapsedMs': clock.elapsedMilliseconds, 'rows': loaded.length,
+      'cached': cached, 'publicOnly': publicOnly,
+    });
     if (!unchanged && scrollAnchor != null) {
       _restoreScrollAnchor(scrollAnchor);
     }
     unawaited(_refreshRouteAvailability(loaded, generation));
-    await ref.read(streamAlternativesProvider).rebuildForChannels(loaded);
+    await ref.read(streamAlternativesProvider).rebuildForChannels(loaded,
+      metadata: snapshot.metadata);
     if (!mounted || generation != _categoryLoadGeneration) return;
     _playFirstFilteredChannelForGroup(group);
     } catch (error, stack) {
@@ -810,17 +861,12 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
     );
   }
 
-  void _rebuildInternationalCountries(List<db.Channel> loaded, String group) {
+  void _rebuildInternationalCountries(Map<String, int> internationalCountries, String group) {
     if (group != '国际') {
       _internationalCountries = [];
       return;
     }
-    final internationalCountries = <String, int>{};
-    for (final channel in loaded) {
-      final country = _countryFor(channel);
-      internationalCountries.update(country, (count) => count + 1,
-          ifAbsent: () => 1);
-    }
+    _internationalCountryCounts = internationalCountries;
     final sortedCountries = internationalCountries.keys.toList()
       ..sort((a, b) {
         if (a == '未识别地区') return 1;
@@ -1086,9 +1132,9 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
       if (_selectedGroup == 'Favorites') {
         channels = channels.where((c) => _favoritedChannelIds.contains(c.id)).toList();
       } else if (_selectedGroup.startsWith('fav:')) {
-        final listId = _selectedGroup.substring(4);
-        _applyFavoriteListFilter(listId);
-        return;
+        // _allChannels already contains this exact list. A second asynchronous
+        // query here repeated on every route/EPG update and could overwrite a
+        // newer category with a late favorite-list response.
       } else {
         channels = channels.where((c) {
           if (_selectedGroup == '国际') {
@@ -1124,7 +1170,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
     }
 
     if ((_simpleMode || !_showUnavailableSources) &&
-        _selectedGroup != 'Favorites') {
+        _selectedGroup != 'Favorites' && !_selectedGroup.startsWith('fav:')) {
       channels = channels.where((channel) {
         // A reviewed public route with no measurement in this network must
         // remain selectable. Global retirement removes it from the database.
@@ -1483,46 +1529,6 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
     _playFirstFilteredChannelForGroup(_selectedGroup);
   }
 
-  Future<void> _applyFavoriteListFilter(String listId) async {
-    final database = ref.read(databaseProvider);
-    var channels = await database.getChannelsInList(listId);
-    if (_searchQuery.isNotEmpty) {
-      final tokens = _searchQuery
-          .toLowerCase()
-          .split(RegExp(r'\s+'))
-          .where((t) => t.isNotEmpty)
-          .toList();
-      if (tokens.isNotEmpty) {
-        // Search ALL channels, not just favorites
-        channels = _allChannels.where((c) {
-          final haystack =
-              '${c.name}\x00${_vanityNames[c.id] ?? ''}\x00${c.groupTitle ?? ''}\x00${c.tvgId ?? ''}'
-                  .toLowerCase();
-          return tokens.every((t) => haystack.contains(t));
-        }).toList();
-      }
-    }
-    if (_sidebarSearchQuery.isNotEmpty) {
-      channels = channels.where((c) {
-        final q = _sidebarSearchQuery;
-        return c.name.toLowerCase().contains(q) ||
-            (_vanityNames[c.id]?.toLowerCase().contains(q) ?? false);
-      }).toList();
-    }
-    if (!mounted) return;
-    setState(() {
-      _filteredChannels = _deduplicateChannels(channels);
-      if (_selectedIndex >= 0) {
-        _selectedIndex = ChannelListIdentity.indexOf(
-          _filteredChannels, _previewChannel?.id, (channel) => channel.id,
-        );
-      }
-    });
-    _playFirstFilteredChannelForGroup('fav:$listId');
-    // Ensure EPG data is loaded for the favorite list channels
-    _refreshNowPlaying();
-  }
-
   Future<void> _selectGroupAndPlayFirst(String group) async {
     if (_selectedGroup == group) return;
     setState(() {
@@ -1566,17 +1572,19 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
     ];
   }
 
-  void _selectInternationalCountry(String country) {
+  Future<void> _selectInternationalCountry(String country) async {
     if (_selectedInternationalCountry == country) return;
     setState(() {
       _selectedInternationalCountry = country;
       _selectedInternationalMedia = '电视';
       _selectedInternationalGenre = '全部';
       _selectedIndex = -1;
-      _applyFilters();
+      _filteredChannels = [];
     });
     unawaited(_saveSelectedInternationalCountry(country));
-    unawaited(_refreshRouteAvailability(_allChannels, _categoryLoadGeneration));
+    await _loadGroupChannels('国际');
+    if (!mounted || _selectedGroup != '国际' || _selectedInternationalCountry != country) return;
+    await _loadEpgData(ref.read(databaseProvider), _allChannels, _favoritedChannelIds);
   }
 
   Future<void> _saveSelectedInternationalCountry(String country) async {
@@ -1586,7 +1594,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
 
   Future<void> _selectPinnedCountry(String country) async {
     if (_selectedGroup == '国际') {
-      _selectInternationalCountry(country);
+      await _selectInternationalCountry(country);
       return;
     }
     _selectedInternationalCountry = country;
@@ -2002,6 +2010,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
     final database = ref.read(databaseProvider);
     final identities = await database.publicCatalogChannelIds([localId]);
     if (!mounted || generation != _channelSelectionGeneration || identities[localId] != catalogId) return;
+    _categoryCache.invalidate();
     await _loadGroupChannels(_selectedGroup, preserveScroll: true);
     if (!mounted || generation != _channelSelectionGeneration) return;
     final index = _filteredChannels.indexWhere((channel) => channel.id == localId);
@@ -2026,6 +2035,8 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
       ),
     );
     if (!mounted || destination == null) return;
+    _categoryCache.invalidate();
+    _countryCache.invalidate();
     final database = ref.read(databaseProvider);
     final inventory = ref.read(sourceMaintenanceCoordinatorProvider).inventory;
     setState(() {
@@ -2040,7 +2051,10 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
             .whereType<ChannelCategoryDestination>(),
       );
       _allChannels = moveChannelRows(_allChannels, urls, destination);
-      _rebuildInternationalCountries(_allChannels, _selectedGroup);
+      _rebuildInternationalCountries({
+        ..._internationalCountryCounts,
+        if (destination.category == '国际') destination.country: 1,
+      }, _selectedGroup);
       _applyFilters();
     });
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
@@ -3797,11 +3811,13 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                         expandedContent: hasGuide
                             ? Container(
                                 key: _inlineProgrammeStripKey,
-                                child: !hasProgrammes ? ChannelProgrammeStatus(
+                                child: !hasProgrammes ? ServerEpgChannelStatus(
+                                  epgChannelId: _inlineProgrammePreview.epgChannelId,
+                                  fallback: ChannelProgrammeStatus(
                                   loading: _inlineProgrammePreview.loading,
                                   failed: _inlineProgrammePreview.failed,
                                   hasMapping: _inlineProgrammePreview.hasMapping,
-                                ) : ChannelProgrammeStrip(
+                                )) : ChannelProgrammeStrip(
                                   key: ValueKey(
                                     'programme-strip-${_inlineProgrammePreview.selectedChannelId}',
                                   ),

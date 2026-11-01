@@ -7,6 +7,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as p;
 import 'package:uuid/uuid.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter/foundation.dart' show compute;
 
 import '../../services/channel_category_classifier.dart';
 import '../../services/public_inventory_policy.dart';
@@ -21,6 +22,9 @@ import 'tables.dart';
 part 'database.g.dart';
 
 const _uuid = Uuid();
+
+Map<String, String> _presentationKeysInWorker(List<ChannelPresentationRoute> routes) =>
+    ChannelPresentationIdentity.keys(routes);
 
 @DriftDatabase(
   tables: [
@@ -940,12 +944,44 @@ class AppDatabase extends _$AppDatabase {
   Future<List<Channel>> getChannelsByIds(Set<String> ids) =>
       (select(channels)..where((t) => t.id.isIn(ids))).get();
 
+  /// Invalidate the active category without materializing every channel row.
+  /// Uses invalidation events only, with no synthetic initial full-table read.
+  Stream<void> watchChannelChanges() => tableUpdates(
+    TableUpdateQuery.onTable(channels),
+  ).map((_) {});
+
   /// Returns a small candidate set for one content category.
   ///
   /// Classification is finalized by [ChannelCategoryClassifier] in the UI.
   /// Keeping the broad text match in SQLite prevents tens of thousands of
   /// channel rows from being materialized on the Flutter isolate at startup.
-  Future<List<Channel>> getChannelCategoryCandidates(String category) async {
+  Future<List<Channel>> getChannelCategoryCandidates(
+    String category, {
+    String? internationalCountry,
+    bool publicOnly = false,
+  }) async {
+    // Reviewed routes have explicit paths. The simple public browser never
+    // needs the expensive legacy name/URL heuristic or another country's rows.
+    final scopedGroups = internationalCountry == null ? null :
+        (await getStructuredCategoryGroups()).where((group) =>
+          ChannelCategoryDestination.fromGroup(group)?.country == internationalCountry &&
+          group.startsWith('国际 / ')).toList();
+    if (publicOnly) {
+      return (select(channels)..where((row) {
+        final owner = row.providerId.equals('bobtv-channel-catalog');
+        if (category == '国际' && scopedGroups != null) {
+          return owner & row.groupTitle.isIn(scopedGroups);
+        }
+        if (category == '其他') {
+          return owner & (row.groupTitle.equals('中国 / 其他') |
+            row.groupTitle.equals('其他') | row.groupTitle.like('其他 / %'));
+        }
+        final path = '中国 / $category';
+        return owner & (row.groupTitle.equals(category) |
+          row.groupTitle.equals(path) |
+          row.groupTitle.like(category == '国际' ? '国际 / %' : '$path / %'));
+      })).get();
+    }
     final terms = ChannelCategoryClassifier.candidateTermsForCategory(category);
     if (category != '其他' && terms == null) {
       // Explicit custom hierarchies are matched exactly. Never run the broad
@@ -1063,22 +1099,63 @@ class AppDatabase extends _$AppDatabase {
         : ChannelCategoryClassifier.provinceCategories.contains(category)
         ? '中国 / $category / %'
         : '中国 / $category';
+    final publicScope = category == '国际' && scopedGroups != null
+        ? 'group_title IN (SELECT value FROM json_each(?))'
+        : '(group_title = ? OR group_title = ? OR group_title LIKE ?)';
     final rows = await customSelect(
       'SELECT * FROM channels WHERE '
-      '(provider_id = ? AND (group_title = ? OR group_title = ? '
-      'OR group_title LIKE ?)) OR '
+      '(provider_id = ? AND $publicScope) OR '
       '(provider_id != ? AND (${conditions.join(' OR ')}))',
       variables: [
         Variable.withString('bobtv-channel-catalog'),
-        Variable.withString(category),
-        Variable.withString('中国 / $category'),
-        Variable.withString(websiteGroup),
+        if (category == '国际' && scopedGroups != null)
+          Variable.withString(jsonEncode(scopedGroups))
+        else ...[
+          Variable.withString(category),
+          Variable.withString('中国 / $category'),
+          Variable.withString(websiteGroup),
+        ],
         Variable.withString('bobtv-channel-catalog'),
         ...variables,
       ],
       readsFrom: {channels},
     ).get();
     return rows.map((row) => channels.map(row.data)).toList();
+  }
+
+  /// Country navigation reads grouped paths, not thousands of public routes.
+  /// Legacy personal playlists retain their existing identity classifier.
+  Future<Map<String, int>> getInternationalCountryCounts({bool publicOnly = false}) async {
+    final counts = <String, int>{};
+    final rows = await customSelect(
+      'SELECT group_title,COUNT(*) AS route_count FROM channels '
+      'WHERE group_title LIKE ? ${publicOnly ? 'AND provider_id=?' : ''} '
+      'GROUP BY group_title',
+      variables: [Variable('国际 / %'), if (publicOnly) Variable('bobtv-channel-catalog')],
+      readsFrom: {channels},
+    ).get();
+    for (final row in rows) {
+      final destination = ChannelCategoryDestination.fromGroup(row.read<String>('group_title'));
+      if (destination == null) continue;
+      counts.update(destination.country, (n) => n + row.read<int>('route_count'),
+        ifAbsent: () => row.read<int>('route_count'));
+    }
+    if (!publicOnly) {
+      final legacy = await (select(channels)..where((c) =>
+        c.providerId.equals('bobtv-channel-catalog').not() &
+        (c.groupTitle.isNull() | c.groupTitle.like('国际 / %').not()))).get();
+      for (final channel in legacy) {
+        final explicit = ChannelCategoryDestination.fromGroup(channel.groupTitle);
+        final category = explicit?.category ?? ChannelCategoryClassifier.classify(
+          name: channel.name, groupTitle: channel.groupTitle,
+          tvgId: channel.tvgId, streamUrl: channel.streamUrl);
+        if (category != '国际') continue;
+        final country = explicit?.country ?? ChannelCategoryClassifier.internationalCountryFor(
+          name: channel.name, groupTitle: channel.groupTitle, tvgId: channel.tvgId);
+        counts.update(country, (n) => n + 1, ifAbsent: () => 1);
+      }
+    }
+    return counts;
   }
 
   /// Reads only distinct explicit paths, without loading channel objects.
@@ -1913,8 +1990,8 @@ class AppDatabase extends _$AppDatabase {
     favoriteLists,
   )..orderBy([(t) => OrderingTerm.asc(t.sortOrder)])).get();
 
-  Future<List<Channel>> getChannelsInList(String listId) async {
-    await reconcileFavoriteMemberships();
+  Future<List<Channel>> getChannelsInList(String listId, {bool reconcile = true}) async {
+    if (reconcile) await reconcileFavoriteMemberships();
     final query =
         select(channels).join([
             innerJoin(
@@ -1974,14 +2051,19 @@ class AppDatabase extends _$AppDatabase {
       for (final row in rows) { context[row.read<String>('local_channel_id')] = row; }
     }
     final mergeIds = await channelMergeIds(routes.values.map((c) => c.streamUrl));
-    return ChannelPresentationIdentity.keys(routes.values.map((c) =>
+    final presentation = routes.values.map((c) =>
       ChannelPresentationRoute(id: c.id, name: c.name, url: c.streamUrl,
         group: c.groupTitle, tvgName: c.tvgName, tvgId: c.tvgId,
         countryCode: context[c.id]?.readNullable<String>('country_code'),
         regionCode: context[c.id]?.readNullable<String>('region_code'),
         mergeId: mergeIds[canonicalRouteUrl(c.streamUrl)],
         catalogId: c.providerId == 'bobtv-channel-catalog'
-            ? catalogIds[c.id] ?? c.id : null)));
+            ? catalogIds[c.id] ?? c.id : null)).toList();
+    // Large authoritative identity contexts must not monopolize the UI isolate.
+    // The exact same pure function and complete service context are retained.
+    return presentation.length > 300
+        ? compute(_presentationKeysInWorker, presentation)
+        : ChannelPresentationIdentity.keys(presentation);
   }
 
   Future<Set<String>> _favoriteEquivalentIds(String channelId, {bool includeBlocked = false}) async {
@@ -2139,8 +2221,8 @@ class AppDatabase extends _$AppDatabase {
   }
 
   /// Get all channel IDs that belong to any favorite list.
-  Future<Set<String>> getAllFavoritedChannelIds() async {
-    await reconcileFavoriteMemberships();
+  Future<Set<String>> getAllFavoritedChannelIds({bool reconcile = true}) async {
+    if (reconcile) await reconcileFavoriteMemberships();
     final rows = await select(favoriteListChannels).get();
     return rows.map((r) => r.channelId).toSet();
   }

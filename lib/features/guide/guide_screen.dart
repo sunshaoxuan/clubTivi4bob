@@ -1,5 +1,7 @@
 import '../../core/server_image.dart';
 import '../../data/services/epg_ui_refresh.dart';
+import '../../app/server_epg_runtime_host.dart';
+import '../../data/models/server_epg_snapshot.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -217,6 +219,10 @@ class _GuideScreenState extends ConsumerState<GuideScreen> {
             }
             return Column(
               children: [
+                ServerEpgChannelStatus(
+                  epgChannelId: _epgMappings.values.where((id) =>
+                    id.startsWith('${serverEpgSourceId}_')).firstOrNull,
+                ),
                 // Time ruler — offset by 120px to align with programme columns
                 SizedBox(
                   height: 32,

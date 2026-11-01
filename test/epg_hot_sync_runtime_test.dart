@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:drift/drift.dart' show Value;
 import 'package:drift/native.dart';
 import 'package:clubtivi/data/datasources/local/database.dart' as db;
@@ -298,7 +299,11 @@ void main() {
               ),
               Align(
                 alignment: Alignment.bottomRight,
-                child: ServerEpgCacheStatus(state: status, now: () => now),
+                child: ServerEpgCacheStatus(
+                  state: status,
+                  now: () => now,
+                  epgChannelId: '${serverEpgSourceId}_test',
+                ),
               ),
             ],
           ),
@@ -312,15 +317,100 @@ void main() {
         coverageEnd: now.add(const Duration(hours: 1)),
       );
       await tester.pump();
-      expect(find.text('节目表暂用缓存'), findsOneWidget);
+      expect(find.textContaining('节目表暂用缓存'), findsOneWidget);
       expect(scroll.offset, 300);
       now = now.add(const Duration(hours: 2));
       await tester.pump(const Duration(minutes: 1));
-      expect(find.text('节目表缓存已过期'), findsOneWidget);
+      expect(find.textContaining('暂无最新节目表'), findsOneWidget);
       expect(scroll.offset, 300);
       await tester.pumpWidget(const SizedBox());
       status.dispose();
       scroll.dispose();
     },
   );
+
+  testWidgets('runtime keeps refreshing without a global expiry overlay', (
+    tester,
+  ) async {
+    final service = _Service(database);
+    service.state.value = ServerEpgSyncStatus(
+      version: 'old',
+      coverageEnd: DateTime.utc(2020),
+    );
+    final runtime = ServerEpgRuntime(
+      service,
+      networkChanges: const Stream<bool>.empty(),
+      observeWindow: false,
+    );
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          serverEpgRuntimeProvider.overrideWith((ref) {
+            runtime.start();
+            ref.onDispose(runtime.dispose);
+            return runtime;
+          }),
+        ],
+        child: const ServerEpgRuntimeHost(
+          child: MaterialApp(home: Scaffold(body: Text('playing channel'))),
+        ),
+      ),
+    );
+    expect(service.starts, 1);
+    expect(find.text('playing channel'), findsOneWidget);
+    expect(find.byType(ServerEpgCacheStatus), findsNothing);
+    expect(find.textContaining('暂无最新节目表'), findsNothing);
+    await tester.pumpWidget(const SizedBox());
+    runtime.dispose();
+  });
+
+  testWidgets('server expiry is scoped away from private and unmapped guides', (
+    tester,
+  ) async {
+    final state = ValueNotifier(
+      ServerEpgSyncStatus(version: 'old', coverageEnd: DateTime.utc(2020)),
+    );
+    for (final id in [null, 'private_test', '${serverEpgSourceId}_test']) {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: ServerEpgCacheStatus(
+            state: state,
+            epgChannelId: id,
+            fallback: const Text('local guide'),
+          ),
+        ),
+      );
+      expect(
+        find.textContaining('暂无最新节目表'),
+        id == '${serverEpgSourceId}_test' ? findsOneWidget : findsNothing,
+      );
+    }
+    state.value = ServerEpgSyncStatus(
+      version: 'new',
+      coverageEnd: DateTime.now().add(const Duration(days: 1)),
+    );
+    await tester.pump();
+    expect(find.textContaining('暂无最新节目表'), findsNothing);
+    expect(find.text('local guide'), findsOneWidget);
+    await tester.pumpWidget(const SizedBox());
+    state.dispose();
+  });
+
+  testWidgets('standalone guide status does not start a network receiver', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      const ProviderScope(
+        child: MaterialApp(
+          home: ServerEpgChannelStatus(
+            epgChannelId: '${serverEpgSourceId}_test',
+            fallback: Text('local guide'),
+          ),
+        ),
+      ),
+    );
+    expect(find.text('local guide'), findsOneWidget);
+    expect(find.byType(ServerEpgCacheStatus), findsNothing);
+    await tester.pumpWidget(const SizedBox());
+  });
 }

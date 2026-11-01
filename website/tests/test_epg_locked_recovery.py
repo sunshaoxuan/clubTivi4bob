@@ -12,6 +12,7 @@ import epg_channel_research as queue
 import epg_coverage_gaps as gaps
 import epg_locked_recovery as recovery
 import epg_evidence_review as review
+import epg_route_directory as directory
 from epg_channel_research_worker import protected_ids
 from epg_ingest import database
 from test_epg_auto_search import response, settings
@@ -220,3 +221,22 @@ def test_changed_mapping_restarts_identity_and_phase_without_shortening_floor(co
     assert row['identity_evidence'] is None and row['state'] == 'pending_identity'
     assert row['next_retry'] == AT + 20000
     assert worker.phase(conn, row) == 0
+
+
+@pytest.mark.parametrize('disable_during_fetch', [False, True])
+def test_exact_route_directory_uses_recovery_scope_and_rechecks_before_accepting(conn, disable_during_fetch):
+    channel = {**CHANNEL, 'routes': [{'url': 'https://fixture.example.org/exact.m3u8'}]}
+    sync(conn, channels=[channel])
+    row = conn.execute('SELECT * FROM epg_channel_research_jobs').fetchone()
+    before = preserved(conn)
+    def fetch(_):
+        if disable_during_fetch:
+            with conn:
+                conn.execute('UPDATE epg_locked_recovery_jobs SET enabled=0')
+        return {'state':'exact_route_metadata','bodyBytes':123,'bodySha256':'a'*64,
+                'records':[{'name':'Fixture 0','countrycode':'CN'}]}
+    result = directory.check_selected(conn, row, channel, PATH, AT, fetcher=fetch)
+    assert result['networkRequests'] == 1
+    assert result['state'] == ('stale_target_rejected' if disable_during_fetch else 'exact_route_metadata')
+    assert conn.execute('SELECT count(*) FROM epg_route_directory_cache').fetchone()[0] == (0 if disable_during_fetch else 1)
+    assert preserved(conn) == before

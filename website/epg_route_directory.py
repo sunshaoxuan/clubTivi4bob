@@ -14,7 +14,7 @@ import urllib.request
 from urllib.parse import urlencode, urlsplit
 
 import epg_channel_research as queue
-from epg_channel_research_worker import protected_ids
+from epg_locked_recovery import research_protected_ids as protected_ids
 from epg_ingest import EpgError, NoRedirect
 
 ENDPOINT = 'https://de1.api.radio-browser.info/json/stations/byurl'
@@ -136,7 +136,7 @@ def _eligible(conn, expected, now):
     if (row is None or not row['active'] or row['identity_hash'] != expected['identity_hash']
             or row['payload'] != expected['payload'] or row['identity_evidence']
             or row['state'] != 'pending_identity' or row['next_retry'] > now
-            or row['lease_until'] > now or row['channel_id'] in protected_ids(conn)):
+            or row['lease_until'] > now or row['channel_id'] in protected_ids(conn, now)):
         return None
     return row
 

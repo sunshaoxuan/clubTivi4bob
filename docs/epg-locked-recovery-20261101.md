@@ -34,7 +34,7 @@ the existing auto-search, identity review, schedule, ingest, store and coverage
 tests. Fixtures do not authorize production mappings or programme data.
 
 Commit and push tested changes to `publish/main` before deployment. Stage the
-four runtime modules together, verify their hashes and compiled imports, and
+five runtime modules together, verify their hashes and compiled imports, and
 replace them only while the source-discovery and schedule workers are idle.
 Keep previous modules for rollback; leave APIs and the other EPG services
 running. Restore the existing timers, inspect the ordinary worker execution

@@ -1,0 +1,69 @@
+name: BobTV 1.1.19 Android language acceptance
+on:
+  push:
+    branches: [qa/bobtv-1.1.19-android]
+
+permissions:
+  contents: write
+
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 38
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Prepare the disposable emulator and UI driver
+        run: |
+          set -euo pipefail
+          test -c /dev/kvm
+          sudo chmod a+rw /dev/kvm
+          sdkmanager --install 'emulator' 'platforms;android-36' 'build-tools;36.0.0' 'system-images;android-30;google_apis;x86_64'
+          mkdir -p qa/qa-android-driver
+          ln -s "$PWD" qa/source
+          cp tools/diagnostics/bobtv_release_language/android-driver-matrix.py qa/
+          cp tools/diagnostics/bobtv_release_language/AndroidManifest.xml tools/diagnostics/bobtv_release_language/LanguageDriver.java qa/qa-android-driver/
+          cd qa/qa-android-driver
+          bt="$ANDROID_HOME/build-tools/36.0.0"
+          jar="$ANDROID_HOME/platforms/android-36/android.jar"
+          mkdir classes
+          javac -source 8 -target 8 -classpath "$jar" -d classes LanguageDriver.java
+          "$bt/d8" --min-api 24 --output . $(find classes -name '*.class')
+          "$bt/aapt" package -f -M AndroidManifest.xml -I "$jar" -F driver-unsigned.apk
+          "$bt/aapt" add driver-unsigned.apk classes.dex
+          keytool -genkeypair -keystore driver.p12 -storepass android -keypass android -alias test -keyalg RSA -validity 3 -dname 'CN=BobTV locale test driver'
+          "$bt/apksigner" sign --ks driver.p12 --ks-pass pass:android --key-pass pass:android --out driver.apk driver-unsigned.apk
+          printf 'no\n' | avdmanager create avd -n bobtv-1119 -k 'system-images;android-30;google_apis;x86_64'
+          nohup "$ANDROID_HOME/emulator/emulator" -avd bobtv-1119 -port 5568 -no-window -gpu swiftshader_indirect -no-snapshot -no-audio -no-boot-anim -memory 2600 > ../../emulator.log 2>&1 </dev/null &
+      - name: Exercise each signed APK from the draft
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          test "$(gh release view v1.1.19 --json isDraft --jq .isDraft)" = true
+          gh release download v1.1.19 --pattern 'BobTV-1.1.19+114-android-*.apk' --dir qa/packages
+          for attempt in {1..90}; do
+            if [[ "$(adb -s emulator-5568 shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')" == 1 ]]; then break; fi
+            sleep 2
+          done
+          [[ "$(adb -s emulator-5568 shell getprop sys.boot_completed | tr -d '\r')" == 1 ]]
+          adb -s emulator-5568 shell wm size 720x1000
+          adb -s emulator-5568 shell wm density 160
+          adb -s emulator-5568 shell svc wifi disable
+          adb -s emulator-5568 shell svc data disable
+          python -u qa/android-driver-matrix.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: bobtv-android-language-matrix
+          path: |
+            qa/android-qa-*/*.json
+            qa/android-qa-*/*.log
+            emulator.log
+          retention-days: 3
+          if-no-files-found: ignore

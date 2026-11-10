@@ -1,0 +1,5 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android" package="com.briconbric.bobtv.qai18n">
+  <uses-sdk android:minSdkVersion="24" android:targetSdkVersion="30"/>
+  <application android:label="BobTV locale test driver" android:debuggable="true"/>
+  <instrumentation android:name=".LanguageDriver" android:targetPackage="com.briconbric.bobtv.qai18n"/>
+</manifest>

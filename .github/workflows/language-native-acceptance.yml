@@ -82,6 +82,7 @@ jobs:
             native: ARM64
     runs-on: ${{ matrix.runner }}
     steps:
+      - run: git config --global core.autocrlf false
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
@@ -97,7 +98,7 @@ jobs:
           EXPECTED_NATIVE: ${{ matrix.native }}
         run: |
           $ErrorActionPreference='Stop'
-          if($env:PROCESSOR_ARCHITECTURE -ne $env:EXPECTED_NATIVE){throw 'Unexpected Windows host architecture'}
+          if(([System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture.ToString().Replace('X64','AMD64').ToUpper()) -ne $env:EXPECTED_NATIVE){throw 'Unexpected Windows host architecture'}
           $name="BobTV-1.1.19+114-windows-$env:ARCH-Setup.exe"
           $dir=Join-Path $env:RUNNER_TEMP 'bobtv-candidate'
           New-Item -ItemType Directory -Force $dir | Out-Null

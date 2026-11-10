@@ -55,7 +55,7 @@ def image(process,name):
     return rect, np.asarray(shot.convert("L"))
 
 def globe(img):
-    roi=img[:140,int(img.shape[1]*.22):]
+    roi=img[:140,int(img.shape[1]*.03):]
     best=(-1,0,0)
     for size in range(17,34):
         font=ImageFont.truetype(str(font_path),size)
@@ -64,7 +64,7 @@ def globe(img):
         tmpl=np.asarray(glyph.crop(glyph.getbbox()))
         _,score,_,(x,y)=cv2.minMaxLoc(cv2.matchTemplate(roi,tmpl,cv2.TM_CCOEFF_NORMED))
         if score>best[0]:
-            best=(score,int(img.shape[1]*.22)+x+tmpl.shape[1]//2,y+tmpl.shape[0]//2)
+            best=(score,int(img.shape[1]*.03)+x+tmpl.shape[1]//2,y+tmpl.shape[0]//2)
     return best[1:] if best[0]>=.73 else None
 
 def click(rect,x,y):
@@ -85,43 +85,63 @@ def preferences():
         except (OSError,ValueError): pass
     return None
 
-def menu_bounds(before,after,anchor,dpi):
-    assert before.shape==after.shape
-    colors=after.astype(np.int16)
-    surface=((abs(colors-32)<=1)|(abs(colors-81)<=1)).astype(np.uint8)
-    joined=cv2.morphologyEx(surface,cv2.MORPH_CLOSE,np.ones((5,5),np.uint8))
-    n,_,stats,_=cv2.connectedComponentsWithStats(joined)
-    candidates=[]
-    for x,y,w,h,area in stats[1:]:
-        widths=(112,168,224,280)
-        if (any(abs(w-size*dpi)<=7*dpi for size in widths)
-            and abs(h-400*dpi)<=12*dpi and area>=w*h*.50
-            and x-8*dpi<=anchor[0]<=x+w+8*dpi and y<=anchor[1]+16*dpi):
-            candidates.append((int(area),int(x),int(y),int(w),int(h)))
-    if not candidates: raise RuntimeError("Language popup was not detected")
-    return max(candidates)[1:]
+def menu_bounds(image, anchor, dpi):
+    y = round(8 * dpi)
+    height = round(400 * dpi)
+    bottom = y + height
+    if bottom + 6 >= image.shape[0]:
+        return None
+    surface = (abs(image.astype(np.int16) - 31) <= 1).astype(np.uint8)
+    columns = surface[y:bottom].mean(axis=0)
+    below = surface[bottom:bottom + 5].mean(axis=0)
+    prefix = np.r_[0, columns.cumsum()]
+    below_prefix = np.r_[0, below.cumsum()]
+    best = None
+    for size in (112, 168, 224, 280):
+        width = round(size * dpi)
+        left = np.arange(5, image.shape[1] - width - 5)
+        if anchor is not None:
+            left = left[(left - 9 * dpi <= anchor[0]) & (anchor[0] <= left + width + 9 * dpi)]
+        if not left.size:
+            continue
+        right = left + width
+        occupancy = (prefix[right] - prefix[left]) / width
+        edges = (prefix[left] - prefix[left - 4] + prefix[right + 4] - prefix[right]) / 8
+        foot = (below_prefix[right - 3] - below_prefix[left + 3]) / (width - 6)
+        score = np.where(occupancy >= .73, occupancy - .25 * edges - .2 * foot, 0)
+        index = score.argmax()
+        if best is None or score[index] > best[0]:
+            best = (score[index], int(left[index]), y, width, height)
+    return best[1:] if best is not None and best[0] >= .67 else None
 
-def switch(process,tag):
+def switch(process, tag):
     def ready():
-        rect,before=image(process,"before-"+tag)
-        p=globe(before)
-        return (rect,before,p) if p else None
+        rect, before = image(process, "before-" + tag)
+        hwnd, _ = poll(lambda: window(process.pid))
+        dpi = (user.GetDpiForWindow(hwnd) or 96) / 96
+        menu = menu_bounds(before, None, dpi)
+        point = None if menu else globe(before)
+        return (rect, dpi, menu, point) if menu or point else None
+
     for attempt in range(5):
-        rect,before,(x,y)=poll(ready,100)
-        click(rect,x,y)
-        rect,after=image(process,"menu-"+tag)
+        rect, dpi, menu, point = poll(ready, 80)
+        if not menu:
+            click(rect, *point)
+            rect, after = image(process, "menu-" + tag)
+            menu = menu_bounds(after, point, dpi)
+        if not menu:
+            continue
+        x, y, width, _ = menu
+        row = languages.index(tag) + 1
+        click(rect, x + width // 2, y + round((8 + 48 * (row + .5)) * dpi))
         try:
-            hwnd,_=poll(lambda:window(process.pid))
-            dpi=(user.GetDpiForWindow(hwnd) or 96)/96
-            x,y,w,h=menu_bounds(before,after,(x,y),dpi)
-            break
+            poll(lambda: preferences() if preferences() == tag else None, 6)
         except RuntimeError:
-            if attempt == 4: raise
-            time.sleep(.8)
-    row=languages.index(tag)+1
-    click(rect,x+w//2,y+round((8+48*(row+.5))*dpi))
-    assert poll(lambda: preferences() if preferences()==tag else None,12)==tag
-    image(process,"active-"+tag)
+            continue
+        image(process, "active-" + tag)
+        print("Selected", tag, flush=True)
+        return
+    raise RuntimeError(f"Could not select {tag}")
 
 def start():
     return subprocess.Popen([str(app)],cwd=app.parent)

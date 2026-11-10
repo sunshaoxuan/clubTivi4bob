@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import '../../core/i18n/app_language.dart';
 
 import '../../data/datasources/local/database.dart' as db;
 
@@ -200,8 +201,8 @@ class _ChannelProgrammeStripState extends State<ChannelProgrammeStrip> {
                                 fontWeight: FontWeight.w600,
                               ),
                             ),
-                            const TextSpan(
-                              text: '  ·  节目时间轴',
+                            TextSpan(
+                              text: AppMessages.text(context, "  ·  节目时间轴"),
                               style: TextStyle(color: Color(0xFF8FA2BF)),
                             ),
                           ],
@@ -215,14 +216,14 @@ class _ChannelProgrammeStripState extends State<ChannelProgrammeStrip> {
                       const SizedBox(width: 4),
                       _scrollButton(
                         key: const ValueKey('programme-scroll-previous'),
-                        tooltip: '前面的节目',
+                        tooltip: AppMessages.text(context, "前面的节目"),
                         icon: Icons.chevron_left_rounded,
                         onPressed: atStart ? null : () => _page(-1),
                       ),
                       const SizedBox(width: 3),
                       _scrollButton(
                         key: const ValueKey('programme-scroll-next'),
-                        tooltip: '后面的节目',
+                        tooltip: AppMessages.text(context, "后面的节目"),
                         icon: Icons.chevron_right_rounded,
                         onPressed: atEnd ? null : () => _page(1),
                       ),
@@ -332,10 +333,10 @@ class _ChannelProgrammeStripState extends State<ChannelProgrammeStrip> {
                               programmes.first.start,
                             ).isAfter(now);
                             final label = current
-                                ? '正在播出'
+                                ? AppMessages.text(context, '正在播出')
                                 : i == (firstIsCurrent ? 1 : 0)
-                                ? '接下来'
-                                : '随后';
+                                ? AppMessages.text(context, '接下来')
+                                : AppMessages.text(context, '随后');
                             return Column(
                               key: ValueKey('programme-${programme.id}'),
                               crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -446,8 +447,8 @@ class _ChannelProgrammeStripState extends State<ChannelProgrammeStrip> {
     final stop = _effectiveTime(programme.stop);
     final current = !start.isAfter(now) && stop.isAfter(now);
     final label = current
-        ? '正在播出'
-        : (index == (followsCurrent ? 1 : 0) ? '接下来' : '随后');
+        ? AppMessages.text(context, '正在播出')
+        : (index == (followsCurrent ? 1 : 0) ? AppMessages.text(context, '接下来') : AppMessages.text(context, '随后'));
     final date = _dateLabel(start, now);
     final progress = current
         ? now.difference(start).inMilliseconds /
@@ -588,9 +589,9 @@ class _ChannelProgrammeStripState extends State<ChannelProgrammeStrip> {
     final day = DateTime(value.year, value.month, value.day);
     final today = DateTime(now.year, now.month, now.day);
     if (day == today) return null;
-    if (day == DateTime(now.year, now.month, now.day + 1)) return '明天';
-    if (day == DateTime(now.year, now.month, now.day - 1)) return '昨天';
-    return '${value.month}月${value.day}日';
+    if (day == DateTime(now.year, now.month, now.day + 1)) return AppMessages.text(context, '明天');
+    if (day == DateTime(now.year, now.month, now.day - 1)) return AppMessages.text(context, '昨天');
+    return MaterialLocalizations.of(context).formatShortDate(value);
   }
 }
 

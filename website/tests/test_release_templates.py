@@ -7,7 +7,7 @@ from jinja2 import Environment, FileSystemLoader, StrictUndefined, select_autoes
 ROOT = Path(__file__).resolve().parents[1]
 
 
-@pytest.mark.parametrize('locale', ['zh-CN', 'zh-TW', 'en', 'ja'])
+@pytest.mark.parametrize('locale', ['zh-CN', 'zh-TW', 'en', 'ja', 'fr', 'es', 'ko'])
 def test_release_templates_preserve_languages_and_settings(locale):
     copy = json.loads((ROOT / 'locales' / f'{locale}.json').read_text())
     environment = Environment(loader=FileSystemLoader(ROOT / 'templates'),
@@ -22,8 +22,8 @@ def test_release_templates_preserve_languages_and_settings(locale):
         assert f'lang="{locale}"' in rendered
         assert 'installed-devices' in rendered
         if page == 'index':
-            assert '1.1.18+113 · Windows / macOS / Android' in rendered
-            assert copy['home']['history'][0][1].startswith('v1.1.18 · ')
+            assert '1.1.19+114 · Windows / macOS / Android' in rendered
+            assert copy['home']['history'][0][1].startswith('v1.1.19 · ')
             assert any(item[1].startswith('v1.1.10 · ')
                        for item in copy['home']['history'])
             assert 'settings-title' in rendered
@@ -32,9 +32,9 @@ def test_release_templates_preserve_languages_and_settings(locale):
             assert 'tablets-title' in rendered
         elif page == 'downloads':
             assert 'id="release-list"' in rendered
-            assert '1.1.18+113' in rendered
+            assert '1.1.19+114' in rendered
             assert '1.1.10+103' not in copy['downloads']['intro']
-            assert '1.1.18+113' in copy['downloads']['intro']
+            assert '1.1.19+114' in copy['downloads']['intro']
             assert '1.1.10+103' not in copy['downloads']['intro']
             assert '30' in copy['downloads']['intro']
             assert 'ad-hoc' in rendered

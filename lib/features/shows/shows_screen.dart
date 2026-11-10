@@ -7,6 +7,7 @@ import 'package:go_router/go_router.dart';
 import '../../data/models/show.dart';
 import '../../core/server_egress.dart';
 import 'shows_providers.dart';
+import '../../core/i18n/app_language.dart';
 
 /// Main shows screen with poster grid organized by category
 class ShowsScreen extends ConsumerStatefulWidget {
@@ -91,8 +92,8 @@ class _ShowsScreenState extends ConsumerState<ShowsScreen> {
             children: [
               const Icon(Icons.movie_outlined, size: 64, color: Color(0xFF6C5CE7)),
               const SizedBox(height: 24),
-              const Text(
-                'Shows & Movies',
+              Text(
+                AppMessages.text(context, "Shows & Movies"),
                 style: TextStyle(
                   color: Colors.white,
                   fontSize: 28,
@@ -100,8 +101,8 @@ class _ShowsScreenState extends ConsumerState<ShowsScreen> {
                 ),
               ),
               const SizedBox(height: 12),
-              const Text(
-                'Configure at least a Trakt or TMDB API key in Settings\nto browse trending shows, movies, and stream via Real-Debrid.',
+              Text(
+                AppMessages.text(context, "Configure at least a Trakt or TMDB API key in Settings\nto browse trending shows, movies, and stream via Real-Debrid."),
                 textAlign: TextAlign.center,
                 style: TextStyle(color: Colors.white60, fontSize: 16),
               ),
@@ -110,7 +111,7 @@ class _ShowsScreenState extends ConsumerState<ShowsScreen> {
                 autofocus: true,
                 onPressed: () => context.go('/settings'),
                 icon: const Icon(Icons.settings),
-                label: const Text('Go to Settings'),
+                label: Text(AppMessages.text(context, "Go to Settings")),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFF6C5CE7),
                   foregroundColor: Colors.white,
@@ -136,8 +137,8 @@ class _ShowsScreenState extends ConsumerState<ShowsScreen> {
             onPressed: () => context.go('/'),
           ),
           const SizedBox(width: 12),
-          const Text(
-            'Shows & Movies',
+          Text(
+            AppMessages.text(context, "Shows & Movies"),
             style: TextStyle(
               color: Colors.white,
               fontSize: 24,
@@ -174,7 +175,7 @@ class _ShowsScreenState extends ConsumerState<ShowsScreen> {
         autofocus: true,
         style: const TextStyle(color: Colors.white),
         decoration: InputDecoration(
-          hintText: 'Search shows & movies...',
+          hintText: AppMessages.text(context, "Search shows & movies..."),
           hintStyle: const TextStyle(color: Colors.white38),
           prefixIcon: const Icon(Icons.search, color: Colors.white38),
           filled: true,
@@ -247,19 +248,19 @@ class _ShowsScreenState extends ConsumerState<ShowsScreen> {
   Widget _buildFavorites() {
     final favorites = ref.watch(favoritesProvider);
     if (favorites.isEmpty) {
-      return const Center(
+      return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Icon(Icons.favorite_border, size: 48, color: Colors.white24),
             SizedBox(height: 12),
             Text(
-              'No favorites yet',
+              AppMessages.text(context, "No favorites yet"),
               style: TextStyle(color: Colors.white38, fontSize: 16),
             ),
             SizedBox(height: 4),
             Text(
-              'Browse shows and tap ♥ to add them here',
+              AppMessages.text(context, "Browse shows and tap ♥ to add them here"),
               style: TextStyle(color: Colors.white24, fontSize: 13),
             ),
           ],
@@ -272,9 +273,9 @@ class _ShowsScreenState extends ConsumerState<ShowsScreen> {
   Widget _buildSearchResults() {
     final query = ref.watch(showSearchQueryProvider);
     if (query.isEmpty) {
-      return const Center(
+      return Center(
         child: Text(
-          'Type to search...',
+          AppMessages.text(context, "Type to search..."),
           style: TextStyle(color: Colors.white38, fontSize: 16),
         ),
       );
@@ -294,7 +295,7 @@ class _ShowsScreenState extends ConsumerState<ShowsScreen> {
             const Icon(Icons.error_outline, color: Colors.redAccent, size: 48),
             const SizedBox(height: 12),
             Text(
-              'Failed to load: $error',
+              AppMessages.text(context, "Failed to load: {0}", [error]),
               style: const TextStyle(color: Colors.white60),
               textAlign: TextAlign.center,
             ),
@@ -303,9 +304,9 @@ class _ShowsScreenState extends ConsumerState<ShowsScreen> {
       ),
       data: (shows) {
         if (shows.isEmpty) {
-          return const Center(
+          return Center(
             child: Text(
-              'No results found',
+              AppMessages.text(context, "No results found"),
               style: TextStyle(color: Colors.white38, fontSize: 16),
             ),
           );

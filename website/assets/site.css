@@ -375,3 +375,17 @@ footer { border-top: 1px solid #dce5df; background: #f9fbf8; color: #71857a; fon
   .diagnostics-panel h2 { font-size: 24px; }
   .diagnostics-icon { width: 43px; height: 43px; font-size: 25px; }
 }
+
+.language-form { display: flex; align-items: center; gap: .4rem; }
+.language-form select, .language-form button {
+  padding: .38rem .55rem;
+  border: 1px solid #617080;
+  border-radius: .4rem;
+  color: #f0f4f8;
+  background: #172432;
+  font: inherit;
+}
+.language-form button { cursor: pointer; }
+@media (max-width: 700px) {
+  .site-header .header-inner { flex-wrap: wrap; gap: .55rem; }
+}

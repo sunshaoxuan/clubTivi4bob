@@ -27,6 +27,14 @@ class MainFlutterWindow: NSWindow {
     self.contentViewController = flutterViewController
     self.setFrame(windowFrame, display: true)
 
+    let localeChannel = FlutterMethodChannel(
+      name: "bobtv/locale",
+      binaryMessenger: flutterViewController.engine.binaryMessenger)
+    localeChannel.setMethodCallHandler { call, reply in
+      if call.method == "timeZone" { reply(TimeZone.autoupdatingCurrent.identifier) }
+      else { reply(FlutterMethodNotImplemented) }
+    }
+
     let credentials = FlutterMethodChannel(
       name: "com.briconbric.bobtv/credentials",
       binaryMessenger: flutterViewController.engine.binaryMessenger)

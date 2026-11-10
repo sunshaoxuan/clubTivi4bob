@@ -67,6 +67,12 @@ def client(monkeypatch):
             return httpx.Response(200, content=nodes.PROBE_BODY)
         if request.url.path.endswith('/redirect'):
             return httpx.Response(302, headers={'location': 'https://github.com/evil'})
+        if request.url.path == '/downloads':
+            return httpx.Response(200, stream=httpx.ByteStream(b'page'), headers=[
+                ('Content-Type', 'text/html'), ('Content-Language', 'fr'),
+                ('Set-Cookie', 'bobtv_language=fr; Path=/bobtv/; Secure'),
+                ('Set-Cookie', 'other=value; Path=/'),
+            ])
         if request.url.path.startswith('/updates/'):
             return httpx.Response(206, stream=httpx.ByteStream(b'package'), headers={'Content-Range': 'bytes 0-6/100',
                 'Content-Type': 'application/zip', 'ETag': 'test'})
@@ -143,3 +149,16 @@ def test_device_favorites_keep_device_headers_and_bypass_every_shared_cache(clie
     location = (Path(__file__).parents[1] / 'deploy/bobtv-resource-relay-location.conf').read_text()
     assert 'proxy_set_header If-None-Match $bobtv_if_none_match;' in location
     assert 'proxy_set_header If-Modified-Since $bobtv_if_modified_since;' in location
+
+
+def test_mirror_page_only_relays_bobtv_language_cookie(client):
+    test, seen = client
+    result = test.get('/bobtv/downloads?lang=fr', headers={
+        'Accept-Language': 'ja',
+        'Cookie': 'unrelated=session; bobtv_language=ko',
+    })
+    assert result.status_code == 200 and result.headers['content-language'] == 'fr'
+    assert result.headers.get_list('set-cookie') == ['bobtv_language=fr; Path=/bobtv/; Secure']
+    assert seen[0].url.path == '/downloads'
+    assert seen[0].headers['accept-language'] == 'ja'
+    assert seen[0].headers['cookie'] == 'bobtv_language=ko'

@@ -13,6 +13,7 @@ import '../features/casting/cast_service.dart';
 import '../features/player/player_service.dart';
 import '../features/recording/recording_service.dart';
 import '../features/remote/web_remote_server.dart';
+import '../core/i18n/app_language.dart';
 
 /// Keep an explicit touch/mouse/remote exit reachable on every Android route,
 /// including startup, empty catalogs, settings, TV mode and fullscreen video.
@@ -118,7 +119,7 @@ class _AndroidAppControlsState extends State<AndroidAppControls> {
                       ),
                     const SizedBox(height: 16),
                     Text(
-                      error ?? '正在退出 BobTV…',
+                      error ?? AppMessages.text(context, "正在退出 BobTV…"),
                       style: const TextStyle(color: Colors.white70),
                     ),
                     if (error != null) ...[
@@ -126,7 +127,7 @@ class _AndroidAppControlsState extends State<AndroidAppControls> {
                       FilledButton.icon(
                         onPressed: () => unawaited(controller.requestExit()),
                         icon: const Icon(Icons.power_settings_new_rounded),
-                        label: const Text('重试退出'),
+                        label: Text(AppMessages.text(context, "重试退出")),
                       ),
                     ],
                   ],
@@ -166,7 +167,7 @@ class _AndroidAppControlsState extends State<AndroidAppControls> {
                               Icons.power_settings_new_rounded,
                               size: 20,
                             ),
-                            label: const Text('退出 BobTV'),
+                            label: Text(AppMessages.text(context, "退出 BobTV")),
                             style: TextButton.styleFrom(
                               foregroundColor: const Color(0xFFD1DDFC),
                               minimumSize: const Size(112, 48),

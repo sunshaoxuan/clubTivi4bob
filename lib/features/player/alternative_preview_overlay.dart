@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:media_kit_video/media_kit_video.dart';
 
 import 'player_service.dart';
+import '../../core/i18n/app_language.dart';
 
 /// A muted alternative route that never interrupts the current programme.
 class AlternativePreviewOverlay extends StatelessWidget {
@@ -51,7 +52,7 @@ class AlternativePreviewOverlay extends StatelessWidget {
                                   style: const TextStyle(
                                       color: Colors.white70, fontSize: 12)),
                               if (state.total > 0)
-                                Text('${state.index}/${state.total} 路',
+                                Text(AppMessages.text(context, "{0}/{1} 路", [state.index, state.total]),
                                     style: const TextStyle(
                                         color: Colors.white54, fontSize: 11)),
                             ],
@@ -68,8 +69,8 @@ class AlternativePreviewOverlay extends StatelessWidget {
                     child: Row(
                       children: [
                         Expanded(child: Text(
-                          state.ready ? '备用线路 ${state.index}/${state.total}'
-                              : '正在寻找更流畅线路',
+                          state.ready ? AppMessages.text(context, "备用线路 {0}/{1}", [state.index, state.total])
+                              : AppMessages.text(context, "正在寻找更流畅线路"),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: const TextStyle(
@@ -82,8 +83,8 @@ class AlternativePreviewOverlay extends StatelessWidget {
                                   await service.commitAlternativePreview();
                               if (context.mounted && !switched) {
                                 ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(content: Text(
-                                      '备用线路暂时无法切换，请稍后重试')),
+                                  SnackBar(content: Text(
+                                      AppMessages.text(context, "备用线路暂时无法切换，请稍后重试"))),
                                 );
                               }
                             },
@@ -92,10 +93,10 @@ class AlternativePreviewOverlay extends StatelessWidget {
                                 minimumSize: const Size(48, 30),
                                 padding: const EdgeInsets.symmetric(
                                     horizontal: 6)),
-                            child: const Text('切换'),
+                            child: Text(AppMessages.text(context, "切换")),
                           ),
                         IconButton(
-                          tooltip: '关闭备用画面',
+                          tooltip: AppMessages.text(context, "关闭备用画面"),
                           onPressed: service.dismissAlternativePreview,
                           icon: const Icon(Icons.close_rounded, size: 17),
                           color: Colors.white70,

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../data/datasources/local/database.dart' as db;
 import 'desktop_exit_button.dart';
+import '../../core/i18n/app_language.dart';
 
 /// Lightweight text over the video, matching the original fullscreen guide.
 class FullscreenProgrammeOverlay extends StatelessWidget {
@@ -63,7 +64,7 @@ class FullscreenProgrammeOverlay extends StatelessWidget {
       children: [
         if (current != null) ...[
           Semantics(
-            label: '正在播出',
+            label: AppMessages.text(context, "正在播出"),
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -101,8 +102,8 @@ class FullscreenProgrammeOverlay extends StatelessWidget {
             ),
           ),
         ] else
-          const Text(
-            '当前节目：暂无节目单',
+          Text(
+            AppMessages.text(context, "当前节目：暂无节目单"),
             style: TextStyle(
               color: Colors.white54,
               fontSize: 11,
@@ -116,7 +117,7 @@ class FullscreenProgrammeOverlay extends StatelessWidget {
             Padding(
               padding: const EdgeInsets.only(top: 3),
               child: Text(
-                '${i == 0 ? '接下来' : '随后'}：暂无节目单',
+                AppMessages.text(context, "{0}：暂无节目单", [i == 0 ? '接下来' : '随后']),
                 style: const TextStyle(
                   color: Colors.white54,
                   fontSize: 11,
@@ -143,7 +144,7 @@ class FullscreenProgrammeOverlay extends StatelessWidget {
         TextButton.icon(
           onPressed: onReturn,
           icon: const Icon(Icons.arrow_back, size: 16),
-          label: const Text('返回频道'),
+          label: Text(AppMessages.text(context, "返回频道")),
         ),
         const DesktopExitButton(),
       ],

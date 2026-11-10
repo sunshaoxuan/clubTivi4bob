@@ -5,6 +5,7 @@ import 'package:uuid/uuid.dart';
 import '../../data/datasources/local/database.dart' as db;
 import '../../data/services/epg_refresh_service.dart';
 import '../providers/provider_manager.dart';
+import '../../core/i18n/app_language.dart';
 
 /// Dialog for adding a new EPG source.
 class AddEpgSourceDialog extends ConsumerStatefulWidget {
@@ -52,7 +53,7 @@ class _AddEpgSourceDialogState extends ConsumerState<AddEpgSourceDialog> {
       if (mounted) {
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(SnackBar(content: Text('错误：$e')));
+        ).showSnackBar(SnackBar(content: Text(AppMessages.text(context, "错误：{0}", [e]))));
       }
     } finally {
       if (mounted) setState(() => _loading = false);
@@ -78,7 +79,7 @@ class _AddEpgSourceDialogState extends ConsumerState<AddEpgSourceDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: const Text('添加节目单来源'),
+      title: Text(AppMessages.text(context, "添加节目单来源")),
       content: Form(
         key: _formKey,
         child: SingleChildScrollView(
@@ -87,9 +88,9 @@ class _AddEpgSourceDialogState extends ConsumerState<AddEpgSourceDialog> {
             children: [
               TextFormField(
                 controller: _nameController,
-                decoration: const InputDecoration(
-                  labelText: '名称',
-                  hintText: '例如：酒店节目单',
+                decoration: InputDecoration(
+                  labelText: AppMessages.text(context, "名称"),
+                  hintText: AppMessages.text(context, "例如：酒店节目单"),
                 ),
                 validator: (v) =>
                     (v == null || v.trim().isEmpty) ? 'Required' : null,
@@ -113,7 +114,7 @@ class _AddEpgSourceDialogState extends ConsumerState<AddEpgSourceDialog> {
               OutlinedButton.icon(
                 onPressed: _loading ? null : _addDefaults,
                 icon: const Icon(Icons.auto_fix_high),
-                label: const Text('添加默认来源'),
+                label: Text(AppMessages.text(context, "添加默认来源")),
               ),
             ],
           ),
@@ -122,7 +123,7 @@ class _AddEpgSourceDialogState extends ConsumerState<AddEpgSourceDialog> {
       actions: [
         TextButton(
           onPressed: _loading ? null : () => Navigator.of(context).pop(),
-          child: const Text('取消'),
+          child: Text(AppMessages.text(context, "取消")),
         ),
         FilledButton(
           onPressed: _loading ? null : _submit,
@@ -132,7 +133,7 @@ class _AddEpgSourceDialogState extends ConsumerState<AddEpgSourceDialog> {
                   height: 16,
                   child: CircularProgressIndicator(strokeWidth: 2),
                 )
-              : const Text('添加'),
+              : Text(AppMessages.text(context, "添加")),
         ),
       ],
     );

@@ -45,6 +45,7 @@ import 'window_manager_pip_backend.dart';
 import 'desktop_pip_controls.dart';
 import 'fullscreen_programme_overlay.dart';
 import 'window_playback_session.dart';
+import '../../core/i18n/app_language.dart';
 
 /// Window-filling or fullscreen player with shared playback and overlay controls.
 class PlayerScreen extends ConsumerStatefulWidget {
@@ -442,8 +443,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       if (url == null) return;
       setState(() => _castBusy = true);
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('正在準備視頻並連接投屏設備…'),
+        SnackBar(
+          content: Text(AppMessages.text(context, "正在準備視頻並連接投屏設備…")),
           duration: Duration(seconds: 30),
         ),
       );
@@ -465,7 +466,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
         ScaffoldMessenger.of(context).hideCurrentSnackBar();
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('已向 ${device.name} 發送播放請求，請確認電視畫面'),
+            content: Text(AppMessages.text(context, "已向 {0} 發送播放請求，請確認電視畫面", [device.name])),
             backgroundColor: Colors.green.shade800,
             duration: const Duration(seconds: 2),
           ),
@@ -519,12 +520,12 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Row(
+              Row(
                 children: [
                   Icon(Icons.closed_caption, color: Colors.white, size: 20),
                   SizedBox(width: 8),
                   Text(
-                    '字幕',
+                    AppMessages.text(context, "字幕"),
                     style: TextStyle(
                       color: Colors.white,
                       fontSize: 15,
@@ -543,8 +544,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                       : Colors.white54,
                   size: 20,
                 ),
-                title: const Text(
-                  '关闭',
+                title: Text(
+                  AppMessages.text(context, "关闭"),
                   style: TextStyle(color: Colors.white70, fontSize: 13),
                 ),
                 trailing: currentId == 'no'
@@ -618,12 +619,12 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Row(
+              Row(
                 children: [
                   Icon(Icons.audiotrack, color: Colors.white, size: 20),
                   SizedBox(width: 8),
                   Text(
-                    '音轨',
+                    AppMessages.text(context, "音轨"),
                     style: TextStyle(
                       color: Colors.white,
                       fontSize: 15,
@@ -756,7 +757,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
         );
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('无法切换全屏，请重试')),
+            SnackBar(content: Text(AppMessages.text(context, "无法切换全屏，请重试"))),
           );
         }
       }
@@ -887,8 +888,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       if (!mounted || switchGeneration != _channelSwitchGeneration) return;
       if (!switched) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('新频道暂时无法播放，已保留原频道'),
+          SnackBar(
+            content: Text(AppMessages.text(context, "新频道暂时无法播放，已保留原频道")),
             duration: Duration(seconds: 3),
           ),
         );
@@ -943,7 +944,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  title,
+                  AppMessages.text(context, title),
                   style: const TextStyle(
                     color: Colors.white,
                     fontSize: 14,
@@ -952,7 +953,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                 ),
                 const SizedBox(height: 3),
                 Text(
-                  subtitle,
+                  AppMessages.text(context, subtitle),
                   style: const TextStyle(
                     color: Color(0xFFA8B8D1),
                     fontSize: 11,
@@ -1008,7 +1009,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                 ),
               ),
               Text(
-                '${alternatives.length + 1} 条候选线路',
+                AppMessages.text(context, "{0} 条候选线路", [alternatives.length + 1]),
                 style: const TextStyle(color: Color(0xFFA8B8D1), fontSize: 12),
               ),
             ],
@@ -1072,7 +1073,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            '线路已转移至“${result.name}”，${result.shared ? '公共线路在后台同步' : '私有线路仅保存到本机'}',
+            AppMessages.text(context, "线路已转移至“{0}”，{1}", [result.name, result.shared ? '公共线路在后台同步' : '私有线路仅保存到本机']),
           ),
           duration: const Duration(seconds: 3),
         ),
@@ -1145,8 +1146,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       );
       if (selectedUrl == null) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('候选线路本轮已试完，稍后可重新尝试'),
+          SnackBar(
+            content: Text(AppMessages.text(context, "候选线路本轮已试完，稍后可重新尝试")),
             duration: Duration(seconds: 3),
           ),
         );
@@ -1159,23 +1160,23 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       );
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(switched ? '已切换到可播放线路' : '候选线路不可用，已保留当前画面')),
+        SnackBar(content: Text(switched ? AppMessages.text(context, "已切换到可播放线路") : AppMessages.text(context, "候选线路不可用，已保留当前画面"))),
       );
       return;
     }
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('淘汰当前线路？'),
-        content: const Text('将屏蔽这个信号地址，其他线路会保留。此操作无法在界面中撤销。'),
+        title: Text(AppMessages.text(context, "淘汰当前线路？")),
+        content: Text(AppMessages.text(context, "将屏蔽这个信号地址，其他线路会保留。此操作无法在界面中撤销。")),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('取消'),
+            child: Text(AppMessages.text(context, "取消")),
           ),
           FilledButton(
             onPressed: () => Navigator.pop(context, true),
-            child: const Text('确认淘汰'),
+            child: Text(AppMessages.text(context, "确认淘汰")),
           ),
         ],
       ),
@@ -1211,8 +1212,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       SnackBar(
         content: Text(
           switched
-              ? '已淘汰当前线路，正在尝试下一条线路，移除 $deleted 条重复记录'
-              : '已淘汰当前线路，暂无可用的候选线路',
+              ? AppMessages.text(context, "已淘汰当前线路，正在尝试下一条线路，移除 {0} 条重复记录", [deleted])
+              : AppMessages.text(context, "已淘汰当前线路，暂无可用的候选线路"),
         ),
       ),
     );
@@ -1396,9 +1397,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                                               progress != null &&
                                                       !progress.background
                                                   ? progress.total > 0
-                                                        ? '${progress.stage} ${progress.index}/${progress.total} 路'
-                                                        : progress.stage
-                                                  : '候选 ${playerService.currentCandidateCount} 路',
+                                                        ? AppMessages.text(context, "{0} {1}/{2} 路", [AppMessages.text(context, progress.stage), progress.index, progress.total])
+                                                        : AppMessages.text(context, progress.stage)
+                                                  : AppMessages.text(context, "候选 {0} 路", [playerService.currentCandidateCount]),
                                               style: const TextStyle(
                                                 color: Colors.white70,
                                                 fontSize: 12,
@@ -1575,7 +1576,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                                   if (_nextTitle != null) ...[
                                     const SizedBox(height: 2),
                                     Text(
-                                      '接下来：$_nextTitle${_nextTime != null ? '  $_nextTime' : ''}',
+                                      AppMessages.text(context, "接下来：{0}{1}", [_nextTitle, _nextTime != null ? '  $_nextTime' : '']),
                                       style: const TextStyle(
                                         color: Colors.white38,
                                         fontSize: 10,
@@ -1741,8 +1742,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                                     size: 20,
                                   ),
                                   const SizedBox(width: 8),
-                                  const Text(
-                                    '频道',
+                                  Text(
+                                    AppMessages.text(context, "频道"),
                                     style: TextStyle(
                                       color: Colors.white,
                                       fontSize: 16,
@@ -1859,13 +1860,13 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       final result = await ps.takeScreenshot(path);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(result != null ? '截图已保存：$path' : '当前无法截图')),
+          SnackBar(content: Text(result != null ? AppMessages.text(context, "截图已保存：{0}", [path]) : AppMessages.text(context, "当前无法截图"))),
         );
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('截图失败：$e'), backgroundColor: Colors.red),
+          SnackBar(content: Text(AppMessages.text(context, "截图失败：{0}", [e])), backgroundColor: Colors.red),
         );
       }
     }
@@ -1900,12 +1901,12 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: const Color(0xFF1A1A2E),
-        title: const Text('新建收藏列表', style: TextStyle(color: Colors.white)),
+        title: Text(AppMessages.text(context, "新建收藏列表"), style: TextStyle(color: Colors.white)),
         content: TextField(
           autofocus: true,
           style: const TextStyle(color: Colors.white),
-          decoration: const InputDecoration(
-            hintText: '例如：体育、新闻、少儿',
+          decoration: InputDecoration(
+            hintText: AppMessages.text(context, "例如：体育、新闻、少儿"),
             hintStyle: TextStyle(color: Colors.white38),
           ),
           onChanged: (v) => name = v,
@@ -1914,11 +1915,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(),
-            child: const Text('取消'),
+            child: Text(AppMessages.text(context, "取消")),
           ),
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(name.trim()),
-            child: const Text('创建'),
+            child: Text(AppMessages.text(context, "创建")),
           ),
         ],
       ),
@@ -1937,7 +1938,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
         if (!entered && mounted) {
           ScaffoldMessenger.of(
             context,
-          ).showSnackBar(const SnackBar(content: Text('此设备或系统版本未提供画中画功能')));
+          ).showSnackBar(SnackBar(content: Text(AppMessages.text(context, "此设备或系统版本未提供画中画功能"))));
         }
       } catch (error, stack) {
         AppDiagnostics.instance.recordError('android_pip', error, stack);
@@ -1947,7 +1948,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     if (!_supportsNativeFullscreen) {
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(const SnackBar(content: Text('当前平台尚未接入画中画')));
+      ).showSnackBar(SnackBar(content: Text(AppMessages.text(context, "当前平台尚未接入画中画"))));
       return;
     }
     _pipTransition = true;
@@ -1978,7 +1979,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
         if (mounted) {
           ScaffoldMessenger.of(
             context,
-          ).showSnackBar(const SnackBar(content: Text('无法打开画中画，已恢复播放窗口')));
+          ).showSnackBar(SnackBar(content: Text(AppMessages.text(context, "无法打开画中画，已恢复播放窗口"))));
         }
       }
     } finally {
@@ -2004,7 +2005,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       if (mounted) {
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(const SnackBar(content: Text('恢复窗口失败，请再点击返回频道')));
+        ).showSnackBar(SnackBar(content: Text(AppMessages.text(context, "恢复窗口失败，请再点击返回频道"))));
       }
       return false;
     } finally {
@@ -2062,20 +2063,20 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     final result = await showDialog<String>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('设置显示名称'),
+        title: Text(AppMessages.text(context, "设置显示名称")),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              '原始名称：$originalName',
+              AppMessages.text(context, "原始名称：{0}", [originalName]),
               style: const TextStyle(fontSize: 12, color: Colors.white54),
             ),
             const SizedBox(height: 12),
             TextFormField(
               controller: controller,
               autofocus: true,
-              decoration: const InputDecoration(labelText: '显示名称'),
+              decoration: InputDecoration(labelText: AppMessages.text(context, "显示名称")),
             ),
           ],
         ),
@@ -2083,15 +2084,15 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
           if (currentVanity != null)
             TextButton(
               onPressed: () => Navigator.pop(ctx, '\x00RESET'),
-              child: const Text('恢复原始名称'),
+              child: Text(AppMessages.text(context, "恢复原始名称")),
             ),
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: const Text('取消'),
+            child: Text(AppMessages.text(context, "取消")),
           ),
           FilledButton(
             onPressed: () => Navigator.pop(ctx, controller.text.trim()),
-            child: const Text('保存'),
+            child: Text(AppMessages.text(context, "保存")),
           ),
         ],
       ),

@@ -1,4 +1,5 @@
 import '../../core/server_image.dart';
+import '../../core/i18n/language_menu.dart';
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io' show Directory, File, FileMode, Platform;
@@ -77,6 +78,7 @@ import 'radio_card_spectrum.dart';
 import 'shared_sync_badge.dart';
 import 'simple_channel_panel_header.dart';
 import '../player/desktop_exit_button.dart';
+import '../../core/i18n/app_language.dart';
 
 class ChannelsScreen extends ConsumerStatefulWidget {
   const ChannelsScreen({super.key});
@@ -98,6 +100,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
   String? _lastVisibleProgrammeChannel;
   bool _startupHealthScheduled = false;
   String _loadStatus = '';
+  List<Object?> _loadStatusArgs = const [];
   bool _epgLoading = false;
   EpgUiRefresh? _epgUiRefresh;
   int _epgDataLoadGeneration = 0;
@@ -129,10 +132,9 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
   Map<String, ChannelCategoryDestination> _manualCategories = {};
   final Map<String, ChannelCategoryDestination> _pendingManualCategories = {};
   Future<void> _manualCategorySaveQueue = Future<void>.value();
-  bool _simpleMode = true;
+  static const _simpleMode = true;
   bool _sharedCatalogAvailable = false;
   bool _showUnavailableSources = true;
-  static const _simpleModePreferenceKey = 'bobtv_simple_mode';
   static const _pinnedCountriesPreferenceKey = 'bobtv_pinned_countries';
   static const _lastCountryPreferenceKey = 'bobtv_last_international_country';
   String _searchQuery = '';
@@ -285,7 +287,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(message),
+            content: Text(AppMessages.text(context, message)),
             duration: const Duration(seconds: 3),
             behavior: SnackBarBehavior.floating,
             width: 250,
@@ -598,7 +600,6 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
       );
       _sharedCatalogAvailable = providers.any((provider) =>
           provider.id == WebsiteChannelCatalogService.providerId);
-      _simpleMode = prefs.getBool(_simpleModePreferenceKey) ?? true;
       _pinnedInternationalCountries = (prefs.getStringList(
                 _pinnedCountriesPreferenceKey,
               ) ??
@@ -710,7 +711,8 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
     final scrollAnchor = preserveScroll ? _captureScrollAnchor() : null;
     if (mounted) {
       setState(() {
-        _loadStatus = '正在载入$group…';
+        _loadStatus = '正在载入 {0}…';
+        _loadStatusArgs = [group];
         _categoryLoading = true;
         _routeAvailabilityLoading = true;
         _verifiedRouteCounts = {};
@@ -801,7 +803,8 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
       _rebuildAutomaticChannelIndex();
       _applyFilters();
       _loadStatus =
-          '$group：载入 ${loaded.length} 条线路，合并为 ${_filteredChannels.length} 个频道';
+          '{0}：载入 {1} 条线路，合并为 {2} 个频道';
+      _loadStatusArgs = [group, loaded.length, _filteredChannels.length];
       _categoryLoading = false;
     });
     AppDiagnostics.instance.log('channel_category_loaded', {
@@ -1094,24 +1097,6 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
     }
   }
 
-  Future<void> _setSimpleMode(bool value) async {
-    if (_simpleMode == value) return;
-    if (!value) {
-      unawaited(ref.read(playerServiceProvider).discardPreparedChannel());
-    }
-    setState(() {
-      _simpleMode = value;
-      _preparedChannelId = null;
-      _pendingChannelId = null;
-      _applyFilters();
-    });
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool(_simpleModePreferenceKey, value);
-    if (mounted) {
-      await _loadGroupChannels(_selectedGroup, preserveScroll: true);
-    }
-  }
-
   void _applyFilters() {
     var channels = _allChannels;
 
@@ -1396,7 +1381,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(value ? '已隐藏 IPv6 源' : '已显示 IPv6 源'),
+        content: Text(value ? AppMessages.text(context, "已隐藏 IPv6 源") : AppMessages.text(context, "已显示 IPv6 源")),
         duration: const Duration(seconds: 2),
         behavior: SnackBarBehavior.floating,
         width: 220,
@@ -1644,7 +1629,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
               Icon(pinned ? Icons.push_pin_outlined : Icons.push_pin_rounded,
                   size: 19, color: const Color(0xFFB7CAFF)),
               const SizedBox(width: 12),
-              Text(pinned ? '取消钉选主导航分类' : '钉选到主导航分类',
+              Text(pinned ? AppMessages.text(context, "取消钉选主导航分类") : AppMessages.text(context, "钉选到主导航分类"),
                   style: const TextStyle(color: Colors.white)),
             ],
           ),
@@ -1798,8 +1783,8 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
           _pendingChannelId = null;
           _preparedChannelId = playerService.preparedChannelId;
         });
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: Text('预览已失效，原频道继续播放，请重新选择'),
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(AppMessages.text(context, "预览已失效，原频道继续播放，请重新选择")),
         ));
       }
       return;
@@ -1846,8 +1831,8 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
       AppDiagnostics.instance.recordError('selected_channel_route_sync', error, stack);
       if (mounted && selectionGeneration == _channelSelectionGeneration) {
         setState(() => _pendingChannelId = null);
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: Text('同步线路状态失败，原频道继续播放，请重试'),
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(AppMessages.text(context, "同步线路状态失败，原频道继续播放，请重试")),
         ));
       }
       return;
@@ -1858,8 +1843,8 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
     if (retired.contains(canonicalRouteUrl(requestedUrl))) {
       if (failoverUrls.isEmpty) {
         setState(() => _pendingChannelId = null);
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: Text('该频道线路已全部淘汰，原频道继续播放'),
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(AppMessages.text(context, "该频道线路已全部淘汰，原频道继续播放")),
         ));
         return;
       }
@@ -1936,8 +1921,8 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
         _pendingChannelId = null;
         _preparedChannelId = null;
       });
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-        content: Text('新频道暂时无法播放，已保留原频道'),
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(AppMessages.text(context, "新频道暂时无法播放，已保留原频道")),
         duration: Duration(seconds: 3),
       ));
       unawaited(_recoverChannelSources(channel, failedUrl: requestedUrl));
@@ -2058,7 +2043,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
       _applyFilters();
     });
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      content: Text('已移至 ${destination.path.join(' / ')}'),
+      content: Text(AppMessages.text(context, "已移至 {0}", [destination.path.join(' / ')])),
       duration: const Duration(seconds: 3),
     ));
     // Paint the local move first. Serialize writes so rapid edits cannot race.
@@ -2089,7 +2074,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
         }
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('分类保存失败，请重试')),
+          SnackBar(content: Text(AppMessages.text(context, "分类保存失败，请重试"))),
         );
         unawaited(_loadGroupChannels(_selectedGroup, preserveScroll: true));
       }
@@ -2195,7 +2180,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
         content: Text(changed
             ? (enabled ? '已使用兼容解码，请观察画面' : '已恢复自动解码')
-            : '解码方式切换失败'),
+            : AppMessages.text(context, "解码方式切换失败")),
       ));
       return;
     }
@@ -2208,13 +2193,13 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
       return;
     }
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('正在检查所选线路…')),
+      SnackBar(content: Text(AppMessages.text(context, "正在检查所选线路…"))),
     );
     final switched = await service.switchCurrentRoute(
       selectedUrl, onlyRequestedRoute: true);
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      content: Text(switched ? '已切换到可播放线路' : '候选线路不可用，已保留当前画面'),
+      content: Text(switched ? AppMessages.text(context, "已切换到可播放线路") : AppMessages.text(context, "候选线路不可用，已保留当前画面")),
     ));
   }
 
@@ -2244,7 +2229,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
     await _loadGroupChannels(_selectedGroup, preserveScroll: true);
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      content: Text('已合并为“${plan.name}”，公共线路在后台同步'),
+      content: Text(AppMessages.text(context, "已合并为“{0}”，公共线路在后台同步", [plan.name])),
       duration: const Duration(seconds: 3)));
     unawaited(ref.read(sourceMaintenanceCoordinatorProvider).inventory.flushEvents());
     if (_previewChannel != null) {
@@ -2281,7 +2266,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
     );
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text('线路已转移至“${result.name}”，${result.shared ? '公共线路在后台同步' : '私有线路仅保存到本机'}'),
+        content: Text(AppMessages.text(context, "线路已转移至“{0}”，{1}", [result.name, result.shared ? '公共线路在后台同步' : '私有线路仅保存到本机'])),
         duration: const Duration(seconds: 3),
       ),
     );
@@ -2389,7 +2374,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
         content: Text(changed
             ? (enabled ? '已使用兼容解码，请观察画面' : '已恢复自动解码')
-            : '解码方式切换失败'),
+            : AppMessages.text(context, "解码方式切换失败")),
       ));
       return;
     }
@@ -2409,13 +2394,13 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
       final confirmed = await showDialog<bool>(
         context: context,
         builder: (context) => AlertDialog(
-          title: const Text('淘汰这条线路？'),
-          content: const Text('将屏蔽这个信号地址，其他线路会保留。此操作无法在界面中撤销。'),
+          title: Text(AppMessages.text(context, "淘汰这条线路？")),
+          content: Text(AppMessages.text(context, "将屏蔽这个信号地址，其他线路会保留。此操作无法在界面中撤销。")),
           actions: [
             TextButton(onPressed: () => Navigator.pop(context, false),
-                child: const Text('取消')),
+                child: Text(AppMessages.text(context, "取消"))),
             FilledButton(onPressed: () => Navigator.pop(context, true),
-                child: const Text('确认淘汰')),
+                child: Text(AppMessages.text(context, "确认淘汰"))),
           ],
         ),
       );
@@ -2435,8 +2420,8 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
       final canTryNext = replacement >= 0 && alternatives.isNotEmpty;
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
         content: Text(!canTryNext
-            ? '已淘汰线路，当前频道没有其他候选线路'
-            : '已淘汰线路，正在尝试下一条线路，移除 $deleted 条重复记录'),
+            ? AppMessages.text(context, "已淘汰线路，当前频道没有其他候选线路")
+            : AppMessages.text(context, "已淘汰线路，正在尝试下一条线路，移除 {0} 条重复记录", [deleted])),
       ));
       if (canTryNext) {
         await _selectChannel(replacement,
@@ -2477,8 +2462,8 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
   void _showManualRoutesExhausted() {
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
-      ..showSnackBar(const SnackBar(
-        content: Text('候选线路本轮已试完，稍后可重新尝试'),
+      ..showSnackBar(SnackBar(
+        content: Text(AppMessages.text(context, "候选线路本轮已试完，稍后可重新尝试")),
         duration: Duration(seconds: 3),
       ));
   }
@@ -2539,7 +2524,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                   style: const TextStyle(color: Colors.white,
                       fontSize: 16, fontWeight: FontWeight.w700)),
               const SizedBox(height: 3),
-              Text('$routeCount 条候选线路', style: const TextStyle(
+              Text(AppMessages.text(context, "{0} 条候选线路", [routeCount]), style: const TextStyle(
                   color: Color(0xFFA8B8D1), fontSize: 12)),
             ],
           )),
@@ -2596,10 +2581,10 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
     );
   }
 
-  PopupMenuItem<int> _routeMenuEmpty() => const PopupMenuItem<int>(
+  PopupMenuItem<int> _routeMenuEmpty() => PopupMenuItem<int>(
     enabled: false,
     height: 46,
-    child: Text('暂无其他候选线路', style: TextStyle(
+    child: Text(AppMessages.text(context, "暂无其他候选线路"), style: TextStyle(
         color: Color(0xFFA8B8D1), fontSize: 12)),
   );
 
@@ -2609,16 +2594,16 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('淘汰当前线路？'),
-        content: const Text('将屏蔽这个信号地址，其他线路会保留。此操作无法在界面中撤销。'),
+        title: Text(AppMessages.text(context, "淘汰当前线路？")),
+        content: Text(AppMessages.text(context, "将屏蔽这个信号地址，其他线路会保留。此操作无法在界面中撤销。")),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('取消'),
+            child: Text(AppMessages.text(context, "取消")),
           ),
           FilledButton(
             onPressed: () => Navigator.pop(context, true),
-            child: const Text('确认淘汰'),
+            child: Text(AppMessages.text(context, "确认淘汰")),
           ),
         ],
       ),
@@ -2661,8 +2646,8 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
     });
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
       content: Text(switched
-          ? '已淘汰当前线路，正在尝试下一条线路，移除 $deleted 条重复记录'
-          : '已淘汰当前线路，暂无可用的候选线路'),
+          ? AppMessages.text(context, "已淘汰当前线路，正在尝试下一条线路，移除 {0} 条重复记录", [deleted])
+          : AppMessages.text(context, "已淘汰当前线路，暂无可用的候选线路")),
     ));
   }
 
@@ -3122,7 +3107,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
         mainAxisSize: MainAxisSize.min,
         children: [
           IconButton(
-            tooltip: _volume == 0 ? '取消静音' : '静音',
+            tooltip: _volume == 0 ? AppMessages.text(context, "取消静音") : AppMessages.text(context, "静音"),
             visualDensity: VisualDensity.compact,
             icon: Icon(
               _volume == 0
@@ -3170,7 +3155,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
   @override
   Widget build(BuildContext context) {
     if (!_initialLoadDone) {
-      return ChannelStartupProgress(status: _loadStatus);
+      return ChannelStartupProgress(status: _localizedLoadStatus(context));
     }
     if (_allChannels.isEmpty &&
         _providers.isEmpty &&
@@ -3335,8 +3320,8 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                             color: Colors.white.withValues(alpha: 0.09),
                             borderRadius: BorderRadius.circular(6),
                           ),
-                          child: const Text(
-                            '直播',
+                          child: Text(
+                            AppMessages.text(context, "直播"),
                             style: TextStyle(
                               color: Colors.white70,
                               fontSize: 10,
@@ -3348,10 +3333,11 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                       ],
                     ),
                     actions: [
+                      const LanguageMenu(),
                       _buildUpdateBadge(),
                       const DesktopExitButton(),
                       IconButton(
-                        tooltip: '设置',
+                        tooltip: AppMessages.text(context, "设置"),
                         constraints: tiny ? const BoxConstraints.tightFor(width: 40, height: 40) : null,
                         style: tiny ? IconButton.styleFrom(tapTargetSize: MaterialTapTargetSize.shrinkWrap) : null,
                         onPressed: () => context.push('/settings'),
@@ -3363,18 +3349,16 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                       PopupMenuButton<String>(
                         iconSize: tiny ? 20 : 24,
                         style: tiny ? IconButton.styleFrom(minimumSize: const Size(40, 40), maximumSize: const Size(40, 40), padding: const EdgeInsets.all(4), tapTargetSize: MaterialTapTargetSize.shrinkWrap) : null,
-                        tooltip: '更多操作',
+                        tooltip: AppMessages.text(context, "更多操作"),
                         icon: const Icon(Icons.more_horiz, color: Colors.white70),
                         onSelected: (action) {
-                          if (action == 'advanced') _setSimpleMode(false);
                           if (action == 'refresh' && !_routeAvailabilityLoading) {
                             setState(() => _routeAvailabilityLoading = true);
                             unawaited(_refreshRouteAvailability(_allChannels, _categoryLoadGeneration));
                           }
                         },
                         itemBuilder: (_) => [
-                          const PopupMenuItem(value: 'advanced', child: Text('进阶模式')),
-                          PopupMenuItem(value: 'refresh', enabled: !_routeAvailabilityLoading, child: const Text('重新读取线路检查结果')),
+                          PopupMenuItem(value: 'refresh', enabled: !_routeAvailabilityLoading, child: Text(AppMessages.text(context, "重新读取线路检查结果"))),
                         ],
                       ),
                     ],
@@ -3456,8 +3440,8 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                           color: const Color(0xFFE6485B),
                           borderRadius: BorderRadius.circular(7),
                         ),
-                        child: const Text(
-                          '● 直播',
+                        child: Text(
+                          AppMessages.text(context, "● 直播"),
                           style: TextStyle(
                             color: Colors.white,
                             fontSize: 11,
@@ -3506,8 +3490,8 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                     Expanded(
                       child: Text(
                         progress.total > 0
-                            ? '${progress.stage} ${progress.index}/${progress.total}  ${progress.label}'
-                            : progress.stage,
+                            ? '${AppMessages.text(context, progress.stage)} ${progress.index}/${progress.total}  ${progress.label}'
+                            : AppMessages.text(context, progress.stage),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: const TextStyle(
@@ -3527,8 +3511,8 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text(
-                      '正在播放',
+                    Text(
+                      AppMessages.text(context, "正在播放"),
                       style: const TextStyle(
                         color: Color(0xFFAFC4FF),
                         fontSize: 12,
@@ -3539,7 +3523,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                     const SizedBox(height: 4),
                     Text(
                       channel == null
-                          ? '欢迎使用 BobTV'
+                          ? AppMessages.text(context, "欢迎使用 BobTV")
                           : _channelDisplayName(channel),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
@@ -3558,7 +3542,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                         style: const TextStyle(color: Colors.white60),
                       ),
                     if (channel != null)
-                      Text(playingRouteCountLabel(ref.read(playerServiceProvider).currentCandidateCount),
+                      Text(playingRouteCountLabel(ref.read(playerServiceProvider).currentCandidateCount, context: context),
                         maxLines: 1, overflow: TextOverflow.ellipsis,
                         style: const TextStyle(color: Colors.white60, fontSize: 10),
                       ),
@@ -3567,7 +3551,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
               ),
               if (channel != null) ...[
                 IconButton(
-                  tooltip: _favoritedChannelIds.contains(channel.id) ? '取消收藏' : '加入收藏',
+                  tooltip: _favoritedChannelIds.contains(channel.id) ? AppMessages.text(context, "取消收藏") : AppMessages.text(context, "加入收藏"),
                   onPressed: _favoriteActionsPending.contains(channel.id) ? null : () => _handleRouteMenuFavorite(channel),
                   icon: Icon(
                     _favoritedChannelIds.contains(channel.id)
@@ -3631,22 +3615,22 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
     final customGroups = _groups.where((g) => !ChannelCategoryClassifier.categories.contains(g)).toList();
     final customRoots = customGroups.map((g) => g.split(' / ').first).where((g) => !ChannelCategoryClassifier.categories.contains(g)).toSet().toList();
     final levels = <Widget>[
-      CompactCategoryRow(tiny: tiny, level: 1, title: '主分类', options: [
-        CompactCategoryOption(id: 'favorites', label: '我的收藏', selected: favorites, onTap: () => _selectGroupAndPlayFirst('Favorites')),
-        CompactCategoryOption(id: 'china', label: '中国', selected: mainland, onTap: () {
+      CompactCategoryRow(tiny: tiny, level: 1, title: AppMessages.text(context, "主分类"), options: [
+        CompactCategoryOption(id: 'favorites', label: AppMessages.text(context, "我的收藏"), selected: favorites, onTap: () => _selectGroupAndPlayFirst('Favorites')),
+        CompactCategoryOption(id: 'china', label: AppMessages.text(context, "中国"), selected: mainland, onTap: () {
           setState(() => _compactChinaSection = null);
           if (!mainland) _selectGroupAndPlayFirst('央视');
         }),
-        CompactCategoryOption(id: 'international', label: '国际', selected: international && !_pinnedInternationalCountries.contains(_selectedInternationalCountry), onTap: () => _selectGroupAndPlayFirst('国际')),
-        CompactCategoryOption(id: 'other', label: '其他', selected: other, onTap: () => _selectGroupAndPlayFirst('其他')),
+        CompactCategoryOption(id: 'international', label: AppMessages.text(context, "国际"), selected: international && !_pinnedInternationalCountries.contains(_selectedInternationalCountry), onTap: () => _selectGroupAndPlayFirst('国际')),
+        CompactCategoryOption(id: 'other', label: AppMessages.text(context, "其他"), selected: other, onTap: () => _selectGroupAndPlayFirst('其他')),
         for (final country in _pinnedInternationalCountries)
-          CompactCategoryOption(id: country, label: country, selected: international && _selectedInternationalCountry == country, onTap: () => _selectPinnedCountry(country), onContextMenu: (p) => _showCountryPinMenu(country, p)),
+          CompactCategoryOption(id: country, label: AppMessages.category(context, country), selected: international && _selectedInternationalCountry == country, onTap: () => _selectPinnedCountry(country), onContextMenu: (p) => _showCountryPinMenu(country, p)),
       ]),
     ];
     if (mainland) {
-      levels.add(CompactCategoryRow(tiny: tiny, level: 2, title: '频道分类', options: [
+      levels.add(CompactCategoryRow(tiny: tiny, level: 2, title: AppMessages.text(context, "频道分类"), options: [
         for (final group in ['央视', '数字', '广播', '地方台', ...customRoots])
-          CompactCategoryOption(id: group, label: group, selected: section == group, onTap: () {
+          CompactCategoryOption(id: group, label: AppMessages.category(context, group), selected: section == group, onTap: () {
             setState(() => _compactChinaSection = group);
             if (group == '地方台') { return; }
             final destination = _groups.contains(group) ? group : customGroups.firstWhere((g) => g.startsWith('$group / '), orElse: () => group);
@@ -3655,32 +3639,32 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
       ]));
       if (section == '地方台') {
         final provinces = ChannelCategoryClassifier.provinceCategories;
-        levels.add(CompactCategoryRow(tiny: tiny, level: 3, title: '地区', options: [
-          for (final group in provinces.toSet()) CompactCategoryOption(id: group, label: group, selected: _selectedGroup == group, onTap: () => _selectGroupAndPlayFirst(group)),
+        levels.add(CompactCategoryRow(tiny: tiny, level: 3, title: AppMessages.text(context, "地区"), options: [
+          for (final group in provinces.toSet()) CompactCategoryOption(id: group, label: AppMessages.category(context, group), selected: _selectedGroup == group, onTap: () => _selectGroupAndPlayFirst(group)),
         ]));
       } else {
         final children = _groups.where((g) => g == section || g.startsWith('$section / ')).toList();
         if (children.any((g) => g.contains(' / '))) {
-          levels.add(CompactCategoryRow(tiny: tiny, level: 3, title: '子分类', options: [
-            for (final group in children) CompactCategoryOption(id: group, label: group == section ? '全部' : group.substring(section.length + 3), selected: _selectedGroup == group, onTap: () => _selectGroupAndPlayFirst(group)),
+          levels.add(CompactCategoryRow(tiny: tiny, level: 3, title: AppMessages.text(context, "子分类"), options: [
+            for (final group in children) CompactCategoryOption(id: group, label: group == section ? AppMessages.text(context, "全部") : group.substring(section.length + 3), selected: _selectedGroup == group, onTap: () => _selectGroupAndPlayFirst(group)),
           ]));
         }
       }
     } else if (international) {
-      if (_internationalCountries.isNotEmpty) { levels.add(CompactCategoryRow(tiny: tiny, level: 2, title: '国家或地区', countryIndex: true, options: [
-        for (final country in _internationalCountries) CompactCategoryOption(id: country, label: country, selected: country == _selectedInternationalCountry, onTap: () => _selectInternationalCountry(country), onContextMenu: (p) => _showCountryPinMenu(country, p)),
+      if (_internationalCountries.isNotEmpty) { levels.add(CompactCategoryRow(tiny: tiny, level: 2, title: AppMessages.text(context, "国家或地区"), countryIndex: true, options: [
+        for (final country in _internationalCountries) CompactCategoryOption(id: country, label: AppMessages.category(context, country), selected: country == _selectedInternationalCountry, onTap: () => _selectInternationalCountry(country), onContextMenu: (p) => _showCountryPinMenu(country, p)),
       ])); }
-      levels.add(CompactCategoryRow(tiny: tiny, level: 3, title: '广播或电视', options: [
+      levels.add(CompactCategoryRow(tiny: tiny, level: 3, title: AppMessages.text(context, "广播或电视"), options: [
         for (final media in ['电视', '广播'])
-          CompactCategoryOption(id: media, label: media, selected: media == _selectedInternationalMedia, onTap: () => _selectInternationalMedia(media)),
+          CompactCategoryOption(id: media, label: AppMessages.category(context, media), selected: media == _selectedInternationalMedia, onTap: () => _selectInternationalMedia(media)),
       ]));
       final genres = _internationalGenresForSelectedCountry();
-      if (_selectedInternationalMedia == '电视' && genres.isNotEmpty) { levels.add(CompactCategoryRow(tiny: tiny, level: 4, title: '节目类型', options: [
-        for (final genre in genres) CompactCategoryOption(id: genre, label: genre, selected: genre == _selectedInternationalGenre, onTap: () => _selectInternationalGenre(genre)),
+      if (_selectedInternationalMedia == '电视' && genres.isNotEmpty) { levels.add(CompactCategoryRow(tiny: tiny, level: 4, title: AppMessages.text(context, "节目类型"), options: [
+        for (final genre in genres) CompactCategoryOption(id: genre, label: AppMessages.category(context, genre), selected: genre == _selectedInternationalGenre, onTap: () => _selectInternationalGenre(genre)),
       ])); }
     } else if (favorites && _favoriteLists.isNotEmpty) {
-      levels.add(CompactCategoryRow(tiny: tiny, level: 2, title: '收藏列表', options: [
-        CompactCategoryOption(id: 'all', label: '全部收藏', selected: _selectedGroup == 'Favorites', onTap: () => _selectGroupAndPlayFirst('Favorites')),
+      levels.add(CompactCategoryRow(tiny: tiny, level: 2, title: AppMessages.text(context, "收藏列表"), options: [
+        CompactCategoryOption(id: 'all', label: AppMessages.text(context, "全部收藏"), selected: _selectedGroup == 'Favorites', onTap: () => _selectGroupAndPlayFirst('Favorites')),
         for (final list in _favoriteLists) CompactCategoryOption(id: list.id, label: list.name, selected: _selectedGroup == 'fav:${list.id}', onTap: () => _selectGroupAndPlayFirst('fav:${list.id}')),
       ]));
     }
@@ -3700,7 +3684,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
           context: context,
           builder: (dialogContext) => AlertDialog(
             backgroundColor: const Color(0xFF1A2B43),
-            title: const Text('搜索当前分类', style: TextStyle(color: Colors.white, fontSize: 16)),
+            title: Text(AppMessages.text(context, "搜索当前分类"), style: TextStyle(color: Colors.white, fontSize: 16)),
             content: TextField(
               controller: _searchController,
               autofocus: true,
@@ -3708,7 +3692,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
               onChanged: (value) => setState(() { _searchQuery = value; _applyFilters(); }),
               onSubmitted: (_) => Navigator.pop(dialogContext),
             ),
-            actions: [TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('完成'))],
+            actions: [TextButton(onPressed: () => Navigator.pop(dialogContext), child: Text(AppMessages.text(context, "完成")))],
           ),
         ),
         header: SimpleChannelPanelHeader(
@@ -3724,8 +3708,8 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                   .state,
             ),
             summary: _routeAvailabilityLoading
-                ? '正在读取服务器线路状态…'
-                : '${_filteredChannels.length} 个频道',
+                ? AppMessages.text(context, "正在读取服务器线路状态…")
+                : AppMessages.text(context, "{0} 个频道", [_filteredChannels.length]),
           ),
         navigation: _buildCompactCategories(tiny: tiny),
         search: TextField(
@@ -3735,7 +3719,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
               isDense: true,
               contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
               prefixIconConstraints: const BoxConstraints(minWidth: 32, minHeight: 32),
-              hintText: '搜索当前分类',
+              hintText: AppMessages.text(context, "搜索当前分类"),
               hintStyle: const TextStyle(color: Colors.white54),
               prefixIcon: const Icon(
                 Icons.search_rounded,
@@ -3772,13 +3756,6 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                           checking: _routeAvailabilityLoading,
                           onRetry: () => _loadGroupChannels(_selectedGroup),
                         ),
-                        if (!_routeAvailabilityLoading) ...[
-                          const SizedBox(height: 12),
-                          TextButton(
-                            onPressed: () => _setSimpleMode(false),
-                            child: const Text('前往进阶模式查看全部频道'),
-                          ),
-                        ],
                       ],
                     ),
                   )
@@ -4026,10 +4003,10 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                               children: [
                                 Expanded(child: Text(
                                   selected
-                                      ? '● 正在播放'
+                                      ? AppMessages.text(context, "● 正在播放")
                                       : previewController != null
-                                      ? '● 静音预览'
-                                      : '● 直播',
+                                      ? AppMessages.text(context, "● 静音预览")
+                                      : AppMessages.text(context, "● 直播"),
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
                                   style: TextStyle(
@@ -4051,8 +4028,8 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                                 ],
                                 Expanded(child: Text(
                                   loading && loadingProgress != null
-                                      ? '${loadingProgress.index}/${loadingProgress.total} 路'
-                                      : '${_candidateRouteCount(channel)} 路候选',
+                                      ? AppMessages.text(context, "{0}/{1} 路", [loadingProgress.index, loadingProgress.total])
+                                      : AppMessages.text(context, "{0} 路候选", [_candidateRouteCount(channel)]),
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
                                   textAlign: TextAlign.right,
@@ -4086,12 +4063,12 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                               children: [
                                 Expanded(child: Text(
                                   previewController != null
-                                      ? '点击切换到主画面'
+                                      ? AppMessages.text(context, "点击切换到主画面")
                                       : busy
                                       ? loadingProgress == null
-                                            ? '正在准备预览'
-                                            : '正在尝试线路'
-                                      : '单击预览 · 双击播放',
+                                            ? AppMessages.text(context, "正在准备预览")
+                                            : AppMessages.text(context, "正在尝试线路")
+                                      : AppMessages.text(context, "单击预览 · 双击播放"),
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
                                   style: TextStyle(
@@ -4131,23 +4108,31 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
             letterSpacing: -1));
   }
 
+  String _localizedLoadStatus(BuildContext context) {
+    return AppMessages.text(context, _loadStatus, [
+      if (_loadStatusArgs.isNotEmpty)
+        AppMessages.category(context, _loadStatusArgs.first as String),
+      ..._loadStatusArgs.skip(1),
+    ]);
+  }
+
   Widget _buildEmptyState(BuildContext context) {
     final waitingForBundledSources = _providers.isEmpty;
     final title = _categoryLoading
-        ? '正在载入$_selectedGroup'
+        ? AppMessages.text(context, "正在载入 {0}…", [AppMessages.category(context, _selectedGroup)])
         : waitingForBundledSources
-        ? '正在初始化共享频道'
-        : '当前分类暂无频道';
+        ? AppMessages.text(context, "正在初始化共享频道")
+        : AppMessages.text(context, "当前分类暂无频道");
     final message = _categoryLoading
-        ? '频道和备用线路会在载入完成后自动显示'
+        ? AppMessages.text(context, "频道和备用线路会在载入完成后自动显示")
         : waitingForBundledSources
-        ? 'BobTV 正在载入已分类的启动清单，并与网站同步'
-        : '频道会自动从 BobTV 网站同步，暂时没有可用线路时可稍后重试';
+        ? AppMessages.text(context, "BobTV 正在载入已分类的启动清单，并与网站同步")
+        : AppMessages.text(context, "频道会自动从 BobTV 网站同步，暂时没有可用线路时可稍后重试");
     return Scaffold(
       body: SafeArea(
         child: Column(
           children: [
-            if (!Platform.isAndroid) _buildTopBar(context),
+            _buildTopBar(context),
             Expanded(
               child: Center(
                 child: Column(
@@ -4181,8 +4166,8 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                       builder: (context, progress, _) => Text(
                         progress.phase.isNotEmpty && !progress.complete
                             ? progress.total > 0
-                                ? '${progress.phase} ${progress.imported}/${progress.total}'
-                                : progress.phase
+                                ? '${AppMessages.text(context, progress.phase)} ${progress.imported}/${progress.total}'
+                                : AppMessages.text(context, progress.phase)
                             : message,
                         textAlign: TextAlign.center,
                         style: const TextStyle(
@@ -4200,7 +4185,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
               autofocus: true,
               onPressed: () => ref.read(sourceMaintenanceCoordinatorProvider).websiteCatalog.sync(),
               icon: const Icon(Icons.refresh),
-              label: const Text('重新同步频道'),
+              label: Text(AppMessages.text(context, "重新同步频道")),
             ),
             const Spacer(),
           ],
@@ -4224,21 +4209,13 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
           ),
           const SizedBox(width: 10),
           _buildUpdateBadge(),
+          const LanguageMenu(),
           const DesktopExitButton(),
-          OutlinedButton.icon(
-            onPressed: () => _setSimpleMode(true),
-            icon: const Icon(Icons.dashboard_rounded, size: 18),
-            label: const Text('简洁模式'),
-            style: OutlinedButton.styleFrom(
-              foregroundColor: Colors.white,
-              side: const BorderSide(color: Colors.white38),
-            ),
-          ),
           const SizedBox(width: 10),
           ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 180),
             child: Text(
-              _loadStatus,
+              _localizedLoadStatus(context),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: const TextStyle(fontSize: 11, color: Colors.white30),
@@ -4246,7 +4223,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
           ),
           const SizedBox(width: 16),
           if (_previewChannel != null) ...[
-            Text('备选 ${_verifiedAlternativeCount(_previewChannel!)} 条',
+            Text(AppMessages.text(context, "备选 {0} 条", [_verifiedAlternativeCount(_previewChannel!)]),
                 style: const TextStyle(color: Colors.white70, fontSize: 12)),
             const SizedBox(width: 12),
           ],
@@ -4278,7 +4255,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                           fontSize: 14,
                         ),
                         decoration: InputDecoration(
-                          hintText: '搜索频道…',
+                          hintText: AppMessages.text(context, "搜索频道…"),
                           hintStyle: const TextStyle(color: Colors.white38),
                           filled: true,
                           fillColor: Colors.white12,
@@ -4405,11 +4382,11 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Tooltip(
-                    message: '显示或隐藏没有近期验证可用线路的频道',
+                    message: AppMessages.text(context, "显示或隐藏没有近期验证可用线路的频道"),
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        const Text('显示无可用线',
+                        Text(AppMessages.text(context, "显示无可用线"),
                             style: TextStyle(color: Colors.white70, fontSize: 12)),
                         Switch.adaptive(
                           value: _showUnavailableSources,
@@ -4431,7 +4408,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                         Icons.swap_horiz_rounded,
                         color: Colors.white70,
                       ),
-                      tooltip: '返回上一个频道',
+                      tooltip: AppMessages.text(context, "返回上一个频道"),
                       onPressed: _goBackChannel,
                     ),
                   IconButton(
@@ -4439,7 +4416,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                       Icons.settings_rounded,
                       color: Colors.white70,
                     ),
-                    tooltip: '设置',
+                    tooltip: AppMessages.text(context, "设置"),
                     onPressed: () => context.push('/settings'),
                   ),
                   // Cast icon removed — available in fullscreen player
@@ -4457,7 +4434,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
   Widget _buildIpv6SourceToggle() {
     final active = _hideIpv6Sources;
     return Tooltip(
-      message: active ? '点击显示 IPv6 源' : '点击隐藏 IPv6 源',
+      message: active ? AppMessages.text(context, "点击显示 IPv6 源") : AppMessages.text(context, "点击隐藏 IPv6 源"),
       child: Material(
         color: Colors.transparent,
         child: InkWell(
@@ -4487,7 +4464,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                 ),
                 const SizedBox(width: 5),
                 Text(
-                  '隐藏 IPv6',
+                  AppMessages.text(context, "隐藏 IPv6"),
                   style: TextStyle(
                     fontSize: 11,
                     fontWeight: FontWeight.w500,
@@ -4545,7 +4522,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                 ),
                 clipBehavior: Clip.antiAlias,
                 child: _previewChannel == null
-                    ? const Center(
+                    ? Center(
                         child: Column(
                           mainAxisSize: MainAxisSize.min,
                           children: [
@@ -4556,7 +4533,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                             ),
                             SizedBox(height: 8),
                             Text(
-                              '请选择频道',
+                              AppMessages.text(context, "请选择频道"),
                               style: TextStyle(
                                 color: Colors.white38,
                                 fontSize: 13,
@@ -4728,8 +4705,8 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                               }
                               return Text(
                                 progress.total > 0
-                                    ? '${progress.stage} ${progress.index}/${progress.total} 路'
-                                    : progress.stage,
+                                    ? AppMessages.text(context, "{0} {1}/{2} 路", [AppMessages.text(context, progress.stage), progress.index, progress.total])
+                                    : AppMessages.text(context, progress.stage),
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                                 style: const TextStyle(
@@ -4824,7 +4801,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                                         ),
                                         const SizedBox(width: 8),
                                         Text(
-                                          hasExact ? 'IMDb ↗' : 'IMDb 🔍',
+                                          hasExact ? AppMessages.text(context, "IMDb ↗") : AppMessages.text(context, "IMDb 🔍"),
                                           style: const TextStyle(
                                             color: Colors.amber,
                                             fontSize: 11,
@@ -4844,8 +4821,8 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                               padding: const EdgeInsets.only(top: 6),
                               child: Row(
                                 children: [
-                                  const Text(
-                                    '接下来：',
+                                  Text(
+                                    AppMessages.text(context, "接下来："),
                                     style: TextStyle(
                                       color: Colors.white38,
                                       fontSize: 11,
@@ -4893,7 +4870,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                                         ),
                                       const SizedBox(width: 4),
                                       Text(
-                                        buffering ? '缓冲中' : '正常',
+                                        buffering ? AppMessages.text(context, "缓冲中") : AppMessages.text(context, "正常"),
                                         style: TextStyle(
                                           color: buffering
                                               ? Colors.orangeAccent
@@ -4912,8 +4889,8 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                                 builder: (context, snapshot) {
                                   final hasAudio = snapshot.data ?? true;
                                   if (hasAudio) return const SizedBox.shrink();
-                                  return const Tooltip(
-                                    message: '未检测到音轨',
+                                  return Tooltip(
+                                    message: AppMessages.text(context, "未检测到音轨"),
                                     child: Icon(
                                       Icons.volume_off_rounded,
                                       size: 14,
@@ -4961,7 +4938,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                                     ),
                                     padding: EdgeInsets.zero,
                                     color: Colors.white70,
-                                    tooltip: '频道诊断信息',
+                                    tooltip: AppMessages.text(context, "频道诊断信息"),
                                   ),
                                 ),
                               ),
@@ -5075,7 +5052,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                       controller: _sidebarSearchController,
                       style: const TextStyle(color: Colors.white, fontSize: 12),
                       decoration: InputDecoration(
-                        hintText: '搜索频道…',
+                        hintText: AppMessages.text(context, "搜索频道…"),
                         hintStyle: const TextStyle(
                           color: Colors.white24,
                           fontSize: 12,
@@ -5147,7 +5124,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
             Padding(
               padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 8),
               child: Text(
-                _sidebarExpanded ? 'BobTV v$bobTvVersion' : 'v$bobTvVersion',
+                _sidebarExpanded ? AppMessages.text(context, "BobTV v{0}", [bobTvVersion]) : 'v$bobTvVersion',
                 style: const TextStyle(
                   fontSize: 10,
                   color: Colors.white24,
@@ -5583,8 +5560,8 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
     if (!await dir.exists()) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('录像文件夹已不存在，请在设置中更新。'),
+          SnackBar(
+            content: Text(AppMessages.text(context, "录像文件夹已不存在，请在设置中更新。")),
             duration: Duration(seconds: 5),
           ),
         );
@@ -5603,8 +5580,8 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
     if (!mounted) return;
     if (files.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('No recordings found.'),
+        SnackBar(
+          content: Text(AppMessages.text(context, "No recordings found.")),
           duration: Duration(seconds: 5),
         ),
       );
@@ -5613,7 +5590,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
     final picked = await showDialog<String>(
       context: context,
       builder: (ctx) => SimpleDialog(
-        title: const Text('Recordings'),
+        title: Text(AppMessages.text(context, "Recordings")),
         children: [
           for (final f in files)
             SimpleDialogOption(
@@ -5670,15 +5647,15 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
               duration: const Duration(milliseconds: 200),
               padding: EdgeInsets.only(bottom: bottomInset),
               child: AlertDialog(
-                title: const Text('Play Network Stream'),
+                title: Text(AppMessages.text(context, "Play Network Stream")),
                 content: SizedBox(
                   width: 500,
                   child: TextField(
                     controller: controller,
                     autofocus: true,
                     keyboardType: TextInputType.url,
-                    decoration: const InputDecoration(
-                      hintText: 'http:// or rtsp:// stream URL',
+                    decoration: InputDecoration(
+                      hintText: AppMessages.text(context, "http:// or rtsp:// stream URL"),
                       isDense: true,
                     ),
                     onSubmitted: (v) => Navigator.pop(ctx, v.trim()),
@@ -5687,11 +5664,11 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                 actions: [
                   TextButton(
                     onPressed: () => Navigator.pop(ctx),
-                    child: const Text('Cancel'),
+                    child: Text(AppMessages.text(context, "Cancel")),
                   ),
                   FilledButton(
                     onPressed: () => Navigator.pop(ctx, controller.text.trim()),
-                    child: const Text('Play'),
+                    child: Text(AppMessages.text(context, "Play")),
                   ),
                 ],
               ),
@@ -5790,7 +5767,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                     ],
                     Expanded(
                       child: Text(
-                        label,
+                        AppMessages.category(context, label),
                         style: TextStyle(
                           fontSize: 12,
                           color: isSelected ? Colors.white : Colors.white60,
@@ -5848,7 +5825,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
           _selectedGroup == 'Favorites' || _selectedGroup.startsWith('fav:');
       return Center(
         child: Text(
-          isFavorites ? '暂无收藏频道，点击频道的星号即可收藏' : '当前分类暂无频道',
+          isFavorites ? AppMessages.text(context, "暂无收藏频道，点击频道的星号即可收藏") : AppMessages.text(context, "当前分类暂无频道"),
           style: const TextStyle(color: Colors.white38),
         ),
       );
@@ -6221,8 +6198,8 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                                     overflow: TextOverflow.ellipsis,
                                   )
                                 else if (_epgLoading)
-                                  const Text(
-                                    'Loading guide…',
+                                  Text(
+                                    AppMessages.text(context, "Loading guide…"),
                                     style: TextStyle(
                                       color: Colors.white24,
                                       fontSize: 11,
@@ -6482,7 +6459,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                                     ],
                                   ),
                                   Text(
-                                    '${members.length} streams',
+                                    AppMessages.text(context, "{0} streams", [members.length]),
                                     style: const TextStyle(
                                       fontSize: 9,
                                       color: Colors.white30,
@@ -6519,9 +6496,9 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                         child: LayoutBuilder(
                           builder: (context, constraints) {
                             if (epgMember == null) {
-                              return const Center(
+                              return Center(
                                 child: Text(
-                                  'No EPG',
+                                  AppMessages.text(context, "No EPG"),
                                   style: TextStyle(
                                     fontSize: 10,
                                     color: Colors.white24,
@@ -6692,7 +6669,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
         child: Row(
           children: [
             Text(
-              '${_multiSelectedChannelIds.length} selected',
+              AppMessages.text(context, "{0} selected", [_multiSelectedChannelIds.length]),
               style: const TextStyle(color: Colors.white70, fontSize: 13),
             ),
             const Spacer(),
@@ -6713,7 +6690,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                       _multiSelectMode = false;
                       _multiSelectedChannelIds.clear();
                     }),
-                    child: const Text('Cancel'),
+                    child: Text(AppMessages.text(context, "Cancel")),
                   );
                 },
               ),
@@ -6729,7 +6706,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                           ? _addToExistingFailoverGroup
                           : null,
                       icon: const Icon(Icons.add, size: 16),
-                      label: const Text('Add to Smart Channel'),
+                      label: Text(AppMessages.text(context, "Add to Smart Channel")),
                       style: FilledButton.styleFrom(
                         backgroundColor: const Color(0xFF2D3436),
                         side: focused
@@ -6751,7 +6728,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                         ? _createFailoverGroupFromSelection
                         : null,
                     icon: const Icon(Icons.bolt, size: 16),
-                    label: const Text('New Smart Channel'),
+                    label: Text(AppMessages.text(context, "New Smart Channel")),
                     style: FilledButton.styleFrom(
                       backgroundColor: const Color(0xFF6C5CE7),
                       side: focused
@@ -6786,8 +6763,8 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: const Color(0xFF1A1A2E),
-        title: const Text(
-          'Create Smart Channel',
+        title: Text(
+          AppMessages.text(context, "Create Smart Channel"),
           style: TextStyle(color: Colors.white),
         ),
         content: SizedBox(
@@ -6796,8 +6773,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
             mainAxisSize: MainAxisSize.min,
             children: [
               Text(
-                '${_multiSelectedChannelIds.length} channels selected. '
-                'Streams will auto-switch when buffering is detected.',
+                AppMessages.text(context, "{0} channels selected. Streams will auto-switch when buffering is detected.", [_multiSelectedChannelIds.length]),
                 style: const TextStyle(color: Colors.white54, fontSize: 12),
               ),
               const SizedBox(height: 12),
@@ -6805,9 +6781,9 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                 controller: controller,
                 autofocus: true,
                 style: const TextStyle(color: Colors.white),
-                decoration: const InputDecoration(
-                  labelText: 'Group Name',
-                  hintText: 'e.g. ESPN Smart',
+                decoration: InputDecoration(
+                  labelText: AppMessages.text(context, "Group Name"),
+                  hintText: AppMessages.text(context, "e.g. ESPN Smart"),
                   hintStyle: TextStyle(color: Colors.white24),
                 ),
                 onFieldSubmitted: (v) => Navigator.pop(ctx, v.trim()),
@@ -6818,11 +6794,11 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: const Text('Cancel'),
+            child: Text(AppMessages.text(context, "Cancel")),
           ),
           FilledButton(
             onPressed: () => Navigator.pop(ctx, controller.text.trim()),
-            child: const Text('Create'),
+            child: Text(AppMessages.text(context, "Create")),
           ),
         ],
       ),
@@ -6851,7 +6827,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            'Smart channel "$name" created with ${orderedIds.length} streams',
+            AppMessages.text(context, "Smart channel \"{0}\" created with {1} streams", [name, orderedIds.length]),
           ),
           duration: const Duration(seconds: 3),
           behavior: SnackBarBehavior.floating,
@@ -6870,10 +6846,10 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Padding(
+            Padding(
               padding: EdgeInsets.all(16),
               child: Text(
-                'Add to Smart Channel',
+                AppMessages.text(context, "Add to Smart Channel"),
                 style: TextStyle(
                   color: Colors.white,
                   fontWeight: FontWeight.bold,
@@ -6890,7 +6866,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                   style: const TextStyle(color: Colors.white),
                 ),
                 subtitle: Text(
-                  '$count channels',
+                  AppMessages.text(context, "{0} channels", [count]),
                   style: const TextStyle(color: Colors.white38, fontSize: 12),
                 ),
                 onTap: () => Navigator.pop(ctx, g),
@@ -6916,9 +6892,9 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
     if (newIds.isEmpty) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
+          SnackBar(
             content: Text(
-              'All selected streams are already in this smart channel',
+              AppMessages.text(context, "All selected streams are already in this smart channel"),
             ),
             duration: Duration(seconds: 2),
             behavior: SnackBarBehavior.floating,
@@ -6940,7 +6916,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            'Added ${newIds.length} stream${newIds.length == 1 ? '' : 's'} to "${selected.name}"',
+            AppMessages.text(context, "Added {0} stream{1} to \"{2}\"", [newIds.length, newIds.length == 1 ? '' : 's', selected.name]),
           ),
           duration: const Duration(seconds: 3),
           behavior: SnackBarBehavior.floating,
@@ -7105,7 +7081,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                               ],
                             ),
                             Text(
-                              '${members.length} streams · smart channel',
+                              AppMessages.text(context, "{0} streams · smart channel", [members.length]),
                               style: const TextStyle(
                                 color: Colors.white38,
                                 fontSize: 11,
@@ -7122,8 +7098,8 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                                 overflow: TextOverflow.ellipsis,
                               )
                             else if (_epgLoading)
-                              const Text(
-                                'Loading guide…',
+                              Text(
+                                AppMessages.text(context, "Loading guide…"),
                                 style: TextStyle(
                                   color: Colors.white24,
                                   fontSize: 11,
@@ -7372,7 +7348,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                 color: Colors.white70,
               ),
               title: Text(
-                'Play ${_channelDisplayName(channel)}',
+                AppMessages.text(context, "Play {0}", [_channelDisplayName(channel)]),
                 style: const TextStyle(color: Colors.white),
               ),
               onTap: () {
@@ -7388,8 +7364,8 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                 Icons.remove_circle_outline,
                 color: Colors.orangeAccent,
               ),
-              title: const Text(
-                'Remove from Smart Channel',
+              title: Text(
+                AppMessages.text(context, "Remove from Smart Channel"),
                 style: TextStyle(color: Colors.orangeAccent),
               ),
               onTap: () async {
@@ -7404,7 +7380,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
                       content: Text(
-                        'Removed "${_channelDisplayName(channel)}" from "${group.name}"',
+                        AppMessages.text(context, "Removed \"{0}\" from \"{1}\"", [_channelDisplayName(channel), group.name]),
                       ),
                       duration: const Duration(seconds: 2),
                       behavior: SnackBarBehavior.floating,
@@ -7433,8 +7409,8 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                 Icons.play_circle_outline,
                 color: Colors.white70,
               ),
-              title: const Text(
-                'Play Smart Channel',
+              title: Text(
+                AppMessages.text(context, "Play Smart Channel"),
                 style: TextStyle(color: Colors.white),
               ),
               onTap: () {
@@ -7450,8 +7426,8 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
             ),
             ListTile(
               leading: const Icon(Icons.edit, color: Colors.white70),
-              title: const Text(
-                'Rename',
+              title: Text(
+                AppMessages.text(context, "Rename"),
                 style: TextStyle(color: Colors.white),
               ),
               onTap: () async {
@@ -7461,8 +7437,8 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                   context: context,
                   builder: (ctx) => AlertDialog(
                     backgroundColor: const Color(0xFF1A1A2E),
-                    title: const Text(
-                      'Rename Smart Channel',
+                    title: Text(
+                      AppMessages.text(context, "Rename Smart Channel"),
                       style: TextStyle(color: Colors.white),
                     ),
                     content: TextFormField(
@@ -7474,12 +7450,12 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                     actions: [
                       TextButton(
                         onPressed: () => Navigator.pop(ctx),
-                        child: const Text('Cancel'),
+                        child: Text(AppMessages.text(context, "Cancel")),
                       ),
                       FilledButton(
                         onPressed: () =>
                             Navigator.pop(ctx, controller.text.trim()),
-                        child: const Text('Rename'),
+                        child: Text(AppMessages.text(context, "Rename")),
                       ),
                     ],
                   ),
@@ -7499,8 +7475,8 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                 Icons.delete_outline,
                 color: Colors.redAccent,
               ),
-              title: const Text(
-                'Delete Smart Channel',
+              title: Text(
+                AppMessages.text(context, "Delete Smart Channel"),
                 style: TextStyle(color: Colors.redAccent),
               ),
               onTap: () async {
@@ -7509,25 +7485,25 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                   context: context,
                   builder: (ctx) => AlertDialog(
                     backgroundColor: const Color(0xFF1A1A2E),
-                    title: const Text(
-                      'Delete Smart Channel?',
+                    title: Text(
+                      AppMessages.text(context, "Delete Smart Channel?"),
                       style: TextStyle(color: Colors.white),
                     ),
                     content: Text(
-                      'Delete "${group.name}"? The individual streams will be kept.',
+                      AppMessages.text(context, "Delete \"{0}\"? The individual streams will be kept.", [group.name]),
                       style: const TextStyle(color: Colors.white70),
                     ),
                     actions: [
                       TextButton(
                         onPressed: () => Navigator.pop(ctx, false),
-                        child: const Text('Cancel'),
+                        child: Text(AppMessages.text(context, "Cancel")),
                       ),
                       FilledButton(
                         onPressed: () => Navigator.pop(ctx, true),
                         style: FilledButton.styleFrom(
                           backgroundColor: Colors.redAccent,
                         ),
-                        child: const Text('Delete'),
+                        child: Text(AppMessages.text(context, "Delete")),
                       ),
                     ],
                   ),
@@ -7558,20 +7534,20 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
     final result = await showDialog<String>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Set Display Name'),
+        title: Text(AppMessages.text(context, "Set Display Name")),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'Original: ${channel.tvgName ?? channel.name}',
+              AppMessages.text(context, "Original: {0}", [channel.tvgName ?? channel.name]),
               style: const TextStyle(fontSize: 12, color: Colors.white54),
             ),
             const SizedBox(height: 12),
             TextFormField(
               controller: controller,
               autofocus: true,
-              decoration: const InputDecoration(labelText: 'Display Name'),
+              decoration: InputDecoration(labelText: AppMessages.text(context, "Display Name")),
             ),
           ],
         ),
@@ -7579,15 +7555,15 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
           if (currentVanity != null)
             TextButton(
               onPressed: () => Navigator.pop(ctx, '\x00RESET'),
-              child: const Text('Reset to Original'),
+              child: Text(AppMessages.text(context, "Reset to Original")),
             ),
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: const Text('Cancel'),
+            child: Text(AppMessages.text(context, "Cancel")),
           ),
           FilledButton(
             onPressed: () => Navigator.pop(ctx, controller.text.trim()),
-            child: const Text('Save'),
+            child: Text(AppMessages.text(context, "Save")),
           ),
         ],
       ),
@@ -7648,7 +7624,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                     )
                     .toList();
           return AlertDialog(
-            title: Text('Map: ${channel.name}'),
+            title: Text(AppMessages.text(context, "Map: {0}", [channel.name])),
             content: SizedBox(
               width: 400,
               height: 400,
@@ -7657,8 +7633,8 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                   TextField(
                     controller: searchCtrl,
                     autofocus: true,
-                    decoration: const InputDecoration(
-                      hintText: 'Search EPG channels...',
+                    decoration: InputDecoration(
+                      hintText: AppMessages.text(context, "Search EPG channels..."),
                       prefixIcon: Icon(Icons.search),
                       isDense: true,
                     ),
@@ -7666,7 +7642,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    '${filtered.length} EPG channels',
+                    AppMessages.text(context, "{0} EPG channels", [filtered.length]),
                     style: const TextStyle(fontSize: 12, color: Colors.white54),
                   ),
                   const SizedBox(height: 4),
@@ -7693,7 +7669,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
             actions: [
               TextButton(
                 onPressed: () => Navigator.pop(ctx),
-                child: const Text('Cancel'),
+                child: Text(AppMessages.text(context, "Cancel")),
               ),
             ],
           );
@@ -7727,7 +7703,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
         int selected = current;
         return StatefulBuilder(
           builder: (ctx, setDialogState) => AlertDialog(
-            title: const Text('Timeshift EPG'),
+            title: Text(AppMessages.text(context, "Timeshift EPG")),
             content: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
@@ -7736,8 +7712,8 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                   style: const TextStyle(fontWeight: FontWeight.bold),
                 ),
                 const SizedBox(height: 12),
-                const Text(
-                  'Shift programme times by:',
+                Text(
+                  AppMessages.text(context, "Shift programme times by:"),
                   style: TextStyle(fontSize: 13),
                 ),
                 const SizedBox(height: 8),
@@ -7749,7 +7725,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                       icon: const Icon(Icons.remove_circle_outline),
                     ),
                     Text(
-                      '${selected > 0 ? '+' : ''}${selected}h',
+                      AppMessages.text(context, "{0}{1}h", [selected > 0 ? '+' : '', selected]),
                       style: const TextStyle(
                         fontSize: 20,
                         fontWeight: FontWeight.bold,
@@ -7764,8 +7740,8 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                 const SizedBox(height: 4),
                 Text(
                   selected == 0
-                      ? 'No shift'
-                      : 'Programmes shifted ${selected > 0 ? 'forward' : 'back'} ${selected.abs()}h',
+                      ? AppMessages.text(context, "No shift")
+                      : AppMessages.text(context, "Programmes shifted {0} {1}h", [selected > 0 ? 'forward' : 'back', selected.abs()]),
                   style: const TextStyle(color: Colors.white54, fontSize: 12),
                 ),
               ],
@@ -7774,15 +7750,15 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
               if (current != 0)
                 TextButton(
                   onPressed: () => Navigator.pop(ctx, 0),
-                  child: const Text('Reset'),
+                  child: Text(AppMessages.text(context, "Reset")),
                 ),
               TextButton(
                 onPressed: () => Navigator.pop(ctx),
-                child: const Text('Cancel'),
+                child: Text(AppMessages.text(context, "Cancel")),
               ),
               FilledButton(
                 onPressed: () => Navigator.pop(ctx, selected),
-                child: const Text('Apply'),
+                child: Text(AppMessages.text(context, "Apply")),
               ),
             ],
           ),
@@ -7817,8 +7793,8 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: const Color(0xFF16213E),
-        title: const Text(
-          'New Favorite List',
+        title: Text(
+          AppMessages.text(context, "New Favorite List"),
           style: TextStyle(color: Colors.white),
         ),
         content: TextField(
@@ -7826,7 +7802,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
           autofocus: true,
           style: const TextStyle(color: Colors.white),
           decoration: InputDecoration(
-            hintText: 'e.g. Sports, News, Kids',
+            hintText: AppMessages.text(context, "e.g. Sports, News, Kids"),
             hintStyle: const TextStyle(color: Colors.white38),
             filled: true,
             fillColor: Colors.white12,
@@ -7839,15 +7815,15 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: const Text(
-              'Cancel',
+            child: Text(
+              AppMessages.text(context, "Cancel"),
               style: TextStyle(color: Colors.white54),
             ),
           ),
           TextButton(
             onPressed: () => Navigator.pop(ctx, controller.text.trim()),
-            child: const Text(
-              'Create',
+            child: Text(
+              AppMessages.text(context, "Create"),
               style: TextStyle(color: Colors.cyanAccent),
             ),
           ),
@@ -7872,9 +7848,9 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                 children: [
                   const Icon(Icons.star_rounded, color: Colors.amber, size: 22),
                   const SizedBox(width: 8),
-                  const Expanded(
+                  Expanded(
                     child: Text(
-                      'Manage Favorite Lists',
+                      AppMessages.text(context, "Manage Favorite Lists"),
                       style: TextStyle(color: Colors.white, fontSize: 16),
                     ),
                   ),
@@ -7884,7 +7860,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                       color: Colors.cyanAccent,
                       size: 20,
                     ),
-                    tooltip: 'Create new list',
+                    tooltip: AppMessages.text(context, "Create new list"),
                     onPressed: () async {
                       final name = await _showCreateListDialog();
                       if (name != null && name.isNotEmpty) {
@@ -7899,11 +7875,11 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
               content: SizedBox(
                 width: 340,
                 child: lists.isEmpty
-                    ? const Padding(
+                    ? Padding(
                         padding: EdgeInsets.symmetric(vertical: 24),
                         child: Center(
                           child: Text(
-                            'No favorite lists yet.\nTap + to create one.',
+                            AppMessages.text(context, "No favorite lists yet.\nTap + to create one."),
                             textAlign: TextAlign.center,
                             style: TextStyle(color: Colors.white38),
                           ),
@@ -7951,7 +7927,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                                     size: 16,
                                     color: Colors.white38,
                                   ),
-                                  tooltip: 'Rename',
+                                  tooltip: AppMessages.text(context, "Rename"),
                                   onPressed: () async {
                                     final newName = await _showRenameDialog(
                                       list.name,
@@ -7973,7 +7949,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                                     size: 16,
                                     color: Colors.redAccent,
                                   ),
-                                  tooltip: 'Delete',
+                                  tooltip: AppMessages.text(context, "Delete"),
                                   onPressed: () async {
                                     final confirmed =
                                         await _showDeleteConfirmation(
@@ -7998,8 +7974,8 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
               actions: [
                 TextButton(
                   onPressed: () => Navigator.pop(ctx),
-                  child: const Text(
-                    'Done',
+                  child: Text(
+                    AppMessages.text(context, "Done"),
                     style: TextStyle(color: Colors.cyanAccent),
                   ),
                 ),
@@ -8028,8 +8004,8 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
         context: context,
         builder: (ctx) => AlertDialog(
           backgroundColor: const Color(0xFF16213E),
-          title: const Text(
-            'Rename List',
+          title: Text(
+            AppMessages.text(context, "Rename List"),
             style: TextStyle(color: Colors.white),
           ),
           content: TextField(
@@ -8048,15 +8024,15 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(ctx),
-              child: const Text(
-                'Cancel',
+              child: Text(
+                AppMessages.text(context, "Cancel"),
                 style: TextStyle(color: Colors.white54),
               ),
             ),
             TextButton(
               onPressed: () => Navigator.pop(ctx, controller.text.trim()),
-              child: const Text(
-                'Rename',
+              child: Text(
+                AppMessages.text(context, "Rename"),
                 style: TextStyle(color: Colors.cyanAccent),
               ),
             ),
@@ -8073,26 +8049,26 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: const Color(0xFF16213E),
-        title: const Text(
-          'Delete List?',
+        title: Text(
+          AppMessages.text(context, "Delete List?"),
           style: TextStyle(color: Colors.white),
         ),
         content: Text(
-          'Are you sure you want to delete "$listName"?\nChannels will not be deleted.',
+          AppMessages.text(context, "Are you sure you want to delete \"{0}\"?\nChannels will not be deleted.", [listName]),
           style: const TextStyle(color: Colors.white70),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: const Text(
-              'Cancel',
+            child: Text(
+              AppMessages.text(context, "Cancel"),
               style: TextStyle(color: Colors.white54),
             ),
           ),
           TextButton(
             onPressed: () => Navigator.pop(ctx, true),
-            child: const Text(
-              'Delete',
+            child: Text(
+              AppMessages.text(context, "Delete"),
               style: TextStyle(color: Colors.redAccent),
             ),
           ),
@@ -8109,9 +8085,9 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
 
   Widget _buildGuideView() {
     if (_filteredChannels.isEmpty) {
-      return const Center(
+      return Center(
         child: Text(
-          'No channels match your filter',
+          AppMessages.text(context, "No channels match your filter"),
           style: TextStyle(color: Colors.white38),
         ),
       );
@@ -8748,7 +8724,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
             children: [
               const Icon(Icons.play_arrow, size: 18),
               const SizedBox(width: 8),
-              const Text('Play'),
+              Text(AppMessages.text(context, "Play")),
             ],
           ),
         ),
@@ -8758,7 +8734,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
             children: [
               const Icon(Icons.fullscreen, size: 18),
               const SizedBox(width: 8),
-              const Text('全屏'),
+              Text(AppMessages.text(context, "全屏")),
             ],
           ),
         ),
@@ -8773,27 +8749,27 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                 color: Colors.amber,
               ),
               const SizedBox(width: 8),
-              Text(isFav ? '取消收藏' : '加入收藏'),
+              Text(isFav ? AppMessages.text(context, "取消收藏") : AppMessages.text(context, "加入收藏")),
             ],
           ),
         ),
-        const PopupMenuItem(value: 'manage_favorites', child: Text('管理收藏夹')),
+        PopupMenuItem(value: 'manage_favorites', child: Text(AppMessages.text(context, "管理收藏夹"))),
         PopupMenuItem(
           value: 'epg_map',
           child: Row(
             children: [
               const Icon(Icons.link, size: 18),
               const SizedBox(width: 8),
-              const Text('Map to EPG...'),
+              Text(AppMessages.text(context, "Map to EPG...")),
             ],
           ),
         ),
-        const PopupMenuItem(
+        PopupMenuItem(
           value: 'category',
           child: Row(children: [
             Icon(Icons.folder_open_rounded, size: 18),
             SizedBox(width: 8),
-            Text('变更分类'),
+            Text(AppMessages.text(context, "变更分类")),
           ]),
         ),
         const PopupMenuDivider(),
@@ -8803,7 +8779,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
             children: [
               const Icon(Icons.alarm, size: 18),
               const SizedBox(width: 8),
-              const Text('Set Reminder'),
+              Text(AppMessages.text(context, "Set Reminder")),
             ],
           ),
         ),
@@ -8817,7 +8793,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                 color: Colors.red,
               ),
               const SizedBox(width: 8),
-              const Text('Record'),
+              Text(AppMessages.text(context, "Record")),
             ],
           ),
         ),
@@ -8828,7 +8804,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
             children: [
               const Icon(Icons.edit, size: 18),
               const SizedBox(width: 8),
-              const Text('Rename Channel'),
+              Text(AppMessages.text(context, "Rename Channel")),
             ],
           ),
         ),
@@ -8839,7 +8815,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
               const Icon(Icons.schedule, size: 18),
               const SizedBox(width: 8),
               Text(
-                'Timeshift EPG${_epgTimeshifts.containsKey(channel.id) ? ' (${_epgTimeshifts[channel.id]! > 0 ? '+' : ''}${_epgTimeshifts[channel.id]!}h)' : ''}',
+                AppMessages.text(context, "Timeshift EPG{0}", [_epgTimeshifts.containsKey(channel.id) ? ' (${_epgTimeshifts[channel.id]! > 0 ? '+' : ''}${_epgTimeshifts[channel.id]!}h)' : '']),
               ),
             ],
           ),
@@ -8850,7 +8826,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
             children: [
               const Icon(Icons.bug_report, size: 18),
               const SizedBox(width: 8),
-              const Text('Debug Info'),
+              Text(AppMessages.text(context, "Debug Info")),
             ],
           ),
         ),
@@ -8877,11 +8853,11 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
           unawaited(_changeChannelCategory(channel));
         case 'reminder':
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Reminders coming soon')),
+            SnackBar(content: Text(AppMessages.text(context, "Reminders coming soon"))),
           );
         case 'record':
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Recording coming soon')),
+            SnackBar(content: Text(AppMessages.text(context, "Recording coming soon"))),
           );
         case 'rename':
           _renameChannel(channel);
@@ -8914,9 +8890,9 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
   }) {
     final epgId = _getEpgId(channel);
     if (epgId == null) {
-      return const Center(
+      return Center(
         child: Text(
-          'No EPG',
+          AppMessages.text(context, "No EPG"),
           style: TextStyle(fontSize: 10, color: Colors.white24),
         ),
       );
@@ -8933,9 +8909,9 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
       ),
       builder: (context, snapshot) {
         if (!snapshot.hasData || snapshot.data!.isEmpty) {
-          return const Center(
+          return Center(
             child: Text(
-              'No EPG data',
+              AppMessages.text(context, "No EPG data"),
               style: TextStyle(fontSize: 10, color: Colors.white24),
             ),
           );
@@ -9023,15 +8999,15 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: const Color(0xFF1A1A2E),
-        title: const Text('Rename List', style: TextStyle(color: Colors.white)),
+        title: Text(AppMessages.text(context, "Rename List"), style: TextStyle(color: Colors.white)),
         content: SizedBox(
           width: 300,
           child: TextFormField(
             controller: controller,
             autofocus: true,
             style: const TextStyle(color: Colors.white),
-            decoration: const InputDecoration(
-              hintText: 'List name',
+            decoration: InputDecoration(
+              hintText: AppMessages.text(context, "List name"),
               hintStyle: TextStyle(color: Colors.white38),
             ),
             onFieldSubmitted: (v) => Navigator.pop(ctx, v.trim()),
@@ -9040,11 +9016,11 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: const Text('Cancel'),
+            child: Text(AppMessages.text(context, "Cancel")),
           ),
           TextButton(
             onPressed: () => Navigator.pop(ctx, controller.text.trim()),
-            child: const Text('Rename'),
+            child: Text(AppMessages.text(context, "Rename")),
           ),
         ],
       ),

@@ -2,14 +2,17 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
+import 'dart:ui' show PlatformDispatcher;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:path/path.dart' as p;
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../core/app_diagnostics.dart';
 import '../../core/desktop_app_exit.dart';
 import '../../core/app_version.dart';
+import '../../core/i18n/app_language.dart';
 import '../../core/server_egress.dart';
 import '../../core/windows_binary_architecture.dart';
 import 'desktop_update_state.dart';
@@ -258,6 +261,16 @@ class WindowsUpdateService {
         ], flush: true);
       }
     }
+    final preferences = await SharedPreferences.getInstance();
+    final selectedLanguage = AppLanguage.fromTag(
+      preferences.getString(AppLanguage.preferenceKey),
+    );
+    final language = selectedLanguage ?? AppLanguage.resolve(
+      PlatformDispatcher.instance.locales,
+      await AppLanguage.readTimeZone(),
+    );
+    final copy = await rootBundle.loadString(language.bundlePath);
+    await File(p.join(directory.path, 'update-copy.json')).writeAsString(copy, flush: true);
     final progressScript = File(p.join(directory.path, 'progress_ui.ps1'));
     await progressScript.writeAsBytes([
       0xef,

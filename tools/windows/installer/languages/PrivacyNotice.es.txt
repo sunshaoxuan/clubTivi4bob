@@ -1,0 +1,16 @@
+﻿Aviso de privacidad de BobTV
+
+BobTV obtendrá información sobre el canal público, la categoría, la lista de programas, el logotipo de la estación y la versión de https://bobtv.briconbric.com. Las solicitudes de recursos pueden seleccionar el nodo de caché de BobTV en https://cndrp.com; La reproducción de vídeo está conectada directamente a la fuente de señal seleccionada. El servicio de red recibe información como la IP, la ruta de solicitud y la versión de la aplicación requerida para la conexión.
+
+Se puede realizar una copia de seguridad privada de las colecciones locales utilizando el hash de huellas digitales del dispositivo original y la clave exclusiva, y solo se pueden restaurar en el dispositivo original sin ingresar a la biblioteca de canales públicos. La copia de seguridad utiliza identificadores de canales/líneas y listas de favoritos, y no envía direcciones de reproducción de suscripción privada. Puede cancelar la primera activación en la página siguiente o puede desactivar la "Copia de seguridad en línea de favoritos locales" en cualquier momento en "Configuración → Sincronización y privacidad". Las colecciones locales se conservan después del cierre; Las solicitudes de red enviadas no se pueden retirar.
+
+Modificaciones como clasificación, fusión, transferencia de línea, calificación y eliminación de canales públicos se sincronizarán en segundo plano como registros públicos. No envíe cuentas privadas, contraseñas o direcciones que no estén autorizadas para compartir. Hay pasos de confirmación adicionales para el envío de fuentes de TV candidatas.
+
+"Compartir estado de reproducción" y "Cargar automáticamente resumen de diagnóstico" están desactivados de forma predeterminada y se pueden activar o desactivar respectivamente en la configuración. La carga manual de diagnósticos solo envía campos de resumen filtrados. Los registros originales, las pilas de excepciones y los archivos de volcado se guardan localmente y no se cargarán automáticamente como resúmenes de diagnóstico. Los volcados pueden contener información confidencial y no deben compartirse sin revisarse.
+
+El historial de reproducción nativo, las suscripciones privadas y las claves AI no ingresan al directorio de canales públicos. El servidor realiza tareas de descubrimiento de fuentes y de inteligencia artificial, y la fuente de video y el receptor de proyección de pantalla también tienen sus propias reglas de procesamiento de datos.
+
+Política completa: https://bobtv.briconbric.com/privacy
+Política de firma de código: https://bobtv.briconbric.com/code-signing
+
+La instalación y desinstalación no borra las colecciones, canales, configuraciones o registros del usuario actual.

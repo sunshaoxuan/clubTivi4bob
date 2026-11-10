@@ -44,8 +44,10 @@ standard GitHub-hosted runner, signs the main application before Setup, and
 checks the resulting publisher, timestamp, versions and hashes. Current public
 release assets are never replaced by a candidate build.
 
-Setup displays `PrivacyNotice.txt` and offers a first-run private-favorite backup
-choice in its installation options. The `[BobTVPrivacy] FavoritesBackup` marker
+Setup displays the privacy notice in the selected installation language and
+offers a first-run private-favorite backup choice. The Simplified and Traditional
+Chinese compiler message files in `languages/` are from Inno Setup 6.5.4.
+Their upstream notices and license are preserved alongside the files. The `[BobTVPrivacy] FavoritesBackup` marker
 sets only the initial per-user preference. Once the user changes this in BobTV
 settings, later Setup upgrades do not override that preference. Disabling backup
 stops new private-favorite reads/uploads and keeps all local favorites.

@@ -5,6 +5,7 @@ import 'package:media_kit/media_kit.dart';
 
 import '../../core/server_image.dart';
 import 'radio_audio_spectrum.dart';
+import '../../core/i18n/app_language.dart';
 
 /// Render-only radio artwork. Does not open media or change channel metadata.
 class RadioPlaybackSurface extends StatelessWidget {
@@ -87,7 +88,7 @@ class RadioPlaybackSurface extends StatelessWidget {
                 children: [
                   Flexible(
                     child: Semantics(
-                      label: '$channelName 台标',
+                      label: AppMessages.text(context, "{0} 台标", [channelName]),
                       image: true,
                       child: Container(
                         key: const ValueKey('radio-station-artwork'),
@@ -235,7 +236,7 @@ class _RadioWaveformState extends State<RadioWaveform>
 
   @override
   Widget build(BuildContext context) => Semantics(
-    label: '实时音频频谱',
+    label: AppMessages.text(context, "实时音频频谱"),
     child: RepaintBoundary(
       key: const ValueKey('radio-waveform'),
       child: Stack(
@@ -252,9 +253,9 @@ class _RadioWaveformState extends State<RadioWaveform>
             ValueListenableBuilder<bool?>(
               valueListenable: widget.spectrum!.supported,
               builder: (context, supported, _) => supported == false && _enabled
-                  ? const Center(
+                  ? Center(
                       child: Text(
-                        '频谱暂不可用',
+                        AppMessages.text(context, "频谱暂不可用"),
                         style: TextStyle(
                           color: Color(0xFF91D9E9),
                           fontSize: 12,

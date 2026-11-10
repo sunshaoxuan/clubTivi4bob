@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../core/i18n/app_language.dart';
 
 /// Keep navigation intrinsic and the preview viewport expanded. On very short
 /// windows search opens separately, preserving a complete card and its guide.
@@ -39,7 +40,7 @@ class SimpleChannelPanelFrame extends StatelessWidget {
                   Expanded(child: header),
                   IconButton(
                     key: const ValueKey('compact-search-button'),
-                    tooltip: '搜索当前分类',
+                    tooltip: AppMessages.text(context, "搜索当前分类"),
                     onPressed: onSearch,
                     padding: EdgeInsets.zero,
                     constraints: const BoxConstraints.tightFor(

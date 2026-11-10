@@ -5,6 +5,7 @@ import '../../data/services/channel_merge.dart';
 import '../../data/services/route_identity.dart';
 import '../../data/services/manual_channel_category.dart';
 import 'channel_category_picker.dart';
+import '../../core/i18n/app_language.dart';
 
 class ChannelMergeDialog extends StatefulWidget {
   const ChannelMergeDialog({
@@ -203,7 +204,7 @@ class _ChannelMergeDialogState extends State<ChannelMergeDialog> {
                 const SizedBox(width: 12),
                 Expanded(
                   child: Text(
-                    _review ? '确认合并频道' : '选择要合并的频道',
+                    _review ? AppMessages.text(context, "确认合并频道") : AppMessages.text(context, "选择要合并的频道"),
                     style: const TextStyle(
                       fontSize: 22,
                       fontWeight: FontWeight.w700,
@@ -211,7 +212,7 @@ class _ChannelMergeDialogState extends State<ChannelMergeDialog> {
                   ),
                 ),
                 IconButton(
-                  tooltip: '取消',
+                  tooltip: AppMessages.text(context, "取消"),
                   onPressed: _saving ? null : () => Navigator.pop(context),
                   icon: const Icon(Icons.close_rounded),
                 ),
@@ -221,7 +222,7 @@ class _ChannelMergeDialogState extends State<ChannelMergeDialog> {
             Align(
               alignment: Alignment.centerLeft,
               child: Text(
-                _review ? '合并后共用一个名称和分类，重复地址只保留一条。' : '确认内容相同后再合并，可跨分类选择多个频道。',
+                _review ? AppMessages.text(context, "合并后共用一个名称和分类，重复地址只保留一条。") : AppMessages.text(context, "确认内容相同后再合并，可跨分类选择多个频道。"),
                 style: const TextStyle(color: Colors.white60),
               ),
             ),
@@ -252,8 +253,8 @@ class _ChannelMergeDialogState extends State<ChannelMergeDialog> {
                   Expanded(
                     child: TextField(
                       controller: _search,
-                      decoration: const InputDecoration(
-                        hintText: '搜索频道名称',
+                      decoration: InputDecoration(
+                        hintText: AppMessages.text(context, "搜索频道名称"),
                         prefixIcon: Icon(Icons.search_rounded),
                       ),
                       onChanged: (_) {
@@ -272,9 +273,9 @@ class _ChannelMergeDialogState extends State<ChannelMergeDialog> {
                       key: ValueKey(_group),
                       initialValue: _group ?? '',
                       isExpanded: true,
-                      decoration: const InputDecoration(labelText: '查找范围'),
+                      decoration: InputDecoration(labelText: AppMessages.text(context, "查找范围")),
                       items: [
-                        const DropdownMenuItem(value: '', child: Text('全部分类')),
+                        DropdownMenuItem(value: '', child: Text(AppMessages.text(context, "全部分类"))),
                         for (final group in {_destination, ..._groups})
                           DropdownMenuItem(
                             value: group,
@@ -302,7 +303,7 @@ class _ChannelMergeDialogState extends State<ChannelMergeDialog> {
                     if (index == _choices.length)
                       return TextButton(
                         onPressed: _loading ? null : () => _load(more: true),
-                        child: const Text('显示更多频道'),
+                        child: Text(AppMessages.text(context, "显示更多频道")),
                       );
                     final choice = _choices[index];
                     final selected = _selected.containsKey(choice.id);
@@ -321,7 +322,7 @@ class _ChannelMergeDialogState extends State<ChannelMergeDialog> {
                             }),
                       title: Text(choice.name),
                       subtitle: Text(
-                        '${choice.group} · ${choice.routeCount} 条线路',
+                        AppMessages.text(context, "{0} · {1} 条线路", [choice.group, choice.routeCount]),
                         style: const TextStyle(color: Colors.white54),
                       ),
                       shape: RoundedRectangleBorder(
@@ -340,9 +341,9 @@ class _ChannelMergeDialogState extends State<ChannelMergeDialog> {
                       TextField(
                         controller: _name,
                         maxLength: 128,
-                        decoration: const InputDecoration(
-                          labelText: '合并后的频道名称',
-                          hintText: '选择原名称或输入新名称',
+                        decoration: InputDecoration(
+                          labelText: AppMessages.text(context, "合并后的频道名称"),
+                          hintText: AppMessages.text(context, "选择原名称或输入新名称"),
                         ),
                       ),
                       Wrap(
@@ -366,24 +367,24 @@ class _ChannelMergeDialogState extends State<ChannelMergeDialog> {
                           Icons.folder_open_rounded,
                           color: Color(0xFFB7CCFF),
                         ),
-                        title: const Text('归入分类'),
+                        title: Text(AppMessages.text(context, "归入分类")),
                         subtitle: Text(_destination),
                         trailing: OutlinedButton(
                           onPressed: _saving ? null : _chooseDestination,
-                          child: const Text('选择分类'),
+                          child: Text(AppMessages.text(context, "选择分类")),
                         ),
                       ),
                       const SizedBox(height: 16),
                       Text(
-                        '${_selected.length} 个频道 · ${_urls.length} 条去重线路',
+                        AppMessages.text(context, "{0} 个频道 · {1} 条去重线路", [_selected.length, _urls.length]),
                         style: const TextStyle(
                           color: Color(0xFFB7CCFF),
                           fontWeight: FontWeight.w600,
                         ),
                       ),
                       const SizedBox(height: 10),
-                      const Text(
-                        '线路权重、来源记录和淘汰状态会保留。公共线路的合并在后台同步；个人订阅保持私有。',
+                      Text(
+                        AppMessages.text(context, "线路权重、来源记录和淘汰状态会保留。公共线路的合并在后台同步；个人订阅保持私有。"),
                         style: TextStyle(color: Colors.white60),
                         textAlign: TextAlign.center,
                       ),
@@ -408,12 +409,12 @@ class _ChannelMergeDialogState extends State<ChannelMergeDialog> {
                     onPressed: _saving
                         ? null
                         : () => setState(() => _review = false),
-                    child: const Text('返回选择'),
+                    child: Text(AppMessages.text(context, "返回选择")),
                   ),
                 const Spacer(),
                 TextButton(
                   onPressed: _saving ? null : () => Navigator.pop(context),
-                  child: const Text('取消'),
+                  child: Text(AppMessages.text(context, "取消")),
                 ),
                 const SizedBox(width: 10),
                 FilledButton.icon(
@@ -431,10 +432,10 @@ class _ChannelMergeDialogState extends State<ChannelMergeDialog> {
                       : const Icon(Icons.merge_rounded),
                   label: Text(
                     _saving
-                        ? '正在保存'
+                        ? AppMessages.text(context, "正在保存")
                         : _review
-                        ? '合并频道'
-                        : '下一步',
+                        ? AppMessages.text(context, "合并频道")
+                        : AppMessages.text(context, "下一步"),
                   ),
                 ),
               ],

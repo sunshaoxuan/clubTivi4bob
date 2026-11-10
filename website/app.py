@@ -9,7 +9,7 @@ import time
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, Request
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
 from source_registry import router as source_router
@@ -24,6 +24,9 @@ from resource_nodes import router as resource_node_router, trusted_client
 from device_favorites import router as device_favorites_router
 from epg_catalog import router as epg_router
 from diagnostics_api import router as diagnostics_router
+from network_routes import request_profile
+from site_pages import MIRROR_ROOT, PAGES, render_page
+from starlette.concurrency import run_in_threadpool
 
 BASE = Path(__file__).resolve().parent
 DATA = Path(os.environ.get("BOBTV_DATA_DIR", BASE / "data"))
@@ -53,6 +56,23 @@ async def resource_relay_attribution(request: Request, call_next):
         address = trusted_client(request)
     except HTTPException as exc:
         return JSONResponse({'detail': exc.detail}, status_code=exc.status_code)
+    request.state.bobtv_mirror = address is not None and request.headers.get('x-bobtv-relay-node') == 'cndrp'
+    path = request.url.path
+    public_resource = (path in PAGES or path == '/releases.json'
+                       or path.startswith(('/assets/', '/downloads/')))
+    request.state.bobtv_country = 'ZZ'
+    if request.method in {'GET', 'HEAD'} and public_resource:
+        if address:
+            request.scope['client'] = (address, 0)
+        profile = await run_in_threadpool(request_profile, request, DATA)
+        request.state.bobtv_country = profile['countryCode']
+        if address is None and request.state.bobtv_country == 'CN':
+            target = MIRROR_ROOT + path
+            if request.url.query:
+                target += '?' + request.url.query
+            return RedirectResponse(str(target), status_code=307, headers={
+                'Cache-Control': 'private, no-store',
+            })
     if address:
         request.scope['client'] = (address, 0)
     return await call_next(request)
@@ -75,29 +95,8 @@ def _prune(conn, now):
     conn.execute("DELETE FROM attempts WHERE window < ?", (now // 3600 - 1,))
 
 
-@app.api_route("/", methods=["GET", "HEAD"])
-def home():
-    return FileResponse(BASE / "index.html")
-
-
-@app.api_route("/downloads", methods=["GET", "HEAD"])
-def downloads_page():
-    return FileResponse(BASE / "downloads.html")
-
-
-@app.api_route("/diagnostics", methods=["GET", "HEAD"])
-def diagnostics_page():
-    return FileResponse(BASE / "diagnostics.html")
-
-
-@app.api_route("/privacy", methods=["GET", "HEAD"])
-def privacy_page():
-    return FileResponse(BASE / "privacy.html")
-
-
-@app.api_route("/code-signing", methods=["GET", "HEAD"])
-def code_signing_page():
-    return FileResponse(BASE / "code-signing.html")
+for page_path in PAGES:
+    app.add_api_route(page_path, render_page, methods=["GET", "HEAD"])
 
 
 @app.api_route("/releases.json", methods=["GET", "HEAD"])

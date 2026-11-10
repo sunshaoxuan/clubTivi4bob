@@ -1,4 +1,4 @@
-; Build with build_installer.ps1. No private keys or user data in this bundle.
+﻿; Build with build_installer.ps1. No private keys or user data in this bundle.
 #ifndef BundleDirectory
   #error BundleDirectory is required
 #endif
@@ -70,69 +70,94 @@ UsePreviousTasks=yes
 AppMutex=BobTVInstaller
 
 [Languages]
-Name: "english"; MessagesFile: "compiler:Default.isl"
+Name: "english"; MessagesFile: "compiler:Default.isl"; InfoBeforeFile: "languages\PrivacyNotice.en.txt"
+Name: "simplified"; MessagesFile: "languages\ChineseSimplified.isl"; InfoBeforeFile: "PrivacyNotice.txt"
+Name: "traditional"; MessagesFile: "languages\ChineseTraditional.isl"; InfoBeforeFile: "languages\PrivacyNotice.zh-TW.txt"
+Name: "japanese"; MessagesFile: "compiler:Languages\Japanese.isl"; InfoBeforeFile: "languages\PrivacyNotice.ja.txt"
+Name: "french"; MessagesFile: "compiler:Languages\French.isl"; InfoBeforeFile: "languages\PrivacyNotice.fr.txt"
+Name: "spanish"; MessagesFile: "compiler:Languages\Spanish.isl"; InfoBeforeFile: "languages\PrivacyNotice.es.txt"
+Name: "korean"; MessagesFile: "compiler:Languages\Korean.isl"; InfoBeforeFile: "languages\PrivacyNotice.ko.txt"
 
 [CustomMessages]
-english.DesktopIcon=创建桌面快捷方式
-english.LaunchBobTV=启动 BobTV
-english.FavoritesBackup=首次启动时启用本机收藏在线备份（仅原设备可恢复）
+english.DesktopIcon=Create desktop shortcut
+english.LaunchBobTV=Start BobTV
+english.FavoritesBackup=Enable online backup of local collections when starting for the first time (only the original device can be restored)
+english.ShortcutGroup=shortcut
+english.PrivacyGroup=Privacy options
+english.StillRunning=BobTV is still running, please close BobTV and try again. The current program will not be forced to close.
+simplified.DesktopIcon=创建桌面快捷方式
+simplified.LaunchBobTV=启动 BobTV
+simplified.FavoritesBackup=首次启动时启用本机收藏在线备份（仅原设备可恢复）
+simplified.ShortcutGroup=快捷方式
+simplified.PrivacyGroup=隐私选项
+simplified.StillRunning=BobTV 仍在运行，请关闭 BobTV 后重试。当前程序不会被强制关闭。
+traditional.DesktopIcon=建立桌面快捷方式
+traditional.LaunchBobTV=啟動 BobTV
+traditional.FavoritesBackup=首次啟動時啟用本機收藏線上備份（僅原裝置可恢復）
+traditional.ShortcutGroup=快速方式
+traditional.PrivacyGroup=隱私權選項
+traditional.StillRunning=BobTV 仍在運行，請關閉 BobTV 後重試。當前程式不會被強制關閉。
+japanese.DesktopIcon=デスクトップショートカットを作成する
+japanese.LaunchBobTV=BobTV を開始する
+japanese.FavoritesBackup=初回起動時にローカル コレクションのオンライン バックアップを有効にする (元のデバイスのみ復元可能)
+japanese.ShortcutGroup=ショートカット
+japanese.PrivacyGroup=プライバシーオプション
+japanese.StillRunning=BobTV はまだ実行中です。BobTV を閉じて、もう一度お試しください。現在のプログラムは強制的に終了されません。
+french.DesktopIcon=Créer un raccourci sur le bureau
+french.LaunchBobTV=Démarrer BobTV
+french.FavoritesBackup=Activer la sauvegarde en ligne des collections locales lors du premier démarrage (seul le périphérique d'origine peut être restauré)
+french.ShortcutGroup=raccourci
+french.PrivacyGroup=Options de confidentialité
+french.StillRunning=BobTV est toujours en cours d'exécution, veuillez fermer BobTV et réessayer. Le programme actuel ne sera pas contraint de fermer.
+spanish.DesktopIcon=Crear acceso directo en el escritorio
+spanish.LaunchBobTV=Iniciar BobTV
+spanish.FavoritesBackup=Habilite la copia de seguridad en línea de las colecciones locales al iniciar por primera vez (solo se puede restaurar el dispositivo original)
+spanish.ShortcutGroup=atajo
+spanish.PrivacyGroup=Opciones de privacidad
+spanish.StillRunning=BobTV aún se está ejecutando, cierre BobTV e inténtelo nuevamente. El programa actual no se verá obligado a cerrar.
+korean.DesktopIcon=바탕화면 바로가기 만들기
+korean.LaunchBobTV=밥TV 시작
+korean.FavoritesBackup=처음 시작할 때 로컬 컬렉션의 온라인 백업 활성화(원래 장치만 복원 가능)
+korean.ShortcutGroup=바로가기
+korean.PrivacyGroup=개인정보 보호 옵션
+korean.StillRunning=BobTV가 아직 실행 중입니다. BobTV를 종료하고 다시 시도하세요. 현재 프로그램은 강제로 닫히지 않습니다.
 
 [Messages]
-SetupAppTitle=安装
-SetupWindowTitle=%1 安装
-UninstallAppTitle=卸载
-UninstallAppFullTitle=卸载 %1
-ButtonBack=< 上一步(&B)
-ButtonNext=下一步(&N) >
-ButtonInstall=安装(&I)
-ButtonCancel=取消
-ButtonFinish=完成(&F)
-ButtonBrowse=浏览(&B)...
-ButtonWizardBrowse=浏览(&R)...
-ButtonOK=确定
-ButtonYes=是(&Y)
-ButtonNo=否(&N)
-ClickNext=点击“下一步”继续，或点击“取消”退出安装。
-WelcomeLabel1=欢迎使用 [name] 安装向导
-WelcomeLabel2=即将在电脑上安装 [name/ver]。%n%n频道、收藏和个人设置保存在当前用户的数据目录中，安装和卸载不会清除这些数据。
-WizardSelectDir=选择安装位置
-SelectDirDesc=将 [name] 安装到哪里？
-SelectDirLabel3=程序将安装到以下文件夹。
-SelectDirBrowseLabel=点击“下一步”继续，或点击“浏览”选择其他位置。
-WizardSelectTasks=安装选项
-SelectTasksDesc=选择快捷方式与本机收藏备份选项。
-SelectTasksLabel2=开始菜单入口将自动创建。收藏备份仅原设备可恢复，也可在 BobTV 设置中关闭。
-WizardReady=准备安装
-ReadyLabel1=已准备好在电脑上安装 [name]。
-ReadyLabel2a=点击“安装”开始，或点击“上一步”调整设置。
-ReadyLabel2b=点击“安装”开始。
-ReadyMemoDir=安装位置：
-ReadyMemoGroup=开始菜单：
-ReadyMemoTasks=其他选项：
-WizardPreparing=准备安装
-WizardInstalling=正在安装
-InstallingLabel=正在安装 [name]，请稍候。
-StatusCreateDirs=正在创建目录...
-StatusExtractFiles=正在写入程序文件...
-StatusCreateIcons=正在创建快捷方式...
-StatusCreateIniEntries=正在保存安装选项...
-StatusCreateRegistryEntries=正在登记应用...
-StatusSavingUninstall=正在准备卸载程序...
-StatusRunProgram=正在完成安装...
-FinishedHeadingLabel=安装完成
-FinishedLabel=[name] 已安装。下次可以通过开始菜单或桌面快捷方式打开。
-FinishedLabelNoIcons=[name] 已安装。
-ClickFinish=点击“完成”退出安装向导。
-WizardUninstalling=正在卸载
-UninstallStatusLabel=正在卸载 %1，个人频道、收藏和设置将保留。
-UninstalledAll=%1 已卸载，个人数据已保留。
+english.SelectTasksDesc=Select the shortcuts and local favorites backup option.
+english.SelectTasksLabel2=The start menu entry will be created automatically. Collection backup can only be restored to the original device and can also be turned off in BobTV settings.
+english.WelcomeLabel2=[name/ver] is about to be installed on your computer. %n%nChannels, collections and personal settings are saved in the current user's data directory and will not be cleared by installation and uninstallation.
+english.UninstallStatusLabel=%1 is being uninstalled, personal channels, favorites and settings will be retained.
+simplified.SelectTasksDesc=选择快捷方式与本机收藏备份选项。
+simplified.SelectTasksLabel2=开始菜单入口将自动创建。收藏备份仅原设备可恢复，也可在 BobTV 设置中关闭。
+simplified.WelcomeLabel2=即将在电脑上安装 [name/ver]。%n%n频道、收藏和个人设置保存在当前用户的数据目录中，安装和卸载不会清除这些数据。
+simplified.UninstallStatusLabel=正在卸载 %1，个人频道、收藏和设置将保留。
+traditional.SelectTasksDesc=選擇快捷方式與本機收藏備份選項。
+traditional.SelectTasksLabel2=開始功能表入口將自動建立。收藏備份僅原設備可恢復，也可在 BobTV 設定中關閉。
+traditional.WelcomeLabel2=即將在電腦上安裝 [name/ver]。 %n%n頻道、收藏和個人設定保存在目前使用者的資料目錄中，安裝和解除安裝不會清除這些資料。
+traditional.UninstallStatusLabel=正在卸載 %1，個人頻道、收藏和設定將保留。
+japanese.SelectTasksDesc=ショートカットとローカルのお気に入りのバックアップ オプションを選択します。
+japanese.SelectTasksLabel2=スタート メニュー エントリは自動的に作成されます。コレクションのバックアップは元のデバイスにのみ復元でき、BobTV 設定でオフにすることもできます。
+japanese.WelcomeLabel2=[name/ver] がコンピュータにインストールされようとしています。 %n%nチャンネル、お気に入り、個人設定は現在のユーザーのデータ ディレクトリに保存され、インストールやアンインストールによってこのデータは消去されません。
+japanese.UninstallStatusLabel=%1 はアンインストールされますが、個人チャンネル、お気に入り、設定は保持されます。
+french.SelectTasksDesc=Sélectionnez l’option de sauvegarde des raccourcis et des favoris locaux.
+french.SelectTasksLabel2=L’entrée du menu Démarrer sera créée automatiquement. La sauvegarde de la collection ne peut être restaurée que sur l'appareil d'origine et peut également être désactivée dans les paramètres de BobTV.
+french.WelcomeLabel2=[name/ver] est sur le point d’être installé sur votre ordinateur. %n%nLes chaînes, les collections et les paramètres personnels sont enregistrés dans le répertoire de données de l'utilisateur actuel et ne seront pas effacés par l'installation et la désinstallation.
+french.UninstallStatusLabel=%1 est en cours de désinstallation, les chaînes personnelles, les favoris et les paramètres seront conservés.
+spanish.SelectTasksDesc=Seleccione la opción de copia de seguridad de accesos directos y favoritos locales.
+spanish.SelectTasksLabel2=La entrada del menú de inicio se creará automáticamente. La copia de seguridad de la colección solo se puede restaurar en el dispositivo original y también se puede desactivar en la configuración de BobTV.
+spanish.WelcomeLabel2=[name/ver] está a punto de instalarse en su computadora. %n%nLos canales, las colecciones y la configuración personal se guardan en el directorio de datos del usuario actual y no se borrarán durante la instalación ni la desinstalación.
+spanish.UninstallStatusLabel=%1 se está desinstalando, se conservarán los canales personales, los favoritos y la configuración.
+korean.SelectTasksDesc=바로가기 및 로컬 즐겨찾기 백업 옵션을 선택하세요.
+korean.SelectTasksLabel2=시작 메뉴 항목이 자동으로 생성됩니다. 컬렉션 백업은 원래 장치로만 복원할 수 있으며 BobTV 설정에서도 끌 수 있습니다.
+korean.WelcomeLabel2=[name/ver]가 컴퓨터에 설치되려고 합니다. %n%n채널, 컬렉션 및 개인 설정은 현재 사용자의 데이터 디렉터리에 저장되며 설치 및 제거로 지워지지 않습니다.
+korean.UninstallStatusLabel=%1가 제거되고 있으며 개인 채널, 즐겨찾기 및 설정은 유지됩니다.
 
 [Files]
 Source: "{#BundleDirectory}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs; Excludes: "unins*,installation.ini"
 
 [Tasks]
-Name: "desktopicon"; Description: "{cm:DesktopIcon}"; GroupDescription: "快捷方式："
-Name: "privatefavoritesbackup"; Description: "{cm:FavoritesBackup}"; GroupDescription: "隐私选项："
+Name: "desktopicon"; Description: "{cm:DesktopIcon}"; GroupDescription: "{cm:ShortcutGroup}"
+Name: "privatefavoritesbackup"; Description: "{cm:FavoritesBackup}"; GroupDescription: "{cm:PrivacyGroup}"
 
 [Icons]
 Name: "{#ProgramsRoot}\BoB\BobTV\BobTV"; Filename: "{app}\BobTV.exe"; WorkingDir: "{app}"; AppUserModelID: "BoB.BobTV"
@@ -171,7 +196,7 @@ begin
     { Authorization is complete at this point. The ordinary updater now asks
       BobTV to close, so cancelling UAC never interrupts playback. }
     if WaitForSingleObject(Handle, 120000) <> 0 then
-      Result := 'BobTV 仍在运行，请关闭 BobTV 后重试。当前程序不会被强制关闭。';
+      Result := ExpandConstant('{cm:StillRunning}');
   finally
     CloseHandle(Handle);
   end;

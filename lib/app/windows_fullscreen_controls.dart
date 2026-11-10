@@ -8,6 +8,7 @@ import '../features/player/windows_window_chrome.dart';
 import '../features/player/desktop_fullscreen_session.dart';
 import '../core/desktop_app_exit.dart';
 import '../core/desktop_window_pin.dart';
+import '../core/i18n/app_language.dart';
 
 /// Mouse-accessible window chrome across every Windows fullscreen route.
 /// macOS continues to use its native, edge-reveal titlebar.
@@ -159,12 +160,12 @@ class _WindowsFullscreenControlsState extends State<WindowsFullscreenControls>
                               ),
                             ),
                             IconButton(
-                              tooltip: '最小化',
+                              tooltip: AppMessages.text(context, "最小化"),
                               icon: const Icon(Icons.remove),
                               onPressed: windowManager.minimize,
                             ),
                             IconButton(
-                              tooltip: '恢复窗口',
+                              tooltip: AppMessages.text(context, "恢复窗口"),
                               icon: const Icon(
                                 Icons.filter_none_rounded,
                                 size: 18,
@@ -172,7 +173,7 @@ class _WindowsFullscreenControlsState extends State<WindowsFullscreenControls>
                               onPressed: _restoreWindow,
                             ),
                             IconButton(
-                              tooltip: '关闭 BobTV',
+                              tooltip: AppMessages.text(context, "关闭 BobTV"),
                               icon: const Icon(Icons.close),
                               onPressed: () => DesktopAppExit.request(
                                 'windows_fullscreen_close',

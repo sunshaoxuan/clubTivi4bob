@@ -53,14 +53,16 @@ class WindowsUpdateState {
     WindowsUpdatePhase.awaitingExit,
   }.contains(phase);
 
-  String get label => switch (phase) {
+  String get label => labelKey.replaceFirst('{0}', '$percent');
+
+  String get labelKey => switch (phase) {
     WindowsUpdatePhase.idle => '',
     WindowsUpdatePhase.checking => '正在检查更新',
     WindowsUpdatePhase.upToDate => '已是最新版本',
     WindowsUpdatePhase.manualRequired => '更新服务暂未就绪',
     WindowsUpdatePhase.available || WindowsUpdatePhase.starting => '准备下载更新',
     WindowsUpdatePhase.downloading =>
-      percent == null ? '正在下载更新' : '正在下载 $percent%',
+      percent == null ? '正在下载更新' : '正在下载 {0}%',
     WindowsUpdatePhase.verifying => '正在校验更新',
     WindowsUpdatePhase.ready => '更新已就绪',
     WindowsUpdatePhase.authorizing => '等待 Windows 授权',

@@ -15,7 +15,7 @@ import time
 import unicodedata
 import urllib.error
 import urllib.request
-from urllib.parse import quote, urlencode, urljoin, urlsplit
+from urllib.parse import parse_qsl, quote, urlencode, urljoin, urlsplit
 from email.utils import parsedate_to_datetime
 import xml.etree.ElementTree as ET
 
@@ -37,6 +37,8 @@ class NoRedirect(urllib.request.HTTPRedirectHandler):
 def public_url(value, *, document=False):
     value = validate_media_url(value)
     parsed = urlsplit(value)
+    if any(key.casefold() == 'key' for key, _ in parse_qsl(parsed.query, keep_blank_values=True)):
+        raise ValueError('credential_query_parameter')
     if document and (parsed.scheme != 'https' or parsed.port):
         raise ValueError('public_https_document_required')
     return value

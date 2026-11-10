@@ -5,11 +5,11 @@ const fs = require('node:fs');
 const path = require('node:path');
 const source = fs.readFileSync(path.join(__dirname, '../assets/resources.js'), 'utf8');
 const probeBody = Uint8Array.from({length:65536}, (_, i) => (i * 73 + (i >> 8) * 19) & 255);
-function setup(fastRelay, failure = false) {
+function setup(fastRelay, failure = false, mirror = false) {
   let time = 0;
   const seen = [];
   const context = {URL, Uint8Array, AbortController, Date, setTimeout, clearTimeout,
-    performance:{now:()=>time},
+    performance:{now:()=>time}, document:{body:{dataset:{siteRoot: mirror ? "/bobtv" : ""}}},
     fetch:async(url, options={})=>{
       seen.push({url, method:options.method || 'GET', body:options.body});
       const relay = url.includes('cndrp.com');
@@ -47,4 +47,11 @@ test('failed reads fall back, failed uploads are never replayed',async()=>{
     if(method==='POST') await assert.rejects(result); else await result;
     assert.equal(seen.filter(item=>!item.url.endsWith('/probe')).length,method==='POST'?1:2);
   }
+});
+
+test('mirror pages fetch without probing or falling back to origin', async () => {
+  const {router, seen} = setup(false, true, true);
+  assert.equal(await router.resolve('/downloads/BobTV-test.zip'), 'https://cndrp.com/bobtv/downloads/BobTV-test.zip');
+  await assert.rejects(router.fetch('/releases.json'));
+  assert.deepEqual(seen.map(item => item.url), ['https://cndrp.com/bobtv/releases.json']);
 });

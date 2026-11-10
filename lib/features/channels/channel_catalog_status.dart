@@ -1,9 +1,15 @@
 import 'package:flutter/material.dart';
+import '../../core/i18n/app_language.dart';
 
 /// The playing channel owns this count, independently of the browser category.
-String playingRouteCountLabel(int candidateCount) => candidateCount > 0
-    ? '候选 $candidateCount 路'
-    : '正在准备线路';
+String playingRouteCountLabel(int candidateCount, {BuildContext? context}) {
+  if (context == null) {
+    return candidateCount > 0 ? '候选 $candidateCount 路' : '正在准备线路';
+  }
+  return candidateCount > 0
+      ? AppMessages.text(context, '候选 {0} 路', [candidateCount])
+      : AppMessages.text(context, '正在准备线路');
+}
 
 /// Only the selected category belongs in its empty-state canvas. Whole-catalog
 /// transfer counts remain in SharedSyncBadge, independent of channel playback.
@@ -34,12 +40,12 @@ class ChannelCatalogStatus extends StatelessWidget {
       ],
       Text(
         loading
-            ? '正在载入$category频道…'
+            ? AppMessages.text(context, "正在载入{0}频道…", [AppMessages.category(context, category)])
             : checking
-            ? '正在检查$category的候选线路…'
+            ? AppMessages.text(context, "正在检查{0}的候选线路…", [AppMessages.category(context, category)])
             : category == '我的收藏'
-            ? '还没有收藏的频道'
-            : '$category暂时没有可显示的频道',
+            ? AppMessages.text(context, "还没有收藏的频道")
+            : AppMessages.text(context, "{0}暂时没有可显示的频道", [AppMessages.category(context, category)]),
         textAlign: TextAlign.center,
         style: const TextStyle(color: Colors.white70, fontSize: 14),
       ),
@@ -48,7 +54,7 @@ class ChannelCatalogStatus extends StatelessWidget {
         TextButton.icon(
           onPressed: onRetry,
           icon: const Icon(Icons.refresh_rounded),
-          label: const Text('重新读取分类'),
+          label: Text(AppMessages.text(context, "重新读取分类")),
         ),
       ],
     ],

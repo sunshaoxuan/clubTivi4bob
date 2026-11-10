@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import '../../data/services/desktop_update_state.dart';
+import '../../core/i18n/app_language.dart';
 
 class DesktopUpdateBadge extends StatelessWidget {
   const DesktopUpdateBadge({
@@ -24,7 +25,7 @@ class DesktopUpdateBadge extends StatelessWidget {
           return Padding(
             padding: const EdgeInsets.only(right: 12),
             child: Tooltip(
-              message: update.description,
+              message: AppMessages.text(context, update.description),
               child: InkWell(
                 borderRadius: BorderRadius.circular(20),
                 onTap: () => showDialog<void>(
@@ -72,7 +73,7 @@ class DesktopUpdateBadge extends StatelessWidget {
                         ),
                       const SizedBox(width: 8),
                       Text(
-                        update.label,
+                        AppMessages.text(context, update.labelKey, [update.percent]),
                         style: const TextStyle(
                           color: Color(0xFFE2E6FF),
                           fontSize: 12,
@@ -109,7 +110,7 @@ class _UpdateDetails extends StatelessWidget {
       backgroundColor: const Color(0xFF172136),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
       title: Text(
-        'BobTV ${update.version ?? ''}',
+        AppMessages.text(context, "BobTV {0}", [update.version ?? '']),
         style: const TextStyle(color: Colors.white),
       ),
       content: SizedBox(
@@ -119,7 +120,7 @@ class _UpdateDetails extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              update.label,
+              AppMessages.text(context, update.labelKey, [update.percent]),
               style: const TextStyle(color: Color(0xFFCED5FF), fontSize: 18),
             ),
             const SizedBox(height: 18),
@@ -139,19 +140,18 @@ class _UpdateDetails extends StatelessWidget {
             ],
             if (update.totalBytes != null && update.receivedBytes != null)
               Text(
-                '${(update.receivedBytes! / 1048576).toStringAsFixed(1)} / '
-                '${(update.totalBytes! / 1048576).toStringAsFixed(1)} MB',
+                AppMessages.text(context, "{0} / {1} MB", [(update.receivedBytes! / 1048576).toStringAsFixed(1), (update.totalBytes! / 1048576).toStringAsFixed(1)]),
                 style: const TextStyle(color: Colors.white70),
               ),
             const SizedBox(height: 12),
             Text(
-              update.description,
+              AppMessages.text(context, update.description),
               style: const TextStyle(color: Colors.white70, height: 1.6),
             ),
             const SizedBox(height: 12),
             if (showPostExitProgress)
-              const Text(
-                '关闭应用后，将显示独立更新窗口。关闭状态窗口不会中止更新。',
+              Text(
+                AppMessages.text(context, "关闭应用后，将显示独立更新窗口。关闭状态窗口不会中止更新。"),
                 style: TextStyle(
                   color: Colors.white54,
                   fontSize: 12,
@@ -169,17 +169,17 @@ class _UpdateDetails extends StatelessWidget {
             onPressed: onInstall,
             child: Text(
               update.phase == WindowsUpdatePhase.awaitingExit
-                  ? '退出并安装'
-                  : '安装更新',
+                  ? AppMessages.text(context, "退出并安装")
+                  : AppMessages.text(context, "安装更新"),
             ),
           ),
         if (update.phase == WindowsUpdatePhase.manualRequired)
-          FilledButton(onPressed: onRetry, child: const Text('重试更新')),
+          FilledButton(onPressed: onRetry, child: Text(AppMessages.text(context, "重试更新"))),
         if (update.phase == WindowsUpdatePhase.failed)
-          FilledButton(onPressed: onRetry, child: const Text('重试更新')),
+          FilledButton(onPressed: onRetry, child: Text(AppMessages.text(context, "重试更新"))),
         TextButton(
           onPressed: () => Navigator.of(context).pop(),
-          child: const Text('关闭'),
+          child: Text(AppMessages.text(context, "关闭")),
         ),
       ],
     ),

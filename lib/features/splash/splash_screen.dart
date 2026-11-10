@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:shimmer/shimmer.dart';
+import '../../core/i18n/app_language.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -243,7 +244,7 @@ class _SplashScreenState extends State<SplashScreen>
                       Opacity(
                         opacity: _taglineOpacity.value,
                         child: Text(
-                          '电视直播，随心观看',
+                          AppMessages.text(context, "电视直播，随心观看"),
                           style: TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.w300,

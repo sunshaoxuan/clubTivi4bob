@@ -7,6 +7,7 @@ import 'package:media_kit/media_kit.dart';
 import 'player_service.dart';
 import '../../core/platform_info.dart';
 import 'desktop_window_pin_button.dart';
+import '../../core/i18n/app_language.dart';
 
 /// TiviMate-style fullscreen player control bar.
 ///
@@ -228,7 +229,7 @@ class _PlayerControlBarState extends ConsumerState<PlayerControlBar> {
   void _comingSoon(String feature) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text('$feature 功能即将提供'),
+        content: Text(AppMessages.text(context, "{0} 功能即将提供", [feature])),
         duration: const Duration(seconds: 1),
         behavior: SnackBarBehavior.floating,
         backgroundColor: Colors.grey.shade800,
@@ -451,7 +452,7 @@ class _PlayerControlBarState extends ConsumerState<PlayerControlBar> {
                           ),
                         ),
                       Tooltip(
-                        message: widget.isFavorite ? '取消收藏' : '加入收藏',
+                        message: widget.isFavorite ? AppMessages.text(context, "取消收藏") : AppMessages.text(context, "加入收藏"),
                         child: _iconBtn(
                           widget.isFavorite ? Icons.star : Icons.star_border,
                           color: widget.isFavorite ? Colors.amber : Colors.white,
@@ -459,7 +460,7 @@ class _PlayerControlBarState extends ConsumerState<PlayerControlBar> {
                         ),
                       ),
                       Tooltip(
-                        message: '画中画',
+                        message: AppMessages.text(context, "画中画"),
                         child: _iconBtn(
                           Icons.picture_in_picture_alt,
                           onTap: widget.onPip,
@@ -703,7 +704,7 @@ class _FpsSparkline extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            '帧率  最低：${min.toStringAsFixed(1)}  平均：${avg.toStringAsFixed(1)}  最高：${max.toStringAsFixed(1)}',
+            AppMessages.text(context, "帧率  最低：{0}  平均：{1}  最高：{2}", [min.toStringAsFixed(1), avg.toStringAsFixed(1), max.toStringAsFixed(1)]),
             style: const TextStyle(
               color: Colors.white,
               fontSize: 10,
@@ -813,7 +814,7 @@ class _BufferSparkline extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            '缓冲  最低：${min.toStringAsFixed(1)}  平均：${avg.toStringAsFixed(1)}  最高：${max.toStringAsFixed(1)}  档位：$tier',
+            AppMessages.text(context, "缓冲  最低：{0}  平均：{1}  最高：{2}  档位：{3}", [min.toStringAsFixed(1), avg.toStringAsFixed(1), max.toStringAsFixed(1), tier]),
             style: const TextStyle(
               color: Colors.white,
               fontSize: 10,

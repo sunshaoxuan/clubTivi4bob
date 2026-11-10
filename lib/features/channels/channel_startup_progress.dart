@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../core/i18n/app_language.dart';
 
 /// The branded splash has already been shown before channel initialization.
 /// Keep this stage informational, without replaying another logo screen.
@@ -24,7 +25,7 @@ class ChannelStartupProgress extends StatelessWidget {
           ),
           const SizedBox(height: 16),
           Text(
-            status.trim().isEmpty ? '正在载入频道…' : status,
+            status.trim().isEmpty ? AppMessages.text(context, "正在载入频道…") : status,
             style: const TextStyle(color: Colors.white54, fontSize: 13),
           ),
         ],

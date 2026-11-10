@@ -71,7 +71,7 @@ def test_setup_download_is_manifest_gated_and_has_binary_mime(tmp_path, monkeypa
 
 def test_product_pages_reflect_published_releases():
     client = TestClient(module.app)
-    home = client.get("/").text
+    home = client.get("/?lang=zh-CN").text
     version = next(line.split(':', 1)[1].strip()
                    for line in (site.parent / 'pubspec.yaml').read_text().splitlines()
                    if line.startswith('version:'))
@@ -79,21 +79,22 @@ def test_product_pages_reflect_published_releases():
     assert f"{version} · Windows / macOS / Android" in home
     assert "cndrp" in home and "视频直连" in home
     assert "v1.0.5 · 服务器链路、频道合并与全屏修复" in home
-    assert "跨分类合并多个频道" in home
+    static_home = (site / "index.html").read_text()
+    assert "跨分类合并多个频道" in static_home
     assert 'id="server-title"' in home
     assert "桌面画中画与全屏节目单" in home
-    assert "Setup 安装向导" in home and "Unicode" in home
-    assert "正式安装版" in home and "退出后继续显示备份、安装及完成状态" in home
+    assert "Setup 安装向导" in static_home and "Unicode" in static_home
+    assert "正式安装版" in static_home and "退出后继续显示备份、安装及完成状态" in static_home
     assert 'id="sync-title"' in home and "离线时保留修改" in home
-    assert "每分钟检查清单版本" in home and "公共评分" in home
-    assert "静音预览" in home and "Mac AirPlay" in home and "纯音频电台" in home
+    assert "每分钟检查清单版本" in static_home and "公共评分" in static_home
+    assert "静音预览" in static_home and "Mac AirPlay" in static_home and "纯音频电台" in static_home
     assert '/assets/product.png?v=3' in home
     assert 'class="home-page"' in home and 'class="container home-hero-layout"' in home
     assert 'href="/downloads"' in home and 'href="/diagnostics"' in home
     assert "github.com" not in home.lower()
-    downloads = client.get("/downloads").text
+    downloads = client.get("/downloads?lang=zh-CN").text
     assert 'id="release-list"' in downloads and "BobTV.exe" in downloads
-    assert "下载最新版本" in downloads
+    assert 'id="release-title"' in downloads
     assert 'id="first-launch-title"' in downloads and version in downloads
     assert "1.1.10+103" not in downloads and "ad-hoc" in downloads
     assert "管理员授权" in downloads and "只读磁盘映像" in downloads
@@ -106,10 +107,10 @@ def test_product_pages_reflect_published_releases():
     assert "const families" in script and "data-cpu" in script
     assert "Windows ARM64" in script and "Android ARM64" in script
     assert "Apple Silicon" in script and "Windows x64" in script
-    diagnostics = client.get("/diagnostics").text
+    diagnostics = client.get("/diagnostics?lang=zh-CN").text
     assert 'class="diagnostics-page"' in diagnostics
     assert 'id="upload-form"' in diagnostics and 'id="log-file"' in diagnostics
-    assert "自动上传默认关闭" in diagnostics
+    assert "默认关闭" in diagnostics
     assert "尚未集成自动上传" not in diagnostics
 
 
@@ -135,3 +136,38 @@ def test_expired_diagnostics_are_removed(tmp_path, monkeypatch):
         module._prune(connection, int(time.time()))
         assert connection.execute("SELECT count(*) FROM uploads").fetchone()[0] == 0
     assert not list(folder.iterdir())
+
+
+def test_public_site_languages_and_cookie():
+    client = TestClient(module.app, base_url="https://bobtv.briconbric.com")
+    assert client.get("/", headers={"Accept-Language": "de;q=1, ko-KR;q=.7, ja;q=.5"}).headers["content-language"] == "ko"
+    assert client.get("/", headers={"Accept-Language": "zh-Hant-HK"}).headers["content-language"] == "zh-TW"
+    for locale in ("en", "zh-CN", "zh-TW", "ja", "fr", "es", "ko"):
+        for path in module.PAGES:
+            response = client.get(path + "?lang=" + locale)
+            assert response.status_code == 200
+            assert response.headers["content-language"] == locale
+            assert f'<html lang="{locale}">' in response.text
+            assert f'value="{locale}" selected' in response.text
+    assert client.get("/downloads", headers={"Accept-Language": "fr"}).headers["content-language"] == "ko"
+
+
+def test_china_routes_public_resources_to_mirror(monkeypatch):
+    monkeypatch.setattr(module, "request_profile", lambda *_: {"countryCode": "CN"})
+    client = TestClient(module.app, base_url="https://bobtv.briconbric.com")
+    for path in ("/?lang=fr", "/downloads", "/privacy", "/assets/site.css",
+                 "/downloads/BobTV-test.zip", "/releases.json"):
+        response = client.get(path, follow_redirects=False)
+        assert response.status_code == 307
+        assert response.headers["location"] == "https://cndrp.com/bobtv" + path
+        assert response.headers["cache-control"] == "private, no-store"
+    assert client.head("/assets/site.css", follow_redirects=False).status_code == 307
+    assert client.get("/api/v1/resource-node/probe").status_code == 200
+
+    monkeypatch.setattr(module, "trusted_client", lambda _: "114.114.114.114")
+    response = client.get("/downloads?lang=fr", headers={"x-bobtv-relay-node": "cndrp"})
+    assert response.status_code == 200
+    assert 'src="/bobtv/assets/downloads.js' in response.text
+    assert 'href="/bobtv/privacy"' in response.text
+    assert 'action="/bobtv/downloads"' in response.text
+    assert 'Path=/bobtv/' in response.headers["set-cookie"]

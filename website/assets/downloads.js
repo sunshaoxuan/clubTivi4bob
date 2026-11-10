@@ -25,9 +25,10 @@ function element(tag, className, value) {
 }
 function downloadLink(release, label, secondary = false) {
   const link = element('a', secondary ? 'release-secondary' : 'release-download');
-  link.href = `/downloads/${encodeURIComponent(release.filename)}`;
+  const path = `/downloads/${encodeURIComponent(release.filename)}`;
+  link.href = (document.body.dataset.siteRoot || '') + path;
   if (globalThis.BobTVResources) {
-    globalThis.BobTVResources.resolve(link.href).then(url => { link.href = url; }).catch(() => {});
+    globalThis.BobTVResources.resolve(path).then(url => { link.href = url; }).catch(() => {});
   }
   link.setAttribute('download', release.filename);
   link.setAttribute('aria-label', `${text('download', '下载')} ${release.platform} ${release.version}, ${release.size}`);

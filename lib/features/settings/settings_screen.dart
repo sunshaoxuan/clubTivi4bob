@@ -28,6 +28,7 @@ import 'ai_configuration_screen.dart';
 import '../shows/shows_providers.dart';
 import '../../data/datasources/remote/trakt_client.dart';
 import '../../data/datasources/remote/tmdb_client.dart';
+import '../../core/i18n/app_language.dart';
 
 Future<void> _exportBackup(BuildContext context) async {
   try {
@@ -43,21 +44,21 @@ Future<void> _exportBackup(BuildContext context) async {
       final action = await showSettingsDialog<String>(
         context: context,
         builder: (ctx) => AlertDialog(
-          title: const Text('备份已创建'),
-          content: Text('已保存到：\n$path'),
+          title: Text(AppMessages.text(context, "备份已创建")),
+          content: Text(AppMessages.text(context, "已保存到：\n{0}", [path])),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(ctx, 'close'),
-              child: const Text('完成'),
+              child: Text(AppMessages.text(context, "完成")),
             ),
             TextButton(
               onPressed: () => Navigator.pop(ctx, 'save'),
-              child: const Text('另存为…'),
+              child: Text(AppMessages.text(context, "另存为…")),
             ),
             FilledButton.icon(
               onPressed: () => Navigator.pop(ctx, 'share'),
               icon: const Icon(Icons.share_rounded, size: 18),
-              label: const Text('分享'),
+              label: Text(AppMessages.text(context, "分享")),
             ),
           ],
         ),
@@ -75,7 +76,7 @@ Future<void> _exportBackup(BuildContext context) async {
           if (context.mounted) {
             ScaffoldMessenger.of(
               context,
-            ).showSnackBar(SnackBar(content: Text('Saved to $savePath')));
+            ).showSnackBar(SnackBar(content: Text(AppMessages.text(context, "Saved to {0}", [savePath]))));
           }
         }
       }
@@ -87,7 +88,7 @@ Future<void> _exportBackup(BuildContext context) async {
       } catch (_) {}
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Backup failed: $e'),
+          content: Text(AppMessages.text(context, "Backup failed: {0}", [e])),
           backgroundColor: Colors.red,
         ),
       );
@@ -106,20 +107,19 @@ Future<void> _importBackup(BuildContext context) async {
     final confirmed = await showSettingsDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('恢复备份？'),
-        content: const Text(
-          'This will replace all current data with the backup.\n\n'
-          'The app will need to restart after restoring.',
+        title: Text(AppMessages.text(context, "恢复备份？")),
+        content: Text(
+          AppMessages.text(context, "This will replace all current data with the backup.\n\nThe app will need to restart after restoring."),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('取消'),
+            child: Text(AppMessages.text(context, "取消")),
           ),
           FilledButton(
             onPressed: () => Navigator.pop(ctx, true),
             style: FilledButton.styleFrom(backgroundColor: Colors.amber),
-            child: const Text('恢复'),
+            child: Text(AppMessages.text(context, "恢复")),
           ),
         ],
       ),
@@ -137,9 +137,9 @@ Future<void> _importBackup(BuildContext context) async {
       await showSettingsDialog(
         context: context,
         builder: (ctx) => AlertDialog(
-          title: const Text('备份已恢复'),
+          title: Text(AppMessages.text(context, "备份已恢复")),
           content: Text(
-            '$summary\n\nPlease restart the app for changes to take effect.',
+            AppMessages.text(context, "{0}\n\nPlease restart the app for changes to take effect.", [summary]),
           ),
           actions: [
             FilledButton(
@@ -157,7 +157,7 @@ Future<void> _importBackup(BuildContext context) async {
       } catch (_) {}
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Restore failed: $e'),
+          content: Text(AppMessages.text(context, "Restore failed: {0}", [e])),
           backgroundColor: Colors.red,
         ),
       );
@@ -231,13 +231,13 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           },
           sections: [
             SettingsPanel(
-              title: '电视源',
+              title: AppMessages.text(context, "电视源"),
               children: [
                 ListTile(
                   autofocus: true,
                   leading: const Icon(Icons.dns_rounded),
-                  title: const Text('管理电视源'),
-                  subtitle: const Text('管理 M3U、Xtream 与免费电视源'),
+                  title: Text(AppMessages.text(context, "管理电视源")),
+                  subtitle: Text(AppMessages.text(context, "管理 M3U、Xtream 与免费电视源")),
                   trailing: const Icon(Icons.chevron_right),
                   onTap: () => context.push('/providers'),
                 ),
@@ -245,12 +245,12 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             ),
             const BobTvServiceSettings(),
             SettingsPanel(
-              title: 'AI',
+              title: AppMessages.text(context, "AI"),
               children: [
                 ListTile(
                   leading: const Icon(Icons.auto_awesome_rounded),
-                  title: const Text('服务器智能服务'),
-                  subtitle: const Text('线路发现与 AI 分类由服务器统一执行'),
+                  title: Text(AppMessages.text(context, "服务器智能服务")),
+                  subtitle: Text(AppMessages.text(context, "线路发现与 AI 分类由服务器统一执行")),
                   trailing: const Icon(Icons.chevron_right),
                   onTap: () => Navigator.of(context).push(
                     MaterialPageRoute<void>(
@@ -265,15 +265,15 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               children: [
                 ListTile(
                   leading: const Icon(Icons.source_rounded),
-                  title: const Text('节目单来源'),
-                  subtitle: const Text('管理 XMLTV 节目单'),
+                  title: Text(AppMessages.text(context, "节目单来源")),
+                  subtitle: Text(AppMessages.text(context, "管理 XMLTV 节目单")),
                   trailing: const Icon(Icons.chevron_right),
                   onTap: () => _openEpgSourcesScreen(context, ref),
                 ),
                 ListTile(
                   leading: const Icon(Icons.link_rounded),
-                  title: const Text('节目单映射'),
-                  subtitle: const Text('管理频道与节目单的对应关系'),
+                  title: Text(AppMessages.text(context, "节目单映射")),
+                  subtitle: Text(AppMessages.text(context, "管理频道与节目单的对应关系")),
                   trailing: const Icon(Icons.chevron_right),
                   onTap: () => context.push('/epg-mapping'),
                 ),
@@ -282,7 +282,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               ],
             ),
             SettingsPanel(
-              title: '播放',
+              title: AppMessages.text(context, "播放"),
               children: [
                 _UserAgentTile(),
                 _BufferSizeTile(),
@@ -290,19 +290,19 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               ],
             ),
             SettingsPanel(
-              title: '显示',
+              title: AppMessages.text(context, "显示"),
               children: [_LocationTile(), _TimeFormatTile()],
             ),
             SettingsPanel(
-              title: '遥控',
+              title: AppMessages.text(context, "遥控"),
               children: [
                 SwitchListTile(
                   secondary: const Icon(Icons.web_rounded),
-                  title: const Text('网页遥控器'),
+                  title: Text(AppMessages.text(context, "网页遥控器")),
                   subtitle: Text(
                     webRemote.isRunning
-                        ? '运行中，请在手机打开 http://${_localIp.isNotEmpty ? _localIp : '<检测中…>'}:${webRemote.port}'
-                        : '允许通过手机浏览器遥控',
+                        ? AppMessages.text(context, "运行中，请在手机打开 http://{0}:{1}", [_localIp.isNotEmpty ? _localIp : '<检测中…>', webRemote.port])
+                        : AppMessages.text(context, "允许通过手机浏览器遥控"),
                   ),
                   value: webRemote.isRunning,
                   onChanged: (value) async {
@@ -316,42 +316,42 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 ),
                 ListTile(
                   leading: const Icon(Icons.gamepad_rounded),
-                  title: const Text('按键映射'),
-                  subtitle: const Text('自定义遥控器按键'),
+                  title: Text(AppMessages.text(context, "按键映射")),
+                  subtitle: Text(AppMessages.text(context, "自定义遥控器按键")),
                   trailing: const Icon(Icons.chevron_right),
                   onTap: () => _showButtonMappingInfo(context),
                 ),
               ],
             ),
             SettingsPanel(
-              title: '录像',
+              title: AppMessages.text(context, "录像"),
               children: [
                 _RecordingsFolderTile(),
                 ListTile(
                   leading: const Icon(Icons.info_outline_rounded),
-                  title: const Text('使用说明'),
-                  subtitle: const Text('查看录像设置说明'),
+                  title: Text(AppMessages.text(context, "使用说明")),
+                  subtitle: Text(AppMessages.text(context, "查看录像设置说明")),
                   trailing: const Icon(Icons.chevron_right),
                   onTap: () => _showRecordingHelp(context),
                 ),
               ],
             ),
             SettingsPanel(
-              title: '备份与恢复',
+              title: AppMessages.text(context, "备份与恢复"),
               children: [
                 ValueListenableBuilder(
                   valueListenable: ref.watch(sourceMaintenanceCoordinatorProvider)
                       .privateFavorites.state,
                   builder: (context, status, _) => ListTile(
                     leading: const Icon(Icons.lock_person_rounded),
-                    title: const Text('本机收藏云备份'),
+                    title: Text(AppMessages.text(context, "本机收藏云备份")),
                     subtitle: Text(status.phase.isEmpty
-                        ? '后台自动备份，仅允许原设备恢复，不进入公共频道库'
+                        ? AppMessages.text(context, "后台自动备份，仅允许原设备恢复，不进入公共频道库")
                         : status.phase),
                     trailing: !status.complete && !status.error && status.phase.startsWith('正在')
                         ? const SizedBox(width: 20, height: 20,
                             child: CircularProgressIndicator(strokeWidth: 2))
-                        : IconButton(tooltip: '同步本机收藏',
+                        : IconButton(tooltip: AppMessages.text(context, "同步本机收藏"),
                             icon: const Icon(Icons.sync_rounded),
                             onPressed: () => ref.read(sourceMaintenanceCoordinatorProvider)
                                 .privateFavorites.sync(force: true)),
@@ -359,22 +359,22 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 ),
                 ListTile(
                   leading: const Icon(Icons.upload_rounded),
-                  title: const Text('导出备份'),
-                  subtitle: const Text('保存电视源、节目单、收藏与密钥'),
+                  title: Text(AppMessages.text(context, "导出备份")),
+                  subtitle: Text(AppMessages.text(context, "保存电视源、节目单、收藏与密钥")),
                   trailing: const Icon(Icons.chevron_right),
                   onTap: () => _exportBackup(context),
                 ),
                 ListTile(
                   leading: const Icon(Icons.download_rounded),
-                  title: const Text('导入备份'),
-                  subtitle: const Text('从 .clubtivi 文件恢复'),
+                  title: Text(AppMessages.text(context, "导入备份")),
+                  subtitle: Text(AppMessages.text(context, "从 .clubtivi 文件恢复")),
                   trailing: const Icon(Icons.chevron_right),
                   onTap: () => _importBackup(context),
                 ),
               ],
             ),
             SettingsPanel(
-              title: '关于',
+              title: AppMessages.text(context, "关于"),
               children: [
                 ListTile(
                   leading: const Icon(Icons.info_outline_rounded),
@@ -389,7 +389,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   ),
                 ListTile(
                   leading: const Icon(Icons.code_rounded),
-                  title: const Text('源代码'),
+                  title: Text(AppMessages.text(context, "源代码")),
                   subtitle: const Text('github.com/sunshaoxuan/clubTivi4bob'),
                   onTap: () => launchUrl(
                     Uri.parse('https://github.com/sunshaoxuan/clubTivi4bob'),
@@ -414,32 +414,16 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     showSettingsDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('录像设置'),
-        content: const SingleChildScrollView(
+        title: Text(AppMessages.text(context, "录像设置")),
+        content: SingleChildScrollView(
           child: Text(
-            '1. Choose a folder\n'
-            '   Tap "Recording Folder" above and pick any folder on your device.\n'
-            '   BobTV will save all recordings there.\n\n'
-            '2. Start recording\n'
-            '   While watching a channel, tap the record (●) button in the\n'
-            '   player controls. Recording starts immediately.\n\n'
-            '3. Stop recording\n'
-            '   Tap the record button again, or change channels.\n'
-            '   The file is saved as MP4 in your chosen folder.\n\n'
-            '4. View recordings\n'
-            '   Open "Recordings" in the sidebar to browse and play\n'
-            '   your saved recordings.\n\n'
-            'Tips:\n'
-            '• Make sure you have enough disk space\n'
-            '• Recordings use the original stream quality\n'
-            '• On macOS: the folder picker grants BobTV access automatically\n'
-            '• On Android: choose a folder in internal storage or SD card',
+            AppMessages.text(context, "1. Choose a folder\n   Tap \"Recording Folder\" above and pick any folder on your device.\n   BobTV will save all recordings there.\n\n2. Start recording\n   While watching a channel, tap the record (●) button in the\n   player controls. Recording starts immediately.\n\n3. Stop recording\n   Tap the record button again, or change channels.\n   The file is saved as MP4 in your chosen folder.\n\n4. View recordings\n   Open \"Recordings\" in the sidebar to browse and play\n   your saved recordings.\n\nTips:\n• Make sure you have enough disk space\n• Recordings use the original stream quality\n• On macOS: the folder picker grants BobTV access automatically\n• On Android: choose a folder in internal storage or SD card"),
           ),
         ),
         actions: [
           FilledButton(
             onPressed: () => Navigator.pop(ctx),
-            child: const Text('知道了'),
+            child: Text(AppMessages.text(context, "知道了")),
           ),
         ],
       ),
@@ -450,27 +434,14 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     showSettingsDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('按键映射'),
-        content: const Text(
-          'BobTV supports the following remote controls:\n\n'
-          '• IR remotes (via Android TV / Fire TV)\n'
-          '• Bluetooth gamepads\n'
-          '• Keyboard shortcuts\n'
-          '• Web Remote (enable in Remote Control settings)\n\n'
-          'Default mappings:\n'
-          '  ↑↓←→  Navigate\n'
-          '  Enter/OK  Select / Play\n'
-          '  Esc/Back  Go back\n'
-          '  Space  Play/Pause\n'
-          '  M  Mute\n'
-          '  ↑↓ (in player)  Volume\n'
-          '  ←→ (in player)  Seek ±10s\n\n'
-          'Custom mapping editor coming soon.',
+        title: Text(AppMessages.text(context, "按键映射")),
+        content: Text(
+          AppMessages.text(context, "BobTV supports the following remote controls:\n\n• IR remotes (via Android TV / Fire TV)\n• Bluetooth gamepads\n• Keyboard shortcuts\n• Web Remote (enable in Remote Control settings)\n\nDefault mappings:\n  ↑↓←→  Navigate\n  Enter/OK  Select / Play\n  Esc/Back  Go back\n  Space  Play/Pause\n  M  Mute\n  ↑↓ (in player)  Volume\n  ←→ (in player)  Seek ±10s\n\nCustom mapping editor coming soon."),
         ),
         actions: [
           FilledButton(
             onPressed: () => Navigator.pop(ctx),
-            child: const Text('确定'),
+            child: Text(AppMessages.text(context, "确定")),
           ),
         ],
       ),
@@ -523,13 +494,13 @@ class _EpgSourcesScreenState extends ConsumerState<_EpgSourcesScreen> {
       if (mounted) {
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(const SnackBar(content: Text('Refresh complete')));
+        ).showSnackBar(SnackBar(content: Text(AppMessages.text(context, "Refresh complete"))));
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(SnackBar(content: Text('Error: $e')));
+        ).showSnackBar(SnackBar(content: Text(AppMessages.text(context, "Error: {0}", [e]))));
       }
     } finally {
       if (mounted) setState(() => _refreshing.remove(id));
@@ -545,7 +516,7 @@ class _EpgSourcesScreenState extends ConsumerState<_EpgSourcesScreen> {
       if (!mounted) return;
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(SnackBar(content: Text('Delete failed: $e')));
+      ).showSnackBar(SnackBar(content: Text(AppMessages.text(context, "Delete failed: {0}", [e]))));
     }
   }
 
@@ -555,7 +526,7 @@ class _EpgSourcesScreenState extends ConsumerState<_EpgSourcesScreen> {
     final result = await showSettingsDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('编辑节目单来源'),
+        title: Text(AppMessages.text(context, "编辑节目单来源")),
         content: SizedBox(
           width: 400,
           child: Column(
@@ -563,7 +534,7 @@ class _EpgSourcesScreenState extends ConsumerState<_EpgSourcesScreen> {
             children: [
               TextFormField(
                 controller: nameCtrl,
-                decoration: const InputDecoration(labelText: 'Name'),
+                decoration: InputDecoration(labelText: AppMessages.text(context, "Name")),
                 autofocus: true,
               ),
               const SizedBox(height: 8),
@@ -577,11 +548,11 @@ class _EpgSourcesScreenState extends ConsumerState<_EpgSourcesScreen> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: const Text('Cancel'),
+            child: Text(AppMessages.text(context, "Cancel")),
           ),
           FilledButton(
             onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Save'),
+            child: Text(AppMessages.text(context, "Save")),
           ),
         ],
       ),
@@ -618,13 +589,13 @@ class _EpgSourcesScreenState extends ConsumerState<_EpgSourcesScreen> {
       await _loadSources();
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('EPG sources reset to defaults')),
+        SnackBar(content: Text(AppMessages.text(context, "EPG sources reset to defaults"))),
       );
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(SnackBar(content: Text('Reset failed: $e')));
+      ).showSnackBar(SnackBar(content: Text(AppMessages.text(context, "Reset failed: {0}", [e]))));
     }
   }
 
@@ -647,12 +618,12 @@ class _EpgSourcesScreenState extends ConsumerState<_EpgSourcesScreen> {
       child: FocusScope(
         autofocus: true,
         child: SettingsDetailPage(
-          title: '节目单来源',
+          title: AppMessages.text(context, "节目单来源"),
           actions: [
             TextButton.icon(
               onPressed: _resetToDefaults,
               icon: const Icon(Icons.restart_alt, size: 18),
-              label: const Text('恢复默认'),
+              label: Text(AppMessages.text(context, "恢复默认")),
             ),
           ],
           floatingActionButton: FloatingActionButton(
@@ -666,7 +637,7 @@ class _EpgSourcesScreenState extends ConsumerState<_EpgSourcesScreen> {
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Text('Error loading sources: $_error'),
+                      Text(AppMessages.text(context, "Error loading sources: {0}", [_error])),
                       const SizedBox(height: 16),
                       FilledButton.icon(
                         onPressed: () {
@@ -677,7 +648,7 @@ class _EpgSourcesScreenState extends ConsumerState<_EpgSourcesScreen> {
                           _loadSources();
                         },
                         icon: const Icon(Icons.refresh),
-                        label: const Text('Retry'),
+                        label: Text(AppMessages.text(context, "Retry")),
                       ),
                     ],
                   ),
@@ -687,12 +658,12 @@ class _EpgSourcesScreenState extends ConsumerState<_EpgSourcesScreen> {
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      const Text('尚未配置节目单来源'),
+                      Text(AppMessages.text(context, "尚未配置节目单来源")),
                       const SizedBox(height: 16),
                       FilledButton.icon(
                         onPressed: _showAddDialog,
                         icon: const Icon(Icons.add),
-                        label: const Text('添加来源'),
+                        label: Text(AppMessages.text(context, "添加来源")),
                       ),
                     ],
                   ),
@@ -726,8 +697,7 @@ class _EpgSourcesScreenState extends ConsumerState<_EpgSourcesScreen> {
                         ),
                       ),
                       subtitle: Text(
-                        '${source.url}\n'
-                        'Last refresh: ${lastRefresh != null ? _formatTime(lastRefresh) : 'Never'}',
+                        AppMessages.text(context, "{0}\nLast refresh: {1}", [source.url, lastRefresh != null ? _formatTime(lastRefresh) : 'Never']),
                       ),
                       isThreeLine: true,
                       trailing: Row(
@@ -735,7 +705,7 @@ class _EpgSourcesScreenState extends ConsumerState<_EpgSourcesScreen> {
                         children: [
                           IconButton(
                             icon: const Icon(Icons.edit_outlined),
-                            tooltip: '编辑来源',
+                            tooltip: AppMessages.text(context, "编辑来源"),
                             onPressed: () => _editSource(source),
                           ),
                           if (isRefreshing)
@@ -807,7 +777,7 @@ class _ShowsApiKeysSectionState extends ConsumerState<_ShowsApiKeysSection> {
     final debridCount = keys.configuredDebridCount;
 
     return SettingsPanel(
-      title: '影视信息服务',
+      title: AppMessages.text(context, "影视信息服务"),
       children: [
         _ApiKeyCard(
           title: 'Trakt',
@@ -847,9 +817,9 @@ class _ShowsApiKeysSectionState extends ConsumerState<_ShowsApiKeysSection> {
         ),
         ListTile(
           leading: const Icon(Icons.cloud_download_rounded),
-          title: const Text('Debrid 服务'),
+          title: Text(AppMessages.text(context, "Debrid 服务")),
           subtitle: Text(
-            debridCount > 0 ? '已配置 $debridCount 个服务' : '未配置',
+            debridCount > 0 ? AppMessages.text(context, "已配置 {0} 个服务", [debridCount]) : AppMessages.text(context, "未配置"),
             style: TextStyle(
               fontSize: 12,
               color: debridCount > 0 ? Colors.green : Colors.white38,
@@ -876,7 +846,7 @@ class _ShowsApiKeysSectionState extends ConsumerState<_ShowsApiKeysSection> {
       setState(() => _traktVerified = null);
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(const SnackBar(content: Text('Trakt key saved')));
+      ).showSnackBar(SnackBar(content: Text(AppMessages.text(context, "Trakt key saved"))));
     }
   }
 
@@ -894,7 +864,7 @@ class _ShowsApiKeysSectionState extends ConsumerState<_ShowsApiKeysSection> {
       setState(() => _tmdbVerified = null);
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(const SnackBar(content: Text('TMDB key saved')));
+      ).showSnackBar(SnackBar(content: Text(AppMessages.text(context, "TMDB key saved"))));
     }
   }
 
@@ -1020,7 +990,7 @@ class _ApiKeyCardState extends State<_ApiKeyCard> {
                       size: 20,
                       color: Colors.redAccent,
                     ),
-                    tooltip: 'Remove',
+                    tooltip: AppMessages.text(context, "Remove"),
                     onPressed: widget.onClear,
                   ),
                 Icon(
@@ -1067,7 +1037,7 @@ class _ApiKeyCardState extends State<_ApiKeyCard> {
                         FilledButton.icon(
                           onPressed: hasToken ? widget.onSave : null,
                           icon: const Icon(Icons.save, size: 18),
-                          label: const Text('保存'),
+                          label: Text(AppMessages.text(context, "保存")),
                         ),
                         OutlinedButton.icon(
                           onPressed: hasToken && !widget.isVerifying
@@ -1082,7 +1052,7 @@ class _ApiKeyCardState extends State<_ApiKeyCard> {
                                   ),
                                 )
                               : const Icon(Icons.verified_outlined, size: 18),
-                          label: const Text('验证'),
+                          label: Text(AppMessages.text(context, "验证")),
                         ),
                         OutlinedButton.icon(
                           onPressed: () {
@@ -1093,7 +1063,7 @@ class _ApiKeyCardState extends State<_ApiKeyCard> {
                             );
                           },
                           icon: const Icon(Icons.open_in_new, size: 16),
-                          label: const Text('获取密钥'),
+                          label: Text(AppMessages.text(context, "获取密钥")),
                         ),
                       ],
                     ),
@@ -1160,7 +1130,7 @@ class _UserAgentTileState extends State<_UserAgentTile> {
   Widget build(BuildContext context) {
     return ListTile(
       leading: const Icon(Icons.badge_rounded),
-      title: const Text('用户代理'),
+      title: Text(AppMessages.text(context, "用户代理")),
       subtitle: Text(
         _userAgent,
         style: const TextStyle(color: Colors.purpleAccent),
@@ -1173,22 +1143,22 @@ class _UserAgentTileState extends State<_UserAgentTile> {
         final picked = await showSettingsDialog<String>(
           context: context,
           builder: (ctx) => AlertDialog(
-            title: const Text('用户代理'),
+            title: Text(AppMessages.text(context, "用户代理")),
             content: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
                 TextField(
                   controller: controller,
-                  decoration: const InputDecoration(
-                    hintText: 'Enter custom user agent...',
+                  decoration: InputDecoration(
+                    hintText: AppMessages.text(context, "Enter custom user agent..."),
                     isDense: true,
                   ),
                 ),
                 const SizedBox(height: 16),
-                const Align(
+                Align(
                   alignment: Alignment.centerLeft,
                   child: Text(
-                    'Presets',
+                    AppMessages.text(context, "Presets"),
                     style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
                   ),
                 ),
@@ -1207,14 +1177,14 @@ class _UserAgentTileState extends State<_UserAgentTile> {
             actions: [
               TextButton(
                 onPressed: () => Navigator.pop(ctx),
-                child: const Text('Cancel'),
+                child: Text(AppMessages.text(context, "Cancel")),
               ),
               FilledButton(
                 onPressed: () {
                   final custom = controller.text.trim();
                   Navigator.pop(ctx, custom.isEmpty ? 'Default' : custom);
                 },
-                child: const Text('Save'),
+                child: Text(AppMessages.text(context, "Save")),
               ),
             ],
           ),
@@ -1258,7 +1228,7 @@ class _LocationTileState extends ConsumerState<_LocationTile> {
         : 'Auto-detected from IP';
     return ListTile(
       leading: const Icon(Icons.location_on_rounded),
-      title: const Text('天气位置'),
+      title: Text(AppMessages.text(context, "天气位置")),
       subtitle: Text(subtitle),
       trailing: const Icon(Icons.chevron_right),
       onTap: () => _showLocationDialog(),
@@ -1274,13 +1244,13 @@ class _LocationTileState extends ConsumerState<_LocationTile> {
         bool loading = false;
         return StatefulBuilder(
           builder: (ctx, setDialogState) => AlertDialog(
-            title: const Text('天气位置'),
+            title: Text(AppMessages.text(context, "天气位置")),
             content: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
-                  'Enter a zip code or city name. Leave empty to auto-detect from your IP address.',
+                Text(
+                  AppMessages.text(context, "Enter a zip code or city name. Leave empty to auto-detect from your IP address."),
                   style: TextStyle(fontSize: 13, color: Colors.white70),
                 ),
                 const SizedBox(height: 16),
@@ -1288,8 +1258,8 @@ class _LocationTileState extends ConsumerState<_LocationTile> {
                   controller: controller,
                   autofocus: true,
                   decoration: InputDecoration(
-                    labelText: '邮政编码或城市',
-                    hintText: 'e.g. 48103 or Ann Arbor',
+                    labelText: AppMessages.text(context, "邮政编码或城市"),
+                    hintText: AppMessages.text(context, "e.g. 48103 or Ann Arbor"),
                     prefixIcon: const Icon(Icons.search_rounded),
                     errorText: error,
                     border: const OutlineInputBorder(),
@@ -1331,11 +1301,11 @@ class _LocationTileState extends ConsumerState<_LocationTile> {
             actions: [
               TextButton(
                 onPressed: () => Navigator.pop(ctx, ''),
-                child: const Text('自动检测'),
+                child: Text(AppMessages.text(context, "自动检测")),
               ),
               TextButton(
                 onPressed: () => Navigator.pop(ctx),
-                child: const Text('Cancel'),
+                child: Text(AppMessages.text(context, "Cancel")),
               ),
               FilledButton(
                 onPressed: loading
@@ -1366,7 +1336,7 @@ class _LocationTileState extends ConsumerState<_LocationTile> {
                           });
                         }
                       },
-                child: const Text('Save'),
+                child: Text(AppMessages.text(context, "Save")),
               ),
             ],
           ),
@@ -1420,8 +1390,8 @@ class _TimeFormatTileState extends State<_TimeFormatTile> {
   Widget build(BuildContext context) {
     return SwitchListTile(
       secondary: const Icon(Icons.schedule_rounded),
-      title: const Text('24 小时制'),
-      subtitle: Text(_use24Hour ? '14:30' : '2:30 PM'),
+      title: Text(AppMessages.text(context, "24 小时制")),
+      subtitle: Text(_use24Hour ? '14:30' : AppMessages.text(context, "2:30 PM")),
       value: _use24Hour,
       onChanged: (value) async {
         final prefs = await SharedPreferences.getInstance();
@@ -1454,18 +1424,18 @@ class _AutoRefreshTileState extends State<_AutoRefreshTile> {
   Widget build(BuildContext context) {
     return ListTile(
       leading: const Icon(Icons.refresh_rounded),
-      title: const Text('自动刷新'),
-      subtitle: Text('Every $_hours hours'),
+      title: Text(AppMessages.text(context, "自动刷新")),
+      subtitle: Text(AppMessages.text(context, "Every {0} hours", [_hours])),
       trailing: const Icon(Icons.chevron_right),
       onTap: () async {
         final picked = await showSettingsDialog<int>(
           context: context,
           builder: (ctx) => SimpleDialog(
-            title: const Text('自动刷新间隔'),
+            title: Text(AppMessages.text(context, "自动刷新间隔")),
             children: [
               for (final h in _options)
                 RadioListTile<int>(
-                  title: Text('Every $h hour${h == 1 ? '' : 's'}'),
+                  title: Text(AppMessages.text(context, "Every {0} hour{1}", [h, h == 1 ? '' : 's'])),
                   value: h,
                   groupValue: _hours,
                   onChanged: (v) => Navigator.pop(ctx, v),
@@ -1513,14 +1483,14 @@ class _BufferSizeTileState extends State<_BufferSizeTile> {
   Widget build(BuildContext context) {
     return ListTile(
       leading: const Icon(Icons.speed_rounded),
-      title: const Text('缓冲大小'),
+      title: Text(AppMessages.text(context, "缓冲大小")),
       subtitle: Text(_buffer),
       trailing: const Icon(Icons.chevron_right),
       onTap: () async {
         final picked = await showSettingsDialog<String>(
           context: context,
           builder: (ctx) => SimpleDialog(
-            title: const Text('缓冲大小'),
+            title: Text(AppMessages.text(context, "缓冲大小")),
             children: [
               for (final entry in _options.entries)
                 RadioListTile<String>(
@@ -1568,26 +1538,26 @@ class _FailoverModeTileState extends State<_FailoverModeTile> {
   Widget build(BuildContext context) {
     return ListTile(
       leading: const Icon(Icons.swap_horizontal_circle_rounded),
-      title: const Text('故障转移模式'),
+      title: Text(AppMessages.text(context, "故障转移模式")),
       subtitle: Text(_options[_mode] ?? _mode),
       trailing: const Icon(Icons.chevron_right),
       onTap: () async {
         final picked = await showSettingsDialog<String>(
           context: context,
           builder: (ctx) => SimpleDialog(
-            title: const Text('故障转移模式'),
+            title: Text(AppMessages.text(context, "故障转移模式")),
             children: [
               for (final entry in _options.entries)
                 RadioListTile<String>(
                   title: Text(entry.value),
                   subtitle: entry.key == 'warm'
-                      ? const Text(
-                          'Monitors alternate streams in background',
+                      ? Text(
+                          AppMessages.text(context, "Monitors alternate streams in background"),
                           style: TextStyle(fontSize: 12),
                         )
                       : entry.key == 'cold'
-                      ? const Text(
-                          'Switches only when buffering detected',
+                      ? Text(
+                          AppMessages.text(context, "Switches only when buffering detected"),
                           style: TextStyle(fontSize: 12),
                         )
                       : null,
@@ -1650,49 +1620,49 @@ class _RecordingsFolderTileState extends State<_RecordingsFolderTile> {
     final path = await showSettingsDialog<String>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Network Storage'),
+        title: Text(AppMessages.text(context, "Network Storage")),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
-              'Enter the network path to your shared folder:',
+            Text(
+              AppMessages.text(context, "Enter the network path to your shared folder:"),
               style: TextStyle(fontSize: 13),
             ),
             const SizedBox(height: 12),
             TextField(
               controller: controller,
               autofocus: true,
-              decoration: const InputDecoration(
-                hintText: 'smb://192.168.1.100/Recordings',
+              decoration: InputDecoration(
+                hintText: AppMessages.text(context, "smb://192.168.1.100/Recordings"),
                 isDense: true,
               ),
               onSubmitted: (v) => Navigator.pop(ctx, v.trim()),
             ),
             const SizedBox(height: 16),
-            const Text(
-              'Supported protocols:',
+            Text(
+              AppMessages.text(context, "Supported protocols:"),
               style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
             ),
             const SizedBox(height: 4),
-            const Text(
-              '• SMB — smb://server/share  (Windows/NAS)',
+            Text(
+              AppMessages.text(context, "• SMB — smb://server/share  (Windows/NAS)"),
               style: TextStyle(fontSize: 11, color: Colors.white54),
             ),
-            const Text(
-              '• NFS — nfs://server/path  (Linux/NAS)',
+            Text(
+              AppMessages.text(context, "• NFS — nfs://server/path  (Linux/NAS)"),
               style: TextStyle(fontSize: 11, color: Colors.white54),
             ),
-            const Text(
-              '• AFP — afp://server/share  (Apple)',
+            Text(
+              AppMessages.text(context, "• AFP — afp://server/share  (Apple)"),
               style: TextStyle(fontSize: 11, color: Colors.white54),
             ),
-            const Text(
-              '• FTP — ftp://user:pass@server/path',
+            Text(
+              AppMessages.text(context, "• FTP — ftp://user:pass@server/path"),
               style: TextStyle(fontSize: 11, color: Colors.white54),
             ),
-            const Text(
-              '• WebDAV — webdav://server/path',
+            Text(
+              AppMessages.text(context, "• WebDAV — webdav://server/path"),
               style: TextStyle(fontSize: 11, color: Colors.white54),
             ),
           ],
@@ -1700,11 +1670,11 @@ class _RecordingsFolderTileState extends State<_RecordingsFolderTile> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: const Text('Cancel'),
+            child: Text(AppMessages.text(context, "Cancel")),
           ),
           FilledButton(
             onPressed: () => Navigator.pop(ctx, controller.text.trim()),
-            child: const Text('Save'),
+            child: Text(AppMessages.text(context, "Save")),
           ),
         ],
       ),
@@ -1720,9 +1690,9 @@ class _RecordingsFolderTileState extends State<_RecordingsFolderTile> {
   Widget build(BuildContext context) {
     return ListTile(
       leading: const Icon(Icons.folder_rounded),
-      title: const Text('Recording Location'),
+      title: Text(AppMessages.text(context, "Recording Location")),
       subtitle: Text(
-        _folder ?? 'Not set — tap to choose',
+        _folder ?? AppMessages.text(context, "Not set — tap to choose"),
         style: TextStyle(
           color: _folder != null ? Colors.purpleAccent : Colors.white38,
           fontSize: 13,
@@ -1735,7 +1705,7 @@ class _RecordingsFolderTileState extends State<_RecordingsFolderTile> {
           if (_folder != null)
             IconButton(
               icon: const Icon(Icons.close_rounded, size: 18),
-              tooltip: 'Clear',
+              tooltip: AppMessages.text(context, "Clear"),
               onPressed: () async {
                 final prefs = await SharedPreferences.getInstance();
                 await prefs.remove(_key);
@@ -1749,25 +1719,25 @@ class _RecordingsFolderTileState extends State<_RecordingsFolderTile> {
         final choice = await showSettingsDialog<String>(
           context: context,
           builder: (ctx) => SimpleDialog(
-            title: const Text('Recording Location'),
+            title: Text(AppMessages.text(context, "Recording Location")),
             children: [
               SimpleDialogOption(
                 onPressed: () => Navigator.pop(ctx, 'local'),
-                child: const Row(
+                child: Row(
                   children: [
                     Icon(Icons.folder_rounded, size: 20),
                     SizedBox(width: 12),
-                    Text('Local Folder'),
+                    Text(AppMessages.text(context, "Local Folder")),
                   ],
                 ),
               ),
               SimpleDialogOption(
                 onPressed: () => Navigator.pop(ctx, 'network'),
-                child: const Row(
+                child: Row(
                   children: [
                     Icon(Icons.lan_rounded, size: 20),
                     SizedBox(width: 12),
-                    Text('Network Share (SMB/NFS/AFP/FTP)'),
+                    Text(AppMessages.text(context, "Network Share (SMB/NFS/AFP/FTP)")),
                   ],
                 ),
               ),

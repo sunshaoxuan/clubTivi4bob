@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'provider_manager.dart';
+import '../../core/i18n/app_language.dart';
 
 /// Shows the Add Provider dialog.
 /// Uses a full-screen page (navigable via D-pad) instead of a bottom sheet.
@@ -108,19 +109,19 @@ class _AddProviderPageState extends ConsumerState<_AddProviderPage> {
       Navigator.of(context).pop(true);
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(const SnackBar(content: Text('电视源添加成功')));
+      ).showSnackBar(SnackBar(content: Text(AppMessages.text(context, "电视源添加成功"))));
     } on ProviderLimitException catch (e) {
       if (!mounted) return;
       showDialog(
         context: context,
         builder: (_) => AlertDialog(
           backgroundColor: const Color(0xFF1A1A2E),
-          title: const Text('电视源数量已达上限'),
+          title: Text(AppMessages.text(context, "电视源数量已达上限")),
           content: Text(e.toString()),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context),
-              child: const Text('确定'),
+              child: Text(AppMessages.text(context, "确定")),
             ),
           ],
         ),
@@ -131,12 +132,12 @@ class _AddProviderPageState extends ConsumerState<_AddProviderPage> {
         context: context,
         builder: (_) => AlertDialog(
           backgroundColor: const Color(0xFF1A1A2E),
-          title: const Text('错误'),
-          content: Text('电视源添加失败：\n$e'),
+          title: Text(AppMessages.text(context, "错误")),
+          content: Text(AppMessages.text(context, "电视源添加失败：\n{0}", [e])),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context),
-              child: const Text('确定'),
+              child: Text(AppMessages.text(context, "确定")),
             ),
           ],
         ),
@@ -178,7 +179,7 @@ class _AddProviderPageState extends ConsumerState<_AddProviderPage> {
               icon: const Icon(Icons.close),
               onPressed: () => Navigator.of(context).pop(),
             ),
-            title: const Text('添加电视源'),
+            title: Text(AppMessages.text(context, "添加电视源")),
           ),
           body: Form(
             key: _formKey,
@@ -189,19 +190,19 @@ class _AddProviderPageState extends ConsumerState<_AddProviderPage> {
                 DropdownButtonFormField<_ProviderType>(
                   value: _type,
                   autofocus: true,
-                  decoration: const InputDecoration(
-                    labelText: '电视源类型',
+                  decoration: InputDecoration(
+                    labelText: AppMessages.text(context, "电视源类型"),
                     prefixIcon: Icon(Icons.live_tv),
                   ),
                   dropdownColor: const Color(0xFF1A1A2E),
-                  items: const [
+                  items: [
                     DropdownMenuItem(
                       value: _ProviderType.m3u,
-                      child: Text('M3U 播放列表'),
+                      child: Text(AppMessages.text(context, "M3U 播放列表")),
                     ),
                     DropdownMenuItem(
                       value: _ProviderType.xtream,
-                      child: Text('Xtream Codes'),
+                      child: Text(AppMessages.text(context, "Xtream Codes")),
                     ),
                   ],
                   onChanged: (v) {
@@ -226,9 +227,9 @@ class _AddProviderPageState extends ConsumerState<_AddProviderPage> {
     return [
       TextFormField(
         controller: _m3uName,
-        decoration: const InputDecoration(
-          labelText: '电视源名称',
-          hintText: '例如：BobTV 电视源',
+        decoration: InputDecoration(
+          labelText: AppMessages.text(context, "电视源名称"),
+          hintText: AppMessages.text(context, "例如：BobTV 电视源"),
         ),
         validator: _validateRequired,
         textInputAction: TextInputAction.next,
@@ -236,9 +237,9 @@ class _AddProviderPageState extends ConsumerState<_AddProviderPage> {
       const SizedBox(height: 16),
       TextFormField(
         controller: _m3uUrl,
-        decoration: const InputDecoration(
-          labelText: 'M3U URL',
-          hintText: 'http://...',
+        decoration: InputDecoration(
+          labelText: AppMessages.text(context, "M3U URL"),
+          hintText: AppMessages.text(context, "http://..."),
         ),
         validator: _validateUrl,
         keyboardType: TextInputType.url,
@@ -251,7 +252,7 @@ class _AddProviderPageState extends ConsumerState<_AddProviderPage> {
         child: TextButton.icon(
           onPressed: () => _pasteUrl(_m3uUrl),
           icon: const Icon(Icons.paste, size: 18),
-          label: const Text('粘贴网址'),
+          label: Text(AppMessages.text(context, "粘贴网址")),
         ),
       ),
     ];
@@ -261,9 +262,9 @@ class _AddProviderPageState extends ConsumerState<_AddProviderPage> {
     return [
       TextFormField(
         controller: _xtreamName,
-        decoration: const InputDecoration(
-          labelText: '电视源名称',
-          hintText: '例如：我的 Xtream',
+        decoration: InputDecoration(
+          labelText: AppMessages.text(context, "电视源名称"),
+          hintText: AppMessages.text(context, "例如：我的 Xtream"),
         ),
         validator: _validateRequired,
         textInputAction: TextInputAction.next,
@@ -271,9 +272,9 @@ class _AddProviderPageState extends ConsumerState<_AddProviderPage> {
       const SizedBox(height: 16),
       TextFormField(
         controller: _xtreamUrl,
-        decoration: const InputDecoration(
-          labelText: '服务器网址',
-          hintText: 'http://...',
+        decoration: InputDecoration(
+          labelText: AppMessages.text(context, "服务器网址"),
+          hintText: AppMessages.text(context, "http://..."),
         ),
         validator: _validateUrl,
         keyboardType: TextInputType.url,
@@ -282,14 +283,14 @@ class _AddProviderPageState extends ConsumerState<_AddProviderPage> {
       const SizedBox(height: 16),
       TextFormField(
         controller: _xtreamUser,
-        decoration: const InputDecoration(labelText: '用户名'),
+        decoration: InputDecoration(labelText: AppMessages.text(context, "用户名")),
         validator: _validateRequired,
         textInputAction: TextInputAction.next,
       ),
       const SizedBox(height: 16),
       TextFormField(
         controller: _xtreamPass,
-        decoration: const InputDecoration(labelText: '密码'),
+        decoration: InputDecoration(labelText: AppMessages.text(context, "密码")),
         obscureText: true,
         validator: _validateRequired,
         textInputAction: TextInputAction.done,
@@ -314,7 +315,7 @@ class _AddProviderPageState extends ConsumerState<_AddProviderPage> {
                   color: Colors.white,
                 ),
               )
-            : const Text('添加电视源', style: TextStyle(fontSize: 16)),
+            : Text(AppMessages.text(context, "添加电视源"), style: TextStyle(fontSize: 16)),
       ),
     );
   }

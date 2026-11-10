@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../core/i18n/app_language.dart';
 
 class ChannelProgrammeStatus extends StatelessWidget {
   const ChannelProgrammeStatus({
@@ -49,7 +50,7 @@ class ChannelProgrammeStatus extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  title,
+                  AppMessages.text(context, title),
                   style: const TextStyle(
                     color: Colors.white,
                     fontWeight: FontWeight.w600,
@@ -57,7 +58,7 @@ class ChannelProgrammeStatus extends StatelessWidget {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  detail,
+                  AppMessages.text(context, detail),
                   style: const TextStyle(
                     color: Color(0xFFB6C4D8),
                     fontSize: 12,

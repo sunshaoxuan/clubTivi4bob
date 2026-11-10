@@ -31,6 +31,7 @@ class FlutterWindow : public Win32Window {
   std::unique_ptr<flutter::FlutterViewController> flutter_controller_;
   std::unique_ptr<flutter::MethodChannel<flutter::EncodableValue>> updater_channel_;
   std::unique_ptr<flutter::MethodChannel<flutter::EncodableValue>> window_chrome_channel_;
+  std::unique_ptr<flutter::MethodChannel<flutter::EncodableValue>> locale_channel_;
   LONG_PTR saved_caption_style_ = 0;
   bool video_caption_hidden_ = false;
 };

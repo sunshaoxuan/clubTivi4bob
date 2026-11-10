@@ -6,6 +6,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../data/datasources/remote/debrid_service.dart';
 import '../shows/shows_providers.dart';
 import 'settings_design.dart';
+import '../../core/i18n/app_language.dart';
 
 /// Sub-screen for managing debrid service API tokens.
 class DebridServicesScreen extends ConsumerStatefulWidget {
@@ -63,14 +64,14 @@ class _DebridServicesScreenState extends ConsumerState<DebridServicesScreen> {
       child: Focus(
         autofocus: true,
         child: SettingsDetailPage(
-          title: 'Debrid 服务',
+          title: AppMessages.text(context, "Debrid 服务"),
           body: ListView(
             padding: const EdgeInsets.symmetric(vertical: 8),
             children: [
               Padding(
                 padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
                 child: Text(
-                  '配置一个或多个 Debrid 服务，播放时将使用首个已配置的服务解析线路。',
+                  AppMessages.text(context, "配置一个或多个 Debrid 服务，播放时将使用首个已配置的服务解析线路。"),
                   style: TextStyle(
                     color: Colors.white54,
                     fontSize: 13,
@@ -102,7 +103,7 @@ class _DebridServicesScreenState extends ConsumerState<DebridServicesScreen> {
     ref.invalidate(showsRepositoryProvider);
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('${type.displayName} token saved')),
+        SnackBar(content: Text(AppMessages.text(context, "{0} token saved", [type.displayName]))),
       );
     }
     setState(() => _verified[type] = null);
@@ -133,7 +134,7 @@ class _DebridServicesScreenState extends ConsumerState<DebridServicesScreen> {
     if (mounted) {
       setState(() => _verified[type] = null);
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('${type.displayName} token removed')),
+        SnackBar(content: Text(AppMessages.text(context, "{0} token removed", [type.displayName]))),
       );
     }
   }
@@ -198,7 +199,7 @@ class _DebridServiceCardState extends State<_DebridServiceCard> {
               ),
             ),
             subtitle: Text(
-              widget.isConfigured ? 'Configured ✓' : 'Not configured',
+              widget.isConfigured ? AppMessages.text(context, "Configured ✓") : AppMessages.text(context, "Not configured"),
               style: TextStyle(
                 fontSize: 12,
                 color: widget.isConfigured ? Colors.green : Colors.white38,
@@ -214,7 +215,7 @@ class _DebridServiceCardState extends State<_DebridServiceCard> {
                       size: 20,
                       color: Colors.redAccent,
                     ),
-                    tooltip: 'Remove',
+                    tooltip: AppMessages.text(context, "Remove"),
                     onPressed: widget.onClear,
                   ),
                 Icon(
@@ -237,7 +238,7 @@ class _DebridServiceCardState extends State<_DebridServiceCard> {
                     controller: widget.controller,
                     obscureText: true,
                     decoration: InputDecoration(
-                      labelText: 'API Token',
+                      labelText: AppMessages.text(context, "API Token"),
                       hintText: type.tokenUrl,
                       prefixIcon: const Icon(Icons.vpn_key, size: 20),
                       suffixIcon: _buildSuffixIcon(),
@@ -252,7 +253,7 @@ class _DebridServiceCardState extends State<_DebridServiceCard> {
                         child: FilledButton.icon(
                           onPressed: hasToken ? widget.onSave : null,
                           icon: const Icon(Icons.save, size: 18),
-                          label: const Text('Save'),
+                          label: Text(AppMessages.text(context, "Save")),
                         ),
                       ),
                       const SizedBox(width: 8),
@@ -269,7 +270,7 @@ class _DebridServiceCardState extends State<_DebridServiceCard> {
                                 ),
                               )
                             : const Icon(Icons.verified_outlined, size: 18),
-                        label: const Text('Verify'),
+                        label: Text(AppMessages.text(context, "Verify")),
                       ),
                       const SizedBox(width: 8),
                       OutlinedButton.icon(
@@ -278,7 +279,7 @@ class _DebridServiceCardState extends State<_DebridServiceCard> {
                           launchUrl(url, mode: LaunchMode.externalApplication);
                         },
                         icon: const Icon(Icons.open_in_new, size: 16),
-                        label: const Text('Get Key'),
+                        label: Text(AppMessages.text(context, "Get Key")),
                       ),
                     ],
                   ),

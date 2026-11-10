@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../data/services/server_epg_runtime.dart';
 import '../data/services/server_epg_sync_service.dart';
 import '../data/models/server_epg_snapshot.dart';
+import '../core/i18n/app_language.dart';
 
 /// Mounted once around the app, independent of screen navigation or playback.
 class ServerEpgRuntimeHost extends ConsumerWidget {
@@ -89,7 +90,7 @@ class _ServerEpgCacheStatusState extends State<ServerEpgCacheStatus> {
         return widget.fallback;
       }
       if (state.phase == 'disabled') {
-        return widget.details ? const Text('服务器节目表自动更新已关闭') : widget.fallback;
+        return widget.details ? Text(AppMessages.text(context, "服务器节目表自动更新已关闭")) : widget.fallback;
       }
       final expired =
           state.version != null &&

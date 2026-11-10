@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../core/i18n/app_language.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 
@@ -83,7 +84,7 @@ class _TvShellState extends State<TvShell> {
                   final selected = _selectedNav == index;
                   return _TvNavButton(
                     icon: item.icon,
-                    label: item.label,
+                    label: AppMessages.text(context, item.label),
                     selected: selected,
                     expanded: _sidebarFocused,
                     autofocus: index == 0,

@@ -7,6 +7,7 @@ import '../../data/models/epg.dart';
 import '../providers/provider_manager.dart';
 import 'epg_mapping_notifier.dart';
 import '../../core/fuzzy_match.dart';
+import '../../core/i18n/app_language.dart';
 
 class EpgMappingScreen extends ConsumerStatefulWidget {
   const EpgMappingScreen({super.key});
@@ -47,7 +48,7 @@ class _EpgMappingScreenState extends ConsumerState<EpgMappingScreen> {
           icon: const Icon(Icons.arrow_back),
           onPressed: () => context.go('/settings'),
         ),
-        title: const Text('EPG Mappings'),
+        title: Text(AppMessages.text(context, "EPG Mappings")),
         actions: [
           TextButton.icon(
             onPressed: state.isLoading
@@ -57,12 +58,12 @@ class _EpgMappingScreenState extends ConsumerState<EpgMappingScreen> {
                     showDialog(
                       context: context,
                       barrierDismissible: false,
-                      builder: (_) => const AlertDialog(
+                      builder: (_) => AlertDialog(
                         content: Row(
                           children: [
                             CircularProgressIndicator(),
                             SizedBox(width: 20),
-                            Expanded(child: Text('Auto-mapping channels...\nThis may take a moment.')),
+                            Expanded(child: Text(AppMessages.text(context, "Auto-mapping channels...\nThis may take a moment."))),
                           ],
                         ),
                       ),
@@ -74,10 +75,7 @@ class _EpgMappingScreenState extends ConsumerState<EpgMappingScreen> {
                         Navigator.of(context).pop(); // dismiss dialog
                         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
                           content: Text(
-                            'Auto-mapped ${stats.mapped} channels, '
-                            '${stats.suggested} suggestions, '
-                            '${stats.unmapped} unmapped '
-                            '(${stats.elapsed.inMilliseconds}ms)',
+                            AppMessages.text(context, "Auto-mapped {0} channels, {1} suggestions, {2} unmapped ({3}ms)", [stats.mapped, stats.suggested, stats.unmapped, stats.elapsed.inMilliseconds]),
                           ),
                         ));
                       }
@@ -85,13 +83,13 @@ class _EpgMappingScreenState extends ConsumerState<EpgMappingScreen> {
                       if (context.mounted) {
                         Navigator.of(context).pop();
                         ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text('Auto-map error: $e')),
+                          SnackBar(content: Text(AppMessages.text(context, "Auto-map error: {0}", [e]))),
                         );
                       }
                     }
                   },
             icon: const Icon(Icons.auto_fix_high_rounded),
-            label: const Text('Auto-Map'),
+            label: Text(AppMessages.text(context, "Auto-Map")),
           ),
           PopupMenuButton<String>(
             onSelected: (value) async {
@@ -99,11 +97,11 @@ class _EpgMappingScreenState extends ConsumerState<EpgMappingScreen> {
                 final confirm = await showDialog<bool>(
                   context: context,
                   builder: (ctx) => AlertDialog(
-                    title: const Text('Clear All Mappings?'),
-                    content: const Text('This will remove all EPG mappings. You can re-run Auto-Map after.'),
+                    title: Text(AppMessages.text(context, "Clear All Mappings?")),
+                    content: Text(AppMessages.text(context, "This will remove all EPG mappings. You can re-run Auto-Map after.")),
                     actions: [
-                      TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
-                      FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Clear')),
+                      TextButton(onPressed: () => Navigator.pop(ctx), child: Text(AppMessages.text(context, "Cancel"))),
+                      FilledButton(onPressed: () => Navigator.pop(ctx, true), child: Text(AppMessages.text(context, "Clear"))),
                     ],
                   ),
                 );
@@ -112,10 +110,10 @@ class _EpgMappingScreenState extends ConsumerState<EpgMappingScreen> {
                 }
               }
             },
-            itemBuilder: (context) => const [
-              PopupMenuItem(value: 'import', child: Text('Import Mappings')),
-              PopupMenuItem(value: 'export', child: Text('Export Mappings')),
-              PopupMenuItem(value: 'clear', child: Text('Clear All')),
+            itemBuilder: (context) => [
+              PopupMenuItem(value: 'import', child: Text(AppMessages.text(context, "Import Mappings"))),
+              PopupMenuItem(value: 'export', child: Text(AppMessages.text(context, "Export Mappings"))),
+              PopupMenuItem(value: 'clear', child: Text(AppMessages.text(context, "Clear All"))),
             ],
           ),
         ],
@@ -131,7 +129,7 @@ class _EpgMappingScreenState extends ConsumerState<EpgMappingScreen> {
                   segments: [
                     ButtonSegment(
                       value: MappingFilter.all,
-                      label: Text('All (${state.entries.length})'),
+                      label: Text(AppMessages.text(context, "All ({0})", [state.entries.length])),
                     ),
                     ButtonSegment(
                       value: MappingFilter.mapped,
@@ -156,7 +154,7 @@ class _EpgMappingScreenState extends ConsumerState<EpgMappingScreen> {
                   child: TextField(
                     style: const TextStyle(color: Colors.white),
                     decoration: InputDecoration(
-                      hintText: 'Search channels...',
+                      hintText: AppMessages.text(context, "Search channels..."),
                       prefixIcon: const Icon(Icons.search),
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(8),
@@ -260,7 +258,7 @@ class _MappingTile extends StatelessWidget {
               ),
             )
           : Text(
-              entry.channel.tvgId ?? 'No EPG ID',
+              entry.channel.tvgId ?? AppMessages.text(context, "No EPG ID"),
               style: const TextStyle(color: Colors.white38),
             ),
       trailing: Row(
@@ -271,7 +269,7 @@ class _MappingTile extends StatelessWidget {
           if (entry.isMapped || entry.isSuggested)
             IconButton(
               icon: const Icon(Icons.close, size: 18),
-              tooltip: 'Remove mapping',
+              tooltip: AppMessages.text(context, "Remove mapping"),
               onPressed: onRemove,
             ),
         ],
@@ -363,7 +361,7 @@ class _ManualMappingDialogState extends ConsumerState<_ManualMappingDialog> {
   Widget build(BuildContext context) {
     final results = _filteredResults;
     return AlertDialog(
-      title: Text('Map: ${widget.entry.channel.name}'),
+      title: Text(AppMessages.text(context, "Map: {0}", [widget.entry.channel.name])),
       content: SizedBox(
         width: 400,
         height: 400,
@@ -373,12 +371,12 @@ class _ManualMappingDialogState extends ConsumerState<_ManualMappingDialog> {
             // Channel info
             if (widget.entry.channel.tvgId != null)
               Text(
-                'tvg-id: ${widget.entry.channel.tvgId}',
+                AppMessages.text(context, "tvg-id: {0}", [widget.entry.channel.tvgId]),
                 style: const TextStyle(color: Colors.white38, fontSize: 12),
               ),
             if (widget.entry.channel.groupTitle != null)
               Text(
-                'Group: ${widget.entry.channel.groupTitle}',
+                AppMessages.text(context, "Group: {0}", [widget.entry.channel.groupTitle]),
                 style: const TextStyle(color: Colors.white38, fontSize: 12),
               ),
             const SizedBox(height: 12),
@@ -387,8 +385,8 @@ class _ManualMappingDialogState extends ConsumerState<_ManualMappingDialog> {
             TextField(
               controller: _searchController,
               autofocus: true,
-              decoration: const InputDecoration(
-                hintText: 'Search EPG channels...',
+              decoration: InputDecoration(
+                hintText: AppMessages.text(context, "Search EPG channels..."),
                 prefixIcon: Icon(Icons.search),
                 isDense: true,
               ),
@@ -403,7 +401,7 @@ class _ManualMappingDialogState extends ConsumerState<_ManualMappingDialog> {
               ))
             else if (results.isNotEmpty) ...[
               Text(
-                '${results.length} EPG channels',
+                AppMessages.text(context, "{0} EPG channels", [results.length]),
                 style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
               ),
               const SizedBox(height: 4),
@@ -416,8 +414,8 @@ class _ManualMappingDialogState extends ConsumerState<_ManualMappingDialog> {
                       ? Center(
                           child: Text(
                             _allEpgChannels.isEmpty
-                                ? 'No EPG channels available.\nAdd an EPG source and refresh first.'
-                                : 'No matches found.',
+                                ? AppMessages.text(context, "No EPG channels available.\nAdd an EPG source and refresh first.")
+                                : AppMessages.text(context, "No matches found."),
                             textAlign: TextAlign.center,
                             style: const TextStyle(color: Colors.white38),
                           ),
@@ -451,7 +449,7 @@ class _ManualMappingDialogState extends ConsumerState<_ManualMappingDialog> {
       actions: [
         TextButton(
           onPressed: () => Navigator.of(context).pop(),
-          child: const Text('Cancel'),
+          child: Text(AppMessages.text(context, "Cancel")),
         ),
       ],
     );
@@ -467,16 +465,16 @@ class _EmptyState extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (!hasChannels) {
-      return const Center(
+      return Center(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             Icon(Icons.link_off_rounded, size: 64, color: Colors.white24),
             SizedBox(height: 16),
-            Text('No channels to map',
+            Text(AppMessages.text(context, "No channels to map"),
                 style: TextStyle(fontSize: 20, color: Colors.white54)),
             SizedBox(height: 8),
-            Text('Add a provider and EPG source first',
+            Text(AppMessages.text(context, "Add a provider and EPG source first"),
                 style: TextStyle(fontSize: 14, color: Colors.white38)),
           ],
         ),
@@ -485,7 +483,7 @@ class _EmptyState extends StatelessWidget {
 
     return Center(
       child: Text(
-        'No ${filter.name} channels',
+        AppMessages.text(context, "No {0} channels", [filter.name]),
         style: const TextStyle(fontSize: 16, color: Colors.white38),
       ),
     );

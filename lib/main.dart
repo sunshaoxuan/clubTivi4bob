@@ -5,6 +5,7 @@ import 'dart:ui' show PlatformDispatcher;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:media_kit/media_kit.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:window_manager/window_manager.dart';
 
 import 'app/app.dart';
@@ -53,10 +54,13 @@ void main() {
       diagnostics.log('flutter_ready', {
         'diagnosticDirectory': diagnostics.logDirectoryPath,
       });
+      final preferences = await SharedPreferences.getInstance();
       runApp(
-        const ProviderScope(
+        ProviderScope(
           child: DesktopAppLifecycle(
-            child: ServerEpgRuntimeHost(child: ClubTiviApp()),
+            child: ServerEpgRuntimeHost(
+              child: ClubTiviApp(preferences: preferences),
+            ),
           ),
         ),
       );

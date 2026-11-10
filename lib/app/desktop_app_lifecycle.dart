@@ -18,6 +18,7 @@ import '../features/providers/source_maintenance_coordinator.dart';
 import '../features/providers/provider_manager.dart' show databaseProvider;
 import '../features/recording/recording_service.dart';
 import '../features/remote/web_remote_server.dart';
+import '../core/i18n/app_language.dart';
 
 class DesktopAppLifecycle extends StatefulWidget {
   const DesktopAppLifecycle({
@@ -177,7 +178,7 @@ class _DesktopAppLifecycleState extends State<DesktopAppLifecycle>
                     if (error == null) const CircularProgressIndicator(),
                     const SizedBox(height: 16),
                     Text(
-                      error ?? '正在清理资源并退出…',
+                      error ?? AppMessages.text(context, "正在清理资源并退出…"),
                       style: const TextStyle(color: Colors.white70),
                     ),
                     if (error != null)
@@ -187,7 +188,7 @@ class _DesktopAppLifecycleState extends State<DesktopAppLifecycle>
                               .requestExit('cleanup_retry')
                               .catchError((Object _, StackTrace __) {}),
                         ),
-                        child: const Text('重试退出'),
+                        child: Text(AppMessages.text(context, "重试退出")),
                       ),
                   ],
                 ),

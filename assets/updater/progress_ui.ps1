@@ -1,6 +1,19 @@
 param([int]$CurrentPid, [int]$WorkerPid, [string]$Version, [string]$RunId, [string]$AppDir)
 $ErrorActionPreference='Stop'
 $root=$PSScriptRoot
+$copy=$null
+try {
+  $copy=Get-Content -LiteralPath (Join-Path $root 'update-copy.json') -Raw -Encoding UTF8 | ConvertFrom-Json
+} catch {
+  # The worker can still report progress when using an older bundle.
+}
+function Get-UpdateText([string]$text) {
+  if ($copy -and $text) {
+    $entry=$copy.PSObject.Properties[$text]
+    if ($entry) {return [string]$entry.Value}
+  }
+  return $text
+}
 $uiLog=Join-Path $root 'progress-ui.log'
 function Log([string]$message){
   try{
@@ -32,7 +45,7 @@ public class BobTVUpdateButton : System.Windows.Forms.Button {
 '@
 
 $form=New-Object Windows.Forms.Form
-$form.Text='BobTV 更新'
+$form.Text=(Get-UpdateText 'BobTV 更新')
 $form.ClientSize=New-Object Drawing.Size(500,340)
 $form.StartPosition='CenterScreen'
 $form.FormBorderStyle='FixedDialog'
@@ -50,9 +63,9 @@ function Label([string]$text,[int]$y,[int]$height) {
 }
 $title=Label ('BobTV '+$Version) 20 36
 $title.Font=New-Object Drawing.Font('Segoe UI',19,[Drawing.FontStyle]::Bold)
-$phase=Label '正在读取更新进度' 70 30
-$detail=Label '请稍候，更新会在此窗口显示进度。' 152 65
-$note=Label '关闭这个状态窗口不会中止更新。' 225 28
+$phase=Label (Get-UpdateText '正在读取更新进度') 70 30
+$detail=Label (Get-UpdateText '请稍候，更新会在此窗口显示进度。') 152 65
+$note=Label (Get-UpdateText '关闭这个状态窗口不会中止更新。') 225 28
 $note.ForeColor=[Drawing.Color]::FromArgb(157,173,197)
 $bar=New-Object Windows.Forms.ProgressBar
 $bar.Location=New-Object Drawing.Point(24,116)
@@ -62,13 +75,13 @@ $form.Controls.Add($bar)
 $open=New-Object BobTVUpdateButton
 $open.ForeColor=[Drawing.Color]::White
 $open.BackColor=$form.BackColor
-$open.Text='立即启动 BobTV'
+$open.Text=(Get-UpdateText '立即启动 BobTV')
 $open.Location=New-Object Drawing.Point(300,265)
 $open.Size=New-Object Drawing.Size(165,30)
 $open.Enabled=$false
 $open.FlatStyle='Flat'; $form.Controls.Add($open)
 $close=New-Object BobTVUpdateButton
-$close.Text='关闭窗口'; $close.BackColor=$form.BackColor
+$close.Text=(Get-UpdateText '关闭窗口'); $close.BackColor=$form.BackColor
 $close.Location=New-Object Drawing.Point(24,265)
 $close.Size=New-Object Drawing.Size(120,30)
 $close.Add_Click({$form.Close()})
@@ -109,8 +122,8 @@ $timer.Add_Tick({
     if(!$status -or $status.runId -ne $RunId -or $status.version -ne $Version -or
         [int]$status.workerPid -ne $WorkerPid){
       if(([DateTime]::UtcNow-$script:statusWait).TotalSeconds -gt 30){
-        $phase.Text='更新助手未返回状态'
-        $detail.Text='下载或安装尚未确认，启动按钮已禁用。请查看更新日志。'
+        $phase.Text=(Get-UpdateText '更新助手未返回状态')
+        $detail.Text=(Get-UpdateText '下载或安装尚未确认，启动按钮已禁用。请查看更新日志。')
         $bar.Style='Continuous'; $bar.Value=0
       }
       return
@@ -122,20 +135,20 @@ $timer.Add_Tick({
          [int]$final.workerPid -eq $WorkerPid){$status=$final}
     }
     $phase.Text=switch($status.phase){
-      'starting' {'正在准备下载'}
-      'waiting' {'等待启动检查完成'}
-      'downloading' {"正在下载更新 $($status.percent)%"}
-      'verifying' {'正在校验安装包'}
-      'ready' {'下载完成，正在等待播放器退出'}
-      'authorizing' {'请确认 Windows 授权提示'}
-      'awaitingExit' {'已授权，正在等待 BobTV 退出'}
-      'backingUp' {'正在备份旧版'}
-      'installing' {if($null -ne $status.percent){"正在安装更新 $($status.percent)%"}else{'正在安装更新'}}
-      'installed' {'更新已完成'}
-      'failed' {'更新未完成'}
-      default {'正在处理更新'}
+      'starting' {(Get-UpdateText '正在准备下载')}
+      'waiting' {(Get-UpdateText '等待启动检查完成')}
+      'downloading' {(Get-UpdateText '正在下载更新 {0}%').Replace('{0}', [string]$status.percent)}
+      'verifying' {(Get-UpdateText '正在校验安装包')}
+      'ready' {(Get-UpdateText '下载完成，正在等待播放器退出')}
+      'authorizing' {(Get-UpdateText '请确认 Windows 授权提示')}
+      'awaitingExit' {(Get-UpdateText '已授权，正在等待 BobTV 退出')}
+      'backingUp' {(Get-UpdateText '正在备份旧版')}
+      'installing' {if($null -ne $status.percent){(Get-UpdateText '正在安装更新 {0}%').Replace('{0}', [string]$status.percent)}else{(Get-UpdateText '正在安装更新')}}
+      'installed' {(Get-UpdateText '更新已完成')}
+      'failed' {(Get-UpdateText '更新未完成')}
+      default {(Get-UpdateText '正在处理更新')}
     }
-    $detail.Text=[string]$status.message
+    $detail.Text=Get-UpdateText ([string]$status.message)
     $capture=$script:lastPhase -ne $status.phase
     if($capture){
       $script:lastPhase=$status.phase
@@ -148,34 +161,34 @@ $timer.Add_Tick({
       $bar.Style='Continuous'; $bar.Value=[Math]::Max(0,[Math]::Min(100,[int]$status.percent))
     }else{$bar.Style='Marquee'}
     if($status.phase -eq 'ready' -and $status.authorizationCancelled -eq $true){
-      $phase.Text='授权已取消，当前版本保留'
-      $open.Text='继续使用当前版本'
+      $phase.Text=(Get-UpdateText '授权已取消，当前版本保留')
+      $open.Text=(Get-UpdateText '继续使用当前版本')
       $open.Enabled=[bool](Get-CompletedExecutable)
-      $note.Text='更新包已保留，下次打开 BobTV 后可以重试安装。'
+      $note.Text=(Get-UpdateText '更新包已保留，下次打开 BobTV 后可以重试安装。')
     }elseif($status.phase -eq 'failed' -and $status.restored -eq $true){
-      $phase.Text='更新未完成，旧版已恢复'
-      $open.Text='启动已恢复的旧版'
+      $phase.Text=(Get-UpdateText '更新未完成，旧版已恢复')
+      $open.Text=(Get-UpdateText '启动已恢复的旧版')
       $open.Enabled=[bool](Get-CompletedExecutable)
-      $note.Text='已跳过本次失败版本，用户数据和故障记录已保留。'
+      $note.Text=(Get-UpdateText '已跳过本次失败版本，用户数据和故障记录已保留。')
     }elseif($status.phase -eq 'installed'){
-      $open.Text='立即启动 BobTV'
+      $open.Text=(Get-UpdateText '立即启动 BobTV')
       $open.Enabled=[bool](Get-CompletedExecutable)
       if($open.Enabled){
         if(!$script:finishedAt){$script:finishedAt=[DateTime]::UtcNow}
         $remaining=20-[int]([DateTime]::UtcNow-$script:finishedAt).TotalSeconds
-        $note.Text="安装完成，旧版备份已保留。此窗口将在 $remaining 秒后关闭。"
+        $note.Text=(Get-UpdateText '安装完成，旧版备份已保留。此窗口将在 {0} 秒后关闭。').Replace('{0}', [string]$remaining)
         if($remaining -le 0){$form.Close();return}
       }else{
         $script:finishedAt=$null
-        $phase.Text='安装结果未通过检查'
-        $detail.Text='程序文件缺失或版本不符，启动按钮已禁用。请查看更新日志。'
-        $note.Text='旧版备份已保留，尚未确认安装成功。'
+        $phase.Text=(Get-UpdateText '安装结果未通过检查')
+        $detail.Text=(Get-UpdateText '程序文件缺失或版本不符，启动按钮已禁用。请查看更新日志。')
+        $note.Text=(Get-UpdateText '旧版备份已保留，尚未确认安装成功。')
       }
     }elseif($status.phase -eq 'failed'){
-      $note.Text='安装未完成，启动按钮已禁用。旧版备份不会被删除。'
+      $note.Text=(Get-UpdateText '安装未完成，启动按钮已禁用。旧版备份不会被删除。')
     }elseif(!(Get-Process -Id $WorkerPid -ErrorAction SilentlyContinue)){
-      $phase.Text='更新助手意外退出'
-      $detail.Text='更新尚未完成，启动按钮已禁用。启动错误记录在 launcher.log。'
+      $phase.Text=(Get-UpdateText '更新助手意外退出')
+      $detail.Text=(Get-UpdateText '更新尚未完成，启动按钮已禁用。启动错误记录在 launcher.log。')
       $bar.Style='Continuous'
     }
     if($capture -and $env:CI -eq 'true' -and $env:BOBTV_PROGRESS_CAPTURE_DIR){

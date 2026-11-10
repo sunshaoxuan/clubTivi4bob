@@ -54,6 +54,10 @@ class MainActivity : FlutterActivity() {
                 result.notImplemented()
             }
         }
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "bobtv/locale").setMethodCallHandler { call, result ->
+            if (call.method == "timeZone") result.success(java.util.TimeZone.getDefault().id)
+            else result.notImplemented()
+        }
         deviceChannel = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "bobtv/device")
         deviceChannel!!.setMethodCallHandler { call, result ->
             when (call.method) {

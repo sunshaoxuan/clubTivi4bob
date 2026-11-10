@@ -2,6 +2,7 @@
 (() => {
   const origin = 'https://bobtv.briconbric.com';
   const relay = 'https://cndrp.com/bobtv';
+  const mirrorPage = globalThis.document?.body?.dataset.siteRoot === '/bobtv';
   let selected = origin, expires = 0, pending;
   async function probe(base) {
     const controller = new AbortController();
@@ -33,6 +34,7 @@
     if (canonical.pathname === '/api/v1/egress/resource' && canonical.searchParams.get('kind') === 'media') {
       throw new Error('Video cannot use resource relay');
     }
+    if (mirrorPage) return relay + canonical.pathname + canonical.search;
     if (Date.now() >= expires) {
       pending ||= compare().finally(() => { pending = null; });
       await pending;
@@ -42,6 +44,7 @@
   async function resourceFetch(path, options = {}) {
     const target = await resolve(path);
     const method = (options.method || 'GET').toUpperCase();
+    if (mirrorPage) return fetch(target, { ...options, credentials: 'omit' });
     const readOnly = method === 'GET' || method === 'HEAD';
     let response;
     try {
@@ -57,5 +60,5 @@
     expires = Date.now() + 30000;
     return readOnly ? fetch(await resolve(path), { ...options, credentials: 'omit' }) : response;
   }
-  globalThis.BobTVResources = { resolve, fetch: resourceFetch, node: () => selected };
+  globalThis.BobTVResources = { resolve, fetch: resourceFetch, node: () => mirrorPage ? relay : selected };
 })();

@@ -1,0 +1,683 @@
+{
+  "nav_label": "Navigation principale",
+  "nav": {
+    "index": "Produit",
+    "downloads": "Téléchargements",
+    "diagnostics": "Diagnostic"
+  },
+  "language": "Langue",
+  "titles": {
+    "index": "BobTV | Lecteur TV de bureau",
+    "downloads": "Téléchargements | BobTV",
+    "diagnostics": "Diagnostic | BobTV",
+    "privacy": "Politique de confidentialité | BobTV",
+    "code-signing": "Politique de signature de code | BobTV"
+  },
+  "meta": {
+    "index": "BobTV est un lecteur TV de bureau pour Windows et macOS avec des aperçus des chaînes et un catalogue de chaînes publiques partagé.",
+    "downloads": "Une colonne chacune pour Windows, macOS et Android, avec les choix de processeur à l'intérieur. Des packages natifs Windows ARM64 sont disponibles ; Les tests du matériel Surface sont en attente.",
+    "diagnostics": "Soumettez un journal de diagnostic JSONL filtré à BobTV.",
+    "privacy": "Synchronisation publique de BobTV, collection privée d'équipements d'origine, diagnostics et limites du réseau multimédia tiers.",
+    "code-signing": "Application gratuite de signature de code Windows BobTV, approbation manuelle et politique de vérification de la source."
+  },
+  "footer": "BobTV · Lecteur de bureau open source",
+  "disclaimer": "Vérifiez la disponibilité et les autorisations des flux tiers avant utilisation.",
+  "policy_links": {
+    "privacy": "Politique de confidentialité",
+    "signing": "Politique de signature de code"
+  },
+  "download": "Télécharger BobTV",
+  "features": "Caractéristiques",
+  "home": {
+    "headline": "Regardez la télévision sur ordinateur et Android.",
+    "intro": "Windows, macOS et Android utilisent la version 1.1.19+114. Changez de langue en haut de l’application. Votre choix est mémorisé. En mode automatique, l’application utilise la langue du système, le fuseau horaire, puis l’anglais. Chaque programme d’installation contient les ressources linguistiques. L’accès au mode avancé a été fermé.",
+    "image_alt": "BobTV fonctionne en mode simplifié, avec lecture de sports et liste de chaînes.",
+    "mode": "BOBTV / Mode simplifié",
+    "screenshot": "Capture d'écran réelle de l'application",
+    "sections": [
+      {
+        "id": "preview",
+        "label": "Lecture",
+        "title": "Prévisualisez avant de changer de chaîne.",
+        "text": "Cliquez sur une chaîne pour démarrer un aperçu silencieux pendant que votre programme actuel continue de jouer. Cliquez à nouveau lorsque l'aperçu est prêt à basculer, ou double-cliquez pour basculer directement.",
+        "items": [
+          [
+            "Chronologie du programme",
+            "Sous Windows et macOS, ouvrez une fiche de chaîne pour développer les programmes correspondants en cours et à venir. Les données manquantes et les échecs de chargement ont des états explicites. La couverture du guide dépend des données fournies par vos sources configurées."
+          ],
+          [
+            "Favoris et volume",
+            "Ajoutez des chaînes aux favoris à partir du menu et réglez le volume dans le lecteur."
+          ],
+          [
+            "PiP plein écran et bureau",
+            "L'en-tête plein écran place le nom de la chaîne à gauche, les deux programmes actuels et suivants au centre et les actions de retour/sortie à droite. PiP reste au premier plan et prend en charge le déplacement et le volume ; le retour aux chaînes préserve la lecture."
+          ]
+        ]
+      },
+      {
+        "id": "catalog",
+        "label": "Liste des chaînes",
+        "title": "Chaînes regroupées par pays et région.",
+        "text": "Parcourez les chaînes nationales, régionales et internationales, ainsi que les stations de radio. CCTV-5 et CCTV-5+ restent des chaînes distinctes.",
+        "items": [
+          [
+            "Ordre des chaînes",
+            "CCTV1 à CCTV17 sont classés numériquement, suivis de 4K, 8K et CGTN."
+          ],
+          [
+            "Catégories",
+            "Épinglez des pays et des régions ou modifiez des catégories et des sous-catégories. Tapez un nom manquant pour le créer ; les modifications publiques sont synchronisées en arrière-plan avec la hiérarchie complète. Cliquez avec le bouton droit pour fusionner les canaux et dédoublonner les itinéraires entre les catégories."
+          ],
+          [
+            "Radio",
+            "Les flux audio uniquement sont traités comme de la radio ; une piste vidéo manquante n'est pas traitée comme un échec de lecture."
+          ]
+        ]
+      },
+      {
+        "id": "sync",
+        "label": "Catalogue partagé",
+        "title": "Les chaînes publiques se synchronisent sur Windows et Mac.",
+        "text": "Au démarrage, BobTV affiche le catalogue local ou groupé, puis récupère un catalogue public vérifié en arrière-plan.",
+        "items": [
+          [
+            "Enregistrements partagés",
+            "Les modifications publiques, les catégories, les fusions, les évaluations et les itinéraires retirés sont synchronisés. Les révisions sont vérifiées toutes les minutes. Le chargement de la catégorie reste local à cette catégorie ; le nombre de catalogues entiers apparaît dans le badge de synchronisation."
+          ],
+          [
+            "Modifications hors ligne",
+            "Les modifications sont enregistrées localement et réessayées lorsque la connexion est rétablie. La liste des chaînes affiche l'état de synchronisation."
+          ],
+          [
+            "Données personnelles",
+            "Les favoris disposent d'une sauvegarde privée protégée par l'empreinte digitale d'origine de l'appareil et d'un secret dédié. Seul cet appareil peut les restaurer ; ils n'entrent jamais dans le catalogue public. L’historique de visualisation et les abonnements privés restent locaux."
+          ]
+        ]
+      },
+      {
+        "id": "route",
+        "label": "Itinéraires de flux",
+        "title": "Itinéraires alternatifs lorsqu’un flux s’arrête.",
+        "text": "L’état de la lecture influence l’ordre des itinéraires. Les itinéraires indisponibles peuvent également être retirés du menu des chaînes.",
+        "items": [
+          [
+            "Canaux séparés",
+            "Les identités de chaîne conservent des noms similaires tels que CCTV-5 et CCTV-5+ distincts."
+          ],
+          [
+            "Santé de la lecture",
+            "Un décodage réussi améliore l’enregistrement d’un itinéraire. Les échecs et les sauts manuels affectent sa priorité."
+          ],
+          [
+            "Récupération d'itinéraire",
+            "BobTV tente une alternative lorsque la lecture s'arrête. S'il ne peut pas jouer, il revient à l'itinéraire d'origine."
+          ]
+        ],
+        "note": "La disponibilité dépend du fournisseur de flux et de votre réseau. Certaines chaînes peuvent être indisponibles."
+      },
+      {
+        "id": "server",
+        "label": "Connectivité du serveur",
+        "title": "La découverte de sources et l'IA s'exécutent sur le serveur.",
+        "text": "Les clients reçoivent des chaînes, des catégories et des itinéraires de BobTV. Les packages, guides, logos et ressources de synchronisation comparent le site principal avec le cache cndrp. La vidéo se connecte directement à sa source d'origine. La découverte et l'IA s'exécutent sur le serveur.",
+        "items": [
+          [
+            "Classement régional",
+            "Les itinéraires sont classés en utilisant la région d'accès et les commentaires de lecture observés. Les itinéraires sans mesures régionales nécessitent toujours une validation."
+          ],
+          [
+            "Maintenance à la demande",
+            "Le serveur gère la découverte, l'actualisation et la classification AI. Les clients vérifient les itinéraires uniquement pour le canal sélectionné."
+          ],
+          [
+            "Limites du réseau",
+            "Le cache gère les téléchargements et les téléchargements de ressources, jamais les flux vidéo. Le débit et la disponibilité des sources en Chine continentale nécessitent toujours des mesures du réseau local."
+          ]
+        ]
+      },
+      {
+        "id": "living",
+        "label": "Appareils",
+        "title": "Lecture sur ordinateur et Mac AirPlay.",
+        "text": "BobTV fonctionne sous Windows et macOS. Windows peut envoyer de l'audio et de la vidéo à un récepteur Mac AirPlay compatible sur le même réseau.",
+        "items": [
+          [
+            "Fenêtres",
+            "Utilisez le programme d'installation ou un package ZIP portable."
+          ],
+          [
+            "Mac",
+            "Choisissez le DMG pour Intel ou Apple Silicon."
+          ],
+          [
+            "AirPlay",
+            "Un récepteur compatible et un réseau local partagé sont requis."
+          ]
+        ]
+      },
+      {
+        "id": "tablets",
+        "label": "TABLETTE",
+        "title": "La même expérience, sur une tablette.",
+        "text": "Android et ordinateur de bureau partagent des cartes simples et des paramètres modernes. Les vues fractionnées compactes utilisent des volets égaux et au maximum trois lignes de catégories. Les cartes et les guides s'adaptent à l'espace disponible, la vidéo conserve son format d'image et la découverte et l'IA restent côté serveur.",
+        "items": [
+          [
+            "Touchez les commandes et quittez",
+            "Appuyez pour prévisualiser, puis changez ; appuyez longuement pour les actions du canal. Android conserve un contrôle de sortie BobTV sur toutes les pages et arrête la lecture et le travail en arrière-plan lors de la fermeture."
+          ],
+          [
+            "Espace pour un aperçu complet",
+            "Chaque niveau de catégorie occupe une ligne, avec un débordement attaché à son bouton. Une fiche complète et un guide restent visibles ; les fenêtres courtes utilisent des cartes et des étiquettes plus petites."
+          ],
+          [
+            "Proportions originales et mises à jour",
+            "La vidéo conserve son rapport hauteur/largeur et les tampons de la tablette restent limités. Les téléchargements affichent la progression et sont vérifiés avant qu'Android ne demande la confirmation de l'installation."
+          ]
+        ],
+        "note": "Les appareils Android, le débit de la Chine continentale et le matériel Surface ARM64 nécessitent encore des tests locaux. Les packages Windows ARM64 natifs ont réussi les vérifications croisées de construction et d'architecture."
+      },
+      {
+        "id": "settings",
+        "label": "Paramètres",
+        "title": "Un espace de travail de paramètres réfléchi.",
+        "text": "Windows et Mac partagent des paramètres repensés. Sept catégories organisent les chaînes, la lecture, la synchronisation, l'IA, les sauvegardes et les mises à jour, en préservant les fonctionnalités et préférences existantes.",
+        "items": [
+          [
+            "S'adapte à votre fenêtre",
+            "Une barre latérale sur les fenêtres larges, des catégories horizontales et des actions de bouclage sur les fenêtres étroites."
+          ],
+          [
+            "Conserver les entrées inachevées",
+            "Les catégories se chargent à la demande et conservent les brouillons de formulaires et les positions de défilement lorsque vous changez."
+          ],
+          [
+            "Outils publics et mises à jour",
+            "Les sources examinées, les commentaires de lecture et les résumés de diagnostic restent ensemble. Le statut de mise à jour automatique a sa propre entrée."
+          ]
+        ]
+      }
+    ],
+    "history_label": "Notes de version",
+    "history_title": "Modifications récentes",
+    "history": [
+      [
+        "2026-11-11",
+        "v1.1.19 · Sept langues dans l’application et sur le site",
+        "Windows, macOS et Android utilisent la version 1.1.19+114. Changez de langue en haut de l’application. Votre choix est mémorisé. En mode automatique, l’application utilise la langue du système, le fuseau horaire, puis l’anglais. Chaque programme d’installation contient les ressources linguistiques. L’accès au mode avancé a été fermé."
+      ],
+      [
+        "2026-11-01",
+        "v1.1.18 · Catégories plus rapides, favoris et correctifs d'état du guide des programmes",
+        "Windows, macOS et Android sont alignés sur 1.1.18+113. Les chaînes publiques se chargent par pays ou catégorie sélectionné, avec des résultats en cache et moins de requêtes répétées. Un clic en forme d'étoile supprime un favori ; les cases à cocher de gestion de liste s'enregistrent désormais correctement. L’état du guide expiré reste dans les canaux et paramètres pertinents pendant que l’actualisation en arrière-plan se poursuit. Android reçoit une validation de build et automatisée, sans test de périphérique physique."
+      ],
+      [
+        "2026-10-29",
+        "v1.1.17 · Récupération de route côté serveur et nouvelle tentative automatique",
+        "Windows, macOS et Android sont alignés sur 1.1.17+112. Les itinéraires échoués sont déclassés et la recherche de remplacement s'exécute sur le serveur. Identité vérifiée de la chaîne, autorisation des médias et admission réussie au catalogue public de la porte de décodage. Les clients en cours d'exécution synchronisent les remplacements et réessayent automatiquement ; changer de chaîne annule l’intention de lecture précédente. Les tests des appareils physiques Android n’ont pas été effectués pour cette version."
+      ],
+      [
+        "2026-10-28",
+        "v1.1.16 · Corrections de déduplication préférées et d'identité de canal",
+        "Windows, macOS et Android sont alignés sur 1.1.16+111. Les vues des favoris et des catégories utilisent des identités de chaîne cohérentes. Les adhésions à l'aperçu et au genre partagent une carte préférée, les adresses d'itinéraire en double étant supprimées. Le chargement des catégories et les favoris restaurés conservent les identités faisant autorité tout en préservant les distinctions de région, de qualité et de fusion manuelle."
+      ],
+      [
+        "2026-10-28",
+        "v1.1.15 · Mettre à jour les filtres de récupération et de région",
+        "Windows, macOS et Android avancent ensemble vers 1.1.15+110. Les téléchargements de mises à jour Windows réessayent les échecs de connexion temporaires, signalent l'achèvement vérifié et fournissent un contrôle étroit avec le texte du bouton blanc. Les filtres de région combinent les régions géographiques confirmées sans enfants de type programme, préservant les chaînes, les favoris et les groupes manuels."
+      ],
+      [
+        "2026-10-27",
+        "v1.1.14 · Spectre radio en direct et affichage plein écran",
+        "Windows, macOS et Android avancent ensemble vers 1.1.14+109. Les cartes de lecture radio et de prévisualisation en sourdine affichent un spectre en direct mesuré à partir de l'audio décodé. Le plein écran s'adapte à la largeur d'affichage avec jusqu'à 128 barres fines."
+      ],
+      [
+        "2026-10-26",
+        "v1.1.13 · Isolation et récupération de l'état des mises à jour Mac",
+        "Windows, macOS et Android avancent ensemble vers 1.1.13+108. Corrigez les mises à jour Mac bloquées par des enregistrements obsolètes provenant d'une version de test ou d'une autre installation, tout en conservant la protection contre les restaurations en cas d'échec de démarrage. L’état de mise à jour est isolé par installation. Les enregistrements de restauration hérités valides migrent en toute sécurité et les reçus de processus périmés ne peuvent pas confirmer un autre lancement. Si un client plus ancien est déjà bloqué, remplacez-le une fois à l'aide du DMG ; les favoris, les sources et les données locales sont conservés."
+      ],
+      [
+        "2026-10-26",
+        "v1.1.12 · Catégories de pays et navigation séparée TV/radio",
+        "Windows, macOS et Android avancent ensemble vers 1.1.12+107. Les alias de pays partagent des étiquettes en chinois simplifié dans l'interface chinoise. Autre est une catégorie de niveau supérieur, et la télévision et la radio ont des succursales nationales distinctes. Les guides de programmes, les favoris et les choix manuels sont conservés. Les chaînes non identifiées restent dans Autre tandis que les lots en arrière-plan examinent le pays et le type de service. Suppression du plafond de demandes d'IA quotidiennes non configurées ; les tentatives suivent les limites de débit en amont réelles."
+      ],
+      [
+        "2026-10-25",
+        "v1.1.11 · Guides de chaînes, arrêt ordonné et accès au trousseau",
+        "La version 1.1.11+106 de Windows, macOS et Android corrige la correspondance EPG et l'expansion de la carte sur tous les types de canaux, avec des états explicites de données manquantes et d'échec de chargement. Les programmes XMLTV invalides sont ignorés individuellement et les sources personnalisées conservent leur actualisation automatique configurée. L'arrêt attend le travail en arrière-plan et la fermeture de la base de données. Les fonctionnalités désactivées ne lisent pas les informations d’identification du trousseau et l’accès refusé interrompt les tentatives automatiques. Les tentatives de synchronisation sont espacées tandis que les modifications locales, les mappages manuels et les caches sont conservés. Android ARM32, ARM64 et x64 sont construits à partir de la même source d'application fixe et utilisent la même version que le bureau."
+      ],
+      [
+        "2026-10-24",
+        "v1.1.10 · Versions unifiées, synchronisation des diagnostics et récupération après expiration du délai",
+        "Les trois plates-formes partagent la version 1.1.10+103 et une source de fonctionnalités commune. La synchronisation facultative des diagnostics expurgés sur 30 jours nécessite un nouveau consentement, peut être désactivée et utilise le transfert cndrp durable en Chine continentale. Les délais d'attente de connexion aux ressources, d'en-tête et de corps peuvent changer de nœud. Les écritures du catalogue sont récupérées via une boîte de réception limitée tout en conservant les ID d'événement et les données hors ligne. Les contrôles de fenêtre du bureau uniquement conservent les différences de plate-forme."
+      ],
+      [
+        "2026-10-23",
+        "v1.1.9 · Lecture de remplissage de fenêtre et épingle de fenêtre",
+        "Windows et macOS bénéficient d'une lecture qui remplit les fenêtres et d'une épingle toujours visible. Remplissez la fenêtre de l'application en conservant son cadre et réutilisez le lecteur actuel lors d'un changement de présentation. Détachez-le à tout moment ; le choix de la broche est restauré après le plein écran ou l'image dans l'image. Android reste à 1.1.7."
+      ],
+      [
+        "2026-10-22",
+        "v1.1.8 · Regroupement de canaux, déduplication de routes et correctifs de fusion",
+        "La version 1.1.8 met à jour Windows x64/ARM64 et macOS Intel/Apple Silicon. Les itinéraires pour le même service partagent une seule carte, les adresses en double comptent une fois et les choix de fusion du même nom restent sélectionnables. Les favoris, la provenance de l'itinéraire et les paramètres manuels sont conservés. Les distinctions entre régions, télévision/radio et décalage horaire restent distinctes. Android reste disponible en version 1.1.7."
+      ],
+      [
+        "2026-10-17",
+        "v1.1.7 · Lecture en premier, transfert direct de prévisualisation et client plus léger",
+        "Essayez d'abord le score de réseau actuel le plus élevé, puis le candidat suivant en cas de panne de décodeur. Supprimez les sondes de support de démarrage parallèles. Transférez le lecteur existant d’un aperçu décodé sans synchronisation répétée de l’itinéraire ni mise en mémoire tampon de la porte de récupération. Les noms publics, catégories, itinéraires et EPG proviennent du serveur ; supprimez l’inférence du temps de navigation et les analyses à l’échelle de la catégorie. Préservez les paramètres manuels, les sources privées et les données hors ligne. La latence de commutation physique et l’acceptation de la lecture restent en attente."
+      ],
+      [
+        "2026-10-17",
+        "v1.1.6 · Arrêt sécurisé du lecteur et synchronisation EPG en arrière-plan",
+        "Unifie le nettoyage principal, d'aperçu et multi-vues, attend que les rappels natifs se détachent avant l'arrêt et enregistre les origines de sortie. Ajoute un détachement limité du moteur de rendu pour les fenêtres masquées, des vérifications de version EPG en arrière-plan et des mises à jour de guides en direct. Les mappages manuels, les sources privées et les caches hors ligne sont préservés. La couverture du programme public et l'acceptation de deux mises à jour à chaud en version réelle restent incomplètes ; une première mise à jour client est requise."
+      ],
+      [
+        "2026-10-16",
+        "v1.1.5 · Restauration de la fenêtre d'origine et menus de catégories",
+        "Le retour de la vidéo en plein écran restaure les limites de l'appelant, la maximisation ou le plein écran natif et la disposition des canaux. Répare le chevauchement des légendes natives de Windows, l'état de retour PiP et le rappel de terminaison Mac. Les fenêtres contextuelles de catégorie utilisent un texte plus grand et des boutons avec moins d'espace vide. La découverte continue d'EPG est un développement planifié et n'est pas incluse dans cette version."
+      ],
+      [
+        "2026-10-14",
+        "v1.1.4 · Mises en page unifiées, correctifs plein écran et état de la route",
+        "Toutes les tailles de fenêtre utilisent la même disposition équilibrée, trois lignes de catégories et les menus Plus attachés. macOS Escape et la rentrée native en plein écran sont réparés. Les canaux sélectionnés donnent la priorité au nouvel état de retraite ; les favoris conservent chaque itinéraire équivalent. L'acceptation physique de Windows et d'Android reste en attente. Les mises à jour de la plateforme sont reflétées sur cndrp."
+      ],
+      [
+        "2026-10-13",
+        "v1.1.3 · Mises en page compactes et sortie Android",
+        "Les installateurs et packages portables Windows x64 et ARM64 sont désormais disponibles, rejoignant macOS et Android sur 1.1.3. Les vues compactes utilisent des volets égaux, au maximum trois lignes de catégories et des menus de débordement associés, préservant ainsi un aperçu complet et une chronologie du programme. Android ajoute un contrôle de sortie explicite."
+      ],
+      [
+        "2026-10-12",
+        "v1.1.2 · Création de catégories, favoris privés et commentaires de mise à jour",
+        "Créez les pays et sous-catégories manquants en les tapant. Les favoris sont sauvegardés en privé sur l'appareil d'origine et les autres clients ne peuvent pas réactiver les itinéraires retirés. Le badge de synchronisation s'aligne à droite. Les mises à jour Windows gérées sont téléchargées dans l'application et affichent la progression de l'installation."
+      ],
+      [
+        "2026-10-12",
+        "v1.1.1 · Miroirs de ressources, transferts de routes et dimensionnement des fenêtres",
+        "Ajoute une comparaison de nœuds de ressources cndrp et une solution de repli en cas d'échec tout en gardant la vidéo directe. Les itinéraires individuels se déplacent entre les canaux avec la synchronisation du catalogue public. Le démarrage et la restauration du bureau s'adaptent à la zone de travail de l'affichage."
+      ],
+      [
+        "2026-10-12",
+        "v1.1.0 · Packages natifs Windows ARM64 ajoutés",
+        "Construit de manière croisée sur Windows x64. Choisissez ARM64 dans le groupe de téléchargement Windows. Les architectures App, Dart AOT et DLL ont été validées ; Les tests du matériel de surface restent en attente."
+      ],
+      [
+        "2026-10-12",
+        "v1.1.0 · Tablettes Android et groupes de téléchargement de processeurs",
+        "Ajoute des APK Android 7+, des menus tactiles, une lecture préservant l'aspect et des mises à jour confirmées par le système. Chaque système d'exploitation dispose d'un groupe de téléchargement avec des choix de processeurs."
+      ],
+      [
+        "2026-10-12",
+        "v1.0.6 · Correction du nombre de parcours de jeu",
+        "Conserve la connectivité du serveur, la fusion des chaînes et les correctifs plein écran. L'acteur principal lit son propre pool de candidats, indépendamment de la catégorie parcourue."
+      ],
+      [
+        "2026-10-12",
+        "v1.0.5 · Connectivité du serveur, fusion de canaux et plein écran",
+        "Déplace la découverte et l'IA vers le serveur avec un accès multimédia HTTPS et un classement régional. Ajoute la fusion de canaux inter-catégories, la sélection de noms et la synchronisation des itinéraires dédupliqués ; corrige les commentaires de chargement de catégorie. Répare le chrome et la maximisation plein écran de Windows, en conservant le guide des trois programmes."
+      ],
+      [
+        "2026-10-07",
+        "v1.0.4 · Paramètres repensés",
+        "Windows et Mac partagent des paramètres repensés. Sept catégories organisent les chaînes, la lecture, la synchronisation, l'IA, les sauvegardes et les mises à jour, en préservant les fonctionnalités et préférences existantes."
+      ],
+      [
+        "2026-10-06",
+        "v1.0.3 · PiP de bureau et guide plein écran",
+        "Windows et Mac bénéficient d'un lecteur flottant et d'un guide de programme texte léger. Les mises à jour Windows gèrent les assistants verrouillés et activent le lancement uniquement après la vérification de l'installation."
+      ],
+      [
+        "2026-10-05",
+        "v1.0.2 · État de la mise à jour",
+        "Les contrôles de mise à jour indiquent la progression, les échecs de connexion et les exigences d'autorisation. Les packages Mac ont été publiés en premier ; Les améliorations de Windows sont disponibles dans la version 1.0.3."
+      ],
+      [
+        "2026-10-05",
+        "v1.0.1 · Contrôles plein écran",
+        "Sous Windows, déplacer la souris vers le haut révèle les contrôles de la fenêtre. Le retour aux chaînes maintient la fenêtre en plein écran."
+      ],
+      [
+        "2026-10-04",
+        "v1.0.0 · Installateurs",
+        "Programmes d'installation DMG par glisser-déposer de l'installation de Windows et de macOS. Comportement de retour plein écran unifié et correctifs de chemin de composant Unicode."
+      ]
+    ],
+    "closing": "Choisissez le programme d'installation pour votre ordinateur.",
+    "closing_text": "Une colonne chacune pour Windows, macOS et Android, avec les choix de processeur à l'intérieur. Des packages natifs Windows ARM64 sont disponibles ; Les tests du matériel Surface sont en attente."
+  },
+  "downloads": {
+    "signing_notice": "L'application gratuite SignPath Foundation n'a pas été approuvée. Aucun certificat Windows de confiance n'a été émis et la signature de production SignPath.io n'est pas utilisée. Edge peut toujours exiger une confirmation de sécurité lors du premier téléchargement du navigateur.",
+    "intro": "Windows, macOS et Android utilisent la version 1.1.19+114. Changez de langue en haut de l’application. Votre choix est mémorisé. En mode automatique, l’application utilise la langue du système, le fuseau horaire, puis l’anglais. Chaque programme d’installation contient les ressources linguistiques. L’accès au mode avancé a été fermé. La synchronisation des diagnostics est désactivée par défaut. Avec votre accord, elle transmet jusqu’à 30 jours de données expurgées. Vous pouvez la désactiver à tout moment. L’application macOS utilise une signature ad-hoc.",
+    "latest": "Derniers installateurs",
+    "local": "Téléchargements hébergés sur ce site",
+    "sections": [
+      {
+        "id": "install",
+        "title": "Mise en place",
+        "text": "Choisissez le package adapté à votre système d'exploitation et à votre processeur.",
+        "items": [
+          [
+            "Fenêtres",
+            "Exécutez le programme d'installation pour choisir le dossier d'installation et le raccourci sur le bureau. Le dossier par défaut est BoB\\BoBTV sous Program Files ; l’approbation de l’administrateur est requise. Pour le ZIP portable, extrayez tous les fichiers et exécutez BobTV.exe. Les chaînes personnelles et les favoris sont stockés dans votre dossier de données utilisateur."
+          ],
+          [
+            "macOS",
+            "Ouvrez le DMG hébergé sur ce site et faites glisser BobTV.app vers Applications. Pour les mises à jour automatiques après la fermeture, installez-les dans un dossier Applications accessible en écriture de votre répertoire personnel. N'exécutez pas l'application à long terme à partir de l'image disque en lecture seule. L'application est signée ad hoc, sans signature ni notarisation de l'identifiant de développeur Apple ; Les ZIP à mise à jour automatique sont vérifiés séparément avec une signature d'éditeur BobTV. Le premier lancement peut encore nécessiter une approbation manuelle. Les fonctionnalités désactivées ne lisent pas leurs informations d'identification du trousseau et l'accès refusé suspend les tentatives automatiques jusqu'à ce que vous le repreniez explicitement."
+          ],
+          [
+            "Mises à jour",
+            "BobTV vérifie au démarrage, toutes les six heures et au retour au premier plan. Les installations Windows gérées téléchargent et vérifient la configuration dans BobTV, demandent l'approbation de l'administrateur lorsque vous choisissez Installer, puis affichent la progression de l'installation. L'annulation de l'approbation permet de maintenir l'ancienne application en cours d'exécution. Les clients gérés plus anciens ont besoin de cette configuration une fois. Les emplacements Windows portables et Mac inscriptibles sont mis à jour après la sortie et tentent de revenir en arrière après trois démarrages échoués. Les emplacements Mac protégés nécessitent un remplacement manuel. Sans signature de code fiable, les avertissements Edge lors d'un premier téléchargement dans le navigateur peuvent persister."
+          ],
+          [
+            "Androïde",
+            "Installez l'APK sur Android 7 ou version ultérieure. Choisissez d'abord ARM64, ARM32 pour les appareils limités aux applications 32 bits, ou x64 pour les appareils/émulateurs correspondants. La vidéo conserve son rapport hauteur/largeur source en mode portrait et paysage. Les mises à jour nécessitent une autorisation d'installation Android et une confirmation du système."
+          ]
+        ]
+      },
+      {
+        "id": "first-launch",
+        "title": "Premier lancement et synchronisation des chaînes",
+        "text": "BobTV synchronise les chaînes et les hiérarchies complètes de catégories de BobTV et compare le site principal avec cndrp pour la livraison des ressources. La découverte et l'IA s'exécutent sur le serveur ; la vidéo se connecte directement à sa source. Les clients vérifient le canal sélectionné à la demande.",
+        "items": [
+          [
+            "Catalogue initial",
+            "BobTV affiche d'abord les chaînes locales ou groupées, puis récupère le catalogue public catégorisé et vérifié. Le nombre de chaînes change à mesure que les sources sont conservées."
+          ],
+          [
+            "Statut de synchronisation",
+            "Les synchronisations ayant échoué réessayent à intervalles espacés pour éviter des changements d'état rapides. Les modifications locales restent enregistrées en attendant ; les clics répétés sont inutiles."
+          ],
+          [
+            "Public et personnel",
+            "Les catégories publiques, les notes, les abandons et les transferts d'itinéraires sont synchronisés sur tous les appareils. La lecture réussie d'autres clients ne peut pas restaurer les itinéraires retirés. Les sauvegardes privées des favoris ne peuvent revenir qu'à l'appareil d'origine ; l’histoire et les abonnements privés restent locaux."
+          ]
+        ]
+      }
+    ]
+  },
+  "diagnostics": {
+    "title": "Journaux de diagnostic",
+    "intro": "Si la lecture ou l'application échoue, vous pouvez soumettre un journal de diagnostic manuellement. La page filtre les champs autorisés avant le téléchargement.",
+    "submit": "Télécharger le journal",
+    "limit": "Choisissez un fichier .log ou .jsonl, jusqu'à 1 Mio et 5 000 entrées. Un téléchargement réussi renvoie un ID de diagnostic.",
+    "choose": "Choisissez le fichier journal",
+    "privacy": "Ce qui est téléchargé",
+    "notes": [
+      "Seuls les champs récapitulatifs autorisés, notamment les métriques d'heure, d'événement, de source et d'exécution, sont envoyés. Le texte d’exception brut, les chemins et les URL de lecture sont exclus.",
+      "Les journaux sont stockés en privé pendant 14 jours, sans point de terminaison de lecture public. Les téléchargements automatiques de résumés sont désactivés par défaut et peuvent être activés dans l'application.",
+      "La synchronisation des chaînes et les téléchargements de diagnostics s'exécutent indépendamment. Conservez l'heure, la plate-forme et la version de l'application lorsque vous signalez des erreurs de synchronisation, de téléchargement ou de lecture.",
+      "L'application signale un hachage matériel spécifique à l'application pour compter les appareils installés. Les ID matériels bruts ne sont pas envoyés. Les versions anciennes ou hors ligne ne sont pas observées ; les identifiants de périphériques clonés peuvent être comptés ensemble."
+    ]
+  },
+  "messages": {
+    "loading": "Chargement des informations sur la version…",
+    "empty": "Aucun installateur n'est encore disponible. Veuillez vérifier à nouveau plus tard.",
+    "release_error": "Les informations de sortie ne sont pas disponibles. Veuillez réessayer plus tard.",
+    "current": "Dernière version",
+    "published": "Sortie {date}",
+    "version_note": "Chaque téléchargement affiche sa version de plateforme.",
+    "windows": "Fenêtres",
+    "intel": "Mac Intel",
+    "silicon": "Apple Silicon Mac",
+    "zip": "ZIP portatif",
+    "dmg": "Installateur DMG",
+    "exe": "Programme d'installation EXE",
+    "download": "Télécharger",
+    "download_label": "Télécharger {platform} {version}, {size}",
+    "checksum": "Sommes de contrôle SHA-256",
+    "no_file": "Aucun fichier sélectionné",
+    "file_limit": "Choisissez un journal jusqu'à 1 Mio.",
+    "checking": "Vérification du journal…",
+    "entries": "Trop d'entrées de journal",
+    "invalid": "Journal JSONL invalide",
+    "processed_limit": "Le journal filtré dépasse 1 Mio",
+    "uploading": "Téléchargement…",
+    "success": "Téléchargement terminé. ID de diagnostic : {id}",
+    "failure": "Échec du téléchargement ({error}). Vérifiez le fichier et réessayez.",
+    "cpu_note": "Un groupe par système d'exploitation. Choisissez votre processeur.",
+    "download_package": "Télécharger le programme d'installation",
+    "portable_download": "Télécharger le ZIP portable",
+    "pending": "En attente",
+    "surface_pending": "Validation de la version native Surface ARM en attente",
+    "windows_note": "L'installation nécessite l'approbation de l'administrateur. Extrayez le ZIP complet pour une utilisation portable.",
+    "macos_note": "Les dépendances actuelles nécessitent macOS 13 ou version ultérieure ; la compatibilité avec les anciens systèmes est en attente. Choisissez votre puce, ouvrez le DMG et faites glisser l'application vers Applications.",
+    "android_note": "Android 7+. Les mises à jour nécessitent une confirmation du système. Tests de l'appareil et de la Chine continentale en cours.",
+    "windows_arm64_note": "Les packages ARM64 natifs ont réussi les vérifications de construction et d’architecture. La lecture sur Surface, AirPlay et l'installation des mises à jour nécessitent encore des tests matériels.",
+    "platform_pending": "Cette plateforme fournit actuellement {version}. Ses téléchargements existants et son canal de mise à jour restent disponibles."
+  },
+  "policies": {
+    "privacy": [
+      [
+        "BOBTV / CONFIDENTIALITÉ",
+        []
+      ],
+      [
+        "Vos données ont des limites.",
+        []
+      ],
+      [
+        "Politique de confidentialité / Politique de confidentialité · Date de mise à jour : 2026-10-13",
+        []
+      ],
+      [
+        "01 / CONNEXIONS",
+        []
+      ],
+      [
+        "Services et connexions Internet",
+        []
+      ],
+      [
+        "Les répertoires publics, les catégories, les logos des stations, les listes de programmes et les mises à jour proviennent de bobtv.briconbric.com. cndrp.com peut être utilisé comme nœud de ressource sélectionné après le test de vitesse, et la vidéo est directement connectée à la source de signal d'origine.",
+        []
+      ],
+      [
+        "informations sur le réseau",
+        []
+      ],
+      [
+        "Les informations telles que l'adresse IP, l'adresse de la demande, l'heure de connexion et la version fournie par le client sont visibles par le récepteur du réseau. Les sources de programmes tiers, les récepteurs de projection sur écran et les services auto-configurés ont leurs propres règles de traitement des données. Le serveur est responsable de la découverte des sources et de l'IA, et le client ne se connecte pas directement à GitHub à cet effet.",
+        []
+      ],
+      [
+        "Empreinte digitale spécifique à l'application",
+        []
+      ],
+      [
+        "L'empreinte digitale de l'appareil est générée localement et le service associé utilise un hachage spécifique à l'application pour identifier l'appareil. Le numéro de série du matériel d'origine, l'adresse MAC et le nom de la machine ne sont pas envoyés en tant que champs d'identité API, et l'adresse IP requise pour établir la connexion est toujours visible pour le récepteur réseau.",
+        []
+      ],
+      [
+        "02 / SYNCHRONISATION",
+        []
+      ],
+      [
+        "Catalogues publics séparés des collections privées",
+        []
+      ],
+      [
+        "Les enregistrements d'ajout, de suppression, de classification, de fusion, de transfert de ligne, de notation et d'élimination de canaux sont utilisés pour la maintenance publique. Les adresses d'abonnement privées, les comptes, les historiques de visualisation et les clés n'entrent pas dans la liste publique.",
+        []
+      ],
+      [
+        "Les collections sont uniquement restaurées sur l'appareil d'origine",
+        []
+      ],
+      [
+        "La sauvegarde de la collection utilise l'empreinte digitale originale de l'appareil, la clé exclusive et l'identification du canal/ligne. Il ne contient pas d'adresses de lecture d'abonnement privées et n'est pas distribué à d'autres utilisateurs. Le service conserve les sauvegardes pour restauration par l'appareil d'origine. La désactivation de la synchronisation ne supprimera pas automatiquement les sauvegardes de serveur existantes ou les collections locales.",
+        []
+      ],
+      [
+        "Contrôle des sauvegardes en ligne",
+        []
+      ],
+      [
+        "Les builds candidats à la signature disposent désormais d'une première option d'activation lors de l'installation et d'un commutateur « Paramètres → Synchronisation et confidentialité → Sauvegarde en ligne de la collection locale ». Après la fermeture, la lecture ou le téléchargement des sauvegardes ne démarrera plus et les demandes envoyées ne pourront pas être retirées. Le comportement des versions officielles existantes de la 1.1.2 n'est pas modifié par cet article, et ces contrôles prendront effet dans les nouvelles versions officielles qui les incluent.",
+        []
+      ],
+      [
+        "03 / DIAGNOSTIC",
+        []
+      ],
+      [
+        "Le partage de diagnostic est désactivé par défaut",
+        []
+      ],
+      [
+        "Le partage de l'état de lecture et le téléchargement automatique des résumés de diagnostic sont désactivés par défaut et peuvent être contrôlés séparément dans les paramètres. Les soumissions de sources de candidats nécessitent une confirmation supplémentaire des droits de partage et des domaines concernés.",
+        []
+      ],
+      [
+        "Résumés filtrés",
+        []
+      ],
+      [
+        "Seuls les champs récapitulatifs tels que l'heure, l'événement, l'ID source, l'indicateur de défaut, l'exécution, la mémoire et la plate-forme sont autorisés. Le texte d'exception, le chemin et l'adresse de lecture d'origine sont exclus des téléchargements de résumé. Le résumé du diagnostic du serveur est stocké en privé pendant 14 jours et ne fournit pas d'accès public.",
+        []
+      ],
+      [
+        "Journaux et dumps natifs",
+        []
+      ],
+      [
+        "Les journaux bruts et les dumps sont enregistrés dans le répertoire des données utilisateur et ne sont pas automatiquement téléchargés en tant que résumés. Le dump peut contenir des informations d'identification ou du contenu de la mémoire privée, qui doivent être vérifiés avant le partage. Le programme de désinstallation conserve les données utilisateur. Les demandes de suppression peuvent être faites en contactant le responsable. N'envoyez pas d'informations d'identification, d'identification de périphérique ou de vidages bruts dans les problèmes publics.",
+        []
+      ],
+      [
+        "DIAGNOSTIC V2",
+        []
+      ],
+      [
+        "Synchronisation facultative du diagnostic de désensibilisation sur 30 jours",
+        []
+      ],
+      [
+        "S'applique uniquement aux nouveaux clients qui incluent Diagnostic Sync V2. Un consentement explicite est requis pour la première activation et peut être désactivé à tout moment dans les paramètres ; l’ancienne autorisation de téléchargement de résumé ne sera pas automatiquement étendue.",
+        []
+      ],
+      [
+        "Portée et durée de conservation",
+        []
+      ],
+      [
+        "Permet le téléchargement d'événements, de versions d'application, de plates-formes, d'étapes de demande, de nœuds, de consommation de temps, de codes d'état et de statistiques de ressources encore disponibles au cours des 30 derniers jours. Utilisez la synchronisation incrémentielle par lots limités à chaque fois, sans télécharger d'exceptions brutes, de piles, d'adresses de lecture, d'abonnements privés, d'informations d'identification, de collections, de vues ou de vidages. Les diagnostics utilisent un identifiant aléatoire intégré à l'application et n'utilisent pas de numéros de série matériels. Les nœuds maîtres et les relais sont enregistrés jusqu'à 30 jours après l'événement, et la protection de capacité native peut raccourcir l'historique disponible. Les anciens résumés sont toujours conservés selon la politique initiale de 14 jours.",
+        []
+      ],
+      [
+        "Relais et arrêt",
+        []
+      ],
+      [
+        "La Chine continentale est temporairement stockée dans la file d'attente privée cndrp, puis transférée vers le nœud maître par la tâche serveur à l'aide de TLS. Le client fait la distinction entre le stockage temporaire relais et le reçu de réception du nœud maître ; après confirmation du nœud maître, le relais supprime le contenu et ne conserve que le reçu expiré. Les réseaux inconnus utilisent également des relais en premier. Après la fermeture, arrêtez les téléchargements de nouveaux clients et annulez les demandes locales en transit ; les demandes parvenues au serveur ne pourront pas être retirées et seront automatiquement effacées selon le délai ci-dessus. Le serveur ne fournit pas d'entrée de téléchargement pour le contenu de diagnostic public.",
+        []
+      ]
+    ],
+    "code-signing": [
+      [
+        "BOBTV / CONFIANCE",
+        []
+      ],
+      [
+        "Politique de signature de code",
+        []
+      ],
+      [
+        "01 / STATUT",
+        []
+      ],
+      [
+        "Demande de signature gratuite non approuvée",
+        []
+      ],
+      [
+        "La demande a été soumise le 2026-10-13 et un accusé de réception de page Web a été reçu. L'e-mail d'examen indiquait que l'utilisation publique et le signal de confiance du projet étaient insuffisants et que la demande n'avait pas été approuvée. Aucun certificat SignPath Foundation ni informations d'identification de signature de production n'ont été obtenus ; le package d'installation Windows existant ne dispose pas de signature Authenticode fiable.",
+        []
+      ],
+      [
+        "Construction de code source vérifiable",
+        []
+      ],
+      [
+        "Déclenchez manuellement la build à partir de la branche principale de ce projet uniquement dans l'environnement GitHub Standard Managed Windows. Les tâches push, planifiées et la publication automatique ne déclenchent pas de signatures. {link0}, aucun produit binaire n'a été téléchargé pour cette vérification.",
+        [
+          "La vérification de la build et de l'empaquetage des candidats Windows x64 et ARM64 a été réussie"
+        ]
+      ],
+      [
+        "Approbation manuelle pour chaque signature",
+        []
+      ],
+      [
+        "Approuvez et signez d'abord BobTV.exe, puis générez et signez le programme d'installation, vérifiez la chaîne de confiance, l'horodatage, la version et l'éditeur avant de préparer la nouvelle version.",
+        []
+      ],
+      [
+        "02 / MAINTENANT",
+        []
+      ],
+      [
+        "Responsabilités de maintenance et d’audit",
+        []
+      ],
+      [
+        "Auteur, réviseur de code et approbateur signé : {link0}. Les comptes doivent avoir une authentification multifacteur activée et les signatures de production ne doivent pas contourner l'approbation humaine.",
+        [
+          "sunshaoxuan"
+        ]
+      ],
+      [
+        "Gamme signature",
+        []
+      ],
+      [
+        "Ce projet signe BobTV.exe et BobTV Setup. Les DLL tierces, les bibliothèques d'exécution Microsoft et les programmes auxiliaires conservent leurs propres licences et n'usurpent pas l'identité de la signature de ce projet. Le package candidat de signature gratuit n'est pas fourni avec l'ancien outil facultatif ProcDump, conservant la fonctionnalité de vidage Windows native de BobTV.",
+        []
+      ],
+      [
+        "Clés et mises à jour",
+        []
+      ],
+      [
+        "Les clés de soumission SignPath sont enregistrées uniquement en tant que clés restreintes. La propre clé privée signée par la mise à jour de BobTV reste sur l'appareil du responsable et n'est pas téléchargée sur le référentiel ou le serveur de build. Après la signature formelle, la valeur de vérification et la signature seront régénérées et la version publiée ne sera pas écrasée.",
+        []
+      ],
+      [
+        "03 / FOURNISSEUR",
+        []
+      ],
+      [
+        "Service de signature de bien-être public proposé",
+        []
+      ],
+      [
+        "Candidature au programme de projet Open Source SignPath soumise et rejetée. Si la nouvelle demande est approuvée à l'avenir, l'annotation de service suivante sera utilisée : le package actuel n'utilise pas cette signature de service :",
+        []
+      ],
+      [
+        "Attribution prévue après approbation",
+        []
+      ],
+      [
+        "Signature de code gratuite fournie par {link0}, certificat par {link1}.",
+        [
+          "SignPath.io",
+          "Fondation SignPath"
+        ]
+      ],
+      [
+        "La candidature a été déposée le 2026-10-13 et le site a confirmé sa réception. La demande n'a pas été approuvée et aucun certificat de Fondation n'a été délivré. Cette politique ne confère pas la confiance du public aux packages de versions existants.",
+        []
+      ],
+      [
+        "limites du certificat",
+        []
+      ],
+      [
+        "S'il est approuvé ultérieurement, l'émetteur du certificat sera SignPath Foundation et le nom du produit restera BobTV. Les conditions de qualification et de révocation sont soumises à {link0}. Les signatures ne garantissent pas l'autorisation, la disponibilité ou la sécurité des sources de programmation externes, ni la suppression immédiate des invites SmartScreen ou de l'autorisation de l'administrateur.",
+        [
+          "termes officiels"
+        ]
+      ]
+    ]
+  }
+}

@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import '../../core/desktop_app_exit.dart';
+import '../../core/i18n/app_language.dart';
 
 /// Use the normal native close path so independent update workers can finish.
 class DesktopExitButton extends StatefulWidget {
@@ -27,7 +28,7 @@ class _DesktopExitButtonState extends State<DesktopExitButton> {
       setState(() => _closing = false);
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(const SnackBar(content: Text('关闭未完成，请重试。')));
+      ).showSnackBar(SnackBar(content: Text(AppMessages.text(context, "关闭未完成，请重试。"))));
     }
   }
 
@@ -37,7 +38,7 @@ class _DesktopExitButtonState extends State<DesktopExitButton> {
       return const SizedBox.shrink();
     }
     return Tooltip(
-      message: '退出 BobTV',
+      message: AppMessages.text(context, "退出 BobTV"),
       child: TextButton.icon(
         onPressed: _closing ? null : _close,
         icon: _closing
@@ -47,7 +48,7 @@ class _DesktopExitButtonState extends State<DesktopExitButton> {
                 child: CircularProgressIndicator(strokeWidth: 2),
               )
             : const Icon(Icons.power_settings_new_rounded, size: 20),
-        label: Text(_closing ? '正在退出' : '退出'),
+        label: Text(_closing ? AppMessages.text(context, "正在退出") : AppMessages.text(context, "退出")),
         style: TextButton.styleFrom(foregroundColor: Colors.white70),
       ),
     );

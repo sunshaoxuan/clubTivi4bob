@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../data/services/manual_channel_category.dart';
+import '../../core/i18n/app_language.dart';
 
 class ChannelCategoryPicker extends StatefulWidget {
   const ChannelCategoryPicker({
@@ -159,7 +160,7 @@ class _ChannelCategoryPickerState extends State<ChannelCategoryPicker> {
                   const SizedBox(width: 12),
                   Expanded(
                     child: Text(
-                      '变更分类 · ${widget.channelName}',
+                      AppMessages.text(context, "变更分类 · {0}", [widget.channelName]),
                       style: const TextStyle(
                         fontSize: 20,
                         fontWeight: FontWeight.w700,
@@ -167,7 +168,7 @@ class _ChannelCategoryPickerState extends State<ChannelCategoryPicker> {
                     ),
                   ),
                   IconButton(
-                    tooltip: '关闭',
+                    tooltip: AppMessages.text(context, "关闭"),
                     onPressed: () => _finish(),
                     icon: const Icon(Icons.close_rounded),
                   ),
@@ -188,7 +189,7 @@ class _ChannelCategoryPickerState extends State<ChannelCategoryPicker> {
                               onPressed: _path.isEmpty
                                   ? null
                                   : () => _backTo(0, revision),
-                              child: const Text('全部地区'),
+                              child: Text(AppMessages.text(context, "全部地区")),
                             ),
                             for (
                               var index = 0;
@@ -244,10 +245,10 @@ class _ChannelCategoryPickerState extends State<ChannelCategoryPicker> {
                             padding: const EdgeInsets.only(bottom: 12),
                             child: Text(
                               _path.isEmpty
-                                  ? '选择国家或地区，也可输入名称新建'
+                                  ? AppMessages.text(context, "选择国家或地区，也可输入名称新建")
                                   : destination.valid
-                                  ? '可应用当前分类，也可输入名称继续细分'
-                                  : '选择下一级分类，也可输入名称新建',
+                                  ? AppMessages.text(context, "可应用当前分类，也可输入名称继续细分")
+                                  : AppMessages.text(context, "选择下一级分类，也可输入名称新建"),
                               style: const TextStyle(
                                 color: Color(0xFFADCFFF),
                                 fontSize: 13,
@@ -268,14 +269,14 @@ class _ChannelCategoryPickerState extends State<ChannelCategoryPicker> {
                           decoration: InputDecoration(
                             prefixIcon: const Icon(Icons.search_rounded),
                             hintText: _path.isEmpty
-                                ? '搜索或输入国家、地区名称'
-                                : '搜索或输入分类名称',
+                                ? AppMessages.text(context, "搜索或输入国家、地区名称")
+                                : AppMessages.text(context, "搜索或输入分类名称"),
                             errorText: inputError,
                             errorMaxLines: 2,
                             suffixIcon: _query.isEmpty
                                 ? null
                                 : IconButton(
-                                    tooltip: '清空输入',
+                                    tooltip: AppMessages.text(context, "清空输入"),
                                     onPressed: () {
                                       if (!mounted ||
                                           _finished ||
@@ -298,7 +299,7 @@ class _ChannelCategoryPickerState extends State<ChannelCategoryPicker> {
                               onPressed: () => _submitName(_query, revision),
                               icon: const Icon(Icons.add_rounded),
                               label: Text(
-                                '创建“$typedName”',
+                                AppMessages.text(context, "创建“{0}”", [typedName]),
                                 overflow: TextOverflow.ellipsis,
                               ),
                             ),
@@ -310,10 +311,10 @@ class _ChannelCategoryPickerState extends State<ChannelCategoryPicker> {
                           runSpacing: 8,
                           children: [
                             if (options.isEmpty && _query.isNotEmpty)
-                              const Padding(
+                              Padding(
                                 padding: EdgeInsets.symmetric(vertical: 20),
                                 child: Text(
-                                  '没有匹配的分类',
+                                  AppMessages.text(context, "没有匹配的分类"),
                                   style: TextStyle(color: Colors.white60),
                                 ),
                               ),
@@ -411,8 +412,8 @@ class _ChannelCategoryPickerState extends State<ChannelCategoryPicker> {
                           size: 36,
                         ),
                         const SizedBox(height: 12),
-                        const Text(
-                          '已到最深一层，可应用当前分类',
+                        Text(
+                          AppMessages.text(context, "已到最深一层，可应用当前分类"),
                           style: TextStyle(color: Colors.white70),
                         ),
                       ],
@@ -426,14 +427,14 @@ class _ChannelCategoryPickerState extends State<ChannelCategoryPicker> {
                 children: [
                   TextButton(
                     onPressed: () => _finish(),
-                    child: const Text('取消'),
+                    child: Text(AppMessages.text(context, "取消")),
                   ),
                   const SizedBox(width: 12),
                   FilledButton(
                     onPressed: destination.valid && _query.isEmpty
                         ? () => _finish(revision: revision)
                         : null,
-                    child: const Text('应用分类'),
+                    child: Text(AppMessages.text(context, "应用分类")),
                   ),
                 ],
               ),

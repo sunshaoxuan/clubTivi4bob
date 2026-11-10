@@ -9,12 +9,16 @@
   "titles": {
     "index": "BobTV | Desktop TV player",
     "downloads": "Downloads | BobTV",
-    "diagnostics": "Diagnostics | BobTV"
+    "diagnostics": "Diagnostics | BobTV",
+    "privacy": "Privacy policy | BobTV",
+    "code-signing": "Code signing policy | BobTV"
   },
   "meta": {
     "index": "BobTV is a desktop TV player for Windows and macOS with channel previews and a shared public channel catalog.",
     "downloads": "One column each for Windows, macOS and Android, with CPU choices inside. Native Windows ARM64 packages are available; Surface hardware tests are pending.",
-    "diagnostics": "Submit a filtered JSONL diagnostic log to BobTV."
+    "diagnostics": "Submit a filtered JSONL diagnostic log to BobTV.",
+    "privacy": "BobTV's public synchronization, private collection of original equipment, diagnostics and third-party media network boundaries.",
+    "code-signing": "BobTV Free Windows Code Signing Application, Manual Approval and Source Verification Policy."
   },
   "footer": "BobTV · Open-source desktop player",
   "disclaimer": "Check the availability and permissions of third-party streams before use.",
@@ -26,7 +30,7 @@
   "features": "Features",
   "home": {
     "headline": "Watch TV on desktop and Android.",
-    "intro": "Windows, macOS and Android are aligned at 1.1.18+113. Public channels load by the selected country or category, with cached results and fewer repeated queries. A star click removes a favorite; list-management checkboxes now save correctly. Expired guide status stays within relevant channels and settings while background refresh continues. Android receives build and automated validation, without physical-device testing.",
+    "intro": "Windows, macOS and Android share version 1.1.19+114. Switch languages at the top of the app. Manual choices persist. Automatic mode uses the system language, then the time zone, then English. The language resources are included with each installer. The advanced mode entry has been closed.",
     "image_alt": "BobTV running in simplified mode, with sports playback and a channel list.",
     "mode": "BOBTV / Simplified mode",
     "screenshot": "Actual app screenshot",
@@ -198,6 +202,11 @@
     "history_title": "Recent changes",
     "history": [
       [
+        "2026-11-11",
+        "v1.1.19 · Seven languages in the app and on the website",
+        "Windows, macOS and Android share version 1.1.19+114. Switch languages at the top of the app. Manual choices persist. Automatic mode uses the system language, then the time zone, then English. The language resources are included with each installer. The advanced mode entry has been closed."
+      ],
+      [
         "2026-11-01",
         "v1.1.18 · Faster categories, favorites and programme-guide status fixes",
         "Windows, macOS and Android are aligned at 1.1.18+113. Public channels load by the selected country or category, with cached results and fewer repeated queries. A star click removes a favorite; list-management checkboxes now save correctly. Expired guide status stays within relevant channels and settings while background refresh continues. Android receives build and automated validation, without physical-device testing."
@@ -338,7 +347,7 @@
   },
   "downloads": {
     "signing_notice": "The free SignPath Foundation application was not approved. No trusted Windows certificate was issued and SignPath.io production signing is not in use. Edge may still require a security confirmation on the first browser download.",
-    "intro": "Windows, macOS and Android are aligned at 1.1.18+113. Country-scoped loading and caching reduce repeated queries. Favorite removal, list checkboxes and guide-status display are fixed. Android receives build and automated validation, without physical-device testing. Diagnostic sync is off by default; explicit consent permits up to 30 days of redacted records and can be disabled at any time.",
+    "intro": "Windows, macOS and Android share version 1.1.19+114. Switch languages at the top of the app. Manual choices persist. Automatic mode uses the system language, then the time zone, then English. The language resources are included with each installer. The advanced mode entry has been closed. Diagnostic sync is off by default. Explicit consent enables up to 30 days of redacted records and can be withdrawn at any time.",
     "latest": "Latest installers",
     "local": "Downloads hosted on this site",
     "sections": [
@@ -435,5 +444,240 @@
     "android_note": "Android 7+. Updates require system confirmation. Device and Mainland China tests pending.",
     "windows_arm64_note": "Native ARM64 packages passed build and architecture checks. Surface playback, AirPlay and update installation still need hardware tests.",
     "platform_pending": "This platform currently provides {version}. Its existing downloads and update channel remain available."
+  },
+  "policies": {
+    "privacy": [
+      [
+        "BOBTV / PRIVACY",
+        []
+      ],
+      [
+        "Your data has boundaries.",
+        []
+      ],
+      [
+        "Privacy Policy / Privacy policy · Updated date: 2026-10-13",
+        []
+      ],
+      [
+        "01 / CONNECTIONS",
+        []
+      ],
+      [
+        "Services and Internet Connections",
+        []
+      ],
+      [
+        "Public directories, categories, station logos, program listings and updates come from bobtv.briconbric.com. cndrp.com can be used as the resource node selected after the speed test, and the video is directly connected to the original signal source.",
+        []
+      ],
+      [
+        "network information",
+        []
+      ],
+      [
+        "Information such as the IP, request address, connection time, and version provided by the client are visible to the network receiver. Third-party program sources, screen projection receivers, and self-configured services have their own data processing rules. The server is responsible for source discovery and AI, and the client does not connect directly to GitHub for this purpose.",
+        []
+      ],
+      [
+        "Application specific fingerprint",
+        []
+      ],
+      [
+        "The device fingerprint is generated locally and the associated service uses an application-specific hash to identify the device. The original hardware serial number, MAC address, and machine name are not sent as API identity fields, and the IP required to establish the connection is still visible to the network receiver.",
+        []
+      ],
+      [
+        "02 / SYNC",
+        []
+      ],
+      [
+        "Public catalogs separate from private collections",
+        []
+      ],
+      [
+        "Channel addition, deletion, classification, merging, line transfer, rating and elimination records are used for public maintenance. Private subscription addresses, accounts, viewing histories and keys do not enter the public list.",
+        []
+      ],
+      [
+        "Collections are only restored to the original device",
+        []
+      ],
+      [
+        "Collection backup uses the original device fingerprint, exclusive key and channel/line identification. It does not contain private subscription playback addresses and is not distributed to other users. The service retains backups for restoration by the original device. Turning off synchronization will not automatically delete existing server backups or local collections.",
+        []
+      ],
+      [
+        "Online backup control",
+        []
+      ],
+      [
+        "Signature candidate builds now have a first-time enablement option during installation and a \"Settings → Sync & Privacy → Local Collection Online Backup\" switch. After closing, backup reading or uploading will no longer start, and requests that have been sent cannot be withdrawn. The behavior of existing official versions of 1.1.2 is not changed by this article, and these controls will take effect in new official versions that include them.",
+        []
+      ],
+      [
+        "03 / DIAGNOSTICS",
+        []
+      ],
+      [
+        "Diagnostic sharing is turned off by default",
+        []
+      ],
+      [
+        "Sharing playback status and automatically uploading diagnostic summaries are turned off by default and can be controlled separately in settings. Candidate source submissions require additional confirmation of sharing rights and fields involved.",
+        []
+      ],
+      [
+        "Filtered abstracts",
+        []
+      ],
+      [
+        "Only summary fields such as time, event, source ID, fault flag, runtime, memory, and platform are allowed. The original exception text, path, and playback address are excluded from digest uploads. The server diagnostic summary is stored privately for 14 days and does not provide public access.",
+        []
+      ],
+      [
+        "Native logs and dumps",
+        []
+      ],
+      [
+        "Raw logs and dumps are saved in the user data directory and are not automatically uploaded as digests. The dump may contain credentials or private memory contents, which need to be checked before sharing. The uninstaller retains user data. Removal requests can be made by contacting the maintainer. Do not send credentials, device identification, or raw dumps in public issues.",
+        []
+      ],
+      [
+        "DIAGNOSTICS V2",
+        []
+      ],
+      [
+        "Optional 30-day desensitization diagnostic sync",
+        []
+      ],
+      [
+        "Applies only to new clients that include Diagnostic Sync V2. Explicit consent is required for first-time activation and can be turned off at any time in settings; old summary upload authorization will not be automatically expanded.",
+        []
+      ],
+      [
+        "Scope and retention period",
+        []
+      ],
+      [
+        "Allows uploading of events, application versions, platforms, request stages, nodes, time consumption, status codes and resource statistics that are still available in the last 30 days. Use bounded batch incremental sync every time, without uploading raw exceptions, stacks, playback addresses, private subscriptions, credentials, collections, views, or dumps. Diagnostics use an in-app random identifier and do not use hardware serial numbers. Master nodes and relays are saved until up to 30 days after the event, and native capacity protection may shorten the available history. Old summaries are still kept under the original 14-day policy.",
+        []
+      ],
+      [
+        "Relay and shutdown",
+        []
+      ],
+      [
+        "Mainland China is temporarily stored in the cndrp private queue, and then transferred to the master node by the server task using TLS. The client distinguishes between relay temporary storage and master node receipt receipt; after the master node confirms, the relay deletes the content and only retains the expired receipt. Unknown networks also use relays first. After closing, stop new client uploads and cancel local requests in transit; requests that have reached the server cannot be withdrawn and will be automatically cleared according to the above deadline. The server does not provide a download entrance for public diagnostic content.",
+        []
+      ]
+    ],
+    "code-signing": [
+      [
+        "BOBTV / TRUST",
+        []
+      ],
+      [
+        "Code signing policy",
+        []
+      ],
+      [
+        "01 / STATUS",
+        []
+      ],
+      [
+        "Free signature application not approved",
+        []
+      ],
+      [
+        "The application was submitted on 2026-10-13 and a web page receipt was received. The review email stated that the public use and trust signal of the project were insufficient, and the application was not approved. No SignPath Foundation certificate or production signing credentials have been obtained; the existing Windows installation package does not have trusted Authenticode signing.",
+        []
+      ],
+      [
+        "Verifiable source code build",
+        []
+      ],
+      [
+        "Manually trigger the build from the main branch of this project only in the GitHub Standard Managed Windows environment. Push, scheduled tasks and automatic publishing do not trigger signatures. {link0}, no binary product was uploaded for this verification.",
+        [
+          "Windows x64 and ARM64 candidate build and packaging verification passed"
+        ]
+      ],
+      [
+        "Manual approval for each signature",
+        []
+      ],
+      [
+        "First approve and sign BobTV.exe, then generate and sign Setup, verify the trust chain, timestamp, version and publisher before preparing for new version release.",
+        []
+      ],
+      [
+        "02 / MAINTAINER",
+        []
+      ],
+      [
+        "Maintenance and audit responsibilities",
+        []
+      ],
+      [
+        "Author, code reviewer, and signed approver: {link0}. Accounts must have multi-factor authentication enabled and production signatures must not bypass human approval.",
+        [
+          "sunshaoxuan"
+        ]
+      ],
+      [
+        "Signature range",
+        []
+      ],
+      [
+        "This project signs BobTV.exe and BobTV Setup. Third-party DLLs, Microsoft runtime libraries and auxiliary programs retain their own licenses and do not impersonate the signature of this project. The free signature candidate package does not come with the legacy optional ProcDump tool, retaining BobTV's native Windows dump functionality.",
+        []
+      ],
+      [
+        "Keys and Updates",
+        []
+      ],
+      [
+        "SignPath submission keys are saved as restricted keys only. BobTV's own update-signed private key remains on the maintainer's device and is not uploaded to the repository or build server. After formal signing, the verification value and signature will be regenerated, and the published version will not be overwritten.",
+        []
+      ],
+      [
+        "03 / PROVIDER",
+        []
+      ],
+      [
+        "Proposed public welfare signature service",
+        []
+      ],
+      [
+        "SignPath Open Source Project Program application submitted and rejected. If the re-application is approved in the future, the following service annotation will be used; the current package does not use this service signature:",
+        []
+      ],
+      [
+        "Planned attribution after approval",
+        []
+      ],
+      [
+        "Free code signing provided by {link0}, certificate by {link1}.",
+        [
+          "SignPath.io",
+          "SignPath Foundation"
+        ]
+      ],
+      [
+        "The application was submitted on 2026-10-13 and the site confirmed receipt. The application was not approved and no Foundation certificate was issued. This policy does not confer public trust on existing release packages.",
+        []
+      ],
+      [
+        "certificate boundaries",
+        []
+      ],
+      [
+        "If approved in the future, the certificate issuer will be SignPath Foundation and the product name will remain BobTV. Qualification and revocation conditions are subject to {link0}. Signatures do not guarantee the authorization, availability, or security of external programming sources, or the immediate removal of SmartScreen prompts or administrator authorization.",
+        [
+          "official terms"
+        ]
+      ]
+    ]
   }
 }

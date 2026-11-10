@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../core/i18n/app_language.dart';
 
 /// Keep the sync badge and category summary together at the panel's right edge.
 class SimpleChannelPanelHeader extends StatelessWidget {
@@ -13,7 +14,7 @@ class SimpleChannelPanelHeader extends StatelessWidget {
   final String summary;
   final bool compact;
 
-  Widget _title() => Row(
+  Widget _title(BuildContext context) => Row(
     mainAxisSize: MainAxisSize.min,
     children: [
       Container(
@@ -26,7 +27,7 @@ class SimpleChannelPanelHeader extends StatelessWidget {
       ),
       SizedBox(width: compact ? 7 : 11),
       Text(
-        '选台',
+        AppMessages.text(context, "选台"),
         style: TextStyle(
           color: Colors.white,
           fontSize: compact ? 16 : 23,
@@ -62,12 +63,12 @@ class SimpleChannelPanelHeader extends StatelessWidget {
       if (!compact && constraints.maxWidth < 280 * textScale) {
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [_title(), const SizedBox(height: 10), _status()],
+          children: [_title(context), const SizedBox(height: 10), _status()],
         );
       }
       return Row(
         children: [
-          _title(),
+          _title(context),
           const SizedBox(width: 12),
           Expanded(child: _status()),
         ],

@@ -1,0 +1,16 @@
+﻿Avis de confidentialité de BobTV
+
+BobTV obtiendra les informations sur la chaîne publique, la catégorie, la liste des programmes, le logo de la station et la version à partir de https://bobtv.briconbric.com. Les demandes de ressources peuvent sélectionner le nœud de cache BobTV sur https://cndrp.com ; la lecture vidéo est directement connectée à la source de signal sélectionnée. Le service réseau reçoit des informations telles que l'adresse IP, le chemin de la requête et la version de l'application requise pour la connexion.
+
+Les collections locales peuvent être sauvegardées de manière privée à l'aide du hachage d'empreinte digitale et de la clé exclusive de l'appareil d'origine, et ne peuvent être restaurées que sur l'appareil d'origine sans accéder à la bibliothèque de canaux publics. La sauvegarde utilise des identifiants de chaîne/ligne et des listes de favoris, et n'envoie pas d'adresses de lecture d'abonnement privées. Vous pouvez annuler la première activation sur la page suivante, ou vous pouvez désactiver la « Sauvegarde en ligne des favoris locaux » à tout moment dans « Paramètres → Synchronisation et confidentialité ». Les collections locales sont conservées après la fermeture ; les requêtes réseau envoyées ne peuvent pas être retirées.
+
+Les modifications telles que la classification, la fusion, le transfert de ligne, le classement et l'élimination des chaînes publiques seront synchronisées en arrière-plan en tant qu'enregistrements publics. Ne soumettez pas de comptes privés, de mots de passe ou d’adresses dont le partage n’est pas autorisé. Il existe des étapes de confirmation supplémentaires pour la soumission d’une source TV candidate.
+
+« Partager l'état de lecture » ​​et « Télécharger automatiquement le résumé du diagnostic » sont désactivés par défaut et peuvent être activés ou désactivés respectivement dans les paramètres. Le téléchargement manuel des diagnostics envoie uniquement des champs récapitulatifs filtrés. Les journaux d'origine, les piles d'exceptions et les fichiers de vidage sont enregistrés localement et ne seront pas automatiquement téléchargés en tant que résumés de diagnostic. Les sauvegardes peuvent contenir des informations sensibles et ne doivent pas être partagées sans examen.
+
+L'historique de lecture natif, les abonnements privés et les clés AI n'entrent pas dans le répertoire des chaînes publiques. Le serveur effectue des tâches de découverte de source et d'IA, et la source vidéo et le récepteur de projection d'écran disposent également de leurs propres règles de traitement des données.
+
+Politique complète : https://bobtv.briconbric.com/privacy
+Politique de signature de code : https://bobtv.briconbric.com/code-signing
+
+L'installation et la désinstallation n'effacent pas les collections, les chaînes, les paramètres ou les journaux de l'utilisateur actuel.

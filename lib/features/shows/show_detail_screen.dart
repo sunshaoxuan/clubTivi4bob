@@ -9,6 +9,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../data/models/show.dart';
 import '../../core/server_egress.dart';
 import 'shows_providers.dart';
+import '../../core/i18n/app_language.dart';
 
 /// Detail screen for a show or movie — backdrop, info, seasons, episodes, play
 class ShowDetailScreen extends ConsumerStatefulWidget {
@@ -170,7 +171,7 @@ class _ShowDetailScreenState extends ConsumerState<ShowDetailScreen> {
           const SizedBox(height: 16),
           TextButton(
             onPressed: () => context.go('/shows'),
-            child: const Text('Go Back'),
+            child: Text(AppMessages.text(context, "Go Back")),
           ),
         ],
       ),
@@ -318,7 +319,7 @@ class _ShowDetailScreenState extends ConsumerState<ShowDetailScreen> {
                   return Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 4),
                     child: ChoiceChip(
-                      label: Text('Season ${season.number}'),
+                      label: Text(AppMessages.text(context, "Season {0}", [season.number])),
                       selected: selected,
                       selectedColor: const Color(0xFF6C5CE7),
                       backgroundColor: const Color(0xFF1A1A2E),
@@ -352,7 +353,7 @@ class _ShowDetailScreenState extends ConsumerState<ShowDetailScreen> {
                 child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
               )
             : const Icon(Icons.play_arrow),
-        label: Text(_resolving ? 'Finding stream...' : 'Play'),
+        label: Text(_resolving ? AppMessages.text(context, "Finding stream...") : AppMessages.text(context, "Play")),
         style: ElevatedButton.styleFrom(
           backgroundColor: const Color(0xFF6C5CE7),
           foregroundColor: Colors.white,
@@ -378,7 +379,7 @@ class _ShowDetailScreenState extends ConsumerState<ShowDetailScreen> {
       error: (err, _) => SliverToBoxAdapter(
         child: Padding(
           padding: const EdgeInsets.all(16),
-          child: Text('Error: $err', style: const TextStyle(color: Colors.redAccent)),
+          child: Text(AppMessages.text(context, "Error: {0}", [err]), style: const TextStyle(color: Colors.redAccent)),
         ),
       ),
       data: (episodes) => SliverList(
@@ -477,7 +478,7 @@ class _ShowDetailScreenState extends ConsumerState<ShowDetailScreen> {
               Padding(
                 padding: const EdgeInsets.fromLTRB(20, 12, 20, 4),
                 child: Text(
-                  'Select Stream',
+                  AppMessages.text(context, "Select Stream"),
                   style: const TextStyle(
                     color: Colors.white,
                     fontSize: 18,
@@ -488,7 +489,7 @@ class _ShowDetailScreenState extends ConsumerState<ShowDetailScreen> {
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 20),
                 child: Text(
-                  '$title • ${streams.length} sources',
+                  AppMessages.text(context, "{0} • {1} sources", [title, streams.length]),
                   style: const TextStyle(color: Colors.white54, fontSize: 13),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
@@ -522,7 +523,7 @@ class _ShowDetailScreenState extends ConsumerState<ShowDetailScreen> {
                         children: [
                           IconButton(
                             icon: const Icon(Icons.download_rounded, color: Colors.white54, size: 24),
-                            tooltip: 'Download via browser',
+                            tooltip: AppMessages.text(context, "Download via browser"),
                             onPressed: () {
                               Navigator.pop(ctx);
                               _resolveAndDownload(stream, title);
@@ -536,7 +537,7 @@ class _ShowDetailScreenState extends ConsumerState<ShowDetailScreen> {
                                   : const Color(0xFF6C5CE7).withValues(alpha: 0.6),
                               size: 32,
                             ),
-                            tooltip: 'Play',
+                            tooltip: AppMessages.text(context, "Play"),
                             onPressed: () {
                               Navigator.pop(ctx);
                               _resolveAndPlay(stream, title);
@@ -763,7 +764,7 @@ class _EpisodeTile extends StatelessWidget {
                     Padding(
                       padding: const EdgeInsets.only(top: 4),
                       child: Text(
-                        '${episode.runtime} min',
+                        AppMessages.text(context, "{0} min", [episode.runtime]),
                         style: const TextStyle(color: Colors.white24, fontSize: 11),
                       ),
                     ),

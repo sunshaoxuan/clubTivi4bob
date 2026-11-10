@@ -10,6 +10,7 @@ import '../../data/datasources/local/database.dart' as db;
 import '../../data/models/channel.dart' hide Provider;
 import '../../data/services/stream_alternatives_service.dart';
 import '../player/player_service.dart';
+import '../../core/i18n/app_language.dart';
 
 /// Modal bottom sheet showing technical details about the currently playing
 /// channel — useful for troubleshooting buffering and stream issues.
@@ -317,7 +318,7 @@ class _ChannelDebugDialogState extends State<ChannelDebugDialog> {
               // Title + health badge
               Row(
                 children: [
-                  const Text('Channel Info',
+                  Text(AppMessages.text(context, "Channel Info"),
                     style: TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.bold)),
                   const Spacer(),
                   Container(
@@ -360,12 +361,12 @@ class _ChannelDebugDialogState extends State<ChannelDebugDialog> {
                         const SizedBox(height: 4),
                         Row(
                           children: [
-                            const Text('URL ', style: TextStyle(color: Colors.white54, fontSize: 10, fontWeight: FontWeight.bold)),
+                            Text(AppMessages.text(context, "URL "), style: TextStyle(color: Colors.white54, fontSize: 10, fontWeight: FontWeight.bold)),
                             InkWell(
                               onTap: () {
                                 Clipboard.setData(ClipboardData(text: ch.streamUrl));
                                 ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(content: Text('URL copied'), duration: Duration(seconds: 1)));
+                                  SnackBar(content: Text(AppMessages.text(context, "URL copied")), duration: Duration(seconds: 1)));
                               },
                               child: const Icon(Icons.copy_rounded, size: 12, color: Colors.white38),
                             ),
@@ -457,7 +458,7 @@ class _ChannelDebugDialogState extends State<ChannelDebugDialog> {
                         const Icon(Icons.swap_horiz, size: 14, color: Colors.white54),
                         const SizedBox(width: 4),
                         Text(
-                          'Failover Group (${_acceptedCount + 1})',
+                          AppMessages.text(context, "Failover Group ({0})", [_acceptedCount + 1]),
                           style: const TextStyle(
                               color: Colors.white70,
                               fontSize: 11,
@@ -522,8 +523,8 @@ class _ChannelDebugDialogState extends State<ChannelDebugDialog> {
                       }),
                     ] else ...[
                       const Divider(color: Colors.white12, height: 8),
-                      const Text(
-                        '  No failover alternatives found',
+                      Text(
+                        AppMessages.text(context, "  No failover alternatives found"),
                         style: TextStyle(color: Colors.white38, fontSize: 10),
                       ),
                     ],
@@ -551,9 +552,9 @@ class _ChannelDebugDialogState extends State<ChannelDebugDialog> {
                       crossAxisAlignment: CrossAxisAlignment.end,
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Text('${widget.playerService.bufferEventCount} events',
+                        Text(AppMessages.text(context, "{0} events", [widget.playerService.bufferEventCount]),
                           style: const TextStyle(color: Colors.white54, fontSize: 10)),
-                        Text('${widget.playerService.bufferingSeconds}s buffering',
+                        Text(AppMessages.text(context, "{0}s buffering", [widget.playerService.bufferingSeconds]),
                           style: const TextStyle(color: Colors.white54, fontSize: 10)),
                       ],
                     ),
@@ -718,7 +719,7 @@ class _ChannelDebugDialogState extends State<ChannelDebugDialog> {
               onTap: () {
                 Clipboard.setData(ClipboardData(text: streamUrl));
                 ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('URL copied'), duration: Duration(seconds: 1)),
+                  SnackBar(content: Text(AppMessages.text(context, "URL copied")), duration: Duration(seconds: 1)),
                 );
               },
               child: const Icon(Icons.copy, size: 12, color: Colors.white38),
@@ -961,8 +962,8 @@ class _ChannelDebugOverlayState extends State<ChannelDebugOverlay> {
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Text(
-                '⚙ Debug Info',
+              Text(
+                AppMessages.text(context, "⚙ Debug Info"),
                 style: TextStyle(
                   fontFamily: 'monospace',
                   fontSize: 11,

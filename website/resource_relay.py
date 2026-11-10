@@ -7,6 +7,7 @@ import asyncio
 from contextlib import asynccontextmanager
 import ipaddress
 import os
+import re
 import sqlite3
 import time
 from urllib.parse import parse_qs
@@ -28,6 +29,7 @@ import hmac
 ORIGIN = 'https://bobtv.briconbric.com'
 PREFIX = '/bobtv'
 MAX_UPLOAD = 1024 * 1024
+PUBLIC_PAGES = {'/', '/downloads', '/diagnostics', '/privacy', '/code-signing'}
 _health_time = 0.0
 _healthy = False
 _health_lock = asyncio.Lock()
@@ -59,7 +61,7 @@ def allowed(path, query, method):
             ['image'], ['epg'], ['playlist'])
     if path.startswith('/api/v1/'): return True
     if method not in {'GET', 'HEAD'}: return False
-    return path.startswith(('/updates/', '/downloads/BobTV-', '/assets/')) or path == '/releases.json'
+    return path.startswith(('/updates/', '/downloads/BobTV-', '/assets/')) or path in PUBLIC_PAGES or path == '/releases.json'
 
 
 @asynccontextmanager
@@ -156,6 +158,12 @@ async def relay(path: str, request: Request):
         'accept', 'content-type', 'authorization', 'user-agent', 'range', 'if-range',
         'if-none-match', 'if-modified-since', 'idempotency-key',
         'x-bobtv-device-fingerprint'}}
+    if path in PUBLIC_PAGES:
+        if 'accept-language' in request.headers:
+            headers['accept-language'] = request.headers['accept-language']
+        locale = request.cookies.get('bobtv_language', '')
+        if re.fullmatch(r'[A-Za-z-]{2,10}', locale):
+            headers['cookie'] = 'bobtv_language=' + locale
     headers.update({'Accept-Encoding': 'identity', 'Host': 'bobtv.briconbric.com',
         'X-BobTV-Relay-Node': 'cndrp', 'X-BobTV-Relay-Client': address,
         'X-BobTV-Relay-Time': stamp,
@@ -175,12 +183,17 @@ async def relay(path: str, request: Request):
     kept = {key: value for key, value in upstream.headers.items() if key.lower() in {
         'content-type', 'content-length', 'content-encoding', 'content-range',
         'accept-ranges', 'content-disposition', 'etag', 'last-modified', 'retry-after',
-        'cache-control', 'vary'}}
+        'cache-control', 'vary', 'content-language'}}
     kept['X-BobTV-Node'] = 'cndrp'
     if path == '/api/v1/device-favorites':
         kept['cache-control'] = 'private, no-store'
         kept['vary'] = 'Authorization, X-BobTV-Device-Fingerprint'
     # Public response bodies retain canonical origins and publisher signatures.
     # Transport rewriting belongs to the client, not inside signed manifests.
-    return StreamingResponse(upstream.aiter_raw(), status_code=upstream.status_code,
+    response = StreamingResponse(upstream.aiter_raw(), status_code=upstream.status_code,
         headers=kept, background=BackgroundTask(upstream.aclose))
+    if path in PUBLIC_PAGES:
+        for cookie in upstream.headers.get_list('set-cookie'):
+            if cookie.startswith('bobtv_language='):
+                response.headers.append('set-cookie', cookie)
+    return response

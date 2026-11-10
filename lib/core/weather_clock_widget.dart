@@ -1,8 +1,8 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:intl/intl.dart';
 import 'weather_service.dart';
+import 'i18n/app_language.dart';
 
 class WeatherClockWidget extends ConsumerStatefulWidget {
   const WeatherClockWidget({super.key});
@@ -13,18 +13,17 @@ class WeatherClockWidget extends ConsumerStatefulWidget {
 
 class _WeatherClockWidgetState extends ConsumerState<WeatherClockWidget> {
   late Timer _timer;
-  String _timeString = '';
+  DateTime _time = DateTime.now();
 
   @override
   void initState() {
     super.initState();
-    _updateTime();
     _timer = Timer.periodic(const Duration(minutes: 1), (_) => _updateTime());
   }
 
   void _updateTime() {
     setState(() {
-      _timeString = DateFormat('h:mm a').format(DateTime.now());
+      _time = DateTime.now();
     });
   }
 
@@ -46,14 +45,23 @@ class _WeatherClockWidgetState extends ConsumerState<WeatherClockWidget> {
         children: [
           if (weather != null) ...[
             Text(
-              '${weather.icon} ${weather.tempF.round()}°F ${weather.city}',
+              AppMessages.text(context, "{0} {1}°F {2}", [
+                weather.icon,
+                weather.tempF.round(),
+                weather.city,
+              ]),
               style: style,
             ),
             const SizedBox(width: 8),
             Text('|', style: style.copyWith(color: Colors.white24)),
             const SizedBox(width: 8),
           ],
-          Text(_timeString, style: style),
+          Text(
+            MaterialLocalizations.of(
+              context,
+            ).formatTimeOfDay(TimeOfDay.fromDateTime(_time)),
+            style: style,
+          ),
         ],
       ),
     );

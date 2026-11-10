@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../data/services/website_channel_catalog_service.dart';
+import '../../core/i18n/app_language.dart';
 
 /// Shared sync state stays beside the channel list, outside the video canvas.
 class SharedSyncBadge extends StatelessWidget {
@@ -31,13 +32,13 @@ class SharedSyncBadge extends StatelessWidget {
           .where((s) => s.phase.isNotEmpty)
           .map(
             (s) =>
-                '${s.phase}${s.total > 0 ? ' · 全库 ${s.imported}/${s.total} 条记录' : ''}',
+                '${AppMessages.text(context, s.phase)}${s.total > 0 ? AppMessages.text(context, ' · 全库 {0}/{1} 条记录', [s.imported, s.total]) : ''}',
           )
           .join('\n');
       return Tooltip(
-        message: detail.isEmpty ? '频道与网站自动同步' : detail,
+        message: detail.isEmpty ? AppMessages.text(context, "频道与网站自动同步") : detail,
         child: Semantics(
-          label: '共享频道$label',
+          label: AppMessages.text(context, "共享频道{0}", [AppMessages.text(context, label)]),
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
             decoration: BoxDecoration(
@@ -65,7 +66,7 @@ class SharedSyncBadge extends StatelessWidget {
                   ),
                 const SizedBox(width: 5),
                 Text(
-                  label,
+                  AppMessages.text(context, label),
                   style: const TextStyle(color: Colors.white70, fontSize: 11),
                 ),
               ],

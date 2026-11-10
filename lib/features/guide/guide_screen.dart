@@ -11,6 +11,7 @@ import 'package:go_router/go_router.dart';
 import '../../core/fuzzy_match.dart';
 import '../../data/datasources/local/database.dart' as db;
 import '../providers/provider_manager.dart';
+import '../../core/i18n/app_language.dart';
 
 /// EPG program guide — horizontal timeline grid view.
 class GuideScreen extends ConsumerStatefulWidget {
@@ -186,11 +187,11 @@ class _GuideScreenState extends ConsumerState<GuideScreen> {
       onKeyEvent: _handleKeyEvent,
       child: Scaffold(
         appBar: AppBar(
-          title: const Text('节目表'),
+          title: Text(AppMessages.text(context, "节目表")),
           actions: [
             IconButton(
               icon: const Icon(Icons.arrow_back_ios_rounded, size: 18),
-              tooltip: '前一天',
+              tooltip: AppMessages.text(context, "前一天"),
               onPressed: () => setState(() {
                 _focusTime = _focusTime.subtract(const Duration(days: 1));
               }),
@@ -204,7 +205,7 @@ class _GuideScreenState extends ConsumerState<GuideScreen> {
             ),
             IconButton(
               icon: const Icon(Icons.arrow_forward_ios_rounded, size: 18),
-              tooltip: '后一天',
+              tooltip: AppMessages.text(context, "后一天"),
               onPressed: () => setState(() {
                 _focusTime = _focusTime.add(const Duration(days: 1));
               }),
@@ -249,7 +250,7 @@ class _GuideScreenState extends ConsumerState<GuideScreen> {
                     controller: _searchController,
                     style: const TextStyle(color: Colors.white),
                     decoration: InputDecoration(
-                      hintText: '搜索频道…',
+                      hintText: AppMessages.text(context, "搜索频道…"),
                       hintStyle: const TextStyle(color: Colors.white38),
                       prefixIcon: const Icon(
                         Icons.search,
@@ -533,9 +534,9 @@ class _ChannelGuideRowState extends State<_ChannelGuideRow> {
                             color: Colors.white.withValues(alpha: 0.03),
                             borderRadius: BorderRadius.circular(4),
                           ),
-                          child: const Center(
+                          child: Center(
                             child: Text(
-                              '暂无节目单',
+                              AppMessages.text(context, "暂无节目单"),
                               style: TextStyle(
                                 fontSize: 10,
                                 color: Colors.white24,
@@ -691,7 +692,7 @@ class _GuideEmptyState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const Center(
+    return Center(
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -701,10 +702,10 @@ class _GuideEmptyState extends StatelessWidget {
             color: Colors.white24,
           ),
           SizedBox(height: 16),
-          Text('节目表', style: TextStyle(fontSize: 20, color: Colors.white54)),
+          Text(AppMessages.text(context, "节目表"), style: TextStyle(fontSize: 20, color: Colors.white54)),
           SizedBox(height: 8),
           Text(
-            '添加节目单来源后即可查看节目安排',
+            AppMessages.text(context, "添加节目单来源后即可查看节目安排"),
             style: TextStyle(fontSize: 14, color: Colors.white38),
           ),
         ],

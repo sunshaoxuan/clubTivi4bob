@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../data/datasources/local/database.dart' as db;
 import 'add_provider_dialog.dart';
 import 'provider_manager.dart';
+import '../../core/i18n/app_language.dart';
 
 /// Watches all providers as a stream for reactive UI updates.
 final _providersStreamProvider = StreamProvider<List<db.Provider>>((ref) {
@@ -45,11 +46,11 @@ class ProvidersScreen extends ConsumerWidget {
                 }
               },
             ),
-            title: const Text('电视源管理'),
+            title: Text(AppMessages.text(context, "电视源管理")),
             actions: [
               IconButton(
                 icon: const Icon(Icons.add, size: 28),
-                tooltip: '添加电视源',
+                tooltip: AppMessages.text(context, "添加电视源"),
                 onPressed: () => showAddProviderDialog(context),
               ),
               const SizedBox(width: 8),
@@ -57,7 +58,7 @@ class ProvidersScreen extends ConsumerWidget {
           ),
           body: providersAsync.when(
             loading: () => const Center(child: CircularProgressIndicator()),
-            error: (e, _) => Center(child: Text('错误：$e')),
+            error: (e, _) => Center(child: Text(AppMessages.text(context, "错误：{0}", [e]))),
             data: (providers) => FocusTraversalGroup(
               child: ListView(
                 padding: const EdgeInsets.symmetric(
@@ -173,7 +174,7 @@ class _ProviderCard extends ConsumerWidget {
                                 borderRadius: BorderRadius.circular(4),
                               ),
                               child: Text(
-                                isXtream ? 'Xtream' : 'M3U',
+                                isXtream ? AppMessages.text(context, "Xtream") : 'M3U',
                                 style: const TextStyle(
                                   fontSize: 11,
                                   color: accent,
@@ -182,7 +183,7 @@ class _ProviderCard extends ConsumerWidget {
                             ),
                             const SizedBox(width: 8),
                             Text(
-                              '频道数读取中',
+                              AppMessages.text(context, "频道数读取中"),
                               style: TextStyle(
                                 fontSize: 12,
                                 color: Colors.white.withValues(alpha: 0.4),
@@ -195,7 +196,7 @@ class _ProviderCard extends ConsumerWidget {
                   ),
                   IconButton(
                     icon: const Icon(Icons.refresh_rounded, size: 20),
-                    tooltip: '刷新',
+                    tooltip: AppMessages.text(context, "刷新"),
                     onPressed: () async {
                       final manager = ref.read(providerManagerProvider);
                       try {
@@ -204,13 +205,13 @@ class _ProviderCard extends ConsumerWidget {
                         );
                         if (!context.mounted) return;
                         ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text('已载入 $count 个频道')),
+                          SnackBar(content: Text(AppMessages.text(context, "已载入 {0} 个频道", [count]))),
                         );
                       } catch (e) {
                         if (!context.mounted) return;
                         ScaffoldMessenger.of(
                           context,
-                        ).showSnackBar(SnackBar(content: Text('刷新失败：$e')));
+                        ).showSnackBar(SnackBar(content: Text(AppMessages.text(context, "刷新失败：{0}", [e]))));
                       }
                     },
                   ),
@@ -220,7 +221,7 @@ class _ProviderCard extends ConsumerWidget {
                       size: 20,
                       color: Colors.redAccent,
                     ),
-                    tooltip: '删除',
+                    tooltip: AppMessages.text(context, "删除"),
                     onPressed: () async {
                       final confirmed = await showDialog<bool>(
                         context: context,
@@ -273,12 +274,12 @@ class _ProviderCard extends ConsumerWidget {
       if (!context.mounted) return;
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(SnackBar(content: Text('已载入 $count 个频道')));
+      ).showSnackBar(SnackBar(content: Text(AppMessages.text(context, "已载入 {0} 个频道", [count]))));
     } catch (e) {
       if (!context.mounted) return;
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(SnackBar(content: Text('刷新失败：$e')));
+      ).showSnackBar(SnackBar(content: Text(AppMessages.text(context, "刷新失败：{0}", [e]))));
     }
   }
 }
@@ -432,7 +433,7 @@ class _FreeTvProviderTile extends ConsumerWidget {
                                 color: Colors.white38,
                                 size: 20,
                               ),
-                              tooltip: '重新同步',
+                              tooltip: AppMessages.text(context, "重新同步"),
                               onPressed: () => _addProvider(context, ref),
                             ),
                           ],
@@ -463,7 +464,7 @@ class _FreeTvProviderTile extends ConsumerWidget {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            '${freeProvider.name} ${isAdded ? "已刷新" : "已添加"}，正在载入频道…',
+            AppMessages.text(context, "{0} {1}，正在载入频道…", [freeProvider.name, isAdded ? "已刷新" : "已添加"]),
           ),
         ),
       );
@@ -476,7 +477,7 @@ class _FreeTvProviderTile extends ConsumerWidget {
       if (!context.mounted) return;
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(SnackBar(content: Text('添加失败：$e')));
+      ).showSnackBar(SnackBar(content: Text(AppMessages.text(context, "添加失败：{0}", [e]))));
     }
   }
 }

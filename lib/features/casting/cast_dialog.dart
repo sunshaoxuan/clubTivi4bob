@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'cast_service.dart';
 import 'airplay_pair_dialog.dart';
+import '../../core/i18n/app_language.dart';
 
 /// Shows a dialog to discover and select a cast target device.
 Future<CastDevice?> showCastDialog(BuildContext context, WidgetRef ref) async {
@@ -75,8 +76,8 @@ class _CastDialogState extends State<_CastDialog> {
         children: [
           const Icon(Icons.cast_rounded, color: Colors.amber, size: 22),
           const SizedBox(width: 8),
-          const Text(
-            '投屏到電視',
+          Text(
+            AppMessages.text(context, "投屏到電視"),
             style: TextStyle(color: Colors.white, fontSize: 16),
           ),
           const Spacer(),
@@ -97,12 +98,12 @@ class _CastDialogState extends State<_CastDialog> {
         child: Column(
           children: [
             SwitchListTile(
-              title: const Text(
-                '由本機轉發 AirPlay 視頻',
+              title: Text(
+                AppMessages.text(context, "由本機轉發 AirPlay 視頻"),
                 style: TextStyle(color: Colors.white, fontSize: 13),
               ),
-              subtitle: const Text(
-                '接收設備從 BobTV 取得視頻',
+              subtitle: Text(
+                AppMessages.text(context, "接收設備從 BobTV 取得視頻"),
                 style: TextStyle(color: Colors.white54, fontSize: 11),
               ),
               value: _castService.relayAirPlay,
@@ -130,8 +131,8 @@ class _CastDialogState extends State<_CastDialog> {
                           const SizedBox(height: 12),
                           Text(
                             _scanning
-                                ? '正在搜尋 AirPlay / DLNA 設備…'
-                                : _error ?? '未找到設備。\n請確認電視開啟投屏，且位於同一網路。',
+                                ? AppMessages.text(context, "正在搜尋 AirPlay / DLNA 設備…")
+                                : _error ?? AppMessages.text(context, "未找到設備。\n請確認電視開啟投屏，且位於同一網路。"),
                             textAlign: TextAlign.center,
                             style: const TextStyle(
                               color: Colors.white54,
@@ -149,7 +150,7 @@ class _CastDialogState extends State<_CastDialog> {
                                 _startScan();
                               },
                               icon: const Icon(Icons.refresh_rounded, size: 16),
-                              label: const Text('重新搜尋'),
+                              label: Text(AppMessages.text(context, "重新搜尋")),
                               style: TextButton.styleFrom(
                                 foregroundColor: Colors.amber,
                               ),
@@ -189,7 +190,7 @@ class _CastDialogState extends State<_CastDialog> {
                           ),
                           trailing: device.type == 'airplay'
                               ? IconButton(
-                                  tooltip: '配對或重新配對',
+                                  tooltip: AppMessages.text(context, "配對或重新配對"),
                                   icon: const Icon(Icons.password),
                                   onPressed: device.unavailableReason != null ? null : () async {
                                     await pairAirPlay(
@@ -223,7 +224,7 @@ class _CastDialogState extends State<_CastDialog> {
         TextButton.icon(
           onPressed: _addManualDevice,
           icon: const Icon(Icons.add_rounded, size: 16),
-          label: const Text('輸入 IP'),
+          label: Text(AppMessages.text(context, "輸入 IP")),
           style: TextButton.styleFrom(foregroundColor: Colors.amber),
         ),
         if (_castService.isCasting)
@@ -233,12 +234,12 @@ class _CastDialogState extends State<_CastDialog> {
               if (context.mounted) Navigator.of(context).pop();
             },
             icon: const Icon(Icons.cast_connected_rounded, size: 16),
-            label: const Text('停止投屏'),
+            label: Text(AppMessages.text(context, "停止投屏")),
             style: TextButton.styleFrom(foregroundColor: Colors.red),
           ),
         TextButton(
           onPressed: () => Navigator.of(context).pop(),
-          child: const Text('關閉', style: TextStyle(color: Colors.white54)),
+          child: Text(AppMessages.text(context, "關閉"), style: TextStyle(color: Colors.white54)),
         ),
       ],
     );
@@ -279,16 +280,16 @@ class _CastDialogState extends State<_CastDialog> {
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: const Color(0xFF1A1A2E),
-        title: const Text(
-          '輸入設備 IP',
+        title: Text(
+          AppMessages.text(context, "輸入設備 IP"),
           style: TextStyle(color: Colors.white, fontSize: 16),
         ),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
-              '輸入 AirPlay 或 LG WebOS 電視的 IP 地址。',
+            Text(
+              AppMessages.text(context, "輸入 AirPlay 或 LG WebOS 電視的 IP 地址。"),
               style: TextStyle(color: Colors.white54, fontSize: 13),
             ),
             const SizedBox(height: 12),
@@ -297,7 +298,7 @@ class _CastDialogState extends State<_CastDialog> {
               autofocus: true,
               style: const TextStyle(color: Colors.white),
               decoration: InputDecoration(
-                hintText: '192.168.1.xxx',
+                hintText: AppMessages.text(context, "192.168.1.xxx"),
                 hintStyle: const TextStyle(color: Colors.white24),
                 filled: true,
                 fillColor: Colors.white.withValues(alpha: 0.05),
@@ -315,11 +316,11 @@ class _CastDialogState extends State<_CastDialog> {
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(),
-            child: const Text('取消', style: TextStyle(color: Colors.white54)),
+            child: Text(AppMessages.text(context, "取消"), style: TextStyle(color: Colors.white54)),
           ),
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(controller.text.trim()),
-            child: const Text('連接', style: TextStyle(color: Colors.amber)),
+            child: Text(AppMessages.text(context, "連接"), style: TextStyle(color: Colors.amber)),
           ),
         ],
       ),
@@ -340,8 +341,8 @@ class _CastDialogState extends State<_CastDialog> {
           Navigator.of(context).pop(device);
         } else if (device.type == 'webos') {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('請在電視上接受配對請求'),
+            SnackBar(
+              content: Text(AppMessages.text(context, "請在電視上接受配對請求")),
               backgroundColor: Color(0xFF2D2D44),
             ),
           );
@@ -349,7 +350,7 @@ class _CastDialogState extends State<_CastDialog> {
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('在 $ip 未找到相容設備'),
+            content: Text(AppMessages.text(context, "在 {0} 未找到相容設備", [ip])),
             backgroundColor: Colors.red.shade800,
           ),
         );

@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import '../../data/datasources/local/database.dart' as db;
 import '../../data/services/channel_merge.dart';
+import '../../core/i18n/app_language.dart';
 
 class ChannelRouteTransferDialog extends StatefulWidget {
   const ChannelRouteTransferDialog({
@@ -139,9 +140,9 @@ class _ChannelRouteTransferDialogState
                     color: Color(0xFFB7CCFF),
                   ),
                   const SizedBox(width: 12),
-                  const Expanded(
+                  Expanded(
                     child: Text(
-                      '转移线路到…',
+                      AppMessages.text(context, "转移线路到…"),
                       style: TextStyle(
                         fontSize: 22,
                         fontWeight: FontWeight.w700,
@@ -149,7 +150,7 @@ class _ChannelRouteTransferDialogState
                     ),
                   ),
                   IconButton(
-                    tooltip: '取消',
+                    tooltip: AppMessages.text(context, "取消"),
                     onPressed: _saving ? null : () => Navigator.pop(context),
                     icon: const Icon(Icons.close_rounded),
                   ),
@@ -167,7 +168,7 @@ class _ChannelRouteTransferDialogState
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      '当前频道：${widget.channel.name}',
+                      AppMessages.text(context, "当前频道：{0}", [widget.channel.name]),
                       style: const TextStyle(fontWeight: FontWeight.w600),
                     ),
                     const SizedBox(height: 6),
@@ -184,8 +185,8 @@ class _ChannelRouteTransferDialogState
                       ),
                     ),
                     const SizedBox(height: 8),
-                    const Text(
-                      '只移动这条线路，保留测速、权重和来源记录。',
+                    Text(
+                      AppMessages.text(context, "只移动这条线路，保留测速、权重和来源记录。"),
                       style: TextStyle(color: Color(0xFFB7CCFF), fontSize: 12),
                     ),
                   ],
@@ -195,8 +196,8 @@ class _ChannelRouteTransferDialogState
               TextField(
                 controller: _search,
                 enabled: !_saving,
-                decoration: const InputDecoration(
-                  hintText: '搜索目标频道，可跨分类查找',
+                decoration: InputDecoration(
+                  hintText: AppMessages.text(context, "搜索目标频道，可跨分类查找"),
                   prefixIcon: Icon(Icons.search_rounded),
                 ),
                 onChanged: (_) {
@@ -213,9 +214,9 @@ class _ChannelRouteTransferDialogState
                 key: ValueKey(_group),
                 initialValue: _group ?? '',
                 isExpanded: true,
-                decoration: const InputDecoration(labelText: '查找范围'),
+                decoration: InputDecoration(labelText: AppMessages.text(context, "查找范围")),
                 items: [
-                  const DropdownMenuItem(value: '', child: Text('全部分类')),
+                  DropdownMenuItem(value: '', child: Text(AppMessages.text(context, "全部分类"))),
                   for (final group in _groups)
                     DropdownMenuItem(
                       value: group,
@@ -234,7 +235,7 @@ class _ChannelRouteTransferDialogState
               if (_loading) const LinearProgressIndicator(minHeight: 2),
               Expanded(
                 child: _choices.isEmpty && !_loading
-                    ? const Center(child: Text('没有匹配的频道，试试其他名称或分类'))
+                    ? Center(child: Text(AppMessages.text(context, "没有匹配的频道，试试其他名称或分类")))
                     : ListView.builder(
                         itemCount: _choices.length + (_more ? 1 : 0),
                         itemBuilder: (context, index) {
@@ -243,7 +244,7 @@ class _ChannelRouteTransferDialogState
                               onPressed: _loading || _saving
                                   ? null
                                   : () => _load(more: true),
-                              child: const Text('显示更多频道'),
+                              child: Text(AppMessages.text(context, "显示更多频道")),
                             );
                           final choice = _choices[index];
                           final source =
@@ -270,15 +271,15 @@ class _ChannelRouteTransferDialogState
                               ),
                               title: Text(choice.name),
                               subtitle: Text(
-                                '${choice.group} · ${choice.routeCount} 条线路',
+                                AppMessages.text(context, "{0} · {1} 条线路", [choice.group, choice.routeCount]),
                                 style: const TextStyle(
                                   color: Colors.white54,
                                   fontSize: 12,
                                 ),
                               ),
                               trailing: source
-                                  ? const Text(
-                                      '当前频道',
+                                  ? Text(
+                                      AppMessages.text(context, "当前频道"),
                                       style: TextStyle(fontSize: 12),
                                     )
                                   : null,
@@ -303,7 +304,7 @@ class _ChannelRouteTransferDialogState
                 children: [
                   Expanded(
                     child: Text(
-                      _selected == null ? '请选择一个目标频道' : '转入：${_selected!.name}',
+                      _selected == null ? AppMessages.text(context, "请选择一个目标频道") : AppMessages.text(context, "转入：{0}", [_selected!.name]),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(color: Colors.white70),
@@ -319,7 +320,7 @@ class _ChannelRouteTransferDialogState
                             child: CircularProgressIndicator(strokeWidth: 2),
                           )
                         : const Icon(Icons.drive_file_move_rounded),
-                    label: Text(_saving ? '正在转移' : '转移线路'),
+                    label: Text(_saving ? AppMessages.text(context, "正在转移") : AppMessages.text(context, "转移线路")),
                   ),
                 ],
               ),

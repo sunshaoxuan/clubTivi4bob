@@ -11,6 +11,7 @@ import '../../data/services/app_credential_store.dart';
 import '../../data/services/ai_runtime_settings.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'settings_design.dart';
+import '../../core/i18n/app_language.dart';
 
 class BobTvServiceSettings extends ConsumerStatefulWidget {
   const BobTvServiceSettings({super.key});
@@ -86,11 +87,11 @@ class _BobTvServiceSettingsState extends ConsumerState<BobTvServiceSettings> {
             actions: [
               TextButton(
                 onPressed: () => Navigator.pop(dialogContext, false),
-                child: const Text('取消'),
+                child: Text(AppMessages.text(context, "取消")),
               ),
               FilledButton(
                 onPressed: () => Navigator.pop(dialogContext, true),
-                child: const Text('同意开启'),
+                child: Text(AppMessages.text(context, "同意开启")),
               ),
             ],
           ),
@@ -107,7 +108,7 @@ class _BobTvServiceSettingsState extends ConsumerState<BobTvServiceSettings> {
         context: context,
         builder: (dialogContext) => StatefulBuilder(
           builder: (context, update) => AlertDialog(
-            title: const Text('提交候选电视源'),
+            title: Text(AppMessages.text(context, "提交候选电视源")),
             content: SizedBox(
               width: 420,
               child: SingleChildScrollView(
@@ -118,23 +119,23 @@ class _BobTvServiceSettingsState extends ConsumerState<BobTvServiceSettings> {
                       controller: name,
                       maxLength: 64,
                       onChanged: (_) => update(() {}),
-                      decoration: const InputDecoration(labelText: '频道名称'),
+                      decoration: InputDecoration(labelText: AppMessages.text(context, "频道名称")),
                     ),
                     TextField(
                       controller: url,
                       onChanged: (_) => update(() {}),
-                      decoration: const InputDecoration(
-                        labelText: '公开 HTTPS 播放地址',
+                      decoration: InputDecoration(
+                        labelText: AppMessages.text(context, "公开 HTTPS 播放地址"),
                       ),
                     ),
                     CheckboxListTile(
                       value: consent,
                       onChanged: (value) =>
                           update(() => consent = value ?? false),
-                      title: const Text('我有权分享此地址，并同意提交审核'),
+                      title: Text(AppMessages.text(context, "我有权分享此地址，并同意提交审核")),
                     ),
-                    const Text(
-                      '提交时会发送播放地址、设备类型、网络 IP、地区和客户端指纹哈希。服务端会留存资料并人工审核。审核前不会加入公共源。',
+                    Text(
+                      AppMessages.text(context, "提交时会发送播放地址、设备类型、网络 IP、地区和客户端指纹哈希。服务端会留存资料并人工审核。审核前不会加入公共源。"),
                     ),
                   ],
                 ),
@@ -143,7 +144,7 @@ class _BobTvServiceSettingsState extends ConsumerState<BobTvServiceSettings> {
             actions: [
               TextButton(
                 onPressed: () => Navigator.pop(dialogContext),
-                child: const Text('取消'),
+                child: Text(AppMessages.text(context, "取消")),
               ),
               FilledButton(
                 onPressed:
@@ -155,7 +156,7 @@ class _BobTvServiceSettingsState extends ConsumerState<BobTvServiceSettings> {
                         url.text.trim(),
                       ))
                     : null,
-                child: const Text('提交审核'),
+                child: Text(AppMessages.text(context, "提交审核")),
               ),
             ],
           ),
@@ -184,11 +185,11 @@ class _BobTvServiceSettingsState extends ConsumerState<BobTvServiceSettings> {
       await showSettingsDialog<void>(
         context: context,
         builder: (dialogContext) => AlertDialog(
-          title: const Text('BobTV 发布版本'),
+          title: Text(AppMessages.text(context, "BobTV 发布版本")),
           content: SizedBox(
             width: 480,
             child: releases.isEmpty
-                ? const Text('当前没有可下载版本')
+                ? Text(AppMessages.text(context, "当前没有可下载版本"))
                 : ListView.builder(
                     shrinkWrap: true,
                     itemCount: releases.length,
@@ -209,7 +210,7 @@ class _BobTvServiceSettingsState extends ConsumerState<BobTvServiceSettings> {
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(dialogContext),
-              child: const Text('关闭'),
+              child: Text(AppMessages.text(context, "关闭")),
             ),
           ],
         ),
@@ -237,20 +238,20 @@ class _BobTvServiceSettingsState extends ConsumerState<BobTvServiceSettings> {
     return ValueListenableBuilder<BobTvCatalogState>(
       valueListenable: service.state,
       builder: (context, catalog, _) => SettingsPanel(
-        title: '公共频道库',
+        title: AppMessages.text(context, "公共频道库"),
         children: [
           ListTile(
             leading: const Icon(Icons.verified_rounded),
-            title: const Text('已审核电视源'),
+            title: Text(AppMessages.text(context, "已审核电视源")),
             subtitle: Text(
               catalog.loading
-                  ? '正在同步，已缓存 ${catalog.count} 条'
+                  ? AppMessages.text(context, "正在同步，已缓存 {0} 条", [catalog.count])
                   : catalog.error
-                  ? '网络不可用，使用缓存 ${catalog.count} 条'
-                  : '当前 ${catalog.count} 条${catalog.fresh ? '，已同步' : '，等待同步'}',
+                  ? AppMessages.text(context, "网络不可用，使用缓存 {0} 条", [catalog.count])
+                  : AppMessages.text(context, "当前 {0} 条{1}", [catalog.count, catalog.fresh ? '，已同步' : '，等待同步']),
             ),
             trailing: IconButton(
-              tooltip: '刷新',
+              tooltip: AppMessages.text(context, "刷新"),
               icon: const Icon(Icons.refresh_rounded),
               onPressed: _busy
                   ? null
@@ -259,8 +260,8 @@ class _BobTvServiceSettingsState extends ConsumerState<BobTvServiceSettings> {
           ),
           SwitchListTile(
             secondary: const Icon(Icons.bookmark_added_outlined),
-            title: const Text('本机收藏在线备份'),
-            subtitle: const Text('仅原设备可恢复。关闭后收藏仍保存在本机，不再上传或读取备份'),
+            title: Text(AppMessages.text(context, "本机收藏在线备份")),
+            subtitle: Text(AppMessages.text(context, "仅原设备可恢复。关闭后收藏仍保存在本机，不再上传或读取备份")),
             value: _favoritesBackupEnabled ?? true,
             onChanged: _busy || _favoritesBackupEnabled == null
                 ? null
@@ -281,8 +282,8 @@ class _BobTvServiceSettingsState extends ConsumerState<BobTvServiceSettings> {
           if (_aiCredentialPaused)
             ListTile(
               leading: const Icon(Icons.lock_outline),
-              title: const Text('AI 服务密钥需要重新授权'),
-              subtitle: const Text('后台访问已暂停，授权后才能恢复 AI 服务'),
+              title: Text(AppMessages.text(context, "AI 服务密钥需要重新授权")),
+              subtitle: Text(AppMessages.text(context, "后台访问已暂停，授权后才能恢复 AI 服务")),
               trailing: TextButton(
                 onPressed: _busy
                     ? null
@@ -295,14 +296,14 @@ class _BobTvServiceSettingsState extends ConsumerState<BobTvServiceSettings> {
                           }
                         }),
                       ),
-                child: const Text('重新授权'),
+                child: Text(AppMessages.text(context, "重新授权")),
               ),
             ),
           if (_favoritesBackupEnabled == true && _credentialPaused)
             ListTile(
               leading: const Icon(Icons.lock_outline),
-              title: const Text('收藏备份需要重新授权'),
-              subtitle: const Text('后台访问已暂停，本机收藏不受影响'),
+              title: Text(AppMessages.text(context, "收藏备份需要重新授权")),
+              subtitle: Text(AppMessages.text(context, "后台访问已暂停，本机收藏不受影响")),
               trailing: TextButton(
                 onPressed: _busy
                     ? null
@@ -315,13 +316,13 @@ class _BobTvServiceSettingsState extends ConsumerState<BobTvServiceSettings> {
                           }
                         }),
                       ),
-                child: const Text('重新授权'),
+                child: Text(AppMessages.text(context, "重新授权")),
               ),
             ),
           SwitchListTile(
             secondary: const Icon(Icons.monitor_heart_rounded),
-            title: const Text('分享播放状态'),
-            subtitle: const Text('仅上报已审核源的可播结果，默认关闭'),
+            title: Text(AppMessages.text(context, "分享播放状态")),
+            subtitle: Text(AppMessages.text(context, "仅上报已审核源的可播结果，默认关闭")),
             value: service.healthFeedbackEnabled,
             onChanged: _busy
                 ? null
@@ -341,8 +342,8 @@ class _BobTvServiceSettingsState extends ConsumerState<BobTvServiceSettings> {
           ),
           SwitchListTile(
             secondary: const Icon(Icons.bug_report_outlined),
-            title: const Text('最近 30 天诊断同步'),
-            subtitle: const Text('首次同意后定期增量上传，可随时关闭；国内经 cndrp 中继'),
+            title: Text(AppMessages.text(context, "最近 30 天诊断同步")),
+            subtitle: Text(AppMessages.text(context, "首次同意后定期增量上传，可随时关闭；国内经 cndrp 中继")),
             value: service.automaticLogsEnabled,
             onChanged: _busy
                 ? null
@@ -365,12 +366,12 @@ class _BobTvServiceSettingsState extends ConsumerState<BobTvServiceSettings> {
             builder: (context, value, _) => ListTile(
               leading: const Icon(Icons.sync_rounded),
               title: Text(value),
-              subtitle: const Text('中继暂存与主节点接收分别显示，关闭上传不影响播放'),
+              subtitle: Text(AppMessages.text(context, "中继暂存与主节点接收分别显示，关闭上传不影响播放")),
             ),
           ),
           ListTile(
             leading: const Icon(Icons.upload_file_rounded),
-            title: const Text('手动上传诊断摘要'),
+            title: Text(AppMessages.text(context, "手动上传诊断摘要")),
             onTap: _busy
                 ? null
                 : () => unawaited(
@@ -382,14 +383,14 @@ class _BobTvServiceSettingsState extends ConsumerState<BobTvServiceSettings> {
           ),
           ListTile(
             leading: const Icon(Icons.add_link_rounded),
-            title: const Text('提交候选电视源'),
-            subtitle: const Text('需要分享权利与隐私确认，提交后等待人工审核'),
+            title: Text(AppMessages.text(context, "提交候选电视源")),
+            subtitle: Text(AppMessages.text(context, "需要分享权利与隐私确认，提交后等待人工审核")),
             onTap: _busy ? null : () => unawaited(_submitCandidate(service)),
           ),
           ListTile(
             leading: const Icon(Icons.new_releases_rounded),
-            title: const Text('查看发布版本'),
-            subtitle: const Text('可下载并校验安装包，暂不自动安装'),
+            title: Text(AppMessages.text(context, "查看发布版本")),
+            subtitle: Text(AppMessages.text(context, "可下载并校验安装包，暂不自动安装")),
             onTap: _busy ? null : () => unawaited(_showReleases(service)),
           ),
         ],

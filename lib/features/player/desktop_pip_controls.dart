@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../core/i18n/app_language.dart';
 
 class DesktopPipControls extends StatelessWidget {
   const DesktopPipControls({
@@ -43,7 +44,7 @@ class DesktopPipControls extends StatelessWidget {
                   ),
                 ),
                 IconButton(
-                  tooltip: '放大播放',
+                  tooltip: AppMessages.text(context, "放大播放"),
                   onPressed: busy ? null : onExpand,
                   icon: const Icon(
                     Icons.open_in_full,
@@ -52,7 +53,7 @@ class DesktopPipControls extends StatelessWidget {
                   ),
                 ),
                 IconButton(
-                  tooltip: '退出 BobTV',
+                  tooltip: AppMessages.text(context, "退出 BobTV"),
                   onPressed: busy ? null : onClose,
                   icon: const Icon(Icons.close, color: Colors.white, size: 18),
                 ),
@@ -72,10 +73,10 @@ class DesktopPipControls extends StatelessWidget {
             children: [
               TextButton(
                 onPressed: busy ? null : onReturn,
-                child: const Text('返回频道'),
+                child: Text(AppMessages.text(context, "返回频道")),
               ),
               IconButton(
-                tooltip: volume == 0 ? '取消静音' : '静音',
+                tooltip: volume == 0 ? AppMessages.text(context, "取消静音") : AppMessages.text(context, "静音"),
                 onPressed: () => onVolume(volume == 0 ? 50 : 0),
                 icon: Icon(
                   volume == 0 ? Icons.volume_off : Icons.volume_up,

@@ -116,15 +116,16 @@ def test_policy_routes_and_current_release_boundary():
     for path in ('/privacy', '/code-signing'):
         assert client.get(path).status_code == 200
         assert client.head(path).status_code == 200
-    policy = client.get('/code-signing').text
-    assert '未获批准' in policy and 'Code signing policy' in policy
+    policy = client.get('/code-signing?lang=zh-CN').text
+    assert '未获批准' in policy
+    assert 'Code signing policy' in client.get('/code-signing?lang=en').text
     assert '已提交' in policy and '2026-10-13' in policy
     assert 'SignPath Foundation' in policy and 'sunshaoxuan' in policy
-    privacy = client.get('/privacy').text
+    privacy = client.get('/privacy?lang=zh-CN').text
     assert '现有正式版 1.1.2' in privacy and '默认关闭' in privacy
     for path in ('/', '/downloads', '/diagnostics'):
         body = client.get(path).text
         assert 'href="/privacy"' in body and 'href="/code-signing"' in body
-    for locale in ('zh-CN', 'zh-TW', 'en', 'ja'):
+    for locale in ('zh-CN', 'zh-TW', 'en', 'ja', 'fr', 'es', 'ko'):
         body = client.get('/downloads', params={'lang': locale}).text
         assert 'SignPath Foundation' in body and 'SignPath.io' in body

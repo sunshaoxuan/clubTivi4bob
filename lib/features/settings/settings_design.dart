@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import '../../core/i18n/language_menu.dart';
+import '../../core/i18n/app_language.dart';
 
 Future<T?> showSettingsDialog<T>({
   required BuildContext context,
@@ -31,7 +33,7 @@ class SettingsDetailPage extends StatelessWidget {
           style: const TextStyle(fontSize: 19, fontWeight: FontWeight.w600),
         ),
         leading: IconButton(
-          tooltip: '返回设置',
+          tooltip: AppMessages.text(context, "返回设置"),
           icon: const Icon(Icons.arrow_back_rounded),
           onPressed: () => Navigator.of(context).pop(),
         ),
@@ -326,7 +328,7 @@ class _SettingsWorkspaceState extends State<SettingsWorkspace> {
                       ),
                       const SizedBox(width: 12),
                       Text(
-                        settingsCategories[i].title,
+                        AppMessages.text(context, settingsCategories[i].title),
                         style: TextStyle(
                           fontSize: 13,
                           fontWeight: FontWeight.w600,
@@ -375,12 +377,12 @@ class _SettingsWorkspaceState extends State<SettingsWorkspace> {
                       children: [
                         IconButton.filledTonal(
                           onPressed: widget.onBack,
-                          tooltip: '返回频道',
+                          tooltip: AppMessages.text(context, "返回频道"),
                           icon: const Icon(Icons.arrow_back_rounded),
                         ),
                         const SizedBox(width: 16),
-                        const Text(
-                          '设置',
+                        Text(
+                          AppMessages.text(context, "设置"),
                           style: TextStyle(
                             fontSize: 24,
                             fontWeight: FontWeight.w700,
@@ -388,6 +390,7 @@ class _SettingsWorkspaceState extends State<SettingsWorkspace> {
                           ),
                         ),
                         const Spacer(),
+                        const LanguageMenu(),
                         const Text(
                           'BobTV',
                           style: TextStyle(
@@ -432,7 +435,7 @@ class _SettingsWorkspaceState extends State<SettingsWorkspace> {
                                                     CrossAxisAlignment.start,
                                                 children: [
                                                   Text(
-                                                    settingsCategories[i].title,
+                                                    AppMessages.text(context, settingsCategories[i].title),
                                                     style: const TextStyle(
                                                       fontSize: 28,
                                                       fontWeight:
@@ -442,8 +445,7 @@ class _SettingsWorkspaceState extends State<SettingsWorkspace> {
                                                   ),
                                                   const SizedBox(height: 10),
                                                   Text(
-                                                    settingsCategories[i]
-                                                        .description,
+                                                    AppMessages.text(context, settingsCategories[i].description),
                                                     style: const TextStyle(
                                                       fontSize: 13,
                                                       height: 1.6,

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../core/app_diagnostics.dart';
 import '../../core/desktop_window_pin.dart';
+import '../../core/i18n/app_language.dart';
 
 class DesktopWindowPinButton extends StatelessWidget {
   const DesktopWindowPinButton({
@@ -23,8 +24,8 @@ class DesktopWindowPinButton extends StatelessWidget {
         SnackBar(
           content: Text(
             error is WindowPinRequiresWindowMode
-                ? '请先退出全屏，再调整窗口置顶'
-                : '窗口置顶切换失败，请重试',
+                ? AppMessages.text(context, "请先退出全屏，再调整窗口置顶")
+                : AppMessages.text(context, "窗口置顶切换失败，请重试"),
           ),
         ),
       );
@@ -40,7 +41,7 @@ class DesktopWindowPinButton extends StatelessWidget {
         final button = Semantics(
           toggled: pin.pinned,
           child: IconButton(
-            tooltip: pin.pinned ? '取消置顶' : '窗口置顶',
+            tooltip: pin.pinned ? AppMessages.text(context, "取消置顶") : AppMessages.text(context, "窗口置顶"),
             onPressed: pin.canToggle ? () => _toggle(context, pin) : null,
             icon: Icon(
               pin.pinned ? Icons.push_pin_rounded : Icons.push_pin_outlined,

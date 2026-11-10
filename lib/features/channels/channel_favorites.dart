@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../core/app_diagnostics.dart';
+import '../../core/i18n/app_language.dart';
 import '../../data/datasources/local/database.dart' as db;
 
 /// A star is a direct toggle. List assignment remains a separate action.
@@ -22,7 +23,7 @@ Future<void> toggleChannelFavorite({
       ..hideCurrentSnackBar()
       ..showSnackBar(
         SnackBar(
-          content: Text(isFavorite ? '已取消收藏' : '已加入我的收藏'),
+          content: Text(isFavorite ? AppMessages.text(context, "已取消收藏") : AppMessages.text(context, "已加入我的收藏")),
           action: isFavorite && removed.isNotEmpty
               ? SnackBarAction(
                   label: '撤销',
@@ -41,7 +42,7 @@ Future<void> toggleChannelFavorite({
                       );
                       if (context.mounted) {
                         ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('撤销失败，请稍后重试')),
+                          SnackBar(content: Text(AppMessages.text(context, "撤销失败，请稍后重试"))),
                         );
                       }
                     }
@@ -55,7 +56,7 @@ Future<void> toggleChannelFavorite({
     if (context.mounted) {
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(const SnackBar(content: Text('修改收藏失败，请稍后重试')));
+      ).showSnackBar(SnackBar(content: Text(AppMessages.text(context, "修改收藏失败，请稍后重试"))));
     }
   }
 }
@@ -236,13 +237,13 @@ class _ChannelFavoriteListSheetState extends State<ChannelFavoriteListSheet> {
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
-                    '管理收藏夹：${widget.channelName}',
+                    AppMessages.text(context, "管理收藏夹：{0}", [widget.channelName]),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
                 ),
                 IconButton(
-                  tooltip: '关闭',
+                  tooltip: AppMessages.text(context, "关闭"),
                   onPressed: () => Navigator.of(context).pop(),
                   icon: const Icon(Icons.close),
                 ),
@@ -264,9 +265,9 @@ class _ChannelFavoriteListSheetState extends State<ChannelFavoriteListSheet> {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     if (_lists.isEmpty)
-                      const Padding(
+                      Padding(
                         padding: EdgeInsets.all(16),
-                        child: Text('暂无收藏夹'),
+                        child: Text(AppMessages.text(context, "暂无收藏夹")),
                       ),
                     for (final list in _lists)
                       CheckboxListTile(
@@ -289,14 +290,14 @@ class _ChannelFavoriteListSheetState extends State<ChannelFavoriteListSheet> {
                 TextButton.icon(
                   onPressed: _busy || _pending.isNotEmpty ? null : _create,
                   icon: const Icon(Icons.add),
-                  label: const Text('新建收藏夹'),
+                  label: Text(AppMessages.text(context, "新建收藏夹")),
                 ),
                 TextButton.icon(
                   onPressed: _busy || _pending.isNotEmpty || _selected.isEmpty
                       ? null
                       : _removeAll,
                   icon: const Icon(Icons.star_outline_rounded),
-                  label: const Text('取消全部收藏'),
+                  label: Text(AppMessages.text(context, "取消全部收藏")),
                 ),
               ],
             ),

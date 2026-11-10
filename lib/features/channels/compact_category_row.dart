@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
 import '../../data/services/country_name_index.dart';
+import '../../core/i18n/app_language.dart';
 
 class CompactCategoryOption {
   const CompactCategoryOption({
@@ -141,7 +142,7 @@ class _CompactCategoryRowState extends State<CompactCategoryRow> {
                             ),
                           ),
                           IconButton(
-                            tooltip: '关闭分类菜单',
+                            tooltip: AppMessages.text(context, "关闭分类菜单"),
                             constraints: BoxConstraints.tightFor(
                               width: layout.headerHeight,
                               height: layout.headerHeight,
@@ -375,7 +376,7 @@ class _CompactCategoryRowState extends State<CompactCategoryRow> {
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         Text(
-                          '更多',
+                          AppMessages.text(context, "更多"),
                           style: TextStyle(
                             color: Colors.white70,
                             fontSize: widget.tiny ? 10 : 12,
@@ -468,7 +469,7 @@ class _CountryMenuState extends State<_CountryMenu> {
           });
           _resetScroll();
         },
-        child: Text(initial ?? '全部'),
+        child: Text(initial ?? AppMessages.text(context, "全部")),
       ),
     );
   }
@@ -507,11 +508,11 @@ class _CountryMenuState extends State<_CountryMenu> {
 
   Widget _results(Map<String, List<CompactCategoryOption>> groups) {
     if (groups.isEmpty) {
-      return const Padding(
+      return Padding(
         padding: EdgeInsets.symmetric(vertical: 24),
         child: Center(
           child: Text(
-            '没有匹配的国家或地区',
+            AppMessages.text(context, "没有匹配的国家或地区"),
             style: TextStyle(color: Color(0xFFDCE6F8), fontSize: 14),
           ),
         ),
@@ -607,7 +608,7 @@ class _CountryMenuState extends State<_CountryMenu> {
                       height: 44,
                       child: IconButton(
                         key: const ValueKey('country-menu-close'),
-                        tooltip: '关闭国家菜单',
+                        tooltip: AppMessages.text(context, "关闭国家菜单"),
                         onPressed: () => Navigator.pop(context),
                         icon: const Icon(
                           Icons.close_rounded,
@@ -669,7 +670,7 @@ class _CountryMenuState extends State<_CountryMenu> {
                                 constraints: const BoxConstraints(
                                   minHeight: 48,
                                 ),
-                                hintText: '搜索国家或地区',
+                                hintText: AppMessages.text(context, "搜索国家或地区"),
                                 hintStyle: const TextStyle(
                                   color: Color(0xFFAABAD2),
                                 ),
@@ -689,7 +690,7 @@ class _CountryMenuState extends State<_CountryMenu> {
                                         key: const ValueKey(
                                           'country-search-clear',
                                         ),
-                                        tooltip: '清空搜索',
+                                        tooltip: AppMessages.text(context, "清空搜索"),
                                         visualDensity: VisualDensity.standard,
                                         onPressed: () {
                                           setState(() => _search.clear());
@@ -707,8 +708,8 @@ class _CountryMenuState extends State<_CountryMenu> {
                               },
                             ),
                             const SizedBox(height: 10),
-                            const Text(
-                              '按拼音首字母',
+                            Text(
+                              AppMessages.text(context, "按拼音首字母"),
                               style: TextStyle(
                                 color: Color(0xFFAABAD2),
                                 fontSize: 12,
@@ -748,7 +749,7 @@ class _CountryMenuState extends State<_CountryMenu> {
                               ),
                             const SizedBox(height: 10),
                             Text(
-                              '${_initial ?? '全部'} · ${visible.length} 个国家或地区',
+                              AppMessages.text(context, "{0} · {1} 个国家或地区", [_initial ?? '全部', visible.length]),
                               style: const TextStyle(
                                 color: Color(0xFFAABAD2),
                                 fontSize: 12,

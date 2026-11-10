@@ -1,0 +1,16 @@
+﻿BobTV Privacy Notice
+
+BobTV will obtain public channel, category, program list, station logo and version information from https://bobtv.briconbric.com. Resource requests may select the BobTV cache node at https://cndrp.com; video playback is directly connected to the selected signal source. The network service receives information such as the IP, request path, and application version required for the connection.
+
+Local collections can be privately backed up using the original device fingerprint hash and exclusive key, and can only be restored to the original device without entering the public channel library. Backup uses channel/line identifiers and favorites lists, and does not send private subscription playback addresses. You can cancel the first activation on the next page, or you can turn off "Online Backup of Local Favorites" at any time in "Settings → Sync & Privacy". Local collections are retained after closing; network requests sent cannot be withdrawn.
+
+Modifications such as classification, merging, line transfer, rating and elimination of public channels will be synchronized in the background as public records. Do not submit private accounts, passwords, or addresses that are not authorized for sharing. There are additional confirmation steps for candidate TV source submission.
+
+"Share playback status" and "Automatically upload diagnostic summary" are turned off by default and can be turned on or off respectively in settings. Manually uploading diagnostics only sends filtered summary fields. The original logs, exception stacks, and dump files are saved locally and will not be automatically uploaded as diagnostic summaries. Dumps may contain sensitive information and should not be shared without review.
+
+Native playback history, private subscriptions, and AI keys do not enter the public channel directory. The server performs source discovery and AI tasks, and the video source and screen projection receiver also have their own data processing rules.
+
+Full policy: https://bobtv.briconbric.com/privacy
+Code signing policy: https://bobtv.briconbric.com/code-signing
+
+Installing and uninstalling does not clear the current user's collections, channels, settings, or logs.

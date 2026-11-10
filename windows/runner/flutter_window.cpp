@@ -6,6 +6,7 @@
 #include <flutter/standard_method_codec.h>
 
 #include "flutter/generated_plugin_registrant.h"
+#include "utils.h"
 
 namespace {
 
@@ -90,6 +91,36 @@ bool FlutterWindow::OnCreate() {
         }
         result->Success();
       });
+  locale_channel_ =
+      std::make_unique<flutter::MethodChannel<flutter::EncodableValue>>(
+          flutter_controller_->engine()->messenger(), "bobtv/locale",
+          &flutter::StandardMethodCodec::GetInstance());
+  locale_channel_->SetMethodCallHandler(
+      [](const flutter::MethodCall<flutter::EncodableValue>& call,
+         std::unique_ptr<flutter::MethodResult<flutter::EncodableValue>> result) {
+        if (call.method_name() != "timeZone") {
+          result->NotImplemented();
+          return;
+        }
+        DYNAMIC_TIME_ZONE_INFORMATION zone{};
+        if (GetDynamicTimeZoneInformation(&zone) == TIME_ZONE_ID_INVALID) {
+          result->Success();
+          return;
+        }
+        std::wstring key = zone.TimeZoneKeyName;
+        if (key == L"Romance Standard Time") {
+          wchar_t region[LOCALE_NAME_MAX_LENGTH]{};
+          if (GetUserDefaultLocaleName(region, LOCALE_NAME_MAX_LENGTH)) {
+            const std::wstring locale = region;
+            const auto split = locale.rfind(L'-');
+            const auto country = split == std::wstring::npos
+                ? L"" : locale.substr(split + 1);
+            if (country == L"FR" || country == L"BE") key += L" (France)";
+            if (country == L"ES") key += L" (Spain)";
+          }
+        }
+        result->Success(flutter::EncodableValue(Utf8FromUtf16(key.c_str())));
+      });
   HWND flutter_view = flutter_controller_->view()->GetNativeWindow();
   SetWindowSubclass(flutter_view, FlutterViewSubclassProc,
                     kFlutterViewSubclassId, 0);
@@ -111,6 +142,7 @@ void FlutterWindow::OnDestroy() {
   if (flutter_controller_) {
     updater_channel_ = nullptr;
     window_chrome_channel_ = nullptr;
+    locale_channel_ = nullptr;
     RemoveWindowSubclass(flutter_controller_->view()->GetNativeWindow(),
                          FlutterViewSubclassProc, kFlutterViewSubclassId);
     flutter_controller_ = nullptr;

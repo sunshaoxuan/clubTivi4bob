@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'cast_service.dart';
+import '../../core/i18n/app_language.dart';
 
 Future<bool> pairAirPlay(
   BuildContext context,
@@ -78,15 +79,15 @@ class _PairDialogState extends State<_PairDialog> {
   Widget build(BuildContext context) => PopScope(
     canPop: false,
     child: AlertDialog(
-      title: Text('配對 ${widget.device.name}'),
+      title: Text(AppMessages.text(context, "配對 {0}", [widget.device.name])),
       content: SizedBox(
         width: 310,
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text(_busy ? '正在向接收設備請求配對…' : _ready
-                ? '如果接收設備顯示了四位驗證碼，請在下方輸入。沒有顯示請取消。'
-                : '接收設備未能進入配對流程。'),
+            Text(_busy ? AppMessages.text(context, "正在向接收設備請求配對…") : _ready
+                ? AppMessages.text(context, "如果接收設備顯示了四位驗證碼，請在下方輸入。沒有顯示請取消。")
+                : AppMessages.text(context, "接收設備未能進入配對流程。")),
             const SizedBox(height: 12),
             Text(
               _pin.padRight(4, '○'),
@@ -142,13 +143,13 @@ class _PairDialogState extends State<_PairDialog> {
             unawaited(widget.service.cancelPairing());
             Navigator.of(context).pop(false);
           },
-          child: const Text('取消'),
+          child: Text(AppMessages.text(context, "取消")),
         ),
         if (!_ready && !_busy)
-          TextButton(onPressed: _begin, child: const Text('重新配對')),
+          TextButton(onPressed: _begin, child: Text(AppMessages.text(context, "重新配對"))),
         FilledButton(
           onPressed: _ready && !_busy && _pin.length == 4 ? _finish : null,
-          child: const Text('配對'),
+          child: Text(AppMessages.text(context, "配對")),
         ),
       ],
     ),

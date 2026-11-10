@@ -774,6 +774,16 @@
       "Détails de la version et de l’installation"
     ],
     "stations": "Logos des chaînes TV",
-    "pause_stations": "Mettre le défilement des logos en pause"
+    "pause_stations": "Mettre le défilement des logos en pause",
+    "catalog_stats": [
+      "Chiffres du catalogue",
+      "Chaînes TV en direct",
+      "Radios",
+      "Cinéma",
+      "Actualités",
+      "Divertissement",
+      "Sport",
+      "Documentaires"
+    ]
   }
 }

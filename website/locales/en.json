@@ -774,6 +774,16 @@
       "Release and installation details"
     ],
     "stations": "TV station logos",
-    "pause_stations": "Pause scrolling logos"
+    "pause_stations": "Pause scrolling logos",
+    "catalog_stats": [
+      "Channel catalog snapshot",
+      "Live TV channels",
+      "Radio stations",
+      "Movie channels",
+      "News channels",
+      "Entertainment channels",
+      "Sports channels",
+      "Documentary channels"
+    ]
   }
 }

@@ -196,23 +196,23 @@ p { line-height: 1.72; }
 .floating-stat small { display: block; margin-top: 3px; color: #e2dbf3; font-size: .76rem; }
 .floating-stat.countries { top: 17%; left: -7%; }
 .floating-stat.languages { bottom: 14%; right: -6%; }
-.signal-strip {
-  display: flex;
-  gap: clamp(12px, 2.5vw, 30px);
-  align-items: center;
-  padding: 17px 24px;
+.floating-stat.television { bottom: 5%; left: 4%; }
+.floating-stat.television strong { color: #f8bbf0; font-size: 1.55rem; }
+.catalog-numbers { padding-bottom: 22px; }
+.catalog-numbers-grid {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  margin: 0;
   border: 1px solid var(--line);
   border-radius: 18px;
   background: linear-gradient(120deg, #211e39, #1a1c30 65%);
-  box-shadow: var(--shadow);
 }
-.signal-mark { display: flex; align-items: center; gap: 4px; flex: none; color: var(--lilac); }
-.signal-mark i { width: 4px; height: 13px; border-radius: 3px; background: currentColor; }
-.signal-mark i:nth-child(2n) { height: 23px; }
-.signal-mark i:nth-child(3) { height: 33px; color: var(--pink); }
-.signal-strip strong { font-size: .95rem; }
-.signal-strip ul { display: flex; flex-wrap: wrap; gap: 9px; margin: 0; padding: 0; list-style: none; }
-.signal-strip li, .media-label, .download-secure {
+.catalog-numbers-grid > div { min-width: 0; padding: clamp(10px, 1.5vw, 20px); }
+.catalog-numbers-grid > div + div { border-inline-start: 1px solid var(--line); }
+.catalog-numbers-grid dt { color: var(--muted); font-size: .8rem; font-weight: 650; }
+.catalog-numbers-grid dt span { color: var(--pink); }
+.catalog-numbers-grid dd { margin: 3px 0 0; color: var(--ink); font-size: clamp(1.3rem, 2.5vw, 2rem); font-weight: 850; }
+.media-label, .download-secure {
   width: fit-content;
   padding: 4px 10px;
   border: 1px solid #bb96ff45;
@@ -222,13 +222,10 @@ p { line-height: 1.72; }
   font-size: .77rem;
   font-weight: 720;
 }
-.signal-strip > a, .back-top {
-  flex: none;
+.catalog-numbers > p { padding-top: 6px; color: var(--muted); text-align: end; font-size: .74rem; }
+.back-top {
   display: grid;
   place-items: center;
-  width: 42px;
-  height: 42px;
-  margin-inline-start: auto;
   border-radius: 50%;
   background: var(--accent);
   color: #1b112e;
@@ -236,9 +233,31 @@ p { line-height: 1.72; }
   font-weight: 800;
   text-decoration: none;
 }
+.scroll-scene-track { scroll-margin-top: var(--scene-header, 76px); }
 @media (prefers-reduced-motion: no-preference) {
-  [data-scroll-scene] { opacity: var(--scene-opacity, 1); }
-  [data-scroll-scene]:has(:focus-visible) { opacity: 1; }
+  [data-layered-scroll] .scroll-scene-track {
+    position: relative;
+    z-index: 0;
+  }
+  [data-layered-scroll] .scroll-scene-track[data-scene-next] {
+    margin-bottom: calc(-1 * var(--scene-hold));
+  }
+  [data-layered-scroll] .scroll-scene-track[data-scene-next]::after {
+    content: "";
+    display: block;
+    height: var(--scene-travel);
+  }
+  [data-layered-scroll] .scroll-scene-track:last-child { padding-bottom: var(--scene-tail, 0px); }
+  [data-layered-scroll] [data-scroll-scene] {
+    position: sticky;
+    top: var(--scene-top);
+    opacity: var(--scene-opacity, 1);
+    transform: translateY(var(--scene-lift, 0px));
+  }
+  [data-layered-scroll] :where([data-scroll-scene]) { background-color: var(--night); }
+  [data-layered-scroll] [data-scene-behind] { pointer-events: none; }
+  [data-layered-scroll] .scroll-scene-track:has(:focus-visible) { z-index: 1; }
+  [data-layered-scroll] [data-scroll-scene]:has(:focus-visible) { opacity: 1; pointer-events: auto; }
 }
 .showcase-section { padding-block: clamp(63px, 8vw, 112px); scroll-margin-top: 65px; }
 .section-heading { max-width: 740px; margin-bottom: 30px; }
@@ -521,10 +540,10 @@ footer { background: #0c0e18; border-top: 1px solid var(--line); color: var(--mu
   .floating-stat { gap: 5px; padding: 8px; }
   .floating-stat strong { font-size: 1rem; }
   .floating-stat small { font-size: .66rem; }
-  .signal-strip { padding: 12px; flex-wrap: wrap; gap: 9px; }
-  .signal-strip strong { flex: 1; }
-  .signal-strip ul { order: 1; width: 100%; }
-  .signal-strip > a { width: 35px; height: 35px; }
+  .floating-stat.television strong { font-size: 1.12rem; }
+  .catalog-numbers-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .catalog-numbers-grid > div:nth-child(4) { border-inline-start: 0; }
+  .catalog-numbers-grid > div:nth-child(n + 4) { border-top: 1px solid var(--line); }
   .media-grid, .release-choices, .download-hero-featured .download-hero-inner { grid-template-columns: 1fr; }
   .media-card img { aspect-ratio: 1.8; }
   .media-copy { padding: 17px; }

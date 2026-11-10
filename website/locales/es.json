@@ -774,6 +774,16 @@
       "Detalles de la versión y la instalación"
     ],
     "stations": "Logotipos de canales de TV",
-    "pause_stations": "Pausar el desplazamiento de los logotipos"
+    "pause_stations": "Pausar el desplazamiento de los logotipos",
+    "catalog_stats": [
+      "Cifras del catálogo",
+      "Canales de TV en directo",
+      "Emisoras de radio",
+      "Cine",
+      "Noticias",
+      "Entretenimiento",
+      "Deportes",
+      "Documentales"
+    ]
   }
 }

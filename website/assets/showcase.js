@@ -1,45 +1,82 @@
 const backTop = document.querySelector('.back-top');
 const heroArt = document.querySelector('.hero-visual, .download-hero-featured img');
-const scenes = [...document.querySelectorAll('[data-scroll-scene]')];
+const main = document.querySelector('main');
+const scenes = [...main.querySelectorAll('[data-scroll-scene]')];
 const header = document.querySelector('.site-header');
+const footer = document.querySelector('footer');
 const motion = matchMedia('(prefers-reduced-motion: reduce)');
+const tracks = scenes.map((scene, index) => {
+  const track = document.createElement('div');
+  track.className = 'scroll-scene-track';
+  track.toggleAttribute('data-scene-next', index < scenes.length - 1);
+  if (scene.id) {
+    track.id = scene.id;
+    scene.removeAttribute('id');
+  }
+  scene.before(track);
+  track.append(scene);
+  return track;
+});
 let scrollFrame = 0;
-
-function sceneOpacity(scene, viewport, headerHeight, entryLimit, exitLimit) {
-  const { top, bottom } = scene.getBoundingClientRect();
-  const distance = (viewport - headerHeight) * .90;
-  const enter = Math.max(entryLimit, (viewport - top) / distance);
-  const leave = Math.max(exitLimit, (bottom - headerHeight) / distance);
-  const progress = Math.max(0, Math.min(1, enter, leave));
-  return (.24 + .76 * progress ** 1.6).toFixed(3);
-}
+let measure = true;
+let travel = 1;
 
 function updateScroll() {
   scrollFrame = 0;
   const offset = Math.max(0, window.scrollY);
-  const viewport = window.innerHeight;
+  const enabled = !motion.matches && CSS.supports('position', 'sticky');
+
+  if (measure) {
+    measure = false;
+    if (enabled) {
+      const headerHeight = header.offsetHeight;
+      const available = Math.max(1, window.innerHeight - headerHeight);
+      travel = Math.max(1, Math.round(available * .72));
+      const heights = scenes.map(scene => scene.offsetHeight);
+      main.style.setProperty('--scene-header', `${headerHeight}px`);
+      main.style.setProperty('--scene-travel', `${travel}px`);
+      const last = tracks.length - 1;
+      tracks[last].style.setProperty('--scene-tail', `${Math.max(0, available - heights[last] - footer.offsetHeight)}px`);
+      heights.forEach((height, index) => {
+        tracks[index].style.setProperty('--scene-hold', `${Math.min(height, available)}px`);
+        scenes[index].style.setProperty('--scene-top', `${Math.min(headerHeight, window.innerHeight - height)}px`);
+      });
+    }
+    main.toggleAttribute('data-layered-scroll', enabled);
+  }
+
   const headerHeight = header.offsetHeight;
-  const remaining = document.documentElement.scrollHeight - viewport - offset;
-  // Keep the first and last screens readable when the page reaches either end.
-  const entryLimit = 1 - remaining / viewport;
-  const exitLimit = 1 - offset / viewport;
-  const opacities = motion.matches ? [] : scenes.map(scene =>
-    sceneOpacity(scene, viewport, headerHeight, entryLimit, exitLimit));
+  const gaps = enabled ? tracks.map(track => track.getBoundingClientRect().top - headerHeight) : [];
+  const progress = gaps.map((gap, index) => index === 0 ? 1 : Math.min(1, Math.max(0, 1 - gap / travel)));
 
   backTop.hidden = offset < 520;
-  if (heroArt) heroArt.style.transform = motion.matches ? '' : `translateY(${Math.min(26, offset * .075)}px)`;
-  opacities.forEach((opacity, index) => scenes[index].style.setProperty('--scene-opacity', opacity));
+  if (heroArt) heroArt.style.transform = enabled ? `translateY(${Math.min(26, offset * .075)}px)` : '';
+  progress.forEach((enter, index) => {
+    const leave = progress[index + 1] ?? 0;
+    const opacity = Math.min(enter, 1 - leave);
+    const lift = enter > 0 && enter < 1 ? -gaps[index] : 0;
+    scenes[index].style.setProperty('--scene-opacity', opacity.toFixed(3));
+    scenes[index].style.setProperty('--scene-lift', `${lift}px`);
+    scenes[index].toggleAttribute('data-scene-behind', opacity < .5);
+  });
 }
 
 function scheduleScroll() {
   if (!scrollFrame) scrollFrame = requestAnimationFrame(updateScroll);
 }
+function scheduleMeasure() {
+  measure = true;
+  scheduleScroll();
+}
 window.addEventListener('scroll', scheduleScroll, { passive: true });
-window.addEventListener('resize', scheduleScroll);
-window.addEventListener('pageshow', scheduleScroll);
-motion.addEventListener('change', scheduleScroll);
+window.addEventListener('resize', scheduleMeasure);
+window.addEventListener('pageshow', scheduleMeasure);
+motion.addEventListener('change', scheduleMeasure);
 if ('ResizeObserver' in window) {
-  new ResizeObserver(scheduleScroll).observe(document.querySelector('main'));
+  const observer = new ResizeObserver(scheduleMeasure);
+  observer.observe(header);
+  observer.observe(footer);
+  for (const scene of scenes) observer.observe(scene);
 }
 updateScroll();
 

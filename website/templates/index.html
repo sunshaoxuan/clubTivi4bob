@@ -1,32 +1,36 @@
 {% extends "base.html" %}
 {% block content %}
 {% set s = t.showcase %}
+{# Catalog snapshot published 2026-11-11 JST. Count channel entries in the International, China and Other broadcast trees, excluding radio from TV. #}
 <main>
-  <section class="hero-band" data-scroll-scene aria-labelledby="hero-title">
-    <div class="container home-hero-layout">
-      <div class="hero-copy">
-        <p class="eyebrow"><span class="live-dot"></span>{{ s.eyebrow }}</p>
-        <h1 id="hero-title">{{ s.hero[0] }}<br><span class="gradient-text">{{ s.hero[1] }}</span></h1>
-        <p class="hero-description">{{ s.hero[2] }}</p>
-        <div class="actions">
-          <a class="button primary" href="{{ site_root }}/downloads">{{ t.download }} <span aria-hidden="true">↓</span></a>
-          <a class="button secondary" href="#discover">{{ t.features }} <span aria-hidden="true">↘</span></a>
+  <div data-scroll-scene>
+    <section class="hero-band" aria-labelledby="hero-title">
+      <div class="container home-hero-layout">
+        <div class="hero-copy">
+          <p class="eyebrow"><span class="live-dot"></span>{{ s.eyebrow }}</p>
+          <h1 id="hero-title">{{ s.hero[0] }}<br><span class="gradient-text">{{ s.hero[1] }}</span></h1>
+          <p class="hero-description">{{ s.hero[2] }}</p>
+          <div class="actions">
+            <a class="button primary" href="{{ site_root }}/downloads">{{ t.download }} <span aria-hidden="true">↓</span></a>
+            <a class="button secondary" href="#discover">{{ t.features }} <span aria-hidden="true">↘</span></a>
+          </div>
+          <p class="platform-line"><span class="platform-dots" aria-hidden="true"><i></i><i></i><i></i></span>Windows <span>·</span> macOS <span>·</span> Android</p>
         </div>
-        <p class="platform-line"><span class="platform-dots" aria-hidden="true"><i></i><i></i><i></i></span>Windows <span>·</span> macOS <span>·</span> Android</p>
+        <div class="hero-visual">
+          <img class="hero-photo" src="{{ site_root }}/assets/showcase/hero.webp" width="1200" height="900" alt="" fetchpriority="high">
+          <div class="floating-stat countries"><span aria-hidden="true">◎</span><div><strong>100+</strong><small>{{ s.countries }}</small></div></div>
+          <div class="floating-stat languages"><span aria-hidden="true">Aa</span><div><strong>7</strong><small>{{ s.languages }}</small></div></div>
+          <div class="floating-stat television"><span aria-hidden="true">▣</span><div><strong>8,086</strong><small>{{ s.catalog_stats[1] }}</small></div></div>
+        </div>
       </div>
-      <div class="hero-visual">
-        <img class="hero-photo" src="{{ site_root }}/assets/showcase/hero.webp" width="1200" height="900" alt="" fetchpriority="high">
-        <div class="floating-stat countries"><span aria-hidden="true">◎</span><div><strong>100+</strong><small>{{ s.countries }}</small></div></div>
-        <div class="floating-stat languages"><span aria-hidden="true">Aa</span><div><strong>7</strong><small>{{ s.languages }}</small></div></div>
-      </div>
-    </div>
-  </section>
-  <div class="container">
-    <div class="signal-strip">
-      <span class="signal-mark" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></span>
-      <strong>{{ s.eyebrow }}</strong>
-      <ul>{% for item in s.media %}<li>{{ item[0] }}</li>{% endfor %}</ul>
-      <a href="#discover" aria-label="{{ t.features }}">↓</a>
+    </section>
+    <div class="container catalog-numbers">
+      <dl class="catalog-numbers-grid">
+        {% for count, mark in [(579, '♫'), (376, '▣'), (795, '◉'), (531, '✦'), (320, '⚡'), (158, '◈')] %}
+        <div><dt><span aria-hidden="true">{{ mark }}</span> {{ s.catalog_stats[loop.index + 1] }}</dt><dd>{{ count }}</dd></div>
+        {% endfor %}
+      </dl>
+      <p>{{ s.catalog_stats[0] }} · <time datetime="2026-11-11">2026-11-11</time></p>
     </div>
   </div>
   <section id="discover" data-scroll-scene class="showcase-section" aria-labelledby="discover-title">

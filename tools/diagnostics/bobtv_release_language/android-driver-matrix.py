@@ -16,7 +16,10 @@ catalogs={p.stem:json.loads(p.read_text()) for p in (root/"source/assets/i18n").
 tags={"en":"English","zh-CN":"简体中文","zh-TW":"繁體中文","ja":"日本語","fr":"Français","es":"Español","ko":"한국어"}
 
 def run(*args,timeout=140):
-    return subprocess.check_output([*adb,*args],text=True,timeout=timeout,stderr=subprocess.STDOUT)
+    completed=subprocess.run([*adb,*args],text=True,timeout=timeout,stdout=subprocess.PIPE,stderr=subprocess.STDOUT)
+    if completed.returncode:
+        raise RuntimeError(f"ADB failed ({completed.returncode}): {args!r}\n{completed.stdout}")
+    return completed.stdout
 
 def launch():
     output=run("shell","am","start","-W","-n",activity,timeout=100)
@@ -39,7 +42,7 @@ for arch,abi in (("x64","x86_64"),("arm64","arm64-v8a"),("arm","armeabi-v7a")):
     dest=root/("android-qa-"+arch)
     dest.mkdir(exist_ok=True)
     if (dest/"result.json").is_file(): continue
-    if "package:" in run("shell","pm","path",package):
+    if ("package:"+package) in run("shell","pm","list","packages",package).splitlines():
         assert "Success" in run("uninstall",package)
     path=root/"packages"/f"BobTV-1.1.19+114-android-{arch}.apk"
     print("Installing "+path.name,flush=True)

@@ -30,8 +30,8 @@
     </section>
     {% if catalog %}<div class="container catalog-numbers">
       <dl class="catalog-numbers-grid">
-        {% for count, mark in [(catalog.radio, '♫'), (catalog.movies, '▣'), (catalog.news, '◉'), (catalog.entertainment, '✦'), (catalog.sports, '⚡'), (catalog.documentaries, '◈')] %}
-        <div><dt><span aria-hidden="true">{{ mark }}</span> {{ s.catalog_stats[loop.index + 1] }}</dt><dd>{{ counter(count) }}</dd></div>
+        {% for count in [catalog.radio, catalog.movies, catalog.news, catalog.entertainment, catalog.sports, catalog.documentaries] %}
+        <div><dt>{{ s.catalog_stats[loop.index + 1] }}</dt><dd>{{ counter(count) }}</dd></div>
         {% endfor %}
       </dl>
       <p>{{ s.catalog_stats[0] }} · <time datetime="{{ catalog.date }}">{{ catalog.date }}</time></p>

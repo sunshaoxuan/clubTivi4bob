@@ -199,20 +199,25 @@ p { line-height: 1.72; }
 .floating-stat.television { bottom: 5%; left: 4%; }
 .floating-stat.television strong { color: #f8bbf0; font-size: 1.55rem; }
 .catalog-counter { display: inline-block; min-width: var(--counter-width); font-variant-numeric: tabular-nums; }
-.catalog-numbers { padding-bottom: 22px; }
+.catalog-numbers { padding-block: 6px 28px; }
 .catalog-numbers-grid {
-  display: grid;
-  grid-template-columns: repeat(6, minmax(0, 1fr));
+  display: flex;
+  justify-content: space-between;
+  gap: clamp(14px, 3vw, 44px);
   margin: 0;
-  border: 1px solid var(--line);
-  border-radius: 18px;
-  background: linear-gradient(120deg, #211e39, #1a1c30 65%);
 }
-.catalog-numbers-grid > div { min-width: 0; padding: clamp(10px, 1.5vw, 20px); }
-.catalog-numbers-grid > div + div { border-inline-start: 1px solid var(--line); }
-.catalog-numbers-grid dt { color: var(--muted); font-size: .8rem; font-weight: 650; }
-.catalog-numbers-grid dt span { color: var(--pink); }
-.catalog-numbers-grid dd { margin: 3px 0 0; color: var(--ink); font-size: clamp(1.3rem, 2.5vw, 2rem); font-weight: 850; }
+.catalog-numbers-grid > div { display: flex; min-width: 0; flex-direction: column; gap: 4px; }
+.catalog-numbers-grid dt { color: var(--muted); font-size: .88rem; line-height: 1.35; }
+.catalog-numbers-grid dd {
+  order: -1;
+  margin: 0;
+  color: var(--ink);
+  font-size: clamp(1.7rem, 3.4vw, 3.45rem);
+  line-height: 1;
+  font-weight: 770;
+  letter-spacing: -.045em;
+}
+.catalog-numbers-grid > div:first-child dd { color: #f2b0e8; }
 .media-label, .download-secure {
   width: fit-content;
   padding: 4px 10px;
@@ -223,7 +228,7 @@ p { line-height: 1.72; }
   font-size: .77rem;
   font-weight: 720;
 }
-.catalog-numbers > p { padding-top: 6px; color: var(--muted); text-align: end; font-size: .74rem; }
+.catalog-numbers > p { padding-top: 15px; color: var(--muted); text-align: end; font-size: .74rem; }
 .back-top {
   display: grid;
   place-items: center;
@@ -532,9 +537,10 @@ footer { background: #0c0e18; border-top: 1px solid var(--line); color: var(--mu
   .floating-stat strong { font-size: 1rem; }
   .floating-stat small { font-size: .66rem; }
   .floating-stat.television strong { font-size: 1.12rem; }
-  .catalog-numbers-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-  .catalog-numbers-grid > div:nth-child(4) { border-inline-start: 0; }
-  .catalog-numbers-grid > div:nth-child(n + 4) { border-top: 1px solid var(--line); }
+  .catalog-numbers { padding-block: 0 20px; }
+  .catalog-numbers-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 17px 10px; }
+  .catalog-numbers-grid dt { font-size: .74rem; }
+  .catalog-numbers > p { text-align: start; }
   .media-grid, .release-choices, .download-hero-featured .download-hero-inner { grid-template-columns: 1fr; }
   .media-card img { aspect-ratio: 1.8; }
   .media-copy { padding: 17px; }

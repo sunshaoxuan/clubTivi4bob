@@ -1,0 +1,131 @@
+name: BobTV 1.1.19 native language acceptance
+on:
+  push:
+    branches: [qa/bobtv-1.1.19-native]
+
+permissions:
+  contents: write
+
+jobs:
+  mac:
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-15-intel
+            arch: x64
+          - runner: macos-15
+            arch: arm64
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Download unpublished candidate and verify its draft status
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ARCH: ${{ matrix.arch }}
+        run: |
+          set -euo pipefail
+          mkdir -p candidate
+          for attempt in {1..65}; do
+            if [[ "$(gh release view v1.1.19 --json isDraft --jq .isDraft 2>/dev/null)" == true ]] &&
+               gh release download v1.1.19 --pattern "BobTV-1.1.19+114-macos-$ARCH.dmg" --dir candidate; then
+              break
+            fi
+            sleep 15
+          done
+          test -f "candidate/BobTV-1.1.19+114-macos-$ARCH.dmg"
+      - name: Mount and exercise the exact DMG application
+        env:
+          ARCH: ${{ matrix.arch }}
+        run: |
+          set -euo pipefail
+          probe=tools/diagnostics/bobtv_release_language
+          python -m pip install opencv-python-headless pillow
+          swiftc "$probe/mac-desktop-qa.swift" -o "$RUNNER_TEMP/mac-desktop-qa"
+          "$RUNNER_TEMP/mac-desktop-qa" permissions
+          mkdir -p "$RUNNER_TEMP/bobtv-dmg"
+          hdiutil attach -readonly -nobrowse -mountpoint "$RUNNER_TEMP/bobtv-dmg" "candidate/BobTV-1.1.19+114-macos-$ARCH.dmg"
+          trap 'hdiutil detach "$RUNNER_TEMP/bobtv-dmg"' EXIT
+          app="$RUNNER_TEMP/bobtv-dmg/BobTV.app"
+          codesign --verify --deep --strict "$app"
+          [[ "$(lipo -archs "$app/Contents/MacOS/BobTV")" == "$(uname -m)" ]]
+          for file in assets/i18n/*.json; do
+            cmp "$file" "$app/Contents/Frameworks/App.framework/Resources/flutter_assets/assets/i18n/${file##*/}"
+          done
+          python "$probe/mac-language-qa.py" "$app" evidence "$RUNNER_TEMP/mac-desktop-qa"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: bobtv-macos-language-${{ matrix.arch }}
+          path: evidence/*.png
+          retention-days: 3
+          if-no-files-found: ignore
+  windows:
+    timeout-minutes: 55
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: windows-2025
+            arch: x64
+            native: AMD64
+          - runner: windows-11-arm
+            arch: arm64
+            native: ARM64
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          architecture: x64
+      - name: Download unpublished Setup and install in the disposable runner
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ARCH: ${{ matrix.arch }}
+          EXPECTED_NATIVE: ${{ matrix.native }}
+        run: |
+          $ErrorActionPreference='Stop'
+          if($env:PROCESSOR_ARCHITECTURE -ne $env:EXPECTED_NATIVE){throw 'Unexpected Windows host architecture'}
+          $name="BobTV-1.1.19+114-windows-$env:ARCH-Setup.exe"
+          $dir=Join-Path $env:RUNNER_TEMP 'bobtv-candidate'
+          New-Item -ItemType Directory -Force $dir | Out-Null
+          $binary=Join-Path $dir $name
+          for($n=0; $n -lt 75; $n++){
+            if((gh release view v1.1.19 --json isDraft --jq .isDraft 2>$null) -eq 'true'){
+              gh release download v1.1.19 --pattern $name --dir $dir
+              if($LASTEXITCODE -eq 0){break}
+            }
+            Start-Sleep 15
+          }
+          if(!(Test-Path $binary)){throw 'Draft installer unavailable'}
+          $root=Join-Path $env:RUNNER_TEMP 'BobTVLanguageQA'
+          $install=Start-Process $binary -ArgumentList @('/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART','/NOICONS','/TASKS=""','/LANG=english',('/DIR="'+$root+'"')) -PassThru -Wait
+          if($install.ExitCode -ne 0){throw "Installer exit $($install.ExitCode)"}
+          foreach($file in Get-ChildItem assets/i18n/*.json){
+            $installed=Join-Path $root ('data/flutter_assets/assets/i18n/'+$file.Name)
+            if((Get-FileHash $file.FullName).Hash -ne (Get-FileHash $installed).Hash){throw "Resource differs: $($file.Name)"}
+          }
+          "BOBTV_QA_APP=$(Join-Path $root 'BobTV.exe')" | Out-File -Append -Encoding utf8 $env:GITHUB_ENV
+      - name: Exercise all seven languages in the installed application
+        shell: pwsh
+        run: |
+          python -m pip install opencv-python-headless pillow
+          python tools/diagnostics/bobtv_release_language/windows-language-qa.py "$env:BOBTV_QA_APP" evidence
+          if($LASTEXITCODE){exit $LASTEXITCODE}
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: bobtv-windows-language-${{ matrix.arch }}
+          path: evidence/*.png
+          retention-days: 3
+          if-no-files-found: ignore

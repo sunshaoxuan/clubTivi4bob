@@ -127,5 +127,7 @@ def test_policy_routes_and_current_release_boundary():
         body = client.get(path).text
         assert 'href="/privacy"' in body and 'href="/code-signing"' in body
     for locale in ('zh-CN', 'zh-TW', 'en', 'ja', 'fr', 'es', 'ko'):
-        body = client.get('/downloads', params={'lang': locale}).text
-        assert 'SignPath Foundation' in body and 'SignPath.io' in body
+        downloads = client.get('/downloads', params={'lang': locale}).text
+        assert 'href="/code-signing"' in downloads
+        localized_policy = client.get('/code-signing', params={'lang': locale}).text
+        assert 'SignPath Foundation' in localized_policy

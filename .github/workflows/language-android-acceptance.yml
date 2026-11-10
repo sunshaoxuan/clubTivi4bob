@@ -72,6 +72,7 @@ jobs:
         run: |
           set -euo pipefail
           test "$(gh release view v1.1.19 --json isDraft --jq .isDraft)" = true
+          test "$(gh release view v1.1.19 --json targetCommitish --jq .targetCommitish)" = 61584b2cd986251baa021ddfdf2f9ae2b2a63e41
           gh release download v1.1.19 --pattern 'BobTV-1.1.19+114-android-*.apk' --dir qa/packages
           for attempt in {1..90}; do
             if [[ "$(adb -s emulator-5568 shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')" == 1 ]]; then break; fi

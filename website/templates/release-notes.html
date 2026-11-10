@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block title %}{{ t.home.history_label }} | BobTV{% endblock %}
+{% block description %}{{ t.home.history_title }} | BobTV{% endblock %}
+{% block content %}
+<main class="history-band" aria-labelledby="history-title">
+  <div class="container history-layout">
+    <div>
+      <h1 id="history-title">{{ t.home.history_label }}</h1>
+      <a class="text-link" href="{{ site_root }}/downloads">{{ t.download }} <span aria-hidden="true">→</span></a>
+    </div>
+    <div class="history-list">
+      {% for item in t.home.history %}
+      <div><time datetime="{{ item[0] }}">{{ item[0] }}</time><strong>{{ item[1] }}</strong><p>{{ item[2] }}</p></div>
+      {% endfor %}
+    </div>
+  </div>
+</main>
+{% endblock %}

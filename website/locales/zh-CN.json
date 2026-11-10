@@ -346,7 +346,6 @@
     "closing_text": "Windows、macOS、Android 各自一栏，再按 CPU 选择安装包。提供 Windows ARM64 原生安装包，Surface 实机仍待验证。"
   },
   "downloads": {
-    "signing_notice": "SignPath Foundation 免费签名申请未获批准，当前没有受信任 Windows 证书，也未使用 SignPath.io 正式签名。Edge 首次浏览器下载仍可能需要安全确认。",
     "intro": "Windows、macOS 与 Android 统一版本 1.1.19+114。从应用顶部切换语言。手动选择会保留，跟随系统时按系统语言、时区、英文的顺序选择。语言资源随安装包提供。进阶模式入口已关闭。诊断同步默认关闭，明确同意后可同步最近 30 天的脱敏记录，可随时关闭。",
     "latest": "最新安装包",
     "local": "安装包由本站提供",

@@ -14,7 +14,7 @@ def test_release_templates_preserve_languages_and_settings(locale):
                               undefined=StrictUndefined,
                               autoescape=select_autoescape(['html']))
     for page, path in [('index', '/'), ('downloads', '/downloads'),
-                       ('diagnostics', '/diagnostics')]:
+                       ('diagnostics', '/diagnostics'), ('release-notes', '/release-notes')]:
         rendered = environment.get_template(f'{page}.html').render(
             locale=locale, t=copy, languages={'zh-CN': '简体中文', 'zh-TW': '繁體中文',
                                             'en': 'English', 'ja': '日本語'},
@@ -23,14 +23,18 @@ def test_release_templates_preserve_languages_and_settings(locale):
         assert 'installed-devices' in rendered
         if page == 'index':
             assert '1.1.19+114 · Windows / macOS / Android' in rendered
-            assert copy['home']['history'][0][1].startswith('v1.1.19 · ')
-            assert any(item[1].startswith('v1.1.10 · ')
-                       for item in copy['home']['history'])
+            assert 'class="history-band"' not in rendered
             assert 'settings-title' in rendered
-            assert 'v1.0.6' in rendered
             assert 'server-title' in rendered
             assert 'tablets-title' in rendered
+        elif page == 'release-notes':
+            assert f'<a href="/release-notes" aria-current="page">{copy["home"]["history_label"]}</a>' in rendered
+            assert 'v1.1.19 · ' in rendered
+            assert 'v1.1.10 · ' in rendered
+            assert 'v1.0.6' in rendered
         elif page == 'downloads':
+            assert 'class="download-signing-note"' not in rendered
+            assert 'id="install-title"' in rendered
             assert 'id="release-list"' in rendered
             assert '1.1.19+114' in rendered
             assert '1.1.10+103' not in copy['downloads']['intro']
@@ -40,7 +44,7 @@ def test_release_templates_preserve_languages_and_settings(locale):
             assert 'ad-hoc' in rendered
 
 
-@pytest.mark.parametrize('page', ['index', 'downloads'])
+@pytest.mark.parametrize('page', ['release-notes', 'downloads'])
 def test_static_release_copies_preserve_android_and_diagnostic_notice(page):
     rendered = (ROOT / f'{page}.html').read_text()
     assert '1.1.18+113' in rendered

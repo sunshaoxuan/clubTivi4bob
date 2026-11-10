@@ -14,7 +14,7 @@ The product, download and diagnostic pages share a dark navy and peach visual sy
 
 Publishing installation packages also requires a content review:
 
-1. Update the homepage feature descriptions, current version and version history against the implemented and tested behavior.
+1. Update the homepage feature descriptions, current version and the records on the release notes page against the implemented and tested behavior.
 2. Update installation, first-launch and update instructions for both Windows and macOS. Keep one release row with three platform downloads.
 3. Review diagnostic and privacy explanations; distinguish shared public channel records from personal local data and optional diagnostics.
 4. Update the API and synchronization documentation when the contract changes. Run `python -m pytest website/tests -q` and inspect desktop and mobile layouts.

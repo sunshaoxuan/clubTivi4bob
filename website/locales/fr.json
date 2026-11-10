@@ -346,7 +346,6 @@
     "closing_text": "Une colonne chacune pour Windows, macOS et Android, avec les choix de processeur à l'intérieur. Des packages natifs Windows ARM64 sont disponibles ; Les tests du matériel Surface sont en attente."
   },
   "downloads": {
-    "signing_notice": "L'application gratuite SignPath Foundation n'a pas été approuvée. Aucun certificat Windows de confiance n'a été émis et la signature de production SignPath.io n'est pas utilisée. Edge peut toujours exiger une confirmation de sécurité lors du premier téléchargement du navigateur.",
     "intro": "Windows, macOS et Android utilisent la version 1.1.19+114. Changez de langue en haut de l’application. Votre choix est mémorisé. En mode automatique, l’application utilise la langue du système, le fuseau horaire, puis l’anglais. Chaque programme d’installation contient les ressources linguistiques. L’accès au mode avancé a été fermé. La synchronisation des diagnostics est désactivée par défaut. Avec votre accord, elle transmet jusqu’à 30 jours de données expurgées. Vous pouvez la désactiver à tout moment. L’application macOS utilise une signature ad-hoc.",
     "latest": "Derniers installateurs",
     "local": "Téléchargements hébergés sur ce site",

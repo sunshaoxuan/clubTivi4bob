@@ -7,12 +7,11 @@ let scrollFrame = 0;
 
 function sceneOpacity(scene, viewport, headerHeight, entryLimit, exitLimit) {
   const { top, bottom } = scene.getBoundingClientRect();
-  const distance = (viewport - headerHeight) * .73;
+  const distance = (viewport - headerHeight) * .90;
   const enter = Math.max(entryLimit, (viewport - top) / distance);
   const leave = Math.max(exitLimit, (bottom - headerHeight) / distance);
   const progress = Math.max(0, Math.min(1, enter, leave));
-  const eased = progress * progress * (3 - 2 * progress);
-  return (.38 + .62 * eased).toFixed(3);
+  return (.24 + .76 * progress ** 1.6).toFixed(3);
 }
 
 function updateScroll() {

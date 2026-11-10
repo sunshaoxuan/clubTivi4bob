@@ -1,0 +1,198 @@
+import argparse
+import csv
+import io
+import json
+import os
+from pathlib import Path
+import subprocess
+import time
+import unicodedata
+
+import cv2
+import numpy as np
+from PIL import Image, ImageDraw, ImageFont
+
+parser = argparse.ArgumentParser()
+parser.add_argument("app", type=Path)
+parser.add_argument("output", type=Path)
+parser.add_argument("helper", type=Path)
+args = parser.parse_args()
+app = args.app.resolve()
+out = args.output.resolve()
+helper = str(args.helper.resolve())
+out.mkdir(parents=True, exist_ok=True)
+profile = out/"profile"
+(profile/"Library/Preferences").mkdir(parents=True, exist_ok=True)
+languages = {
+    "en": "English", "zh-CN": "简体中文", "zh-TW": "繁體中文", "ja": "日本語",
+    "fr": "Français", "es": "Español", "ko": "한국어",
+}
+ocr_codes = {
+    "en": "en-US", "zh-CN": "zh-Hans", "zh-TW": "zh-Hant", "ja": "ja-JP",
+    "fr": "fr-FR", "es": "es-ES", "ko": "ko-KR",
+}
+
+env = dict(os.environ, CFFIXED_USER_HOME=str(profile))
+runner = app/"Contents/MacOS/BobTV"
+font_path = app/"Contents/Frameworks/App.framework/Resources/flutter_assets/fonts/MaterialIcons-Regular.otf"
+catalog_path = font_path.parent.parent/"assets/i18n"
+
+def run(*argv):
+    return subprocess.check_output([str(arg) for arg in argv],text=True,timeout=55)
+
+def window(pid):
+    return json.loads(run(helper,"window",pid))
+
+def capture(pid,name):
+    info = window(pid)
+    path = out/(name+".png")
+    run("/usr/sbin/screencapture","-x","-o","-l",info["id"],path)
+    return info["bounds"],path
+
+def glyph(size):
+    font = ImageFont.truetype(str(font_path),size)
+    img = Image.new("L",(size*2,size*2))
+    ImageDraw.Draw(img).text((size//2,size//2),"\ue366",font=font,anchor="mm",fill=255)
+    return np.array(img.crop(img.getbbox()))
+
+def globe(path,bounds):
+    img = cv2.imread(str(path),cv2.IMREAD_GRAYSCALE)
+    h,w = img.shape
+    scale = w / bounds["Width"]
+    roi = img[:round(130*scale),round(w*.20):]
+    best = (-1,0,0)
+    for size in range(round(17*scale),round(23*scale)+1):
+        template=glyph(size)
+        scores=cv2.matchTemplate(roi,template,cv2.TM_CCOEFF_NORMED)
+        _,score,_,(x,y)=cv2.minMaxLoc(scores)
+        if score > best[0]:
+            best=(score,(x+round(w*.20)+template.shape[1]/2)/w,(y+template.shape[0]/2)/h)
+    if best[0] < .72: raise RuntimeError(f"Globe icon match is weak: {best}")
+    return best[1:]
+
+def click(pid,bounds,x,y):
+    run(helper,"click",bounds["X"]+bounds["Width"]*x,bounds["Y"]+bounds["Height"]*y,pid)
+    time.sleep(.42)
+
+def normalized(value):
+    return "".join(ch for ch in unicodedata.normalize("NFKC",value).casefold() if ch.isalnum())
+
+def recognized(path,codes):
+    image = cv2.imread(str(path), cv2.IMREAD_GRAYSCALE)
+    height, width = image.shape
+    top = round(.045 * height)
+    image = cv2.resize(image[top:], None, fx=2, fy=2, interpolation=cv2.INTER_CUBIC)
+    _, image = cv2.threshold(image, 145, 255, cv2.THRESH_BINARY_INV)
+    models = {
+        "en-US": "eng", "zh-Hans": "chi_sim", "zh-Hant": "chi_tra",
+        "ja-JP": "jpn", "fr-FR": "fra", "es-ES": "spa", "ko-KR": "kor",
+    }
+    languages = "+".join(models[code] for code in dict.fromkeys(codes))
+    result = subprocess.run(
+        ["tesseract", "stdin", "stdout", "--tessdata-dir", os.environ["BOBTV_QA_TESSDATA"],
+         "-l", languages, "--psm", "11", "-c", "tessedit_create_tsv=1"],
+        input=cv2.imencode(".png", image)[1].tobytes(), capture_output=True,
+        check=True, timeout=40,
+    )
+    lines = {}
+    output = result.stdout.decode("utf-8-sig")
+    words = csv.DictReader(io.StringIO(output), delimiter="\t")
+    if not words.fieldnames or "level" not in words.fieldnames:
+        raise RuntimeError(f"Unexpected OCR output: {output[:200]!r}; {result.stderr.decode()[:200]}")
+    for word in words:
+        if word["level"] == "5" and word["text"].strip():
+            line = tuple(word[key] for key in ("block_num", "par_num", "line_num"))
+            lines.setdefault(line, []).append(word)
+    rows = []
+    for words in lines.values():
+        left = min(int(word["left"]) for word in words)
+        right = max(int(word["left"]) + int(word["width"]) for word in words)
+        upper = min(int(word["top"]) for word in words)
+        lower = max(int(word["top"]) + int(word["height"]) for word in words)
+        rows.append({"text": " ".join(word["text"] for word in words),
+                     "x": (left + right) / (4 * width),
+                     "y": (upper + lower + 4 * top) / (4 * height)})
+    return rows
+
+def label(path,value,codes):
+    desired = normalized(value)
+    found = recognized(path,codes)
+    return next((row for row in found if normalized(row["text"]) == desired),None)
+
+def launch():
+    logfile = (out/"app.log").open("ab")
+    process=subprocess.Popen([str(runner),"-AppleLanguages","(en)"],env=env,stdout=logfile,stderr=logfile)
+    logfile.close()
+    return process
+
+def stop(process):
+    if process.poll() is not None: return
+    process.terminate()
+    try: process.wait(12)
+    except subprocess.TimeoutExpired:
+        process.kill()
+        process.wait(5)
+
+def ready(process,name):
+    until=time.monotonic()+110
+    while time.monotonic()<until:
+        if process.poll() is not None: raise RuntimeError(f"BobTV exited {process.returncode}")
+        try:
+            bounds,path=capture(process.pid,name)
+            return bounds,path,globe(path,bounds)
+        except (RuntimeError,subprocess.CalledProcessError,AttributeError):
+            time.sleep(1)
+    raise RuntimeError("No BobTV language globe was found")
+
+def read_copy(tag,key):
+    return json.loads((catalog_path/(tag+".json")).read_text())[key]
+
+passed=[]
+process=launch()
+try:
+    for tag,value in languages.items():
+        ready(process,"ready-"+tag)
+        run(helper,"activate",process.pid)
+        found=None
+        for attempt in range(5):
+            bounds,path,(x,y)=ready(process,"before-"+tag)
+            click(process.pid,bounds,x,y)
+            bounds,path=capture(process.pid,"menu-"+tag)
+            found=label(path,value,[ocr_codes[tag],"en-US"])
+            if found: break
+            english=label(path,"English",["en-US"])
+            french=label(path,"Français",["fr-FR","en-US"])
+            if english and french:
+                spacing=(french["y"]-english["y"])/4
+                found={"x":english["x"],"y":english["y"]+list(languages).index(tag)*spacing}
+                break
+        if not found:
+            raise RuntimeError("Language choices were not visible in "+str(path))
+        click(process.pid,bounds,found["x"],found["y"])
+        bounds,path,_=ready(process,"active-"+tag)
+        ui=read_copy(tag,"选台")
+        visible=label(path,ui,[ocr_codes[tag],"en-US"])
+        if not visible:
+            # When the directory is not available, the selected menu's first
+            # label provides an independent localized string to check.
+            x,y=globe(path,bounds)
+            click(process.pid,bounds,x,y)
+            bounds,menu=capture(process.pid,"translated-"+tag)
+            expected=read_copy(tag,"跟随系统")
+            visible=label(menu,expected,[ocr_codes[tag],"en-US"])
+            if not visible:
+                raise RuntimeError(f"Missing translated text {ui!r} and {expected!r} for {tag}")
+            click(process.pid,bounds,.07,.74)
+        print("Selected and observed", tag, flush=True)
+        passed.append(tag)
+    stop(process)
+    process=launch()
+    bounds,path,(x,y)=ready(process,"restart-ko")
+    click(process.pid,bounds,x,y)
+    _,menu=capture(process.pid,"restart-menu-ko")
+    assert label(menu,read_copy("ko","跟随系统"),["ko-KR","en-US"]), "Korean selection did not survive restart"
+    result={"passed":True,"architecture":os.uname().machine,"languages":passed,"retainedAfterRestart":"ko","dmgSha256":os.environ["BOBTV_QA_DMG_SHA256"]}
+    (out/"result.json").write_text(json.dumps(result,indent=2)+"\n")
+    print(result)
+finally:
+    stop(process)

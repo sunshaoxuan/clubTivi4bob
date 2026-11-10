@@ -5,6 +5,8 @@ on:
 
 permissions:
   contents: write
+env:
+  BOBTV_QA_SOURCE: 61584b2cd986251baa021ddfdf2f9ae2b2a63e41
 
 jobs:
   mac:
@@ -35,6 +37,7 @@ jobs:
           mkdir -p candidate
           for attempt in {1..65}; do
             if [[ "$(gh release view v1.1.19 --json isDraft --jq .isDraft 2>/dev/null)" == true ]] &&
+               [[ "$(gh release view v1.1.19 --json targetCommitish --jq .targetCommitish)" == "$BOBTV_QA_SOURCE" ]] &&
                gh release download v1.1.19 --pattern "BobTV-1.1.19+114-macos-$ARCH.dmg" --dir candidate; then
               break
             fi
@@ -108,7 +111,7 @@ jobs:
           New-Item -ItemType Directory -Force $dir | Out-Null
           $binary=Join-Path $dir $name
           for($n=0; $n -lt 75; $n++){
-            if((gh release view v1.1.19 --json isDraft --jq .isDraft 2>$null) -eq 'true'){
+            if(((gh release view v1.1.19 --json isDraft --jq .isDraft 2>$null) -eq 'true') -and ((gh release view v1.1.19 --json targetCommitish --jq .targetCommitish) -eq $env:BOBTV_QA_SOURCE)){
               gh release download v1.1.19 --pattern $name --dir $dir
               if($LASTEXITCODE -eq 0){break}
             }

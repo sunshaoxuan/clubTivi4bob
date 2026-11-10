@@ -83,3 +83,12 @@ jobs:
             emulator.log
           retention-days: 3
           if-no-files-found: ignore
+  arm-host:
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 5
+    steps:
+      - run: |
+          uname -m
+          ls -l /dev/kvm || true
+          ls -l /dev/net/tun /dev/vhost-vsock || true
+          df -h .

@@ -90,12 +90,16 @@ def recognized(path,codes):
     languages = "+".join(models[code] for code in dict.fromkeys(codes))
     result = subprocess.run(
         ["tesseract", "stdin", "stdout", "--tessdata-dir", os.environ["BOBTV_QA_TESSDATA"],
-         "-l", languages, "--psm", "11", "tsv"],
+         "-l", languages, "--psm", "11", "-c", "tessedit_create_tsv=1"],
         input=cv2.imencode(".png", image)[1].tobytes(), capture_output=True,
         check=True, timeout=40,
     )
     lines = {}
-    for word in csv.DictReader(io.StringIO(result.stdout.decode()), delimiter="\t"):
+    output = result.stdout.decode("utf-8-sig")
+    words = csv.DictReader(io.StringIO(output), delimiter="\t")
+    if not words.fieldnames or "level" not in words.fieldnames:
+        raise RuntimeError(f"Unexpected OCR output: {output[:200]!r}; {result.stderr.decode()[:200]}")
+    for word in words:
         if word["level"] == "5" and word["text"].strip():
             line = tuple(word[key] for key in ("block_num", "par_num", "line_num"))
             lines.setdefault(line, []).append(word)

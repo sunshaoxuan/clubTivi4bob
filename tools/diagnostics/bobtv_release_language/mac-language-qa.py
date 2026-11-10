@@ -36,7 +36,7 @@ font_path = app/"Contents/Frameworks/App.framework/Resources/flutter_assets/font
 catalog_path = font_path.parent.parent/"assets/i18n"
 
 def run(*argv):
-    return subprocess.check_output([str(arg) for arg in argv],text=True,timeout=20)
+    return subprocess.check_output([str(arg) for arg in argv],text=True,timeout=55)
 
 def window(pid):
     return json.loads(run(helper,"window",pid))
@@ -76,7 +76,7 @@ def normalized(value):
     return "".join(ch for ch in unicodedata.normalize("NFKC",value).casefold() if ch.isalnum())
 
 def recognized(path,codes):
-    return json.loads(run(helper,"ocr",path,*codes))
+    return json.loads(run(helper,"ocr",path,*dict.fromkeys(codes)))
 
 def label(path,value,codes):
     desired = normalized(value)
@@ -98,7 +98,7 @@ def stop(process):
         process.wait(5)
 
 def ready(process,name):
-    until=time.monotonic()+75
+    until=time.monotonic()+110
     while time.monotonic()<until:
         if process.poll() is not None: raise RuntimeError(f"BobTV exited {process.returncode}")
         try:

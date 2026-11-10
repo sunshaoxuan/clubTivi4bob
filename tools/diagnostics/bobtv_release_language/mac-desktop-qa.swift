@@ -22,11 +22,15 @@ case "click":
     let x = Double(args[2])!
     let y = Double(args[3])!
     let pid = Int32(args[4])!
+    guard let app = NSRunningApplication(processIdentifier: pid) else { exit(4) }
+    app.activate(options: [.activateIgnoringOtherApps])
+    usleep(160000)
+    guard NSWorkspace.shared.frontmostApplication?.processIdentifier == pid else { exit(5) }
     let point = CGPoint(x: x, y: y)
-    CGEvent(mouseEventSource: nil, mouseType: .mouseMoved, mouseCursorPosition: point, mouseButton: .left)?.postToPid(pid)
-    CGEvent(mouseEventSource: nil, mouseType: .leftMouseDown, mouseCursorPosition: point, mouseButton: .left)?.postToPid(pid)
+    CGEvent(mouseEventSource: nil, mouseType: .mouseMoved, mouseCursorPosition: point, mouseButton: .left)?.post(tap: .cghidEventTap)
+    CGEvent(mouseEventSource: nil, mouseType: .leftMouseDown, mouseCursorPosition: point, mouseButton: .left)?.post(tap: .cghidEventTap)
     usleep(40000)
-    CGEvent(mouseEventSource: nil, mouseType: .leftMouseUp, mouseCursorPosition: point, mouseButton: .left)?.postToPid(pid)
+    CGEvent(mouseEventSource: nil, mouseType: .leftMouseUp, mouseCursorPosition: point, mouseButton: .left)?.post(tap: .cghidEventTap)
 case "ocr":
     let request = VNRecognizeTextRequest()
     request.recognitionLevel = .accurate

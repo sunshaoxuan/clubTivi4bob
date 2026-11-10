@@ -63,7 +63,9 @@ jobs:
         if: always()
         with:
           name: bobtv-macos-language-${{ matrix.arch }}
-          path: evidence/*.png
+          path: |
+            evidence/*.png
+            evidence/result.json
           retention-days: 3
           if-no-files-found: ignore
   windows:
@@ -126,6 +128,8 @@ jobs:
         if: always()
         with:
           name: bobtv-windows-language-${{ matrix.arch }}
-          path: evidence/*.png
+          path: |
+            evidence/*.png
+            evidence/result.json
           retention-days: 3
           if-no-files-found: ignore

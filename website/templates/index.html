@@ -39,7 +39,7 @@
       <div class="media-grid">
         {% for image in ['world', 'sports', 'radio', 'entertainment'] %}
         {% set item = s.media[loop.index0] %}
-        <article class="media-card" data-reveal>
+        <article class="media-card" data-reveal data-reveal-delay="{{ loop.index0 * 70 }}">
           <img src="{{ site_root }}/assets/showcase/{{ image }}.webp" width="800" height="600" loading="lazy" decoding="async" alt="">
           <div class="media-copy">
             <span class="media-label">{{ item[0] }}</span>

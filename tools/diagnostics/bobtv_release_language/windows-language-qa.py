@@ -108,11 +108,11 @@ def menu_bounds(image, anchor, dpi):
         occupancy = (prefix[right] - prefix[left]) / width
         edges = (prefix[left] - prefix[left - 4] + prefix[right + 4] - prefix[right]) / 8
         foot = (below_prefix[right - 3] - below_prefix[left + 3]) / (width - 6)
-        score = np.where(occupancy >= .73, occupancy - .25 * edges - .2 * foot, 0)
+        score = np.where(occupancy >= .60, occupancy - .25 * edges - .2 * foot, 0)
         index = score.argmax()
         if best is None or score[index] > best[0]:
             best = (score[index], int(left[index]), y, width, height)
-    return best[1:] if best is not None and best[0] >= .67 else None
+    return best[1:] if best is not None and best[0] >= .57 else None
 
 def switch(process, tag):
     def ready():
@@ -138,13 +138,21 @@ def switch(process, tag):
             poll(lambda: preferences() if preferences() == tag else None, 6)
         except RuntimeError:
             continue
+        time.sleep(.9)
         image(process, "active-" + tag)
         print("Selected", tag, flush=True)
         return
     raise RuntimeError(f"Could not select {tag}")
 
 def start():
-    return subprocess.Popen([str(app)],cwd=app.parent)
+    process = subprocess.Popen([str(app)], cwd=app.parent)
+    hwnd, _ = poll(lambda: window(process.pid), 110)
+    # A first-login window on the ARM runner can retain foreground ownership.
+    user.keybd_event(0x1B, 0, 0, 0)
+    user.keybd_event(0x1B, 0, 2, 0)
+    user.SetWindowPos(hwnd, -1, 0, 0, 0, 0, 0x0001 | 0x0002 | 0x0040)
+    user.SetForegroundWindow(hwnd)
+    return process
 
 def stop(process):
     if process.poll() is None:
@@ -164,6 +172,6 @@ try:
     assert preferences()=="ko"
     image(process,"restart-ko")
     (out/"result.json").write_text(json.dumps({"passed":True,"languages":passed,
-        "retainedAfterRestart":"ko"},indent=2)+"\n")
+        "retainedAfterRestart":"ko", "setupSha256":os.environ["BOBTV_QA_SETUP_SHA256"]},indent=2)+"\n")
 finally:
     stop(process)

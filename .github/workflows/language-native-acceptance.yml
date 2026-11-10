@@ -119,6 +119,7 @@ jobs:
             $installed=Join-Path $root ('data/flutter_assets/assets/i18n/'+$file.Name)
             if((Get-FileHash $file.FullName).Hash -ne (Get-FileHash $installed).Hash){throw "Resource differs: $($file.Name)"}
           }
+          "BOBTV_QA_SETUP_SHA256=$((Get-FileHash $binary).Hash.ToLower())" | Out-File -Append -Encoding utf8 $env:GITHUB_ENV
           "BOBTV_QA_APP=$(Join-Path $root 'BobTV.exe')" | Out-File -Append -Encoding utf8 $env:GITHUB_ENV
       - name: Exercise all seven languages in the installed application
         shell: pwsh
@@ -132,7 +133,7 @@ jobs:
             $engagement='HKCU:\Software\Microsoft\Windows\CurrentVersion\UserProfileEngagement'
             New-Item $engagement -Force | Out-Null
             New-ItemProperty $engagement -Name ScoobeSystemSettingEnabled -PropertyType DWord -Value 0 -Force | Out-Null
-            Get-Process CloudExperienceHostBroker,UserOOBEBroker,WWAHost -ErrorAction SilentlyContinue | Stop-Process -Force
+            Get-Process CloudExperienceHostBroker,UserOOBEBroker,WWAHost,wsl -ErrorAction SilentlyContinue | Stop-Process -Force
           }
           python -m pip install opencv-python-headless pillow
           python tools/diagnostics/bobtv_release_language/windows-language-qa.py "$env:BOBTV_QA_APP" evidence

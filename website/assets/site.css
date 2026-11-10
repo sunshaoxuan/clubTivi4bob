@@ -198,6 +198,7 @@ p { line-height: 1.72; }
 .floating-stat.languages { bottom: 14%; right: -6%; }
 .floating-stat.television { bottom: 5%; left: 4%; }
 .floating-stat.television strong { color: #f8bbf0; font-size: 1.55rem; }
+.catalog-counter { display: inline-block; min-width: var(--counter-width); font-variant-numeric: tabular-nums; }
 .catalog-numbers { padding-bottom: 22px; }
 .catalog-numbers-grid {
   display: grid;
@@ -239,25 +240,15 @@ p { line-height: 1.72; }
     position: relative;
     z-index: 0;
   }
-  [data-layered-scroll] .scroll-scene-track[data-scene-next] {
-    margin-bottom: calc(-1 * var(--scene-hold));
-  }
-  [data-layered-scroll] .scroll-scene-track[data-scene-next]::after {
-    content: "";
-    display: block;
-    height: var(--scene-travel);
-  }
-  [data-layered-scroll] .scroll-scene-track:last-child { padding-bottom: var(--scene-tail, 0px); }
   [data-layered-scroll] [data-scroll-scene] {
-    position: sticky;
-    top: var(--scene-top);
+    position: relative;
     opacity: var(--scene-opacity, 1);
     transform: translateY(var(--scene-lift, 0px));
   }
   [data-layered-scroll] :where([data-scroll-scene]) { background-color: var(--night); }
   [data-layered-scroll] [data-scene-behind] { pointer-events: none; }
   [data-layered-scroll] .scroll-scene-track:has(:focus-visible) { z-index: 1; }
-  [data-layered-scroll] [data-scroll-scene]:has(:focus-visible) { opacity: 1; pointer-events: auto; }
+  [data-layered-scroll] [data-scroll-scene]:has(:focus-visible) { opacity: 1; transform: none; pointer-events: auto; }
 }
 .showcase-section { padding-block: clamp(63px, 8vw, 112px); scroll-margin-top: 65px; }
 .section-heading { max-width: 740px; margin-bottom: 30px; }

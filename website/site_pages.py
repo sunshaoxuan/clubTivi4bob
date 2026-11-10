@@ -10,6 +10,8 @@ from fastapi.responses import HTMLResponse
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 from markupsafe import Markup, escape
 
+from site_catalog_stats import catalog_stats
+
 BASE = Path(__file__).resolve().parent
 MIRROR_ROOT = "https://cndrp.com/bobtv"
 PAGES = {"/": "index", "/downloads": "downloads", "/release-notes": "release-notes",
@@ -82,6 +84,7 @@ def render_page(request: Request):
         ENV.get_template(page + ".html").render(
             page=page, path=prefix + path, site_root=prefix, locale=locale,
             t=messages(locale), languages=LANGUAGES, installed_devices=None,
+            catalog=catalog_stats() if page == "index" else None,
             policy_text=partial(policy_text, prefix),
         ),
         headers={"Content-Language": locale, "Cache-Control": "private, no-store",

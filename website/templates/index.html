@@ -1,7 +1,11 @@
 {% extends "base.html" %}
 {% block content %}
 {% set s = t.showcase %}
-{# Catalog snapshot published 2026-11-11 JST. Count channel entries in the International, China and Other broadcast trees, excluding radio from TV. #}
+{% set catalog = catalog | default(none) %}
+{% macro counter(number) -%}
+  {% set digits = '{:,}'.format(number) -%}
+  <span class="visually-hidden">{{ digits }}</span><span class="catalog-counter" aria-hidden="true" data-count-to="{{ number }}" style="--counter-width: {{ digits | length }}ch">{{ digits }}</span>
+{%- endmacro %}
 <main>
   <div data-scroll-scene>
     <section class="hero-band" aria-labelledby="hero-title">
@@ -18,20 +22,20 @@
         </div>
         <div class="hero-visual">
           <img class="hero-photo" src="{{ site_root }}/assets/showcase/hero.webp" width="1200" height="900" alt="" fetchpriority="high">
-          <div class="floating-stat countries"><span aria-hidden="true">◎</span><div><strong>100+</strong><small>{{ s.countries }}</small></div></div>
-          <div class="floating-stat languages"><span aria-hidden="true">Aa</span><div><strong>7</strong><small>{{ s.languages }}</small></div></div>
-          <div class="floating-stat television"><span aria-hidden="true">▣</span><div><strong>8,086</strong><small>{{ s.catalog_stats[1] }}</small></div></div>
+          <div class="floating-stat countries"><span aria-hidden="true">◎</span><div><strong>{{ counter(catalog.countries) if catalog else "100+" }}</strong><small>{{ s.countries }}</small></div></div>
+          <div class="floating-stat languages"><span aria-hidden="true">Aa</span><div><strong>{{ counter(languages | length) }}</strong><small>{{ s.languages }}</small></div></div>
+          {% if catalog %}<div class="floating-stat television"><span aria-hidden="true">▣</span><div><strong>{{ counter(catalog.television) }}</strong><small>{{ s.catalog_stats[1] }}</small></div></div>{% endif %}
         </div>
       </div>
     </section>
-    <div class="container catalog-numbers">
+    {% if catalog %}<div class="container catalog-numbers">
       <dl class="catalog-numbers-grid">
-        {% for count, mark in [(579, '♫'), (376, '▣'), (795, '◉'), (531, '✦'), (320, '⚡'), (158, '◈')] %}
-        <div><dt><span aria-hidden="true">{{ mark }}</span> {{ s.catalog_stats[loop.index + 1] }}</dt><dd>{{ count }}</dd></div>
+        {% for count, mark in [(catalog.radio, '♫'), (catalog.movies, '▣'), (catalog.news, '◉'), (catalog.entertainment, '✦'), (catalog.sports, '⚡'), (catalog.documentaries, '◈')] %}
+        <div><dt><span aria-hidden="true">{{ mark }}</span> {{ s.catalog_stats[loop.index + 1] }}</dt><dd>{{ counter(count) }}</dd></div>
         {% endfor %}
       </dl>
-      <p>{{ s.catalog_stats[0] }} · <time datetime="2026-11-11">2026-11-11</time></p>
-    </div>
+      <p>{{ s.catalog_stats[0] }} · <time datetime="{{ catalog.date }}">{{ catalog.date }}</time></p>
+    </div>{% endif %}
   </div>
   <section id="discover" data-scroll-scene class="showcase-section" aria-labelledby="discover-title">
     <div class="container">

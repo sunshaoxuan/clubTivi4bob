@@ -3,12 +3,10 @@ const heroArt = document.querySelector('.hero-visual, .download-hero-featured im
 const main = document.querySelector('main');
 const scenes = [...main.querySelectorAll('[data-scroll-scene]')];
 const header = document.querySelector('.site-header');
-const footer = document.querySelector('footer');
 const motion = matchMedia('(prefers-reduced-motion: reduce)');
-const tracks = scenes.map((scene, index) => {
+const tracks = scenes.map(scene => {
   const track = document.createElement('div');
   track.className = 'scroll-scene-track';
-  track.toggleAttribute('data-scene-next', index < scenes.length - 1);
   if (scene.id) {
     track.id = scene.id;
     scene.removeAttribute('id');
@@ -18,65 +16,102 @@ const tracks = scenes.map((scene, index) => {
   return track;
 });
 let scrollFrame = 0;
-let measure = true;
-let travel = 1;
+const pendingCounters = new Set(main.querySelectorAll('[data-count-to]'));
+const counting = new Map();
+const numberFormat = new Intl.NumberFormat('en-US');
+const countDuration = 2500;
+let counterFrame = 0;
+
+function showCount(counter, number) {
+  counter.textContent = numberFormat.format(number);
+}
+
+if (!motion.matches) {
+  for (const counter of pendingCounters) showCount(counter, 0);
+}
+
+function tickCounters(now) {
+  counterFrame = 0;
+  for (const [counter, start] of counting) {
+    const progress = Math.max(0, Math.min(1, (now - start) / countDuration));
+    const eased = progress * progress * (3 - 2 * progress);
+    showCount(counter, Math.round(Number(counter.dataset.countTo) * eased));
+    if (progress === 1) counting.delete(counter);
+  }
+  if (counting.size) counterFrame = requestAnimationFrame(tickCounters);
+}
+
+function revealCounters(visibleScene, headerHeight) {
+  if (motion.matches) {
+    for (const counter of [...pendingCounters, ...counting.keys()]) {
+      showCount(counter, Number(counter.dataset.countTo));
+    }
+    pendingCounters.clear();
+    counting.clear();
+    return;
+  }
+  if (!visibleScene || !pendingCounters.size) return;
+  const start = performance.now();
+  for (const counter of pendingCounters) {
+    const { top, bottom, height } = counter.getBoundingClientRect();
+    const visible = Math.min(window.innerHeight, bottom) - Math.max(headerHeight, top);
+    if (height <= 0 || visible < height * .55) continue;
+    pendingCounters.delete(counter);
+    counting.set(counter, start);
+  }
+  if (counting.size && !counterFrame) counterFrame = requestAnimationFrame(tickCounters);
+}
+
+
+function clamp(progress) {
+  return Math.min(1, Math.max(0, progress));
+}
+
+function sceneTransition(track, index, viewport, headerHeight, remaining) {
+  const { top, bottom } = track.getBoundingClientRect();
+  const available = Math.max(1, viewport - headerHeight);
+  const entering = clamp((viewport - top) / (available * .56));
+  const leaving = clamp((bottom - headerHeight) / (available * .30));
+  const nearEnd = clamp(1 - remaining / (available * .56));
+  const shown = index === 0 ? 1 : Math.max(entering, nearEnd);
+  // The next section lifts across the seam briefly. Both sections keep scrolling.
+  const lift = index === 0 ? 0 : -Math.min(112, available * .14) * Math.sin(Math.PI * entering) * (1 - nearEnd);
+  return { opacity: Math.min(.4 + .6 * shown, leaving), lift };
+}
 
 function updateScroll() {
   scrollFrame = 0;
   const offset = Math.max(0, window.scrollY);
-  const enabled = !motion.matches && CSS.supports('position', 'sticky');
-
-  if (measure) {
-    measure = false;
-    if (enabled) {
-      const headerHeight = header.offsetHeight;
-      const available = Math.max(1, window.innerHeight - headerHeight);
-      travel = Math.max(1, Math.round(available * .72));
-      const heights = scenes.map(scene => scene.offsetHeight);
-      main.style.setProperty('--scene-header', `${headerHeight}px`);
-      main.style.setProperty('--scene-travel', `${travel}px`);
-      const last = tracks.length - 1;
-      tracks[last].style.setProperty('--scene-tail', `${Math.max(0, available - heights[last] - footer.offsetHeight)}px`);
-      heights.forEach((height, index) => {
-        tracks[index].style.setProperty('--scene-hold', `${Math.min(height, available)}px`);
-        scenes[index].style.setProperty('--scene-top', `${Math.min(headerHeight, window.innerHeight - height)}px`);
-      });
-    }
-    main.toggleAttribute('data-layered-scroll', enabled);
-  }
-
+  const enabled = !motion.matches;
+  const viewport = window.innerHeight;
   const headerHeight = header.offsetHeight;
-  const gaps = enabled ? tracks.map(track => track.getBoundingClientRect().top - headerHeight) : [];
-  const progress = gaps.map((gap, index) => index === 0 ? 1 : Math.min(1, Math.max(0, 1 - gap / travel)));
+  const remaining = document.documentElement.scrollHeight - viewport - offset;
+  const transitions = enabled ? tracks.map((track, index) =>
+    sceneTransition(track, index, viewport, headerHeight, remaining)) : [];
 
+  main.toggleAttribute('data-layered-scroll', enabled);
+  main.style.setProperty('--scene-header', `${headerHeight}px`);
   backTop.hidden = offset < 520;
   if (heroArt) heroArt.style.transform = enabled ? `translateY(${Math.min(26, offset * .075)}px)` : '';
-  progress.forEach((enter, index) => {
-    const leave = progress[index + 1] ?? 0;
-    const opacity = Math.min(enter, 1 - leave);
-    const lift = enter > 0 && enter < 1 ? -gaps[index] : 0;
+  transitions.forEach(({ opacity, lift }, index) => {
     scenes[index].style.setProperty('--scene-opacity', opacity.toFixed(3));
-    scenes[index].style.setProperty('--scene-lift', `${lift}px`);
-    scenes[index].toggleAttribute('data-scene-behind', opacity < .5);
+    scenes[index].style.setProperty('--scene-lift', `${lift.toFixed(1)}px`);
+    scenes[index].toggleAttribute('data-scene-behind', opacity < .2);
   });
+  revealCounters(!enabled || (transitions[0]?.opacity ?? 0) > .5, headerHeight);
 }
 
 function scheduleScroll() {
   if (!scrollFrame) scrollFrame = requestAnimationFrame(updateScroll);
 }
-function scheduleMeasure() {
-  measure = true;
-  scheduleScroll();
-}
 window.addEventListener('scroll', scheduleScroll, { passive: true });
-window.addEventListener('resize', scheduleMeasure);
-window.addEventListener('pageshow', scheduleMeasure);
-motion.addEventListener('change', scheduleMeasure);
+window.addEventListener('resize', scheduleScroll);
+window.addEventListener('pageshow', scheduleScroll);
+motion.addEventListener('change', scheduleScroll);
 if ('ResizeObserver' in window) {
-  const observer = new ResizeObserver(scheduleMeasure);
+  const observer = new ResizeObserver(scheduleScroll);
   observer.observe(header);
-  observer.observe(footer);
-  for (const scene of scenes) observer.observe(scene);
+  observer.observe(main);
 }
 updateScroll();
 

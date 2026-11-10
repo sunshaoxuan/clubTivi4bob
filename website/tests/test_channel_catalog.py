@@ -1,6 +1,7 @@
 import gzip
 import importlib.util
 import json
+import re
 import sys
 from pathlib import Path
 
@@ -79,3 +80,39 @@ def test_invalid_publication_does_not_replace_manifest(tmp_path):
     invalid["channels"][0]["logoUrl"] = "https://127.0.0.1/logo.png"
     with pytest.raises(ValueError):
         publish(invalid, tmp_path)
+
+
+def test_homepage_figures_follow_each_published_catalog(tmp_path, monkeypatch):
+    monkeypatch.setattr(channel_catalog, "DATA", tmp_path)
+    payload = example()
+    payload["categories"] += [
+        {"id": "radio", "parentId": "cn", "name": "广播", "sortOrder": 2},
+        {"id": "news", "parentId": "cn", "name": "新闻", "sortOrder": 3},
+        {"id": "web", "parentId": None, "name": "网络直播", "sortOrder": 4},
+        {"id": "web-entertainment", "parentId": "web", "name": "娱乐", "sortOrder": 5},
+        {"id": "radio-news", "parentId": "radio", "name": "新闻", "sortOrder": 6},
+    ]
+
+    def add_channel(name, category, country):
+        payload["channels"].append({
+            **payload["channels"][0], "id": name, "name": name,
+            "categoryId": category, "countryCode": country, "epgId": None,
+            "routes": [{**payload["channels"][0]["routes"][0],
+                        "id": name + "-route", "url": f"https://media.example.org/{name}.m3u8"}],
+        })
+
+    add_channel("radio-one", "radio-news", "CN")
+    publish(payload, tmp_path)
+    client = TestClient(module.app)
+
+    def figures():
+        response = client.get("/?lang=zh-CN")
+        assert response.status_code == 200
+        return list(map(int, re.findall(r'data-count-to="(\d+)"', response.text)))
+
+    assert figures() == [1, 7, 1, 1, 0, 0, 0, 0, 0]
+    payload["version"] = "2026-09-28.2"
+    add_channel("news-one", "news", "JP")
+    add_channel("web-one", "web-entertainment", "JP")
+    publish(payload, tmp_path)
+    assert figures() == [2, 7, 2, 1, 0, 1, 0, 0, 0]

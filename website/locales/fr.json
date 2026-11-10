@@ -29,8 +29,8 @@
   "download": "Télécharger BobTV",
   "features": "Caractéristiques",
   "home": {
-    "headline": "Regardez la télévision sur ordinateur et Android.",
-    "intro": "Windows, macOS et Android utilisent la version 1.1.19+114. Changez de langue en haut de l’application. Votre choix est mémorisé. En mode automatique, l’application utilise la langue du système, le fuseau horaire, puis l’anglais. Chaque programme d’installation contient les ressources linguistiques. L’accès au mode avancé a été fermé.",
+    "headline": "Vos chaînes préférées à portée de main.",
+    "intro": "Regardez les chaînes en direct de différentes régions, consultez les prochains programmes ou passez à la radio.",
     "image_alt": "BobTV fonctionne en mode simplifié, avec lecture de sports et liste de chaînes.",
     "mode": "BOBTV / Mode simplifié",
     "screenshot": "Capture d'écran réelle de l'application",
@@ -208,8 +208,8 @@
       ],
       [
         "2026-11-01",
-        "v1.1.18 · Catégories plus rapides, favoris et correctifs d'état du guide des programmes",
-        "Windows, macOS et Android sont alignés sur 1.1.18+113. Les chaînes publiques se chargent par pays ou catégorie sélectionné, avec des résultats en cache et moins de requêtes répétées. Un clic en forme d'étoile supprime un favori ; les cases à cocher de gestion de liste s'enregistrent désormais correctement. L’état du guide expiré reste dans les canaux et paramètres pertinents pendant que l’actualisation en arrière-plan se poursuit. Android reçoit une validation de build et automatisée, sans test de périphérique physique."
+        "v1.1.18 · Accès plus rapide aux chaînes et gestion simplifiée des favoris",
+        "Les listes de chaînes par pays ou catégorie s’ouvrent plus vite. Cliquez sur une étoile pleine pour retirer la chaîne de vos favoris. Vos sélections dans le gestionnaire de favoris sont désormais enregistrées correctement. Le guide continue de s’actualiser en arrière-plan. Les avis de mise à jour apparaissent uniquement sur la chaîne concernée et dans les paramètres."
       ],
       [
         "2026-10-29",

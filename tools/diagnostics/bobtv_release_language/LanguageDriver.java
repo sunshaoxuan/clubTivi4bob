@@ -27,7 +27,7 @@ public final class LanguageDriver extends Instrumentation {
             for (String operation : operations) {
                 String label = operation.substring(1);
                 long deadline = SystemClock.uptimeMillis() + 65000;
-                Rect target = null;
+                AccessibilityNodeInfo target = null;
                 List<String> labels = new ArrayList<>();
                 do {
                     labels.clear();
@@ -37,15 +37,20 @@ public final class LanguageDriver extends Instrumentation {
                 } while (SystemClock.uptimeMillis() < deadline);
                 if (target == null) throw new AssertionError("Missing " + label + " in " + labels);
                 if (operation.startsWith("+")) {
-                    long when = SystemClock.uptimeMillis();
-                    MotionEvent down = MotionEvent.obtain(when, when, MotionEvent.ACTION_DOWN, target.centerX(), target.centerY(), 0);
-                    down.setSource(InputDevice.SOURCE_TOUCHSCREEN);
-                    ui.injectInputEvent(down, true);
-                    MotionEvent up = MotionEvent.obtain(when, SystemClock.uptimeMillis(), MotionEvent.ACTION_UP, target.centerX(), target.centerY(), 0);
-                    up.setSource(InputDevice.SOURCE_TOUCHSCREEN);
-                    ui.injectInputEvent(up, true);
-                    down.recycle();
-                    up.recycle();
+                    if (!target.performAction(AccessibilityNodeInfo.ACTION_CLICK)) {
+                        Rect bounds = new Rect();
+                        target.getBoundsInScreen(bounds);
+                        long when = SystemClock.uptimeMillis();
+                        MotionEvent down = MotionEvent.obtain(when, when, MotionEvent.ACTION_DOWN, bounds.centerX(), bounds.centerY(), 0);
+                        down.setSource(InputDevice.SOURCE_TOUCHSCREEN);
+                        ui.injectInputEvent(down, true);
+                        SystemClock.sleep(95);
+                        MotionEvent up = MotionEvent.obtain(when, SystemClock.uptimeMillis(), MotionEvent.ACTION_UP, bounds.centerX(), bounds.centerY(), 0);
+                        up.setSource(InputDevice.SOURCE_TOUCHSCREEN);
+                        ui.injectInputEvent(up, true);
+                        down.recycle();
+                        up.recycle();
+                    }
                     SystemClock.sleep(450);
                 }
             }
@@ -56,7 +61,7 @@ public final class LanguageDriver extends Instrumentation {
             finish(Activity.RESULT_CANCELED, result);
         }
     }
-    private static Rect find(AccessibilityNodeInfo node, String text, List<String> labels) {
+    private static AccessibilityNodeInfo find(AccessibilityNodeInfo node, String text, List<String> labels) {
         if (node == null) return null;
         CharSequence[] values = {node.getText(), node.getContentDescription(), node.getTooltipText()};
         for (CharSequence value : values) {
@@ -66,13 +71,13 @@ public final class LanguageDriver extends Instrumentation {
                 if (text.equals(line.trim()) && node.isVisibleToUser()) {
                     Rect rect = new Rect();
                     node.getBoundsInScreen(rect);
-                    if (!rect.isEmpty()) return rect;
+                    if (!rect.isEmpty()) return node;
                 }
             }
         }
         for (int i = 0; i < node.getChildCount(); i++) {
-            Rect rect = find(node.getChild(i), text, labels);
-            if (rect != null) return rect;
+            AccessibilityNodeInfo child = find(node.getChild(i), text, labels);
+            if (child != null) return child;
         }
         return null;
     }

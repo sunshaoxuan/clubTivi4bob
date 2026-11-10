@@ -33,7 +33,8 @@ def exercise(operations,destination):
     assert "matched="+"|".join(operations) in output,output
 
 def switch_operations(current,tag):
-    return ["+"+catalogs[current]["语言"],"+"+tags[tag],"!"+catalogs[tag]["语言"]]
+    return ["+"+catalogs[current]["语言"], "!"+tags["fr"],
+            "+"+tags[tag], "!"+catalogs[tag]["语言"]]
 
 assert run("shell","getprop","ro.kernel.qemu").strip()=="1"
 if "success" not in run("install","--no-incremental","-r",str(root/"qa-android-driver/driver.apk")).lower():

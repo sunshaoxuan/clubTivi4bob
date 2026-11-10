@@ -203,8 +203,8 @@
     "history": [
       [
         "2026-11-11",
-        "v1.1.19 · Seven languages in the app and on the website",
-        "Windows, macOS and Android share version 1.1.19+114. Switch languages at the top of the app. Manual choices persist. Automatic mode uses the system language, then the time zone, then English. The language resources are included with each installer. The advanced mode entry has been closed."
+        "v1.1.20 · A new dark look and seven languages",
+        "The channel browser and player now use the website’s dark violet and pink palette. The Settings entry is tucked away, and seven interface languages are available from the top of the app."
       ],
       [
         "2026-11-01",
@@ -346,7 +346,7 @@
     "closing_text": "One column each for Windows, macOS and Android, with CPU choices inside. Native Windows ARM64 packages are available; Surface hardware tests are pending."
   },
   "downloads": {
-    "intro": "Windows, macOS and Android share version 1.1.19+114. Switch languages at the top of the app. Manual choices persist. Automatic mode uses the system language, then the time zone, then English. The language resources are included with each installer. The advanced mode entry has been closed. Diagnostic sync is off by default. Explicit consent enables up to 30 days of redacted records and can be withdrawn at any time.",
+    "intro": "Windows, macOS and Android share version 1.1.20+115. Switch languages at the top of the app. Manual choices persist. Automatic mode uses the system language, then the time zone, then English. The language resources are included with each installer. The advanced mode entry has been closed. Diagnostic sync is off by default. Explicit consent enables up to 30 days of redacted records and can be withdrawn at any time.",
     "latest": "Latest installers",
     "local": "Downloads hosted on this site",
     "sections": [
@@ -749,7 +749,7 @@
       [
         [
           "Seven interface languages",
-          "Browse this site in seven languages. Starting with 1.1.19, the app interface is available in English, Simplified Chinese, Traditional Chinese, Japanese, Korean, French and Spanish."
+          "Browse this site in seven languages. Starting with 1.1.20, the app interface is available in English, Simplified Chinese, Traditional Chinese, Japanese, Korean, French and Spanish."
         ],
         [
           "Available now",

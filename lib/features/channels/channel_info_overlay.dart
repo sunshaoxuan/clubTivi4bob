@@ -4,6 +4,7 @@ import 'dart:ui';
 
 import 'package:flutter/material.dart';
 
+import '../../app/bobtv_palette.dart';
 import '../player/player_service.dart';
 
 /// Cable TV-style channel info banner that slides in when switching channels.
@@ -198,16 +199,16 @@ class _ChannelInfoOverlayState extends State<ChannelInfoOverlay>
                         padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                         margin: const EdgeInsets.only(right: 10),
                         decoration: BoxDecoration(
-                          color: const Color(0xFF6C5CE7).withValues(alpha: 0.3),
+                          color: BobTvPalette.action.withValues(alpha: 0.3),
                           borderRadius: BorderRadius.circular(4),
-                          border: Border.all(color: const Color(0xFF6C5CE7).withValues(alpha: 0.5)),
+                          border: Border.all(color: BobTvPalette.action.withValues(alpha: 0.5)),
                         ),
                         child: Text(
                           widget.providerName!,
                           style: const TextStyle(
                             fontSize: 10,
                             fontWeight: FontWeight.bold,
-                            color: Color(0xFF6C5CE7),
+                            color: BobTvPalette.accent,
                           ),
                         ),
                       ),

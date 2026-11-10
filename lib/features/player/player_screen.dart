@@ -7,13 +7,13 @@ import 'dart:io' show Platform;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 import 'package:media_kit/media_kit.dart';
 import 'package:media_kit_video/media_kit_video.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:window_manager/window_manager.dart';
 
+import '../../app/bobtv_palette.dart';
 import '../../core/app_diagnostics.dart';
 import '../../core/desktop_app_exit.dart';
 import '../../core/tablet_presentation.dart';
@@ -509,7 +509,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     final currentId = player.state.track.subtitle.id;
     showModalBottomSheet<void>(
       context: context,
-      backgroundColor: const Color(0xFF1A1A2E),
+      backgroundColor: BobTvPalette.panel,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
       ),
@@ -608,7 +608,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     final currentId = player.state.track.audio.id;
     showModalBottomSheet<void>(
       context: context,
-      backgroundColor: const Color(0xFF1A1A2E),
+      backgroundColor: BobTvPalette.panel,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
       ),
@@ -790,11 +790,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     return true;
   }
 
-  Future<void> _openSettings() async {
-    final router = GoRouter.of(context);
-    if (await _leavePlayer()) await router.push('/settings');
-  }
-
   // ---- Keyboard controls ----
 
   KeyEventResult _handleKeyEvent(FocusNode node, KeyEvent event) {
@@ -919,7 +914,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     String title,
     String subtitle, {
     bool enabled = true,
-    Color accent = const Color(0xFFB9CAFF),
+    Color accent = BobTvPalette.accent,
   }) => PopupMenuItem<int>(
     value: value,
     enabled: enabled,
@@ -955,7 +950,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                 Text(
                   AppMessages.text(context, subtitle),
                   style: const TextStyle(
-                    color: Color(0xFFA8B8D1),
+                    color: BobTvPalette.muted,
                     fontSize: 11,
                   ),
                 ),
@@ -976,12 +971,12 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     final overlay = Overlay.of(context).context.findRenderObject() as RenderBox;
     final choice = await showMenu<int>(
       context: context,
-      color: const Color(0xFF172439),
+      color: BobTvPalette.raised,
       elevation: 20,
       shadowColor: Colors.black54,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(20),
-        side: const BorderSide(color: Color(0xFF536683)),
+        side: const BorderSide(color: BobTvPalette.outline),
       ),
       constraints: const BoxConstraints(minWidth: 340, maxWidth: 380),
       position: RelativeRect.fromLTRB(
@@ -1010,7 +1005,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
               ),
               Text(
                 AppMessages.text(context, "{0} 条候选线路", [alternatives.length + 1]),
-                style: const TextStyle(color: Color(0xFFA8B8D1), fontSize: 12),
+                style: const TextStyle(color: BobTvPalette.muted, fontSize: 12),
               ),
             ],
           ),
@@ -1436,7 +1431,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                       onPip: _enterPip,
                       onInfo: _showInfoDialog,
                       onRename: _renameCurrentChannel,
-                      onSettings: _openSettings,
                       onChannelList: () =>
                           setState(() => _showChannelList = !_showChannelList),
                       onFullscreenToggle: _toggleNativeFullscreen,
@@ -1628,14 +1622,12 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                                           vertical: 2,
                                         ),
                                         decoration: BoxDecoration(
-                                          color: const Color(
-                                            0xFF6C5CE7,
-                                          ).withValues(alpha: 0.3),
+                                          color: BobTvPalette.action.withValues(alpha: 0.3),
                                           borderRadius: BorderRadius.circular(
                                             4,
                                           ),
                                           border: Border.all(
-                                            color: const Color(0xFF6C5CE7),
+                                            color: BobTvPalette.accent,
                                             width: 0.5,
                                           ),
                                         ),
@@ -1643,7 +1635,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                                           _providerName!,
                                           style: const TextStyle(
                                             fontSize: 10,
-                                            color: Color(0xFFA29BFE),
+                                            color: BobTvPalette.accent,
                                             fontWeight: FontWeight.w600,
                                           ),
                                         ),
@@ -1775,9 +1767,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                                   return ListTile(
                                     dense: true,
                                     selected: isCurrent,
-                                    selectedTileColor: const Color(
-                                      0xFF6C5CE7,
-                                    ).withValues(alpha: 0.3),
+                                    selectedTileColor: BobTvPalette.action.withValues(alpha: 0.3),
                                     leading: ch['tvgLogo'] != null
                                         ? ServerImage.network(
                                             ch['tvgLogo'] as String,
@@ -1900,7 +1890,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     return showDialog<String>(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: const Color(0xFF1A1A2E),
+        backgroundColor: BobTvPalette.panel,
         title: Text(AppMessages.text(context, "新建收藏列表"), style: TextStyle(color: Colors.white)),
         content: TextField(
           autofocus: true,

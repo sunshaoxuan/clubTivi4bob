@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../app/bobtv_palette.dart';
 import '../../data/services/manual_channel_category.dart';
 import '../../core/i18n/app_language.dart';
 
@@ -139,10 +140,10 @@ class _ChannelCategoryPickerState extends State<ChannelCategoryPicker> {
         .where((name) => name.toLowerCase().contains(typedName.toLowerCase()))
         .toList();
     return Dialog(
-      backgroundColor: const Color(0xFF172439),
+      backgroundColor: BobTvPalette.raised,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(24),
-        side: const BorderSide(color: Color(0xFF536683)),
+        side: const BorderSide(color: BobTvPalette.outline),
       ),
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 580, maxHeight: 560),

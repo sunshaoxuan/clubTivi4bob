@@ -18,6 +18,7 @@ import 'package:media_kit/media_kit.dart' show Player;
 import 'package:media_kit_video/media_kit_video.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../../app/bobtv_palette.dart';
 import '../../core/countdown_snackbar.dart';
 import '../../core/app_diagnostics.dart';
 import '../../core/app_version.dart';
@@ -1608,12 +1609,12 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
     final overlay = Overlay.of(context).context.findRenderObject() as RenderBox;
     final choice = await showMenu<bool>(
       context: context,
-      color: const Color(0xFF172439),
+      color: BobTvPalette.raised,
       elevation: 20,
       shadowColor: Colors.black54,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(16),
-        side: const BorderSide(color: Color(0xFF536683)),
+        side: const BorderSide(color: BobTvPalette.outline),
       ),
       position: RelativeRect.fromLTRB(
         position.dx,
@@ -1627,7 +1628,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
           child: Row(
             children: [
               Icon(pinned ? Icons.push_pin_outlined : Icons.push_pin_rounded,
-                  size: 19, color: const Color(0xFFB7CAFF)),
+                  size: 19, color: BobTvPalette.accent),
               const SizedBox(width: 12),
               Text(pinned ? AppMessages.text(context, "取消钉选主导航分类") : AppMessages.text(context, "钉选到主导航分类"),
                   style: const TextStyle(color: Colors.white)),
@@ -2093,12 +2094,12 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
     final overlay = Overlay.of(context).context.findRenderObject() as RenderBox;
     final choice = await showMenu<int>(
       context: context,
-      color: const Color(0xFF172439),
+      color: BobTvPalette.raised,
       elevation: 20,
       shadowColor: Colors.black54,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(20),
-        side: const BorderSide(color: Color(0xFF536683)),
+        side: const BorderSide(color: BobTvPalette.outline),
       ),
       constraints: const BoxConstraints(
         minWidth: 340, maxWidth: 380, maxHeight: 620),
@@ -2309,12 +2310,12 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
     final overlay = Overlay.of(context).context.findRenderObject() as RenderBox;
     final choice = await showMenu<int>(
       context: context,
-      color: const Color(0xFF172439),
+      color: BobTvPalette.raised,
       elevation: 20,
       shadowColor: Colors.black54,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(20),
-        side: const BorderSide(color: Color(0xFF536683)),
+        side: const BorderSide(color: BobTvPalette.outline),
       ),
       constraints: const BoxConstraints(
         minWidth: 340, maxWidth: 380, maxHeight: 620),
@@ -2513,7 +2514,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
               borderRadius: BorderRadius.circular(12),
             ),
             child: const Icon(Icons.live_tv_rounded,
-                color: Color(0xFFB9CAFF), size: 20),
+                color: BobTvPalette.accent, size: 20),
           ),
           const SizedBox(width: 12),
           Expanded(child: Column(
@@ -2525,7 +2526,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                       fontSize: 16, fontWeight: FontWeight.w700)),
               const SizedBox(height: 3),
               Text(AppMessages.text(context, "{0} 条候选线路", [routeCount]), style: const TextStyle(
-                  color: Color(0xFFA8B8D1), fontSize: 12)),
+                  color: BobTvPalette.muted, fontSize: 12)),
             ],
           )),
         ],
@@ -2541,7 +2542,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
   }) {
     final accent = danger ? const Color(0xFFFFA4A4)
         : favorite ? const Color(0xFFFFD36B)
-        : const Color(0xFFB9CAFF);
+        : BobTvPalette.accent;
     return PopupMenuItem<int>(
       value: value,
       enabled: enabled,
@@ -2568,13 +2569,13 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                         fontSize: 14, fontWeight: FontWeight.w600)),
                 const SizedBox(height: 3),
                 Text(subtitle, maxLines: 1, overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(color: Color(0xFFA8B8D1),
+                    style: const TextStyle(color: BobTvPalette.muted,
                         fontSize: 11)),
               ],
             )),
             if (value == -3)
               const Icon(Icons.chevron_right_rounded,
-                  color: Color(0xFF9EAFCC), size: 20),
+                  color: BobTvPalette.muted, size: 20),
           ],
         ),
       ),
@@ -2585,7 +2586,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
     enabled: false,
     height: 46,
     child: Text(AppMessages.text(context, "暂无其他候选线路"), style: TextStyle(
-        color: Color(0xFFA8B8D1), fontSize: 12)),
+        color: BobTvPalette.muted, fontSize: 12)),
   );
 
   Future<void> _retireCurrentRoute(
@@ -3195,7 +3196,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
             return _handleKeyEvent(event);
           },
           child: Scaffold(
-            backgroundColor: const Color(0xFF1A1A2E),
+            backgroundColor: BobTvPalette.panel,
             body: SafeArea(
               child: Column(
                 children: [
@@ -3266,14 +3267,14 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
     return ResponsiveHomeLayout(builder: (context, tiny) => PopScope(
       canPop: false,
       child: Scaffold(
-        backgroundColor: const Color(0xFF070B14),
+        backgroundColor: BobTvPalette.deep,
         resizeToAvoidBottomInset: false,
         body: DecoratedBox(
           decoration: const BoxDecoration(
             gradient: LinearGradient(
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
-              colors: [Color(0xFF1C2945), Color(0xFF101A2C), Color(0xFF070B14)],
+              colors: BobTvPalette.pageGradient,
               stops: [0, 0.48, 1],
             ),
           ),
@@ -3291,12 +3292,12 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                           width: 26,
                           height: 26,
                           decoration: BoxDecoration(
-                            color: const Color(0xFF94A8FF),
+                            gradient: BobTvPalette.brandGradient,
                             borderRadius: BorderRadius.circular(10),
                           ),
                           child: const Icon(
                             Icons.play_arrow_rounded,
-                            color: Color(0xFF10182B),
+                            color: BobTvPalette.onAccent,
                             size: 27,
                           ),
                         ),
@@ -3336,16 +3337,6 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                       const LanguageMenu(),
                       _buildUpdateBadge(),
                       const DesktopExitButton(),
-                      IconButton(
-                        tooltip: AppMessages.text(context, "设置"),
-                        constraints: tiny ? const BoxConstraints.tightFor(width: 40, height: 40) : null,
-                        style: tiny ? IconButton.styleFrom(tapTargetSize: MaterialTapTargetSize.shrinkWrap) : null,
-                        onPressed: () => context.push('/settings'),
-                        icon: const Icon(
-                          Icons.settings_outlined,
-                          color: Colors.white70,
-                        ),
-                      ),
                       PopupMenuButton<String>(
                         iconSize: tiny ? 20 : 24,
                         style: tiny ? IconButton.styleFrom(minimumSize: const Size(40, 40), maximumSize: const Size(40, 40), padding: const EdgeInsets.all(4), tapTargetSize: MaterialTapTargetSize.shrinkWrap) : null,
@@ -3382,11 +3373,11 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
     gradient: const LinearGradient(
       begin: Alignment.topLeft,
       end: Alignment.bottomRight,
-      colors: [Color(0xFF1E2D45), Color(0xFF111B2C), Color(0xFF0C1523)],
+      colors: BobTvPalette.panelGradient,
       stops: [0, 0.5, 1],
     ),
     borderRadius: BorderRadius.circular(28),
-    border: Border.all(color: const Color(0xFF50617E).withValues(alpha: 0.42)),
+    border: Border.all(color: BobTvPalette.outline.withValues(alpha: 0.42)),
     boxShadow: const [BoxShadow(
       color: Color(0x50000000),
       blurRadius: 30,
@@ -3495,7 +3486,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: const TextStyle(
-                          color: Color(0xFFB6C6F7),
+                          color: BobTvPalette.accent,
                           fontSize: 12,
                         ),
                       ),
@@ -3514,7 +3505,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                     Text(
                       AppMessages.text(context, "正在播放"),
                       style: const TextStyle(
-                        color: Color(0xFFAFC4FF),
+                        color: BobTvPalette.accent,
                         fontSize: 12,
                         fontWeight: FontWeight.w700,
                         letterSpacing: 1.1,
@@ -3694,7 +3685,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
         onSearch: () => showDialog<void>(
           context: context,
           builder: (dialogContext) => AlertDialog(
-            backgroundColor: const Color(0xFF1A2B43),
+            backgroundColor: BobTvPalette.raised,
             title: Text(AppMessages.text(context, "搜索当前分类"), style: TextStyle(color: Colors.white, fontSize: 16)),
             content: TextField(
               controller: _searchController,
@@ -3737,7 +3728,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                 color: Colors.white54,
               ),
               filled: true,
-              fillColor: const Color(0xFF0D1728),
+              fillColor: BobTvPalette.background,
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(16),
                 borderSide: const BorderSide(color: Colors.white12),
@@ -4021,7 +4012,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
                                   style: TextStyle(
-                                    color: Color(0xFFCFD9FF),
+                                    color: BobTvPalette.ink,
                                     fontSize: tiny ? 8 : 9,
                                     fontWeight: FontWeight.w700,
                                   ),
@@ -4320,7 +4311,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                     alignment: Alignment.topLeft,
                     child: Material(
                       elevation: 8,
-                      color: const Color(0xFF1A1A2E),
+                      color: BobTvPalette.panel,
                       borderRadius: BorderRadius.circular(8),
                       child: ConstrainedBox(
                         constraints: const BoxConstraints(
@@ -4422,14 +4413,6 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                       tooltip: AppMessages.text(context, "返回上一个频道"),
                       onPressed: _goBackChannel,
                     ),
-                  IconButton(
-                    icon: const Icon(
-                      Icons.settings_rounded,
-                      color: Colors.white70,
-                    ),
-                    tooltip: AppMessages.text(context, "设置"),
-                    onPressed: () => context.push('/settings'),
-                  ),
                   // Cast icon removed — available in fullscreen player
                 ],
               ),
@@ -4456,12 +4439,12 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
             padding: const EdgeInsets.only(left: 9, right: 2),
             decoration: BoxDecoration(
               color: active
-                  ? const Color(0xFF6C5CE7).withValues(alpha: 0.24)
+                  ? BobTvPalette.action.withValues(alpha: 0.24)
                   : Colors.white.withValues(alpha: 0.07),
               borderRadius: BorderRadius.circular(8),
               border: Border.all(
                 color: active
-                    ? const Color(0xFFA29BFE).withValues(alpha: 0.7)
+                    ? BobTvPalette.accent.withValues(alpha: 0.7)
                     : Colors.white12,
               ),
             ),
@@ -4471,7 +4454,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                 Icon(
                   Icons.language_rounded,
                   size: 15,
-                  color: active ? const Color(0xFFA29BFE) : Colors.white54,
+                  color: active ? BobTvPalette.accent : Colors.white54,
                 ),
                 const SizedBox(width: 5),
                 Text(
@@ -4490,10 +4473,8 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                       child: Switch(
                         value: active,
                         onChanged: (_) {},
-                        activeThumbColor: const Color(0xFFA29BFE),
-                        activeTrackColor: const Color(
-                          0xFF6C5CE7,
-                        ).withValues(alpha: 0.75),
+                        activeThumbColor: BobTvPalette.accent,
+                        activeTrackColor: BobTvPalette.action.withValues(alpha: 0.75),
                       ),
                     ),
                   ),
@@ -4618,7 +4599,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                   : Container(
                       padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
-                        color: const Color(0xFF16213E),
+                        color: BobTvPalette.raised,
                         borderRadius: BorderRadius.circular(12),
                       ),
                       child: Column(
@@ -4674,9 +4655,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                                             vertical: 2,
                                           ),
                                           decoration: BoxDecoration(
-                                            color: const Color(
-                                              0xFF6C5CE7,
-                                            ).withValues(alpha: 0.2),
+                                            color: BobTvPalette.action.withValues(alpha: 0.2),
                                             borderRadius: BorderRadius.circular(
                                               4,
                                             ),
@@ -4687,7 +4666,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                                             ),
                                             style: const TextStyle(
                                               fontSize: 10,
-                                              color: Color(0xFF6C5CE7),
+                                              color: BobTvPalette.accent,
                                               fontWeight: FontWeight.w600,
                                             ),
                                           ),
@@ -4721,7 +4700,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                                 style: const TextStyle(
-                                    color: Color(0xFFB6C6F7), fontSize: 11),
+                                    color: BobTvPalette.accent, fontSize: 11),
                               );
                             },
                           ),
@@ -5026,7 +5005,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
       duration: const Duration(milliseconds: 200),
       width: width,
       clipBehavior: Clip.hardEdge,
-      decoration: const BoxDecoration(color: Color(0xFF111127)),
+      decoration: const BoxDecoration(color: BobTvPalette.panel),
       child: FocusScope(
         node: _sidebarFocusNode,
         child: Column(
@@ -5120,17 +5099,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                   ? _buildSidebarTree()
                   : _buildCollapsedSidebar(),
             ),
-            // Settings — anchored at bottom of sidebar
             const Divider(height: 1, color: Colors.white10),
-            if (_sidebarExpanded) ...[
-              _buildSidebarNavItem(Icons.settings_rounded, '设置', () {
-                context.push('/settings');
-              }),
-            ] else ...[
-              _sidebarIcon(Icons.settings_rounded, '设置', false, () {
-                context.push('/settings');
-              }),
-            ],
             // Version watermark
             Padding(
               padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 8),
@@ -5217,52 +5186,6 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
             );
           },
         ),
-      ),
-    );
-  }
-
-  Widget _buildSidebarNavItem(IconData icon, String label, VoidCallback onTap) {
-    return Focus(
-      onKeyEvent: (node, event) {
-        if (event is! KeyDownEvent) return KeyEventResult.ignored;
-        if (event.logicalKey == LogicalKeyboardKey.arrowRight) {
-          _firstChannelFocusNode.requestFocus();
-          return KeyEventResult.handled;
-        }
-        if (event.logicalKey == LogicalKeyboardKey.select ||
-            event.logicalKey == LogicalKeyboardKey.enter) {
-          onTap();
-          return KeyEventResult.handled;
-        }
-        return KeyEventResult.ignored;
-      },
-      child: Builder(
-        builder: (context) {
-          final hasFocus = Focus.of(context).hasFocus;
-          return InkWell(
-            onTap: onTap,
-            child: Container(
-              height: 36,
-              padding: const EdgeInsets.symmetric(horizontal: 12),
-              decoration: BoxDecoration(
-                border: hasFocus
-                    ? Border.all(color: Colors.purpleAccent, width: 1.5)
-                    : null,
-                borderRadius: BorderRadius.circular(4),
-              ),
-              child: Row(
-                children: [
-                  Icon(icon, size: 16, color: Colors.white54),
-                  const SizedBox(width: 8),
-                  Text(
-                    label,
-                    style: const TextStyle(fontSize: 12, color: Colors.white54),
-                  ),
-                ],
-              ),
-            ),
-          );
-        },
       ),
     );
   }
@@ -5545,9 +5468,6 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
       case 'play_url':
         _playUrlStream();
         break;
-      case 'settings':
-        context.push('/settings');
-        break;
     }
   }
 
@@ -5560,7 +5480,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
       messenger.clearSnackBars();
       messenger.showSnackBar(
         countdownSnackBar(
-          'No recording folder set. Go to Settings → Recordings to choose one.',
+          AppMessages.text(context, "No recordings found."),
           seconds: 5,
         ),
       );
@@ -5572,7 +5492,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(AppMessages.text(context, "录像文件夹已不存在，请在设置中更新。")),
+            content: Text(AppMessages.text(context, "No recordings found.")),
             duration: Duration(seconds: 5),
           ),
         );
@@ -6085,23 +6005,23 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                       ),
                       decoration: BoxDecoration(
                         color: isMultiSelected
-                            ? const Color(0xFF6C5CE7).withValues(alpha: 0.25)
+                            ? BobTvPalette.action.withValues(alpha: 0.25)
                             : isSelected
-                            ? const Color(0xFF6C5CE7).withValues(alpha: 0.3)
+                            ? BobTvPalette.action.withValues(alpha: 0.3)
                             : focused
-                            ? const Color(0xFF6C5CE7).withValues(alpha: 0.15)
+                            ? BobTvPalette.action.withValues(alpha: 0.15)
                             : Colors.transparent,
                         borderRadius: BorderRadius.circular(8),
                         border: focused
                             ? Border.all(color: Colors.white, width: 2.0)
                             : isMultiSelected
                             ? Border.all(
-                                color: const Color(0xFF6C5CE7),
+                                color: BobTvPalette.accent,
                                 width: 1.5,
                               )
                             : isSelected
                             ? Border.all(
-                                color: const Color(0xFF6C5CE7),
+                                color: BobTvPalette.accent,
                                 width: 1.5,
                               )
                             : null,
@@ -6118,7 +6038,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                                     : Icons.check_box_outline_blank,
                                 size: 20,
                                 color: isMultiSelected
-                                    ? const Color(0xFF6C5CE7)
+                                    ? BobTvPalette.accent
                                     : Colors.white38,
                               ),
                             ),
@@ -6135,7 +6055,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                                       channel.tvgLogo!,
                                       fit: BoxFit.cover,
                                       errorBuilder: (_, e, s) => Container(
-                                        color: const Color(0xFF16213E),
+                                        color: BobTvPalette.raised,
                                         child: const Icon(
                                           Icons.tv,
                                           size: 18,
@@ -6144,7 +6064,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                                       ),
                                     )
                                   : Container(
-                                      color: const Color(0xFF16213E),
+                                      color: BobTvPalette.raised,
                                       child: const Icon(
                                         Icons.tv,
                                         size: 18,
@@ -6203,7 +6123,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                                   Text(
                                     _getChannelNowPlaying(channel)!,
                                     style: const TextStyle(
-                                      color: Color(0xFF6C5CE7),
+                                      color: BobTvPalette.accent,
                                       fontSize: 11,
                                     ),
                                     overflow: TextOverflow.ellipsis,
@@ -6234,7 +6154,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                           if (isSelected)
                             const Icon(
                               Icons.play_arrow_rounded,
-                              color: Color(0xFF6C5CE7),
+                              color: BobTvPalette.accent,
                               size: 20,
                             ),
                         ],
@@ -6263,7 +6183,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                 gradient: LinearGradient(
                   begin: Alignment.topCenter,
                   end: Alignment.bottomCenter,
-                  colors: [Colors.transparent, const Color(0xFF0A0A0F)],
+                  colors: [Colors.transparent, BobTvPalette.deep],
                 ),
               ),
             ),
@@ -6374,9 +6294,9 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                   height: 48,
                   decoration: BoxDecoration(
                     color: isGroupPlaying
-                        ? const Color(0xFF6C5CE7).withValues(alpha: 0.2)
+                        ? BobTvPalette.action.withValues(alpha: 0.2)
                         : focused
-                        ? const Color(0xFF6C5CE7).withValues(alpha: 0.1)
+                        ? BobTvPalette.action.withValues(alpha: 0.1)
                         : null,
                     border: Border(
                       bottom: const BorderSide(
@@ -6384,7 +6304,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                         width: 0.5,
                       ),
                       left: BorderSide(
-                        color: const Color(0xFF6C5CE7),
+                        color: BobTvPalette.accent,
                         width: isGroupPlaying
                             ? 3
                             : focused
@@ -6422,7 +6342,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                                       errorBuilder: (_, __, ___) => Container(
                                         width: 28,
                                         height: 28,
-                                        color: const Color(0xFF16213E),
+                                        color: BobTvPalette.raised,
                                         child: const Icon(
                                           Icons.bolt,
                                           size: 14,
@@ -6433,7 +6353,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                                   : Container(
                                       width: 28,
                                       height: 28,
-                                      color: const Color(0xFF16213E),
+                                      color: BobTvPalette.raised,
                                       child: const Icon(
                                         Icons.bolt,
                                         size: 14,
@@ -6582,9 +6502,9 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                       height: 36,
                       decoration: BoxDecoration(
                         color: isPlaying
-                            ? const Color(0xFF6C5CE7).withValues(alpha: 0.2)
+                            ? BobTvPalette.action.withValues(alpha: 0.2)
                             : focused
-                            ? const Color(0xFF6C5CE7).withValues(alpha: 0.1)
+                            ? BobTvPalette.action.withValues(alpha: 0.1)
                             : const Color(0xFF0D1117),
                         border: const Border(
                           bottom: BorderSide(color: Colors.white10, width: 0.5),
@@ -6644,7 +6564,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                           if (isPlaying)
                             const Icon(
                               Icons.play_arrow_rounded,
-                              color: Color(0xFF6C5CE7),
+                              color: BobTvPalette.accent,
                               size: 14,
                             ),
                           Text(
@@ -6672,9 +6592,9 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
         decoration: BoxDecoration(
-          color: const Color(0xFF1A1A2E),
+          color: BobTvPalette.panel,
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: const Color(0xFF6C5CE7), width: 1),
+          border: Border.all(color: BobTvPalette.accent, width: 1),
           boxShadow: [BoxShadow(color: Colors.black54, blurRadius: 8)],
         ),
         child: Row(
@@ -6692,7 +6612,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                     style: focused
                         ? TextButton.styleFrom(
                             side: const BorderSide(
-                              color: Color(0xFF6C5CE7),
+                              color: BobTvPalette.accent,
                               width: 2,
                             ),
                           )
@@ -6741,7 +6661,8 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                     icon: const Icon(Icons.bolt, size: 16),
                     label: Text(AppMessages.text(context, "New Smart Channel")),
                     style: FilledButton.styleFrom(
-                      backgroundColor: const Color(0xFF6C5CE7),
+                      backgroundColor: BobTvPalette.accent,
+                      foregroundColor: BobTvPalette.onAccent,
                       side: focused
                           ? const BorderSide(color: Colors.white, width: 2)
                           : null,
@@ -6773,7 +6694,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
     final name = await showDialog<String>(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: const Color(0xFF1A1A2E),
+        backgroundColor: BobTvPalette.panel,
         title: Text(
           AppMessages.text(context, "Create Smart Channel"),
           style: TextStyle(color: Colors.white),
@@ -6852,7 +6773,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
     if (_multiSelectedChannelIds.isEmpty) return;
     final selected = await showModalBottomSheet<db.FailoverGroup>(
       context: context,
-      backgroundColor: const Color(0xFF1A1A2E),
+      backgroundColor: BobTvPalette.panel,
       builder: (ctx) => SafeArea(
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -7019,16 +6940,16 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(8),
                     color: isPlaying
-                        ? const Color(0xFF6C5CE7).withValues(alpha: 0.25)
+                        ? BobTvPalette.action.withValues(alpha: 0.25)
                         : focused
-                        ? const Color(0xFF6C5CE7).withValues(alpha: 0.15)
+                        ? BobTvPalette.action.withValues(alpha: 0.15)
                         : null,
                     border: Border.all(
                       color: isPlaying
-                          ? const Color(0xFF6C5CE7)
+                          ? BobTvPalette.accent
                           : focused
-                          ? const Color(0xFF6C5CE7).withValues(alpha: 0.7)
-                          : const Color(0xFF6C5CE7).withValues(alpha: 0.3),
+                          ? BobTvPalette.action.withValues(alpha: 0.7)
+                          : BobTvPalette.action.withValues(alpha: 0.3),
                     ),
                   ),
                   child: Row(
@@ -7046,7 +6967,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                                   primary.tvgLogo!,
                                   fit: BoxFit.cover,
                                   errorBuilder: (_, __, ___) => Container(
-                                    color: const Color(0xFF16213E),
+                                    color: BobTvPalette.raised,
                                     child: const Icon(
                                       Icons.bolt,
                                       size: 18,
@@ -7055,7 +6976,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                                   ),
                                 )
                               : Container(
-                                  color: const Color(0xFF16213E),
+                                  color: BobTvPalette.raised,
                                   child: const Icon(
                                     Icons.bolt,
                                     size: 18,
@@ -7103,7 +7024,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                               Text(
                                 epgText,
                                 style: const TextStyle(
-                                  color: Color(0xFF6C5CE7),
+                                  color: BobTvPalette.accent,
                                   fontSize: 11,
                                 ),
                                 overflow: TextOverflow.ellipsis,
@@ -7190,16 +7111,14 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                         ),
                         decoration: BoxDecoration(
                           color: isPlaying
-                              ? const Color(0xFF6C5CE7).withValues(alpha: 0.2)
+                              ? BobTvPalette.action.withValues(alpha: 0.2)
                               : focused
-                              ? const Color(0xFF6C5CE7).withValues(alpha: 0.1)
+                              ? BobTvPalette.action.withValues(alpha: 0.1)
                               : null,
                           borderRadius: BorderRadius.circular(6),
                           border: focused
                               ? Border.all(
-                                  color: const Color(
-                                    0xFF6C5CE7,
-                                  ).withValues(alpha: 0.5),
+                                  color: BobTvPalette.action.withValues(alpha: 0.5),
                                 )
                               : null,
                         ),
@@ -7272,7 +7191,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                             if (isPlaying)
                               const Icon(
                                 Icons.play_arrow_rounded,
-                                color: Color(0xFF6C5CE7),
+                                color: BobTvPalette.accent,
                                 size: 16,
                               ),
                           ],
@@ -7348,7 +7267,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
   void _showMemberActions(db.FailoverGroup group, db.Channel channel) {
     showModalBottomSheet(
       context: context,
-      backgroundColor: const Color(0xFF1A1A2E),
+      backgroundColor: BobTvPalette.panel,
       builder: (ctx) => SafeArea(
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -7410,7 +7329,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
   void _showFailoverGroupActions(db.FailoverGroup group) {
     showModalBottomSheet(
       context: context,
-      backgroundColor: const Color(0xFF1A1A2E),
+      backgroundColor: BobTvPalette.panel,
       builder: (ctx) => SafeArea(
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -7447,7 +7366,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                 final newName = await showDialog<String>(
                   context: context,
                   builder: (ctx) => AlertDialog(
-                    backgroundColor: const Color(0xFF1A1A2E),
+                    backgroundColor: BobTvPalette.panel,
                     title: Text(
                       AppMessages.text(context, "Rename Smart Channel"),
                       style: TextStyle(color: Colors.white),
@@ -7495,7 +7414,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                 final confirm = await showDialog<bool>(
                   context: context,
                   builder: (ctx) => AlertDialog(
-                    backgroundColor: const Color(0xFF1A1A2E),
+                    backgroundColor: BobTvPalette.panel,
                     title: Text(
                       AppMessages.text(context, "Delete Smart Channel?"),
                       style: TextStyle(color: Colors.white),
@@ -7803,7 +7722,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
     return showDialog<String>(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: const Color(0xFF16213E),
+        backgroundColor: BobTvPalette.raised,
         title: Text(
           AppMessages.text(context, "New Favorite List"),
           style: TextStyle(color: Colors.white),
@@ -7854,7 +7773,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
         return StatefulBuilder(
           builder: (ctx, setDialogState) {
             return AlertDialog(
-              backgroundColor: const Color(0xFF16213E),
+              backgroundColor: BobTvPalette.raised,
               title: Row(
                 children: [
                   const Icon(Icons.star_rounded, color: Colors.amber, size: 22),
@@ -8014,7 +7933,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
       return await showDialog<String>(
         context: context,
         builder: (ctx) => AlertDialog(
-          backgroundColor: const Color(0xFF16213E),
+          backgroundColor: BobTvPalette.raised,
           title: Text(
             AppMessages.text(context, "Rename List"),
             style: TextStyle(color: Colors.white),
@@ -8059,7 +7978,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
     return showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: const Color(0xFF16213E),
+        backgroundColor: BobTvPalette.raised,
         title: Text(
           AppMessages.text(context, "Delete List?"),
           style: TextStyle(color: Colors.white),
@@ -8492,17 +8411,11 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                                             _multiSelectedChannelIds.contains(
                                               channel.id,
                                             ))
-                                        ? const Color(
-                                            0xFF6C5CE7,
-                                          ).withValues(alpha: 0.25)
+                                        ? BobTvPalette.action.withValues(alpha: 0.25)
                                         : isSelected
-                                        ? const Color(
-                                            0xFF6C5CE7,
-                                          ).withValues(alpha: 0.25)
+                                        ? BobTvPalette.action.withValues(alpha: 0.25)
                                         : hasFocus
-                                        ? const Color(
-                                            0xFF6C5CE7,
-                                          ).withValues(alpha: 0.15)
+                                        ? BobTvPalette.action.withValues(alpha: 0.15)
                                         : Colors.transparent,
                                     border: Border(
                                       bottom: const BorderSide(
@@ -8511,12 +8424,12 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                                       ),
                                       left: isSelected
                                           ? const BorderSide(
-                                              color: Color(0xFF6C5CE7),
+                                              color: BobTvPalette.accent,
                                               width: 3,
                                             )
                                           : hasFocus
                                           ? const BorderSide(
-                                              color: Color(0xFF6C5CE7),
+                                              color: BobTvPalette.accent,
                                               width: 2,
                                             )
                                           : BorderSide.none,
@@ -8540,7 +8453,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                                             color:
                                                 _multiSelectedChannelIds
                                                     .contains(channel.id)
-                                                ? const Color(0xFF6C5CE7)
+                                                ? BobTvPalette.accent
                                                 : Colors.white38,
                                           ),
                                         ),
@@ -8581,9 +8494,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                                                           ) => Container(
                                                             width: 28,
                                                             height: 28,
-                                                            color: const Color(
-                                                              0xFF16213E,
-                                                            ),
+                                                            color: BobTvPalette.raised,
                                                             child: const Icon(
                                                               Icons.tv,
                                                               size: 14,
@@ -8595,9 +8506,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                                                   : Container(
                                                       width: 28,
                                                       height: 28,
-                                                      color: const Color(
-                                                        0xFF16213E,
-                                                      ),
+                                                      color: BobTvPalette.raised,
                                                       child: const Icon(
                                                         Icons.tv,
                                                         size: 14,
@@ -8979,11 +8888,11 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                   ),
                   decoration: BoxDecoration(
                     color: isCurrent
-                        ? const Color(0xFF6C5CE7).withValues(alpha: 0.3)
-                        : const Color(0xFF16213E),
+                        ? BobTvPalette.action.withValues(alpha: 0.3)
+                        : BobTvPalette.raised,
                     borderRadius: BorderRadius.circular(3),
                     border: isCurrent
-                        ? Border.all(color: const Color(0xFF6C5CE7), width: 1)
+                        ? Border.all(color: BobTvPalette.accent, width: 1)
                         : null,
                   ),
                   child: Text(
@@ -9009,7 +8918,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
     final newName = await showDialog<String>(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: const Color(0xFF1A1A2E),
+        backgroundColor: BobTvPalette.panel,
         title: Text(AppMessages.text(context, "Rename List"), style: TextStyle(color: Colors.white)),
         content: SizedBox(
           width: 300,

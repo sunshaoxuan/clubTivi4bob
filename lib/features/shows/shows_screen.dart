@@ -102,21 +102,9 @@ class _ShowsScreenState extends ConsumerState<ShowsScreen> {
               ),
               const SizedBox(height: 12),
               Text(
-                AppMessages.text(context, "Configure at least a Trakt or TMDB API key in Settings\nto browse trending shows, movies, and stream via Real-Debrid."),
+                AppMessages.text(context, "No results found"),
                 textAlign: TextAlign.center,
                 style: TextStyle(color: Colors.white60, fontSize: 16),
-              ),
-              const SizedBox(height: 32),
-              ElevatedButton.icon(
-                autofocus: true,
-                onPressed: () => context.go('/settings'),
-                icon: const Icon(Icons.settings),
-                label: Text(AppMessages.text(context, "Go to Settings")),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF6C5CE7),
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
-                ),
               ),
             ],
           ),

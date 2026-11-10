@@ -30,7 +30,7 @@ def test_release_templates_preserve_languages_and_settings(locale):
             assert 'player-title' in rendered
         elif page == 'release-notes':
             assert f'<a href="/release-notes" aria-current="page">{copy["home"]["history_label"]}</a>' in rendered
-            assert 'v1.1.19 · ' in rendered
+            assert 'v1.1.20 · ' in rendered
             assert 'v1.1.10 · ' in rendered
             assert 'v1.0.6' in rendered
         elif page == 'downloads':
@@ -39,7 +39,7 @@ def test_release_templates_preserve_languages_and_settings(locale):
             assert 'id="release-list"' in rendered
             assert copy['showcase']['download'][0] in rendered
             assert '1.1.10+103' not in copy['downloads']['intro']
-            assert '1.1.19+114' in copy['downloads']['intro']
+            assert '1.1.20+115' in copy['downloads']['intro']
             assert '1.1.10+103' not in copy['downloads']['intro']
             assert '30' in copy['downloads']['intro']
             assert 'ad-hoc' in rendered

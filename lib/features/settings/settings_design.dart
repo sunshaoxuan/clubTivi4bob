@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+
+import '../../app/bobtv_palette.dart';
 import '../../core/i18n/language_menu.dart';
 import '../../core/i18n/app_language.dart';
 
@@ -45,7 +47,7 @@ class SettingsDetailPage extends StatelessWidget {
           gradient: LinearGradient(
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
-            colors: [Color(0xFF1C2945), Color(0xFF101A2C), Color(0xFF070B14)],
+            colors: BobTvPalette.pageGradient,
           ),
         ),
         child: SizedBox.expand(
@@ -65,7 +67,7 @@ class SettingsDetailPage extends StatelessWidget {
 class SettingsDesign extends StatelessWidget {
   const SettingsDesign({super.key, required this.child});
   final Widget child;
-  static const accent = Color(0xFFB7CAFF);
+  static const accent = BobTvPalette.accent;
 
   @override
   Widget build(BuildContext context) {
@@ -77,20 +79,20 @@ class SettingsDesign extends StatelessWidget {
       data: base.copyWith(
         colorScheme: base.colorScheme.copyWith(
           primary: accent,
-          onPrimary: const Color(0xFF122039),
-          secondaryContainer: const Color(0xFF26354A),
+          onPrimary: BobTvPalette.onAccent,
+          secondaryContainer: BobTvPalette.selected,
           onSecondaryContainer: accent,
-          surface: const Color(0xFF142034),
+          surface: BobTvPalette.panel,
         ),
-        scaffoldBackgroundColor: const Color(0xFF0B1321),
+        scaffoldBackgroundColor: BobTvPalette.background,
         hoverColor: accent.withValues(alpha: .09),
         focusColor: accent.withValues(alpha: .16),
         appBarTheme: const AppBarTheme(
-          backgroundColor: Color(0xFF0B1321),
+          backgroundColor: BobTvPalette.background,
           elevation: 0,
         ),
         cardTheme: CardThemeData(
-          color: const Color(0xFF19283D),
+          color: BobTvPalette.raised,
           elevation: 0,
           shape: shape,
         ),
@@ -110,7 +112,7 @@ class SettingsDesign extends StatelessWidget {
             fontFamily: base.textTheme.bodyMedium?.fontFamily,
             fontSize: 12,
             height: 1.5,
-            color: Color(0xFFA8B8D1),
+            color: BobTvPalette.muted,
           ),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12),
@@ -119,7 +121,7 @@ class SettingsDesign extends StatelessWidget {
         filledButtonTheme: FilledButtonThemeData(
           style: FilledButton.styleFrom(
             backgroundColor: accent,
-            foregroundColor: const Color(0xFF122039),
+            foregroundColor: BobTvPalette.onAccent,
             minimumSize: const Size(64, 42),
             shape: shape,
           ),
@@ -128,28 +130,28 @@ class SettingsDesign extends StatelessWidget {
           thumbColor: WidgetStateProperty.resolveWith(
             (states) => states.contains(WidgetState.selected)
                 ? Colors.white
-                : const Color(0xFF8C9DB8),
+                : BobTvPalette.muted,
           ),
           trackColor: WidgetStateProperty.resolveWith(
             (states) => states.contains(WidgetState.selected)
-                ? const Color(0xFF688CCD)
-                : const Color(0xFF29394E),
+                ? BobTvPalette.action
+                : BobTvPalette.selected,
           ),
         ),
         inputDecorationTheme: InputDecorationTheme(
           filled: true,
-          fillColor: const Color(0xFF101B2B),
+          fillColor: BobTvPalette.background,
           contentPadding: const EdgeInsets.symmetric(
             horizontal: 16,
             vertical: 16,
           ),
           border: OutlineInputBorder(
             borderRadius: BorderRadius.circular(12),
-            borderSide: const BorderSide(color: Color(0xFF3B4B65)),
+            borderSide: const BorderSide(color: BobTvPalette.outline),
           ),
           enabledBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(12),
-            borderSide: const BorderSide(color: Color(0xFF3B4B65)),
+            borderSide: const BorderSide(color: BobTvPalette.outline),
           ),
           focusedBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(12),
@@ -157,7 +159,7 @@ class SettingsDesign extends StatelessWidget {
           ),
         ),
         dialogTheme: DialogThemeData(
-          backgroundColor: const Color(0xFF172439),
+          backgroundColor: BobTvPalette.raised,
           shape: shape,
         ),
       ),
@@ -184,7 +186,7 @@ class SettingsPanel extends StatelessWidget {
             style: const TextStyle(
               fontSize: 13,
               fontWeight: FontWeight.w600,
-              color: Color(0xFFB2C3DE),
+              color: BobTvPalette.muted,
             ),
           ),
         ),
@@ -194,11 +196,11 @@ class SettingsPanel extends StatelessWidget {
             gradient: const LinearGradient(
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
-              colors: [Color(0xFF1E2D45), Color(0xFF111B2C)],
+              colors: [BobTvPalette.raised, BobTvPalette.panel],
             ),
             borderRadius: BorderRadius.circular(20),
             border: Border.all(
-              color: const Color(0xFF50617E).withValues(alpha: .42),
+              color: BobTvPalette.outline.withValues(alpha: .42),
             ),
           ),
           child: Column(
@@ -207,7 +209,7 @@ class SettingsPanel extends StatelessWidget {
                 if (i > 0)
                   const Padding(
                     padding: EdgeInsets.symmetric(horizontal: 20),
-                    child: Divider(height: 1, color: Color(0xFF2B3B52)),
+                    child: Divider(height: 1, color: BobTvPalette.selected),
                   ),
                 children[i],
               ],
@@ -301,7 +303,7 @@ class _SettingsWorkspaceState extends State<SettingsWorkspace> {
           ),
           child: Material(
             color: _selected == i
-                ? const Color(0xFFB7CAFF)
+                ? BobTvPalette.accent
                 : Colors.transparent,
             borderRadius: BorderRadius.circular(14),
             child: InkWell(
@@ -323,8 +325,8 @@ class _SettingsWorkspaceState extends State<SettingsWorkspace> {
                         settingsCategories[i].icon,
                         size: 19,
                         color: _selected == i
-                            ? const Color(0xFF122039)
-                            : const Color(0xFF9EAFCC),
+                            ? BobTvPalette.onAccent
+                            : BobTvPalette.muted,
                       ),
                       const SizedBox(width: 12),
                       Text(
@@ -333,8 +335,8 @@ class _SettingsWorkspaceState extends State<SettingsWorkspace> {
                           fontSize: 13,
                           fontWeight: FontWeight.w600,
                           color: _selected == i
-                              ? const Color(0xFF122039)
-                              : const Color(0xFFB8C6DD),
+                              ? BobTvPalette.onAccent
+                              : BobTvPalette.muted,
                         ),
                       ),
                     ],
@@ -362,7 +364,7 @@ class _SettingsWorkspaceState extends State<SettingsWorkspace> {
           gradient: LinearGradient(
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
-            colors: [Color(0xFF1C2945), Color(0xFF101A2C), Color(0xFF070B14)],
+            colors: BobTvPalette.pageGradient,
           ),
         ),
         child: SafeArea(
@@ -395,7 +397,7 @@ class _SettingsWorkspaceState extends State<SettingsWorkspace> {
                           'BobTV',
                           style: TextStyle(
                             fontWeight: FontWeight.w700,
-                            color: Color(0xFFB7CAFF),
+                            color: BobTvPalette.accent,
                           ),
                         ),
                       ],
@@ -449,7 +451,7 @@ class _SettingsWorkspaceState extends State<SettingsWorkspace> {
                                                     style: const TextStyle(
                                                       fontSize: 13,
                                                       height: 1.6,
-                                                      color: Color(0xFF9EAFCC),
+                                                      color: BobTvPalette.muted,
                                                     ),
                                                   ),
                                                   const SizedBox(height: 28),
@@ -498,7 +500,7 @@ class _SettingsWorkspaceState extends State<SettingsWorkspace> {
                             ),
                             const VerticalDivider(
                               width: 1,
-                              color: Color(0xFF2A3950),
+                              color: BobTvPalette.selected,
                             ),
                             Expanded(child: pages),
                           ],

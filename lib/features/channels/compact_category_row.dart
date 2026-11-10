@@ -2,6 +2,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
+import '../../app/bobtv_palette.dart';
 import '../../data/services/country_name_index.dart';
 import '../../core/i18n/app_language.dart';
 
@@ -113,7 +114,7 @@ class _CompactCategoryRowState extends State<CompactCategoryRow> {
               key: ValueKey('category-menu-surface-${widget.level}'),
               child: Material(
                 key: ValueKey('category-menu-${widget.level}'),
-                color: const Color(0xFF1A2B43),
+                color: BobTvPalette.raised,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.only(
                     topLeft: const Radius.circular(16),
@@ -121,7 +122,7 @@ class _CompactCategoryRowState extends State<CompactCategoryRow> {
                     bottomLeft: const Radius.circular(16),
                     bottomRight: Radius.circular(upwards ? 0 : 16),
                   ),
-                  side: const BorderSide(color: Color(0xFF829CC8)),
+                  side: const BorderSide(color: BobTvPalette.outline),
                 ),
                 clipBehavior: Clip.antiAlias,
                 child: Column(
@@ -214,8 +215,8 @@ class _CompactCategoryRowState extends State<CompactCategoryRow> {
           : (d) => option.onContextMenu!(d.globalPosition),
       child: Material(
         color: option.selected
-            ? const Color(0xFFAFC7FF)
-            : const Color(0xFF26374F),
+            ? BobTvPalette.accent
+            : BobTvPalette.selected,
         borderRadius: BorderRadius.circular(menu ? 12 : 18),
         child: InkWell(
           key: ValueKey(
@@ -256,7 +257,7 @@ class _CompactCategoryRowState extends State<CompactCategoryRow> {
                               ? FontWeight.w700
                               : FontWeight.w500,
                           color: option.selected
-                              ? const Color(0xFF14213B)
+                              ? BobTvPalette.onAccent
                               : Colors.white70,
                         ),
               ),
@@ -348,8 +349,8 @@ class _CompactCategoryRowState extends State<CompactCategoryRow> {
               child: Material(
                 key: _moreKey,
                 color: _menuOpen
-                    ? const Color(0xFF1A2B43)
-                    : const Color(0xFF26374F),
+                    ? BobTvPalette.raised
+                    : BobTvPalette.selected,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.vertical(
                     top: Radius.circular(
@@ -364,7 +365,7 @@ class _CompactCategoryRowState extends State<CompactCategoryRow> {
                     ),
                   ),
                   side: BorderSide(
-                    color: _menuOpen ? const Color(0xFF829CC8) : Colors.white12,
+                    color: _menuOpen ? BobTvPalette.outline : Colors.white12,
                   ),
                 ),
                 child: InkWell(
@@ -444,11 +445,11 @@ class _CountryMenuState extends State<_CountryMenu> {
         key: ValueKey('country-initial-${initial ?? 'all'}'),
         style: TextButton.styleFrom(
           foregroundColor: selected
-              ? const Color(0xFF14213B)
-              : const Color(0xFFDCE6F8),
+              ? BobTvPalette.onAccent
+              : BobTvPalette.ink,
           backgroundColor: selected
-              ? const Color(0xFFAFC7FF)
-              : const Color(0xFF26374F),
+              ? BobTvPalette.accent
+              : BobTvPalette.selected,
           minimumSize: const Size(44, 44),
           visualDensity: VisualDensity.standard,
           padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 10),
@@ -485,11 +486,11 @@ class _CountryMenuState extends State<_CountryMenu> {
       key: ValueKey('menu-category-${widget.level}-${option.id}'),
       style: TextButton.styleFrom(
         foregroundColor: option.selected
-            ? const Color(0xFF14213B)
-            : const Color(0xFFDCE6F8),
+            ? BobTvPalette.onAccent
+            : BobTvPalette.ink,
         backgroundColor: option.selected
-            ? const Color(0xFFAFC7FF)
-            : const Color(0xFF26374F),
+            ? BobTvPalette.accent
+            : BobTvPalette.selected,
         minimumSize: const Size(44, 44),
         visualDensity: VisualDensity.standard,
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
@@ -513,7 +514,7 @@ class _CountryMenuState extends State<_CountryMenu> {
         child: Center(
           child: Text(
             AppMessages.text(context, "没有匹配的国家或地区"),
-            style: TextStyle(color: Color(0xFFDCE6F8), fontSize: 14),
+            style: TextStyle(color: BobTvPalette.ink, fontSize: 14),
           ),
         ),
       );
@@ -527,7 +528,7 @@ class _CountryMenuState extends State<_CountryMenu> {
             child: Text(
               entry.key,
               style: const TextStyle(
-                color: Color(0xFFAFC7FF),
+                color: BobTvPalette.accent,
                 fontSize: 14,
                 fontWeight: FontWeight.w700,
               ),
@@ -575,10 +576,10 @@ class _CountryMenuState extends State<_CountryMenu> {
     }
     return Dialog(
       insetPadding: const EdgeInsets.all(12),
-      backgroundColor: const Color(0xFF1A2B43),
+      backgroundColor: BobTvPalette.raised,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(16),
-        side: const BorderSide(color: Color(0xFF829CC8)),
+        side: const BorderSide(color: BobTvPalette.outline),
       ),
       clipBehavior: Clip.antiAlias,
       child: ConstrainedBox(
@@ -672,10 +673,10 @@ class _CountryMenuState extends State<_CountryMenu> {
                                 ),
                                 hintText: AppMessages.text(context, "搜索国家或地区"),
                                 hintStyle: const TextStyle(
-                                  color: Color(0xFFAABAD2),
+                                  color: BobTvPalette.muted,
                                 ),
                                 filled: true,
-                                fillColor: const Color(0xFF111F34),
+                                fillColor: BobTvPalette.background,
                                 contentPadding: const EdgeInsets.symmetric(
                                   horizontal: 12,
                                   vertical: 14,
@@ -711,7 +712,7 @@ class _CountryMenuState extends State<_CountryMenu> {
                             Text(
                               AppMessages.text(context, "按拼音首字母"),
                               style: TextStyle(
-                                color: Color(0xFFAABAD2),
+                                color: BobTvPalette.muted,
                                 fontSize: 12,
                               ),
                             ),
@@ -751,7 +752,7 @@ class _CountryMenuState extends State<_CountryMenu> {
                             Text(
                               AppMessages.text(context, "{0} · {1} 个国家或地区", [_initial ?? '全部', visible.length]),
                               style: const TextStyle(
-                                color: Color(0xFFAABAD2),
+                                color: BobTvPalette.muted,
                                 fontSize: 12,
                               ),
                             ),

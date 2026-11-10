@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:media_kit/media_kit.dart';
 
+import '../../app/bobtv_palette.dart';
 import 'player_service.dart';
 import '../../core/platform_info.dart';
 import 'desktop_window_pin_button.dart';
@@ -21,7 +22,6 @@ class PlayerControlBar extends ConsumerStatefulWidget {
   final VoidCallback? onFavorite;
   final VoidCallback? onPip;
   final VoidCallback? onInfo;
-  final VoidCallback? onSettings;
   final VoidCallback? onChannelList;
   final VoidCallback? onFullscreenToggle;
   final VoidCallback? onRename;
@@ -44,7 +44,6 @@ class PlayerControlBar extends ConsumerStatefulWidget {
     this.onFavorite,
     this.onPip,
     this.onInfo,
-    this.onSettings,
     this.onChannelList,
     this.onFullscreenToggle,
     this.onRename,
@@ -429,7 +428,7 @@ class _PlayerControlBarState extends ConsumerState<PlayerControlBar> {
                                   child: Container(
                                     padding: const EdgeInsets.all(2),
                                     decoration: const BoxDecoration(
-                                      color: Color(0xFF6C5CE7),
+                                      color: BobTvPalette.accent,
                                       shape: BoxShape.circle,
                                     ),
                                     constraints: const BoxConstraints(
@@ -484,7 +483,6 @@ class _PlayerControlBarState extends ConsumerState<PlayerControlBar> {
                         const DesktopWindowPinButton(compact: true),
                       _iconBtn(Icons.info_outline, onTap: widget.onInfo),
                       _iconBtn(Icons.edit_outlined, onTap: widget.onRename),
-                      _iconBtn(Icons.settings, onTap: widget.onSettings),
                       _iconBtn(Icons.list, onTap: widget.onChannelList),
                       if ((_videoHeight ?? 0) > 0) ...[
                         _badge(_resolutionLabel(), fontSize: 10),
@@ -500,7 +498,7 @@ class _PlayerControlBarState extends ConsumerState<PlayerControlBar> {
                           waitDuration: const Duration(milliseconds: 300),
                           preferBelow: false,
                           decoration: BoxDecoration(
-                            color: const Color(0xFF1A1A2E),
+                            color: BobTvPalette.panel,
                             borderRadius: BorderRadius.circular(8),
                             border: Border.all(color: Colors.white24),
                           ),
@@ -518,7 +516,7 @@ class _PlayerControlBarState extends ConsumerState<PlayerControlBar> {
                           waitDuration: const Duration(milliseconds: 300),
                           preferBelow: false,
                           decoration: BoxDecoration(
-                            color: const Color(0xFF1A1A2E),
+                            color: BobTvPalette.panel,
                             borderRadius: BorderRadius.circular(8),
                             border: Border.all(color: Colors.white24),
                           ),
@@ -736,7 +734,7 @@ class _SparklinePainter extends CustomPainter {
     if (data.length < 2) return;
 
     final linePaint = Paint()
-      ..color = const Color(0xFF6C5CE7)
+      ..color = BobTvPalette.accent
       ..strokeWidth = 1.5
       ..style = PaintingStyle.stroke
       ..strokeJoin = StrokeJoin.round;

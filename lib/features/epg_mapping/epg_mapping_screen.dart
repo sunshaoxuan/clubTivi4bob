@@ -23,6 +23,14 @@ class _EpgMappingScreenState extends ConsumerState<EpgMappingScreen> {
     Future.microtask(() => ref.read(epgMappingProvider.notifier).load());
   }
 
+  void _returnToCaller(BuildContext context) {
+    if (context.canPop()) {
+      context.pop();
+    } else {
+      context.go('/');
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final state = ref.watch(epgMappingProvider);
@@ -36,7 +44,7 @@ class _EpgMappingScreenState extends ConsumerState<EpgMappingScreen> {
             return;
           }
           Future.microtask(() {
-            context.go('/settings');
+            _returnToCaller(context);
           });
         },
       },
@@ -46,7 +54,7 @@ class _EpgMappingScreenState extends ConsumerState<EpgMappingScreen> {
       appBar: AppBar(
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
-          onPressed: () => context.go('/settings'),
+          onPressed: () => _returnToCaller(context),
         ),
         title: Text(AppMessages.text(context, "EPG Mappings")),
         actions: [

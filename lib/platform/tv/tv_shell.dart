@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
-import '../../core/i18n/app_language.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
+
+import '../../app/bobtv_palette.dart';
+import '../../core/i18n/app_language.dart';
 
 /// 10-foot TV UI shell — optimized for remote control navigation.
 ///
@@ -33,11 +35,6 @@ class _TvShellState extends State<TvShell> {
     ),
     _NavItem(icon: Icons.dns_rounded, label: 'Providers', route: '/providers'),
     _NavItem(icon: Icons.link_rounded, label: 'EPG Map', route: '/epg-mapping'),
-    _NavItem(
-      icon: Icons.settings_rounded,
-      label: 'Settings',
-      route: '/settings',
-    ),
   ];
 
   void _navigateTo(int index) {
@@ -55,7 +52,7 @@ class _TvShellState extends State<TvShell> {
           child: AnimatedContainer(
             duration: const Duration(milliseconds: 200),
             width: _sidebarFocused ? 200 : 64,
-            color: const Color(0xFF0D0D14),
+            color: BobTvPalette.deep,
             child: Column(
               children: [
                 const SizedBox(height: 24),
@@ -68,12 +65,12 @@ class _TvShellState extends State<TvShell> {
                           style: TextStyle(
                             fontSize: 20,
                             fontWeight: FontWeight.bold,
-                            color: Color(0xFF6C5CE7),
+                            color: BobTvPalette.accent,
                           ),
                         )
                       : const Icon(
                           Icons.live_tv_rounded,
-                          color: Color(0xFF6C5CE7),
+                          color: BobTvPalette.accent,
                           size: 28,
                         ),
                 ),
@@ -175,11 +172,11 @@ class _TvNavButtonState extends State<_TvNavButton> {
             padding: const EdgeInsets.symmetric(horizontal: 12),
             decoration: BoxDecoration(
               color: isHighlighted
-                  ? const Color(0xFF6C5CE7).withValues(alpha: 0.2)
+                  ? BobTvPalette.accent.withValues(alpha: 0.2)
                   : Colors.transparent,
               borderRadius: BorderRadius.circular(12),
               border: Border.all(
-                color: _focused ? const Color(0xFF6C5CE7) : Colors.transparent,
+                color: _focused ? BobTvPalette.accent : Colors.transparent,
                 width: 2,
               ),
             ),
@@ -188,7 +185,7 @@ class _TvNavButtonState extends State<_TvNavButton> {
                 Icon(
                   widget.icon,
                   color: isHighlighted
-                      ? const Color(0xFF6C5CE7)
+                      ? BobTvPalette.accent
                       : Colors.white54,
                   size: 24,
                 ),
@@ -277,7 +274,7 @@ class _TvFocusCardState extends State<TvFocusCard> {
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
-            color: _focused ? const Color(0xFF6C5CE7) : Colors.transparent,
+            color: _focused ? BobTvPalette.accent : Colors.transparent,
             width: 2,
           ),
           color: const Color(0xFF1A1A2E),

@@ -39,10 +39,9 @@ def switch_operations(current,tag):
 assert run("shell","getprop","ro.kernel.qemu").strip()=="1"
 if "success" not in run("install","--no-incremental","-r",str(root/"qa-android-driver/driver.apk")).lower():
     raise RuntimeError("Cannot install the independent UI automation driver")
-for arch,abi in (("x64","x86_64"),("arm64","arm64-v8a"),("arm","armeabi-v7a")):
+def check_architecture(arch, abi):
     dest=root/("android-qa-"+arch)
     dest.mkdir(exist_ok=True)
-    if (dest/"result.json").is_file(): continue
     if ("package:"+package) in run("shell","pm","list","packages",package).splitlines():
         assert "Success" in run("uninstall",package)
     path=root/"packages"/f"BobTV-1.1.19+114-android-{arch}.apk"
@@ -51,7 +50,10 @@ for arch,abi in (("x64","x86_64"),("arm64","arm64-v8a"),("arm","armeabi-v7a")):
     info=run("shell","dumpsys","package",package)
     selected=re.search(r"primaryCpuAbi=(\S+)",info)[1]
     assert selected==abi,info
+    run("logcat","-c")
     launch()
+    time.sleep(2)
+    (dest/"initial.log").write_text(run("logcat","-d","-t","1400"))
     current="en"
     for tag in tags:
         print(arch,tag,flush=True)
@@ -68,3 +70,16 @@ for arch,abi in (("x64","x86_64"),("arm64","arm64-v8a"),("arm","armeabi-v7a")):
             "languages":list(tags),"retainedAfterRestart":"ko","followSystem":"en"}
     (dest/"result.json").write_text(json.dumps(result,indent=2)+"\n")
     print(result,flush=True)
+
+failures = []
+architectures = {"x64":"x86_64", "arm64":"arm64-v8a", "arm":"armeabi-v7a"}
+for arch in os.environ.get("BOBTV_QA_ARCHES", ",".join(architectures)).split(","):
+    try:
+        check_architecture(arch, architectures[arch])
+    except Exception as error:
+        dest = root / ("android-qa-" + arch)
+        (dest / "failure.log").write_text(str(error) + "\n" + run("logcat","-d","-t","3000"))
+        print(f"{arch} did not pass: {error}", flush=True)
+        failures.append(arch)
+if failures:
+    raise SystemExit("Failed: " + ", ".join(failures))

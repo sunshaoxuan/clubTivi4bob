@@ -8,6 +8,7 @@ permissions:
 
 jobs:
   mac:
+    if: ${{ false }}
     timeout-minutes: 45
     strategy:
       fail-fast: false

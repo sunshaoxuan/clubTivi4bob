@@ -87,8 +87,9 @@ def preferences():
 
 def menu_bounds(before,after,anchor,dpi):
     assert before.shape==after.shape
-    diff=(cv2.absdiff(before,after)>3).astype(np.uint8)
-    joined=cv2.morphologyEx(diff,cv2.MORPH_CLOSE,np.ones((9,9),np.uint8))
+    colors=after.astype(np.int16)
+    surface=((abs(colors-32)<=1)|(abs(colors-81)<=1)).astype(np.uint8)
+    joined=cv2.morphologyEx(surface,cv2.MORPH_CLOSE,np.ones((5,5),np.uint8))
     n,_,stats,_=cv2.connectedComponentsWithStats(joined)
     candidates=[]
     for x,y,w,h,area in stats[1:]:
@@ -111,14 +112,14 @@ def switch(process,tag):
         rect,after=image(process,"menu-"+tag)
         try:
             hwnd,_=poll(lambda:window(process.pid))
-            dpi=user.GetDpiForWindow(hwnd)/96
+            dpi=(user.GetDpiForWindow(hwnd) or 96)/96
             x,y,w,h=menu_bounds(before,after,(x,y),dpi)
             break
         except RuntimeError:
             if attempt == 4: raise
             time.sleep(.8)
     row=languages.index(tag)+1
-    click(rect,x+w//2,y+int(h*(row+.5)/8))
+    click(rect,x+w//2,y+round((8+48*(row+.5))*dpi))
     assert poll(lambda: preferences() if preferences()==tag else None,12)==tag
     image(process,"active-"+tag)
 

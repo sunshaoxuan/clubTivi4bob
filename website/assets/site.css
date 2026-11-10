@@ -236,6 +236,10 @@ p { line-height: 1.72; }
   font-weight: 800;
   text-decoration: none;
 }
+@media (prefers-reduced-motion: no-preference) {
+  [data-scroll-scene] { opacity: var(--scene-opacity, 1); }
+  [data-scroll-scene]:has(:focus-visible) { opacity: 1; }
+}
 .showcase-section { padding-block: clamp(63px, 8vw, 112px); scroll-margin-top: 65px; }
 .section-heading { max-width: 740px; margin-bottom: 30px; }
 .section-heading h2, .feature-copy h2 { margin-block: 10px 12px; }

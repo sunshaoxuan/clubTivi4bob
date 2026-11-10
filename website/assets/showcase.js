@@ -1,66 +1,48 @@
 const backTop = document.querySelector('.back-top');
 const heroArt = document.querySelector('.hero-visual, .download-hero-featured img');
+const scenes = [...document.querySelectorAll('[data-scroll-scene]')];
+const header = document.querySelector('.site-header');
 const motion = matchMedia('(prefers-reduced-motion: reduce)');
-const wide = matchMedia('(min-width: 761px)');
 let scrollFrame = 0;
+
+function sceneOpacity(scene, viewport, headerHeight, entryLimit, exitLimit) {
+  const { top, bottom } = scene.getBoundingClientRect();
+  const distance = (viewport - headerHeight) * .73;
+  const enter = Math.max(entryLimit, (viewport - top) / distance);
+  const leave = Math.max(exitLimit, (bottom - headerHeight) / distance);
+  const progress = Math.max(0, Math.min(1, enter, leave));
+  const eased = progress * progress * (3 - 2 * progress);
+  return (.38 + .62 * eased).toFixed(3);
+}
 
 function updateScroll() {
   scrollFrame = 0;
   const offset = Math.max(0, window.scrollY);
+  const viewport = window.innerHeight;
+  const headerHeight = header.offsetHeight;
+  const remaining = document.documentElement.scrollHeight - viewport - offset;
+  // Keep the first and last screens readable when the page reaches either end.
+  const entryLimit = 1 - remaining / viewport;
+  const exitLimit = 1 - offset / viewport;
+  const opacities = motion.matches ? [] : scenes.map(scene =>
+    sceneOpacity(scene, viewport, headerHeight, entryLimit, exitLimit));
+
   backTop.hidden = offset < 520;
   if (heroArt) heroArt.style.transform = motion.matches ? '' : `translateY(${Math.min(26, offset * .075)}px)`;
+  opacities.forEach((opacity, index) => scenes[index].style.setProperty('--scene-opacity', opacity));
 }
-window.addEventListener('scroll', () => {
+
+function scheduleScroll() {
   if (!scrollFrame) scrollFrame = requestAnimationFrame(updateScroll);
-}, { passive: true });
-motion.addEventListener('change', updateScroll);
-updateScroll();
-
-if ('IntersectionObserver' in window && 'animate' in Element.prototype) {
-  const entered = new Set();
-  const animations = new Map();
-  const observer = new IntersectionObserver(entries => {
-    for (const entry of entries) {
-      const element = entry.target;
-      if (!entry.isIntersecting) {
-        if (!animations.has(element)) entered.delete(element);
-        continue;
-      }
-      if (entry.intersectionRatio < .08 || entered.has(element)) continue;
-      entered.add(element);
-      if (motion.matches || element.contains(document.activeElement)) continue;
-
-      const distance = entry.boundingClientRect.top < 0 ? -28 : 28;
-      const animation = element.animate([
-        { opacity: .22, transform: `translateY(${distance}px)` },
-        { opacity: 1, transform: 'none' },
-      ], {
-        duration: 780,
-        delay: wide.matches ? Number(element.dataset.revealDelay || 0) : 0,
-        easing: 'cubic-bezier(.22,.65,.26,1)',
-        fill: 'backwards',
-      });
-      animations.set(element, animation);
-      animation.addEventListener('finish', () => {
-        animations.delete(element);
-        const bounds = element.getBoundingClientRect();
-        if (bounds.bottom <= 0 || bounds.top >= window.innerHeight) entered.delete(element);
-      }, { once: true });
-    }
-  }, { threshold: [0, .08] });
-  for (const element of document.querySelectorAll('[data-reveal]')) {
-    element.addEventListener('focusin', () => {
-      animations.get(element)?.cancel();
-      animations.delete(element);
-    });
-    observer.observe(element);
-  }
-  motion.addEventListener('change', () => {
-    if (!motion.matches) return;
-    for (const animation of animations.values()) animation.cancel();
-    animations.clear();
-  });
 }
+window.addEventListener('scroll', scheduleScroll, { passive: true });
+window.addEventListener('resize', scheduleScroll);
+window.addEventListener('pageshow', scheduleScroll);
+motion.addEventListener('change', scheduleScroll);
+if ('ResizeObserver' in window) {
+  new ResizeObserver(scheduleScroll).observe(document.querySelector('main'));
+}
+updateScroll();
 
 const stationBand = document.querySelector('.station-band');
 if (stationBand) {

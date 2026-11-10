@@ -2,7 +2,7 @@
 {% block content %}
 {% set s = t.showcase %}
 <main>
-  <section class="hero-band" aria-labelledby="hero-title">
+  <section class="hero-band" data-scroll-scene aria-labelledby="hero-title">
     <div class="container home-hero-layout">
       <div class="hero-copy">
         <p class="eyebrow"><span class="live-dot"></span>{{ s.eyebrow }}</p>
@@ -29,9 +29,9 @@
       <a href="#discover" aria-label="{{ t.features }}">↓</a>
     </div>
   </div>
-  <section id="discover" class="showcase-section" aria-labelledby="discover-title">
+  <section id="discover" data-scroll-scene class="showcase-section" aria-labelledby="discover-title">
     <div class="container">
-      <div class="section-heading" data-reveal>
+      <div class="section-heading">
         <p class="eyebrow"><span>01</span>{{ s.discover[0] }}</p>
         <h2 id="discover-title">{{ s.discover[1] }}</h2>
         <p>{{ s.discover[2] }}</p>
@@ -39,7 +39,7 @@
       <div class="media-grid">
         {% for image in ['world', 'sports', 'radio', 'entertainment'] %}
         {% set item = s.media[loop.index0] %}
-        <article class="media-card" data-reveal data-reveal-delay="{{ loop.index0 * 70 }}">
+        <article class="media-card">
           <img src="{{ site_root }}/assets/showcase/{{ image }}.webp" width="800" height="600" loading="lazy" decoding="async" alt="">
           <div class="media-copy">
             <span class="media-label">{{ item[0] }}</span>
@@ -65,12 +65,12 @@
   </section>
   {% for image in ['signals', 'devices'] %}
   {% set item = s[image] %}
-  <section class="showcase-section feature-section {{ image }}-section" aria-labelledby="{{ image }}-title">
+  <section data-scroll-scene class="showcase-section feature-section {{ image }}-section" aria-labelledby="{{ image }}-title">
     <div class="container feature-layout">
-      <div class="feature-image" data-reveal>
+      <div class="feature-image">
         <img src="{{ site_root }}/assets/showcase/{{ image }}.webp" width="960" height="720" loading="lazy" decoding="async" alt="">
       </div>
-      <div class="feature-copy" data-reveal>
+      <div class="feature-copy">
         <p class="eyebrow"><span>0{{ loop.index + 1 }}</span>{{ item[0] }}</p>
         <h2 id="{{ image }}-title">{{ item[1] }}</h2>
         <ul class="feature-points">
@@ -82,22 +82,22 @@
     </div>
   </section>
   {% endfor %}
-  <section class="showcase-section player-section" aria-labelledby="player-title">
+  <section data-scroll-scene class="showcase-section player-section" aria-labelledby="player-title">
     <div class="container feature-layout">
-      <div class="feature-copy" data-reveal>
+      <div class="feature-copy">
         <p class="eyebrow"><span>04</span>{{ s.player[0] }}</p>
         <h2 id="player-title">{{ s.player[1] }}</h2>
         <p>{{ s.player[2] }}</p>
       </div>
-      <figure class="feature-image player-image" data-reveal>
+      <figure class="feature-image player-image">
         <img src="{{ site_root }}/assets/product.png?v=3" width="1765" height="1056" loading="lazy" decoding="async" alt="{{ t.home.image_alt }}">
         <figcaption>{{ t.home.screenshot }}</figcaption>
       </figure>
     </div>
   </section>
-  <section class="showcase-section cta-section" aria-labelledby="closing-title">
+  <section data-scroll-scene class="showcase-section cta-section" aria-labelledby="closing-title">
     <div class="container">
-      <div class="download-banner" data-reveal>
+      <div class="download-banner">
         <div><p class="eyebrow">WINDOWS · MACOS · ANDROID</p><h2 id="closing-title">{{ s.closing }}</h2></div>
         <a class="button primary" href="{{ site_root }}/downloads">{{ t.download }} <span aria-hidden="true">↓</span></a>
       </div>

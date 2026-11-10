@@ -122,7 +122,18 @@ jobs:
           "BOBTV_QA_APP=$(Join-Path $root 'BobTV.exe')" | Out-File -Append -Encoding utf8 $env:GITHUB_ENV
       - name: Exercise all seven languages in the installed application
         shell: pwsh
+        env:
+          QA_OS_ARCH: ${{ matrix.native }}
         run: |
+          if($env:QA_OS_ARCH -eq 'ARM64'){
+            $privacy='HKLM:\SOFTWARE\Policies\Microsoft\Windows\OOBE'
+            New-Item $privacy -Force | Out-Null
+            New-ItemProperty $privacy -Name DisablePrivacyExperience -PropertyType DWord -Value 1 -Force | Out-Null
+            $engagement='HKCU:\Software\Microsoft\Windows\CurrentVersion\UserProfileEngagement'
+            New-Item $engagement -Force | Out-Null
+            New-ItemProperty $engagement -Name ScoobeSystemSettingEnabled -PropertyType DWord -Value 0 -Force | Out-Null
+            Get-Process CloudExperienceHostBroker,UserOOBEBroker,WWAHost -ErrorAction SilentlyContinue | Stop-Process -Force
+          }
           python -m pip install opencv-python-headless pillow
           python tools/diagnostics/bobtv_release_language/windows-language-qa.py "$env:BOBTV_QA_APP" evidence
           if($LASTEXITCODE){exit $LASTEXITCODE}

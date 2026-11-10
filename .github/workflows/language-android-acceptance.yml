@@ -23,7 +23,18 @@ jobs:
           set -euo pipefail
           test -c /dev/kvm
           sudo chmod a+rw /dev/kvm
-          sdkmanager --install 'emulator' 'platforms;android-36' 'build-tools;36.0.0' 'system-images;android-30;google_apis;x86_64'
+          sdk="$(find "$ANDROID_HOME/cmdline-tools" -path '*/bin/sdkmanager' -type f | sort -Vr | head -1)"
+          if [[ -z "$sdk" ]]; then
+            curl -fSsL https://dl.google.com/android/repository/commandlinetools-linux-14742923_latest.zip -o "$RUNNER_TEMP/android-commandline.zip"
+            unzip -q "$RUNNER_TEMP/android-commandline.zip" -d "$RUNNER_TEMP/android-commandline"
+            mkdir -p "$ANDROID_HOME/cmdline-tools"
+            mv "$RUNNER_TEMP/android-commandline/cmdline-tools" "$ANDROID_HOME/cmdline-tools/bobtv-qa"
+            sdk="$ANDROID_HOME/cmdline-tools/bobtv-qa/bin/sdkmanager"
+          fi
+          set +o pipefail
+          yes | "$sdk" --licenses >/dev/null
+          set -o pipefail
+          "$sdk" --install 'emulator' 'platforms;android-36' 'build-tools;36.0.0' 'system-images;android-30;google_apis;x86_64'
           mkdir -p qa/qa-android-driver
           ln -s "$PWD" qa/source
           cp tools/diagnostics/bobtv_release_language/android-driver-matrix.py qa/
@@ -38,7 +49,7 @@ jobs:
           "$bt/aapt" add driver-unsigned.apk classes.dex
           keytool -genkeypair -keystore driver.p12 -storepass android -keypass android -alias test -keyalg RSA -validity 3 -dname 'CN=BobTV locale test driver'
           "$bt/apksigner" sign --ks driver.p12 --ks-pass pass:android --key-pass pass:android --out driver.apk driver-unsigned.apk
-          printf 'no\n' | avdmanager create avd -n bobtv-1119 -k 'system-images;android-30;google_apis;x86_64'
+          printf 'no\n' | "$(dirname "$sdk")/avdmanager" create avd -n bobtv-1119 -k 'system-images;android-30;google_apis;x86_64'
           nohup "$ANDROID_HOME/emulator/emulator" -avd bobtv-1119 -port 5568 -no-window -gpu swiftshader_indirect -no-snapshot -no-audio -no-boot-anim -memory 2600 > ../../emulator.log 2>&1 </dev/null &
       - name: Exercise each signed APK from the draft
         env:

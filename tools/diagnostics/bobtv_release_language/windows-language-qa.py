@@ -70,6 +70,7 @@ def globe(img):
 def click(rect,x,y):
     assert 0<=x<rect[2]-rect[0] and 0<=y<rect[3]-rect[1]
     user.SetCursorPos(rect[0]+x,rect[1]+y)
+    time.sleep(.13)
     user.mouse_event(2,0,0,0,0)
     time.sleep(.05)
     user.mouse_event(4,0,0,0,0)
@@ -84,14 +85,17 @@ def preferences():
         except (OSError,ValueError): pass
     return None
 
-def menu_bounds(before,after):
+def menu_bounds(before,after,anchor,dpi):
     assert before.shape==after.shape
-    diff=(cv2.absdiff(before,after)>7).astype(np.uint8)
+    diff=(cv2.absdiff(before,after)>3).astype(np.uint8)
     joined=cv2.morphologyEx(diff,cv2.MORPH_CLOSE,np.ones((9,9),np.uint8))
     n,_,stats,_=cv2.connectedComponentsWithStats(joined)
     candidates=[]
     for x,y,w,h,area in stats[1:]:
-        if 95<=w<=450 and 260<=h<=650 and area>=w*h*.48:
+        widths=(112,168,224,280)
+        if (any(abs(w-size*dpi)<=7*dpi for size in widths)
+            and abs(h-400*dpi)<=12*dpi and area>=w*h*.50
+            and x-8*dpi<=anchor[0]<=x+w+8*dpi and y<=anchor[1]+16*dpi):
             candidates.append((int(area),int(x),int(y),int(w),int(h)))
     if not candidates: raise RuntimeError("Language popup was not detected")
     return max(candidates)[1:]
@@ -106,7 +110,9 @@ def switch(process,tag):
         click(rect,x,y)
         rect,after=image(process,"menu-"+tag)
         try:
-            x,y,w,h=menu_bounds(before,after)
+            hwnd,_=poll(lambda:window(process.pid))
+            dpi=user.GetDpiForWindow(hwnd)/96
+            x,y,w,h=menu_bounds(before,after,(x,y),dpi)
             break
         except RuntimeError:
             if attempt == 4: raise

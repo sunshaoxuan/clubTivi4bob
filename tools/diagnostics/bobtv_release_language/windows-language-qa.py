@@ -101,10 +101,16 @@ def switch(process,tag):
         rect,before=image(process,"before-"+tag)
         p=globe(before)
         return (rect,before,p) if p else None
-    rect,before,(x,y)=poll(ready,100)
-    click(rect,x,y)
-    rect,after=image(process,"menu-"+tag)
-    x,y,w,h=menu_bounds(before,after)
+    for attempt in range(5):
+        rect,before,(x,y)=poll(ready,100)
+        click(rect,x,y)
+        rect,after=image(process,"menu-"+tag)
+        try:
+            x,y,w,h=menu_bounds(before,after)
+            break
+        except RuntimeError:
+            if attempt == 4: raise
+            time.sleep(.8)
     row=languages.index(tag)+1
     click(rect,x+w//2,y+int(h*(row+.5)/8))
     assert poll(lambda: preferences() if preferences()==tag else None,12)==tag

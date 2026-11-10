@@ -26,9 +26,16 @@ public final class LanguageDriver extends Instrumentation {
             String[] operations = arguments.getString("steps", "").split("\\|");
             for (String operation : operations) {
                 String label = operation.substring(1);
-                long deadline = SystemClock.uptimeMillis() + 65000;
+                long deadline = SystemClock.uptimeMillis() + 12000;
                 AccessibilityNodeInfo target = null;
                 List<String> labels = new ArrayList<>();
+                if (operation.startsWith("-")) {
+                    if (find(ui.getRootInActiveWindow(), label, labels) != null) {
+                        ui.performGlobalAction(1);  // AccessibilityService.GLOBAL_ACTION_BACK
+                        SystemClock.sleep(650);
+                    }
+                    continue;
+                }
                 do {
                     labels.clear();
                     target = find(ui.getRootInActiveWindow(), label, labels);
@@ -36,8 +43,8 @@ public final class LanguageDriver extends Instrumentation {
                     SystemClock.sleep(280);
                 } while (SystemClock.uptimeMillis() < deadline);
                 if (target == null) throw new AssertionError("Missing " + label + " in " + labels);
-                if (operation.startsWith("+")) {
-                    if (!target.performAction(AccessibilityNodeInfo.ACTION_CLICK)) {
+                if (operation.startsWith("+") || operation.startsWith("@")) {
+                    if (operation.startsWith("@") || !target.performAction(AccessibilityNodeInfo.ACTION_CLICK)) {
                         Rect bounds = new Rect();
                         target.getBoundsInScreen(bounds);
                         long when = SystemClock.uptimeMillis();
@@ -51,7 +58,7 @@ public final class LanguageDriver extends Instrumentation {
                         down.recycle();
                         up.recycle();
                     }
-                    SystemClock.sleep(450);
+                    SystemClock.sleep(820);
                 }
             }
             result.putString("matched", String.join("|", operations));

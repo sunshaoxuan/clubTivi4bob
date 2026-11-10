@@ -9,6 +9,17 @@ permissions:
 jobs:
   verify:
     runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - api: 30
+            arches: 'x64,arm'
+          - api: 35
+            arches: 'arm64'
+    env:
+      BOBTV_QA_API: ${{ matrix.api }}
+      BOBTV_QA_ARCHES: ${{ matrix.arches }}
     timeout-minutes: 38
     steps:
       - uses: actions/checkout@v4
@@ -34,7 +45,7 @@ jobs:
           set +o pipefail
           yes | "$sdk" --licenses >/dev/null
           set -o pipefail
-          "$sdk" --install 'emulator' 'platform-tools' 'platforms;android-36' 'build-tools;36.0.0' 'system-images;android-30;google_apis;x86_64'
+          "$sdk" --install 'emulator' 'platform-tools' 'platforms;android-36' 'build-tools;36.0.0' "system-images;android-$BOBTV_QA_API;google_apis;x86_64"
           mkdir -p qa/qa-android-driver
           ln -s "$PWD" qa/source
           cp tools/diagnostics/bobtv_release_language/android-driver-matrix.py qa/
@@ -52,13 +63,12 @@ jobs:
           export ANDROID_AVD_HOME="$RUNNER_TEMP/bobtv-avd"
           mkdir -p "$ANDROID_AVD_HOME"
           echo "$ANDROID_HOME/platform-tools" >> "$GITHUB_PATH"
-          printf 'no\n' | "$(dirname "$sdk")/avdmanager" create avd -n bobtv-1119 -k 'system-images;android-30;google_apis;x86_64'
+          printf 'no\n' | "$(dirname "$sdk")/avdmanager" create avd -n bobtv-1119 -k "system-images;android-$BOBTV_QA_API;google_apis;x86_64"
           "$ANDROID_HOME/emulator/emulator" -list-avds | grep -Fx bobtv-1119
           nohup "$ANDROID_HOME/emulator/emulator" -avd bobtv-1119 -port 5568 -no-window -gpu swiftshader_indirect -no-snapshot -no-audio -no-boot-anim -feature -Vulkan -memory 2600 > ../../emulator.log 2>&1 </dev/null &
       - name: Exercise each signed APK from the draft
         env:
           GH_TOKEN: ${{ github.token }}
-          BOBTV_QA_ARCHES: arm64,arm
         run: |
           set -euo pipefail
           test "$(gh release view v1.1.19 --json isDraft --jq .isDraft)" = true
@@ -76,19 +86,10 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: bobtv-android-language-matrix
+          name: bobtv-android-language-api-${{ matrix.api }}
           path: |
             qa/android-qa-*/*.json
             qa/android-qa-*/*.log
             emulator.log
           retention-days: 3
           if-no-files-found: ignore
-  arm-host:
-    runs-on: ubuntu-24.04-arm
-    timeout-minutes: 5
-    steps:
-      - run: |
-          uname -m
-          ls -l /dev/kvm || true
-          ls -l /dev/net/tun /dev/vhost-vsock || true
-          df -h .

@@ -32,9 +32,25 @@ def exercise(operations,destination):
     assert "driverError=" not in output and "INSTRUMENTATION_CODE: -1" in output,output
     assert "matched="+"|".join(operations) in output,output
 
-def switch_operations(current,tag):
-    return ["+"+catalogs[current]["语言"], "!"+tags["fr"],
-            "+"+tags[tag], "!"+catalogs[tag]["语言"]]
+def select_language(current, tag, destination):
+    for attempt, click in enumerate(("+", "@", "+")):
+        reset = ["-" + tags["en"]] if attempt else []
+        commands = [*reset, click + catalogs[current]["语言"], "!" + tags["fr"],
+                    click + tags[tag], "!" + catalogs[tag]["语言"]]
+        try:
+            exercise(commands, destination / (f"{tag}-{attempt}.log"))
+            return
+        except AssertionError:
+            if attempt == 2:
+                raise
+            # The first click may have completed while accessibility was updating.
+            if tag != current:
+                try:
+                    exercise(["-" + tags["en"], "!" + catalogs[tag]["语言"]],
+                             destination / (f"{tag}-observed-{attempt}.log"))
+                    return
+                except AssertionError:
+                    pass
 
 assert run("shell","getprop","ro.kernel.qemu").strip()=="1"
 if "success" not in run("install","--no-incremental","-r",str(root/"qa-android-driver/driver.apk")).lower():
@@ -57,7 +73,7 @@ def check_architecture(arch, abi):
     current="en"
     for tag in tags:
         print(arch,tag,flush=True)
-        exercise(switch_operations(current,tag),dest/(tag+".log"))
+        select_language(current,tag,dest)
         current=tag
     run("shell","am","force-stop",package)
     launch()

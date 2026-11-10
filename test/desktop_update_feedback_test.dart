@@ -1,9 +1,40 @@
 import 'package:flutter/material.dart';
+import 'package:clubtivi/core/i18n/app_language.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:clubtivi/data/services/desktop_update_state.dart';
 import 'package:clubtivi/features/channels/desktop_update_badge.dart';
 
 void main() {
+  testWidgets('Update failures translate before inserting the error', (tester) async {
+    final state = ValueNotifier(
+      const WindowsUpdateState(
+        WindowsUpdatePhase.failed,
+        message: '更新未完成：{0}。现有版本可继续播放，点击重试会续传已保存的下载。',
+        messageArgs: ['offline'],
+      ),
+    );
+    await tester.runAsync(() async {
+      await tester.pumpWidget(
+        MaterialApp(
+          supportedLocales: const [Locale('en')],
+          localizationsDelegates: const [AppMessages.delegate],
+          home: Scaffold(
+            body: DesktopUpdateBadge(state: state, onRetry: () {}),
+          ),
+        ),
+      );
+      await AppMessages.delegate.load(const Locale('en'));
+    });
+    await tester.pumpAndSettle();
+    expect(
+      find.byTooltip(
+        'The update did not finish: offline. You can keep watching. Select Retry to resume the saved download.',
+      ),
+      findsOneWidget,
+    );
+    expect(state.value.description, contains('offline'));
+  });
+
   test(
     'Only downloaded and verified updates promise installation on close',
     () {

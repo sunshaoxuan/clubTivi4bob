@@ -216,7 +216,8 @@ class AndroidUpdateService {
       state.value = WindowsUpdateState(
         WindowsUpdatePhase.failed,
         version: state.value.version,
-        message: '更新未完成：$error。现有版本可继续播放，点击重试会续传已保存的下载。',
+        message: '更新未完成：{0}。现有版本可继续播放，点击重试会续传已保存的下载。',
+        messageArgs: [error],
       );
     } finally {
       client.close(force: true);
@@ -253,7 +254,8 @@ class AndroidUpdateService {
       state.value = WindowsUpdateState(
         WindowsUpdatePhase.failed,
         version: state.value.version,
-        message: '系统安装未启动：$error。现有版本保持不变。',
+        message: '系统安装未启动：{0}。现有版本保持不变。',
+        messageArgs: [error],
       );
     }
   }

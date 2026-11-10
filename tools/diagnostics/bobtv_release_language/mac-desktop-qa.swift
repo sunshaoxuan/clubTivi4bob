@@ -18,6 +18,12 @@ case "window":
         }
     }
     exit(1)
+case "activate":
+    let pid = Int32(args[2])!
+    guard let app = NSRunningApplication(processIdentifier: pid) else { exit(4) }
+    app.activate(options: [.activateAllWindows, .activateIgnoringOtherApps])
+    usleep(500000)
+    guard NSWorkspace.shared.frontmostApplication?.processIdentifier == pid else { exit(5) }
 case "click":
     let x = Double(args[2])!
     let y = Double(args[3])!

@@ -115,19 +115,23 @@ passed=[]
 process=launch()
 try:
     for tag,value in languages.items():
-        bounds,path,(x,y)=ready(process,"before-"+tag)
-        click(process.pid,bounds,x,y)
-        bounds,path=capture(process.pid,"menu-"+tag)
-        # OCR scripts vary for East Asian text; locate a known Latin anchor and
-        # compare the selected language's visible label where supported.
-        found=label(path,value,[ocr_codes[tag],"en-US"])
-        if not found:
+        ready(process,"ready-"+tag)
+        run(helper,"activate",process.pid)
+        found=None
+        for attempt in range(3):
+            bounds,path,(x,y)=ready(process,"before-"+tag)
+            click(process.pid,bounds,x,y)
+            bounds,path=capture(process.pid,"menu-"+tag)
+            found=label(path,value,[ocr_codes[tag],"en-US"])
+            if found: break
             english=label(path,"English",["en-US"])
             french=label(path,"Français",["fr-FR","en-US"])
-            if not english or not french:
-                raise RuntimeError("Language choices were not visible in "+str(path))
-            spacing=(french["y"]-english["y"])/4
-            found={"x":english["x"],"y":english["y"]+list(languages).index(tag)*spacing}
+            if english and french:
+                spacing=(french["y"]-english["y"])/4
+                found={"x":english["x"],"y":english["y"]+list(languages).index(tag)*spacing}
+                break
+        if not found:
+            raise RuntimeError("Language choices were not visible in "+str(path))
         click(process.pid,bounds,found["x"],found["y"])
         bounds,path,_=ready(process,"active-"+tag)
         ui=read_copy(tag,"选台")

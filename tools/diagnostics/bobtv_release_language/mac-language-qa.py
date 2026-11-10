@@ -1,4 +1,6 @@
 import argparse
+import csv
+import io
 import json
 import os
 from pathlib import Path
@@ -76,7 +78,37 @@ def normalized(value):
     return "".join(ch for ch in unicodedata.normalize("NFKC",value).casefold() if ch.isalnum())
 
 def recognized(path,codes):
-    return json.loads(run(helper,"ocr",path,*dict.fromkeys(codes)))
+    image = cv2.imread(str(path), cv2.IMREAD_GRAYSCALE)
+    height, width = image.shape
+    top = round(.045 * height)
+    image = cv2.resize(image[top:], None, fx=2, fy=2, interpolation=cv2.INTER_CUBIC)
+    _, image = cv2.threshold(image, 145, 255, cv2.THRESH_BINARY_INV)
+    models = {
+        "en-US": "eng", "zh-Hans": "chi_sim", "zh-Hant": "chi_tra",
+        "ja-JP": "jpn", "fr-FR": "fra", "es-ES": "spa", "ko-KR": "kor",
+    }
+    languages = "+".join(models[code] for code in dict.fromkeys(codes))
+    result = subprocess.run(
+        ["tesseract", "stdin", "stdout", "--tessdata-dir", os.environ["BOBTV_QA_TESSDATA"],
+         "-l", languages, "--psm", "11", "tsv"],
+        input=cv2.imencode(".png", image)[1].tobytes(), capture_output=True,
+        check=True, timeout=40,
+    )
+    lines = {}
+    for word in csv.DictReader(io.StringIO(result.stdout.decode()), delimiter="\t"):
+        if word["level"] == "5" and word["text"].strip():
+            line = tuple(word[key] for key in ("block_num", "par_num", "line_num"))
+            lines.setdefault(line, []).append(word)
+    rows = []
+    for words in lines.values():
+        left = min(int(word["left"]) for word in words)
+        right = max(int(word["left"]) + int(word["width"]) for word in words)
+        upper = min(int(word["top"]) for word in words)
+        lower = max(int(word["top"]) + int(word["height"]) for word in words)
+        rows.append({"text": " ".join(word["text"] for word in words),
+                     "x": (left + right) / (4 * width),
+                     "y": (upper + lower + 4 * top) / (4 * height)})
+    return rows
 
 def label(path,value,codes):
     desired = normalized(value)
@@ -118,7 +150,7 @@ try:
         ready(process,"ready-"+tag)
         run(helper,"activate",process.pid)
         found=None
-        for attempt in range(3):
+        for attempt in range(5):
             bounds,path,(x,y)=ready(process,"before-"+tag)
             click(process.pid,bounds,x,y)
             bounds,path=capture(process.pid,"menu-"+tag)
@@ -147,6 +179,7 @@ try:
             if not visible:
                 raise RuntimeError(f"Missing translated text {ui!r} and {expected!r} for {tag}")
             click(process.pid,bounds,.07,.74)
+        print("Selected and observed", tag, flush=True)
         passed.append(tag)
     stop(process)
     process=launch()

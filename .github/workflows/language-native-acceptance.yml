@@ -48,6 +48,14 @@ jobs:
           set -euo pipefail
           probe=tools/diagnostics/bobtv_release_language
           python -m pip install opencv-python-headless pillow
+          if ! command -v tesseract >/dev/null; then
+            HOMEBREW_NO_AUTO_UPDATE=1 brew install tesseract
+          fi
+          export BOBTV_QA_TESSDATA="$RUNNER_TEMP/bobtv-tessdata"
+          mkdir -p "$BOBTV_QA_TESSDATA"
+          for locale in eng chi_sim chi_tra jpn fra spa kor; do
+            curl -fSsL --retry 3 "https://raw.githubusercontent.com/tesseract-ocr/tessdata_fast/65727574dfcd264acbb0c3e07860e4e9e9b22185/$locale.traineddata" -o "$BOBTV_QA_TESSDATA/$locale.traineddata"
+          done
           swiftc "$probe/mac-desktop-qa.swift" -o "$RUNNER_TEMP/mac-desktop-qa"
           "$RUNNER_TEMP/mac-desktop-qa" permissions
           mkdir -p "$RUNNER_TEMP/bobtv-dmg"

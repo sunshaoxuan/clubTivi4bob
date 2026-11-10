@@ -29,8 +29,8 @@
   "download": "Descargar BobTV",
   "features": "Características",
   "home": {
-    "headline": "Mire televisión en computadoras de escritorio y Android.",
-    "intro": "Windows, macOS y Android comparten la versión 1.1.19+114. Cambia de idioma en la parte superior de la aplicación. La selección manual se guarda. El modo automático usa el idioma del sistema, la zona horaria y, como último recurso, el inglés. Todos los instaladores incluyen los recursos de idioma. Se ha cerrado el acceso al modo avanzado.",
+    "headline": "Tus canales favoritos, siempre a mano.",
+    "intro": "Ve televisión en directo de distintas regiones, consulta qué viene después o cambia a la radio un rato.",
     "image_alt": "BobTV funcionando en modo simplificado, con reproducción de deportes y lista de canales.",
     "mode": "BOBTV / Modo simplificado",
     "screenshot": "Captura de pantalla de la aplicación real",
@@ -208,8 +208,8 @@
       ],
       [
         "2026-11-01",
-        "v1.1.18 · Categorías más rápidas, favoritos y correcciones de estado de la guía de programas",
-        "Windows, macOS y Android están alineados en 1.1.18+113. Los canales públicos se cargan según el país o categoría seleccionados, con resultados almacenados en caché y menos consultas repetidas. Un clic de estrella elimina un favorito; Las casillas de verificación de administración de listas ahora se guardan correctamente. El estado de la guía vencida permanece dentro de los canales y configuraciones relevantes mientras continúa la actualización en segundo plano. Android recibe compilación y validación automatizada, sin pruebas de dispositivos físicos."
+        "v1.1.18 · Encuentra canales más rápido y organiza tus favoritos con facilidad",
+        "Las listas de canales por país o categoría se abren más rápido. Pulsa una estrella marcada para quitar un canal de tus favoritos. Las selecciones del gestor de favoritos ya se guardan correctamente. La guía sigue actualizándose en segundo plano. Los avisos de actualización solo aparecen en el canal correspondiente y en Ajustes."
       ],
       [
         "2026-10-29",

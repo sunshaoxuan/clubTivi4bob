@@ -24,6 +24,7 @@ class WindowsUpdateState {
     this.version,
     this.percent,
     this.message,
+    this.messageArgs = const [],
     this.receivedBytes,
     this.totalBytes,
     this.requiresAuthorization = false,
@@ -34,6 +35,7 @@ class WindowsUpdateState {
   final String? version;
   final int? percent;
   final String? message;
+  final List<Object?> messageArgs;
   final int? receivedBytes;
   final int? totalBytes;
   final bool requiresAuthorization;
@@ -73,7 +75,15 @@ class WindowsUpdateState {
     WindowsUpdatePhase.failed => '更新失败，点击重试',
   };
 
-  String get description =>
+  String get description => descriptionKey.replaceAllMapped(
+    RegExp(r'\{(\d+)\}'),
+    (match) {
+      final index = int.parse(match[1]!);
+      return index < messageArgs.length ? '${messageArgs[index]}' : match[0]!;
+    },
+  );
+
+  String get descriptionKey =>
       message ??
       switch (phase) {
         WindowsUpdatePhase.checking => '正在连接 BobTV 更新服务，请稍候。',

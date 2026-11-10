@@ -25,7 +25,11 @@ class DesktopUpdateBadge extends StatelessWidget {
           return Padding(
             padding: const EdgeInsets.only(right: 12),
             child: Tooltip(
-              message: AppMessages.text(context, update.description),
+              message: AppMessages.text(
+                context,
+                update.descriptionKey,
+                update.messageArgs,
+              ),
               child: InkWell(
                 borderRadius: BorderRadius.circular(20),
                 onTap: () => showDialog<void>(
@@ -145,7 +149,11 @@ class _UpdateDetails extends StatelessWidget {
               ),
             const SizedBox(height: 12),
             Text(
-              AppMessages.text(context, update.description),
+              AppMessages.text(
+                context,
+                update.descriptionKey,
+                update.messageArgs,
+              ),
               style: const TextStyle(color: Colors.white70, height: 1.6),
             ),
             const SizedBox(height: 12),

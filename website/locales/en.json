@@ -29,8 +29,8 @@
   "download": "Download BobTV",
   "features": "Features",
   "home": {
-    "headline": "Watch TV on desktop and Android.",
-    "intro": "Windows, macOS and Android share version 1.1.19+114. Switch languages at the top of the app. Manual choices persist. Automatic mode uses the system language, then the time zone, then English. The language resources are included with each installer. The advanced mode entry has been closed.",
+    "headline": "Keep your favorite channels close.",
+    "intro": "Watch live TV from different regions, see what’s on next, or switch to radio for a while.",
     "image_alt": "BobTV running in simplified mode, with sports playback and a channel list.",
     "mode": "BOBTV / Simplified mode",
     "screenshot": "Actual app screenshot",
@@ -208,8 +208,8 @@
       ],
       [
         "2026-11-01",
-        "v1.1.18 · Faster categories, favorites and programme-guide status fixes",
-        "Windows, macOS and Android are aligned at 1.1.18+113. Public channels load by the selected country or category, with cached results and fewer repeated queries. A star click removes a favorite; list-management checkboxes now save correctly. Expired guide status stays within relevant channels and settings while background refresh continues. Android receives build and automated validation, without physical-device testing."
+        "v1.1.18 · Find channels faster and manage favorites more easily",
+        "Channel lists open faster when you browse by country or category. Click a filled star to remove a favorite. Selections in the favorites manager now save correctly. The program guide still refreshes in the background, and any refresh notice appears only on the affected channel and in Settings."
       ],
       [
         "2026-10-29",

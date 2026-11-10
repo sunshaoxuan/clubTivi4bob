@@ -3646,7 +3646,18 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
         final children = _groups.where((g) => g == section || g.startsWith('$section / ')).toList();
         if (children.any((g) => g.contains(' / '))) {
           levels.add(CompactCategoryRow(tiny: tiny, level: 3, title: AppMessages.text(context, "子分类"), options: [
-            for (final group in children) CompactCategoryOption(id: group, label: group == section ? AppMessages.text(context, "全部") : group.substring(section.length + 3), selected: _selectedGroup == group, onTap: () => _selectGroupAndPlayFirst(group)),
+            for (final group in children)
+              CompactCategoryOption(
+                id: group,
+                label: group == section
+                    ? AppMessages.text(context, '全部')
+                    : AppMessages.category(
+                        context,
+                        group.substring(section.length + 3),
+                      ),
+                selected: _selectedGroup == group,
+                onTap: () => _selectGroupAndPlayFirst(group),
+              ),
           ]));
         }
       }

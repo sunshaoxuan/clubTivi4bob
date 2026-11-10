@@ -47,7 +47,8 @@ def test_release_templates_preserve_languages_and_settings(locale):
 @pytest.mark.parametrize('page', ['release-notes', 'downloads'])
 def test_static_release_copies_preserve_android_and_diagnostic_notice(page):
     rendered = (ROOT / f'{page}.html').read_text()
-    assert '1.1.18+113' in rendered
+    version = 'v1.1.18 · ' if page == 'release-notes' else '1.1.18+113'
+    assert version in rendered
     assert '1.1.10+103' not in json.loads((ROOT / 'locales' / 'zh-CN.json').read_text())['downloads']['intro']
     assert '30 天' in rendered
     assert '同意' in rendered

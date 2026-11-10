@@ -15,7 +15,7 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - runner: macos-26
+          - runner: xcode-27
             arch: arm64
     runs-on: ${{ matrix.runner }}
     steps:

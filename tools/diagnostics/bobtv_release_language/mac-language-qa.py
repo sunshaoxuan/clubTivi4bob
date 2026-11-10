@@ -162,10 +162,12 @@ try:
             if found: break
             english=label(path,"English",["en-US"])
             french=label(path,"Français",["fr-FR","en-US"])
-            if english and french:
-                spacing=(french["y"]-english["y"])/4
+            if english:
+                spacing=(french["y"]-english["y"])/4 if french else 48/bounds["Height"]
                 found={"x":english["x"],"y":english["y"]+list(languages).index(tag)*spacing}
                 break
+            run(helper,"escape",process.pid)
+            time.sleep(.45)
         if not found:
             raise RuntimeError("Language choices were not visible in "+str(path))
         click(process.pid,bounds,found["x"],found["y"])
@@ -182,7 +184,8 @@ try:
             visible=label(menu,expected,[ocr_codes[tag],"en-US"])
             if not visible:
                 raise RuntimeError(f"Missing translated text {ui!r} and {expected!r} for {tag}")
-            click(process.pid,bounds,.07,.74)
+            run(helper,"escape",process.pid)
+            time.sleep(.5)
         print("Selected and observed", tag, flush=True)
         passed.append(tag)
     stop(process)

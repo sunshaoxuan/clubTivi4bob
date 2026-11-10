@@ -1,7 +1,7 @@
 name: BobTV 1.1.20 Mac ARM language acceptance
 on:
   push:
-    branches: [qa/bobtv-1.1.20-runtime]
+    branches: [qa/bobtv-1.1.20-mac-arm-retry]
 
 permissions:
   contents: write

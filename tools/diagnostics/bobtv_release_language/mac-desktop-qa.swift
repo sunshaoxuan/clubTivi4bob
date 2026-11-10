@@ -37,6 +37,12 @@ case "click":
     CGEvent(mouseEventSource: nil, mouseType: .leftMouseDown, mouseCursorPosition: point, mouseButton: .left)?.post(tap: .cghidEventTap)
     usleep(40000)
     CGEvent(mouseEventSource: nil, mouseType: .leftMouseUp, mouseCursorPosition: point, mouseButton: .left)?.post(tap: .cghidEventTap)
+case "escape":
+    let pid = Int32(args[2])!
+    guard NSWorkspace.shared.frontmostApplication?.processIdentifier == pid else { exit(5) }
+    CGEvent(keyboardEventSource: nil, virtualKey: 53, keyDown: true)?.post(tap: .cghidEventTap)
+    usleep(40000)
+    CGEvent(keyboardEventSource: nil, virtualKey: 53, keyDown: false)?.post(tap: .cghidEventTap)
 case "ocr":
     let request = VNRecognizeTextRequest()
     request.recognitionLevel = .accurate

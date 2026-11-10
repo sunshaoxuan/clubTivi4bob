@@ -773,6 +773,7 @@
       "Ver instaladores",
       "Detalles de la versión y la instalación"
     ],
-    "stations": "Algunos canales para explorar"
+    "stations": "Logotipos de canales de TV",
+    "pause_stations": "Pausar el desplazamiento de los logotipos"
   }
 }

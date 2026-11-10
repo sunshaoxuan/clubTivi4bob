@@ -49,13 +49,17 @@
         </article>
         {% endfor %}
       </div>
-      <aside class="station-band" aria-labelledby="stations-title" data-reveal>
-        <h3 id="stations-title">{{ s.stations }}</h3>
-        <ul class="station-marks">
-          {% for file, name in [('nhk-world', 'NHK WORLD-JAPAN'), ('bbc-news', 'BBC News'), ('france-24', 'France 24'), ('dw', 'DW'), ('arirang', 'Arirang'), ('cctv', 'CCTV-1')] %}
-          <li><img src="{{ site_root }}/assets/showcase/stations/{{ file }}.webp" width="220" height="100" loading="lazy" decoding="async" alt="{{ name }}"></li>
-          {% endfor %}
-        </ul>
+      <aside class="station-band" aria-label="{{ s.stations }}">
+        <div class="station-viewport">
+          <div class="station-track">
+            <ul class="station-marks">
+              {% include "station-marks.html" %}
+            </ul>
+          </div>
+        </div>
+        <button class="station-toggle" type="button" aria-label="{{ s.pause_stations }}" aria-pressed="false" hidden>
+          <span aria-hidden="true">Ⅱ</span>
+        </button>
       </aside>
     </div>
   </section>

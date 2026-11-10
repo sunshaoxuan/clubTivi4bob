@@ -773,6 +773,7 @@
       "See installers",
       "Release and installation details"
     ],
-    "stations": "A few channels you can explore"
+    "stations": "TV station logos",
+    "pause_stations": "Pause scrolling logos"
   }
 }

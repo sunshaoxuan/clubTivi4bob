@@ -18,3 +18,21 @@ if ('IntersectionObserver' in window && !matchMedia('(prefers-reduced-motion: re
   }, { threshold: 0.12 });
   document.querySelectorAll('[data-reveal]').forEach(node => observer.observe(node));
 }
+
+const stationBand = document.querySelector('.station-band');
+if (stationBand) {
+  const track = stationBand.querySelector('.station-track');
+  const marks = track.firstElementChild;
+  const duplicate = marks.cloneNode(true);
+  duplicate.setAttribute('aria-hidden', 'true');
+  track.append(duplicate);
+  track.style.setProperty('--station-duration', `${marks.getBoundingClientRect().width / 36}s`);
+  stationBand.setAttribute('data-marquee', '');
+  const toggle = stationBand.querySelector('.station-toggle');
+  toggle.hidden = false;
+  toggle.addEventListener('click', () => {
+    const paused = stationBand.toggleAttribute('data-paused');
+    toggle.setAttribute('aria-pressed', String(paused));
+    toggle.firstElementChild.textContent = paused ? '▶' : 'Ⅱ';
+  });
+}

@@ -773,6 +773,7 @@
       "Voir les programmes d’installation",
       "Détails de la version et de l’installation"
     ],
-    "stations": "Quelques chaînes à découvrir"
+    "stations": "Logos des chaînes TV",
+    "pause_stations": "Mettre le défilement des logos en pause"
   }
 }

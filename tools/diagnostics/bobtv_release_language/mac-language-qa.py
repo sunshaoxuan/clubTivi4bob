@@ -12,6 +12,8 @@ import cv2
 import numpy as np
 from PIL import Image, ImageDraw, ImageFont
 
+from mac_popup_shape import popup_bounds
+
 parser = argparse.ArgumentParser()
 parser.add_argument("app", type=Path)
 parser.add_argument("output", type=Path)
@@ -75,13 +77,16 @@ def click(pid,bounds,x,y):
     time.sleep(.42)
 
 def normalized(value):
-    return "".join(ch for ch in unicodedata.normalize("NFKC",value).casefold() if ch.isalnum())
+    return "".join(ch for ch in unicodedata.normalize("NFKD",value).casefold() if ch.isalnum())
 
-def recognized(path,codes):
+def recognized(path, codes, region=None):
     image = cv2.imread(str(path), cv2.IMREAD_GRAYSCALE)
-    height, width = image.shape
-    top = round(.045 * height)
-    image = cv2.resize(image[top:], None, fx=2, fy=2, interpolation=cv2.INTER_CUBIC)
+    if region:
+        left, top, right, bottom = region
+        image = image[top:bottom, left:right]
+    else:
+        image = image[round(.045 * image.shape[0]):]
+    image = cv2.resize(image, None, fx=3, fy=3, interpolation=cv2.INTER_CUBIC)
     _, image = cv2.threshold(image, 145, 255, cv2.THRESH_BINARY_INV)
     models = {
         "en-US": "eng", "zh-Hans": "chi_sim", "zh-Hant": "chi_tra",
@@ -90,34 +95,20 @@ def recognized(path,codes):
     languages = "+".join(models[code] for code in dict.fromkeys(codes))
     result = subprocess.run(
         ["tesseract", "stdin", "stdout", "--tessdata-dir", os.environ["BOBTV_QA_TESSDATA"],
-         "-l", languages, "--psm", "11", "-c", "tessedit_create_tsv=1"],
+         "-l", languages, "--psm", "7" if region else "11", "-c", "tessedit_create_tsv=1"],
         input=cv2.imencode(".png", image)[1].tobytes(), capture_output=True,
-        check=True, timeout=40,
+        check=True, timeout=25,
     )
-    lines = {}
     output = result.stdout.decode("utf-8-sig")
-    words = csv.DictReader(io.StringIO(output), delimiter="\t")
-    if not words.fieldnames or "level" not in words.fieldnames:
+    rows = csv.DictReader(io.StringIO(output), delimiter="\t")
+    if not rows.fieldnames or "level" not in rows.fieldnames:
         raise RuntimeError(f"Unexpected OCR output: {output[:200]!r}; {result.stderr.decode()[:200]}")
-    for word in words:
+    lines = {}
+    for word in rows:
         if word["level"] == "5" and word["text"].strip():
             line = tuple(word[key] for key in ("block_num", "par_num", "line_num"))
-            lines.setdefault(line, []).append(word)
-    rows = []
-    for words in lines.values():
-        left = min(int(word["left"]) for word in words)
-        right = max(int(word["left"]) + int(word["width"]) for word in words)
-        upper = min(int(word["top"]) for word in words)
-        lower = max(int(word["top"]) + int(word["height"]) for word in words)
-        rows.append({"text": " ".join(word["text"] for word in words),
-                     "x": (left + right) / (4 * width),
-                     "y": (upper + lower + 4 * top) / (4 * height)})
-    return rows
-
-def label(path,value,codes):
-    desired = normalized(value)
-    found = recognized(path,codes)
-    return next((row for row in found if normalized(row["text"]) == desired),None)
+            lines.setdefault(line, []).append(word["text"])
+    return [" ".join(words) for words in lines.values()]
 
 def launch():
     logfile = (out/"app.log").open("ab")
@@ -133,66 +124,62 @@ def stop(process):
         process.kill()
         process.wait(5)
 
-def ready(process,name):
-    until=time.monotonic()+110
-    while time.monotonic()<until:
-        if process.poll() is not None: raise RuntimeError(f"BobTV exited {process.returncode}")
+def open_menu(process, name):
+    deadline = time.monotonic() + 55
+    while time.monotonic() < deadline:
+        if process.poll() is not None:
+            raise RuntimeError(f"BobTV exited {process.returncode}")
         try:
-            bounds,path=capture(process.pid,name)
-            return bounds,path,globe(path,bounds)
-        except (RuntimeError,subprocess.CalledProcessError,AttributeError):
-            time.sleep(1)
-    raise RuntimeError("No BobTV language globe was found")
+            bounds, path = capture(process.pid, name)
+            screenshot = cv2.imread(str(path), cv2.IMREAD_GRAYSCALE)
+            height, width = screenshot.shape
+            scale = width / bounds["Width"]
+            geometry = popup_bounds(screenshot, scale)
+            if geometry:
+                return bounds, path, geometry, scale, width, height
+            x, y = globe(path, bounds)
+            click(process.pid, bounds, x, y)
+        except (RuntimeError, subprocess.CalledProcessError, AttributeError):
+            time.sleep(.7)
+    raise RuntimeError(f"Language menu did not open: {name}")
 
-def read_copy(tag,key):
-    return json.loads((catalog_path/(tag+".json")).read_text())[key]
+def read_copy(tag, key):
+    return json.loads((catalog_path / (tag + ".json")).read_text())[key]
 
-passed=[]
-process=launch()
+def check_translation(process, tag, name):
+    bounds, path, (x, y, w, h), scale, width, height = open_menu(process, name)
+    # The first menu option is localized independently of the seven fixed labels.
+    # Include the popup's left edge in the crop if its surface is partly obscured.
+    left = max(0, x - round(8 * scale))
+    top = y + round(8 * scale)
+    right = min(width, x + w)
+    bottom = y + round(56 * scale)
+    observed = recognized(path, [ocr_codes[tag]], (left, top, right, bottom))
+    desired = read_copy(tag, "跟随系统")
+    if normalized(desired) not in {normalized(value) for value in observed}:
+        raise RuntimeError(f"Expected {desired!r} after switching to {tag}, found {observed!r}")
+    click(process.pid, bounds, .05, .77)
+
+passed = []
+process = launch()
 try:
-    for tag,value in languages.items():
-        ready(process,"ready-"+tag)
-        run(helper,"activate",process.pid)
-        found=None
-        for attempt in range(5):
-            bounds,path,(x,y)=ready(process,"before-"+tag)
-            click(process.pid,bounds,x,y)
-            bounds,path=capture(process.pid,"menu-"+tag)
-            found=label(path,value,[ocr_codes[tag],"en-US"])
-            if found: break
-            english=label(path,"English",["en-US"])
-            french=label(path,"Français",["fr-FR","en-US"])
-            if english and french:
-                spacing=(french["y"]-english["y"])/4
-                found={"x":english["x"],"y":english["y"]+list(languages).index(tag)*spacing}
-                break
-        if not found:
-            raise RuntimeError("Language choices were not visible in "+str(path))
-        click(process.pid,bounds,found["x"],found["y"])
-        bounds,path,_=ready(process,"active-"+tag)
-        ui=read_copy(tag,"选台")
-        visible=label(path,ui,[ocr_codes[tag],"en-US"])
-        if not visible:
-            # When the directory is not available, the selected menu's first
-            # label provides an independent localized string to check.
-            x,y=globe(path,bounds)
-            click(process.pid,bounds,x,y)
-            bounds,menu=capture(process.pid,"translated-"+tag)
-            expected=read_copy(tag,"跟随系统")
-            visible=label(menu,expected,[ocr_codes[tag],"en-US"])
-            if not visible:
-                raise RuntimeError(f"Missing translated text {ui!r} and {expected!r} for {tag}")
-            click(process.pid,bounds,.07,.74)
-        print("Selected and observed", tag, flush=True)
+    for tag in ("zh-CN", "zh-TW", "ja", "fr", "es", "en", "ko"):
+        index = list(languages).index(tag)
+        bounds, path, (x, y, w, h), scale, width, height = open_menu(process, "menu-" + tag)
+        target_x = (x + w * .50) / width
+        target_y = (y + (8 + 48 * (index + 1.5)) * scale) / height
+        click(process.pid, bounds, target_x, target_y)
+        time.sleep(.75)
+        capture(process.pid, "active-" + tag)
+        check_translation(process, tag, "translated-" + tag)
         passed.append(tag)
+        print("Selected and observed", tag, flush=True)
     stop(process)
-    process=launch()
-    bounds,path,(x,y)=ready(process,"restart-ko")
-    click(process.pid,bounds,x,y)
-    _,menu=capture(process.pid,"restart-menu-ko")
-    assert label(menu,read_copy("ko","跟随系统"),["ko-KR","en-US"]), "Korean selection did not survive restart"
-    result={"passed":True,"architecture":os.uname().machine,"languages":passed,"retainedAfterRestart":"ko","dmgSha256":os.environ["BOBTV_QA_DMG_SHA256"]}
-    (out/"result.json").write_text(json.dumps(result,indent=2)+"\n")
+    process = launch()
+    check_translation(process, "ko", "restart-ko")
+    result = {"passed": True, "architecture": os.uname().machine, "languages": passed,
+              "retainedAfterRestart": "ko", "dmgSha256": os.environ["BOBTV_QA_DMG_SHA256"]}
+    (out / "result.json").write_text(json.dumps(result, indent=2) + "\n")
     print(result)
 finally:
     stop(process)

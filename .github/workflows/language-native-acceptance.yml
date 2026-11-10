@@ -1,7 +1,7 @@
 name: BobTV 1.1.19 native language acceptance
 on:
   push:
-    branches: [qa/bobtv-1.1.19-native]
+    branches: [qa/bobtv-1.1.19-mac-arm-alt]
 
 permissions:
   contents: write
@@ -10,15 +10,12 @@ env:
 
 jobs:
   mac:
-    if: ${{ !startsWith(github.event.head_commit.message, 'Accept Windows') }}
     timeout-minutes: 45
     strategy:
       fail-fast: false
       matrix:
         include:
-          - runner: macos-15-intel
-            arch: x64
-          - runner: macos-15
+          - runner: macos-26
             arch: arm64
     runs-on: ${{ matrix.runner }}
     steps:
@@ -69,85 +66,6 @@ jobs:
         if: always()
         with:
           name: bobtv-macos-language-${{ matrix.arch }}
-          path: |
-            evidence/*.png
-            evidence/result.json
-          retention-days: 3
-          if-no-files-found: ignore
-  windows:
-    if: ${{ !startsWith(github.event.head_commit.message, 'Accept macOS') }}
-    timeout-minutes: 55
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - runner: windows-2025
-            arch: x64
-            native: AMD64
-          - runner: windows-11-arm
-            arch: arm64
-            native: ARM64
-    runs-on: ${{ matrix.runner }}
-    steps:
-      - run: git config --global core.autocrlf false
-      - uses: actions/checkout@v4
-        with:
-          persist-credentials: false
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
-          architecture: x64
-      - name: Download unpublished Setup and install in the disposable runner
-        shell: pwsh
-        env:
-          GH_TOKEN: ${{ github.token }}
-          ARCH: ${{ matrix.arch }}
-          EXPECTED_NATIVE: ${{ matrix.native }}
-        run: |
-          $ErrorActionPreference='Stop'
-          if(([System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture.ToString().Replace('X64','AMD64').ToUpper()) -ne $env:EXPECTED_NATIVE){throw 'Unexpected Windows host architecture'}
-          $name="BobTV-1.1.19+114-windows-$env:ARCH-Setup.exe"
-          $dir=Join-Path $env:RUNNER_TEMP 'bobtv-candidate'
-          New-Item -ItemType Directory -Force $dir | Out-Null
-          $binary=Join-Path $dir $name
-          for($n=0; $n -lt 75; $n++){
-            if(((gh release view v1.1.19 --json isDraft --jq .isDraft 2>$null) -eq 'true') -and ((gh release view v1.1.19 --json targetCommitish --jq .targetCommitish) -eq $env:BOBTV_QA_SOURCE)){
-              gh release download v1.1.19 --pattern $name --dir $dir
-              if($LASTEXITCODE -eq 0){break}
-            }
-            Start-Sleep 15
-          }
-          if(!(Test-Path $binary)){throw 'Draft installer unavailable'}
-          $root=Join-Path $env:RUNNER_TEMP 'BobTVLanguageQA'
-          $install=Start-Process $binary -ArgumentList @('/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART','/NOICONS','/TASKS=""','/LANG=english',('/DIR="'+$root+'"')) -PassThru -Wait
-          if($install.ExitCode -ne 0){throw "Installer exit $($install.ExitCode)"}
-          foreach($file in Get-ChildItem assets/i18n/*.json){
-            $installed=Join-Path $root ('data/flutter_assets/assets/i18n/'+$file.Name)
-            if((Get-FileHash $file.FullName).Hash -ne (Get-FileHash $installed).Hash){throw "Resource differs: $($file.Name)"}
-          }
-          "BOBTV_QA_SETUP_SHA256=$((Get-FileHash $binary).Hash.ToLower())" | Out-File -Append -Encoding utf8 $env:GITHUB_ENV
-          "BOBTV_QA_APP=$(Join-Path $root 'BobTV.exe')" | Out-File -Append -Encoding utf8 $env:GITHUB_ENV
-      - name: Exercise all seven languages in the installed application
-        shell: pwsh
-        env:
-          QA_OS_ARCH: ${{ matrix.native }}
-        run: |
-          if($env:QA_OS_ARCH -eq 'ARM64'){
-            $privacy='HKLM:\SOFTWARE\Policies\Microsoft\Windows\OOBE'
-            New-Item $privacy -Force | Out-Null
-            New-ItemProperty $privacy -Name DisablePrivacyExperience -PropertyType DWord -Value 1 -Force | Out-Null
-            $engagement='HKCU:\Software\Microsoft\Windows\CurrentVersion\UserProfileEngagement'
-            New-Item $engagement -Force | Out-Null
-            New-ItemProperty $engagement -Name ScoobeSystemSettingEnabled -PropertyType DWord -Value 0 -Force | Out-Null
-            Get-Process CloudExperienceHostBroker,UserOOBEBroker,WWAHost,wsl -ErrorAction SilentlyContinue | Stop-Process -Force
-          }
-          python -m pip install opencv-python-headless pillow
-          python tools/diagnostics/bobtv_release_language/windows-language-qa.py "$env:BOBTV_QA_APP" evidence
-          if($LASTEXITCODE){exit $LASTEXITCODE}
-      - uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: bobtv-windows-language-${{ matrix.arch }}
           path: |
             evidence/*.png
             evidence/result.json

@@ -1,7 +1,7 @@
 name: BobTV 1.1.20 native language acceptance
 on:
   push:
-    branches: [qa/bobtv-1.1.20-runtime]
+    branches: [qa/bobtv-1.1.20-windows-retry]
 
 permissions:
   contents: write
@@ -9,68 +9,6 @@ env:
   BOBTV_QA_SOURCE: 009000670528c4bd343880ac2dd6de17d55ded7e
 
 jobs:
-  mac:
-    timeout-minutes: 45
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - runner: macos-15-intel
-            arch: x64
-    runs-on: ${{ matrix.runner }}
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          persist-credentials: false
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
-      - name: Download unpublished candidate and verify its draft status
-        env:
-          GH_TOKEN: ${{ github.token }}
-          ARCH: ${{ matrix.arch }}
-        run: |
-          set -euo pipefail
-          mkdir -p candidate
-          for attempt in {1..65}; do
-            if [[ "$(gh release view v1.1.20 --json isDraft --jq .isDraft 2>/dev/null)" == true ]] &&
-               [[ "$(gh release view v1.1.20 --json targetCommitish --jq .targetCommitish)" == "$BOBTV_QA_SOURCE" ]] &&
-               gh release download v1.1.20 --pattern "BobTV-1.1.20+115-macos-$ARCH.dmg" --dir candidate; then
-              break
-            fi
-            sleep 15
-          done
-          test -f "candidate/BobTV-1.1.20+115-macos-$ARCH.dmg"
-      - name: Mount and exercise the exact DMG application
-        env:
-          ARCH: ${{ matrix.arch }}
-        run: |
-          set -euo pipefail
-          probe=tools/diagnostics/bobtv_release_language
-          python -m pip install opencv-python-headless pillow
-          swiftc "$probe/mac-desktop-qa.swift" -o "$RUNNER_TEMP/mac-desktop-qa"
-          "$RUNNER_TEMP/mac-desktop-qa" permissions
-          mkdir -p "$RUNNER_TEMP/bobtv-dmg"
-          dmg="candidate/BobTV-1.1.20+115-macos-$ARCH.dmg"
-          export BOBTV_QA_DMG_SHA256="$(shasum -a 256 "$dmg" | awk '{print $1}')"
-          hdiutil attach -readonly -nobrowse -mountpoint "$RUNNER_TEMP/bobtv-dmg" "$dmg"
-          trap 'hdiutil detach "$RUNNER_TEMP/bobtv-dmg"' EXIT
-          app="$RUNNER_TEMP/bobtv-dmg/BobTV.app"
-          codesign --verify --deep --strict "$app"
-          [[ "$(lipo -archs "$app/Contents/MacOS/BobTV")" == "$(uname -m)" ]]
-          for file in assets/i18n/*.json; do
-            cmp "$file" "$app/Contents/Frameworks/App.framework/Resources/flutter_assets/assets/i18n/${file##*/}"
-          done
-          python "$probe/mac-intel-language-qa.py" "$app" evidence "$RUNNER_TEMP/mac-desktop-qa"
-      - uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: bobtv-macos-language-${{ matrix.arch }}
-          path: |
-            evidence/*.png
-            evidence/result.json
-          retention-days: 3
-          if-no-files-found: ignore
   windows:
     timeout-minutes: 55
     strategy:

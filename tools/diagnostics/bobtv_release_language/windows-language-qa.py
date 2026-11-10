@@ -91,7 +91,8 @@ def menu_bounds(image, anchor, dpi):
     bottom = y + height
     if bottom + 6 >= image.shape[0]:
         return None
-    surface = (abs(image.astype(np.int16) - 31) <= 1).astype(np.uint8)
+    # BobTvPalette.panel (#191c2e) converts to luminance 29.
+    surface = (image == 29).astype(np.uint8)
     columns = surface[y:bottom].mean(axis=0)
     below = surface[bottom:bottom + 5].mean(axis=0)
     prefix = np.r_[0, columns.cumsum()]

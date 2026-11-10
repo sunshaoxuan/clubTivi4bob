@@ -154,7 +154,7 @@ try:
     click(process.pid,bounds,x,y)
     _,menu=capture(process.pid,"restart-menu-ko")
     assert label(menu,read_copy("ko","跟随系统"),["ko-KR","en-US"]), "Korean selection did not survive restart"
-    result={"passed":True,"architecture":os.uname().machine,"languages":passed,"retainedAfterRestart":"ko"}
+    result={"passed":True,"architecture":os.uname().machine,"languages":passed,"retainedAfterRestart":"ko","dmgSha256":os.environ["BOBTV_QA_DMG_SHA256"]}
     (out/"result.json").write_text(json.dumps(result,indent=2)+"\n")
     print(result)
 finally:

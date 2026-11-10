@@ -8,7 +8,7 @@ permissions:
 
 jobs:
   mac:
-    if: ${{ false }}
+    if: ${{ !startsWith(github.event.head_commit.message, 'Accept Windows') }}
     timeout-minutes: 45
     strategy:
       fail-fast: false
@@ -51,7 +51,9 @@ jobs:
           swiftc "$probe/mac-desktop-qa.swift" -o "$RUNNER_TEMP/mac-desktop-qa"
           "$RUNNER_TEMP/mac-desktop-qa" permissions
           mkdir -p "$RUNNER_TEMP/bobtv-dmg"
-          hdiutil attach -readonly -nobrowse -mountpoint "$RUNNER_TEMP/bobtv-dmg" "candidate/BobTV-1.1.19+114-macos-$ARCH.dmg"
+          dmg="candidate/BobTV-1.1.19+114-macos-$ARCH.dmg"
+          export BOBTV_QA_DMG_SHA256="$(shasum -a 256 "$dmg" | awk '{print $1}')"
+          hdiutil attach -readonly -nobrowse -mountpoint "$RUNNER_TEMP/bobtv-dmg" "$dmg"
           trap 'hdiutil detach "$RUNNER_TEMP/bobtv-dmg"' EXIT
           app="$RUNNER_TEMP/bobtv-dmg/BobTV.app"
           codesign --verify --deep --strict "$app"
@@ -70,6 +72,7 @@ jobs:
           retention-days: 3
           if-no-files-found: ignore
   windows:
+    if: ${{ !startsWith(github.event.head_commit.message, 'Accept macOS') }}
     timeout-minutes: 55
     strategy:
       fail-fast: false

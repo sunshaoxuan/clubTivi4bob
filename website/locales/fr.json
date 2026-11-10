@@ -678,5 +678,101 @@
         ]
       ]
     ]
+  },
+  "showcase": {
+    "title": "BobTV | Télévision en direct, radio et guide TV",
+    "meta": "Explorez les chaînes de télévision, radios et flux en direct de plus de 100 pays sur Windows, macOS et Android. Site disponible en sept langues.",
+    "eyebrow": "TV en direct et radio",
+    "countries": "pays",
+    "languages": "langues sur ce site",
+    "support": "Assistance et politiques",
+    "upload": "Envoyer des journaux",
+    "top": "Retour en haut",
+    "footer": "Lecteur TV et radio libre",
+    "hero": [
+      "Le monde est en direct.",
+      "Il prend vie sous vos yeux.",
+      "Des clameurs du stade aux radios de nuit, explorez les chaînes, les radios et les flux en direct de plus de 100 pays."
+    ],
+    "discover": [
+      "Découvrir",
+      "Voyagez d’une chaîne à l’autre.",
+      "Parcourez les chaînes par région ou par catégorie et trouvez de quoi regarder ou écouter."
+    ],
+    "media": [
+      [
+        "Télévision du monde",
+        "Des chaînes locales aux horizons lointains",
+        "Découvrez les journaux, les divertissements et les programmes locaux de différents pays."
+      ],
+      [
+        "Sport en direct",
+        "Au cœur de l’action",
+        "Retrouvez les flux de la catégorie Sport et suivez le match en direct."
+      ],
+      [
+        "Radio",
+        "Coupez l’écran et écoutez",
+        "Écoutez de la musique, des interviews et des stations du monde entier en mode audio."
+      ],
+      [
+        "Divertissement",
+        "Quand les projecteurs s’allument",
+        "Des émissions de variétés aux concerts, explorez les programmes de la catégorie Divertissement."
+      ]
+    ],
+    "signals": [
+      "Chaînes et guide TV",
+      "Trouvez une chaîne et voyez la suite.",
+      [
+        [
+          "Fiches de chaînes enrichies automatiquement",
+          "Le catalogue public se complète au fil du temps avec des noms, des logos et des catégories."
+        ],
+        [
+          "Guide TV automatique",
+          "Consultez les programmes en cours et à venir sur certaines chaînes disposant d’une source compatible."
+        ],
+        [
+          "Vos chaînes en favoris",
+          "Ajoutez une étoile à vos chaînes préférées pour les retrouver rapidement."
+        ],
+        [
+          "Qualité des flux suivie dans le temps",
+          "La qualité de lecture aide à classer les flux et à écarter ceux de mauvaise qualité."
+        ]
+      ]
+    ],
+    "devices": [
+      "Langues et appareils",
+      "Un autre écran, le même BobTV.",
+      [
+        [
+          "Sept langues d’interface",
+          "Le site est disponible en sept langues. À partir de la version 1.1.19, l’application propose le français, l’anglais, le chinois simplifié et traditionnel, le japonais, le coréen et l’espagnol."
+        ],
+        [
+          "Disponible dès maintenant",
+          "Sur Windows, macOS ainsi que sur les téléphones et tablettes Android."
+        ],
+        [
+          "En développement",
+          "Versions iPhone et iPad, ainsi qu’un lecteur web intégrable."
+        ]
+      ]
+    ],
+    "player": [
+      "Lecture",
+      "Prévisualisez une chaîne pendant que vous regardez.",
+      "Aperçu sans son avant de changer de chaîne. Sur ordinateur, profitez aussi du plein écran et de l’image dans l’image."
+    ],
+    "closing": "Qu’allez-vous regarder aujourd’hui ?",
+    "download": [
+      "Choisissez votre appareil",
+      "BobTV est disponible sur Windows, macOS et Android. Sélectionnez votre système et votre processeur pour trouver le bon programme d’installation.",
+      "Voir les programmes d’installation",
+      "Détails de la version et de l’installation"
+    ],
+    "stations": "Quelques chaînes à découvrir"
   }
 }

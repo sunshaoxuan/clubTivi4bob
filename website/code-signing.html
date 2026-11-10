@@ -1,9 +1,61 @@
 <!doctype html>
-<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Code signing policy | BobTV</title><meta name="description" content="BobTV 免费 Windows 代码签名申请、人工审批与来源验证政策。"><link rel="icon" href="/assets/favicon.png?v=2"><link rel="stylesheet" href="/assets/site.css?v=15"></head>
-<body class="downloads-page"><header class="site-header"><div class="container header-inner"><a class="brand" href="/"><span class="brand-mark">▶</span>Bob<span>TV</span></a><nav aria-label="主导航"><a href="/">产品</a><a href="/downloads">下载</a><a href="/release-notes">版本记录</a><a href="/privacy">隐私政策</a></nav></div></header>
-<main class="page"><section class="download-hero"><div class="container download-hero-inner"><p class="download-kicker">BOBTV / TRUST</p><h1>代码签名政策</h1><p lang="en">Code signing policy</p></div></section><div class="container download-content">
-<section class="download-help"><div class="download-help-title"><p class="section-index">01 / STATUS</p><h2>免费签名申请未获批准</h2><p>申请已于 2026-10-13 提交并收到网页回执。审核邮件表示，项目的公开使用与信任信号不足，本次申请未获批准。尚未取得 SignPath Foundation 证书或生产签名凭证；现有 Windows 安装包没有受信任 Authenticode 签名。</p></div><div class="download-help-grid"><article><h3>可验证的源码构建</h3><p>仅在 GitHub 标准托管 Windows 环境中，从本项目 main 分支手动触发构建。推送、定时任务和自动发布均不触发签名。<a href="https://github.com/sunshaoxuan/clubTivi4bob/actions/runs/38345860975">Windows x64 与 ARM64 候选构建、打包验证已通过</a>，此次验证未上传二进制成果物。</p></article><article><h3>每次签名人工批准</h3><p>先审批和签署 BobTV.exe，再生成和签 Setup，验证信任链、时间戳、版本与发布者后才准备新版本发布。</p></article></div></section>
-<section class="download-help"><div class="download-help-title"><p class="section-index">02 / MAINTAINER</p><h2>维护与审核责任</h2><p>作者、代码审核者和签名批准人：<a href="https://github.com/sunshaoxuan">sunshaoxuan</a>。账户必须启用多因素验证，生产签名不得绕过人工批准。</p></div><div class="download-help-grid"><article><h3>签名范围</h3><p>本项目签署 BobTV.exe 和 BobTV Setup。第三方 DLL、微软运行库及辅助程序保留自身许可，不冒用本项目签名。免费签名候选包不附带旧版可选 ProcDump 工具，保留 BobTV 原生 Windows 转储功能。</p></article><article><h3>密钥与更新</h3><p>SignPath 提交密钥仅作为受限密钥保存。BobTV 自有更新签章的私钥留在维护者设备，不上传仓库或构建服务器。正式签名后重新生成校验值及更新签章，已发布版本不被覆盖。</p></article></div></section>
-<section class="download-help"><div class="download-help-title"><p class="section-index">03 / PROVIDER</p><h2>拟采用的公益签名服务</h2><p>SignPath 开源项目计划申请已提交并被拒绝。如将来重新申请获批，才采用以下服务标注；当前包不使用此服务签名：</p></div><div class="download-help-grid"><article lang="en"><h3>Planned attribution after approval</h3><p>Free code signing provided by <a href="https://signpath.io">SignPath.io</a>, certificate by <a href="https://signpath.org">SignPath Foundation</a>.</p><p>The application was submitted on 2026-10-13 and the site confirmed receipt. The application was not approved and no Foundation certificate was issued. This policy does not confer public trust on existing release packages.</p></article><article><h3>证书边界</h3><p>如将来获批，证书发布者为 SignPath Foundation，产品名称仍为 BobTV。资格和撤销条件以<a href="https://signpath.org/terms.html">官方条款</a>为准。签名不保证外部节目源的授权、可用性或安全，也不保证立即消除 SmartScreen 提示或管理员授权。</p></article></div></section>
-<section class="download-help" lang="en"><div class="download-help-title"><p class="section-index">04 / ENGLISH</p><h2>Policy summary</h2><p>Author, reviewer and signing approver: sunshaoxuan. Accounts must use MFA; production signing requests require the maintainer's manual approval.</p></div><div class="download-help-grid"><article><h3>Origin and verification</h3><p>Builds use standard GitHub-hosted runners from this repository's main branch. Original app and Setup are uploaded before signing. Name, version, CPU, Windows trust chain, timestamp and approved publisher are checked. Unsigned and test-signed candidates are not public releases.</p></article><article><h3>Privacy and third parties</h3><p>Only BobTV's app and Setup are signed. Third-party components retain their licenses; proprietary dump helpers are excluded from signing candidates. See the <a href="/privacy">privacy policy</a> and <a href="https://github.com/sunshaoxuan/clubTivi4bob/blob/main/docs/code-signing-policy.md">repository policy</a>. The application was not approved; existing Windows packages have no trusted Authenticode signature.</p></article></div></section>
-</div></main><footer><div class="container footer-inner"><span>BobTV · Open-source player</span><span><a href="/privacy">隐私政策 / Privacy policy</a> · <a href="/downloads">下载 / Downloads</a></span></div></footer></body></html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="BobTV 免费 Windows 代码签名申请、人工审批与来源验证政策。">
+  <title>代码签名政策 / Code signing policy | BobTV</title>
+  <meta name="theme-color" content="#0d101e">
+  <link rel="icon" type="image/png" href="/assets/favicon.png?v=2">
+  <link rel="stylesheet" href="/assets/site.css?v=16">
+  <link rel="alternate" hreflang="en" href="/code-signing?lang=en"><link rel="alternate" hreflang="zh-CN" href="/code-signing?lang=zh-CN"><link rel="alternate" hreflang="zh-TW" href="/code-signing?lang=zh-TW"><link rel="alternate" hreflang="ja" href="/code-signing?lang=ja"><link rel="alternate" hreflang="fr" href="/code-signing?lang=fr"><link rel="alternate" hreflang="es" href="/code-signing?lang=es"><link rel="alternate" hreflang="ko" href="/code-signing?lang=ko">
+  <link rel="alternate" hreflang="x-default" href="/code-signing?lang=en">
+</head>
+<body id="top" data-site-root="" class="code-signing-page">
+  <header class="site-header"><div class="container header-inner">
+    <a class="brand" href="/" aria-label="BobTV"><span class="brand-mark" aria-hidden="true">▶</span><span>Bob<span class="gradient-text">TV</span></span></a>
+    <nav class="main-nav" aria-label="主导航">
+      <a href="/">产品</a>
+      <a class="nav-download" href="/downloads">下载 <span aria-hidden="true">↓</span></a>
+    </nav>
+    <form class="language-form" action="/code-signing" method="get">
+      <label class="visually-hidden" for="language">语言</label>
+      <select id="language" name="lang" aria-label="语言">
+        <option value="en">English</option><option value="zh-CN" selected>简体中文</option><option value="zh-TW">繁體中文</option><option value="ja">日本語</option><option value="fr">Français</option><option value="es">Español</option><option value="ko">한국어</option>
+      </select>
+      <noscript><button type="submit">语言</button></noscript>
+    </form>
+  </div></header>
+
+<main class="page"><section class="download-hero"><div class="container download-hero-inner"><p class="download-kicker">BOBTV/信托</p><h1>代码签名政策</h1></div></section><div class="container download-content">
+<section class="download-help"><div class="download-help-title"><p class="section-index">01 / 状态</p><h2>免费签名申请未获批准</h2><p>申请已于 2026-10-13 提交并收到网页回执。审核邮件表示，项目的公开使用与信任信号不足，本次申请未获批准。尚未取得 SignPath Foundation 证书或生产签名凭证；现有 Windows 安装包没有受信任 Authenticode 签名。</p></div><div class="download-help-grid"><article><h3>可验证的源码构建</h3><p>仅在 GitHub 标准托管 Windows 环境中，从本项目 main 分支手动触发构建。推送、定时任务和自动发布均不触发签名。<a href="https://github.com/sunshaoxuan/clubTivi4bob/actions/runs/38345860975">Windows x64 与 ARM64 候选构建、打包验证已通过</a>，此次验证未上传二进制成果物。</p></article><article><h3>每次签名人工批准</h3><p>先审批和签署 BobTV.exe，再生成和签 Setup，验证信任链、时间戳、版本与发布者后才准备新版本发布。</p></article></div></section>
+<section class="download-help"><div class="download-help-title"><p class="section-index">02 / 维护者</p><h2>维护与审核责任</h2><p>作者、代码审核者和签名批准人：<a href="https://github.com/sunshaoxuan">孙少轩</a>。账户必须启用多因素验证，生产签名不得绕过人工批准。</p></div><div class="download-help-grid"><article><h3>签名范围</h3><p>本项目签署 BobTV.exe 和 BobTV Setup。第三方 DLL、微软运行库及辅助程序保留自身许可，不冒用本项目签名。免费签名候选包不附带旧版可选 ProcDump 工具，保留 BobTV 原生 Windows 转储功能。</p></article><article><h3>密钥与更新</h3><p>SignPath 提交密钥仅作为受限密钥保存。BobTV 自有更新签章的私钥留在维护者设备，不上传仓库或构建服务器。正式签名后重新生成校验值及更新签章，已发布版本不被覆盖。</p></article></div></section>
+<section class="download-help"><div class="download-help-title"><p class="section-index">03 / 供应商</p><h2>拟采用的公益签名服务</h2><p>SignPath 开源项目计划申请已提交并被拒绝。如将来重新申请获批，才采用以下服务标注；当前包不使用此服务签名：</p></div><div class="download-help-grid"><article><h3>批准后计划归属</h3><p>免费代码签名由<a href="https://signpath.io">签名路径io</a>提供，证书由<a href="https://signpath.org">标志路径基金会</a>提供。</p><p>申请于2026-10-13提交，现场确认收到。申请未获批准，也未颁发基金会证书。此策略不会赋予公众对现有发行包的信任。</p></article><article><h3>证书边界</h3><p>如将来获批，证书发布者为 SignPath Foundation，产品名称仍为 BobTV。资格和撤销条件以<a href="https://signpath.org/terms.html">官方条款</a>为准。签名不保证外部节目源的授权、可用性或安全，也不保证立即消除 SmartScreen 提示或管理员授权。</p></article></div></section>
+
+</div></main>
+
+  <footer>
+    <div class="container footer-inner">
+      <div class="footer-about">
+        <strong>BobTV</strong>
+        <span>开源电视与电台播放器<span id="installed-devices"></span></span>
+        <p>使用前请确认第三方节目源的可用性及使用授权。</p>
+      </div>
+      <div class="footer-corner">
+        <nav aria-label="支持与政策">
+          <a href="/release-notes">版本记录</a>
+          <a href="/diagnostics">上传日志</a>
+          <a href="/privacy">隐私政策</a>
+          <a href="/code-signing" aria-current="page">代码签名政策 / Code signing policy</a>
+        </nav>
+      </div>
+    </div>
+  </footer>
+
+  <script id="site-messages" type="application/json">{"android_note": "Android 7+\uff1b\u66f4\u65b0\u5b89\u88c5\u9700\u7cfb\u7edf\u786e\u8ba4\u3002\u5b9e\u673a\u4e0e\u5927\u9646\u7f51\u7edc\u5f85\u9a8c\u8bc1\u3002", "checking": "\u6b63\u5728\u68c0\u67e5\u65e5\u5fd7\u2026", "checksum": "SHA-256 \u6821\u9a8c\u503c", "cpu_note": "\u6bcf\u4e2a\u7cfb\u7edf\u4e00\u680f\uff0c\u6309 CPU \u9009\u62e9\u3002", "current": "\u6700\u65b0\u53d1\u5e03", "dmg": "DMG \u5b89\u88c5\u6620\u50cf", "download": "\u4e0b\u8f7d", "download_label": "\u4e0b\u8f7d {platform} {version}\uff0c{size}", "download_package": "\u4e0b\u8f7d\u5b89\u88c5\u5305", "empty": "\u6682\u65f6\u6ca1\u6709\u5b89\u88c5\u5305\uff0c\u8bf7\u7a0d\u540e\u67e5\u770b\u3002", "entries": "\u65e5\u5fd7\u6761\u76ee\u8fc7\u591a", "exe": "EXE \u5b89\u88c5\u7a0b\u5e8f", "failure": "\u4e0a\u4f20\u5931\u8d25\uff08{error}\uff09\u3002\u8bf7\u68c0\u67e5\u6587\u4ef6\u540e\u91cd\u8bd5\u3002", "file_limit": "\u8bf7\u9009\u62e9\u4e0d\u8d85\u8fc7 1 MiB \u7684\u65e5\u5fd7\u3002", "intel": "Intel Mac \u7248", "invalid": "JSONL \u65e5\u5fd7\u683c\u5f0f\u4e0d\u6b63\u786e", "loading": "\u6b63\u5728\u8bfb\u53d6\u7248\u672c\u4fe1\u606f\u2026", "macos_note": "\u5f53\u524d\u4f9d\u8d56\u8981\u6c42 macOS 13 \u6216\u66f4\u65b0\u7248\u672c\uff0c\u65e7\u7cfb\u7edf\u517c\u5bb9\u4ecd\u5f85\u5f00\u53d1\u3002\u9009\u5bf9\u82af\u7247\uff0c\u6253\u5f00 DMG \u540e\u62d6\u5230 Applications\u3002", "no_file": "\u672a\u9009\u62e9\u6587\u4ef6", "pending": "\u51c6\u5907\u4e2d", "platform_pending": "\u8be5\u5e73\u53f0\u5f53\u524d\u63d0\u4f9b {version}\uff0c\u73b0\u6709\u4e0b\u8f7d\u4e0e\u66f4\u65b0\u901a\u9053\u7ee7\u7eed\u53ef\u7528\u3002", "portable_download": "\u4e0b\u8f7d ZIP \u4fbf\u643a\u5305", "processed_limit": "\u8fc7\u6ee4\u540e\u65e5\u5fd7\u8d85\u8fc7 1 MiB", "published": "\u53d1\u5e03\u4e8e {date}", "release_error": "\u7248\u672c\u4fe1\u606f\u6682\u65f6\u4e0d\u53ef\u7528\uff0c\u8bf7\u7a0d\u540e\u91cd\u8bd5\u3002", "silicon": "Apple Silicon Mac \u7248", "success": "\u4e0a\u4f20\u5b8c\u6210\u3002\u8bca\u65ad\u7f16\u53f7\uff1a{id}", "surface_pending": "Surface ARM \u539f\u751f\u7248\u5f85\u7f16\u8bd1\u9a8c\u8bc1", "uploading": "\u6b63\u5728\u4e0a\u4f20\u2026", "version_note": "\u4e0b\u8f7d\u6309\u94ae\u6807\u660e\u5404\u5e73\u53f0\u7248\u672c\u3002", "windows": "Windows \u7248", "windows_arm64_note": "ARM64 \u539f\u751f\u5305\u5df2\u901a\u8fc7\u6784\u5efa\u4e0e\u67b6\u6784\u6821\u9a8c\uff1bSurface \u5b9e\u673a\u64ad\u653e\u3001AirPlay \u548c\u66f4\u65b0\u4ecd\u5f85\u9a8c\u8bc1\u3002", "windows_note": "Setup \u9700\u8981\u7ba1\u7406\u5458\u6388\u6743\uff0cZIP \u53ef\u5b8c\u6574\u89e3\u538b\u4f7f\u7528\u3002", "zip": "ZIP \u4fbf\u643a\u5305"}</script>
+  <script src="/assets/language.js?v=1" defer></script>
+  <script src="/assets/device-count.js?v=2" defer></script>
+
+
+</body>
+</html>

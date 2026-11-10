@@ -3,107 +3,221 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="BobTV 是 Windows 与 macOS 桌面电视播放器，支持静音预览、节目时间轴、公共频道与线路评分同步、可见进度的自动更新。安装包由本站直接提供。">
-  <title>BobTV | Windows 与 macOS 桌面电视播放器</title>
+  <meta name="description" content="用 BobTV 浏览 100 多个国家的电视台、电台和直播信号源。支持 Windows、macOS 和 Android。官网可切换七种语言。">
+  <title>BobTV | 电视直播、电台与节目单</title>
+  <meta name="theme-color" content="#0d101e">
   <link rel="icon" type="image/png" href="/assets/favicon.png?v=2">
-  <link rel="stylesheet" href="/assets/site.css?v=15">
+  <link rel="stylesheet" href="/assets/site.css?v=16">
+  <link rel="alternate" hreflang="en" href="/?lang=en"><link rel="alternate" hreflang="zh-CN" href="/?lang=zh-CN"><link rel="alternate" hreflang="zh-TW" href="/?lang=zh-TW"><link rel="alternate" hreflang="ja" href="/?lang=ja"><link rel="alternate" hreflang="fr" href="/?lang=fr"><link rel="alternate" hreflang="es" href="/?lang=es"><link rel="alternate" hreflang="ko" href="/?lang=ko">
+  <link rel="alternate" hreflang="x-default" href="/?lang=en">
 </head>
-<body class="home-page">
-  <header class="site-header">
-    <div class="container header-inner">
-      <a class="brand" href="/" aria-label="BobTV 首页"><span class="brand-mark">▶</span>Bob<span>TV</span></a>
-      <nav aria-label="主导航"><a href="/" aria-current="page">产品</a><a href="/downloads">下载</a><a href="/release-notes">版本记录</a><a href="/diagnostics">诊断日志</a></nav>
+<body id="top" data-site-root="" class="home-page">
+  <header class="site-header"><div class="container header-inner">
+    <a class="brand" href="/" aria-label="BobTV"><span class="brand-mark" aria-hidden="true">▶</span><span>Bob<span class="gradient-text">TV</span></span></a>
+    <nav class="main-nav" aria-label="主导航">
+      <a href="/" aria-current="page">产品</a>
+      <a class="nav-download" href="/downloads">下载 <span aria-hidden="true">↓</span></a>
+    </nav>
+    <form class="language-form" action="/" method="get">
+      <label class="visually-hidden" for="language">语言</label>
+      <select id="language" name="lang" aria-label="语言">
+        <option value="en">English</option><option value="zh-CN" selected>简体中文</option><option value="zh-TW">繁體中文</option><option value="ja">日本語</option><option value="fr">Français</option><option value="es">Español</option><option value="ko">한국어</option>
+      </select>
+      <noscript><button type="submit">语言</button></noscript>
+    </form>
+  </div></header>
+
+
+<main>
+  <section class="hero-band" aria-labelledby="hero-title">
+    <div class="container home-hero-layout">
+      <div class="hero-copy">
+        <p class="eyebrow"><span class="live-dot"></span>电视直播与电台</p>
+        <h1 id="hero-title">世界正在直播，<br><span class="gradient-text">在你眼前绽放。</span></h1>
+        <p class="hero-description">从赛场的欢呼到深夜的电台，把 100 多个国家的电视台、电台和直播信号源带到你的屏幕上。</p>
+        <div class="actions">
+          <a class="button primary" href="/downloads">下载 BobTV <span aria-hidden="true">↓</span></a>
+          <a class="button secondary" href="#discover">功能介绍 <span aria-hidden="true">↘</span></a>
+        </div>
+        <p class="platform-line"><span class="platform-dots" aria-hidden="true"><i></i><i></i><i></i></span>Windows <span>·</span> macOS <span>·</span> Android</p>
+      </div>
+      <div class="hero-visual">
+        <img class="hero-photo" src="/assets/showcase/hero.webp" width="1200" height="900" alt="" fetchpriority="high">
+        <div class="floating-stat countries"><span aria-hidden="true">◎</span><div><strong>100+</strong><small>国家</small></div></div>
+        <div class="floating-stat languages"><span aria-hidden="true">Aa</span><div><strong>7</strong><small>种官网语言</small></div></div>
+      </div>
     </div>
-  </header>
-  <main>
-    <section class="hero-band" aria-labelledby="hero-title">
-      <div class="container home-hero-layout">
-        <div class="hero-copy">
-          <p class="eyebrow"><span class="accent-line"></span> WINDOWS · MACOS · ANDROID</p>
-          <h1 id="hero-title">BobTV<span class="home-hero-period">.</span></h1>
-          <p class="hero-statement">把喜欢的频道，留在手边。</p>
-          <p class="hero-description">看各地直播，查接下来的节目，也可以切到电台听一会儿。</p>
-          <div class="actions"><a class="button primary" href="/downloads">下载 BobTV <span aria-hidden="true">↗</span></a><a class="button secondary" href="#preview-title">了解体验</a></div>
-          <p class="release-meta">1.1.18+113 · Windows / macOS / Android</p>
-        </div>
-        <div class="hero-visual">
-          <div class="home-visual-frame"><img class="product-image" src="/assets/product.png?v=3" width="1765" height="1056" alt="BobTV 简洁模式实际运行画面，左侧播放体育频道，右侧列出频道"></div>
-          <div class="image-caption"><span>BOBTV / 简洁模式</span><span>实际运行画面</span></div>
-        </div>
+  </section>
+  <div class="container">
+    <div class="signal-strip">
+      <span class="signal-mark" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></span>
+      <strong>电视直播与电台</strong>
+      <ul><li>全球电视</li><li>赛事直播</li><li>广播电台</li><li>现场娱乐</li></ul>
+      <a href="#discover" aria-label="功能介绍">↓</a>
+    </div>
+  </div>
+  <section id="discover" class="showcase-section" aria-labelledby="discover-title">
+    <div class="container">
+      <div class="section-heading" data-reveal>
+        <p class="eyebrow"><span>01</span>发现频道</p>
+        <h2 id="discover-title">每次换台，都是新一站。</h2>
+        <p>按地区或分类浏览，挑个频道，看看此刻正在发生什么。</p>
       </div>
-    </section>
+      <div class="media-grid">
 
-    <section class="content-band" aria-labelledby="preview-title">
-      <div class="container">
-        <div class="section-heading"><p class="section-index">01 / 选台</p><h2 id="preview-title">先看一眼，再决定切换。</h2><p>当前节目继续播放。点选另一频道时，频道卡片会静音预览；预览准备好后再次点选，才切到主播放器。需要立即切换时也可双击。</p></div>
-        <div class="feature-grid">
-          <article><span class="feature-number">01</span><h3>静音预览</h3><p>候选频道先在卡片中准备，减少来回切台对当前画面的干扰。</p></article>
-          <article><span class="feature-number">02</span><h3>频道与节目时间轴</h3><p>Windows 与 macOS 点击频道卡片可展开已匹配的当前节目和后续安排；暂无数据或加载失败时会显示相应状态。节目覆盖取决于已配置来源提供的数据。</p></article>
-          <article><span class="feature-number">03</span><h3>收藏与音量</h3><p>频道和主播放器共用菜单，可一键加入收藏；简洁界面提供鼠标可用的音量控制。</p></article>
-        </div>
+
+        <article class="media-card" data-reveal>
+          <img src="/assets/showcase/world.webp" width="800" height="600" loading="lazy" decoding="async" alt="">
+          <div class="media-copy">
+            <span class="media-label">全球电视</span>
+            <h3>从熟悉的频道逛到远方</h3>
+            <p>浏览不同国家和地区的电视台，发现新闻、综艺和地方节目。</p>
+          </div>
+        </article>
+
+
+        <article class="media-card" data-reveal>
+          <img src="/assets/showcase/sports.webp" width="800" height="600" loading="lazy" decoding="async" alt="">
+          <div class="media-copy">
+            <span class="media-label">赛事直播</span>
+            <h3>追上比赛的下一秒</h3>
+            <p>从体育分类找直播信号，跟着现场节奏看球。</p>
+          </div>
+        </article>
+
+
+        <article class="media-card" data-reveal>
+          <img src="/assets/showcase/radio.webp" width="800" height="600" loading="lazy" decoding="async" alt="">
+          <div class="media-copy">
+            <span class="media-label">广播电台</span>
+            <h3>关掉画面，听一会儿</h3>
+            <p>支持纯音频播放，音乐、访谈和各地电台都能接着听。</p>
+          </div>
+        </article>
+
+
+        <article class="media-card" data-reveal>
+          <img src="/assets/showcase/entertainment.webp" width="800" height="600" loading="lazy" decoding="async" alt="">
+          <div class="media-copy">
+            <span class="media-label">现场娱乐</span>
+            <h3>舞台一亮，好戏开场</h3>
+            <p>从综艺节目到音乐现场，顺着娱乐分类发现下一场演出。</p>
+          </div>
+        </article>
+
       </div>
-    </section>
+      <aside class="station-band" aria-labelledby="stations-title" data-reveal>
+        <h3 id="stations-title">部分频道示例</h3>
+        <ul class="station-marks">
 
-    <section class="catalog-band" aria-labelledby="catalog-title">
-      <div class="container catalog-layout">
-        <div class="catalog-intro"><p class="section-index">02 / 浏览</p><h2 id="catalog-title">频道有序，找到想看的更快。</h2><p>按地区组织电视目录，并让央视、卫视、地方台、国际频道与电台各归其位。频道排序稳定，CCTV-5 与 CCTV-5+ 保持独立。</p></div>
-        <div class="catalog-list" aria-label="频道分类示例">
-          <div><strong>央视频道</strong><span>CCTV1 至 CCTV17 按数字排序，4K、8K 与 CGTN 接续排列</span></div>
-          <div><strong>国家与地区</strong><span>中国按央视及地方地区展开；其他国家和地区可钉选到主导航，分类支持继续细分</span></div>
-          <div><strong>分类与频道合并</strong><span>右键可变更分类及子分类，缺少的国家、地区和分类可直接输入创建；也可跨分类合并多个频道，完整层级及去重线路在后台同步</span></div>
-        </div>
+          <li><img src="/assets/showcase/stations/nhk-world.webp" width="220" height="100" loading="lazy" decoding="async" alt="NHK WORLD-JAPAN"></li>
+
+          <li><img src="/assets/showcase/stations/bbc-news.webp" width="220" height="100" loading="lazy" decoding="async" alt="BBC News"></li>
+
+          <li><img src="/assets/showcase/stations/france-24.webp" width="220" height="100" loading="lazy" decoding="async" alt="France 24"></li>
+
+          <li><img src="/assets/showcase/stations/dw.webp" width="220" height="100" loading="lazy" decoding="async" alt="DW"></li>
+
+          <li><img src="/assets/showcase/stations/arirang.webp" width="220" height="100" loading="lazy" decoding="async" alt="Arirang"></li>
+
+          <li><img src="/assets/showcase/stations/cctv.webp" width="220" height="100" loading="lazy" decoding="async" alt="CCTV-1"></li>
+
+        </ul>
+      </aside>
+    </div>
+  </section>
+
+
+  <section class="showcase-section feature-section signals-section" aria-labelledby="signals-title">
+    <div class="container feature-layout">
+      <div class="feature-image" data-reveal>
+        <img src="/assets/showcase/signals.webp" width="960" height="720" loading="lazy" decoding="async" alt="">
       </div>
-    </section>
+      <div class="feature-copy" data-reveal>
+        <p class="eyebrow"><span>02</span>频道与节目单</p>
+        <h2 id="signals-title">找到频道，也知道接下来播什么。</h2>
+        <ul class="feature-points">
 
-    <section class="content-band" aria-labelledby="sync-title">
-      <div class="container">
-        <div class="section-heading"><p class="section-index">03 / 公共频道同步</p><h2 id="sync-title">一份频道清单，持续一起维护。</h2><p>Windows 与 Mac 共用网站上的公共频道、分类和线路记录。新安装先显示本机或随包目录，再在后台获取经过验证的公共清单，无需等每条线路重新扫描。</p></div>
-        <div class="feature-grid">
-          <article><span class="feature-number">01 / 初始化</span><h3>打开后逐步就绪</h3><p>读取最新分类、节目单映射和候选线路。列表旁显示同步中、已同步或待重试，播放区域保持清楚。</p></article>
-          <article><span class="feature-number">02 / 持续维护</span><h3>修改留在后台完成</h3><p>公共频道的增删、分类修改、线路加减权及淘汰会持久保存并异步上传。离线时保留修改，联网后自动重试。</p></article>
-          <article><span class="feature-number">03 / 跨设备</span><h3>淘汰结果持续生效</h3><p>客户端每分钟检查清单版本。重复上报不会重复计分，旧清单不会恢复已删除或淘汰的线路，新来源仍需网站验证。</p></article>
-        </div>
-        <p class="route-note">共用公共电视目录与线路记录。收藏独立私有备份，仅原设备凭指纹与专属密钥可取回，不会分发给其他用户。播放历史、私人订阅及账号信息留在本机；同步成功也不代表第三方线路始终可播。</p>
+          <li><span aria-hidden="true">✦</span><div><h3>频道资料自动补充</h3><p>公共目录持续整理，频道名称、台标和分类会逐步补齐。</p></div></li>
+
+          <li><span aria-hidden="true">◷</span><div><h3>节目单自动获取</h3><p>对已有可用来源的部分频道，自动获取节目单，查看正在播什么和接下来的安排。</p></div></li>
+
+          <li><span aria-hidden="true">★</span><div><h3>把喜欢的台收藏起来</h3><p>常看的频道点一下星标，下次打开就能从收藏里找到。</p></div></li>
+
+          <li><span aria-hidden="true">↻</span><div><h3>持续整理播放线路</h3><p>根据播放表现调整候选线路，质量差的线路可以淘汰。</p></div></li>
+
+        </ul>
       </div>
-    </section>
+    </div>
+  </section>
 
-    <section class="route-band" aria-labelledby="route-title">
-      <div class="container">
-        <div class="section-heading light"><p class="section-index">04 / 播放线路</p><h2 id="route-title">同一个频道，优先选择更可靠的线路。</h2><p>BobTV 将同一频道的可用线路归组，结合本机连接表现与公共评分排序。播放成功会加权，失败、卡顿和手动跳过会减权；污染线路可在右键菜单中淘汰。</p></div>
-        <div class="route-steps">
-          <div><span>识别</span><strong>区分频道与线路</strong><p>例如 CCTV-5 与 CCTV-5+ 保持独立，避免错误的同名归组。</p></div>
-          <div><span>选择</span><strong>参考播放健康</strong><p>真正解码播放的线路获得正向记录，失效和手动跳过会影响排序。</p></div>
-          <div><span>恢复</span><strong>准备替代线路</strong><p>当当前线路中断时尝试切换，候选无法产生实际播放时恢复原线路。</p></div>
-        </div>
-        <p class="route-note">线路状态取决于源提供方及网络环境，不能保证所有频道始终可播放。</p>
+
+  <section class="showcase-section feature-section devices-section" aria-labelledby="devices-title">
+    <div class="container feature-layout">
+      <div class="feature-image" data-reveal>
+        <img src="/assets/showcase/devices.webp" width="960" height="720" loading="lazy" decoding="async" alt="">
       </div>
-    </section>
+      <div class="feature-copy" data-reveal>
+        <p class="eyebrow"><span>03</span>语言与设备</p>
+        <h2 id="devices-title">换个屏幕，还是熟悉的 BobTV。</h2>
+        <ul class="feature-points">
 
-    <section class="content-band" aria-labelledby="server-title">
-      <div class="container">
-        <div class="section-heading"><p class="section-index">服务器链路</p><h2 id="server-title">来源发现与 AI 在服务器执行。</h2><p>客户端从 BobTV 网站接收频道、分类和线路结果。安装包、节目单、台标和同步资源会比较主站与 cndrp 缓存节点速度；视频直连原始源，来源发现和 AI 在服务器执行。</p></div>
-        <div class="feature-grid">
-          <article><span class="feature-number">01</span><h3>按地区参考线路表现</h3><p>结合访问地区与该地区的实际播放反馈排序，没有测量记录的线路仍需验证。</p></article>
-          <article><span class="feature-number">02</span><h3>按需维护</h3><p>服务器负责来源发现、更新和 AI 分类，客户端只为当前频道检查线路。</p></article>
-          <article><span class="feature-number">03</span><h3>资源与视频分开传输</h3><p>缓存节点仅承接资源上传和下载，视频播放不经该节点。中国大陆的下载与节目源可用性仍需当地网络实测。</p></article>
-        </div>
+          <li><span aria-hidden="true">✦</span><div><h3>七种界面语言</h3><p>官网提供七种语言。应用界面从 1.1.19 起支持简体中文、繁体中文、英语、日语、韩语、法语和西班牙语。</p></div></li>
+
+          <li><span aria-hidden="true">◷</span><div><h3>现在就能用</h3><p>支持 Windows、macOS 和 Android 手机及平板。</p></div></li>
+
+          <li><span aria-hidden="true">★</span><div><h3>开发中</h3><p>iPhone、iPad 和嵌入式网页播放器正在开发。</p></div></li>
+
+        </ul>
       </div>
-    </section>
+    </div>
+  </section>
 
-    <section class="content-band" aria-labelledby="living-title">
-      <div class="container">
-        <div class="section-heading"><p class="section-index">05 / 使用场景</p><h2 id="living-title">从桌面，到客厅。</h2><p>Windows 与 macOS 提供简洁选台体验，并支持全屏观看与不同类型的媒体。</p></div>
-        <div class="feature-grid use-grid">
-          <article><span class="feature-number">A</span><h3>全屏与桌面画中画</h3><p>全屏顶部左侧显示台名，中间显示当前和后两个节目，右侧提供返回与退出。画中画可悬浮置顶、拖动和调节音量；返回频道时继续播放。</p></article>
-          <article><span class="feature-number">B</span><h3>纯音频电台</h3><p>电台线路按音频媒体处理，不会因为缺少视频轨道就被误判为播放失败。</p></article>
-          <article><span class="feature-number">C</span><h3>Mac AirPlay</h3><p>同一网络中有兼容的 Mac AirPlay 接收端时，可将 Windows 播放器的音视频发送过去。</p></article>
-        </div>
+  <section class="showcase-section player-section" aria-labelledby="player-title">
+    <div class="container feature-layout">
+      <div class="feature-copy" data-reveal>
+        <p class="eyebrow"><span>04</span>播放体验</p>
+        <h2 id="player-title">看着这一台，也能先预览下一台。</h2>
+        <p>静音预览下一台，选好再切换。电脑上还能使用全屏和悬浮画中画。</p>
       </div>
-    </section>
+      <figure class="feature-image player-image" data-reveal>
+        <img src="/assets/product.png?v=3" width="1765" height="1056" loading="lazy" decoding="async" alt="BobTV 简洁模式实际画面，正在播放体育节目，右侧为频道列表。">
+        <figcaption>实际运行画面</figcaption>
+      </figure>
+    </div>
+  </section>
+  <section class="showcase-section cta-section" aria-labelledby="closing-title">
+    <div class="container">
+      <div class="download-banner" data-reveal>
+        <div><p class="eyebrow">WINDOWS · MACOS · ANDROID</p><h2 id="closing-title">今天，想看哪一台？</h2></div>
+        <a class="button primary" href="/downloads">下载 BobTV <span aria-hidden="true">↓</span></a>
+      </div>
+    </div>
+  </section>
+</main>
 
+  <footer>
+    <div class="container footer-inner">
+      <div class="footer-about">
+        <strong>BobTV</strong>
+        <span>开源电视与电台播放器<span id="installed-devices"></span></span>
+        <p>使用前请确认第三方节目源的可用性及使用授权。</p>
+      </div>
+      <div class="footer-corner">
+        <nav aria-label="支持与政策">
+          <a href="/release-notes">版本记录</a>
+          <a href="/diagnostics">上传日志</a>
+          <a href="/privacy">隐私政策</a>
+          <a href="/code-signing">代码签名政策 / Code signing policy</a>
+        </nav>
+      </div>
+    </div>
+  </footer>
+  <a class="back-top" href="#top" aria-label="回到顶部" hidden>↑</a>
+  <script id="site-messages" type="application/json">{"android_note": "Android 7+\uff1b\u66f4\u65b0\u5b89\u88c5\u9700\u7cfb\u7edf\u786e\u8ba4\u3002\u5b9e\u673a\u4e0e\u5927\u9646\u7f51\u7edc\u5f85\u9a8c\u8bc1\u3002", "checking": "\u6b63\u5728\u68c0\u67e5\u65e5\u5fd7\u2026", "checksum": "SHA-256 \u6821\u9a8c\u503c", "cpu_note": "\u6bcf\u4e2a\u7cfb\u7edf\u4e00\u680f\uff0c\u6309 CPU \u9009\u62e9\u3002", "current": "\u6700\u65b0\u53d1\u5e03", "dmg": "DMG \u5b89\u88c5\u6620\u50cf", "download": "\u4e0b\u8f7d", "download_label": "\u4e0b\u8f7d {platform} {version}\uff0c{size}", "download_package": "\u4e0b\u8f7d\u5b89\u88c5\u5305", "empty": "\u6682\u65f6\u6ca1\u6709\u5b89\u88c5\u5305\uff0c\u8bf7\u7a0d\u540e\u67e5\u770b\u3002", "entries": "\u65e5\u5fd7\u6761\u76ee\u8fc7\u591a", "exe": "EXE \u5b89\u88c5\u7a0b\u5e8f", "failure": "\u4e0a\u4f20\u5931\u8d25\uff08{error}\uff09\u3002\u8bf7\u68c0\u67e5\u6587\u4ef6\u540e\u91cd\u8bd5\u3002", "file_limit": "\u8bf7\u9009\u62e9\u4e0d\u8d85\u8fc7 1 MiB \u7684\u65e5\u5fd7\u3002", "intel": "Intel Mac \u7248", "invalid": "JSONL \u65e5\u5fd7\u683c\u5f0f\u4e0d\u6b63\u786e", "loading": "\u6b63\u5728\u8bfb\u53d6\u7248\u672c\u4fe1\u606f\u2026", "macos_note": "\u5f53\u524d\u4f9d\u8d56\u8981\u6c42 macOS 13 \u6216\u66f4\u65b0\u7248\u672c\uff0c\u65e7\u7cfb\u7edf\u517c\u5bb9\u4ecd\u5f85\u5f00\u53d1\u3002\u9009\u5bf9\u82af\u7247\uff0c\u6253\u5f00 DMG \u540e\u62d6\u5230 Applications\u3002", "no_file": "\u672a\u9009\u62e9\u6587\u4ef6", "pending": "\u51c6\u5907\u4e2d", "platform_pending": "\u8be5\u5e73\u53f0\u5f53\u524d\u63d0\u4f9b {version}\uff0c\u73b0\u6709\u4e0b\u8f7d\u4e0e\u66f4\u65b0\u901a\u9053\u7ee7\u7eed\u53ef\u7528\u3002", "portable_download": "\u4e0b\u8f7d ZIP \u4fbf\u643a\u5305", "processed_limit": "\u8fc7\u6ee4\u540e\u65e5\u5fd7\u8d85\u8fc7 1 MiB", "published": "\u53d1\u5e03\u4e8e {date}", "release_error": "\u7248\u672c\u4fe1\u606f\u6682\u65f6\u4e0d\u53ef\u7528\uff0c\u8bf7\u7a0d\u540e\u91cd\u8bd5\u3002", "silicon": "Apple Silicon Mac \u7248", "success": "\u4e0a\u4f20\u5b8c\u6210\u3002\u8bca\u65ad\u7f16\u53f7\uff1a{id}", "surface_pending": "Surface ARM \u539f\u751f\u7248\u5f85\u7f16\u8bd1\u9a8c\u8bc1", "uploading": "\u6b63\u5728\u4e0a\u4f20\u2026", "version_note": "\u4e0b\u8f7d\u6309\u94ae\u6807\u660e\u5404\u5e73\u53f0\u7248\u672c\u3002", "windows": "Windows \u7248", "windows_arm64_note": "ARM64 \u539f\u751f\u5305\u5df2\u901a\u8fc7\u6784\u5efa\u4e0e\u67b6\u6784\u6821\u9a8c\uff1bSurface \u5b9e\u673a\u64ad\u653e\u3001AirPlay \u548c\u66f4\u65b0\u4ecd\u5f85\u9a8c\u8bc1\u3002", "windows_note": "Setup \u9700\u8981\u7ba1\u7406\u5458\u6388\u6743\uff0cZIP \u53ef\u5b8c\u6574\u89e3\u538b\u4f7f\u7528\u3002", "zip": "ZIP \u4fbf\u643a\u5305"}</script>
+  <script src="/assets/language.js?v=1" defer></script>
+  <script src="/assets/device-count.js?v=2" defer></script>
+  <script src="/assets/showcase.js?v=1" defer></script>
 
-    <section class="closing-band" aria-labelledby="closing-title"><div class="container closing-inner"><div><p class="section-index">开始使用</p><h2 id="closing-title">打开 BobTV，回到正在看的节目。</h2><p>选择 Windows Setup 或对应处理器的 Mac DMG。应用可同步网站的共用频道清单；线路可用性仍取决于来源与网络。</p></div><a class="button primary" href="/downloads">前往下载</a></div></section>
-  </main>
-  <footer><div class="container footer-inner"><span>BobTV · 开源桌面播放器</span><span>第三方节目源的可用性与授权由使用者自行确认。<br><a href="/privacy">隐私政策</a> · <a href="/code-signing">代码签名政策 / Code signing policy</a></span></div></footer>
 </body>
 </html>

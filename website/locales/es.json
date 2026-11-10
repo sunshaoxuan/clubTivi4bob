@@ -678,5 +678,101 @@
         ]
       ]
     ]
+  },
+  "showcase": {
+    "title": "BobTV | Televisión en directo, radio y guía de programación",
+    "meta": "Explora canales, emisoras y señales en directo de más de 100 países en Windows, macOS y Android. Sitio disponible en siete idiomas.",
+    "eyebrow": "Televisión y radio en directo",
+    "countries": "países",
+    "languages": "idiomas en la web",
+    "support": "Asistencia y políticas",
+    "upload": "Subir registros",
+    "top": "Volver arriba",
+    "footer": "Reproductor de TV y radio de código abierto",
+    "hero": [
+      "El mundo está en directo.",
+      "Cobra vida ante tus ojos.",
+      "Desde el rugido del estadio hasta la radio de madrugada, explora canales, emisoras y señales en directo de más de 100 países."
+    ],
+    "discover": [
+      "Explora",
+      "Cada cambio de canal, un nuevo destino.",
+      "Busca por región o categoría y descubre qué se está emitiendo ahora mismo."
+    ],
+    "media": [
+      [
+        "Televisión del mundo",
+        "De tus canales locales a los de otros países",
+        "Descubre noticias, entretenimiento y programas locales de distintas regiones."
+      ],
+      [
+        "Deportes en directo",
+        "Sigue la próxima jugada",
+        "Busca señales en la categoría de deportes y disfruta del partido en directo."
+      ],
+      [
+        "Radio",
+        "Apaga la pantalla y escucha",
+        "Disfruta de música, entrevistas y emisoras de distintos lugares en modo solo audio."
+      ],
+      [
+        "Entretenimiento",
+        "Cuando se encienden los focos",
+        "De los programas de variedades a la música en directo, descubre qué hay en Entretenimiento."
+      ]
+    ],
+    "signals": [
+      "Canales y programación",
+      "Encuentra un canal y mira qué viene después.",
+      [
+        [
+          "Datos de canales que se completan solos",
+          "El catálogo público incorpora nombres, logotipos y categorías a medida que hay información disponible."
+        ],
+        [
+          "Guía de programación automática",
+          "Consulta qué se emite ahora y después en algunos canales con una fuente de programación compatible."
+        ],
+        [
+          "Tus favoritos, siempre a mano",
+          "Marca con una estrella los canales que más ves para encontrarlos en Favoritos."
+        ],
+        [
+          "Señales en revisión continua",
+          "El rendimiento de reproducción ayuda a ordenar las señales y a retirar las de baja calidad."
+        ]
+      ]
+    ],
+    "devices": [
+      "Idiomas y dispositivos",
+      "Otra pantalla, el mismo BobTV.",
+      [
+        [
+          "Siete idiomas de interfaz",
+          "Este sitio está disponible en siete idiomas. A partir de la versión 1.1.19, la aplicación ofrece español, inglés, chino simplificado, chino tradicional, japonés, coreano y francés."
+        ],
+        [
+          "Disponible ahora",
+          "En Windows, macOS y en teléfonos y tabletas Android."
+        ],
+        [
+          "En desarrollo",
+          "Las versiones para iPhone y iPad y el reproductor web integrable están en desarrollo."
+        ]
+      ]
+    ],
+    "player": [
+      "Reproducción",
+      "Previsualiza otro canal mientras sigues viendo el tuyo.",
+      "Mira una vista previa sin sonido antes de cambiar. En el ordenador también puedes usar la pantalla completa o el modo de imagen en imagen."
+    ],
+    "closing": "¿Qué te apetece ver hoy?",
+    "download": [
+      "Elige tu dispositivo",
+      "BobTV está disponible para Windows, macOS y Android. Selecciona tu sistema y procesador para encontrar el instalador adecuado.",
+      "Ver instaladores",
+      "Detalles de la versión y la instalación"
+    ],
+    "stations": "Algunos canales para explorar"
   }
 }

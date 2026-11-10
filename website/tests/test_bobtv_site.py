@@ -76,36 +76,35 @@ def test_product_pages_reflect_published_releases():
                    for line in (site.parent / 'pubspec.yaml').read_text().splitlines()
                    if line.startswith('version:'))
     history = client.get("/release-notes?lang=zh-CN").text
+    header, _, footer = home.partition("<footer>")
     assert 'class="history-band"' not in home
-    assert '<a href="/release-notes">版本记录</a>' in home
+    assert 'href="/release-notes"' not in header and 'href="/diagnostics"' not in header
+    assert '<a href="/release-notes">版本记录</a>' in footer
+    assert '<a href="/diagnostics">上传日志</a>' in footer
     assert '<a href="/release-notes" aria-current="page">版本记录</a>' in history
-    assert "v1.0.3" in history and "WINDOWS · MACOS" in home
-    assert f"{version} · Windows / macOS / Android" in home
-    assert "cndrp" in home and "视频直连" in home
-    assert "v1.0.5 · 服务器链路、频道合并与全屏修复" in history
-    static_home = (site / "index.html").read_text()
-    assert "跨分类合并多个频道" in static_home
-    assert 'id="server-title"' in home
+    assert "v1.0.3" in history and "v1.0.5 · 服务器链路、频道合并与全屏修复" in history
     assert "桌面画中画与全屏节目单" in history
+    assert "100 多个国家" in home and "七种界面语言" in home
+    assert "iPhone、iPad 和嵌入式网页播放器正在开发" in home
+    assert "部分频道" in home and "质量差的线路可以淘汰" in home
+    assert '/assets/product.png?v=3' in home
+    assert '/assets/showcase/hero.webp' in home
+    assert 'class="home-page"' in home and 'class="container home-hero-layout"' in home
+    assert 'href="/downloads"' in header and 'class="back-top"' in home
+    assert 'class="back-top"' not in history
+    assert "github.com" not in home.lower()
     static_history = (site / "release-notes.html").read_text()
     assert "Setup 安装向导" in static_history and "Unicode" in static_history
     assert "正式安装版" in static_history and "退出后继续显示备份、安装及完成状态" in static_history
-    assert 'id="sync-title"' in home and "离线时保留修改" in home
-    assert "每分钟检查清单版本" in static_home and "公共评分" in static_home
-    assert "静音预览" in static_home and "Mac AirPlay" in static_home and "纯音频电台" in static_home
-    assert '/assets/product.png?v=3' in home
-    assert 'class="home-page"' in home and 'class="container home-hero-layout"' in home
-    assert 'href="/downloads"' in home and 'href="/diagnostics"' in home
-    assert "github.com" not in home.lower()
     downloads = client.get("/downloads?lang=zh-CN").text
     assert 'id="release-list"' in downloads and "BobTV.exe" in downloads
     assert 'id="release-title"' in downloads
-    assert 'id="first-launch-title"' in downloads and version in downloads
+    assert 'id="first-launch-title"' in downloads and "v" + version.split("+")[0] in history
     assert "1.1.10+103" not in downloads and "ad-hoc" in downloads
     assert "管理员授权" in downloads and "只读磁盘映像" in downloads
     assert "下载并校验 Setup" in downloads and "取消授权可继续使用旧版" in downloads
     assert "v0.9.1-bob.11" not in downloads
-    assert 'class="downloads-page"' in downloads
+    assert 'class="downloads-page"' in downloads and 'class="back-top"' in downloads
     script = client.get("/assets/downloads.js").text
     assert "item.version === candidates[0]?.version" in script
     assert "${release.version} · ${format}" in script
@@ -113,7 +112,7 @@ def test_product_pages_reflect_published_releases():
     assert "Windows ARM64" in script and "Android ARM64" in script
     assert "Apple Silicon" in script and "Windows x64" in script
     diagnostics = client.get("/diagnostics?lang=zh-CN").text
-    assert 'class="diagnostics-page"' in diagnostics
+    assert 'class="diagnostics-page"' in diagnostics and 'class="back-top"' not in diagnostics
     assert 'id="upload-form"' in diagnostics and 'id="log-file"' in diagnostics
     assert "默认关闭" in diagnostics
     assert "尚未集成自动上传" not in diagnostics

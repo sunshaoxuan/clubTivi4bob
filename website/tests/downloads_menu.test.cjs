@@ -15,7 +15,7 @@ async function render(items){
  const list=new Element('div');
  const releases=items.map(item=>({...item,date:'2026-10-12',size:'43 MB',sha256:'abc'}));
  vm.runInNewContext(fs.readFileSync(path.join(__dirname,'../assets/downloads.js'),'utf8'),{
-  document:{querySelector:selector=>selector==='#release-list'?list:null,createElement:tag=>new Element(tag)},
+  document:{body:{dataset:{}},querySelector:selector=>selector==='#release-list'?list:null,createElement:tag=>new Element(tag)},
   fetch:async()=>({ok:true,json:async()=>({releases})}),
  });
  await new Promise(resolve=>setImmediate(resolve));

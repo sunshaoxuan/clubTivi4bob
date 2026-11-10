@@ -1,37 +1,56 @@
 {% set site_root = site_root | default("") %}
+{% set is_showcase = page in ['index', 'downloads'] %}
 <!doctype html>
 <html lang="{{ locale }}">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="{% block description %}{{ t.meta[page] }}{% endblock %}">
-  <title>{% block title %}{{ t.titles[page] }}{% endblock %}</title>
+  <meta name="description" content="{% block description %}{{ t.showcase.meta if page == 'index' else t.meta[page] }}{% endblock %}">
+  <title>{% block title %}{{ t.showcase.title if page == 'index' else t.titles[page] }}{% endblock %}</title>
+  <meta name="theme-color" content="#0d101e">
   <link rel="icon" type="image/png" href="{{ site_root }}/assets/favicon.png?v=2">
-  <link rel="stylesheet" href="{{ site_root }}/assets/site.css?v=15">
+  <link rel="stylesheet" href="{{ site_root }}/assets/site.css?v=16">
   {% for code in languages %}<link rel="alternate" hreflang="{{ code }}" href="{{ path }}?lang={{ code }}">{% endfor %}
   <link rel="alternate" hreflang="x-default" href="{{ path }}?lang=en">
 </head>
-<body data-site-root="{{ site_root }}" class="{{ 'home' if page == 'index' else 'downloads' if page in ['privacy', 'code-signing'] else page }}-page">
+<body id="top" data-site-root="{{ site_root }}" class="{{ 'home' if page == 'index' else page }}-page">
   <header class="site-header"><div class="container header-inner">
-    <a class="brand" href="{{ site_root }}/" aria-label="BobTV"><span class="brand-mark">▶</span>Bob<span>TV</span></a>
-    <nav aria-label="{{ t.nav_label }}">
-      {% for key, url in [('index', '/'), ('downloads', '/downloads'), ('release-notes', '/release-notes'), ('diagnostics', '/diagnostics')] %}
-      <a href="{{ site_root }}{{ url }}"{% if page == key %} aria-current="page"{% endif %}>{{ t.home.history_label if key == 'release-notes' else t.nav[key] }}</a>
-      {% endfor %}
+    <a class="brand" href="{{ site_root }}/" aria-label="BobTV"><span class="brand-mark" aria-hidden="true">▶</span><span>Bob<span class="gradient-text">TV</span></span></a>
+    <nav class="main-nav" aria-label="{{ t.nav_label }}">
+      <a href="{{ site_root }}/"{% if page == 'index' %} aria-current="page"{% endif %}>{{ t.nav.index }}</a>
+      <a class="nav-download" href="{{ site_root }}/downloads"{% if page == 'downloads' %} aria-current="page"{% endif %}>{{ t.nav.downloads }} <span aria-hidden="true">↓</span></a>
     </nav>
     <form class="language-form" action="{{ path }}" method="get">
       <label class="visually-hidden" for="language">{{ t.language }}</label>
       <select id="language" name="lang" aria-label="{{ t.language }}">
         {% for code, label in languages.items() %}<option value="{{ code }}"{% if code == locale %} selected{% endif %}>{{ label }}</option>{% endfor %}
       </select>
-      <button type="submit">{{ t.language }} <span aria-hidden="true">↗</span></button>
+      <noscript><button type="submit">{{ t.language }}</button></noscript>
     </form>
   </div></header>
   {% block content %}{% endblock %}
-  <footer><div class="container footer-inner"><span>{{ t.footer }}<span id="installed-devices">{% if installed_devices is not none %} ({{ installed_devices }}){% endif %}</span></span><span>{{ t.disclaimer }}<br><a href="{{ site_root }}/privacy">{{ t.policy_links.privacy }}</a> · <a href="{{ site_root }}/code-signing">{{ t.policy_links.signing }}</a></span></div></footer>
+  <footer>
+    <div class="container footer-inner">
+      <div class="footer-about">
+        <strong>BobTV</strong>
+        <span>{{ t.showcase.footer }}<span id="installed-devices">{% if installed_devices is not none %} ({{ installed_devices }}){% endif %}</span></span>
+        <p>{{ t.disclaimer }}</p>
+      </div>
+      <div class="footer-corner">
+        <nav aria-label="{{ t.showcase.support }}">
+          <a href="{{ site_root }}/release-notes"{% if page == 'release-notes' %} aria-current="page"{% endif %}>{{ t.home.history_label }}</a>
+          <a href="{{ site_root }}/diagnostics"{% if page == 'diagnostics' %} aria-current="page"{% endif %}>{{ t.showcase.upload }}</a>
+          <a href="{{ site_root }}/privacy"{% if page == 'privacy' %} aria-current="page"{% endif %}>{{ t.policy_links.privacy }}</a>
+          <a href="{{ site_root }}/code-signing"{% if page == 'code-signing' %} aria-current="page"{% endif %}>{{ t.policy_links.signing }}</a>
+        </nav>
+      </div>
+    </div>
+  </footer>
+  {% if is_showcase %}<a class="back-top" href="#top" aria-label="{{ t.showcase.top }}" hidden>↑</a>{% endif %}
   <script id="site-messages" type="application/json">{{ t.messages | tojson }}</script>
   <script src="{{ site_root }}/assets/language.js?v=1" defer></script>
   <script src="{{ site_root }}/assets/device-count.js?v=2" defer></script>
+  {% if is_showcase %}<script src="{{ site_root }}/assets/showcase.js?v=1" defer></script>{% endif %}
   {% block scripts %}{% endblock %}
 </body>
 </html>

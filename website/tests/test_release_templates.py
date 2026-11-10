@@ -22,11 +22,12 @@ def test_release_templates_preserve_languages_and_settings(locale):
         assert f'lang="{locale}"' in rendered
         assert 'installed-devices' in rendered
         if page == 'index':
-            assert '1.1.19+114 · Windows / macOS / Android' in rendered
+            assert copy['showcase']['hero'][0] in rendered
+            assert 'class="back-top"' in rendered
             assert 'class="history-band"' not in rendered
-            assert 'settings-title' in rendered
-            assert 'server-title' in rendered
-            assert 'tablets-title' in rendered
+            assert 'signals-title' in rendered
+            assert 'devices-title' in rendered
+            assert 'player-title' in rendered
         elif page == 'release-notes':
             assert f'<a href="/release-notes" aria-current="page">{copy["home"]["history_label"]}</a>' in rendered
             assert 'v1.1.19 · ' in rendered
@@ -36,7 +37,7 @@ def test_release_templates_preserve_languages_and_settings(locale):
             assert 'class="download-signing-note"' not in rendered
             assert 'id="install-title"' in rendered
             assert 'id="release-list"' in rendered
-            assert '1.1.19+114' in rendered
+            assert copy['showcase']['download'][0] in rendered
             assert '1.1.10+103' not in copy['downloads']['intro']
             assert '1.1.19+114' in copy['downloads']['intro']
             assert '1.1.10+103' not in copy['downloads']['intro']
@@ -47,8 +48,10 @@ def test_release_templates_preserve_languages_and_settings(locale):
 @pytest.mark.parametrize('page', ['release-notes', 'downloads'])
 def test_static_release_copies_preserve_android_and_diagnostic_notice(page):
     rendered = (ROOT / f'{page}.html').read_text()
-    version = 'v1.1.18 · ' if page == 'release-notes' else '1.1.18+113'
-    assert version in rendered
+    if page == 'release-notes':
+        assert 'v1.1.18 · ' in rendered
+    else:
+        assert 'id="release-list"' in rendered
     assert '1.1.10+103' not in json.loads((ROOT / 'locales' / 'zh-CN.json').read_text())['downloads']['intro']
     assert '30 天' in rendered
     assert '同意' in rendered

@@ -1,22 +1,103 @@
 {% extends "base.html" %}
 {% block content %}
+{% set s = t.showcase %}
 <main>
-  <section class="hero-band" aria-labelledby="hero-title"><div class="container home-hero-layout">
-    <div class="hero-copy"><p class="eyebrow"><span class="accent-line"></span> WINDOWS · MACOS · ANDROID</p>
-      <h1 id="hero-title">BobTV<span class="home-hero-period">.</span></h1>
-      <p class="hero-statement">{{ t.home.headline }}</p><p class="hero-description">{{ t.home.intro }}</p>
-      <div class="actions"><a class="button primary" href="{{ site_root }}/downloads">{{ t.download }} <span aria-hidden="true">↗</span></a><a class="button secondary" href="#preview-title">{{ t.features }}</a></div>
-      <p class="release-meta">1.1.19+114 · Windows / macOS / Android</p>
+  <section class="hero-band" aria-labelledby="hero-title">
+    <div class="container home-hero-layout">
+      <div class="hero-copy">
+        <p class="eyebrow"><span class="live-dot"></span>{{ s.eyebrow }}</p>
+        <h1 id="hero-title">{{ s.hero[0] }}<br><span class="gradient-text">{{ s.hero[1] }}</span></h1>
+        <p class="hero-description">{{ s.hero[2] }}</p>
+        <div class="actions">
+          <a class="button primary" href="{{ site_root }}/downloads">{{ t.download }} <span aria-hidden="true">↓</span></a>
+          <a class="button secondary" href="#discover">{{ t.features }} <span aria-hidden="true">↘</span></a>
+        </div>
+        <p class="platform-line"><span class="platform-dots" aria-hidden="true"><i></i><i></i><i></i></span>Windows <span>·</span> macOS <span>·</span> Android</p>
+      </div>
+      <div class="hero-visual">
+        <img class="hero-photo" src="{{ site_root }}/assets/showcase/hero.webp" width="1200" height="900" alt="" fetchpriority="high">
+        <div class="floating-stat countries"><span aria-hidden="true">◎</span><div><strong>100+</strong><small>{{ s.countries }}</small></div></div>
+        <div class="floating-stat languages"><span aria-hidden="true">Aa</span><div><strong>7</strong><small>{{ s.languages }}</small></div></div>
+      </div>
     </div>
-    <div class="hero-visual"><div class="home-visual-frame"><img class="product-image" src="{{ site_root }}/assets/product.png?v=3" width="1765" height="1056" alt="{{ t.home.image_alt }}"></div><div class="image-caption"><span>{{ t.home.mode }}</span><span>{{ t.home.screenshot }}</span></div></div>
-  </div></section>
-  {% for section in t.home.sections %}
-  <section class="{{ 'route-band' if section.id == 'route' else 'content-band' }}" aria-labelledby="{{ section.id }}-title"><div class="container">
-    <div class="section-heading"><p class="section-index">0{{ loop.index }} / {{ section.label }}</p><h2 id="{{ section.id }}-title">{{ section.title }}</h2><p>{{ section.text }}</p></div>
-    <div class="feature-grid">{% for item in section['items'] %}<article><span class="feature-number">0{{ loop.index }}</span><h3>{{ item[0] }}</h3><p>{{ item[1] }}</p></article>{% endfor %}</div>
-    {% if section.note is defined %}<p class="route-note">{{ section.note }}</p>{% endif %}
-  </div></section>
+  </section>
+  <div class="container">
+    <div class="signal-strip">
+      <span class="signal-mark" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></span>
+      <strong>{{ s.eyebrow }}</strong>
+      <ul>{% for item in s.media %}<li>{{ item[0] }}</li>{% endfor %}</ul>
+      <a href="#discover" aria-label="{{ t.features }}">↓</a>
+    </div>
+  </div>
+  <section id="discover" class="showcase-section" aria-labelledby="discover-title">
+    <div class="container">
+      <div class="section-heading" data-reveal>
+        <p class="eyebrow"><span>01</span>{{ s.discover[0] }}</p>
+        <h2 id="discover-title">{{ s.discover[1] }}</h2>
+        <p>{{ s.discover[2] }}</p>
+      </div>
+      <div class="media-grid">
+        {% for image in ['world', 'sports', 'radio', 'entertainment'] %}
+        {% set item = s.media[loop.index0] %}
+        <article class="media-card" data-reveal>
+          <img src="{{ site_root }}/assets/showcase/{{ image }}.webp" width="800" height="600" loading="lazy" decoding="async" alt="">
+          <div class="media-copy">
+            <span class="media-label">{{ item[0] }}</span>
+            <h3>{{ item[1] }}</h3>
+            <p>{{ item[2] }}</p>
+          </div>
+        </article>
+        {% endfor %}
+      </div>
+      <aside class="station-band" aria-labelledby="stations-title" data-reveal>
+        <h3 id="stations-title">{{ s.stations }}</h3>
+        <ul class="station-marks">
+          {% for file, name in [('nhk-world', 'NHK WORLD-JAPAN'), ('bbc-news', 'BBC News'), ('france-24', 'France 24'), ('dw', 'DW'), ('arirang', 'Arirang'), ('cctv', 'CCTV-1')] %}
+          <li><img src="{{ site_root }}/assets/showcase/stations/{{ file }}.webp" width="220" height="100" loading="lazy" decoding="async" alt="{{ name }}"></li>
+          {% endfor %}
+        </ul>
+      </aside>
+    </div>
+  </section>
+  {% for image in ['signals', 'devices'] %}
+  {% set item = s[image] %}
+  <section class="showcase-section feature-section {{ image }}-section" aria-labelledby="{{ image }}-title">
+    <div class="container feature-layout">
+      <div class="feature-image" data-reveal>
+        <img src="{{ site_root }}/assets/showcase/{{ image }}.webp" width="960" height="720" loading="lazy" decoding="async" alt="">
+      </div>
+      <div class="feature-copy" data-reveal>
+        <p class="eyebrow"><span>0{{ loop.index + 1 }}</span>{{ item[0] }}</p>
+        <h2 id="{{ image }}-title">{{ item[1] }}</h2>
+        <ul class="feature-points">
+          {% for point in item[2] %}
+          <li><span aria-hidden="true">{{ ['✦', '◷', '★', '↻'][loop.index0] }}</span><div><h3>{{ point[0] }}</h3><p>{{ point[1] }}</p></div></li>
+          {% endfor %}
+        </ul>
+      </div>
+    </div>
+  </section>
   {% endfor %}
-  <section class="closing-band" aria-labelledby="closing-title"><div class="container closing-inner"><div><h2 id="closing-title">{{ t.home.closing }}</h2><p>{{ t.home.closing_text }}</p></div><a class="button primary" href="{{ site_root }}/downloads">{{ t.download }}</a></div></section>
+  <section class="showcase-section player-section" aria-labelledby="player-title">
+    <div class="container feature-layout">
+      <div class="feature-copy" data-reveal>
+        <p class="eyebrow"><span>04</span>{{ s.player[0] }}</p>
+        <h2 id="player-title">{{ s.player[1] }}</h2>
+        <p>{{ s.player[2] }}</p>
+      </div>
+      <figure class="feature-image player-image" data-reveal>
+        <img src="{{ site_root }}/assets/product.png?v=3" width="1765" height="1056" loading="lazy" decoding="async" alt="{{ t.home.image_alt }}">
+        <figcaption>{{ t.home.screenshot }}</figcaption>
+      </figure>
+    </div>
+  </section>
+  <section class="showcase-section cta-section" aria-labelledby="closing-title">
+    <div class="container">
+      <div class="download-banner" data-reveal>
+        <div><p class="eyebrow">WINDOWS · MACOS · ANDROID</p><h2 id="closing-title">{{ s.closing }}</h2></div>
+        <a class="button primary" href="{{ site_root }}/downloads">{{ t.download }} <span aria-hidden="true">↓</span></a>
+      </div>
+    </div>
+  </section>
 </main>
 {% endblock %}

@@ -678,5 +678,101 @@
         ]
       ]
     ]
+  },
+  "showcase": {
+    "title": "BobTV | Live TV, radio and program guides",
+    "meta": "Browse TV stations, radio and live sources from over 100 countries on Windows, macOS and Android. This website is available in seven languages.",
+    "eyebrow": "Live TV & radio",
+    "countries": "countries",
+    "languages": "website languages",
+    "support": "Support and policies",
+    "upload": "Upload logs",
+    "top": "Back to top",
+    "footer": "Open-source TV and radio player",
+    "hero": [
+      "The world is live.",
+      "See it come alive.",
+      "From the roar of the stadium to late-night radio, explore TV stations, radio and live sources from over 100 countries."
+    ],
+    "discover": [
+      "Discover",
+      "See what’s on around the world.",
+      "Browse by region or category and find something worth tuning in to."
+    ],
+    "media": [
+      [
+        "Global TV",
+        "From local favorites to faraway stations",
+        "Explore news, entertainment and local programming across countries and regions."
+      ],
+      [
+        "Live sports",
+        "Catch the next play",
+        "Find live feeds in the sports category and follow the action as it happens."
+      ],
+      [
+        "Radio",
+        "Turn off the screen and listen",
+        "Play audio-only stations for music, interviews and broadcasts from other regions."
+      ],
+      [
+        "Entertainment",
+        "When the stage lights go up",
+        "From variety shows to live music, explore what’s on in entertainment."
+      ]
+    ],
+    "signals": [
+      "Channels & guides",
+      "Find a channel. See what’s next.",
+      [
+        [
+          "Channel details fill in automatically",
+          "The public directory keeps adding channel names, logos and categories as information becomes available."
+        ],
+        [
+          "Automatic program guides",
+          "See what’s on now and next on select channels with a supported guide source."
+        ],
+        [
+          "Keep your favorites close",
+          "Star the channels you watch most and find them again in Favorites."
+        ],
+        [
+          "Stream quality stays under review",
+          "Playback performance helps rank candidate streams, and poor-quality streams can be retired."
+        ]
+      ]
+    ],
+    "devices": [
+      "Languages & devices",
+      "A new screen. The same BobTV.",
+      [
+        [
+          "Seven interface languages",
+          "Browse this site in seven languages. Starting with 1.1.19, the app interface is available in English, Simplified Chinese, Traditional Chinese, Japanese, Korean, French and Spanish."
+        ],
+        [
+          "Available now",
+          "Watch on Windows, macOS, and Android phones and tablets."
+        ],
+        [
+          "In development",
+          "iPhone, iPad and an embeddable web player are in development."
+        ]
+      ]
+    ],
+    "player": [
+      "Playback",
+      "Preview another channel while you watch.",
+      "Take a muted look before switching. On desktop, you can also go full screen or keep watching in picture-in-picture."
+    ],
+    "closing": "What will you watch today?",
+    "download": [
+      "Choose your device",
+      "Get BobTV for Windows, macOS or Android. Pick your platform and processor to find the right installer.",
+      "See installers",
+      "Release and installation details"
+    ],
+    "stations": "A few channels you can explore"
   }
 }

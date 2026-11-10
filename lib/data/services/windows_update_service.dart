@@ -136,8 +136,9 @@ class WindowsUpdateService {
           WindowsUpdatePhase.manualRequired,
           version: manifest.version,
           message:
-              '发现新版本 ${manifest.version}，更新服务尚未提供已签章的安装包。'
+              '发现新版本 {0}，更新服务尚未提供已签章的安装包。'
               '稍后会自动重试，当前版本可继续使用，无需到浏览器下载。',
+          messageArgs: [manifest.version],
         );
         return;
       }
@@ -182,7 +183,8 @@ class WindowsUpdateService {
         state.value = WindowsUpdateState(
           WindowsUpdatePhase.failed,
           version: manifest.version,
-          message: '版本 ${manifest.version} 曾启动失败，已跳过。等待后续修复版本，当前版本可继续使用。',
+          message: '版本 {0} 曾启动失败，已跳过。等待后续修复版本，当前版本可继续使用。',
+          messageArgs: [manifest.version],
         );
         return;
       }
@@ -204,7 +206,8 @@ class WindowsUpdateService {
       state.value = WindowsUpdateState(
         WindowsUpdatePhase.failed,
         version: state.value.version,
-        message: '更新未完成：$error。当前版本可继续使用，点击重试更新。',
+        message: '更新未完成：{0}。当前版本可继续使用，点击重试更新。',
+        messageArgs: [error],
       );
     } finally {
       client.close(force: true);
@@ -391,7 +394,8 @@ class WindowsUpdateService {
       state.value = WindowsUpdateState(
         WindowsUpdatePhase.installed,
         version: bobTvVersion,
-        message: '已成功升级至 $bobTvVersion，旧版备份已保留。',
+        message: '已成功升级至 {0}，旧版备份已保留。',
+        messageArgs: [bobTvVersion],
       );
       Timer(const Duration(seconds: 40), () {
         if (state.value.phase == WindowsUpdatePhase.installed) {

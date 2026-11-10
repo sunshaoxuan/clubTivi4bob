@@ -75,16 +75,21 @@ def test_product_pages_reflect_published_releases():
     version = next(line.split(':', 1)[1].strip()
                    for line in (site.parent / 'pubspec.yaml').read_text().splitlines()
                    if line.startswith('version:'))
-    assert "v1.0.3" in home and "WINDOWS · MACOS" in home
+    history = client.get("/release-notes?lang=zh-CN").text
+    assert 'class="history-band"' not in home
+    assert '<a href="/release-notes">版本记录</a>' in home
+    assert '<a href="/release-notes" aria-current="page">版本记录</a>' in history
+    assert "v1.0.3" in history and "WINDOWS · MACOS" in home
     assert f"{version} · Windows / macOS / Android" in home
     assert "cndrp" in home and "视频直连" in home
-    assert "v1.0.5 · 服务器链路、频道合并与全屏修复" in home
+    assert "v1.0.5 · 服务器链路、频道合并与全屏修复" in history
     static_home = (site / "index.html").read_text()
     assert "跨分类合并多个频道" in static_home
     assert 'id="server-title"' in home
-    assert "桌面画中画与全屏节目单" in home
-    assert "Setup 安装向导" in static_home and "Unicode" in static_home
-    assert "正式安装版" in static_home and "退出后继续显示备份、安装及完成状态" in static_home
+    assert "桌面画中画与全屏节目单" in history
+    static_history = (site / "release-notes.html").read_text()
+    assert "Setup 安装向导" in static_history and "Unicode" in static_history
+    assert "正式安装版" in static_history and "退出后继续显示备份、安装及完成状态" in static_history
     assert 'id="sync-title"' in home and "离线时保留修改" in home
     assert "每分钟检查清单版本" in static_home and "公共评分" in static_home
     assert "静音预览" in static_home and "Mac AirPlay" in static_home and "纯音频电台" in static_home
@@ -155,7 +160,7 @@ def test_public_site_languages_and_cookie():
 def test_china_routes_public_resources_to_mirror(monkeypatch):
     monkeypatch.setattr(module, "request_profile", lambda *_: {"countryCode": "CN"})
     client = TestClient(module.app, base_url="https://bobtv.briconbric.com")
-    for path in ("/?lang=fr", "/downloads", "/privacy", "/assets/site.css",
+    for path in ("/?lang=fr", "/downloads", "/release-notes", "/privacy", "/assets/site.css",
                  "/downloads/BobTV-test.zip", "/releases.json"):
         response = client.get(path, follow_redirects=False)
         assert response.status_code == 307
@@ -169,5 +174,6 @@ def test_china_routes_public_resources_to_mirror(monkeypatch):
     assert response.status_code == 200
     assert 'src="/bobtv/assets/downloads.js' in response.text
     assert 'href="/bobtv/privacy"' in response.text
+    assert 'href="/bobtv/release-notes"' in response.text
     assert 'action="/bobtv/downloads"' in response.text
     assert 'Path=/bobtv/' in response.headers["set-cookie"]

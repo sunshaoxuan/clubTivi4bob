@@ -29,7 +29,7 @@ import hmac
 ORIGIN = 'https://bobtv.briconbric.com'
 PREFIX = '/bobtv'
 MAX_UPLOAD = 1024 * 1024
-PUBLIC_PAGES = {'/', '/downloads', '/diagnostics', '/privacy', '/code-signing'}
+PUBLIC_PAGES = {'/', '/downloads', '/release-notes', '/diagnostics', '/privacy', '/code-signing'}
 _health_time = 0.0
 _healthy = False
 _health_lock = asyncio.Lock()

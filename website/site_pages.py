@@ -12,7 +12,8 @@ from markupsafe import Markup, escape
 
 BASE = Path(__file__).resolve().parent
 MIRROR_ROOT = "https://cndrp.com/bobtv"
-PAGES = {"/": "index", "/downloads": "downloads", "/diagnostics": "diagnostics",
+PAGES = {"/": "index", "/downloads": "downloads", "/release-notes": "release-notes",
+         "/diagnostics": "diagnostics",
          "/privacy": "privacy", "/code-signing": "code-signing"}
 LANGUAGES = {"en": "English", "zh-CN": "简体中文", "zh-TW": "繁體中文",
              "ja": "日本語", "fr": "Français", "es": "Español", "ko": "한국어"}

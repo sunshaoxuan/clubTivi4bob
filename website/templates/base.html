@@ -4,10 +4,10 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="{{ t.meta[page] }}">
-  <title>{{ t.titles[page] }}</title>
+  <meta name="description" content="{% block description %}{{ t.meta[page] }}{% endblock %}">
+  <title>{% block title %}{{ t.titles[page] }}{% endblock %}</title>
   <link rel="icon" type="image/png" href="{{ site_root }}/assets/favicon.png?v=2">
-  <link rel="stylesheet" href="{{ site_root }}/assets/site.css?v=14">
+  <link rel="stylesheet" href="{{ site_root }}/assets/site.css?v=15">
   {% for code in languages %}<link rel="alternate" hreflang="{{ code }}" href="{{ path }}?lang={{ code }}">{% endfor %}
   <link rel="alternate" hreflang="x-default" href="{{ path }}?lang=en">
 </head>
@@ -15,8 +15,8 @@
   <header class="site-header"><div class="container header-inner">
     <a class="brand" href="{{ site_root }}/" aria-label="BobTV"><span class="brand-mark">▶</span>Bob<span>TV</span></a>
     <nav aria-label="{{ t.nav_label }}">
-      {% for key, url in [('index', '/'), ('downloads', '/downloads'), ('diagnostics', '/diagnostics')] %}
-      <a href="{{ site_root }}{{ url }}"{% if page == key %} aria-current="page"{% endif %}>{{ t.nav[key] }}</a>
+      {% for key, url in [('index', '/'), ('downloads', '/downloads'), ('release-notes', '/release-notes'), ('diagnostics', '/diagnostics')] %}
+      <a href="{{ site_root }}{{ url }}"{% if page == key %} aria-current="page"{% endif %}>{{ t.home.history_label if key == 'release-notes' else t.nav[key] }}</a>
       {% endfor %}
     </nav>
     <form class="language-form" action="{{ path }}" method="get">

@@ -202,6 +202,11 @@
     "history_title": "Modifications récentes",
     "history": [
       [
+        "2026-11-12",
+        "v1.1.21 · Diffusion améliorée",
+        "Amélioration de la détection des appareils locaux, du relais des adresses de lecture et des métadonnées, avec des erreurs de connexion plus claires et une meilleure libération des ressources."
+      ],
+      [
         "2026-11-11",
         "v1.1.20 · Un nouveau thème sombre et sept langues",
         "Les chaînes et le lecteur reprennent les tons violets et roses du site. L’accès aux paramètres est masqué. Le sélecteur en haut de l’application propose sept langues."
@@ -346,7 +351,7 @@
     "closing_text": "Une colonne chacune pour Windows, macOS et Android, avec les choix de processeur à l'intérieur. Des packages natifs Windows ARM64 sont disponibles ; Les tests du matériel Surface sont en attente."
   },
   "downloads": {
-    "intro": "Windows, macOS et Android utilisent la version 1.1.20+115. Changez de langue en haut de l’application. Votre choix est mémorisé. En mode automatique, l’application utilise la langue du système, le fuseau horaire, puis l’anglais. Chaque programme d’installation contient les ressources linguistiques. L’accès au mode avancé a été fermé. La synchronisation des diagnostics est désactivée par défaut. Avec votre accord, elle transmet jusqu’à 30 jours de données expurgées. Vous pouvez la désactiver à tout moment. L’application macOS utilise une signature ad-hoc.",
+    "intro": "Windows, macOS et Android utilisent la version 1.1.21+116. Changez de langue en haut de l’application. Votre choix est mémorisé. En mode automatique, l’application utilise la langue du système, le fuseau horaire, puis l’anglais. Chaque programme d’installation contient les ressources linguistiques. L’accès au mode avancé a été fermé. La synchronisation des diagnostics est désactivée par défaut. Avec votre accord, elle transmet jusqu’à 30 jours de données expurgées. Vous pouvez la désactiver à tout moment. L’application macOS utilise une signature ad-hoc.",
     "latest": "Derniers installateurs",
     "local": "Téléchargements hébergés sur ce site",
     "sections": [

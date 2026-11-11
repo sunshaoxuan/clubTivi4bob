@@ -202,6 +202,11 @@
     "history_title": "Recent changes",
     "history": [
       [
+        "2026-11-12",
+        "v1.1.21 · Improved casting",
+        "Improved local device discovery, casting address forwarding and media metadata, with clearer connection failures and better discovery cleanup."
+      ],
+      [
         "2026-11-11",
         "v1.1.20 · A new dark look and seven languages",
         "The channel browser and player now use the website’s dark violet and pink palette. The Settings entry is tucked away, and seven interface languages are available from the top of the app."
@@ -346,7 +351,7 @@
     "closing_text": "One column each for Windows, macOS and Android, with CPU choices inside. Native Windows ARM64 packages are available; Surface hardware tests are pending."
   },
   "downloads": {
-    "intro": "Windows, macOS and Android share version 1.1.20+115. Switch languages at the top of the app. Manual choices persist. Automatic mode uses the system language, then the time zone, then English. The language resources are included with each installer. The advanced mode entry has been closed. Diagnostic sync is off by default. Explicit consent enables up to 30 days of redacted records and can be withdrawn at any time.",
+    "intro": "Windows, macOS and Android share version 1.1.21+116. Switch languages at the top of the app. Manual choices persist. Automatic mode uses the system language, then the time zone, then English. The language resources are included with each installer. The advanced mode entry has been closed. Diagnostic sync is off by default. Explicit consent enables up to 30 days of redacted records and can be withdrawn at any time.",
     "latest": "Latest installers",
     "local": "Downloads hosted on this site",
     "sections": [

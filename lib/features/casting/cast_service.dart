@@ -1,10 +1,15 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:dlna_dart/dlna.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter/services.dart';
 import 'package:logger/logger.dart';
 
 import 'lg_webos_client.dart';
+import 'lan_cast_relay.dart';
+import 'dlna_media_request.dart';
+import 'dlna_discovery.dart';
 import 'airplay_bridge.dart';
 import '../../core/server_egress.dart';
 
@@ -38,7 +43,9 @@ class CastDevice {
 
 /// Manages device discovery and casting of IPTV streams via DLNA/UPnP.
 class CastService {
+  static const _castNetwork = MethodChannel('bobtv/cast_network');
   final AirPlayBridge _airplay;
+  final LanCastRelay _lanRelay = LanCastRelay();
   final _status = StreamController<String?>.broadcast();
   Stream<String?> get statusStream => _status.stream;
   String? lastError;
@@ -91,7 +98,8 @@ class CastService {
   }
 
   Future<void> beginPairing(CastDevice device) async {
-    if (device.unavailableReason != null) throw StateError(device.unavailableReason!);
+    if (device.unavailableReason != null)
+      throw StateError(device.unavailableReason!);
     final result = await _airplay.request('pair_start', {
       'device': device.id.substring(8),
     });
@@ -112,7 +120,7 @@ class CastService {
     } catch (_) {}
   }
 
-  DLNAManager? _dlnaManager;
+  DlnaDiscovery? _dlnaManager;
   DeviceManager? _deviceManager;
   StreamSubscription? _deviceSub;
 
@@ -139,24 +147,39 @@ class CastService {
   /// LG WebOS TVs can be slow to respond — uses fallback if needed.
   Future<void> startDiscovery() async {
     await stopDiscovery();
+    if (_disposed) return;
     _devices.clear();
     lastError = null;
     final generation = ++_discoveryGeneration;
+    if (Platform.isAndroid) {
+      try {
+        await _castNetwork.invokeMethod<void>('startDiscovery');
+      } catch (_) {
+        if (!_disposed) _status.add('無法啟用 Wi-Fi 設備搜尋，請檢查網路連接。');
+      }
+      if (_disposed || generation != _discoveryGeneration) {
+        try {
+          await _castNetwork.invokeMethod<void>('stopDiscovery');
+        } catch (_) {}
+        return;
+      }
+    }
     unawaited(_scanAirPlay(generation));
-    _dlnaManager = DLNAManager();
+    final discovery = DlnaDiscovery();
+    _dlnaManager = discovery;
     try {
-      _deviceManager = await _dlnaManager!.start(reusePort: false);
+      final manager = await discovery.start();
+      if (_disposed || generation != _discoveryGeneration) {
+        await discovery.stop();
+        return;
+      }
+      _deviceManager = manager;
       _listenToDevices();
       _log.i('DLNA discovery started');
     } catch (e) {
       _log.e('DLNA discovery failed: $e');
-      // Retry with reusePort if bind fails (port already in use)
-      try {
-        _deviceManager = await _dlnaManager!.start(reusePort: true);
-        _listenToDevices();
-        _log.i('DLNA discovery started (reusePort fallback)');
-      } catch (e2) {
-        _log.e('DLNA discovery failed on retry: $e2');
+      if (!_disposed && generation == _discoveryGeneration) {
+        _status.add('設備搜尋失敗，請檢查局域網後重試。');
       }
     }
   }
@@ -166,6 +189,12 @@ class CastService {
       _devices.removeWhere((key, value) => value.type == 'dlna');
       for (final entry in deviceMap.entries) {
         final dlna = entry.value;
+        final hasTransport = dlna.info.serviceList.any(
+          (service) =>
+              service is Map &&
+              (service['serviceId'] as String? ?? '').contains('AVTransport'),
+        );
+        if (!hasTransport) continue;
         final name = dlna.info.friendlyName;
         _devices[entry.key] = CastDevice(
           id: entry.key,
@@ -181,11 +210,17 @@ class CastService {
   /// Stop scanning.
   Future<void> stopDiscovery() async {
     _discoveryGeneration++;
-    _deviceSub?.cancel();
+    await _deviceSub?.cancel();
     _deviceSub = null;
-    _dlnaManager?.stop();
+    final discovery = _dlnaManager;
     _dlnaManager = null;
     _deviceManager = null;
+    await discovery?.stop();
+    if (Platform.isAndroid) {
+      try {
+        await _castNetwork.invokeMethod<void>('stopDiscovery');
+      } catch (_) {}
+    }
   }
 
   /// Cast a stream URL to the given device.
@@ -218,7 +253,8 @@ class CastService {
     lastError = null;
     try {
       final transportUrl = ServerEgress.mediaUrl(url);
-      if (device.unavailableReason != null) throw StateError(device.unavailableReason!);
+      if (device.unavailableReason != null)
+        throw StateError(device.unavailableReason!);
       if (_activeDevice != null && _activeDevice!.id != device.id)
         await _stopActive();
       if (device.type == 'airplay') {
@@ -233,14 +269,33 @@ class CastService {
         _status.add(null);
         return true;
       } else if (device.type == 'webos' && device.webosClient != null) {
-        await device.webosClient!.playMedia(transportUrl, title: title);
+        final target = await _targetForRenderer(
+          url,
+          transportUrl,
+          device.webosClient!.host,
+          device.webosClient!.port,
+        );
+        await device.webosClient!.playMedia(target, title: title);
         _activeDevice = device;
         _activeUrl = url;
         _isCasting = true;
         _log.i('Casting via WebOS');
         return true;
       } else if (device.dlnaDevice != null) {
-        await device.dlnaDevice!.setUrl(transportUrl, title: title);
+        final renderer = Uri.parse(device.dlnaDevice!.info.URLBase);
+        if (!ServerEgress.isLocal(renderer) || renderer.host.isEmpty) {
+          throw StateError('無法確認投屏設備的局域網地址。');
+        }
+        final target = await _targetForRenderer(
+          url,
+          transportUrl,
+          renderer.host,
+          renderer.port,
+        );
+        await device.dlnaDevice!.request(
+          'SetAVTransportURI',
+          dlnaSetMediaRequest(target, title: title),
+        );
         await device.dlnaDevice!.play();
         _activeDevice = device;
         _activeUrl = url;
@@ -251,10 +306,40 @@ class CastService {
       return false;
     } catch (e) {
       _isCasting = false;
-      lastError = device.type == 'airplay' ? e.toString() : '投屏失敗，請確認電視與網路連接。';
+      if (device.type == 'webos' || device.type == 'dlna') {
+        await _lanRelay.close();
+      }
+      lastError = e is StateError
+          ? e.message
+          : device.type == 'airplay'
+          ? e.toString()
+          : '投屏失敗，請確認電視與網路連接。';
       _status.add(lastError);
       return false;
     }
+  }
+
+  Future<String> _targetForRenderer(
+    String raw,
+    String transportUrl,
+    String host,
+    int port,
+  ) async {
+    if (raw.contains('|')) {
+      throw StateError('此線路需要額外的 HTTP 請求標頭，電視無法直接使用。');
+    }
+    final uri = Uri.parse(transportUrl);
+    if (!{'http', 'https'}.contains(uri.scheme)) {
+      throw StateError('此線路的協議無法傳送給電視。');
+    }
+    if ({'127.0.0.1', 'localhost'}.contains(uri.host)) {
+      return _lanRelay.start(uri, host, port);
+    }
+    if (uri.host == '::1' || uri.host == '0.0.0.0' || uri.host.isEmpty) {
+      throw StateError('此播放地址無法從電視存取。');
+    }
+    await _lanRelay.close();
+    return transportUrl;
   }
 
   /// Stop casting on the active device.
@@ -276,6 +361,7 @@ class CastService {
     } catch (e) {
       _log.e('Stop cast error: $e');
     }
+    await _lanRelay.close();
     _activeDevice = null;
     _activeUrl = null;
     _isCasting = false;
@@ -337,6 +423,7 @@ class CastService {
   /// Add a device manually by IP address.
   /// Probes for LG WebOS (port 3000) first, then adds as generic DLNA.
   Future<CastDevice?> addManualDevice(String ip) async {
+    lastError = null;
     final previous = _devices.keys.toSet();
     await _scanAirPlay(_discoveryGeneration, host: ip);
     final added = _devices.values.where(
@@ -348,6 +435,11 @@ class CastService {
     if (isWebOs) {
       final client = LgWebOsClient(host: ip);
       final connected = await client.connect();
+      if (!connected) {
+        await client.disconnect();
+        lastError = '配對未完成，請檢查電視上的配對提示及網路連接後重試。';
+        return null;
+      }
       String name = 'LG TV ($ip)';
       if (connected) {
         try {
@@ -373,6 +465,11 @@ class CastService {
     _disposed = true;
     ++_castGeneration;
     _airplay.dispose();
+    unawaited(_lanRelay.close());
+    for (final device in _devices.values) {
+      if (device.webosClient != null)
+        unawaited(device.webosClient!.disconnect());
+    }
     stopDiscovery();
     _status.close();
     _devicesController.close();

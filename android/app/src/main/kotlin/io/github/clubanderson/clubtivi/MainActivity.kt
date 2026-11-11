@@ -6,6 +6,8 @@ import android.app.PictureInPictureParams
 import android.content.res.Configuration
 import android.content.pm.PackageManager
 import android.os.Process
+import android.net.wifi.WifiManager
+import android.content.Context
 import android.provider.Settings
 import android.util.Rational
 import io.flutter.embedding.android.FlutterActivity
@@ -16,9 +18,37 @@ class MainActivity : FlutterActivity() {
     private val CHANNEL = "io.github.clubanderson.clubtivi/installer"
     private var deviceChannel: MethodChannel? = null
     private var exitRequested = false
+    private var castMulticastLock: WifiManager.MulticastLock? = null
+
+    private fun releaseCastMulticast() {
+        castMulticastLock?.let { if (it.isHeld) it.release() }
+        castMulticastLock = null
+    }
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "bobtv/cast_network").setMethodCallHandler { call, result ->
+            when (call.method) {
+                "startDiscovery" -> try {
+                    if (castMulticastLock == null) {
+                        val wifi = applicationContext.getSystemService(Context.WIFI_SERVICE) as WifiManager
+                        castMulticastLock = wifi.createMulticastLock("bobtv-dlna-discovery").apply {
+                            setReferenceCounted(false)
+                            acquire()
+                        }
+                    }
+                    result.success(null)
+                } catch (e: Exception) {
+                    releaseCastMulticast()
+                    result.error("MULTICAST_ERROR", e.message, null)
+                }
+                "stopDiscovery" -> {
+                    releaseCastMulticast()
+                    result.success(null)
+                }
+                else -> result.notImplemented()
+            }
+        }
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "bobtv/app").setMethodCallHandler { call, result ->
             if (call.method == "exit") {
                 result.success(true)
@@ -91,5 +121,10 @@ class MainActivity : FlutterActivity() {
     override fun onPictureInPictureModeChanged(inPip: Boolean, newConfig: Configuration) {
         super.onPictureInPictureModeChanged(inPip, newConfig)
         deviceChannel?.invokeMethod("pipChanged", inPip)
+    }
+
+    override fun onDestroy() {
+        releaseCastMulticast()
+        super.onDestroy()
     }
 }

@@ -18,6 +18,7 @@ class LgWebOsClient {
   final _responses = <String, Completer<Map<String, dynamic>>>{};
   bool _paired = false;
   StreamSubscription? _listenSub;
+  static const _registrationId = 'register_0';
 
   static const _prefKeyPrefix = 'lg_webos_key_';
 
@@ -30,39 +31,38 @@ class LgWebOsClient {
   /// The TV will show a pairing prompt on first connection.
   Future<bool> connect({Duration timeout = const Duration(seconds: 15)}) async {
     try {
+      await disconnect();
       // Load saved client key for this TV
       final prefs = await SharedPreferences.getInstance();
       _clientKey = prefs.getString('$_prefKeyPrefix$host');
 
-      _ws = await WebSocket.connect(
-        'ws://$host:$port',
-      ).timeout(timeout);
+      _ws = await WebSocket.connect('ws://$host:$port').timeout(timeout);
 
       _listenSub = _ws!.listen(
         _onMessage,
-        onError: (e) => _log.e('WebOS WS error: $e'),
+        onError: (e) {
+          _log.e('WebOS WS error: $e');
+          _connectionClosed();
+        },
         onDone: () {
-          _paired = false;
-          _ws = null;
+          _connectionClosed();
         },
       );
 
       // Send registration/pairing request
-      final paired = await _register().timeout(
-        const Duration(seconds: 12),
-        onTimeout: () => false,
-      );
+      final paired = await _register().timeout(timeout);
       _paired = paired;
+      if (!paired) await disconnect();
       return paired;
     } catch (e) {
       _log.e('WebOS connect failed: $e');
+      await disconnect();
       return false;
     }
   }
 
   Future<bool> _register() async {
-    final completer = Completer<bool>();
-    final regId = 'register_0';
+    const regId = _registrationId;
 
     final payload = {
       'type': 'register',
@@ -85,20 +85,13 @@ class LgWebOsClient {
       },
     };
 
-    // Listen for the registration response
-    late StreamSubscription sub;
-    sub = _ws!.asBroadcastStream().listen(null); // Won't work — use _responses
-    sub.cancel();
-
-    // Use the message handler via _responses
-    _responses[regId] = Completer<Map<String, dynamic>>();
+    final completer = Completer<Map<String, dynamic>>();
+    _responses[regId] = completer;
 
     _ws!.add(jsonEncode(payload));
 
     try {
-      final response = await _responses[regId]!.future.timeout(
-        const Duration(seconds: 12),
-      );
+      final response = await completer.future;
       final key = response['client-key'] as String?;
       if (key != null && key.isNotEmpty) {
         _clientKey = key;
@@ -106,13 +99,11 @@ class LgWebOsClient {
         await prefs.setString('$_prefKeyPrefix$host', key);
         _log.i('WebOS paired with $host (key saved)');
       }
-      completer.complete(true);
+      return true;
     } catch (e) {
       _log.e('WebOS registration timeout or error: $e');
-      completer.complete(false);
+      return false;
     }
-
-    return completer.future;
   }
 
   void _onMessage(dynamic data) {
@@ -124,9 +115,17 @@ class LgWebOsClient {
       // Handle registration responses
       if (type == 'registered' || type == 'response') {
         final payload = msg['payload'] as Map<String, dynamic>? ?? {};
+        if (id == _registrationId &&
+            type != 'registered' &&
+            payload['returnValue'] != false)
+          return;
         if (id != null && _responses.containsKey(id)) {
-          _responses[id]!.complete(payload);
-          _responses.remove(id);
+          final completer = _responses.remove(id)!;
+          if (payload['returnValue'] == false) {
+            completer.completeError(StateError('WebOS request rejected'));
+          } else {
+            completer.complete(payload);
+          }
         }
       } else if (type == 'error') {
         if (id != null && _responses.containsKey(id)) {
@@ -138,6 +137,18 @@ class LgWebOsClient {
       }
     } catch (e) {
       _log.e('WebOS parse error: $e');
+    }
+  }
+
+  void _connectionClosed() {
+    _paired = false;
+    _ws = null;
+    final pending = _responses.values.toList();
+    _responses.clear();
+    for (final completer in pending) {
+      if (!completer.isCompleted) {
+        completer.completeError(StateError('WebOS connection closed'));
+      }
     }
   }
 
@@ -171,25 +182,34 @@ class LgWebOsClient {
 
   /// Open a video URL in the TV's browser (most reliable method).
   Future<void> openInBrowser(String url) async {
-    await _request('ssap://system.launcher/open', {
-      'target': url,
-    });
+    await _request('ssap://system.launcher/open', {'target': url});
   }
 
   /// Play a video URL using the TV's media viewer (better for direct streams).
-  Future<void> playMedia(String url, {String title = '', String mediaType = 'video/mp4'}) async {
-    try {
-      await _request('ssap://media.viewer/open', {
-        'url': url,
-        'title': title,
-        'description': '',
-        'mimeType': mediaType,
-        'loop': false,
-      });
-    } catch (_) {
-      // Fallback to browser if media.viewer not supported
-      await openInBrowser(url);
-    }
+  Future<void> playMedia(
+    String url, {
+    String title = '',
+    String? mediaType,
+  }) async {
+    final path = Uri.tryParse(url)?.path.toLowerCase() ?? '';
+    final mime =
+        mediaType ??
+        (path.endsWith('.m3u8')
+            ? 'application/vnd.apple.mpegurl'
+            : path.endsWith('.mpd')
+            ? 'application/dash+xml'
+            : path.endsWith('.ts')
+            ? 'video/mp2t'
+            : path.endsWith('.mp4')
+            ? 'video/mp4'
+            : null);
+    await _request('ssap://media.viewer/open', {
+      'target': url,
+      'title': title,
+      'description': '',
+      if (mime != null) 'mimeType': mime,
+      'loop': false,
+    });
   }
 
   /// Pause playback.
@@ -230,16 +250,17 @@ class LgWebOsClient {
 
   /// Disconnect from the TV.
   Future<void> disconnect() async {
-    _listenSub?.cancel();
+    await _listenSub?.cancel();
     _listenSub = null;
     await _ws?.close();
-    _ws = null;
-    _paired = false;
-    _responses.clear();
+    _connectionClosed();
   }
 
   /// Probe a host to check if it's an LG WebOS TV (tries WS on port 3000).
-  static Future<bool> probe(String host, {Duration timeout = const Duration(seconds: 3)}) async {
+  static Future<bool> probe(
+    String host, {
+    Duration timeout = const Duration(seconds: 3),
+  }) async {
     try {
       final ws = await WebSocket.connect('ws://$host:3000').timeout(timeout);
       await ws.close();

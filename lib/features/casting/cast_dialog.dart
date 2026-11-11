@@ -131,8 +131,15 @@ class _CastDialogState extends State<_CastDialog> {
                           const SizedBox(height: 12),
                           Text(
                             _scanning
-                                ? AppMessages.text(context, "正在搜尋 AirPlay / DLNA 設備…")
-                                : _error ?? AppMessages.text(context, "未找到設備。\n請確認電視開啟投屏，且位於同一網路。"),
+                                ? AppMessages.text(
+                                    context,
+                                    "正在搜尋 AirPlay / DLNA 設備…",
+                                  )
+                                : _error ??
+                                      AppMessages.text(
+                                        context,
+                                        "未找到設備。\n請確認電視開啟投屏，且位於同一網路。",
+                                      ),
                             textAlign: TextAlign.center,
                             style: const TextStyle(
                               color: Colors.white54,
@@ -182,7 +189,8 @@ class _CastDialogState extends State<_CastDialog> {
                             ),
                           ),
                           subtitle: Text(
-                            device.unavailableReason ?? device.type.toUpperCase(),
+                            device.unavailableReason ??
+                                device.type.toUpperCase(),
                             style: const TextStyle(
                               color: Colors.white38,
                               fontSize: 11,
@@ -192,14 +200,16 @@ class _CastDialogState extends State<_CastDialog> {
                               ? IconButton(
                                   tooltip: AppMessages.text(context, "配對或重新配對"),
                                   icon: const Icon(Icons.password),
-                                  onPressed: device.unavailableReason != null ? null : () async {
-                                    await pairAirPlay(
-                                      context,
-                                      _castService,
-                                      device,
-                                    );
-                                    if (mounted) setState(() {});
-                                  },
+                                  onPressed: device.unavailableReason != null
+                                      ? null
+                                      : () async {
+                                          await pairAirPlay(
+                                            context,
+                                            _castService,
+                                            device,
+                                          );
+                                          if (mounted) setState(() {});
+                                        },
                                 )
                               : isActive
                               ? const Icon(
@@ -239,7 +249,10 @@ class _CastDialogState extends State<_CastDialog> {
           ),
         TextButton(
           onPressed: () => Navigator.of(context).pop(),
-          child: Text(AppMessages.text(context, "關閉"), style: TextStyle(color: Colors.white54)),
+          child: Text(
+            AppMessages.text(context, "關閉"),
+            style: TextStyle(color: Colors.white54),
+          ),
         ),
       ],
     );
@@ -316,11 +329,17 @@ class _CastDialogState extends State<_CastDialog> {
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(),
-            child: Text(AppMessages.text(context, "取消"), style: TextStyle(color: Colors.white54)),
+            child: Text(
+              AppMessages.text(context, "取消"),
+              style: TextStyle(color: Colors.white54),
+            ),
           ),
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(controller.text.trim()),
-            child: Text(AppMessages.text(context, "連接"), style: TextStyle(color: Colors.amber)),
+            child: Text(
+              AppMessages.text(context, "連接"),
+              style: TextStyle(color: Colors.amber),
+            ),
           ),
         ],
       ),
@@ -350,7 +369,11 @@ class _CastDialogState extends State<_CastDialog> {
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(AppMessages.text(context, "在 {0} 未找到相容設備", [ip])),
+            content: Text(
+              _castService.lastError == null
+                  ? AppMessages.text(context, "在 {0} 未找到相容設備", [ip])
+                  : AppMessages.text(context, _castService.lastError!),
+            ),
             backgroundColor: Colors.red.shade800,
           ),
         );

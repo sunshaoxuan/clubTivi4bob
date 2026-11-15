@@ -123,6 +123,10 @@ def apply_batch_locked(data_dir, batch, *, publisher=publish, now=None):
     backup = data_dir / 'market-review-backups' / stamp
     backup.mkdir(parents=True, mode=0o700)
     (backup / 'manifest.json').write_bytes(old_manifest_raw)
+    queue_path = data_dir / 'broadcast-market-review-queue.json'
+    old_queue = queue_path.read_bytes() if queue_path.exists() else None
+    if old_queue is not None:
+        (backup / 'broadcast-market-review-queue.json').write_bytes(old_queue)
     (backup / 'review-batch.json').write_text(json.dumps(batch, ensure_ascii=False, indent=2))
     receipt = dict(policyVersion=POLICY_VERSION, authorization=batch['authorization'],
                    oldManifest=old_manifest, changes=[], epgMappingEdits=0,
@@ -219,6 +223,10 @@ def apply_batch_locked(data_dir, batch, *, publisher=publish, now=None):
     except BaseException:
         conn.rollback()
         _atomic_write(data_dir / 'channel-catalog' / 'manifest.json', old_manifest_raw)
+        if old_queue is not None:
+            _atomic_write(queue_path, old_queue)
+        elif queue_path.exists():
+            queue_path.unlink()
         raise
     finally:
         conn.close()

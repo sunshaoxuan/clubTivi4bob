@@ -87,6 +87,8 @@ def test_apply_updates_snapshot_entity_profile_and_routes_together(catalog):
         row = conn.execute('SELECT * FROM routes').fetchone()
     assert Path(result['backupDirectory'], 'channel_inventory.sqlite3').is_file()
     assert result['epgMappingEdits'] == result['privateClientEdits'] == result['routeUrlEdits'] == 0
+    queue = json.loads((folder / 'broadcast-market-review-queue.json').read_text())
+    assert queue['catalogSha256'] == manifest['sha256'] and queue['automaticApplyAllowed'] is False
 
 
 def test_protected_shared_entry_requires_explicit_review(catalog):
@@ -114,6 +116,7 @@ def test_concurrent_revision_change_aborts_without_publication(catalog):
 def test_failed_publisher_restores_manifest_and_transaction(catalog):
     folder, _ = catalog
     m, _ = load(folder)
+    old_queue = (folder / 'broadcast-market-review-queue.json').read_bytes()
     batch = build_batch(folder, ['action'], authorization='explicit', allow_protected_shared=True)
     def failed(payload, directory):
         publish(payload, directory)
@@ -121,6 +124,7 @@ def test_failed_publisher_restores_manifest_and_transaction(catalog):
     with pytest.raises(RuntimeError):
         apply_batch(folder, batch, publisher=failed)
     assert load(folder)[0] == m
+    assert (folder / 'broadcast-market-review-queue.json').read_bytes() == old_queue
     with sqlite3.connect(folder / 'channel_inventory.sqlite3') as conn:
         assert conn.execute('SELECT group_name,revision FROM routes').fetchone() == ('国际 / 美国 / 电影',4)
         assert json.loads(conn.execute('SELECT metadata FROM catalog_channels').fetchone()[0])['countryCode'] == 'US'

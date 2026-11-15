@@ -167,6 +167,14 @@ def publish(payload, data_dir=DATA):
         "sha256": digest,
     }
     _atomic_write(directory / "manifest.json", json.dumps(manifest, separators=(",", ":")).encode("utf-8"))
+    # Uncertain edition conflicts remain an explicit persistent review queue.
+    # A queue write failure must not break a valid catalog publication.
+    try:
+        from audit_broadcast_markets import write_review_queue
+        write_review_queue(payload, data_dir, manifest)
+    except Exception:
+        import logging
+        logging.getLogger(__name__).warning('broadcast_market_review_queue_failed')
     return manifest
 
 

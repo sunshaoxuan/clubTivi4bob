@@ -9,6 +9,8 @@ from collections import Counter
 import json
 from pathlib import Path
 import re
+import os
+import tempfile
 from urllib.parse import urlsplit
 
 from broadcast_market import POLICY_VERSION, category_path, review_channel
@@ -93,6 +95,26 @@ def audit(payload, bindings, protected_ids=frozenset()):
                             'No evidence means unbound, not incorrectly classified',
                             'Reviewed registry currently covers one exact provider service',
                             'Private client classifications are outside this audit']}
+
+
+def write_review_queue(payload, data_dir, manifest):
+    """Refresh the persistent review queue after each catalog publication."""
+    registry = json.loads(Path(__file__).with_name('broadcast_market_bindings.json').read_text())
+    result = audit(payload, registry['bindings'])
+    result.update(catalogSha256=manifest['sha256'], automaticApplyAllowed=False,
+                  inventoryManualProtectionChecked=False)
+    target = Path(data_dir) / 'broadcast-market-review-queue.json'
+    fd, temporary = tempfile.mkstemp(prefix='.market-review-', dir=data_dir)
+    try:
+        with os.fdopen(fd, 'w') as output:
+            json.dump(result, output, ensure_ascii=False, separators=(',', ':'))
+            output.flush()
+            os.fsync(output.fileno())
+        os.replace(temporary, target)
+    finally:
+        if os.path.exists(temporary):
+            os.unlink(temporary)
+    return result
 
 
 def main():

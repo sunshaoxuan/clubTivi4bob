@@ -25,7 +25,10 @@ class LiveSubtitleSession {
     _playing = player.stream.playing.listen((_) => _render());
     SubtitlePreferences.instance.addListener(_render);
   }
-  static const endpoint = String.fromEnvironment('BOBTV_SUBTITLE_SERVICE');
+  static const endpoint = String.fromEnvironment(
+    'BOBTV_SUBTITLE_SERVICE',
+    defaultValue: 'https://bobtv.briconbric.com/api/v1/subtitles/',
+  );
   final Player player;
   final NativeSubtitleSelection selection;
   final String serviceEndpoint;

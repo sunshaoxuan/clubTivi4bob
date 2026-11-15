@@ -11,13 +11,19 @@ channel previews, main/window/fullscreen playback, alternative previews and
 multi-view. Both native tracks and synchronized external captions use the
 actual decoded video rectangle and the surface's own fit/alignment.
 
-External captions use an optional session API, configured with
-`--dart-define=BOBTV_SUBTITLE_SERVICE=http://127.0.0.1:18768/` for local testing.
-**The default build does not enable a production external-caption service.**
-Public EPG programme lookup is integrated below. External subtitle acquisition
-and live ASR have not been ported into a production producer by this change.
-The fixture below supplies immutable decisions from a previous live capture.
-It must never be presented as a fresh live synchronization test.
+External captions use the BobTV session API at
+`https://bobtv.briconbric.com/api/v1/subtitles/`. A compile-time override or an
+empty `BOBTV_SUBTITLE_SERVICE` may select a development service or disable it.
+The enabled production pilot accepts only the exact reviewed Action Movies UK
+service 6065 route with a current public EPG identity. Other channels retain
+native track selection. Seven-language fallback applies to acquired and
+acoustically verified existing files; missing files remain unavailable.
+
+`service.py` verifies current immutable public catalogue/EPG snapshots and the
+official movie identity, retrieves existing Subtitle Cat download links, and
+runs local tiny.en speech recognition for synchronization. It never invokes a
+Translate action or generates subtitle text. Provider translation quality is
+unreviewed. English audio is the currently supported acoustic pilot.
 
 ## Session API
 
@@ -106,10 +112,34 @@ asset and usable tracks. Cues are evaluated on decoded playback position. A
 failed three-second lease clears external captions and restores native track
 selection. Malformed tracks/cues are rejected before rendering.
 
-The production build still has no external acquisition service configured.
-Native subtitle selection is integrated; downloaded subtitle discovery, live
-speech acquisition and acoustic re-alignment still need a production producer.
-The local replay fixture and unit/widget checks do not establish fresh live-ad
-or seven-platform physical acceptance.
+The client now targets the pilot producer by default. The prior replay fixture
+and unit/widget checks remain separate from real live-ad acceptance. Production
+EPG expansion and seven-platform physical acceptance require their own evidence.
 
 Episode programmes retain their official episode identity without inventing a movie ID. The context key includes the movie or episode ID, so newly enriched programme facts invalidate an older acquisition session. EPG clock values identify a programme slot; they never establish a subtitle offset across inserted advertising.
+
+## Isolated live service deployment
+
+`deploy.py` installs committed, hash-verified code as a separate systemd service
+on loopback 8921, with an explicit Nginx route and retained rollback copies.
+The main application and EPG workers are not restarted. The service permits at
+most four clients sharing one live collector, retains a two-hour live-media window,
+and expires idle sessions. Runtime media, keys, transcripts and subtitle files
+are private cache material outside the repository. CPU is limited to 50% of one
+core and memory to 768 MiB. Dependencies and the existing tiny.en model are
+provisioned separately; no paid ASR API or API credential is needed.
+
+A movie CAID on an inserted asset is insufficient for caption release. The
+current movie `epid` and an acoustic lock establish the initial media mapping.
+Interrupted captions are empty. The same verified asset can resume only when
+its original PTS agrees within 160 ms with the expected continuation. Clock or
+asset changes force fresh acoustic alignment. Subsequent independent cues are
+recorded as holdout error observations and never silently used to refit the
+post-insertion clock. Gapped or stale EPG clears captions while media continues.
+
+The pilot media playlist pins each session's origin and declares EXT-X-START.
+The client preserves that hint when a subtitle service replaces an Action
+Movies source. Its native decoder position, not wall time or the network edge,
+is used to display cues. Fresh live test reports must distinguish server
+relock time, first rendered caption time, holdout synchronization error,
+startup holdback and any interruption in video playback.

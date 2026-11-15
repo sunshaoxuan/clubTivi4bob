@@ -11,6 +11,7 @@ import 'package:clubtivi/core/i18n/app_language.dart';
 import 'package:clubtivi/core/app_diagnostics.dart';
 import 'package:clubtivi/features/player/bobtv_video.dart';
 import 'package:clubtivi/features/player/subtitle_preferences.dart';
+import 'package:clubtivi/features/player/subtitle_programme_context.dart';
 import 'package:clubtivi/features/player/player_service.dart';
 import 'package:media_kit/src/player/native/player/real.dart' as native;
 
@@ -51,6 +52,15 @@ Future<void> main() async {
   final source =
       Platform.environment['BOBTV_SUBTITLE_PROBE_SOURCE'] ??
       const String.fromEnvironment('BOBTV_SUBTITLE_PROBE_SOURCE');
+  final contextPath = Platform.environment['BOBTV_SUBTITLE_PROBE_CONTEXT'];
+  if (contextPath != null) {
+    SubtitleProgrammeContext.lookup = (requested) async {
+      final data = jsonDecode(await File(contextPath).readAsString()) as Map;
+      return requested == data['source']
+          ? Map<String, Object?>.from(data['programme'] as Map)
+          : null;
+    };
+  }
   await windowManager.setTitle('BobTV subtitle development probe');
   await windowManager.setSize(const Size(900, 650));
   runApp(
@@ -101,7 +111,9 @@ Future<void> main() async {
     };
     output.writeln(jsonEncode(sample));
     samples.add(sample);
-    if (elapsed >= limit || (position > 260 && player.state.completed)) {
+    if (elapsed >= limit ||
+        File('${directory.path}/STOP').existsSync() ||
+        (position > 260 && player.state.completed)) {
       timer?.cancel();
       await output.close();
       await File('${directory.path}/result.json').writeAsString(

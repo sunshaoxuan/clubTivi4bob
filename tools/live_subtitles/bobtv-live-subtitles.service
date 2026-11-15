@@ -1,0 +1,29 @@
+[Unit]
+Description=BobTV Action Movies UK external subtitles and live acoustic alignment
+After=network-online.target
+
+[Service]
+Type=simple
+User=bobtv
+Group=bobtv
+WorkingDirectory=/opt/bobtv/live-subtitles/current
+Environment=PYTHONDONTWRITEBYTECODE=1
+Environment=HF_HUB_OFFLINE=1
+Environment=OMP_NUM_THREADS=2
+ExecStart=/opt/bobtv/subtitles-venv/bin/python service.py --root /var/lib/bobtv/live-subtitles --model-root /var/lib/bobtv/live-subtitle-models --base https://bobtv.briconbric.com/api/v1/subtitles/ --port 8921
+Restart=on-failure
+RestartSec=10
+MemoryMax=768M
+CPUQuota=50%
+TasksMax=64
+Nice=10
+UMask=0077
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ReadWritePaths=/var/lib/bobtv/live-subtitles
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+
+[Install]
+WantedBy=multi-user.target

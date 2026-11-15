@@ -108,7 +108,7 @@ class ManagedPlayer extends Player {
       if (generation != _openGeneration) return;
       final native = platform;
       if (native is native_player.NativePlayer) {
-        if (isActionMoviesUk(uri)) {
+        if (isActionMoviesUk(playable.uri)) {
           // A string round-trip loses escaping inside protocol_whitelist.
           // Mutate only this key through mpv's structured list operation.
           await native.command([

@@ -110,8 +110,10 @@ def refresh_holds(conn, data_dir):
         if not entity:
             continue
         metadata = json.loads(entity['metadata'])
-        expected = {k: metadata.get(k) for k in ('id','name','epgId','countryCode','regionCode')}
-        status = 'pending' if metadata.get('name') == finding['name'] and metadata.get('countryCode') == finding.get('countryCode') else 'context_changed'
+        current_identity = {k: metadata.get(k) for k in ('id','name','epgId','countryCode','regionCode')}
+        expected = finding.get('expectedIdentity') or current_identity
+        context_matches = all(metadata.get(k) == expected.get(k) for k in ('name','epgId','countryCode','regionCode'))
+        status = 'pending' if context_matches and metadata.get('name') == finding['name'] and metadata.get('countryCode') == finding.get('countryCode') else 'context_changed'
         conn.execute('INSERT INTO catalog_market_review_holds VALUES(?,?,?,?,?,?,?,?,NULL)',
                      (identity,json.dumps(expected),entity['metadata'],entity['profile'],entity['group_name'],json.dumps(finding['categoryPath'],ensure_ascii=False),status,int(time.time())))
         for row in conn.execute('SELECT r.*,m.state AS match_state FROM routes r JOIN catalog_channel_routes m USING(digest) WHERE m.channel_id=? AND r.blocked=0 AND r.deleted=0', (identity,)).fetchall():

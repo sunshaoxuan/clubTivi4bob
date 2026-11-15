@@ -176,3 +176,14 @@ def test_route_replace_retains_frozen_group_and_flags_context_change(held):
         conn.execute('INSERT OR REPLACE INTO routes ('+','.join(columns)+') VALUES ('+','.join('?' for _ in columns)+')',list(old.values()))
         assert conn.execute('SELECT group_name FROM routes WHERE digest=?',(digest,)).fetchone()[0]=='国际 / 美国 / 电影'
         assert conn.execute('SELECT status FROM catalog_market_review_holds').fetchone()[0]=='context_changed'
+
+
+def test_initial_hold_retains_queued_identity_when_epg_changed(catalog):
+    folder,_=catalog
+    queue={'reviewFindings':[{'channelId':'action','name':'Action Movies','countryCode':'US','expectedIdentity':{'id':'action','name':'Action Movies','epgId':'earlier-epg','countryCode':'US','regionCode':None},'categoryPath':['国际','美国','电视','电影']}]}
+    (folder/'broadcast-market-review-queue.json').write_text(json.dumps(queue))
+    with connect(folder) as conn:
+        refresh_holds(conn,folder)
+        hold=conn.execute('SELECT * FROM catalog_market_review_holds').fetchone()
+        assert hold['status']=='context_changed'
+        assert json.loads(hold['expected_identity'])['epgId']=='earlier-epg'

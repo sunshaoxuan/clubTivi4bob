@@ -217,6 +217,9 @@ def _approved(conn, channel_id):
     if context.get('provider') == 'rakuten-tv':
         from epg_rakuten import verify_current_catalogue_route
         verify_current_catalogue_route(channel_id, context, json.loads(row['evidence']))
+    if context.get('provider') == 'pluto-tv':
+        from epg_pluto import verify_current_catalogue_route
+        verify_current_catalogue_route(channel_id, context, json.loads(row['evidence']))
     return row
 
 

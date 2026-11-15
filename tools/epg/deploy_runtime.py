@@ -13,7 +13,7 @@ import tempfile
 
 ROOT=Path(__file__).resolve().parents[2]
 FILES=['epg_ingest.py','epg_store.py','epg_channel_search.py','epg_auto_search.py',
-       'epg_auto_search_worker.py','epg_rakuten.py','epg_programme_probe.py','epg_sources.json',
+       'epg_auto_search_worker.py','epg_rakuten.py','epg_pluto.py','epg_programme_probe.py','epg_sources.json',
        'epg_research_rounds.py','broadcast_market.py','broadcast_market_bindings.json','market_review_admin.py']
 REMOTE=r'''
 import hashlib,json,os,pathlib,pwd,shutil,sqlite3,subprocess,tarfile,time

@@ -96,8 +96,11 @@ def registry(path=REGISTRY):
         if 'minimumRetrySeconds' in source and (type(source['minimumRetrySeconds']) is not int
                 or not 900 <= source['minimumRetrySeconds'] <= min(86400, source['refreshSeconds'])):
             raise EpgError('invalid_minimum_retry_interval')
-        if source.get('format', 'xmltv') not in ('xmltv', 'tvmaze-json', 'cctv-json', 'taipei-monthly-csv', 'rakuten-json'):
+        if source.get('format', 'xmltv') not in ('xmltv', 'tvmaze-json', 'cctv-json', 'taipei-monthly-csv', 'rakuten-json', 'pluto-json'):
             raise EpgError('unsupported_source_format')
+        if source.get('format') == 'pluto-json':
+            from epg_pluto import validate_source
+            validate_source(source)
         if source.get('format') == 'rakuten-json':
             from epg_rakuten import validate_source
             validate_source(source)
@@ -142,6 +145,9 @@ def source_day(source, now):
 
 
 def fetch_source(source, now):
+    if source.get('format') == 'pluto-json':
+        from epg_pluto import fetch_schedule
+        return fetch_schedule(source, now)
     if source.get('format') == 'rakuten-json':
         from epg_rakuten import fetch_schedule
         return fetch_schedule(source, now)
@@ -158,6 +164,9 @@ def fetch_source(source, now):
 
 
 def parse_source(source, payload, now):
+    if source.get('format') == 'pluto-json':
+        from epg_pluto import parse_schedule
+        return parse_schedule(payload, source, now)
     if source.get('format') == 'rakuten-json':
         from epg_rakuten import parse_schedule
         return parse_schedule(payload, source, now)
@@ -453,7 +462,7 @@ def seed_cached_identities(directory, sources, cache_directory, now=None):
     seeded = []
     try:
         for source in sources:
-            if source.get('format') in ('tvmaze-json', 'cctv-json', 'taipei-monthly-csv', 'rakuten-json'):
+            if source.get('format') in ('tvmaze-json', 'cctv-json', 'taipei-monthly-csv', 'rakuten-json', 'pluto-json'):
                 continue  # Legacy egress cache contains XMLTV, never JSON schedules.
             if conn.execute('SELECT 1 FROM source_identities WHERE source_id=? LIMIT 1', (source['id'],)).fetchone():
                 continue

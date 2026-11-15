@@ -42,6 +42,25 @@
       }
     },
     {
+      "id": "pluto-de-official-v1",
+      "url": "https://api.pluto.tv/v2/channels",
+      "format": "pluto-json",
+      "countryCode": "DE",
+      "calendarTimezone": "Europe/Berlin",
+      "redirectUrls": [],
+      "refreshSeconds": 900,
+      "minimumRetrySeconds": 900,
+      "publicationAllowed": false,
+      "scope": "Four exact reviewed German Pluto feed IDs with explicit UTC programme windows. Exact catalogue routes remain separately reviewed.",
+      "dataLicense": {
+        "status": "operator_authorized_factual_schedule_scope",
+        "name": "Pluto TV factual schedule metadata",
+        "reviewedAt": "2026-11-16",
+        "evidenceUrl": "https://pluto.tv/de/live-tv/pluto-tv-movies-de",
+        "restriction": "Operator requested all-channel BobTV production integration of verified factual title/time/event/episode identifiers. No descriptions, summaries, artwork or video are published by this EPG adapter; no blanket third-party content licence is asserted."
+      }
+    },
+    {
       "id": "epgtalk-us-lite-v1",
       "url": "https://epgtalk.com/US_lite.xml.gz",
       "format": "xmltv",

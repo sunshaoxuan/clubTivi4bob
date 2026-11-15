@@ -1,0 +1,72 @@
+{
+  "observedAt": "2026-11-15T09:42:17.043434+00:00",
+  "source": "ccnode:/opt/bobtv/site",
+  "files": [
+    {
+      "file": "channel_matching.py",
+      "productionSha256": "5d92a0733492e63902c4e590136a2007527af7737cfe3b19fa5ecdc313dd4db5",
+      "trackedBefore": false,
+      "repositorySha256Before": null
+    },
+    {
+      "file": "channel_taxonomy.py",
+      "productionSha256": "6012961b3964cca4847c180e2300ffc2f626d3a46240a50301e166283afe0f52",
+      "trackedBefore": false,
+      "repositorySha256Before": null
+    },
+    {
+      "file": "channel_reference.py",
+      "productionSha256": "889016a1d50a1c633f823e37c131338c5d107c5bf99d6f8828a6956054ee2c50",
+      "trackedBefore": false,
+      "repositorySha256Before": null
+    },
+    {
+      "file": "channel_classification_rules.json",
+      "productionSha256": "85ec47b4f2efd64932e8d76d0b527ee031a2b68c5c16c94233bcd72f588c45d4",
+      "trackedBefore": false,
+      "repositorySha256Before": null
+    },
+    {
+      "file": "public_source_catalog.py",
+      "productionSha256": "3b9d708d20e16836f6feb0ecfd8ae5a855c662c3fcc24bff1ad77db9df791fe5",
+      "trackedBefore": false,
+      "repositorySha256Before": null
+    },
+    {
+      "file": "public_sources.json",
+      "productionSha256": "4457cadd7e62c0c8ae0e22730fca23fa4798096dcd7ff8f4b06cb1cfaf529390",
+      "trackedBefore": false,
+      "repositorySha256Before": null
+    },
+    {
+      "file": "channel_ai_matching.py",
+      "productionSha256": "021d33bc5d6cdef94fddc80607d4ec6aee3f080a8e314a16514ed50e3c4411f9",
+      "trackedBefore": false,
+      "repositorySha256Before": null
+    },
+    {
+      "file": "process_channel_inventory.py",
+      "productionSha256": "3b44368f9b14e6500cd230228c4790ee9f1f74fc0bf2eac128063340dc77dc1f",
+      "trackedBefore": true,
+      "repositorySha256Before": "82e0edb27ee148642a620b46019242a02ae2d4e54fd8de6726db58fedbd3094a"
+    },
+    {
+      "file": "catalog_inventory.py",
+      "productionSha256": "f2cd6ff691a9e09e2eb55590edbe69ab40b3b6ffe0bbea7c5612e47c65037bff",
+      "trackedBefore": true,
+      "repositorySha256Before": "f2cd6ff691a9e09e2eb55590edbe69ab40b3b6ffe0bbea7c5612e47c65037bff"
+    },
+    {
+      "file": "publish_channel_catalog.py",
+      "productionSha256": "7ba178b8df5d53f0abb6fb2c3b99c1c6b4fa7e76e79777f61283f0bc7adbdc09",
+      "trackedBefore": true,
+      "repositorySha256Before": "6008a3b9ad0a71e2e76bd55d1a451908ae80da4b9d3cb0e4dbd85520a5142f02"
+    },
+    {
+      "file": "channel_catalog.py",
+      "productionSha256": "5ec22183c906542b37b2c383906409fc0a95b6ecb889ecd7d560eb1f88789807",
+      "trackedBefore": true,
+      "repositorySha256Before": "5ec22183c906542b37b2c383906409fc0a95b6ecb889ecd7d560eb1f88789807"
+    }
+  ]
+}

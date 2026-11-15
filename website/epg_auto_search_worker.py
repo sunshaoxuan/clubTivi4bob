@@ -94,6 +94,14 @@ def execution_receipt(conn, now, result=None, error=None):
 
 
 def save_checkpoint(conn, result):
+    directory = result.pop('_roundDirectory', None)
+    if directory is not None:
+        try:
+            from epg_research_rounds import record
+            result['coverageRound'] = record(conn, directory, result['checkedAtUtc'],
+                execution=result, now=result.get('finishedAtUtc', result['checkedAtUtc']))
+        except (OSError, ValueError, KeyError, TypeError, sqlite3.Error):
+            result['coverageRound'] = {'state':'measurement_unavailable','coverageNotAssumed':True}
     previous = read_checkpoint(conn, CHECKPOINT)
     accepted = [v['channelId'] for v in result.get('processedChannels', []) if v.get('searchEvidenceAccepted')]
     if accepted:
@@ -374,11 +382,13 @@ def run(conn, manifest, channels, paths, settings_factory, shared_database, *, m
         'catalogVersion': manifest['version'], 'catalogChannels': len(channels), 'state': 'idle',
         'networkSearchExecutorImplemented': True, 'identityAutomaticallyApproved': False,
         'legacyCountryProviderDiscoveryEnabled': False, 'aiRequestsAttempted': 0,
-        'sourceCheckAttempts': 0,
+        'sourceCheckAttempts': 0, 'sourceBodiesRead': 0, 'programmeResponsesRead': 0,
         'claimedChannels': 0, 'processedChannels': [], 'newMappings': 0,
         'identityReviewExecutorImplemented': True, 'identitiesConfirmedThisRun': 0,
         'identityEvidencePacketsStaged': 0, 'sourceValidationHandoffs': 0,
         'newGrants': 0, 'newProgrammeRows': 0, 'published': False}
+    if source_directory is not None:
+        result['_roundDirectory'] = str(source_directory)
     result['lockedMappingRecovery'] = recovery.sync(conn, manifest, channels, paths, now)
     by_id, protected = sync_known(conn, manifest, channels, paths, now)
     known_ids = {r[0] for r in conn.execute('SELECT channel_id FROM epg_channel_research_jobs')}
@@ -531,6 +541,10 @@ def run(conn, manifest, channels, paths, settings_factory, shared_database, *, m
             evidence = search.decode(transport(settings, request['body']), request, int(clock()))
             evidence['technicalChecks'] = checked_candidates(conn, evidence, request, int(clock()), checker)
             result['sourceCheckAttempts'] += sum(not check.get('cacheReused', False) for check in evidence['technicalChecks'])
+            bodies = sum(check.get('bodyBytes',0)>0 and not check.get('cacheReused',False)
+                         for check in evidence['technicalChecks'])
+            result['sourceBodiesRead'] += bodies
+            result['programmeResponsesRead'] += bodies if request['stage'] != 'identity' else 0
         except search.SearchDeferred as exc:
             error, retry, manual = exc.code, exc.retry_at, exc.requires_manual_action
             retry = now + 7 * 86400 if manual else retry

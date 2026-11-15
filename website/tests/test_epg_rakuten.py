@@ -92,3 +92,21 @@ def test_changed_route_edition_suspends_mapping(monkeypatch,tmp_path):
     row['routes'].append({'url':'https://fixture-de.fast.rakuten.tv/production-LiveChannel-6066/master.m3u8'})
     (root/'manifest.json').write_text(json.dumps({'sha256':'fixture-v2'}))
     with pytest.raises(EpgError,match='route_edition_requires_review'):r.verify_current_catalogue_route('fixture',context,proof)
+
+
+def test_delivery_alias_requires_reviewed_host_service_and_market(monkeypatch,tmp_path):
+    import catalog_inventory,epg_discovery,broadcast_market
+    root=tmp_path/'channel-catalog';root.mkdir()
+    (root/'manifest.json').write_text(json.dumps({'sha256':'delivery-fixture'}))
+    monkeypatch.setattr(catalog_inventory,'DATA',tmp_path)
+    host='b'*32+'.mediatailor.eu-west-1.amazonaws.com'
+    url='https://'+host+'/v1/master/'+'a'*40+'/production-LiveChannel-6065/master.m3u8'
+    monkeypatch.setattr(epg_discovery,'load_catalog',lambda _:({},[{'id':'fixture','routes':[{'url':url}]}]))
+    context={'marketCode':'uk','serviceId':6065};proof={'providerMarketCode':'uk','providerServiceId':6065}
+    r._ROUTE_CACHE.clear();monkeypatch.setattr(broadcast_market,'load_matching_bindings',lambda:[])
+    with pytest.raises(EpgError,match='route_edition_requires_review'):r.verify_current_catalogue_route('fixture',context,proof)
+    binding={'provider':'rakuten-tv','host':host,'serviceId':'6065','market':'GB'}
+    monkeypatch.setattr(broadcast_market,'load_matching_bindings',lambda:[binding])
+    r.verify_current_catalogue_route('fixture',context,proof)
+    binding['market']='DE'
+    with pytest.raises(EpgError,match='route_edition_requires_review'):r.verify_current_catalogue_route('fixture',context,proof)

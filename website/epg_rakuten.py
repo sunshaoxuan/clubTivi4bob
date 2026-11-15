@@ -253,8 +253,18 @@ def verify_current_catalogue_route(channel_id, context, evidence):
             uri = urlsplit(route['url'].split('|', 1)[0])
             match = re.search(r'/production-LiveChannel-(\d+)/', uri.path)
             if (uri.scheme != 'https' or not uri.hostname
-                    or not uri.hostname.endswith('-'+context['marketCode']+'.fast.rakuten.tv')
                     or not match or int(match[1]) != context['serviceId']):
                 raise ValueError()
+            if not uri.hostname.endswith('-'+context['marketCode']+'.fast.rakuten.tv'):
+                # Explicit delivery aliases only, reviewed against the same
+                # programme and media asset on the provider-owned route.
+                from broadcast_market import provider_service, load_matching_bindings
+                key = provider_service(route['url'])
+                expected_market = {'uk':'GB','de':'DE'}[context['marketCode']]
+                bindings = [b for b in load_matching_bindings()
+                    if (b['provider'],b['host'],str(b['serviceId'])) == key]
+                if (not key or key[2] != str(context['serviceId']) or not bindings
+                        or {b['market'] for b in bindings} != {expected_market}):
+                    raise ValueError()
     except (OSError, ValueError, TypeError, KeyError):
         raise EpgError('rakuten_current_route_edition_requires_review') from None

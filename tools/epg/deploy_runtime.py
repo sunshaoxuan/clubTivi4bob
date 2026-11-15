@@ -13,7 +13,8 @@ import tempfile
 
 ROOT=Path(__file__).resolve().parents[2]
 FILES=['epg_ingest.py','epg_store.py','epg_channel_search.py','epg_auto_search.py',
-       'epg_auto_search_worker.py','epg_rakuten.py','epg_programme_probe.py','epg_sources.json']
+       'epg_auto_search_worker.py','epg_rakuten.py','epg_programme_probe.py','epg_sources.json',
+       'epg_research_rounds.py','broadcast_market.py','broadcast_market_bindings.json','market_review_admin.py']
 REMOTE=r'''
 import hashlib,json,os,pathlib,pwd,shutil,sqlite3,subprocess,tarfile,time
 from datetime import datetime,timezone
@@ -58,14 +59,23 @@ finally:
 def main():
     p=argparse.ArgumentParser(description=__doc__);p.add_argument('--ssh-key',required=True);p.add_argument('--host',required=True);p.add_argument('--baseline',type=Path);a=p.parse_args()
     commit=subprocess.check_output(['git','rev-parse','HEAD'],cwd=ROOT,text=True).strip()
-    assert not subprocess.check_output(['git','status','--porcelain','--untracked-files=no'],cwd=ROOT,text=True).strip(),'commit source first'
+    # Other client work may proceed concurrently. Every deployed byte must
+    # match this exact committed source, including the systemd override.
+    for n in FILES:
+        source=ROOT/'website'/n
+        if not source.exists():source=ROOT/'production/catalog'/n
+        committed=subprocess.check_output(['git','show',commit+':'+source.relative_to(ROOT).as_posix()],cwd=ROOT)
+        assert source.read_bytes()==committed,'commit deployed source first: '+n
     baseline=json.loads((a.baseline or ROOT/'production/epg/production-baseline.json').read_text())['files']
     baseline={n:(v['sha256'] if isinstance(v,dict) else v) for n,v in baseline.items()}
     meta={'sourceCommit':commit,'files':FILES,'baseline':{n:baseline[n] for n in FILES if n in baseline},'newFiles':[n for n in FILES if n not in baseline]}
     with tempfile.TemporaryDirectory() as d:
         d=Path(d);(d/'deployment.json').write_text(json.dumps(meta))
         with tarfile.open(d/'runtime.tar.gz','w:gz') as t:
-            for n in FILES:t.add(ROOT/'website'/n,arcname=n)
+            for n in FILES:
+                source=ROOT/'website'/n
+                if not source.exists():source=ROOT/'production/catalog'/n
+                t.add(source,arcname=n)
             t.add(ROOT/'website/deploy/bobtv-epg-source-discovery.service.d/20-channel-first.conf',arcname='20-channel-first.conf');t.add(d/'deployment.json',arcname='deployment.json')
         subprocess.run(['scp','-q','-i',a.ssh_key,str(d/'runtime.tar.gz'),a.host+':/tmp/bobtv-epg-runtime.tar.gz'],check=True)
     subprocess.run(['ssh','-i',a.ssh_key,'-o','BatchMode=yes',a.host,'python3','-'],input=REMOTE,text=True,check=True)

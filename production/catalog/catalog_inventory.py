@@ -1,0 +1,475 @@
+"""Persistent public channel inventory contributed by BobTV installations."""
+import hashlib
+import ipaddress
+import json
+import os
+import re
+import sqlite3
+import time
+from pathlib import Path
+from contextlib import contextmanager
+from urllib.parse import urlsplit, parse_qsl
+
+from fastapi import APIRouter, HTTPException, Request, BackgroundTasks
+from fastapi.responses import JSONResponse
+from starlette.concurrency import run_in_threadpool
+from route_identity import canonical_route_url
+
+DATA = Path(os.environ.get("BOBTV_DATA_DIR", Path(__file__).parent / "data"))
+router = APIRouter(prefix="/api/v1/channel-catalog")
+MAX_BODY = 512 * 1024
+
+
+def validate_media_url(url):
+    if not isinstance(url, str) or not 1 <= len(url) <= 2048 or any(ord(c) <= 32 or ord(c) == 127 for c in url):
+        raise ValueError("Invalid media URL")
+    parsed = urlsplit(url)
+    host = (parsed.hostname or "").lower()
+    if parsed.scheme not in ("https", "http") or not host or parsed.username or parsed.password or '#' in url:
+        raise ValueError("Invalid public media URL")
+    try:
+        address = ipaddress.ip_address(host)
+    except ValueError:
+        if "." not in host or host.endswith((".local", ".internal", ".localhost")):
+            raise ValueError("Private hostname") from None
+    else:
+        if not address.is_global:
+            raise ValueError("Private address")
+    if any(re.search(r"token|password|secret|auth|api.?key", key, re.I) for key, _ in parse_qsl(parsed.query, keep_blank_values=True)):
+        raise ValueError("Credential-bearing media URL")
+    segments = [part for part in parsed.path.split('/') if part]
+    if len(segments) >= 4 and segments[0].lower() in ('live', 'movie', 'series'):
+        raise ValueError("Account-bearing media URL")
+    if parsed.port is not None and not 1 <= parsed.port <= 65535:
+        raise ValueError("Invalid port")
+    return canonical_route_url(url)
+
+
+def _migrate_route_identity(conn):
+    conn.execute('CREATE TABLE IF NOT EXISTS catalog_migrations (name TEXT PRIMARY KEY)')
+    if conn.execute("SELECT 1 FROM catalog_migrations WHERE name='route_identity_v1'").fetchone():
+        return
+    groups = {}
+    for row in conn.execute('SELECT * FROM routes').fetchall():
+        url = canonical_route_url(row['url'])
+        groups.setdefault(url, []).append(dict(row))
+    for url, rows in groups.items():
+        digest = hashlib.sha256(url.encode()).hexdigest()
+        if len(rows) == 1 and rows[0]['digest'] == digest and rows[0]['url'] == url:
+            conn.execute('INSERT OR IGNORE INTO route_origins VALUES (?,?)', (digest, rows[0]['source']))
+            continue
+        winner = max(rows, key=lambda r: (r['manual_category'], r['revision'], r['received'], r['digest']))
+        merged = {**winner, 'url': url, 'digest': digest}
+        for field in ('blocked', 'deleted', 'manual_category', 'received', 'failures'):
+            merged[field] = max(r[field] for r in rows)
+        for field in ('playable_at', 'checked_at', 'success_at'):
+            merged[field] = max((r[field] for r in rows if r[field] is not None), default=None)
+        for field in ('success_votes', 'failure_votes'):
+            merged[field] = sum(r[field] for r in rows)
+        merged['revision'] = max(r['revision'] for r in rows) + (len(rows) > 1)
+        for row in rows:
+            origins = conn.execute('SELECT source FROM route_origins WHERE digest=?', (row['digest'],)).fetchall()
+            conn.execute('DELETE FROM route_origins WHERE digest=?', (row['digest'],))
+            for source in {row['source'], *(r[0] for r in origins)}:
+                conn.execute('INSERT OR IGNORE INTO route_origins VALUES (?,?)', (digest, source))
+            conn.execute('DELETE FROM routes WHERE digest=?', (row['digest'],))
+        columns = list(merged)
+        conn.execute(f"INSERT INTO routes ({','.join(columns)}) VALUES ({','.join('?' for _ in columns)})", list(merged.values()))
+    conn.execute("INSERT INTO catalog_migrations VALUES ('route_identity_v1')")
+
+
+@contextmanager
+def database(data_dir=None, *, timeout=30):
+    directory = Path(data_dir or DATA)
+    directory.mkdir(parents=True, exist_ok=True)
+    conn = sqlite3.connect(directory / "channel_inventory.sqlite3", timeout=timeout)
+    conn.row_factory = sqlite3.Row
+    conn.execute("PRAGMA journal_mode=WAL")
+    conn.execute("CREATE TABLE IF NOT EXISTS routes (digest TEXT PRIMARY KEY, name TEXT NOT NULL, url TEXT NOT NULL, group_name TEXT NOT NULL, source TEXT NOT NULL, epg_id TEXT, logo_url TEXT, playable_at INTEGER, blocked INTEGER NOT NULL DEFAULT 0, received INTEGER NOT NULL, checked_at INTEGER, success_at INTEGER, failures INTEGER NOT NULL DEFAULT 0)")
+    conn.execute("CREATE TABLE IF NOT EXISTS batches (reporter TEXT NOT NULL, digest TEXT NOT NULL, received INTEGER NOT NULL, PRIMARY KEY(reporter,digest))")
+    conn.execute("CREATE TABLE IF NOT EXISTS limits (reporter TEXT PRIMARY KEY, hour INTEGER NOT NULL, count INTEGER NOT NULL)")
+    columns = {row[1] for row in conn.execute('PRAGMA table_info(routes)')}
+    for name, definition in {'revision': 'INTEGER NOT NULL DEFAULT 0',
+            'deleted': 'INTEGER NOT NULL DEFAULT 0',
+            'success_votes': 'INTEGER NOT NULL DEFAULT 0',
+            'failure_votes': 'INTEGER NOT NULL DEFAULT 0',
+            'manual_category': 'INTEGER NOT NULL DEFAULT 0',
+            'manual_name': 'INTEGER NOT NULL DEFAULT 0',
+            'merge_id': 'TEXT',
+            'transferred': 'INTEGER NOT NULL DEFAULT 0'}.items():
+        if name not in columns:
+            conn.execute(f'ALTER TABLE routes ADD COLUMN {name} {definition}')
+    conn.execute('CREATE TABLE IF NOT EXISTS sync_receipts (reporter TEXT NOT NULL, event_id TEXT NOT NULL, receipt TEXT NOT NULL, PRIMARY KEY(reporter,event_id))')
+    conn.execute('CREATE TABLE IF NOT EXISTS route_origins (digest TEXT NOT NULL, source TEXT NOT NULL, PRIMARY KEY(digest,source))')
+    from network_routes import migrate
+    migrate(conn)
+    try:
+        with conn:
+            _migrate_route_identity(conn)
+            conn.execute('CREATE UNIQUE INDEX IF NOT EXISTS routes_url_unique ON routes(url)')
+            from market_review_hold import refresh_holds
+            refresh_holds(conn, directory)
+            # Setup is complete before callers may open their own explicit transaction.
+            if conn.in_transaction: conn.commit()
+            yield conn
+    finally:
+        conn.close()
+
+
+def ingest(rows, fingerprint, data_dir=None, *, busy_timeout=30):
+    now = int(time.time())
+    accepted = 0
+    skipped = 0
+    normalized = []
+    for row in rows:
+        try:
+            if not isinstance(row, dict): raise ValueError()
+            url = validate_media_url(row.get("url"))
+            name, group, source = row.get("name"), row.get("group"), row.get("source")
+            if not all(isinstance(value, str) and 1 <= len(value) <= limit
+                       and not any(ord(c) < 32 for c in value)
+                       for value, limit in ((name, 128), (group, 192), (source, 128))):
+                raise ValueError()
+            if type(row.get("blocked")) is not bool: raise ValueError()
+            playable = row.get("playableAt")
+            if playable is not None and (type(playable) is not int or playable > now + 300 or playable < 0): raise ValueError()
+            epg = row.get("epgId")
+            if epg is not None and (not isinstance(epg, str) or len(epg) > 128): raise ValueError()
+            logo = row.get("logoUrl")
+            if logo is not None:
+                try: validate_media_url(logo)
+                except ValueError: logo = None
+            normalized.append((hashlib.sha256(url.encode()).hexdigest(), name, url, group, source, epg, logo, playable, int(row["blocked"]), now))
+        except (ValueError, TypeError):
+            skipped += 1
+    reporter = hashlib.sha256(fingerprint.encode()).hexdigest()
+    batch_digest = hashlib.sha256(json.dumps(normalized, ensure_ascii=False).encode()).hexdigest()
+    with database(data_dir, timeout=busy_timeout) as conn:
+        if not conn.in_transaction:
+            conn.execute('BEGIN IMMEDIATE')
+        limit = conn.execute("SELECT hour,count FROM limits WHERE reporter=?", (reporter,)).fetchone()
+        count = limit["count"] + 1 if limit and limit["hour"] == now // 3600 else 1
+        if count > 2000: raise HTTPException(429, "Inventory rate limit", headers={"Retry-After": "3600"})
+        conn.execute("INSERT INTO limits VALUES (?,?,?) ON CONFLICT(reporter) DO UPDATE SET hour=excluded.hour,count=excluded.count", (reporter, now // 3600, count))
+        total = conn.execute("SELECT count(*) FROM routes").fetchone()[0]
+        for item in normalized:
+            if not conn.execute('SELECT 1 FROM routes WHERE digest=?', (item[0],)).fetchone():
+                if total >= 250000: raise HTTPException(503, "Inventory capacity reached")
+                total += 1
+            # Repeated discovery must not overwrite reviewed/manual metadata.
+            conn.execute("INSERT INTO routes (digest,name,url,group_name,source,epg_id,logo_url,playable_at,blocked,received) VALUES (?,?,?,?,?,?,?,?,?,?) ON CONFLICT(digest) DO UPDATE SET playable_at=MAX(COALESCE(routes.playable_at,0),COALESCE(excluded.playable_at,0)),blocked=MAX(routes.blocked,excluded.blocked),received=excluded.received", item)
+            conn.execute('INSERT OR IGNORE INTO route_origins VALUES (?,?)', (item[0], item[4]))
+            accepted += 1
+        conn.execute("DELETE FROM batches WHERE received<?", (now - 7 * 86400,))
+        conn.execute("INSERT OR REPLACE INTO batches VALUES (?,?,?)", (reporter, batch_digest, now))
+        counts = conn.execute("SELECT count(*),sum(blocked),sum(success_at IS NOT NULL AND blocked=0) FROM routes").fetchone()
+    return {"accepted": accepted, "skipped": skipped, "storedRoutes": counts[0], "blockedRoutes": counts[1] or 0, "verifiedRoutes": counts[2] or 0}
+
+
+@router.post("/inventory")
+async def inventory(request: Request):
+    if request.headers.get("content-type", "").split(";", 1)[0] != "application/json":
+        raise HTTPException(415)
+    body = bytearray()
+    async for chunk in request.stream():
+        body.extend(chunk)
+        if len(body) > MAX_BODY: raise HTTPException(413)
+    try:
+        payload = json.loads(body)
+        if not isinstance(payload, dict) or payload.get("schemaVersion") != 1 or not re.fullmatch(r"[a-f0-9]{64}", payload.get("fingerprint", "")):
+            raise ValueError()
+        rows = payload.get("routes")
+        if not isinstance(rows, list) or not 1 <= len(rows) <= 200: raise ValueError()
+    except (ValueError, TypeError):
+        raise HTTPException(422, "Invalid inventory batch") from None
+    receipt = await run_in_threadpool(_bounded_write, ingest, rows, payload['fingerprint'])
+    return JSONResponse(receipt, status_code=202)
+
+
+def _bounded_write(operation, *args):
+    try:
+        return operation(*args, busy_timeout=1)
+    except sqlite3.OperationalError as error:
+        if getattr(error, 'sqlite_errorcode', 0) & 255 in (sqlite3.SQLITE_BUSY, sqlite3.SQLITE_LOCKED):
+            raise HTTPException(503, 'Channel state temporarily busy', headers={'Retry-After': '1'}) from None
+        raise
+
+
+@router.get("/blocked")
+def blocked_routes():
+    from network_routes import inventory_reader
+    if not (DATA / 'channel_inventory.sqlite3').is_file():
+        return JSONResponse({'schemaVersion': 1, 'urls': []}, headers={'Cache-Control': 'no-store'})
+    with inventory_reader(DATA) as conn:
+        urls = [row[0] for row in conn.execute("SELECT url FROM routes WHERE blocked=1 OR deleted=1 ORDER BY digest")]
+    return JSONResponse({"schemaVersion": 1, "urls": urls}, headers={"Cache-Control": "no-store"})
+
+
+@router.post("/route-state")
+async def route_state(request: Request):
+    """Read durable retirements directly, without waiting for snapshot rebuilds."""
+    if request.headers.get("content-type", "").split(";", 1)[0] != "application/json":
+        raise HTTPException(415)
+    body = bytearray()
+    async for chunk in request.stream():
+        body.extend(chunk)
+        if len(body) > MAX_BODY: raise HTTPException(413)
+    try:
+        payload = json.loads(body)
+        urls = payload.get('urls') if isinstance(payload, dict) else None
+        if payload.get('schemaVersion') != 1 or not isinstance(urls, list) or not 1 <= len(urls) <= 200:
+            raise ValueError()
+        urls = list(dict.fromkeys(validate_media_url(url) for url in urls))
+    except (ValueError, TypeError, AttributeError):
+        raise HTTPException(422, 'Invalid route-state request') from None
+    def read_state():
+        from network_routes import inventory_reader
+        if not (DATA / 'channel_inventory.sqlite3').is_file():
+            return []
+        with inventory_reader(DATA) as conn:
+            return conn.execute('SELECT url,blocked,deleted,revision FROM routes WHERE url IN (' +
+                                ','.join('?' for _ in urls) + ')', urls).fetchall()
+    rows = await run_in_threadpool(read_state)
+    retired = [row['url'] for row in rows if row['blocked'] or row['deleted']]
+    path = DATA / 'channel-catalog/manifest.json'
+    version = json.loads(path.read_text()).get('version') if path.is_file() else None
+    return JSONResponse({'schemaVersion': 1, 'urls': retired, 'catalogVersion': version,
+                         'checkedAt': int(time.time())}, headers={'Cache-Control': 'no-store'})
+
+
+def ingest_events(events, fingerprint, data_dir=None, *, busy_timeout=30):
+    reporter = hashlib.sha256(fingerprint.encode()).hexdigest()
+    receipts = []
+    with database(data_dir, timeout=busy_timeout) as conn:
+        # Serialize before the first read. A deferred read-to-write upgrade in
+        # WAL mode can otherwise fail immediately with SQLITE_BUSY_SNAPSHOT.
+        if not conn.in_transaction:
+            conn.execute('BEGIN IMMEDIATE')
+        now=int(time.time())
+        limit=conn.execute('SELECT hour,count FROM limits WHERE reporter=?',(reporter,)).fetchone()
+        count=limit['count']+1 if limit and limit['hour']==now//3600 else 1
+        if count>2000: raise HTTPException(429,'Sync rate limit',headers={'Retry-After':'3600'})
+        conn.execute('INSERT INTO limits VALUES(?,?,?) ON CONFLICT(reporter) DO UPDATE SET hour=excluded.hour,count=excluded.count',(reporter,now//3600,count))
+        total=conn.execute('SELECT count(*) FROM routes').fetchone()[0]
+        for event in events:
+            if not isinstance(event, dict) or not isinstance(event.get('id'),str) or not re.fullmatch(r'[a-f0-9-]{16,80}', event['id']):
+                raise HTTPException(422, 'Invalid event ID')
+            event_id = event['id']
+            saved = conn.execute('SELECT receipt FROM sync_receipts WHERE reporter=? AND event_id=?', (reporter, event_id)).fetchone()
+            if saved:
+                receipts.append(json.loads(saved[0]))
+                continue
+            receipt = {'id': event_id, 'status': 'rejected', 'revision': 0}
+            try:
+                url = validate_media_url(event.get('url'))
+                kind = event.get('kind')
+                digest = hashlib.sha256(url.encode()).hexdigest()
+                row = conn.execute('SELECT * FROM routes WHERE digest=?', (digest,)).fetchone()
+                if kind in ('merge', 'transfer'):
+                    receipt = (_merge_event if kind == 'merge' else _transfer_event)(conn, event, receipt)
+                    if receipt['status'] != 'retry':
+                        conn.execute('INSERT INTO sync_receipts VALUES(?,?,?)', (reporter,event_id,json.dumps(receipt)))
+                    receipts.append(receipt)
+                    continue
+                if kind == 'upsert':
+                    metadata = event.get('metadata')
+                    if not isinstance(metadata, dict): raise ValueError('Missing metadata')
+                    # Insert through the same privacy and validation policy.
+                    normalized = {**metadata, 'url': url, 'blocked': False}
+                    name, group, source = normalized.get('name'), normalized.get('group'), normalized.get('source')
+                    if not all(isinstance(v, str) and 1 <= len(v) <= limit and not any(ord(c) < 32 for c in v)
+                               for v, limit in ((name,128),(group,192),(source,128))): raise ValueError('Invalid metadata')
+                    epg,logo=normalized.get('epgId'),normalized.get('logoUrl')
+                    if epg is not None and (not isinstance(epg,str) or len(epg)>128): raise ValueError('Invalid EPG')
+                    if logo is not None: validate_media_url(logo)
+                    if row is None:
+                        if total>=250000: raise HTTPException(503,'Inventory capacity reached')
+                        total+=1
+                        conn.execute('INSERT INTO routes(digest,name,url,group_name,source,received) VALUES(?,?,?,?,?,?)', (digest,name,url,group,source,int(time.time())))
+                        row = conn.execute('SELECT * FROM routes WHERE digest=?', (digest,)).fetchone()
+                        conn.execute('UPDATE routes SET epg_id=?,logo_url=? WHERE digest=?',(epg,logo,digest))
+                    conn.execute('INSERT OR IGNORE INTO route_origins VALUES (?,?)', (digest, source))
+                elif kind not in ('classify', 'health', 'delete', 'retire'):
+                    raise ValueError('Unknown event')
+                if row is None:
+                    if kind in ('delete', 'retire'):
+                        conn.execute('INSERT INTO routes(digest,name,url,group_name,source,received) VALUES(?,?,?,?,?,?)', (digest,'已删除线路',url,'其他','BobTV',int(time.time())))
+                        row = conn.execute('SELECT * FROM routes WHERE digest=?', (digest,)).fetchone()
+                    else:
+                        receipt['status'] = 'retry'
+                        receipts.append(receipt)
+                        continue
+                revision = row['revision']
+                if kind == 'classify':
+                    group = event.get('group')
+                    if not isinstance(group,str) or not 1 <= len(group) <= 192 or any(ord(c)<32 for c in group): raise ValueError('Invalid group')
+                    base = event.get('baseRevision')
+                    if type(base) is not int or base != revision:
+                        receipt.update(status='conflict', revision=revision)
+                    else:
+                        from market_review_hold import manual_category_override
+                        manual_category_override(conn, digest, group, str(event_id))
+                        conn.execute('UPDATE routes SET group_name=?,manual_category=1,revision=revision+1 WHERE digest=?', (group,digest))
+                        receipt.update(status='applied', revision=revision+1)
+                elif kind == 'health':
+                    success, failure = event.get('success',0), event.get('failure',0)
+                    if not all(type(v) is int and 0 <= v <= 10 for v in (success,failure)) or not success+failure: raise ValueError('Invalid health observation')
+                    from network_routes import record_health
+                    record_health(conn, digest, reporter, event, Path(data_dir or DATA))
+                    from channel_route_recovery import record_failure_signal
+                    record_failure_signal(conn, row, event, int(time.time()))
+                    if not event.get('networkToken'):
+                        # Preserve legacy accounting without exporting newly
+                        # attributed regional failures into the global score.
+                        conn.execute('UPDATE routes SET success_votes=success_votes+?,failure_votes=failure_votes+? WHERE digest=?', (success,failure,digest))
+                    receipt.update(status='applied', revision=revision)
+                elif kind in ('delete','retire'):
+                    column = 'blocked' if kind == 'retire' else 'deleted'
+                    changed = not row[column]
+                    conn.execute(f'UPDATE routes SET {column}=1,revision=revision+? WHERE digest=?', (int(changed),digest))
+                    receipt.update(status='applied',revision=revision+int(changed))
+                else:
+                    # Upstream refreshes cannot undo a manual content merge.
+                    if row['manual_name']:
+                        name, epg, logo = row['name'], row['epg_id'], row['logo_url']
+                    group = row['group_name'] if row['manual_category'] else metadata['group']
+                    changed=(name,group,epg,logo)!=(row['name'],row['group_name'],row['epg_id'],row['logo_url'])
+                    if changed and not row['blocked'] and not row['deleted']:
+                        if event.get('baseRevision',0)!=revision:
+                            receipt.update(status='conflict',revision=revision)
+                        else:
+                            conn.execute('UPDATE routes SET name=?,group_name=?,epg_id=?,logo_url=?,revision=revision+1 WHERE digest=?',(name,group,epg,logo,digest))
+                            receipt.update(status='applied',revision=revision+1)
+                    else:
+                        receipt.update(status='applied',revision=revision)
+            except (ValueError,TypeError):
+                pass
+            conn.execute('INSERT INTO sync_receipts VALUES(?,?,?)',(reporter,event_id,json.dumps(receipt)))
+            receipts.append(receipt)
+    return {'schemaVersion':1, 'receipts':receipts}
+
+
+def _transfer_event(conn, event, receipt):
+    """Move one canonical endpoint. Never expand its prior merge group."""
+    url = validate_media_url(event.get('url'))
+    target_url = validate_media_url(event.get('targetUrl'))
+    if url == target_url or any(type(event.get(k)) is not int or event[k] < 0
+                               for k in ('baseRevision', 'targetRevision')):
+        raise ValueError('Invalid transfer')
+    row = conn.execute('SELECT * FROM routes WHERE url=?', (url,)).fetchone()
+    target = conn.execute('SELECT * FROM routes WHERE url=?', (target_url,)).fetchone()
+    if row is None or target is None:
+        return {**receipt, 'status': 'retry'}
+    receipt = {**receipt, 'revision': row['revision']}
+    if row['blocked'] or row['deleted'] or target['blocked'] or target['deleted']:
+        return {**receipt, 'status': 'conflict'}
+    if row['revision'] != event['baseRevision'] or target['revision'] != event['targetRevision']:
+        return {**receipt, 'status': 'conflict'}
+    from process_channel_inventory import _identity
+    name = target['name'] if target['manual_name'] else _identity(target['name'])
+    if (row['name'], row['group_name'], row['merge_id']) == (name, target['group_name'], target['merge_id']):
+        raise ValueError('Route already belongs to destination')
+    conn.execute('UPDATE routes SET name=?,group_name=?,epg_id=?,logo_url=?, '
+                 'manual_name=1,manual_category=1,merge_id=?,transferred=1,revision=revision+1 WHERE url=?',
+                 (name, target['group_name'], target['epg_id'], target['logo_url'], target['merge_id'], url))
+    return {**receipt, 'status': 'applied', 'revision': row['revision'] + 1}
+
+
+def _merge_event(conn, event, receipt):
+    """Validate all members before writing. Preserve endpoint identity,
+    provenance, retirement and per-network weights.
+    """
+    name, group, merge_id = event.get('name'), event.get('group'), event.get('mergeId')
+    if not all(isinstance(v,str) and 1 <= len(v) <= maximum and
+               v == v.strip() and not any(ord(c)<32 for c in v)
+               for v,maximum in ((name,128),(group,192))):
+        raise ValueError('Invalid merge metadata')
+    if not isinstance(merge_id,str) or not re.fullmatch(r'[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}',merge_id):
+        raise ValueError('Invalid merge ID')
+    epg, logo = event.get('epgId'),event.get('logoUrl')
+    if epg is not None and (not isinstance(epg,str) or len(epg)>128):
+        raise ValueError('Invalid merged EPG')
+    if logo is not None: validate_media_url(logo)
+    members=event.get('routes')
+    if not isinstance(members,list) or not 1 <= len(members) <= 1000:
+        raise ValueError('Invalid merge members')
+    rows={}
+    for member in members:
+        if not isinstance(member,dict): raise ValueError('Invalid merge member')
+        url=validate_media_url(member.get('url'))
+        if url in rows or type(member.get('baseRevision')) is not int:
+            raise ValueError('Duplicate or invalid merge member')
+        row=conn.execute('SELECT * FROM routes WHERE url=?',(url,)).fetchone()
+        if row is None: return {**receipt,'status':'retry'}
+        rows[url]=(row,member['baseRevision'])
+    anchor=validate_media_url(event['url'])
+    if anchor not in rows: raise ValueError('Merge anchor is not a member')
+    revisions=[{'url':url,'revision':row['revision']} for url,(row,_) in rows.items()]
+    if any(row['revision'] != base for row,base in rows.values()):
+        return {**receipt,'status':'conflict','revision':rows[anchor][0]['revision'],'routes':revisions}
+    old_ids={row['merge_id'] for row,_ in rows.values() if row['merge_id']}
+    for old_id in old_ids:
+        if any(row['url'] not in rows for row in conn.execute(
+                'SELECT url FROM routes WHERE merge_id=? AND blocked=0 AND deleted=0',(old_id,))):
+            return {**receipt,'status':'conflict','revision':rows[anchor][0]['revision'],'routes':revisions}
+    for url,(row,_) in rows.items():
+        if row['blocked'] or row['deleted']: continue
+        conn.execute('UPDATE routes SET name=?,group_name=?,epg_id=?,logo_url=?, '
+                     'manual_category=1,manual_name=1,merge_id=?,transferred=0,revision=revision+1 WHERE url=?',
+                     (name,group,epg,logo,merge_id,url))
+    revisions=[{'url':url,'revision':conn.execute('SELECT revision FROM routes WHERE url=?',(url,)).fetchone()[0]}
+               for url in rows]
+    return {**receipt,'status':'applied','revision':next(r['revision'] for r in revisions if r['url']==anchor),
+            'routes':revisions,'mergeId':merge_id}
+
+
+@router.post('/events')
+async def sync_events(request: Request, background_tasks: BackgroundTasks):
+    if request.headers.get('content-type','').split(';',1)[0] != 'application/json': raise HTTPException(415)
+    body = bytearray()
+    async for chunk in request.stream():
+        body.extend(chunk)
+        if len(body)>MAX_BODY: raise HTTPException(413)
+    try:
+        payload = json.loads(body)
+        if payload.get('schemaVersion') != 1 or not re.fullmatch(r'[a-f0-9]{64}',payload.get('fingerprint','')): raise ValueError()
+        events = payload.get('events')
+        if not isinstance(events,list) or not 1 <= len(events) <= 200: raise ValueError()
+    except (ValueError,TypeError,AttributeError):
+        raise HTTPException(422,'Invalid sync events') from None
+    # Common retransmissions can use WAL reads without acquiring a writer.
+    def cached_receipts():
+        from network_routes import inventory_reader
+        reporter = hashlib.sha256(payload['fingerprint'].encode()).hexdigest()
+        if not all(isinstance(e, dict) and isinstance(e.get('id'), str) for e in events):
+            return None
+        try:
+            with inventory_reader(DATA) as conn:
+                saved = [conn.execute('SELECT receipt FROM sync_receipts WHERE reporter=? AND event_id=?',
+                                     (reporter, e['id'])).fetchone() for e in events]
+        except sqlite3.OperationalError:
+            return None  # New installation/schema initialization owns writes.
+        return {'schemaVersion': 1, 'receipts': [json.loads(row[0]) for row in saved]} if all(saved) else None
+    receipt = await run_in_threadpool(cached_receipts)
+    if receipt is not None:
+        return JSONResponse(receipt, status_code=202)
+    try:
+        receipt = await run_in_threadpool(_bounded_write, ingest_events, events, payload['fingerprint'])
+    except HTTPException as error:
+        if error.status_code != 503 or error.detail != 'Channel state temporarily busy':
+            raise
+        from catalog_event_queue import enqueue
+        import logging
+        logging.getLogger('bobtv.sync').warning('catalog_write_busy action=durable_inbox event_count=%d', len(events))
+        try:
+            receipt = await run_in_threadpool(enqueue, DATA, payload)
+        except ValueError:
+            raise HTTPException(422, 'Invalid sync events') from None
+        return JSONResponse(receipt, status_code=202, headers={'Retry-After': '15', 'Cache-Control': 'no-store'})
+    background_tasks.add_task(_publish_changes)
+    return JSONResponse(receipt,status_code=202)
+
+
+def _publish_changes():
+    from process_channel_inventory import process
+    process(DATA,limit=0)

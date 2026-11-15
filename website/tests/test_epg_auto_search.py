@@ -737,3 +737,10 @@ def test_dated_programme_api_accepts_public_contract_parameters_only():
         assert not s.candidate_allowed(url+tail,['rakuten.tv'],'structured_api')
     assert not s.candidate_allowed(url.replace('gizmo.rakuten.tv','127.0.0.1'),[],'structured_api')
     assert not s.candidate_allowed(url.replace('/v3/live_channels','/login'),[],'structured_api')
+
+
+def test_actual_body_read_counts_exclude_cached_references(conn):
+    result=run(conn,checker=lambda url,request:{'url':url,'result':'fixture_checked','bodyBytes':123,'httpStatus':200})
+    assert result['sourceBodiesRead']==1
+    assert result['programmeResponsesRead']==0
+    assert result['sourceCheckAttempts']==1

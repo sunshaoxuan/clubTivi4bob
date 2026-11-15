@@ -125,7 +125,7 @@ on loopback 8921, with an explicit Nginx route and retained rollback copies.
 The main application and EPG workers are not restarted. The service permits at
 most four clients sharing one live collector, retains a two-hour live-media window,
 and expires idle sessions. Runtime media, keys, transcripts and subtitle files
-are private cache material outside the repository. CPU is limited to 50% of one
+are private cache material outside the repository. CPU is limited to one
 core and memory to 768 MiB. Dependencies and the existing tiny.en model are
 provisioned separately from requirements.txt; no paid ASR API or API credential is needed.
 PyAV is pinned to the tested 15.1.0 interface. System FFmpeg is preferred over
@@ -155,3 +155,9 @@ to the decoder caused an observed minute-scale playhead jump. Normalized output
 uses a pinned session origin; real ad/film segment smoke checks measured first
 video PTS within 70 ms of the declared timeline start. Fresh native live tests
 must still validate decoder clock continuity across the insertion.
+
+Acoustic analysis runs in one background worker with a generation/asset guard.
+Slow or stale ASR results cannot block advert suspension or reactivate captions
+after a content boundary. The online gate reads packet PTS with ffprobe, and
+only one acoustic analysis is outstanding per engine. Beam size 1 bounds pilot
+CPU cost; calibrated source PTS carries the continuous subtitle clock.

@@ -2,6 +2,7 @@ import json
 from pathlib import Path
 import tempfile
 import time
+import threading
 import unittest
 from unittest.mock import patch
 
@@ -70,7 +71,7 @@ class LiveServiceTests(unittest.TestCase):
         for return_pts,expected in [(12.,'LOCKED'),(300.,'ACQUIRING')]:
             with self.subTest(return_pts=return_pts),tempfile.TemporaryDirectory() as root:
                 candidate=dict(page='existing-file',tracks={'en':[dict(index=1,start=100,end=150,text='Existing subtitle')]})
-                e=Engine('https://public.example/route',dict(movieId='film',title='Film',year=2003),root,None,'ffmpeg',candidates=[candidate])
+                e=Engine('https://public.example/route',dict(movieId='film',title='Film',year=2003),root,None,'ffmpeg',candidates=[candidate],synchronous_analysis=True)
                 e.collector.rows=[dict(sequence=i,duration=duration,timelineStart=start,timelineEnd=start+duration,
                     contentId=content,caid='m_9',sequenceGap=False,asset='film-asset' if content else 'insert-asset',observedWall=time.time())
                     for i,start,duration,content in [(1,0,6,'film'),(2,6,6,'film'),(3,12,2,None),(4,14,6,'film')]]
@@ -83,6 +84,27 @@ class LiveServiceTests(unittest.TestCase):
                 self.assertEqual(e.decisions[3]['tracks'],[])
                 self.assertEqual(e.decisions[4]['state'],expected)
                 if expected!='LOCKED': self.assertEqual(e.decisions[4]['tracks'],[])
+
+    def test_slow_asr_never_blocks_ad_suspension_or_reactivates_stale_calibration(self):
+        with tempfile.TemporaryDirectory() as root:
+            candidate=dict(page='existing',tracks={'en':[dict(index=1,start=100,end=150,text='Existing subtitle')]})
+            e=Engine('https://public.example/route',dict(movieId='film',title='Film',year=2003),root,None,'ffmpeg',candidates=[candidate])
+            e.collector.rows=[dict(sequence=i,duration=duration,timelineStart=start,timelineEnd=start+duration,
+                contentId=content,caid='m_9',sequenceGap=False,asset='film' if content else 'insert',observedWall=time.time())
+                for i,start,duration,content in [(1,0,6,'film'),(2,6,6,'film'),(3,12,1,None)]]
+            started=threading.Event();release=threading.Event()
+            def slow(*args):
+                started.set();release.wait(2);return []
+            with patch('live_engine.media_pts',lambda row,*_:row['timelineStart']),patch('live_engine.transcribe',slow),patch('live_engine.align',lambda *args:(100.,[dict(cue=1)])):
+                controller=threading.Thread(target=e.run);controller.start()
+                self.assertTrue(started.wait(1))
+                deadline=time.monotonic()+1
+                while 3 not in e.decisions and time.monotonic()<deadline:time.sleep(.01)
+                self.assertEqual(e.decisions[3]['tracks'],[])
+                self.assertEqual(e.decisions[3]['state'],'SUSPENDED')
+                release.set();e.collector.stop.set();controller.join(2);e.analysis_thread.join(2)
+                self.assertIsNone(e.k)
+                self.assertIsNone(e.reference)
 
 
 if __name__=='__main__':

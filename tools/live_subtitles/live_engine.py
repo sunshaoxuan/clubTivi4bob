@@ -9,6 +9,7 @@ import json
 from pathlib import Path
 import re
 import statistics
+import shutil
 import subprocess
 import threading
 import time
@@ -53,6 +54,12 @@ def align(words, cues, timeline):
 def media_pts(row, ffmpeg, root):
     path = root / 'analysis' / ('pts-' + str(row['sequence']) + '.m3u8')
     path.write_text(playlist([row], end=True))
+    probe = shutil.which('ffprobe')
+    if probe:
+        result = subprocess.run([probe, '-v', 'error', '-protocol_whitelist', 'file,crypto,data',
+            '-allowed_extensions', 'ALL', '-select_streams', 'v:0', '-show_entries', 'packet=pts_time',
+            '-read_intervals', '%+#1', '-of', 'json', str(path)], capture_output=True, text=True, timeout=8)
+        return float(json.loads(result.stdout)['packets'][0]['pts_time'])
     result = subprocess.run([ffmpeg, '-hide_banner', '-copyts', '-protocol_whitelist', 'file,crypto,data',
                              '-allowed_extensions', 'ALL', '-i', str(path), '-an', '-vf', 'showinfo',
                              '-frames:v', '1', '-f', 'null', '-'], capture_output=True, text=True, timeout=12)
@@ -69,7 +76,7 @@ def transcribe(rows, model, ffmpeg, root):
     subprocess.run([ffmpeg, '-hide_banner', '-loglevel', 'error', '-protocol_whitelist', 'file,crypto,data',
                     '-allowed_extensions', 'ALL', '-i', str(path), '-vn', '-ac', '1', '-ar', '16000',
                     '-y', str(wav)], timeout=20, capture_output=True, check=True)
-    segments, _ = model.transcribe(str(wav), language='en', word_timestamps=True, beam_size=5, vad_filter=True)
+    segments, _ = model.transcribe(str(wav), language='en', word_timestamps=True, beam_size=1, vad_filter=True)
     words = [dict(start=w.start, end=w.end, word=w.word, probability=w.probability)
              for s in segments for w in (s.words or [])]
     wav.unlink(missing_ok=True)
@@ -77,7 +84,7 @@ def transcribe(rows, model, ffmpeg, root):
 
 
 class Engine:
-    def __init__(self, source, programme, root, model, ffmpeg, *, candidates=None, preferred_language='en'):
+    def __init__(self, source, programme, root, model, ffmpeg, *, candidates=None, preferred_language='en', synchronous_analysis=False):
         self.root = Path(root); (self.root / 'analysis').mkdir(parents=True, exist_ok=True)
         self.collector = Collector(source, self.root, seconds=0)
         self.programme, self.model, self.ffmpeg = programme, model, ffmpeg
@@ -89,6 +96,12 @@ class Engine:
         self.calibration_cues = set()
         self.errors = []
         self.controller_stop = threading.Event()
+        self.reference = None
+        self.analysis_thread = None
+        self.synchronous_analysis = synchronous_analysis
+        self.generation = 0
+        self.active_asset = None
+        self.active_movie = None
 
     def event(self, kind, **facts):
         item = dict(event=kind, **{'wall': time.time(), **facts})
@@ -111,13 +124,19 @@ class Engine:
                 self.event('no_existing_english_reference')
         except Exception as error:
             self.candidates = []; self.event('subtitle_discovery_error', errorType=type(error).__name__)
-        reference, run, last_analysis = None, [], -100.
+        run, last_analysis = [], -100.
         while not self.collector.stop.is_set() and not self.controller_stop.is_set():
             fresh = [r for r in self.collector.snapshot() if r['sequence'] > self.last_sequence]
             for row in fresh:
                 self.last_sequence = row['sequence']
                 matches = row['contentId'] == self.programme['movieId']
                 old_state = self.state
+                if self.active_asset != row['asset'] or self.active_movie != matches or row['sequenceGap']:
+                    with self.lock:
+                        self.generation += 1
+                        self.active_asset, self.active_movie = row['asset'], matches
+                        if row['sequenceGap']:
+                            self.k = None; self.verified_asset = None
                 pts = None
                 if matches:
                     try:
@@ -147,54 +166,25 @@ class Engine:
                                        continuityErrorSeconds=pts - self.last_pts_end,
                                        observedRecoverySeconds=time.time() - row['observedWall'])
                     if self.state == 'LOCKED' and old_state == 'LOCKED' and self.last_pts_end is not None and abs(pts - self.last_pts_end) > .2:
-                        self.state = 'ACQUIRING'; run = []
+                        self.state = 'ACQUIRING'; self.k = None; self.verified_asset = None; run = []; self.generation += 1
                         self.event('clock_discontinuity', sequence=row['sequence'], errorSeconds=pts - self.last_pts_end)
                     run.append(row)
                     self.last_pts_end = pts + row['duration']
-                    if self.candidates and row['timelineEnd'] - last_analysis >= 12 and sum(r['duration'] for r in run) >= 12:
+                    if (self.candidates and (self.analysis_thread is None or not self.analysis_thread.is_alive())
+                            and row['timelineEnd'] - last_analysis >= 12 and sum(r['duration'] for r in run) >= 12):
                         window, length = [], 0
                         for previous in reversed(run):
                             window.insert(0, previous); length += previous['duration']
                             if length >= 24:
                                 break
-                        started = time.time()
-                        try:
-                            words = transcribe(window, self.model, self.ffmpeg, self.root)
-                            trial = [reference] if reference else self.candidates
-                            observations = []
-                            for candidate in trial:
-                                found, anchors = align(words, candidate['tracks']['en'], window[0]['timelineStart'])
-                                observations.append(dict(page=candidate['page'], offset=found, anchors=anchors))
-                                if found is None:
-                                    continue
-                                candidate_k = found - pts + row['timelineStart']
-                                if self.state != 'LOCKED':
-                                    reference = candidate; self.k = candidate_k; self.verified_asset = row['asset']; self.state = 'LOCKED'
-                                    self.calibration_cues = {a['cue'] for a in anchors}
-                                    if self.returned:
-                                        self.resume = dict(timeline=row['timelineEnd'], wall=time.time(), mode='fresh_acoustic_lock')
-                                    self.event('acoustic_lock', timeline=row['timelineEnd'], wallSeconds=time.time() - started,
-                                               subtitleMinusPts=self.k, anchors=anchors, afterReturn=bool(self.returned))
-                                else:
-                                    offset = self.k + pts - row['timelineStart']
-                                    residuals = [a['offset'] - offset for a in anchors]
-                                    self.event('acoustic_validation', timeline=row['timelineEnd'], anchors=anchors,
-                                               residualSeconds=residuals, activeOffset=offset, afterReturn=bool(self.returned))
-                                    # Post-insertion observations are holdout evidence, never silently refit.
-                                    if abs(found - offset) > .9:
-                                        self.state = 'ACQUIRING'; self.k = None; self.verified_asset = None; run = []
-                                        self.event('acoustic_calibration_invalidated', deviationSeconds=found - offset)
-                                    elif self.returned:
-                                        for anchor, residual in zip(anchors, residuals):
-                                            if anchor['asrStart'] >= self.returned['start'] and anchor['cue'] not in self.calibration_cues:
-                                                self.holdout[anchor['cue']] = dict(**anchor, errorSeconds=residual)
-                                break
-                            (self.root / 'analysis' / (str(row['sequence']) + '.json')).write_text(json.dumps(dict(
-                                observedWall=time.time(), timelineStart=window[0]['timelineStart'], timelineEnd=row['timelineEnd'],
-                                processSeconds=time.time() - started, observations=observations, words=words)))
-                        except Exception as error:
-                            self.event('analysis_error', sequence=row['sequence'], errorType=type(error).__name__)
+                        if self.synchronous_analysis:
+                            self.analyze(window, row, pts, self.generation)
+                        else:
+                            self.analysis_thread = threading.Thread(target=self.analyze,
+                                args=(window, row, pts, self.generation), daemon=True)
+                            self.analysis_thread.start()
                         last_analysis = row['timelineEnd']
+                reference = self.reference
                 tracks = []
                 offset = self.k + pts - row['timelineStart'] if self.state == 'LOCKED' and self.k is not None and pts is not None else None
                 if offset is not None and reference:
@@ -215,6 +205,49 @@ class Engine:
                     timeline=row['timelineEnd'], pause=self.pause, returned=self.returned, resume=self.resume,
                     holdout=list(self.holdout.values()), subtitleCandidates=len(self.candidates or []))))
             self.collector.stop.wait(.15)
+
+    def analyze(self, window, row, pts, generation):
+        started = time.time()
+        try:
+            words = transcribe(window, self.model, self.ffmpeg, self.root)
+            trial = [self.reference] if self.reference else self.candidates
+            observations = []
+            for candidate in trial:
+                found, anchors = align(words, candidate['tracks']['en'], window[0]['timelineStart'])
+                observations.append(dict(page=candidate['page'], offset=found, anchors=anchors))
+                if found is None:
+                    continue
+                with self.lock:
+                    if (self.controller_stop.is_set() or generation != self.generation
+                            or self.active_asset != row['asset'] or self.state == 'SUSPENDED'):
+                        self.event('stale_acoustic_result_rejected', sequence=row['sequence'])
+                        break
+                    candidate_k = found - pts + row['timelineStart']
+                    if self.state != 'LOCKED':
+                        self.reference = candidate; self.k = candidate_k; self.verified_asset = row['asset']; self.state = 'LOCKED'
+                        self.calibration_cues = {a['cue'] for a in anchors}
+                        if self.returned:
+                            latest=self.collector.snapshot()[-1]
+                            self.resume = dict(timeline=latest['timelineEnd'], wall=time.time(), mode='fresh_acoustic_lock')
+                        self.event('acoustic_lock', timeline=row['timelineEnd'], wallSeconds=time.time()-started,
+                                   subtitleMinusPts=self.k, anchors=anchors, afterReturn=bool(self.returned))
+                    else:
+                        offset=self.k+pts-row['timelineStart'];residuals=[a['offset']-offset for a in anchors]
+                        self.event('acoustic_validation', timeline=row['timelineEnd'], anchors=anchors,
+                                   residualSeconds=residuals,activeOffset=offset,afterReturn=bool(self.returned))
+                        if abs(found-offset)>.9:
+                            self.state='ACQUIRING';self.k=None;self.verified_asset=None;self.generation+=1
+                            self.event('acoustic_calibration_invalidated', deviationSeconds=found-offset)
+                        elif self.returned:
+                            for anchor,residual in zip(anchors,residuals):
+                                if anchor['asrStart']>=self.returned['start'] and anchor['cue'] not in self.calibration_cues:
+                                    self.holdout[anchor['cue']]=dict(**anchor,errorSeconds=residual)
+                break
+            (self.root/'analysis'/(str(row['sequence'])+'.json')).write_text(json.dumps(dict(
+                observedWall=time.time(),timelineStart=window[0]['timelineStart'],timelineEnd=row['timelineEnd'],
+                processSeconds=time.time()-started,observations=observations,words=words)))
+        except Exception as error:
+            self.event('analysis_error',sequence=row['sequence'],errorType=type(error).__name__)
 
     def windows(self, origin=0):
         with self.lock:

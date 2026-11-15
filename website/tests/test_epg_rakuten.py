@@ -110,3 +110,17 @@ def test_delivery_alias_requires_reviewed_host_service_and_market(monkeypatch,tm
     r.verify_current_catalogue_route('fixture',context,proof)
     binding['market']='DE'
     with pytest.raises(EpgError,match='route_edition_requires_review'):r.verify_current_catalogue_route('fixture',context,proof)
+
+
+def test_spanish_market_uses_its_classification_service_and_local_calendar():
+    source={**SOURCE,'marketCode':'es','calendarTimezone':'Europe/Madrid'}
+    value=payload();value['bobtvRequest']['marketCode']='es';value['data'][0]['numerical_id']=6069
+    assert r.parse_schedule(json.dumps(value).encode(),source,NOW)['programmes'][0]['originalChannelId']=='rakuten:es:6069'
+    def fetch(config):
+        from urllib.parse import parse_qs,urlsplit
+        query=parse_qs(urlsplit(config['url']).query)
+        assert query['classification_id']==['5'] and query['market_code']==['es']
+        assert query['epg_starts_at']==['2026-11-14T23:00:00.000Z']
+        return json.dumps({'data':value['data'],'meta':{'pagination':{'page':1,'count':1,'total_pages':1}}}).encode(),{}
+    body,receipt=r.fetch_schedule(source,NOW,fetch)
+    assert receipt['channelsFetched']==1 and receipt['marketCode']=='es'

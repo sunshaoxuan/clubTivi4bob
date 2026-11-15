@@ -22,6 +22,26 @@
       }
     },
     {
+      "id": "rakuten-es-official-v1",
+      "url": "https://gizmo.rakuten.tv/v3/live_channels",
+      "format": "rakuten-json",
+      "marketCode": "es",
+      "countryCode": "ES",
+      "calendarTimezone": "Europe/Madrid",
+      "redirectUrls": [],
+      "refreshSeconds": 900,
+      "minimumRetrySeconds": 900,
+      "publicationAllowed": false,
+      "scope": "Official market-specific schedule facts. Exact routes are reviewed independently; provider discovery does not approve channel mappings.",
+      "dataLicense": {
+        "status": "operator_authorized_factual_schedule_scope",
+        "name": "Rakuten TV factual schedule metadata",
+        "reviewedAt": "2026-11-16",
+        "evidenceUrl": "https://www.rakuten.tv/es/live_channels/hola-play-2108fd06-86d4-44e8-9867-c35b4895a1c1",
+        "restriction": "Operator requested BobTV production integration of factual title/time/event and movie identifiers. No descriptions, plots or artwork are published; no blanket third-party content licence is asserted."
+      }
+    },
+    {
       "id": "epgtalk-us-lite-v1",
       "url": "https://epgtalk.com/US_lite.xml.gz",
       "format": "xmltv",

@@ -82,11 +82,21 @@ def record(conn, directory, started_at, *, before=None, execution=None, now=None
     valid = previous.get('publishedIds') is not None and after['publishedIds'] is not None
     added = sorted(set(after['publishedIds'])-set(previous['publishedIds'])) if valid else None
     removed = sorted(set(previous['publishedIds'])-set(after['publishedIds'])) if valid else None
+    conn.execute('''CREATE TABLE IF NOT EXISTS epg_published_coverage_seen(
+      channel_id TEXT PRIMARY KEY,first_seen INTEGER NOT NULL,last_seen INTEGER NOT NULL)''')
+    with conn:
+        for cid in previous.get('publishedIds') or []:
+            conn.execute('INSERT OR IGNORE INTO epg_published_coverage_seen VALUES(?,?,?)',
+                (cid,previous.get('checkedAtUtc',started_at),previous.get('checkedAtUtc',started_at)))
+    seen={r[0] for r in conn.execute('SELECT channel_id FROM epg_published_coverage_seen')}
+    first_time=sorted(set(added)-seen) if valid else None
+    restored=sorted(set(added)&seen) if valid else None
     execution = execution or {}
     receipt = {'kind':kind,'startedAtUtc':started_at,'finishedAtUtc':now,
         'coverageBefore':previous['coverage']['publishedCurrentAndFutureChannels'] if valid else None,
         'coverageAfter':after['coverage']['publishedCurrentAndFutureChannels'] if valid else None,
         'addedPublishedChannelIds':added,'removedPublishedChannelIds':removed,
+        'newPublishedChannelIds':first_time,'restoredPublishedChannelIds':restored,
         'netPublishedCoverageChange':len(added)-len(removed) if valid else None,
         'publishedSnapshotVerified':after['coverage']['publishedSnapshotVerifiedLocally'],
         'aiRequestsAttempted':execution.get('aiRequestsAttempted',0),
@@ -103,6 +113,9 @@ def record(conn, directory, started_at, *, before=None, execution=None, now=None
         conn.execute('INSERT OR REPLACE INTO epg_checkpoints VALUES(?,?)',
             ('epg_last_exploration_round',json.dumps(receipt,sort_keys=True)))
         if after['publishedIds'] is not None:
+            for cid in after['publishedIds']:
+                conn.execute('INSERT INTO epg_published_coverage_seen VALUES(?,?,?) '
+                    'ON CONFLICT(channel_id) DO UPDATE SET last_seen=excluded.last_seen',(cid,now,now))
             conn.execute('INSERT OR REPLACE INTO epg_checkpoints VALUES(?,?)',
                 ('epg_round_publication_baseline',json.dumps(after,sort_keys=True)))
     return receipt

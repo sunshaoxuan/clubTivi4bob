@@ -21,8 +21,9 @@ from process_channel_inventory import _HTTPSHandler
 from source_registry import validate_public_url
 
 API = 'https://gizmo.rakuten.tv/v3/live_channels'
-ANCHORS = {'uk': ('action-rakuten-tv', 6065), 'de': ('action-rakuten-tv', 6066)}
-ZONES = {'uk': 'Europe/London', 'de': 'Europe/Berlin'}
+ANCHORS = {'uk': ('action-rakuten-tv', 6065), 'de': ('action-rakuten-tv', 6066), 'es': ('action-rakuten-tv',6069)}
+ZONES = {'uk': 'Europe/London', 'de': 'Europe/Berlin','es':'Europe/Madrid'}
+CLASSIFICATIONS = {'uk':18,'de':307,'es':5}
 
 
 def validate_source(source):
@@ -87,7 +88,7 @@ def fetch_schedule(source, now, fetcher=fetch_page):
     while total_pages is None or page <= total_pages:
         if page > 20:
             raise EpgError('rakuten_pagination_limit')
-        params = dict(classification_id=18, device_identifier='web', locale='en',
+        params = dict(classification_id=CLASSIFICATIONS[market], device_identifier='web', locale='en',
             market_code=market, per_page=25, page=page,
             epg_starts_at=start, epg_ends_at=end)
         url = API + '?' + urlencode(params)

@@ -1,0 +1,104 @@
+00:00 +0: loading /Users/shou/Documents/Codex/2026-07-18/git/work/bobtv-epg-rakuten-20261115/test/player_resources_test.dart
+00:00 +0: /Users/shou/Documents/Codex/2026-07-18/git/work/bobtv-epg-rakuten-20261115/test/player_resources_test.dart: duplicate disposal owns one native operation
+00:00 +1: /Users/shou/Documents/Codex/2026-07-18/git/work/bobtv-epg-rakuten-20261115/test/player_resources_test.dart: caller timeout retains unfinished decoder for the exit barrier
+00:00 +2: /Users/shou/Documents/Codex/2026-07-18/git/work/bobtv-epg-rakuten-20261115/test/player_resources_test.dart: shutdown drains main, warm and detached multi-view decoders
+00:00 +3: /Users/shou/Documents/Codex/2026-07-18/git/work/bobtv-epg-rakuten-20261115/test/player_resources_test.dart: failed native disposal cannot be counted as a completed drain
+00:00 +4: /Users/shou/Documents/Codex/2026-07-18/git/work/bobtv-epg-rakuten-20261115/test/prepared_channel_commit_gate_test.dart: UI commits preview before route sync or a scheduled frame
+00:00 +5: /Users/shou/Documents/Codex/2026-07-18/git/work/bobtv-epg-rakuten-20261115/test/prepared_channel_commit_gate_test.dart: verified preview transfer never polls buffering or media readiness
+00:00 +6: /Users/shou/Documents/Codex/2026-07-18/git/work/bobtv-epg-rakuten-20261115/test/prepared_channel_commit_gate_test.dart: verified preview promotion begins synchronously with no timer
+00:00 +7: /Users/shou/Documents/Codex/2026-07-18/git/work/bobtv-epg-rakuten-20261115/test/prepared_channel_commit_gate_test.dart: native handoff is the only pending operation and clicks coalesce
+00:00 +8: /Users/shou/Documents/Codex/2026-07-18/git/work/bobtv-epg-rakuten-20261115/test/prepared_channel_commit_gate_test.dart: existing decoder and controller ownership is transferred unchanged
+00:00 +9: /Users/shou/Documents/Codex/2026-07-18/git/work/bobtv-epg-rakuten-20261115/test/prepared_channel_commit_gate_test.dart: new selection invalidates an older asynchronous native handoff
+00:00 +10: /Users/shou/Documents/Codex/2026-07-18/git/work/bobtv-epg-rakuten-20261115/test/prepared_channel_commit_gate_test.dart: native promotion errors release the gate for a retry
+00:00 +11: /Users/shou/Documents/Codex/2026-07-18/git/work/bobtv-epg-rakuten-20261115/test/prepared_channel_commit_gate_test.dart: cancelled or retired preview cannot replace active playback
+00:00 +12: /Users/shou/Documents/Codex/2026-07-18/git/work/bobtv-epg-rakuten-20261115/test/live_subtitle_session_test.dart: late session response cannot caption the next channel
+00:00 +13: /Users/shou/Documents/Codex/2026-07-18/git/work/bobtv-epg-rakuten-20261115/test/live_subtitle_session_test.dart: expired service lease hides captions without touching video
+00:01 +14: /Users/shou/Documents/Codex/2026-07-18/git/work/bobtv-epg-rakuten-20261115/test/live_subtitle_session_test.dart: expired service lease hides captions without touching video
+00:01 +15: /Users/shou/Documents/Codex/2026-07-18/git/work/bobtv-epg-rakuten-20261115/test/live_subtitle_session_test.dart: expired service lease hides captions without touching video
+00:01 +16: /Users/shou/Documents/Codex/2026-07-18/git/work/bobtv-epg-rakuten-20261115/test/live_subtitle_session_test.dart: expired service lease hides captions without touching video
+00:01 +17: /Users/shou/Documents/Codex/2026-07-18/git/work/bobtv-epg-rakuten-20261115/test/live_subtitle_session_test.dart: expired service lease hides captions without touching video
+00:01 +18: /Users/shou/Documents/Codex/2026-07-18/git/work/bobtv-epg-rakuten-20261115/test/live_subtitle_session_test.dart: expired service lease hides captions without touching video
+00:01 +19: /Users/shou/Documents/Codex/2026-07-18/git/work/bobtv-epg-rakuten-20261115/test/live_subtitle_session_test.dart: expired service lease hides captions without touching video
+00:01 +20: /Users/shou/Documents/Codex/2026-07-18/git/work/bobtv-epg-rakuten-20261115/test/live_subtitle_session_test.dart: expired service lease hides captions without touching video
+00:01 +21: /Users/shou/Documents/Codex/2026-07-18/git/work/bobtv-epg-rakuten-20261115/test/live_subtitle_session_test.dart: expired service lease hides captions without touching video
+00:01 +22: /Users/shou/Documents/Codex/2026-07-18/git/work/bobtv-epg-rakuten-20261115/test/live_subtitle_session_test.dart: expired service lease hides captions without touching video
+00:01 +23: /Users/shou/Documents/Codex/2026-07-18/git/work/bobtv-epg-rakuten-20261115/test/live_subtitle_session_test.dart: expired service lease hides captions without touching video
+00:01 +24: /Users/shou/Documents/Codex/2026-07-18/git/work/bobtv-epg-rakuten-20261115/test/live_subtitle_session_test.dart: expired service lease hides captions without touching video
+00:04 +25: /Users/shou/Documents/Codex/2026-07-18/git/work/bobtv-epg-rakuten-20261115/test/live_subtitle_session_test.dart: expired service lease hides captions without touching video
+00:04 +26: /Users/shou/Documents/Codex/2026-07-18/git/work/bobtv-epg-rakuten-20261115/test/live_subtitle_session_test.dart: expired service lease hides captions without touching video
+00:04 +27: /Users/shou/Documents/Codex/2026-07-18/git/work/bobtv-epg-rakuten-20261115/test/subtitle_viewport_widget_test.dart: subtitle viewport follows moving surface and decoded aspect
+00:04 +28: /Users/shou/Documents/Codex/2026-07-18/git/work/bobtv-epg-rakuten-20261115/test/subtitle_viewport_widget_test.dart: subtitle viewport follows moving surface and decoded aspect
+00:04 +29: /Users/shou/Documents/Codex/2026-07-18/git/work/bobtv-epg-rakuten-20261115/test/subtitle_viewport_widget_test.dart: subtitle viewport follows moving surface and decoded aspect
+00:06 +30: /Users/shou/Documents/Codex/2026-07-18/git/work/bobtv-epg-rakuten-20261115/test/server_epg_binding_test.dart: fingerprint matches Python sorted UTF-8 JSON and preserves region and plus
+00:06 +31: /Users/shou/Documents/Codex/2026-07-18/git/work/bobtv-epg-rakuten-20261115/test/server_epg_binding_test.dart: catalog then guide links an exact public route and loads its programmes
+00:06 +32: /Users/shou/Documents/Codex/2026-07-18/git/work/bobtv-epg-rakuten-20261115/test/server_epg_binding_test.dart: catalog then guide links an exact public route and loads its programmes
+00:06 +33: /Users/shou/Documents/Codex/2026-07-18/git/work/bobtv-epg-rakuten-20261115/test/server_epg_binding_test.dart: catalog then guide links an exact public route and loads its programmes
+00:07 +34: /Users/shou/Documents/Codex/2026-07-18/git/work/bobtv-epg-rakuten-20261115/test/server_epg_binding_test.dart: unchanged guide repairs a previous raw-ID managed mapping
+00:07 +35: /Users/shou/Documents/Codex/2026-07-18/git/work/bobtv-epg-rakuten-20261115/test/server_epg_binding_test.dart: guide arriving before catalog is linked by later catalog import
+00:07 +36: /Users/shou/Documents/Codex/2026-07-18/git/work/bobtv-epg-rakuten-20261115/test/server_epg_binding_test.dart: upgraded client backfills identity metadata even with unchanged catalog version
+00:07 +37: /Users/shou/Documents/Codex/2026-07-18/git/work/bobtv-epg-rakuten-20261115/test/epg_hot_sync_runtime_test.dart: runtime starts once and checks foreground and reconnect independently
+00:07 +38: /Users/shou/Documents/Codex/2026-07-18/git/work/bobtv-epg-rakuten-20261115/test/server_epg_binding_test.dart: matching ID cannot override different countryCode context
+00:07 +39: /Users/shou/Documents/Codex/2026-07-18/git/work/bobtv-epg-rakuten-20261115/test/epg_hot_sync_runtime_test.dart: guide changes coalesce and an in-flight refresh reruns once
+00:07 +40: /Users/shou/Documents/Codex/2026-07-18/git/work/bobtv-epg-rakuten-20261115/test/server_epg_binding_test.dart: matching ID cannot override different regionCode context
+00:07 +41: /Users/shou/Documents/Codex/2026-07-18/git/work/bobtv-epg-rakuten-20261115/test/server_epg_binding_test.dart: matching ID cannot override different regionCode context
+00:07 +42: /Users/shou/Documents/Codex/2026-07-18/git/work/bobtv-epg-rakuten-20261115/test/epg_hot_sync_runtime_test.dart: database invalidation exposes complete commits and keeps cache after rollback
+00:07 +43: /Users/shou/Documents/Codex/2026-07-18/git/work/bobtv-epg-rakuten-20261115/test/epg_hot_sync_runtime_test.dart: database invalidation exposes complete commits and keeps cache after rollback
+00:07 +44: /Users/shou/Documents/Codex/2026-07-18/git/work/bobtv-epg-rakuten-20261115/test/epg_hot_sync_runtime_test.dart: database invalidation exposes complete commits and keeps cache after rollback
+00:07 +45: /Users/shou/Documents/Codex/2026-07-18/git/work/bobtv-epg-rakuten-20261115/test/epg_hot_sync_runtime_test.dart: database invalidation exposes complete commits and keeps cache after rollback
+00:07 +46: /Users/shou/Documents/Codex/2026-07-18/git/work/bobtv-epg-rakuten-20261115/test/epg_hot_sync_runtime_test.dart: database invalidation exposes complete commits and keeps cache after rollback
+00:07 +47: /Users/shou/Documents/Codex/2026-07-18/git/work/bobtv-epg-rakuten-20261115/test/server_epg_live_contract_test.dart: actual licensed public snapshot imports, is idempotent and survives offline
+00:07 +48: /Users/shou/Documents/Codex/2026-07-18/git/work/bobtv-epg-rakuten-20261115/test/server_epg_live_contract_test.dart: actual licensed public snapshot imports, is idempotent and survives offline
+00:07 +49: /Users/shou/Documents/Codex/2026-07-18/git/work/bobtv-epg-rakuten-20261115/test/server_epg_live_contract_test.dart: actual licensed public snapshot imports, is idempotent and survives offline
+00:08 +50: /Users/shou/Documents/Codex/2026-07-18/git/work/bobtv-epg-rakuten-20261115/test/server_epg_live_contract_test.dart: actual licensed public snapshot imports, is idempotent and survives offline
+00:08 +51: /Users/shou/Documents/Codex/2026-07-18/git/work/bobtv-epg-rakuten-20261115/test/server_epg_live_contract_test.dart: actual licensed public snapshot imports, is idempotent and survives offline
+00:08 +52: /Users/shou/Documents/Codex/2026-07-18/git/work/bobtv-epg-rakuten-20261115/test/server_epg_live_contract_test.dart: actual licensed public snapshot imports, is idempotent and survives offline
+00:08 +53: /Users/shou/Documents/Codex/2026-07-18/git/work/bobtv-epg-rakuten-20261115/test/server_epg_live_contract_test.dart: actual licensed public snapshot imports, is idempotent and survives offline
+00:08 +54: /Users/shou/Documents/Codex/2026-07-18/git/work/bobtv-epg-rakuten-20261115/test/server_epg_live_contract_test.dart: actual licensed public snapshot imports, is idempotent and survives offline
+00:08 +55: /Users/shou/Documents/Codex/2026-07-18/git/work/bobtv-epg-rakuten-20261115/test/server_epg_live_contract_test.dart: actual licensed public snapshot imports, is idempotent and survives offline
+00:08 +56: /Users/shou/Documents/Codex/2026-07-18/git/work/bobtv-epg-rakuten-20261115/test/epg_hot_sync_runtime_test.dart: cache warning changes without replacing child or resetting scroll
+00:09 +57: /Users/shou/Documents/Codex/2026-07-18/git/work/bobtv-epg-rakuten-20261115/test/epg_hot_sync_runtime_test.dart: cache warning changes without replacing child or resetting scroll
+00:09 +58: /Users/shou/Documents/Codex/2026-07-18/git/work/bobtv-epg-rakuten-20261115/test/epg_hot_sync_runtime_test.dart: cache warning changes without replacing child or resetting scroll
+00:09 +59: /Users/shou/Documents/Codex/2026-07-18/git/work/bobtv-epg-rakuten-20261115/test/epg_hot_sync_runtime_test.dart: cache warning changes without replacing child or resetting scroll
+00:09 +60: /Users/shou/Documents/Codex/2026-07-18/git/work/bobtv-epg-rakuten-20261115/test/epg_hot_sync_runtime_test.dart: cache warning changes without replacing child or resetting scroll
+00:09 +61: /Users/shou/Documents/Codex/2026-07-18/git/work/bobtv-epg-rakuten-20261115/test/epg_hot_sync_runtime_test.dart: cache warning changes without replacing child or resetting scroll
+00:09 +62: /Users/shou/Documents/Codex/2026-07-18/git/work/bobtv-epg-rakuten-20261115/test/server_epg_sync_service_test.dart: a newer version replaces credits and unlicensed version removes them
+00:09 +63: /Users/shou/Documents/Codex/2026-07-18/git/work/bobtv-epg-rakuten-20261115/test/epg_hot_sync_runtime_test.dart: runtime keeps refreshing without a global expiry overlay
+00:09 +64: /Users/shou/Documents/Codex/2026-07-18/git/work/bobtv-epg-rakuten-20261115/test/epg_hot_sync_runtime_test.dart: runtime keeps refreshing without a global expiry overlay
+00:09 +65: /Users/shou/Documents/Codex/2026-07-18/git/work/bobtv-epg-rakuten-20261115/test/epg_hot_sync_runtime_test.dart: runtime keeps refreshing without a global expiry overlay
+00:09 +66: /Users/shou/Documents/Codex/2026-07-18/git/work/bobtv-epg-rakuten-20261115/test/server_epg_sync_service_test.dart: rejects unrelated attribution and keeps the last valid guide
+00:09 +67: /Users/shou/Documents/Codex/2026-07-18/git/work/bobtv-epg-rakuten-20261115/test/epg_hot_sync_runtime_test.dart: server expiry is scoped away from private and unmapped guides
+00:09 +68: /Users/shou/Documents/Codex/2026-07-18/git/work/bobtv-epg-rakuten-20261115/test/epg_hot_sync_runtime_test.dart: server expiry is scoped away from private and unmapped guides
+00:09 +69: /Users/shou/Documents/Codex/2026-07-18/git/work/bobtv-epg-rakuten-20261115/test/server_epg_sync_service_test.dart: rejects wrong-license attribution and keeps the last valid guide
+00:09 +70: /Users/shou/Documents/Codex/2026-07-18/git/work/bobtv-epg-rakuten-20261115/test/epg_hot_sync_runtime_test.dart: standalone guide status does not start a network receiver
+00:09 +71: /Users/shou/Documents/Codex/2026-07-18/git/work/bobtv-epg-rakuten-20261115/test/server_epg_sync_service_test.dart: rejects blank-notice attribution and keeps the last valid guide
+00:09 +72: /Users/shou/Documents/Codex/2026-07-18/git/work/bobtv-epg-rakuten-20261115/test/server_epg_sync_service_test.dart: rejects mixed-license attribution and keeps the last valid guide
+00:09 +73: /Users/shou/Documents/Codex/2026-07-18/git/work/bobtv-epg-rakuten-20261115/test/server_epg_python_contract_test.dart: two Python-emitted versions import and bind without rewriting routes
+00:09 +74: /Users/shou/Documents/Codex/2026-07-18/git/work/bobtv-epg-rakuten-20261115/test/server_epg_python_contract_test.dart: two Python-emitted versions import and bind without rewriting routes
+00:09 +75: /Users/shou/Documents/Codex/2026-07-18/git/work/bobtv-epg-rakuten-20261115/test/server_epg_python_contract_test.dart: two Python-emitted versions import and bind without rewriting routes
+00:09 +76: /Users/shou/Documents/Codex/2026-07-18/git/work/bobtv-epg-rakuten-20261115/test/server_epg_python_contract_test.dart: two Python-emitted versions import and bind without rewriting routes
+00:10 +77: /Users/shou/Documents/Codex/2026-07-18/git/work/bobtv-epg-rakuten-20261115/test/server_epg_python_contract_test.dart: two Python-emitted versions import and bind without rewriting routes
+00:10 +78: /Users/shou/Documents/Codex/2026-07-18/git/work/bobtv-epg-rakuten-20261115/test/server_epg_python_contract_test.dart: two Python-emitted versions import and bind without rewriting routes
+00:10 +79: /Users/shou/Documents/Codex/2026-07-18/git/work/bobtv-epg-rakuten-20261115/test/server_epg_python_contract_test.dart: two Python-emitted versions import and bind without rewriting routes
+00:10 +80: /Users/shou/Documents/Codex/2026-07-18/git/work/bobtv-epg-rakuten-20261115/test/server_epg_python_contract_test.dart: two Python-emitted versions import and bind without rewriting routes
+00:10 +81: /Users/shou/Documents/Codex/2026-07-18/git/work/bobtv-epg-rakuten-20261115/test/server_epg_python_contract_test.dart: two Python-emitted versions import and bind without rewriting routes
+00:10 +82: /Users/shou/Documents/Codex/2026-07-18/git/work/bobtv-epg-rakuten-20261115/test/server_epg_python_contract_test.dart: two Python-emitted versions import and bind without rewriting routes
+00:10 +83: /Users/shou/Documents/Codex/2026-07-18/git/work/bobtv-epg-rakuten-20261115/test/server_epg_python_contract_test.dart: two Python-emitted versions import and bind without rewriting routes
+00:10 +84: /Users/shou/Documents/Codex/2026-07-18/git/work/bobtv-epg-rakuten-20261115/test/server_epg_python_contract_test.dart: two Python-emitted versions import and bind without rewriting routes
+00:10 +85: /Users/shou/Documents/Codex/2026-07-18/git/work/bobtv-epg-rakuten-20261115/test/server_epg_python_contract_test.dart: two Python-emitted versions import and bind without rewriting routes
+00:10 +86: /Users/shou/Documents/Codex/2026-07-18/git/work/bobtv-epg-rakuten-20261115/test/server_epg_python_contract_test.dart: two Python-emitted versions import and bind without rewriting routes
+00:10 +87: /Users/shou/Documents/Codex/2026-07-18/git/work/bobtv-epg-rakuten-20261115/test/server_epg_python_contract_test.dart: two Python-emitted versions import and bind without rewriting routes
+00:10 +88: /Users/shou/Documents/Codex/2026-07-18/git/work/bobtv-epg-rakuten-20261115/test/server_epg_sync_service_test.dart: reconnect during an in-flight failed request schedules one catch-up
+00:10 +89: /Users/shou/Documents/Codex/2026-07-18/git/work/bobtv-epg-rakuten-20261115/test/server_epg_python_contract_test.dart: Python-emitted guide preserves a locked manual mapping and private rows
+00:10 +90: /Users/shou/Documents/Codex/2026-07-18/git/work/bobtv-epg-rakuten-20261115/test/server_epg_python_contract_test.dart: Python-emitted guide preserves a locked manual mapping and private rows
+00:10 +91: /Users/shou/Documents/Codex/2026-07-18/git/work/bobtv-epg-rakuten-20261115/test/server_epg_sync_service_test.dart: empty server manifest does not erase last valid cache
+00:10 +92: /Users/shou/Documents/Codex/2026-07-18/git/work/bobtv-epg-rakuten-20261115/test/server_epg_python_contract_test.dart: damaged Python snapshot retains cache and reconnect installs the valid version
+00:10 +93: /Users/shou/Documents/Codex/2026-07-18/git/work/bobtv-epg-rakuten-20261115/test/server_epg_sync_service_test.dart: periodic receiver sees two versions after startup without another start
+00:10 +94: /Users/shou/Documents/Codex/2026-07-18/git/work/bobtv-epg-rakuten-20261115/test/server_epg_sync_service_test.dart: rejects unknown-channel payload without changing valid cache
+00:10 +95: /Users/shou/Documents/Codex/2026-07-18/git/work/bobtv-epg-rakuten-20261115/test/server_epg_sync_service_test.dart: rejects wrong-source payload without changing valid cache
+00:10 +96: /Users/shou/Documents/Codex/2026-07-18/git/work/bobtv-epg-rakuten-20261115/test/server_epg_sync_service_test.dart: rejects overlap payload without changing valid cache
+00:10 +97: /Users/shou/Documents/Codex/2026-07-18/git/work/bobtv-epg-rakuten-20261115/test/server_epg_sync_service_test.dart: rejects expired payload without changing valid cache
+00:10 +98: /Users/shou/Documents/Codex/2026-07-18/git/work/bobtv-epg-rakuten-20261115/test/server_epg_sync_service_test.dart: rejects no-future payload without changing valid cache
+00:10 +99: /Users/shou/Documents/Codex/2026-07-18/git/work/bobtv-epg-rakuten-20261115/test/server_epg_sync_service_test.dart: current gap imports real future rows without a fake now entry
+00:10 +100: /Users/shou/Documents/Codex/2026-07-18/git/work/bobtv-epg-rakuten-20261115/test/server_epg_sync_service_test.dart: manifest cannot redirect a snapshot outside fixed BobTV path
+00:10 +101: /Users/shou/Documents/Codex/2026-07-18/git/work/bobtv-epg-rakuten-20261115/test/server_epg_sync_service_test.dart: disabled managed source is respected without a network request
+00:10 +102: All tests passed!

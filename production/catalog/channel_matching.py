@@ -6,6 +6,9 @@ import unicodedata
 from pathlib import Path
 from channel_taxonomy import ROOTS, automatic_group, content_scope, declared_country, effective_scope, genre, valid_path
 from channel_reference import load as load_reference
+from broadcast_market import POLICY_VERSION, load_matching_bindings, resolve_market
+
+MATCHING_MARKETS = load_matching_bindings()
 
 RULES = json.loads(Path(__file__).with_name("channel_classification_rules.json").read_text(encoding="utf-8"))
 COUNTRIES = {key.upper(): value for key, value in RULES["countries"].items()}
@@ -108,15 +111,23 @@ def profile(name, epg=None, group="", country=None, region=None, trusted=False, 
             declared = next((code for code, label in countries.items() if label == parts[1]), None)
     country = epg_country or inferred or declared
     conflict = bool(len({x for x in (epg_country, inferred, declared) if x}) > 1)
+    market = resolve_market({'routes': [{'url': url}]}, MATCHING_MARKETS) if url else {}
+    if market.get('market'):
+        # The exact reviewed service binds its broadcast edition. Legacy source
+        # country/group and operator registration cannot override that edition.
+        country, conflict = market['market'], False
     variant_text = (display + " " + epg).casefold()
     variants = sorted(set(re.findall(r"(?<![a-z0-9])(?:[48]k|uhd)(?![a-z0-9])|\+\d+|\b(?:english|french|spanish|arabic|mandarin|cantonese)\b|英语|法语|西语|粤语|国语", variant_text)))
     if qualified and qualified[3] and qualified[3] not in ('4k', '8k', 'uhd'):
         variants.append('epg:' + qualified[3])
     # CCTV-5+ is the station identity; +1 remains a distinct time-shift feed.
     kind, scope = content_scope(display, group, url)
-    return {"name": key, "epg": epg_key, "country": country, "region": region or province,
-            "variant": variants, "conflict": conflict, "qualified": bool(epg_country),
-            "kind": kind, "scope": scope}
+    result = {"name": key, "epg": epg_key, "country": country, "region": region or province,
+              "variant": variants, "conflict": conflict, "qualified": bool(epg_country),
+              "kind": kind, "scope": scope}
+    if market.get('market'):
+        result.update(broadcastMarketVerified=True, marketPolicyVersion=POLICY_VERSION)
+    return result
 
 
 def classify(row, p, evidence=(), countries=COUNTRIES, topics=()):
@@ -152,8 +163,11 @@ def _compatible(left, right):
 
 def _signature(row, evidence=()):
     fields = ("name", "group_name", "epg_id", "manual_category", "manual_name", "merge_id", "transferred")
-    return hashlib.sha256(json.dumps([*[row[f] for f in fields],
-        effective_scope(row, evidence), sorted(set(evidence))], ensure_ascii=False).encode()).hexdigest()
+    values = [*[row[f] for f in fields], effective_scope(row, evidence), sorted(set(evidence))]
+    market = resolve_market({'routes': [{'url': row['url']}]}, MATCHING_MARKETS)
+    if market.get('market'):
+        values.append([POLICY_VERSION, market['market']])
+    return hashlib.sha256(json.dumps(values, ensure_ascii=False).encode()).hexdigest()
 
 
 def _evidence_profile(row, evidence, reference, countries):

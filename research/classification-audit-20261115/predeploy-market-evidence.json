@@ -1,0 +1,14 @@
+[
+  {
+    "url": "https://gizmo.rakuten.tv/v3/live_channels/action-rakuten-tv?classification_id=18&device_identifier=web&locale=en&market_code=uk",
+    "serviceId": 6065,
+    "title": "Action Movies - Rakuten TV",
+    "observedAt": "2026-11-15T09:50:54.447386+00:00"
+  },
+  {
+    "url": "https://gizmo.rakuten.tv/v3/live_channels/romance-rakuten-tv?classification_id=18&device_identifier=web&locale=en&market_code=uk",
+    "serviceId": 6194,
+    "title": "Romance Movies - Rakuten TV",
+    "observedAt": "2026-11-15T09:50:55.340441+00:00"
+  }
+]

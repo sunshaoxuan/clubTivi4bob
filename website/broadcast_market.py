@@ -6,6 +6,8 @@ review, never authority for this decision. This module performs no IO or writes.
 """
 import hashlib
 import re
+import json
+from pathlib import Path
 from urllib.parse import urlsplit
 
 
@@ -13,6 +15,15 @@ POLICY_VERSION = 'broadcast-edition-market-v1'
 _RAKUTEN_PATH = re.compile(
     r'/v1/(?:master|manifest)/[a-f0-9]{40}/production-LiveChannel-(\d+)/'
     r'(?:[a-f0-9-]{36}/)?(?:master|[0-9]+)\.m3u8')
+
+
+def load_matching_bindings(path=None):
+    """Enable only reviewed services approved for the persistent matcher."""
+    path = Path(path) if path else Path(__file__).with_name('broadcast_market_bindings.json')
+    value = json.loads(path.read_text())
+    if value.get('schemaVersion') != 1 or value.get('policyVersion') != POLICY_VERSION:
+        raise ValueError('invalid_broadcast_market_policy')
+    return [b for b in value['bindings'] if b.get('matchingEnabled') is True]
 
 
 def provider_service(url):

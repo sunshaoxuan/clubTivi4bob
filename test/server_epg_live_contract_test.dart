@@ -184,6 +184,25 @@ void main() {
               expect(programme['seasonId'], isNotNull);
             }
           }
+          const plutoFeeds = {
+            'channel-fb92a54fad1c2361b9f1c808': '5c5c3b948002db3c3e0b262e',
+            'channel-170189df6c2b381a9e5e81e0': '5d767b1c126c65d0a307355f',
+            'channel-ceff8c78c1c489157ff99d16': '5caf325764025859afdd6c4d',
+            'channel-3d53af390311be1dbd89cbb1': '5db6a697d5f34a000934cd13',
+          };
+          for (final target in targets.cast<Map>()) {
+            final channel = target['channel'] as Map;
+            final feed = plutoFeeds[channel['id']];
+            if (feed == null) continue;
+            final route = (channel['routes'] as List).first as Map;
+            final programme = await lookup.forSource(route['url'] as String);
+            expect(programme, isNotNull);
+            expect(programme!['programmeSourceId'], 'pluto-de-official-v1');
+            expect(programme['originalChannelId'], 'pluto:de:$feed');
+            expect(programme['sourceEventId'], isNotNull);
+            expect(programme['episodeId'], isNotNull);
+            expect(programme['clockIsSubtitleOffset'], isFalse);
+          }
           expect(
             await lookup.forSource('https://private.example/secret'),
             isNull,

@@ -144,66 +144,67 @@ class Engine:
                     except Exception as error:
                         self.event('pts_error', sequence=row['sequence'], errorType=type(error).__name__)
                 eligible = matches and pts is not None and not row['sequenceGap']
-                # An asset change must be acoustically verified, even if CAID or movie title remains.
-                known_asset = self.verified_asset == row['asset']
-                if not eligible or (self.state == 'LOCKED' and not known_asset):
-                    if self.state == 'LOCKED':
-                        self.pause = dict(start=row['timelineStart'], observedWall=row['observedWall'], sequence=row['sequence'])
-                        self.returned = self.resume = None; self.holdout = {}
-                        self.event('caption_pause', **self.pause, reason='unknown_or_changed_media')
-                    self.state = 'SUSPENDED'; run = []
-                if eligible:
-                    if self.state == 'SUSPENDED':
-                        self.state = 'ACQUIRING'; run = []
-                        if self.pause is not None and self.returned is None:
-                            self.returned = dict(start=row['timelineStart'], observedWall=row['observedWall'], sequence=row['sequence'])
-                            self.event('movie_return_candidate', **self.returned)
-                        if (known_asset and self.k is not None and self.last_pts_end is not None
-                                and abs(pts - self.last_pts_end) <= .16):
-                            self.state = 'LOCKED'
-                            self.resume = dict(timeline=row['timelineStart'], wall=time.time(), mode='verified_pts_continuity')
-                            self.event('fast_clock_resume', **self.resume, sequence=row['sequence'],
-                                       continuityErrorSeconds=pts - self.last_pts_end,
-                                       observedRecoverySeconds=time.time() - row['observedWall'])
-                    if self.state == 'LOCKED' and old_state == 'LOCKED' and self.last_pts_end is not None and abs(pts - self.last_pts_end) > .2:
-                        self.state = 'ACQUIRING'; self.k = None; self.verified_asset = None; run = []; self.generation += 1
-                        self.event('clock_discontinuity', sequence=row['sequence'], errorSeconds=pts - self.last_pts_end)
-                    run.append(row)
-                    self.last_pts_end = pts + row['duration']
-                    if (self.candidates and (self.analysis_thread is None or not self.analysis_thread.is_alive())
-                            and row['timelineEnd'] - last_analysis >= 12 and sum(r['duration'] for r in run) >= 12):
-                        window, length = [], 0
-                        for previous in reversed(run):
-                            window.insert(0, previous); length += previous['duration']
-                            if length >= 24:
-                                break
-                        if self.synchronous_analysis:
-                            self.analyze(window, row, pts, self.generation)
-                        else:
-                            self.analysis_thread = threading.Thread(target=self.analyze,
-                                args=(window, row, pts, self.generation), daemon=True)
-                            self.analysis_thread.start()
-                        last_analysis = row['timelineEnd']
-                reference = self.reference
-                tracks = []
-                offset = self.k + pts - row['timelineStart'] if self.state == 'LOCKED' and self.k is not None and pts is not None else None
-                if offset is not None and reference:
-                    for language, cues in reference['tracks'].items():
-                        emitted = [dict(index=c['index'], start=max(c['start'] - offset, row['timelineStart']),
-                                        end=min(c['end'] - offset, row['timelineEnd']), text=c['text'])
-                                   for c in cues if c['end'] - offset > row['timelineStart'] and c['start'] - offset < row['timelineEnd']]
-                        if emitted:
-                            tracks.append(dict(language=language, verified=True, cues=emitted))
-                decision = dict(start=row['timelineStart'], end=row['timelineEnd'], state=self.state,
-                                program=self.programme['movieId'], asset=row['asset'], tracks=tracks,
-                                sequence=row['sequence'], generatedWall=time.time(), pts=pts, offset=offset)
                 with self.lock:
-                    self.decisions[row['sequence']] = decision
-                    with (self.root / 'decisions.jsonl').open('a') as file:
-                        file.write(json.dumps(decision, ensure_ascii=False) + '\n')
-                (self.root / 'status.json').write_text(json.dumps(dict(state=self.state, lastSequence=self.last_sequence,
-                    timeline=row['timelineEnd'], pause=self.pause, returned=self.returned, resume=self.resume,
-                    holdout=list(self.holdout.values()), subtitleCandidates=len(self.candidates or []))))
+                    # An asset change must be acoustically verified, even if CAID or movie title remains.
+                    known_asset = self.verified_asset == row['asset']
+                    if not eligible or (self.state == 'LOCKED' and not known_asset):
+                        if self.state == 'LOCKED':
+                            self.pause = dict(start=row['timelineStart'], observedWall=row['observedWall'], sequence=row['sequence'])
+                            self.returned = self.resume = None; self.holdout = {}
+                            self.event('caption_pause', **self.pause, reason='unknown_or_changed_media')
+                        self.state = 'SUSPENDED'; run = []
+                    if eligible:
+                        if self.state == 'SUSPENDED':
+                            self.state = 'ACQUIRING'; run = []
+                            if self.pause is not None and self.returned is None:
+                                self.returned = dict(start=row['timelineStart'], observedWall=row['observedWall'], sequence=row['sequence'])
+                                self.event('movie_return_candidate', **self.returned)
+                            if (known_asset and self.k is not None and self.last_pts_end is not None
+                                    and abs(pts - self.last_pts_end) <= .16):
+                                self.state = 'LOCKED'
+                                self.resume = dict(timeline=row['timelineStart'], wall=time.time(), mode='verified_pts_continuity')
+                                self.event('fast_clock_resume', **self.resume, sequence=row['sequence'],
+                                           continuityErrorSeconds=pts - self.last_pts_end,
+                                           observedRecoverySeconds=time.time() - row['observedWall'])
+                        if self.state == 'LOCKED' and old_state == 'LOCKED' and self.last_pts_end is not None and abs(pts - self.last_pts_end) > .2:
+                            self.state = 'ACQUIRING'; self.k = None; self.verified_asset = None; run = []; self.generation += 1
+                            self.event('clock_discontinuity', sequence=row['sequence'], errorSeconds=pts - self.last_pts_end)
+                        run.append(row)
+                        self.last_pts_end = pts + row['duration']
+                        if (self.candidates and (self.analysis_thread is None or not self.analysis_thread.is_alive())
+                                and row['timelineEnd'] - last_analysis >= 12 and sum(r['duration'] for r in run) >= 12):
+                            window, length = [], 0
+                            for previous in reversed(run):
+                                window.insert(0, previous); length += previous['duration']
+                                if length >= 24:
+                                    break
+                            if self.synchronous_analysis:
+                                self.analyze(window, row, pts, self.generation)
+                            else:
+                                self.analysis_thread = threading.Thread(target=self.analyze,
+                                    args=(window, row, pts, self.generation), daemon=True)
+                                self.analysis_thread.start()
+                            last_analysis = row['timelineEnd']
+                    reference = self.reference
+                    tracks = []
+                    offset = self.k + pts - row['timelineStart'] if self.state == 'LOCKED' and self.k is not None and pts is not None else None
+                    if offset is not None and reference:
+                        for language, cues in reference['tracks'].items():
+                            emitted = [dict(index=c['index'], start=max(c['start'] - offset, row['timelineStart']),
+                                            end=min(c['end'] - offset, row['timelineEnd']), text=c['text'])
+                                       for c in cues if c['end'] - offset > row['timelineStart'] and c['start'] - offset < row['timelineEnd']]
+                            if emitted:
+                                tracks.append(dict(language=language, verified=True, cues=emitted))
+                    decision = dict(start=row['timelineStart'], end=row['timelineEnd'], state=self.state,
+                                    program=self.programme['movieId'], asset=row['asset'], tracks=tracks,
+                                    sequence=row['sequence'], generatedWall=time.time(), pts=pts, offset=offset)
+                    with self.lock:
+                        self.decisions[row['sequence']] = decision
+                        with (self.root / 'decisions.jsonl').open('a') as file:
+                            file.write(json.dumps(decision, ensure_ascii=False) + '\n')
+                    (self.root / 'status.json').write_text(json.dumps(dict(state=self.state, lastSequence=self.last_sequence,
+                        timeline=row['timelineEnd'], pause=self.pause, returned=self.returned, resume=self.resume,
+                        holdout=list(self.holdout.values()), subtitleCandidates=len(self.candidates or []))))
             self.collector.stop.wait(.15)
 
     def analyze(self, window, row, pts, generation):
@@ -236,7 +237,7 @@ class Engine:
                         self.event('acoustic_validation', timeline=row['timelineEnd'], anchors=anchors,
                                    residualSeconds=residuals,activeOffset=offset,afterReturn=bool(self.returned))
                         if abs(found-offset)>.9:
-                            self.state='ACQUIRING';self.k=None;self.verified_asset=None;self.generation+=1
+                            self.state='ACQUIRING';self.k=None;self.verified_asset=None;self.generation+=1;self.decisions.clear()
                             self.event('acoustic_calibration_invalidated', deviationSeconds=found-offset)
                         elif self.returned:
                             for anchor,residual in zip(anchors,residuals):

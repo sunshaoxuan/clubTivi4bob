@@ -1,0 +1,75 @@
+{
+  "files": [
+    {
+      "name": "catalog_inventory.py",
+      "local": "production/catalog/catalog_inventory.py",
+      "sha256": "17210968965dd5a0703dc527d11ce4d861a90257affddc5f05fb86209649a822"
+    },
+    {
+      "name": "channel_matching.py",
+      "local": "production/catalog/channel_matching.py",
+      "sha256": "344c7073be598ed78990e9a7c62f6772e1d244743b27c394a801318ffabbc01a"
+    },
+    {
+      "name": "market_review_admin.py",
+      "local": "production/catalog/market_review_admin.py",
+      "sha256": "8c1097180a38f715d9559aa324d04432c1cdb286be8bdb2990b793abb65e2def"
+    },
+    {
+      "name": "publish_channel_catalog.py",
+      "local": "production/catalog/publish_channel_catalog.py",
+      "sha256": "17bb3e5b8f32f9a7ff1e9d2ca117184857d8c61b995b826e1faa09c917f65fa9"
+    },
+    {
+      "name": "market_review_hold.py",
+      "local": "production/catalog/market_review_hold.py",
+      "sha256": "c8f40fabe8dca943920ae8e93661f442e6f0debb38089fe9bd956c8a68fa56f4"
+    },
+    {
+      "name": "catalog_taxonomy_worker.py",
+      "local": "production/catalog/catalog_taxonomy_worker.py",
+      "sha256": "a919b2588b334997ed56409ff809621fefa0bdb04d15592ebaee97cc6ab361e8"
+    },
+    {
+      "name": "reclassify_public_catalog.py",
+      "local": "production/catalog/reclassify_public_catalog.py",
+      "sha256": "0c6fd4270e2ba2a972ed2a42ff3ff1f1062a17e65f5fbeb5711a52a4f7298dc1"
+    },
+    {
+      "name": "broadcast_market.py",
+      "local": "website/broadcast_market.py",
+      "sha256": "32f0c2e5aa559ce0b4e124b517155c276ee4bf89a03d010db6611676ed9e14ce"
+    },
+    {
+      "name": "broadcast_market_bindings.json",
+      "local": "website/broadcast_market_bindings.json",
+      "sha256": "6ba61a1e61d882e88e4f1a839f23a9fd08c6b319cc2583b65ec8547a8af4a349"
+    },
+    {
+      "name": "audit_broadcast_markets.py",
+      "local": "website/audit_broadcast_markets.py",
+      "sha256": "29e4dcd98cc3ba2f81af1b88669904980ec5570e2cb4b8cf9f75b91efa4eb31c"
+    }
+  ],
+  "baseline": {
+    "channel_matching.py": "ce7945d16068420c381f2e98194167b6c79592dec5c90738e827ede93e1d33da",
+    "channel_taxonomy.py": "6012961b3964cca4847c180e2300ffc2f626d3a46240a50301e166283afe0f52",
+    "channel_reference.py": "889016a1d50a1c633f823e37c131338c5d107c5bf99d6f8828a6956054ee2c50",
+    "channel_classification_rules.json": "85ec47b4f2efd64932e8d76d0b527ee031a2b68c5c16c94233bcd72f588c45d4",
+    "public_source_catalog.py": "3b9d708d20e16836f6feb0ecfd8ae5a855c662c3fcc24bff1ad77db9df791fe5",
+    "public_sources.json": "4457cadd7e62c0c8ae0e22730fca23fa4798096dcd7ff8f4b06cb1cfaf529390",
+    "channel_ai_matching.py": "021d33bc5d6cdef94fddc80607d4ec6aee3f080a8e314a16514ed50e3c4411f9",
+    "process_channel_inventory.py": "3b44368f9b14e6500cd230228c4790ee9f1f74fc0bf2eac128063340dc77dc1f",
+    "catalog_inventory.py": "f2cd6ff691a9e09e2eb55590edbe69ab40b3b6ffe0bbea7c5612e47c65037bff",
+    "publish_channel_catalog.py": "1abdcb58204b8123b19b0c55561a69bf5bb95129d717f5935453f7ab9cc2e715",
+    "channel_catalog.py": "5ec22183c906542b37b2c383906409fc0a95b6ecb889ecd7d560eb1f88789807",
+    "market_review_admin.py": "e50458848f0e76677e9f2d45e2fa28b5d31ad2456b8d672a1079f676cb69af47",
+    "broadcast_market.py": "32f0c2e5aa559ce0b4e124b517155c276ee4bf89a03d010db6611676ed9e14ce",
+    "broadcast_market_bindings.json": "6ba61a1e61d882e88e4f1a839f23a9fd08c6b319cc2583b65ec8547a8af4a349",
+    "audit_broadcast_markets.py": "6326550ffaa72db8b08acd2e3d639d5881301fb19db9bbbbc65dd61902979a42",
+    "catalog_taxonomy_worker.py": "f221fe127e54b5aa8ae1bc49086d5fdb0200adb0392317977b306cd94cc5310c",
+    "reclassify_public_catalog.py": "c3302839c9b6c6cc2f26da42ba3afd36bd52f2c7ed632cdafa8ee7db62cc55c0"
+  },
+  "sourceCommit": "146887251eb96598599bcad7331771d55ed7c17e",
+  "stage": "/opt/bobtv/market-staging/cee579a98587"
+}

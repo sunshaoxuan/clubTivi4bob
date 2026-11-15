@@ -1,0 +1,56 @@
+[
+  {
+    "base": "https://bobtv.briconbric.com",
+    "observedAt": "2026-11-15T10:54:57.373813+00:00",
+    "status": "unavailable",
+    "errorType": "HTTPError",
+    "error": "HTTP Error 403: Forbidden"
+  },
+  {
+    "base": "https://cndrp.com/bobtv",
+    "observedAt": "2026-11-15T10:54:57.900847+00:00",
+    "status": "verified",
+    "manifest": {
+      "schemaVersion": 1,
+      "version": "2026-11-15T10:52:22.162508Z",
+      "generatedAt": "2026-11-15T10:52:27.542819Z",
+      "channelCount": 9098,
+      "routeCount": 10127,
+      "snapshotUrl": "/api/v1/channel-catalog/snapshots/eeac9eeaa3b5edd2dfb895fdd85f82a9b1dc41717b65e80af908250c954402ee.json.gz",
+      "compressedBytes": 1017715,
+      "sha256": "eeac9eeaa3b5edd2dfb895fdd85f82a9b1dc41717b65e80af908250c954402ee"
+    },
+    "sha256Verified": true,
+    "compressedBytesVerified": true,
+    "allPublicChannelCardsUnchanged": true,
+    "pending130Unchanged": true,
+    "targets": [
+      {
+        "id": "channel-b842f9cdd43743693f77fc81",
+        "name": "Action Movies",
+        "countryCode": "GB",
+        "path": [
+          "国际",
+          "英国",
+          "电视",
+          "电影"
+        ],
+        "epgId": "GB2600015OS",
+        "routes": 1
+      },
+      {
+        "id": "channel-9294d4892ed3478727d98e6d",
+        "name": "Romance Movies",
+        "countryCode": "GB",
+        "path": [
+          "国际",
+          "英国",
+          "电视",
+          "电影"
+        ],
+        "epgId": "GB2600014LQ",
+        "routes": 1
+      }
+    ]
+  }
+]

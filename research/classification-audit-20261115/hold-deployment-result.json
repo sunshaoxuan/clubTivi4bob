@@ -1,0 +1,53 @@
+{
+  "state": "passed",
+  "sourceCommit": "146887251eb96598599bcad7331771d55ed7c17e",
+  "stagingDirectory": "/opt/bobtv/market-staging/cee579a98587",
+  "backupDirectory": "/opt/bobtv/backups/market-hold-20261115T105218Z",
+  "previousManifest": {
+    "schemaVersion": 1,
+    "version": "2026-11-15T10:08:39.070362Z",
+    "generatedAt": "2026-11-15T10:08:42.819551Z",
+    "channelCount": 9098,
+    "routeCount": 10127,
+    "snapshotUrl": "/api/v1/channel-catalog/snapshots/7c2612972eaa2ee4cee1c11fe50f31e6c32fb36fd3bf2857028d94369c8c0ec2.json.gz",
+    "compressedBytes": 1017714,
+    "sha256": "7c2612972eaa2ee4cee1c11fe50f31e6c32fb36fd3bf2857028d94369c8c0ec2"
+  },
+  "newManifest": {
+    "schemaVersion": 1,
+    "version": "2026-11-15T10:52:22.162508Z",
+    "generatedAt": "2026-11-15T10:52:27.542819Z",
+    "channelCount": 9098,
+    "routeCount": 10127,
+    "snapshotUrl": "/api/v1/channel-catalog/snapshots/eeac9eeaa3b5edd2dfb895fdd85f82a9b1dc41717b65e80af908250c954402ee.json.gz",
+    "compressedBytes": 1017715,
+    "sha256": "eeac9eeaa3b5edd2dfb895fdd85f82a9b1dc41717b65e80af908250c954402ee"
+  },
+  "sourceHashesVerified": true,
+  "pendingBaselineNoDrift": true,
+  "pendingCount": 130,
+  "heldRouteCount": 143,
+  "holdStatuses": {
+    "pending": 130
+  },
+  "allPublicChannelCardsUnchanged": true,
+  "channelCount": 9098,
+  "routeCount": 10127,
+  "privateClientEdits": 0,
+  "epgMappingEdits": 0,
+  "classificationServicesDisabled": false,
+  "serviceRestartedAndActive": true,
+  "outputOwnership": {
+    "manifest": "bobtv:0600",
+    "snapshot": "bobtv:0600",
+    "reviewQueue": "bobtv:0600"
+  },
+  "temporaryHttp500": {
+    "observedAt": "2026-11-15T10:53:09Z",
+    "cause": "Root publisher created atomic outputs with mode 0600 and root ownership; service read access was restored by assigning only these three outputs to bobtv",
+    "internalRecoveryHttpStatus": 200,
+    "externalRecoveryVerifiedAt": "2026-11-15T10:54:57Z",
+    "deploymentScriptCorrected": true
+  },
+  "publicVerificationReceipt": "hold-public-verification.json"
+}

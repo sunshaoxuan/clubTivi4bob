@@ -1,0 +1,4207 @@
+{
+  "schemaVersion": 1,
+  "policyVersion": "broadcast-edition-market-v1",
+  "catalogVersion": "2026-11-15T10:52:22.162508Z",
+  "catalogSha256": "eeac9eeaa3b5edd2dfb895fdd85f82a9b1dc41717b65e80af908250c954402ee",
+  "reviewFindingCount": 130,
+  "findingKinds": {
+    "platform_epg_id_prefix": 3,
+    "provider_host_edition_token": 3,
+    "explicit_epg_edition_suffix": 122,
+    "category_metadata_country_conflict": 2,
+    "category_label_scope_difference": 3
+  },
+  "persistentHoldCount": 130,
+  "reviewFindings": [
+    {
+      "channelId": "channel-a5b2b5ae71973b25108d979e",
+      "name": "Drama Movies",
+      "expectedIdentity": {
+        "id": "channel-a5b2b5ae71973b25108d979e",
+        "name": "Drama Movies",
+        "epgId": "GB2600012R3",
+        "countryCode": "US",
+        "regionCode": null
+      },
+      "countryCode": "US",
+      "categoryPath": [
+        "国际",
+        "美国",
+        "电视",
+        "电影"
+      ],
+      "protected": false,
+      "indicators": [
+        {
+          "kind": "platform_epg_id_prefix",
+          "marketHint": "GB"
+        },
+        {
+          "kind": "provider_host_edition_token",
+          "marketHint": "GB"
+        }
+      ],
+      "resolution": "needs_review"
+    },
+    {
+      "channelId": "channel-7b2ece1b9fca7f2a50fa536e",
+      "name": "Top Movies",
+      "expectedIdentity": {
+        "id": "channel-7b2ece1b9fca7f2a50fa536e",
+        "name": "Top Movies",
+        "epgId": "GB2600018PD",
+        "countryCode": "US",
+        "regionCode": null
+      },
+      "countryCode": "US",
+      "categoryPath": [
+        "国际",
+        "美国",
+        "电视",
+        "电影"
+      ],
+      "protected": false,
+      "indicators": [
+        {
+          "kind": "platform_epg_id_prefix",
+          "marketHint": "GB"
+        },
+        {
+          "kind": "provider_host_edition_token",
+          "marketHint": "GB"
+        }
+      ],
+      "resolution": "needs_review"
+    },
+    {
+      "channelId": "channel-26df487b6d80f30294ed3fba",
+      "name": "Comedy Movies",
+      "expectedIdentity": {
+        "id": "channel-26df487b6d80f30294ed3fba",
+        "name": "Comedy Movies",
+        "epgId": "GB2600020OP",
+        "countryCode": "US",
+        "regionCode": null
+      },
+      "countryCode": "US",
+      "categoryPath": [
+        "国际",
+        "美国",
+        "电视",
+        "电影"
+      ],
+      "protected": false,
+      "indicators": [
+        {
+          "kind": "platform_epg_id_prefix",
+          "marketHint": "GB"
+        },
+        {
+          "kind": "provider_host_edition_token",
+          "marketHint": "GB"
+        }
+      ],
+      "resolution": "needs_review"
+    },
+    {
+      "channelId": "channel-dc656094f7268d6982766103",
+      "name": "BBC Earth Czechia",
+      "expectedIdentity": {
+        "id": "channel-dc656094f7268d6982766103",
+        "name": "BBC Earth Czechia",
+        "epgId": "BBCEarth.uk@Czechia",
+        "countryCode": "GB",
+        "regionCode": null
+      },
+      "countryCode": "GB",
+      "categoryPath": [
+        "国际",
+        "英国",
+        "电视",
+        "纪录片"
+      ],
+      "protected": false,
+      "indicators": [
+        {
+          "kind": "explicit_epg_edition_suffix",
+          "marketHint": "CZ"
+        }
+      ],
+      "resolution": "needs_review"
+    },
+    {
+      "channelId": "channel-d89d6a5eeb6e7dd0eb6f3eed",
+      "name": "Cartoon Network Latin America Brazil",
+      "expectedIdentity": {
+        "id": "channel-d89d6a5eeb6e7dd0eb6f3eed",
+        "name": "Cartoon Network Latin America Brazil",
+        "epgId": "CartoonNetworkLatinAmerica.us@Brazil",
+        "countryCode": "US",
+        "regionCode": null
+      },
+      "countryCode": "US",
+      "categoryPath": [
+        "国际",
+        "美国",
+        "电视",
+        "动漫"
+      ],
+      "protected": false,
+      "indicators": [
+        {
+          "kind": "explicit_epg_edition_suffix",
+          "marketHint": "BR"
+        }
+      ],
+      "resolution": "needs_review"
+    },
+    {
+      "channelId": "channel-6769bac240d4ae96ba175062",
+      "name": "AMC Europe Poland (576i)",
+      "expectedIdentity": {
+        "id": "channel-6769bac240d4ae96ba175062",
+        "name": "AMC Europe Poland (576i)",
+        "epgId": "AMCEurope.uk@Poland",
+        "countryCode": "GB",
+        "regionCode": null
+      },
+      "countryCode": "GB",
+      "categoryPath": [
+        "国际",
+        "英国",
+        "电视",
+        "电影"
+      ],
+      "protected": false,
+      "indicators": [
+        {
+          "kind": "explicit_epg_edition_suffix",
+          "marketHint": "PL"
+        }
+      ],
+      "resolution": "needs_review"
+    },
+    {
+      "channelId": "channel-e3f3df1701e97a3089d6b451",
+      "name": "BBC Brit",
+      "expectedIdentity": {
+        "id": "channel-e3f3df1701e97a3089d6b451",
+        "name": "BBC Brit",
+        "epgId": "BBCBrit.uk@Poland",
+        "countryCode": "GB",
+        "regionCode": null
+      },
+      "countryCode": "GB",
+      "categoryPath": [
+        "国际",
+        "英国",
+        "电视",
+        "娱乐"
+      ],
+      "protected": false,
+      "indicators": [
+        {
+          "kind": "explicit_epg_edition_suffix",
+          "marketHint": "PL"
+        }
+      ],
+      "resolution": "needs_review"
+    },
+    {
+      "channelId": "channel-6040d24f3a8ba4b3321ffe1f",
+      "name": "BBC Earth",
+      "expectedIdentity": {
+        "id": "channel-6040d24f3a8ba4b3321ffe1f",
+        "name": "BBC Earth",
+        "epgId": "BBCEarth.uk@Poland",
+        "countryCode": "GB",
+        "regionCode": null
+      },
+      "countryCode": "GB",
+      "categoryPath": [
+        "国际",
+        "英国",
+        "电视",
+        "纪录片"
+      ],
+      "protected": false,
+      "indicators": [
+        {
+          "kind": "explicit_epg_edition_suffix",
+          "marketHint": "PL"
+        }
+      ],
+      "resolution": "needs_review"
+    },
+    {
+      "channelId": "channel-298983204cea896ccabd86a0",
+      "name": "BBC First",
+      "expectedIdentity": {
+        "id": "channel-298983204cea896ccabd86a0",
+        "name": "BBC First",
+        "epgId": "BBCFirst.uk@Poland",
+        "countryCode": "GB",
+        "regionCode": null
+      },
+      "countryCode": "GB",
+      "categoryPath": [
+        "国际",
+        "英国",
+        "电视",
+        "娱乐"
+      ],
+      "protected": false,
+      "indicators": [
+        {
+          "kind": "explicit_epg_edition_suffix",
+          "marketHint": "PL"
+        }
+      ],
+      "resolution": "needs_review"
+    },
+    {
+      "channelId": "channel-e58fca29c115e53b9abee6a6",
+      "name": "BBC Lifestyle Poland",
+      "expectedIdentity": {
+        "id": "channel-e58fca29c115e53b9abee6a6",
+        "name": "BBC Lifestyle Poland",
+        "epgId": "BBCLifestyle.uk@Poland",
+        "countryCode": "GB",
+        "regionCode": null
+      },
+      "countryCode": "GB",
+      "categoryPath": [
+        "国际",
+        "英国",
+        "电视",
+        "生活"
+      ],
+      "protected": false,
+      "indicators": [
+        {
+          "kind": "explicit_epg_edition_suffix",
+          "marketHint": "PL"
+        }
+      ],
+      "resolution": "needs_review"
+    },
+    {
+      "channelId": "channel-aada21d72f8091fe40160516",
+      "name": "Cartoon Network CEE Poland",
+      "expectedIdentity": {
+        "id": "channel-aada21d72f8091fe40160516",
+        "name": "Cartoon Network CEE Poland",
+        "epgId": "CartoonNetworkCEE.uk@Poland",
+        "countryCode": "GB",
+        "regionCode": null
+      },
+      "countryCode": "GB",
+      "categoryPath": [
+        "国际",
+        "英国",
+        "电视",
+        "动漫"
+      ],
+      "protected": false,
+      "indicators": [
+        {
+          "kind": "explicit_epg_edition_suffix",
+          "marketHint": "PL"
+        }
+      ],
+      "resolution": "needs_review"
+    },
+    {
+      "channelId": "channel-e230b7a50247540273a61483",
+      "name": "Cartoonito CEE Poland",
+      "expectedIdentity": {
+        "id": "channel-e230b7a50247540273a61483",
+        "name": "Cartoonito CEE Poland",
+        "epgId": "CartoonitoCEE.uk@Poland",
+        "countryCode": "GB",
+        "regionCode": null
+      },
+      "countryCode": "GB",
+      "categoryPath": [
+        "国际",
+        "英国",
+        "电视",
+        "少儿"
+      ],
+      "protected": false,
+      "indicators": [
+        {
+          "kind": "explicit_epg_edition_suffix",
+          "marketHint": "PL"
+        }
+      ],
+      "resolution": "needs_review"
+    },
+    {
+      "channelId": "channel-3519673e56983e137ead2a5f",
+      "name": "Cinemax 2 Central Europe Poland",
+      "expectedIdentity": {
+        "id": "channel-3519673e56983e137ead2a5f",
+        "name": "Cinemax 2 Central Europe Poland",
+        "epgId": "Cinemax2CentralEurope.hu@Poland",
+        "countryCode": "HU",
+        "regionCode": null
+      },
+      "countryCode": "HU",
+      "categoryPath": [
+        "国际",
+        "匈牙利",
+        "电视",
+        "电影"
+      ],
+      "protected": false,
+      "indicators": [
+        {
+          "kind": "explicit_epg_edition_suffix",
+          "marketHint": "PL"
+        }
+      ],
+      "resolution": "needs_review"
+    },
+    {
+      "channelId": "channel-08bc5510178290d1f383be3e",
+      "name": "Cinemax Central Europe Poland",
+      "expectedIdentity": {
+        "id": "channel-08bc5510178290d1f383be3e",
+        "name": "Cinemax Central Europe Poland",
+        "epgId": "CinemaxCentralEurope.hu@Poland",
+        "countryCode": "HU",
+        "regionCode": null
+      },
+      "countryCode": "HU",
+      "categoryPath": [
+        "国际",
+        "匈牙利",
+        "电视",
+        "电影"
+      ],
+      "protected": false,
+      "indicators": [
+        {
+          "kind": "explicit_epg_edition_suffix",
+          "marketHint": "PL"
+        }
+      ],
+      "resolution": "needs_review"
+    },
+    {
+      "channelId": "channel-2d4344a017299bb1fd78d215",
+      "name": "Discovery Science Europe Poland",
+      "expectedIdentity": {
+        "id": "channel-2d4344a017299bb1fd78d215",
+        "name": "Discovery Science Europe Poland",
+        "epgId": "DiscoveryScienceEurope.uk@Poland",
+        "countryCode": "GB",
+        "regionCode": null
+      },
+      "countryCode": "GB",
+      "categoryPath": [
+        "国际",
+        "英国",
+        "电视",
+        "科普"
+      ],
+      "protected": false,
+      "indicators": [
+        {
+          "kind": "explicit_epg_edition_suffix",
+          "marketHint": "PL"
+        }
+      ],
+      "resolution": "needs_review"
+    },
+    {
+      "channelId": "channel-d86c483394df8921a6a11e02",
+      "name": "TNT International Belarus",
+      "expectedIdentity": {
+        "id": "channel-d86c483394df8921a6a11e02",
+        "name": "TNT International Belarus",
+        "epgId": "TNTInternational.ru@Belarus",
+        "countryCode": "RU",
+        "regionCode": null
+      },
+      "countryCode": "RU",
+      "categoryPath": [
+        "国际",
+        "俄罗斯",
+        "电视",
+        "娱乐"
+      ],
+      "protected": false,
+      "indicators": [
+        {
+          "kind": "explicit_epg_edition_suffix",
+          "marketHint": "BY"
+        }
+      ],
+      "resolution": "needs_review"
+    },
+    {
+      "channelId": "channel-ab6ca72aa37e4346635332c1",
+      "name": "Cartoonito CEE Czechia",
+      "expectedIdentity": {
+        "id": "channel-ab6ca72aa37e4346635332c1",
+        "name": "Cartoonito CEE Czechia",
+        "epgId": "CartoonitoCEE.uk@Czechia",
+        "countryCode": "GB",
+        "regionCode": null
+      },
+      "countryCode": "GB",
+      "categoryPath": [
+        "国际",
+        "英国",
+        "电视",
+        "少儿"
+      ],
+      "protected": false,
+      "indicators": [
+        {
+          "kind": "explicit_epg_edition_suffix",
+          "marketHint": "CZ"
+        }
+      ],
+      "resolution": "needs_review"
+    },
+    {
+      "channelId": "channel-c7b8d6753f9ccfd0a855708f",
+      "name": "Eurosport 1 Hungary",
+      "expectedIdentity": {
+        "id": "channel-c7b8d6753f9ccfd0a855708f",
+        "name": "Eurosport 1 Hungary",
+        "epgId": "Eurosport1.fr@Hungary",
+        "countryCode": "FR",
+        "regionCode": null
+      },
+      "countryCode": "FR",
+      "categoryPath": [
+        "国际",
+        "法国",
+        "电视",
+        "体育"
+      ],
+      "protected": false,
+      "indicators": [
+        {
+          "kind": "explicit_epg_edition_suffix",
+          "marketHint": "HU"
+        }
+      ],
+      "resolution": "needs_review"
+    },
+    {
+      "channelId": "channel-618b8d53339b531067f16aa3",
+      "name": "Eurosport 2 Hungary",
+      "expectedIdentity": {
+        "id": "channel-618b8d53339b531067f16aa3",
+        "name": "Eurosport 2 Hungary",
+        "epgId": "Eurosport2.fr@Hungary",
+        "countryCode": "FR",
+        "regionCode": null
+      },
+      "countryCode": "FR",
+      "categoryPath": [
+        "国际",
+        "法国",
+        "电视",
+        "体育"
+      ],
+      "protected": false,
+      "indicators": [
+        {
+          "kind": "explicit_epg_edition_suffix",
+          "marketHint": "HU"
+        }
+      ],
+      "resolution": "needs_review"
+    },
+    {
+      "channelId": "channel-c79b5ec89fa0af7044268102",
+      "name": "BTV",
+      "expectedIdentity": {
+        "id": "channel-c79b5ec89fa0af7044268102",
+        "name": "BTV",
+        "epgId": "BTV.lt",
+        "countryCode": "CN",
+        "regionCode": "北京"
+      },
+      "countryCode": "CN",
+      "categoryPath": [
+        "国际",
+        "保加利亚",
+        "电视",
+        "综合"
+      ],
+      "protected": false,
+      "indicators": [
+        {
+          "kind": "category_metadata_country_conflict",
+          "categoryCountry": "保加利亚",
+          "categoryCountryCode": "BG",
+          "metadataCountry": "中国"
+        }
+      ],
+      "resolution": "needs_review"
+    },
+    {
+      "channelId": "channel-4cf13f9e0ef6edc8c4524a12",
+      "name": "A&E Latin America Brazil",
+      "expectedIdentity": {
+        "id": "channel-4cf13f9e0ef6edc8c4524a12",
+        "name": "A&E Latin America Brazil",
+        "epgId": "AELatinAmerica.us@Brazil",
+        "countryCode": "US",
+        "regionCode": null
+      },
+      "countryCode": "US",
+      "categoryPath": [
+        "国际",
+        "美国",
+        "电视",
+        "娱乐"
+      ],
+      "protected": false,
+      "indicators": [
+        {
+          "kind": "explicit_epg_edition_suffix",
+          "marketHint": "BR"
+        }
+      ],
+      "resolution": "needs_review"
+    },
+    {
+      "channelId": "channel-3b74b634a554e2eda5a46e3b",
+      "name": "AMC Latin America Brazil",
+      "expectedIdentity": {
+        "id": "channel-3b74b634a554e2eda5a46e3b",
+        "name": "AMC Latin America Brazil",
+        "epgId": "AMCLatinAmerica.us@Brazil",
+        "countryCode": "US",
+        "regionCode": null
+      },
+      "countryCode": "US",
+      "categoryPath": [
+        "国际",
+        "美国",
+        "电视",
+        "电影"
+      ],
+      "protected": false,
+      "indicators": [
+        {
+          "kind": "explicit_epg_edition_suffix",
+          "marketHint": "BR"
+        }
+      ],
+      "resolution": "needs_review"
+    },
+    {
+      "channelId": "channel-bf917fdfb8db9ac9fbb79cd9",
+      "name": "AXN Asia Taiwan",
+      "expectedIdentity": {
+        "id": "channel-bf917fdfb8db9ac9fbb79cd9",
+        "name": "AXN Asia Taiwan",
+        "epgId": "AXNAsia.sg@Taiwan",
+        "countryCode": "SG",
+        "regionCode": null
+      },
+      "countryCode": "SG",
+      "categoryPath": [
+        "国际",
+        "新加坡",
+        "电视",
+        "电影"
+      ],
+      "protected": false,
+      "indicators": [
+        {
+          "kind": "explicit_epg_edition_suffix",
+          "marketHint": "TW"
+        }
+      ],
+      "resolution": "needs_review"
+    },
+    {
+      "channelId": "channel-047a04f02afb662c801054c6",
+      "name": "AXN Black (United States) Hungary",
+      "expectedIdentity": {
+        "id": "channel-047a04f02afb662c801054c6",
+        "name": "AXN Black (United States) Hungary",
+        "epgId": "AXNBlack.us@Hungary",
+        "countryCode": "US",
+        "regionCode": null
+      },
+      "countryCode": "US",
+      "categoryPath": [
+        "国际",
+        "美国",
+        "电视",
+        "电影"
+      ],
+      "protected": false,
+      "indicators": [
+        {
+          "kind": "explicit_epg_edition_suffix",
+          "marketHint": "HU"
+        }
+      ],
+      "resolution": "needs_review"
+    },
+    {
+      "channelId": "channel-cce377e473ed9ee2e8b1b3b7",
+      "name": "AXN Black (United States) Poland",
+      "expectedIdentity": {
+        "id": "channel-cce377e473ed9ee2e8b1b3b7",
+        "name": "AXN Black (United States) Poland",
+        "epgId": "AXNBlack.us@Poland",
+        "countryCode": "US",
+        "regionCode": null
+      },
+      "countryCode": "US",
+      "categoryPath": [
+        "国际",
+        "美国",
+        "电视",
+        "电影"
+      ],
+      "protected": false,
+      "indicators": [
+        {
+          "kind": "explicit_epg_edition_suffix",
+          "marketHint": "PL"
+        }
+      ],
+      "resolution": "needs_review"
+    },
+    {
+      "channelId": "channel-ff730ec3239671fa3d1a1a62",
+      "name": "AXN White (United States) Poland",
+      "expectedIdentity": {
+        "id": "channel-ff730ec3239671fa3d1a1a62",
+        "name": "AXN White (United States) Poland",
+        "epgId": "AXNWhite.us@Poland",
+        "countryCode": "US",
+        "regionCode": null
+      },
+      "countryCode": "US",
+      "categoryPath": [
+        "国际",
+        "美国",
+        "电视",
+        "娱乐"
+      ],
+      "protected": false,
+      "indicators": [
+        {
+          "kind": "explicit_epg_edition_suffix",
+          "marketHint": "PL"
+        }
+      ],
+      "resolution": "needs_review"
+    },
+    {
+      "channelId": "channel-1b8df979890f2c19a878002f",
+      "name": "Animax Asia India",
+      "expectedIdentity": {
+        "id": "channel-1b8df979890f2c19a878002f",
+        "name": "Animax Asia India",
+        "epgId": "AnimaxAsia.sg@India",
+        "countryCode": "SG",
+        "regionCode": null
+      },
+      "countryCode": "SG",
+      "categoryPath": [
+        "国际",
+        "新加坡",
+        "电视",
+        "动漫"
+      ],
+      "protected": false,
+      "indicators": [
+        {
+          "kind": "explicit_epg_edition_suffix",
+          "marketHint": "IN"
+        }
+      ],
+      "resolution": "needs_review"
+    },
+    {
+      "channelId": "channel-f354d7e6191d29997cea09e8",
+      "name": "Animax Asia Taiwan",
+      "expectedIdentity": {
+        "id": "channel-f354d7e6191d29997cea09e8",
+        "name": "Animax Asia Taiwan",
+        "epgId": "AnimaxAsia.sg@Taiwan",
+        "countryCode": "SG",
+        "regionCode": null
+      },
+      "countryCode": "SG",
+      "categoryPath": [
+        "国际",
+        "新加坡",
+        "电视",
+        "动漫"
+      ],
+      "protected": false,
+      "indicators": [
+        {
+          "kind": "explicit_epg_edition_suffix",
+          "marketHint": "TW"
+        }
+      ],
+      "resolution": "needs_review"
+    },
+    {
+      "channelId": "channel-660667d8d44dac1572c7ec27",
+      "name": "BBC Drama",
+      "expectedIdentity": {
+        "id": "channel-660667d8d44dac1572c7ec27",
+        "name": "BBC Drama",
+        "epgId": "BBCDrama.uk@Spain",
+        "countryCode": "GB",
+        "regionCode": null
+      },
+      "countryCode": "GB",
+      "categoryPath": [
+        "国际",
+        "英国",
+        "电视",
+        "剧集"
+      ],
+      "protected": false,
+      "indicators": [
+        {
+          "kind": "explicit_epg_edition_suffix",
+          "marketHint": "ES"
+        }
+      ],
+      "resolution": "needs_review"
+    },
+    {
+      "channelId": "channel-d9002c843165892acd977294",
+      "name": "BBC Earth US",
+      "expectedIdentity": {
+        "id": "channel-d9002c843165892acd977294",
+        "name": "BBC Earth US",
+        "epgId": "BBCEarth.uk@US",
+        "countryCode": "GB",
+        "regionCode": null
+      },
+      "countryCode": "GB",
+      "categoryPath": [
+        "国际",
+        "英国",
+        "电视",
+        "纪录片"
+      ],
+      "protected": false,
+      "indicators": [
+        {
+          "kind": "explicit_epg_edition_suffix",
+          "marketHint": "US"
+        }
+      ],
+      "resolution": "needs_review"
+    },
+    {
+      "channelId": "channel-9804817cea83feac28a7eca6",
+      "name": "BTV (Uganda)",
+      "expectedIdentity": {
+        "id": "channel-9804817cea83feac28a7eca6",
+        "name": "BTV (Uganda)",
+        "epgId": "BTV.ug@SD",
+        "countryCode": "CN",
+        "regionCode": "北京"
+      },
+      "countryCode": "CN",
+      "categoryPath": [
+        "国际",
+        "乌干达",
+        "电视",
+        "娱乐"
+      ],
+      "protected": false,
+      "indicators": [
+        {
+          "kind": "category_metadata_country_conflict",
+          "categoryCountry": "乌干达",
+          "categoryCountryCode": "UG",
+          "metadataCountry": "中国"
+        }
+      ],
+      "resolution": "needs_review"
+    },
+    {
+      "channelId": "channel-0b99817478d5acd52b5739e6",
+      "name": "Bollywood HD Russia",
+      "expectedIdentity": {
+        "id": "channel-0b99817478d5acd52b5739e6",
+        "name": "Bollywood HD Russia",
+        "epgId": "BollywoodHD.ro@Russia",
+        "countryCode": "RO",
+        "regionCode": null
+      },
+      "countryCode": "RO",
+      "categoryPath": [
+        "国际",
+        "罗马尼亚",
+        "电视",
+        "电影"
+      ],
+      "protected": false,
+      "indicators": [
+        {
+          "kind": "explicit_epg_edition_suffix",
+          "marketHint": "RU"
+        }
+      ],
+      "resolution": "needs_review"
+    },
+    {
+      "channelId": "channel-05184d45f426d0a77bacf3c9",
+      "name": "Cartoon Network CEE Ukraine",
+      "expectedIdentity": {
+        "id": "channel-05184d45f426d0a77bacf3c9",
+        "name": "Cartoon Network CEE Ukraine",
+        "epgId": "CartoonNetworkCEE.uk@Ukraine",
+        "countryCode": "GB",
+        "regionCode": null
+      },
+      "countryCode": "GB",
+      "categoryPath": [
+        "国际",
+        "英国",
+        "电视",
+        "动漫"
+      ],
+      "protected": false,
+      "indicators": [
+        {
+          "kind": "explicit_epg_edition_suffix",
+          "marketHint": "UA"
+        }
+      ],
+      "resolution": "needs_review"
+    },
+    {
+      "channelId": "channel-375972451b89282ab733e42d",
+      "name": "Da Vinci Asia Vietnam",
+      "expectedIdentity": {
+        "id": "channel-375972451b89282ab733e42d",
+        "name": "Da Vinci Asia Vietnam",
+        "epgId": "DaVinciAsia.de@Vietnam",
+        "countryCode": "DE",
+        "regionCode": null
+      },
+      "countryCode": "DE",
+      "categoryPath": [
+        "国际",
+        "德国",
+        "电视",
+        "教育"
+      ],
+      "protected": false,
+      "indicators": [
+        {
+          "kind": "explicit_epg_edition_suffix",
+          "marketHint": "VN"
+        }
+      ],
+      "resolution": "needs_review"
+    },
+    {
+      "channelId": "channel-fc04700873a84f03d742a464",
+      "name": "Deadly Women",
+      "expectedIdentity": {
+        "id": "channel-fc04700873a84f03d742a464",
+        "name": "Deadly Women",
+        "epgId": "DeadlyWomen.us@UK",
+        "countryCode": "US",
+        "regionCode": null
+      },
+      "countryCode": "US",
+      "categoryPath": [
+        "国际",
+        "美国",
+        "电视",
+        "纪录片"
+      ],
+      "protected": false,
+      "indicators": [
+        {
+          "kind": "explicit_epg_edition_suffix",
+          "marketHint": "GB"
+        }
+      ],
+      "resolution": "needs_review"
+    },
+    {
+      "channelId": "channel-9aeaa3591f0168c1caace796",
+      "name": "Discovery Kids Latin America Brazil",
+      "expectedIdentity": {
+        "id": "channel-9aeaa3591f0168c1caace796",
+        "name": "Discovery Kids Latin America Brazil",
+        "epgId": "DiscoveryKidsLatinAmerica.us@Brazil",
+        "countryCode": "US",
+        "regionCode": null
+      },
+      "countryCode": "US",
+      "categoryPath": [
+        "国际",
+        "美国",
+        "电视",
+        "少儿"
+      ],
+      "protected": false,
+      "indicators": [
+        {
+          "kind": "explicit_epg_edition_suffix",
+          "marketHint": "BR"
+        }
+      ],
+      "resolution": "needs_review"
+    },
+    {
+      "channelId": "channel-5dfab9bb58e24dfe3407267a",
+      "name": "Discovery Kids Latin America Chile",
+      "expectedIdentity": {
+        "id": "channel-5dfab9bb58e24dfe3407267a",
+        "name": "Discovery Kids Latin America Chile",
+        "epgId": "DiscoveryKidsLatinAmerica.us@Chile",
+        "countryCode": "US",
+        "regionCode": null
+      },
+      "countryCode": "US",
+      "categoryPath": [
+        "国际",
+        "美国",
+        "电视",
+        "少儿"
+      ],
+      "protected": false,
+      "indicators": [
+        {
+          "kind": "explicit_epg_edition_suffix",
+          "marketHint": "CL"
+        }
+      ],
+      "resolution": "needs_review"
+    },
+    {
+      "channelId": "channel-11816b8502407d61a40723c2",
+      "name": "Discovery Kids Latin America Colombia",
+      "expectedIdentity": {
+        "id": "channel-11816b8502407d61a40723c2",
+        "name": "Discovery Kids Latin America Colombia",
+        "epgId": "DiscoveryKidsLatinAmerica.us@Colombia",
+        "countryCode": "US",
+        "regionCode": null
+      },
+      "countryCode": "US",
+      "categoryPath": [
+        "国际",
+        "美国",
+        "电视",
+        "少儿"
+      ],
+      "protected": false,
+      "indicators": [
+        {
+          "kind": "explicit_epg_edition_suffix",
+          "marketHint": "CO"
+        }
+      ],
+      "resolution": "needs_review"
+    },
+    {
+      "channelId": "channel-1bc957fe7713c641a8dbc618",
+      "name": "Discovery Kids Latin America Mexico",
+      "expectedIdentity": {
+        "id": "channel-1bc957fe7713c641a8dbc618",
+        "name": "Discovery Kids Latin America Mexico",
+        "epgId": "DiscoveryKidsLatinAmerica.us@Mexico",
+        "countryCode": "US",
+        "regionCode": null
+      },
+      "countryCode": "US",
+      "categoryPath": [
+        "国际",
+        "美国",
+        "电视",
+        "少儿"
+      ],
+      "protected": false,
+      "indicators": [
+        {
+          "kind": "explicit_epg_edition_suffix",
+          "marketHint": "MX"
+        }
+      ],
+      "resolution": "needs_review"
+    },
+    {
+      "channelId": "channel-01d4e25882b05b34e3fb4377",
+      "name": "Discovery World Brazil",
+      "expectedIdentity": {
+        "id": "channel-01d4e25882b05b34e3fb4377",
+        "name": "Discovery World Brazil",
+        "epgId": "DiscoveryWorld.us@Brazil",
+        "countryCode": "US",
+        "regionCode": null
+      },
+      "countryCode": "US",
+      "categoryPath": [
+        "国际",
+        "美国",
+        "电视",
+        "娱乐"
+      ],
+      "protected": false,
+      "indicators": [
+        {
+          "kind": "explicit_epg_edition_suffix",
+          "marketHint": "BR"
+        }
+      ],
+      "resolution": "needs_review"
+    },
+    {
+      "channelId": "channel-d511a4bfbaed005615a23944",
+      "name": "Disney Channel Latin America Mexico",
+      "expectedIdentity": {
+        "id": "channel-d511a4bfbaed005615a23944",
+        "name": "Disney Channel Latin America Mexico",
+        "epgId": "DisneyChannelLatinAmerica.ar@Mexico",
+        "countryCode": "AR",
+        "regionCode": null
+      },
+      "countryCode": "AR",
+      "categoryPath": [
+        "国际",
+        "阿根廷",
+        "电视",
+        "动漫"
+      ],
+      "protected": false,
+      "indicators": [
+        {
+          "kind": "explicit_epg_edition_suffix",
+          "marketHint": "MX"
+        }
+      ],
+      "resolution": "needs_review"
+    },
+    {
+      "channelId": "channel-19ac5cf762bdbcecc705a75a",
+      "name": "Dog the Bounty Hunter UK",
+      "expectedIdentity": {
+        "id": "channel-19ac5cf762bdbcecc705a75a",
+        "name": "Dog the Bounty Hunter UK",
+        "epgId": "DogtheBountyHunter.us@UK",
+        "countryCode": "US",
+        "regionCode": null
+      },
+      "countryCode": "US",
+      "categoryPath": [
+        "国际",
+        "美国",
+        "电视",
+        "娱乐"
+      ],
+      "protected": false,
+      "indicators": [
+        {
+          "kind": "explicit_epg_edition_suffix",
+          "marketHint": "GB"
+        }
+      ],
+      "resolution": "needs_review"
+    },
+    {
+      "channelId": "channel-859ec67271f7935c1ee3b03b",
+      "name": "Duck Dynasty",
+      "expectedIdentity": {
+        "id": "channel-859ec67271f7935c1ee3b03b",
+        "name": "Duck Dynasty",
+        "epgId": "DuckDynasty.us@UK",
+        "countryCode": "US",
+        "regionCode": null
+      },
+      "countryCode": "US",
+      "categoryPath": [
+        "国际",
+        "美国",
+        "电视",
+        "娱乐"
+      ],
+      "protected": false,
+      "indicators": [
+        {
+          "kind": "explicit_epg_edition_suffix",
+          "marketHint": "GB"
+        }
+      ],
+      "resolution": "needs_review"
+    },
+    {
+      "channelId": "channel-b732ce1ffdd72492c2ae4750",
+      "name": "E! Latin America Mexico",
+      "expectedIdentity": {
+        "id": "channel-b732ce1ffdd72492c2ae4750",
+        "name": "E! Latin America Mexico",
+        "epgId": "ELatinAmerica.us@Mexico",
+        "countryCode": "US",
+        "regionCode": null
+      },
+      "countryCode": "US",
+      "categoryPath": [
+        "国际",
+        "美国",
+        "电视",
+        "娱乐"
+      ],
+      "protected": false,
+      "indicators": [
+        {
+          "kind": "explicit_epg_edition_suffix",
+          "marketHint": "MX"
+        }
+      ],
+      "resolution": "needs_review"
+    },
+    {
+      "channelId": "channel-1562dac58f4a4e57d6b3eed7",
+      "name": "ESPN Latin America Mexico",
+      "expectedIdentity": {
+        "id": "channel-1562dac58f4a4e57d6b3eed7",
+        "name": "ESPN Latin America Mexico",
+        "epgId": "ESPNLatinAmerica.us@Mexico",
+        "countryCode": "US",
+        "regionCode": null
+      },
+      "countryCode": "US",
+      "categoryPath": [
+        "国际",
+        "美国",
+        "电视",
+        "体育"
+      ],
+      "protected": false,
+      "indicators": [
+        {
+          "kind": "explicit_epg_edition_suffix",
+          "marketHint": "MX"
+        }
+      ],
+      "resolution": "needs_review"
+    },
+    {
+      "channelId": "channel-4e6058265d96fd4d55794dff",
+      "name": "Energia TV",
+      "expectedIdentity": {
+        "id": "channel-4e6058265d96fd4d55794dff",
+        "name": "Energia TV",
+        "epgId": "EnergiaTV.bq@SD",
+        "countryCode": "BQ",
+        "regionCode": null
+      },
+      "countryCode": "BQ",
+      "categoryPath": [
+        "国际",
+        "博奈尔",
+        "电视",
+        "综合"
+      ],
+      "protected": false,
+      "indicators": [
+        {
+          "kind": "category_label_scope_difference",
+          "categoryCountry": "博奈尔",
+          "categoryCountryCode": null,
+          "metadataCountry": "荷属加勒比区"
+        }
+      ],
+      "resolution": "needs_review"
+    },
+    {
+      "channelId": "channel-beb2a90d1bd1d2bb14f84ff5",
+      "name": "Europa Plus TV Belarus",
+      "expectedIdentity": {
+        "id": "channel-beb2a90d1bd1d2bb14f84ff5",
+        "name": "Europa Plus TV Belarus",
+        "epgId": "EuropaPlusTV.ru@Belarus",
+        "countryCode": "RU",
+        "regionCode": null
+      },
+      "countryCode": "RU",
+      "categoryPath": [
+        "国际",
+        "俄罗斯",
+        "电视",
+        "音乐"
+      ],
+      "protected": false,
+      "indicators": [
+        {
+          "kind": "explicit_epg_edition_suffix",
+          "marketHint": "BY"
+        }
+      ],
+      "resolution": "needs_review"
+    },
+    {
+      "channelId": "channel-94db9d5b1e1126a4864c1924",
+      "name": "F1 Channel",
+      "expectedIdentity": {
+        "id": "channel-94db9d5b1e1126a4864c1924",
+        "name": "F1 Channel",
+        "epgId": "F1Channel.ie@US",
+        "countryCode": "IE",
+        "regionCode": null
+      },
+      "countryCode": "IE",
+      "categoryPath": [
+        "国际",
+        "爱尔兰",
+        "电视",
+        "体育"
+      ],
+      "protected": false,
+      "indicators": [
+        {
+          "kind": "explicit_epg_edition_suffix",
+          "marketHint": "US"
+        }
+      ],
+      "resolution": "needs_review"
+    },
+    {
+      "channelId": "channel-2703139ea599dfffd9070851",
+      "name": "FIFA+ Italy",
+      "expectedIdentity": {
+        "id": "channel-2703139ea599dfffd9070851",
+        "name": "FIFA+ Italy",
+        "epgId": "FIFAPlus.uk@Italy",
+        "countryCode": "GB",
+        "regionCode": null
+      },
+      "countryCode": "GB",
+      "categoryPath": [
+        "国际",
+        "英国",
+        "电视",
+        "体育"
+      ],
+      "protected": false,
+      "indicators": [
+        {
+          "kind": "explicit_epg_edition_suffix",
+          "marketHint": "IT"
+        }
+      ],
+      "resolution": "needs_review"
+    },
+    {
+      "channelId": "channel-8914940cff00ef1f23da9eea",
+      "name": "FIFA+ Spain",
+      "expectedIdentity": {
+        "id": "channel-8914940cff00ef1f23da9eea",
+        "name": "FIFA+ Spain",
+        "epgId": "FIFAPlus.uk@Spain",
+        "countryCode": "GB",
+        "regionCode": null
+      },
+      "countryCode": "GB",
+      "categoryPath": [
+        "国际",
+        "英国",
+        "电视",
+        "体育"
+      ],
+      "protected": false,
+      "indicators": [
+        {
+          "kind": "explicit_epg_edition_suffix",
+          "marketHint": "ES"
+        }
+      ],
+      "resolution": "needs_review"
+    },
+    {
+      "channelId": "channel-abbf6efdc7ae1ba8c429fd7e",
+      "name": "FILMBOX+ Comedy Romania",
+      "expectedIdentity": {
+        "id": "channel-abbf6efdc7ae1ba8c429fd7e",
+        "name": "FILMBOX+ Comedy Romania",
+        "epgId": "FILMBOXPlusComedy.pl@Romania",
+        "countryCode": "PL",
+        "regionCode": null
+      },
+      "countryCode": "PL",
+      "categoryPath": [
+        "国际",
+        "波兰",
+        "电视",
+        "电影"
+      ],
+      "protected": false,
+      "indicators": [
+        {
+          "kind": "explicit_epg_edition_suffix",
+          "marketHint": "RO"
+        }
+      ],
+      "resolution": "needs_review"
+    },
+    {
+      "channelId": "channel-d9d1be91010aa89fa9b8b072",
+      "name": "FILMBOX+ Hits Romania",
+      "expectedIdentity": {
+        "id": "channel-d9d1be91010aa89fa9b8b072",
+        "name": "FILMBOX+ Hits Romania",
+        "epgId": "FILMBOXPlusHits.pl@Romania",
+        "countryCode": "PL",
+        "regionCode": null
+      },
+      "countryCode": "PL",
+      "categoryPath": [
+        "国际",
+        "波兰",
+        "电视",
+        "电影"
+      ],
+      "protected": false,
+      "indicators": [
+        {
+          "kind": "explicit_epg_edition_suffix",
+          "marketHint": "RO"
+        }
+      ],
+      "resolution": "needs_review"
+    },
+    {
+      "channelId": "channel-da0488d9aff786d451d9cd60",
+      "name": "FILMBOX+ Love & Crime Romania",
+      "expectedIdentity": {
+        "id": "channel-da0488d9aff786d451d9cd60",
+        "name": "FILMBOX+ Love & Crime Romania",
+        "epgId": "FILMBOXPlusLoveCrime.pl@Romania",
+        "countryCode": "PL",
+        "regionCode": null
+      },
+      "countryCode": "PL",
+      "categoryPath": [
+        "国际",
+        "波兰",
+        "电视",
+        "电影"
+      ],
+      "protected": false,
+      "indicators": [
+        {
+          "kind": "explicit_epg_edition_suffix",
+          "marketHint": "RO"
+        }
+      ],
+      "resolution": "needs_review"
+    },
+    {
+      "channelId": "channel-5fb90d32e4f00474282a5f35",
+      "name": "FUEL TV AU",
+      "expectedIdentity": {
+        "id": "channel-5fb90d32e4f00474282a5f35",
+        "name": "FUEL TV AU",
+        "epgId": "FUELTV.pt@AU",
+        "countryCode": "PT",
+        "regionCode": null
+      },
+      "countryCode": "PT",
+      "categoryPath": [
+        "国际",
+        "葡萄牙",
+        "电视",
+        "体育"
+      ],
+      "protected": false,
+      "indicators": [
+        {
+          "kind": "explicit_epg_edition_suffix",
+          "marketHint": "AU"
+        }
+      ],
+      "resolution": "needs_review"
+    },
+    {
+      "channelId": "channel-fa3ae8c21472eef683d40c16",
+      "name": "FUEL TV US",
+      "expectedIdentity": {
+        "id": "channel-fa3ae8c21472eef683d40c16",
+        "name": "FUEL TV US",
+        "epgId": "FUELTV.pt@US",
+        "countryCode": "PT",
+        "regionCode": null
+      },
+      "countryCode": "PT",
+      "categoryPath": [
+        "国际",
+        "葡萄牙",
+        "电视",
+        "体育"
+      ],
+      "protected": false,
+      "indicators": [
+        {
+          "kind": "explicit_epg_edition_suffix",
+          "marketHint": "US"
+        }
+      ],
+      "resolution": "needs_review"
+    },
+    {
+      "channelId": "channel-da88425cc82ed34d4024e53e",
+      "name": "FailArmy Poland",
+      "expectedIdentity": {
+        "id": "channel-da88425cc82ed34d4024e53e",
+        "name": "FailArmy Poland",
+        "epgId": "FailArmy.us@Poland",
+        "countryCode": "US",
+        "regionCode": null
+      },
+      "countryCode": "US",
+      "categoryPath": [
+        "国际",
+        "美国",
+        "电视",
+        "喜剧"
+      ],
+      "protected": false,
+      "indicators": [
+        {
+          "kind": "explicit_epg_edition_suffix",
+          "marketHint": "PL"
+        }
+      ],
+      "resolution": "needs_review"
+    },
+    {
+      "channelId": "channel-6d0b5d852de3f0cf72ae3491",
+      "name": "FailArmy UK",
+      "expectedIdentity": {
+        "id": "channel-6d0b5d852de3f0cf72ae3491",
+        "name": "FailArmy UK",
+        "epgId": "FailArmy.us@UK",
+        "countryCode": "US",
+        "regionCode": null
+      },
+      "countryCode": "US",
+      "categoryPath": [
+        "国际",
+        "美国",
+        "电视",
+        "喜剧"
+      ],
+      "protected": false,
+      "indicators": [
+        {
+          "kind": "explicit_epg_edition_suffix",
+          "marketHint": "GB"
+        }
+      ],
+      "resolution": "needs_review"
+    },
+    {
+      "channelId": "channel-e22fd147d193d236946ec12a",
+      "name": "FightBox Poland (576i)",
+      "expectedIdentity": {
+        "id": "channel-e22fd147d193d236946ec12a",
+        "name": "FightBox Poland (576i)",
+        "epgId": "FightBox.nl@Poland",
+        "countryCode": "NL",
+        "regionCode": null
+      },
+      "countryCode": "NL",
+      "categoryPath": [
+        "国际",
+        "荷兰",
+        "电视",
+        "体育"
+      ],
+      "protected": false,
+      "indicators": [
+        {
+          "kind": "explicit_epg_edition_suffix",
+          "marketHint": "PL"
+        }
+      ],
+      "resolution": "needs_review"
+    },
+    {
+      "channelId": "channel-278dcd161e1914b6120a6a17",
+      "name": "Get.factual",
+      "expectedIdentity": {
+        "id": "channel-278dcd161e1914b6120a6a17",
+        "name": "Get.factual",
+        "epgId": "Getfactual.us@UK",
+        "countryCode": "US",
+        "regionCode": null
+      },
+      "countryCode": "US",
+      "categoryPath": [
+        "国际",
+        "美国",
+        "电视",
+        "纪录片"
+      ],
+      "protected": false,
+      "indicators": [
+        {
+          "kind": "explicit_epg_edition_suffix",
+          "marketHint": "GB"
+        }
+      ],
+      "resolution": "needs_review"
+    },
+    {
+      "channelId": "channel-8e01298ff62ac2d693df55cf",
+      "name": "Ghost Hunters",
+      "expectedIdentity": {
+        "id": "channel-8e01298ff62ac2d693df55cf",
+        "name": "Ghost Hunters",
+        "epgId": "GhostHunters.us@UK",
+        "countryCode": "US",
+        "regionCode": null
+      },
+      "countryCode": "US",
+      "categoryPath": [
+        "国际",
+        "美国",
+        "电视",
+        "剧集"
+      ],
+      "protected": false,
+      "indicators": [
+        {
+          "kind": "explicit_epg_edition_suffix",
+          "marketHint": "GB"
+        }
+      ],
+      "resolution": "needs_review"
+    },
+    {
+      "channelId": "channel-f1ecf16e013aec69d5c3c558",
+      "name": "Glory Kickboxing Poland",
+      "expectedIdentity": {
+        "id": "channel-f1ecf16e013aec69d5c3c558",
+        "name": "Glory Kickboxing Poland",
+        "epgId": "GloryKickboxing.us@Poland",
+        "countryCode": "US",
+        "regionCode": null
+      },
+      "countryCode": "US",
+      "categoryPath": [
+        "国际",
+        "美国",
+        "电视",
+        "体育"
+      ],
+      "protected": false,
+      "indicators": [
+        {
+          "kind": "explicit_epg_edition_suffix",
+          "marketHint": "PL"
+        }
+      ],
+      "resolution": "needs_review"
+    },
+    {
+      "channelId": "channel-039d8659b8c848e9eba92e60",
+      "name": "HBO Asia Taiwan",
+      "expectedIdentity": {
+        "id": "channel-039d8659b8c848e9eba92e60",
+        "name": "HBO Asia Taiwan",
+        "epgId": "HBOAsia.sg@Taiwan",
+        "countryCode": "SG",
+        "regionCode": null
+      },
+      "countryCode": "SG",
+      "categoryPath": [
+        "国际",
+        "新加坡",
+        "电视",
+        "电影"
+      ],
+      "protected": false,
+      "indicators": [
+        {
+          "kind": "explicit_epg_edition_suffix",
+          "marketHint": "TW"
+        }
+      ],
+      "resolution": "needs_review"
+    },
+    {
+      "channelId": "channel-dc2e4f8bbd53f84d268c9591",
+      "name": "Hell's Kitchen",
+      "expectedIdentity": {
+        "id": "channel-dc2e4f8bbd53f84d268c9591",
+        "name": "Hell's Kitchen",
+        "epgId": "HellsKitchen.us@UK",
+        "countryCode": "US",
+        "regionCode": null
+      },
+      "countryCode": "US",
+      "categoryPath": [
+        "国际",
+        "美国",
+        "电视",
+        "剧集"
+      ],
+      "protected": false,
+      "indicators": [
+        {
+          "kind": "explicit_epg_edition_suffix",
+          "marketHint": "GB"
+        }
+      ],
+      "resolution": "needs_review"
+    },
+    {
+      "channelId": "channel-67a92d39da2b8fee1d08feda",
+      "name": "History 2 Latin America Brazil",
+      "expectedIdentity": {
+        "id": "channel-67a92d39da2b8fee1d08feda",
+        "name": "History 2 Latin America Brazil",
+        "epgId": "History2LatinAmerica.us@Brazil",
+        "countryCode": "US",
+        "regionCode": null
+      },
+      "countryCode": "US",
+      "categoryPath": [
+        "国际",
+        "美国",
+        "电视",
+        "纪录片"
+      ],
+      "protected": false,
+      "indicators": [
+        {
+          "kind": "explicit_epg_edition_suffix",
+          "marketHint": "BR"
+        }
+      ],
+      "resolution": "needs_review"
+    },
+    {
+      "channelId": "channel-a5e1bcb2f91b8b0d37519717",
+      "name": "Homeful US",
+      "expectedIdentity": {
+        "id": "channel-a5e1bcb2f91b8b0d37519717",
+        "name": "Homeful US",
+        "epgId": "Homeful.ca@US",
+        "countryCode": "CA",
+        "regionCode": null
+      },
+      "countryCode": "CA",
+      "categoryPath": [
+        "国际",
+        "加拿大",
+        "电视",
+        "生活"
+      ],
+      "protected": false,
+      "indicators": [
+        {
+          "kind": "explicit_epg_edition_suffix",
+          "marketHint": "US"
+        }
+      ],
+      "resolution": "needs_review"
+    },
+    {
+      "channelId": "channel-d412689974e0cc1aed3080ee",
+      "name": "Homes Under Hammer",
+      "expectedIdentity": {
+        "id": "channel-d412689974e0cc1aed3080ee",
+        "name": "Homes Under Hammer",
+        "epgId": "HomesUnderHammer.us@UK",
+        "countryCode": "US",
+        "regionCode": null
+      },
+      "countryCode": "US",
+      "categoryPath": [
+        "国际",
+        "美国",
+        "电视",
+        "剧集"
+      ],
+      "protected": false,
+      "indicators": [
+        {
+          "kind": "explicit_epg_edition_suffix",
+          "marketHint": "GB"
+        }
+      ],
+      "resolution": "needs_review"
+    },
+    {
+      "channelId": "channel-ca2be6df34ae0dbf89faed61",
+      "name": "INTRAVEL",
+      "expectedIdentity": {
+        "id": "channel-ca2be6df34ae0dbf89faed61",
+        "name": "INTRAVEL",
+        "epgId": "INTRAVEL.nl@Philippines",
+        "countryCode": "NL",
+        "regionCode": null
+      },
+      "countryCode": "NL",
+      "categoryPath": [
+        "国际",
+        "荷兰",
+        "电视",
+        "旅行"
+      ],
+      "protected": false,
+      "indicators": [
+        {
+          "kind": "explicit_epg_edition_suffix",
+          "marketHint": "PH"
+        }
+      ],
+      "resolution": "needs_review"
+    },
+    {
+      "channelId": "channel-3f0fd6787cd430864145b0f1",
+      "name": "Inside Crime",
+      "expectedIdentity": {
+        "id": "channel-3f0fd6787cd430864145b0f1",
+        "name": "Inside Crime",
+        "epgId": "InsideCrime.us@UK",
+        "countryCode": "US",
+        "regionCode": null
+      },
+      "countryCode": "US",
+      "categoryPath": [
+        "国际",
+        "美国",
+        "电视",
+        "剧集"
+      ],
+      "protected": false,
+      "indicators": [
+        {
+          "kind": "explicit_epg_edition_suffix",
+          "marketHint": "GB"
+        }
+      ],
+      "resolution": "needs_review"
+    },
+    {
+      "channelId": "channel-f9f2662d8db1ac161933f7a2",
+      "name": "KCM India",
+      "expectedIdentity": {
+        "id": "channel-f9f2662d8db1ac161933f7a2",
+        "name": "KCM India",
+        "epgId": "KCM.sg@India",
+        "countryCode": "SG",
+        "regionCode": null
+      },
+      "countryCode": "SG",
+      "categoryPath": [
+        "国际",
+        "新加坡",
+        "电视",
+        "电影"
+      ],
+      "protected": false,
+      "indicators": [
+        {
+          "kind": "explicit_epg_edition_suffix",
+          "marketHint": "IN"
+        }
+      ],
+      "resolution": "needs_review"
+    },
+    {
+      "channelId": "channel-38990795b74d76c50111382f",
+      "name": "Lifetime Latin America Brazil",
+      "expectedIdentity": {
+        "id": "channel-38990795b74d76c50111382f",
+        "name": "Lifetime Latin America Brazil",
+        "epgId": "LifetimeLatinAmerica.us@Brazil",
+        "countryCode": "US",
+        "regionCode": null
+      },
+      "countryCode": "US",
+      "categoryPath": [
+        "国际",
+        "美国",
+        "电视",
+        "娱乐"
+      ],
+      "protected": false,
+      "indicators": [
+        {
+          "kind": "explicit_epg_edition_suffix",
+          "marketHint": "BR"
+        }
+      ],
+      "resolution": "needs_review"
+    },
+    {
+      "channelId": "channel-35526da8b0fa2652db34e2b5",
+      "name": "Lifetime Latin America Mexico",
+      "expectedIdentity": {
+        "id": "channel-35526da8b0fa2652db34e2b5",
+        "name": "Lifetime Latin America Mexico",
+        "epgId": "LifetimeLatinAmerica.us@Mexico",
+        "countryCode": "US",
+        "regionCode": null
+      },
+      "countryCode": "US",
+      "categoryPath": [
+        "国际",
+        "美国",
+        "电视",
+        "娱乐"
+      ],
+      "protected": false,
+      "indicators": [
+        {
+          "kind": "explicit_epg_edition_suffix",
+          "marketHint": "MX"
+        }
+      ],
+      "resolution": "needs_review"
+    },
+    {
+      "channelId": "channel-5ab518827c1a6fb6229c486d",
+      "name": "Live99FM",
+      "expectedIdentity": {
+        "id": "channel-5ab518827c1a6fb6229c486d",
+        "name": "Live99FM",
+        "epgId": "Live99FM.bq@SD",
+        "countryCode": "BQ",
+        "regionCode": null
+      },
+      "countryCode": "BQ",
+      "categoryPath": [
+        "国际",
+        "博奈尔",
+        "电视",
+        "音乐"
+      ],
+      "protected": false,
+      "indicators": [
+        {
+          "kind": "category_label_scope_difference",
+          "categoryCountry": "博奈尔",
+          "categoryCountryCode": null,
+          "metadataCountry": "荷属加勒比区"
+        }
+      ],
+      "resolution": "needs_review"
+    },
+    {
+      "channelId": "channel-d204641dd8e0c98960b46f35",
+      "name": "Lone Star Poland",
+      "expectedIdentity": {
+        "id": "channel-d204641dd8e0c98960b46f35",
+        "name": "Lone Star Poland",
+        "epgId": "LoneStar.us@Poland",
+        "countryCode": "US",
+        "regionCode": null
+      },
+      "countryCode": "US",
+      "categoryPath": [
+        "国际",
+        "美国",
+        "电视",
+        "娱乐"
+      ],
+      "protected": false,
+      "indicators": [
+        {
+          "kind": "explicit_epg_edition_suffix",
+          "marketHint": "PL"
+        }
+      ],
+      "resolution": "needs_review"
+    },
+    {
+      "channelId": "channel-196e5287334705fc055a9fb2",
+      "name": "Love Pets",
+      "expectedIdentity": {
+        "id": "channel-196e5287334705fc055a9fb2",
+        "name": "Love Pets",
+        "epgId": "LovePets.ca@US",
+        "countryCode": "CA",
+        "regionCode": null
+      },
+      "countryCode": "CA",
+      "categoryPath": [
+        "国际",
+        "加拿大",
+        "电视",
+        "生活"
+      ],
+      "protected": false,
+      "indicators": [
+        {
+          "kind": "explicit_epg_edition_suffix",
+          "marketHint": "US"
+        }
+      ],
+      "resolution": "needs_review"
+    },
+    {
+      "channelId": "channel-590eacdd9a2ef7d3bc30a9ec",
+      "name": "McLeod's Daughters",
+      "expectedIdentity": {
+        "id": "channel-590eacdd9a2ef7d3bc30a9ec",
+        "name": "McLeod's Daughters",
+        "epgId": "McLeodsDaughters.us@UK",
+        "countryCode": "US",
+        "regionCode": null
+      },
+      "countryCode": "US",
+      "categoryPath": [
+        "国际",
+        "美国",
+        "电视",
+        "剧集"
+      ],
+      "protected": false,
+      "indicators": [
+        {
+          "kind": "explicit_epg_edition_suffix",
+          "marketHint": "GB"
+        }
+      ],
+      "resolution": "needs_review"
+    },
+    {
+      "channelId": "channel-636301bf3ff496eca18b67f0",
+      "name": "Mir Kazakhstan",
+      "expectedIdentity": {
+        "id": "channel-636301bf3ff496eca18b67f0",
+        "name": "Mir Kazakhstan",
+        "epgId": "Mir.ru@Kazakhstan",
+        "countryCode": "RU",
+        "regionCode": null
+      },
+      "countryCode": "RU",
+      "categoryPath": [
+        "国际",
+        "俄罗斯",
+        "电视",
+        "综合"
+      ],
+      "protected": false,
+      "indicators": [
+        {
+          "kind": "explicit_epg_edition_suffix",
+          "marketHint": "KZ"
+        }
+      ],
+      "resolution": "needs_review"
+    },
+    {
+      "channelId": "channel-fb261f09b19f3c6e7da334dd",
+      "name": "MovieSphere AU",
+      "expectedIdentity": {
+        "id": "channel-fb261f09b19f3c6e7da334dd",
+        "name": "MovieSphere AU",
+        "epgId": "MovieSphere.us@AU",
+        "countryCode": "US",
+        "regionCode": null
+      },
+      "countryCode": "US",
+      "categoryPath": [
+        "国际",
+        "美国",
+        "电视",
+        "电影"
+      ],
+      "protected": false,
+      "indicators": [
+        {
+          "kind": "explicit_epg_edition_suffix",
+          "marketHint": "AU"
+        }
+      ],
+      "resolution": "needs_review"
+    },
+    {
+      "channelId": "channel-f4e85fd82df57c4e414d4ff6",
+      "name": "Mr Bean Animated ES",
+      "expectedIdentity": {
+        "id": "channel-f4e85fd82df57c4e414d4ff6",
+        "name": "Mr Bean Animated ES",
+        "epgId": "MrBeanAnimated.uk@ES",
+        "countryCode": "GB",
+        "regionCode": null
+      },
+      "countryCode": "GB",
+      "categoryPath": [
+        "国际",
+        "英国",
+        "电视",
+        "儿童"
+      ],
+      "protected": false,
+      "indicators": [
+        {
+          "kind": "explicit_epg_edition_suffix",
+          "marketHint": "ES"
+        }
+      ],
+      "resolution": "needs_review"
+    },
+    {
+      "channelId": "channel-9b56c24198c6ddf715d0d583",
+      "name": "Mr Bean Animated FR",
+      "expectedIdentity": {
+        "id": "channel-9b56c24198c6ddf715d0d583",
+        "name": "Mr Bean Animated FR",
+        "epgId": "MrBeanAnimated.uk@FR",
+        "countryCode": "GB",
+        "regionCode": null
+      },
+      "countryCode": "GB",
+      "categoryPath": [
+        "国际",
+        "英国",
+        "电视",
+        "儿童"
+      ],
+      "protected": false,
+      "indicators": [
+        {
+          "kind": "explicit_epg_edition_suffix",
+          "marketHint": "FR"
+        }
+      ],
+      "resolution": "needs_review"
+    },
+    {
+      "channelId": "channel-f4f6500afd3a9180d60d47f6",
+      "name": "Mr Bean Animated IT",
+      "expectedIdentity": {
+        "id": "channel-f4f6500afd3a9180d60d47f6",
+        "name": "Mr Bean Animated IT",
+        "epgId": "MrBeanAnimated.uk@IT",
+        "countryCode": "GB",
+        "regionCode": null
+      },
+      "countryCode": "GB",
+      "categoryPath": [
+        "国际",
+        "英国",
+        "电视",
+        "儿童"
+      ],
+      "protected": false,
+      "indicators": [
+        {
+          "kind": "explicit_epg_edition_suffix",
+          "marketHint": "IT"
+        }
+      ],
+      "resolution": "needs_review"
+    },
+    {
+      "channelId": "channel-08282e7d58c20f6a9ce99f5a",
+      "name": "Mystery TV",
+      "expectedIdentity": {
+        "id": "channel-08282e7d58c20f6a9ce99f5a",
+        "name": "Mystery TV",
+        "epgId": "MysteryTV.us@UK",
+        "countryCode": "US",
+        "regionCode": null
+      },
+      "countryCode": "US",
+      "categoryPath": [
+        "国际",
+        "美国",
+        "电视",
+        "娱乐"
+      ],
+      "protected": false,
+      "indicators": [
+        {
+          "kind": "explicit_epg_edition_suffix",
+          "marketHint": "GB"
+        }
+      ],
+      "resolution": "needs_review"
+    },
+    {
+      "channelId": "channel-f328d01b3da18b698ae7f1be",
+      "name": "Mythbusters",
+      "expectedIdentity": {
+        "id": "channel-f328d01b3da18b698ae7f1be",
+        "name": "Mythbusters",
+        "epgId": "Mythbusters.us@UK",
+        "countryCode": "US",
+        "regionCode": null
+      },
+      "countryCode": "US",
+      "categoryPath": [
+        "国际",
+        "美国",
+        "电视",
+        "纪录片"
+      ],
+      "protected": false,
+      "indicators": [
+        {
+          "kind": "explicit_epg_edition_suffix",
+          "marketHint": "GB"
+        }
+      ],
+      "resolution": "needs_review"
+    },
+    {
+      "channelId": "channel-f85dc2651e529ea3bfd4086b",
+      "name": "NatureTime AU",
+      "expectedIdentity": {
+        "id": "channel-f85dc2651e529ea3bfd4086b",
+        "name": "NatureTime AU",
+        "epgId": "NatureTime.ca@AU",
+        "countryCode": "CA",
+        "regionCode": null
+      },
+      "countryCode": "CA",
+      "categoryPath": [
+        "国际",
+        "加拿大",
+        "电视",
+        "纪录片"
+      ],
+      "protected": false,
+      "indicators": [
+        {
+          "kind": "explicit_epg_edition_suffix",
+          "marketHint": "AU"
+        }
+      ],
+      "resolution": "needs_review"
+    },
+    {
+      "channelId": "channel-9844b0973acd794948ad1e6f",
+      "name": "NatureTime France",
+      "expectedIdentity": {
+        "id": "channel-9844b0973acd794948ad1e6f",
+        "name": "NatureTime France",
+        "epgId": "NatureTime.ca@France",
+        "countryCode": "CA",
+        "regionCode": null
+      },
+      "countryCode": "CA",
+      "categoryPath": [
+        "国际",
+        "加拿大",
+        "电视",
+        "纪录片"
+      ],
+      "protected": false,
+      "indicators": [
+        {
+          "kind": "explicit_epg_edition_suffix",
+          "marketHint": "FR"
+        }
+      ],
+      "resolution": "needs_review"
+    },
+    {
+      "channelId": "channel-c960d672fd80a3d883d5ba11",
+      "name": "NatureTime UK",
+      "expectedIdentity": {
+        "id": "channel-c960d672fd80a3d883d5ba11",
+        "name": "NatureTime UK",
+        "epgId": "NatureTime.ca@UK",
+        "countryCode": "CA",
+        "regionCode": null
+      },
+      "countryCode": "CA",
+      "categoryPath": [
+        "国际",
+        "加拿大",
+        "电视",
+        "纪录片"
+      ],
+      "protected": false,
+      "indicators": [
+        {
+          "kind": "explicit_epg_edition_suffix",
+          "marketHint": "GB"
+        }
+      ],
+      "resolution": "needs_review"
+    },
+    {
+      "channelId": "channel-0566f398686040eaffb147a6",
+      "name": "NosTV Bonaire 2",
+      "expectedIdentity": {
+        "id": "channel-0566f398686040eaffb147a6",
+        "name": "NosTV Bonaire 2",
+        "epgId": "NosTVBonaire2.bq@SD",
+        "countryCode": "BQ",
+        "regionCode": null
+      },
+      "countryCode": "BQ",
+      "categoryPath": [
+        "国际",
+        "博奈尔",
+        "电视",
+        "综合"
+      ],
+      "protected": false,
+      "indicators": [
+        {
+          "kind": "category_label_scope_difference",
+          "categoryCountry": "博奈尔",
+          "categoryCountryCode": null,
+          "metadataCountry": "荷属加勒比区"
+        }
+      ],
+      "resolution": "needs_review"
+    },
+    {
+      "channelId": "channel-53846076445e13544ca26aef",
+      "name": "Now 90s00s",
+      "expectedIdentity": {
+        "id": "channel-53846076445e13544ca26aef",
+        "name": "Now 90s00s",
+        "epgId": "Now90s00s.uk@Poland",
+        "countryCode": "GB",
+        "regionCode": null
+      },
+      "countryCode": "GB",
+      "categoryPath": [
+        "国际",
+        "英国",
+        "电视",
+        "音乐"
+      ],
+      "protected": false,
+      "indicators": [
+        {
+          "kind": "explicit_epg_edition_suffix",
+          "marketHint": "PL"
+        }
+      ],
+      "resolution": "needs_review"
+    },
+    {
+      "channelId": "channel-2ddbce96299f7b4f835f5d1d",
+      "name": "People Are Awesome Poland",
+      "expectedIdentity": {
+        "id": "channel-2ddbce96299f7b4f835f5d1d",
+        "name": "People Are Awesome Poland",
+        "epgId": "PeopleAreAwesome.us@Poland",
+        "countryCode": "US",
+        "regionCode": null
+      },
+      "countryCode": "US",
+      "categoryPath": [
+        "国际",
+        "美国",
+        "电视",
+        "娱乐"
+      ],
+      "protected": false,
+      "indicators": [
+        {
+          "kind": "explicit_epg_edition_suffix",
+          "marketHint": "PL"
+        }
+      ],
+      "resolution": "needs_review"
+    },
+    {
+      "channelId": "channel-665d5058730b28ed98032e0a",
+      "name": "Rakuten TV Action Movies Germany",
+      "expectedIdentity": {
+        "id": "channel-665d5058730b28ed98032e0a",
+        "name": "Rakuten TV Action Movies Germany",
+        "epgId": "RakutenTVActionMovies.es@Germany",
+        "countryCode": "ES",
+        "regionCode": null
+      },
+      "countryCode": "ES",
+      "categoryPath": [
+        "国际",
+        "西班牙",
+        "电视",
+        "电影"
+      ],
+      "protected": false,
+      "indicators": [
+        {
+          "kind": "explicit_epg_edition_suffix",
+          "marketHint": "DE"
+        }
+      ],
+      "resolution": "needs_review"
+    },
+    {
+      "channelId": "channel-e6ec61227acc98a5fb239b0c",
+      "name": "Rakuten Viki Poland",
+      "expectedIdentity": {
+        "id": "channel-e6ec61227acc98a5fb239b0c",
+        "name": "Rakuten Viki Poland",
+        "epgId": "RakutenViki.us@Poland",
+        "countryCode": "US",
+        "regionCode": null
+      },
+      "countryCode": "US",
+      "categoryPath": [
+        "国际",
+        "美国",
+        "电视",
+        "娱乐"
+      ],
+      "protected": false,
+      "indicators": [
+        {
+          "kind": "explicit_epg_edition_suffix",
+          "marketHint": "PL"
+        }
+      ],
+      "resolution": "needs_review"
+    },
+    {
+      "channelId": "channel-e0bb847718ad1004ccf263c6",
+      "name": "Red Bull TV AU",
+      "expectedIdentity": {
+        "id": "channel-e0bb847718ad1004ccf263c6",
+        "name": "Red Bull TV AU",
+        "epgId": "RedBullTV.at@AU",
+        "countryCode": "AT",
+        "regionCode": null
+      },
+      "countryCode": "AT",
+      "categoryPath": [
+        "国际",
+        "奥地利",
+        "电视",
+        "综合"
+      ],
+      "protected": false,
+      "indicators": [
+        {
+          "kind": "explicit_epg_edition_suffix",
+          "marketHint": "AU"
+        }
+      ],
+      "resolution": "needs_review"
+    },
+    {
+      "channelId": "channel-ddd214c3d448d4c46b1e90fd",
+      "name": "Red Bull TV BR",
+      "expectedIdentity": {
+        "id": "channel-ddd214c3d448d4c46b1e90fd",
+        "name": "Red Bull TV BR",
+        "epgId": "RedBullTV.at@BR",
+        "countryCode": "AT",
+        "regionCode": null
+      },
+      "countryCode": "AT",
+      "categoryPath": [
+        "国际",
+        "奥地利",
+        "电视",
+        "综合"
+      ],
+      "protected": false,
+      "indicators": [
+        {
+          "kind": "explicit_epg_edition_suffix",
+          "marketHint": "BR"
+        }
+      ],
+      "resolution": "needs_review"
+    },
+    {
+      "channelId": "channel-a07a62a220fc1d91c1ff9006",
+      "name": "Red Bull TV DE",
+      "expectedIdentity": {
+        "id": "channel-a07a62a220fc1d91c1ff9006",
+        "name": "Red Bull TV DE",
+        "epgId": "RedBullTV.at@DE",
+        "countryCode": "AT",
+        "regionCode": null
+      },
+      "countryCode": "AT",
+      "categoryPath": [
+        "国际",
+        "奥地利",
+        "电视",
+        "综合"
+      ],
+      "protected": false,
+      "indicators": [
+        {
+          "kind": "explicit_epg_edition_suffix",
+          "marketHint": "DE"
+        }
+      ],
+      "resolution": "needs_review"
+    },
+    {
+      "channelId": "channel-644e02ce7efff5ac56c7f5d7",
+      "name": "Red Bull TV ES",
+      "expectedIdentity": {
+        "id": "channel-644e02ce7efff5ac56c7f5d7",
+        "name": "Red Bull TV ES",
+        "epgId": "RedBullTV.at@ES",
+        "countryCode": "AT",
+        "regionCode": null
+      },
+      "countryCode": "AT",
+      "categoryPath": [
+        "国际",
+        "奥地利",
+        "电视",
+        "综合"
+      ],
+      "protected": false,
+      "indicators": [
+        {
+          "kind": "explicit_epg_edition_suffix",
+          "marketHint": "ES"
+        }
+      ],
+      "resolution": "needs_review"
+    },
+    {
+      "channelId": "channel-7b09784e60c074cb3593179a",
+      "name": "Red Bull TV UK",
+      "expectedIdentity": {
+        "id": "channel-7b09784e60c074cb3593179a",
+        "name": "Red Bull TV UK",
+        "epgId": "RedBullTV.at@UK",
+        "countryCode": "AT",
+        "regionCode": null
+      },
+      "countryCode": "AT",
+      "categoryPath": [
+        "国际",
+        "奥地利",
+        "电视",
+        "体育"
+      ],
+      "protected": false,
+      "indicators": [
+        {
+          "kind": "explicit_epg_edition_suffix",
+          "marketHint": "GB"
+        }
+      ],
+      "resolution": "needs_review"
+    },
+    {
+      "channelId": "channel-6acacaa115f440aa2d6ffc0d",
+      "name": "Red Bull TV US",
+      "expectedIdentity": {
+        "id": "channel-6acacaa115f440aa2d6ffc0d",
+        "name": "Red Bull TV US",
+        "epgId": "RedBullTV.at@US",
+        "countryCode": "AT",
+        "regionCode": null
+      },
+      "countryCode": "AT",
+      "categoryPath": [
+        "国际",
+        "奥地利",
+        "电视",
+        "体育"
+      ],
+      "protected": false,
+      "indicators": [
+        {
+          "kind": "explicit_epg_edition_suffix",
+          "marketHint": "US"
+        }
+      ],
+      "resolution": "needs_review"
+    },
+    {
+      "channelId": "channel-063d8687544da4d9b86a6b52",
+      "name": "So... Real UK",
+      "expectedIdentity": {
+        "id": "channel-063d8687544da4d9b86a6b52",
+        "name": "So... Real UK",
+        "epgId": "SoReal.us@UK",
+        "countryCode": "US",
+        "regionCode": null
+      },
+      "countryCode": "US",
+      "categoryPath": [
+        "国际",
+        "美国",
+        "电视",
+        "生活"
+      ],
+      "protected": false,
+      "indicators": [
+        {
+          "kind": "explicit_epg_edition_suffix",
+          "marketHint": "GB"
+        }
+      ],
+      "resolution": "needs_review"
+    },
+    {
+      "channelId": "channel-72337e92d346ca3c0346f35a",
+      "name": "Star Vijay UK",
+      "expectedIdentity": {
+        "id": "channel-72337e92d346ca3c0346f35a",
+        "name": "Star Vijay UK",
+        "epgId": "StarVijay.in@UK",
+        "countryCode": "IN",
+        "regionCode": null
+      },
+      "countryCode": "IN",
+      "categoryPath": [
+        "国际",
+        "印度",
+        "电视",
+        "娱乐"
+      ],
+      "protected": false,
+      "indicators": [
+        {
+          "kind": "explicit_epg_edition_suffix",
+          "marketHint": "GB"
+        }
+      ],
+      "resolution": "needs_review"
+    },
+    {
+      "channelId": "channel-d659837407737572aca01cf0",
+      "name": "Strongman",
+      "expectedIdentity": {
+        "id": "channel-d659837407737572aca01cf0",
+        "name": "Strongman",
+        "epgId": "Strongman.us@Germany",
+        "countryCode": "US",
+        "regionCode": null
+      },
+      "countryCode": "US",
+      "categoryPath": [
+        "国际",
+        "美国",
+        "电视",
+        "体育"
+      ],
+      "protected": false,
+      "indicators": [
+        {
+          "kind": "explicit_epg_edition_suffix",
+          "marketHint": "DE"
+        }
+      ],
+      "resolution": "needs_review"
+    },
+    {
+      "channelId": "channel-b40f90326f1181b268a86991",
+      "name": "Strongman UK",
+      "expectedIdentity": {
+        "id": "channel-b40f90326f1181b268a86991",
+        "name": "Strongman UK",
+        "epgId": "Strongman.us@UK",
+        "countryCode": "US",
+        "regionCode": null
+      },
+      "countryCode": "US",
+      "categoryPath": [
+        "国际",
+        "美国",
+        "电视",
+        "体育"
+      ],
+      "protected": false,
+      "indicators": [
+        {
+          "kind": "explicit_epg_edition_suffix",
+          "marketHint": "GB"
+        }
+      ],
+      "resolution": "needs_review"
+    },
+    {
+      "channelId": "channel-1935716149b81d136a57d0dc",
+      "name": "Studio Universal Latin America Brazil",
+      "expectedIdentity": {
+        "id": "channel-1935716149b81d136a57d0dc",
+        "name": "Studio Universal Latin America Brazil",
+        "epgId": "StudioUniversalLatinAmerica.us@Brazil",
+        "countryCode": "US",
+        "regionCode": null
+      },
+      "countryCode": "US",
+      "categoryPath": [
+        "国际",
+        "美国",
+        "电视",
+        "综合"
+      ],
+      "protected": false,
+      "indicators": [
+        {
+          "kind": "explicit_epg_edition_suffix",
+          "marketHint": "BR"
+        }
+      ],
+      "resolution": "needs_review"
+    },
+    {
+      "channelId": "channel-28301578bf044c14b728d0ec",
+      "name": "TCM Latin America Chile",
+      "expectedIdentity": {
+        "id": "channel-28301578bf044c14b728d0ec",
+        "name": "TCM Latin America Chile",
+        "epgId": "TCMLatinAmerica.us@Chile",
+        "countryCode": "US",
+        "regionCode": null
+      },
+      "countryCode": "US",
+      "categoryPath": [
+        "国际",
+        "美国",
+        "电视",
+        "综合"
+      ],
+      "protected": false,
+      "indicators": [
+        {
+          "kind": "explicit_epg_edition_suffix",
+          "marketHint": "CL"
+        }
+      ],
+      "resolution": "needs_review"
+    },
+    {
+      "channelId": "channel-d1dfc4b9abaa1ca2f6b1229c",
+      "name": "TLC Latin America Brazil",
+      "expectedIdentity": {
+        "id": "channel-d1dfc4b9abaa1ca2f6b1229c",
+        "name": "TLC Latin America Brazil",
+        "epgId": "TLCLatinAmerica.us@Brazil",
+        "countryCode": "US",
+        "regionCode": null
+      },
+      "countryCode": "US",
+      "categoryPath": [
+        "国际",
+        "美国",
+        "电视",
+        "生活"
+      ],
+      "protected": false,
+      "indicators": [
+        {
+          "kind": "explicit_epg_edition_suffix",
+          "marketHint": "BR"
+        }
+      ],
+      "resolution": "needs_review"
+    },
+    {
+      "channelId": "channel-bdd35b8a69eac95d5e81a71f",
+      "name": "TNT Latin America Brazil",
+      "expectedIdentity": {
+        "id": "channel-bdd35b8a69eac95d5e81a71f",
+        "name": "TNT Latin America Brazil",
+        "epgId": "TNTLatinAmerica.us@Brazil",
+        "countryCode": "US",
+        "regionCode": null
+      },
+      "countryCode": "US",
+      "categoryPath": [
+        "国际",
+        "美国",
+        "电视",
+        "综合"
+      ],
+      "protected": false,
+      "indicators": [
+        {
+          "kind": "explicit_epg_edition_suffix",
+          "marketHint": "BR"
+        }
+      ],
+      "resolution": "needs_review"
+    },
+    {
+      "channelId": "channel-d8e920028fe5e51fadae4895",
+      "name": "TNT Latin America Colombia",
+      "expectedIdentity": {
+        "id": "channel-d8e920028fe5e51fadae4895",
+        "name": "TNT Latin America Colombia",
+        "epgId": "TNTLatinAmerica.us@Colombia",
+        "countryCode": "US",
+        "regionCode": null
+      },
+      "countryCode": "US",
+      "categoryPath": [
+        "国际",
+        "美国",
+        "电视",
+        "综合"
+      ],
+      "protected": false,
+      "indicators": [
+        {
+          "kind": "explicit_epg_edition_suffix",
+          "marketHint": "CO"
+        }
+      ],
+      "resolution": "needs_review"
+    },
+    {
+      "channelId": "channel-5166ea97c9f2f2486f73f3a8",
+      "name": "TNT Novelas Brazil",
+      "expectedIdentity": {
+        "id": "channel-5166ea97c9f2f2486f73f3a8",
+        "name": "TNT Novelas Brazil",
+        "epgId": "TNTNovelas.us@Brazil",
+        "countryCode": "US",
+        "regionCode": null
+      },
+      "countryCode": "US",
+      "categoryPath": [
+        "国际",
+        "美国",
+        "电视",
+        "剧集"
+      ],
+      "protected": false,
+      "indicators": [
+        {
+          "kind": "explicit_epg_edition_suffix",
+          "marketHint": "BR"
+        }
+      ],
+      "resolution": "needs_review"
+    },
+    {
+      "channelId": "channel-d443c423552da0b65ec63b6a",
+      "name": "TNT Novelas Colombia",
+      "expectedIdentity": {
+        "id": "channel-d443c423552da0b65ec63b6a",
+        "name": "TNT Novelas Colombia",
+        "epgId": "TNTNovelas.us@Colombia",
+        "countryCode": "US",
+        "regionCode": null
+      },
+      "countryCode": "US",
+      "categoryPath": [
+        "国际",
+        "美国",
+        "电视",
+        "剧集"
+      ],
+      "protected": false,
+      "indicators": [
+        {
+          "kind": "explicit_epg_edition_suffix",
+          "marketHint": "CO"
+        }
+      ],
+      "resolution": "needs_review"
+    },
+    {
+      "channelId": "channel-82ddbf57c69cf1a7488f9558",
+      "name": "TV-3 Belarus",
+      "expectedIdentity": {
+        "id": "channel-82ddbf57c69cf1a7488f9558",
+        "name": "TV-3 Belarus",
+        "epgId": "TV3.ru@Belarus",
+        "countryCode": "RU",
+        "regionCode": null
+      },
+      "countryCode": "RU",
+      "categoryPath": [
+        "国际",
+        "俄罗斯",
+        "电视",
+        "娱乐"
+      ],
+      "protected": false,
+      "indicators": [
+        {
+          "kind": "explicit_epg_edition_suffix",
+          "marketHint": "BY"
+        }
+      ],
+      "resolution": "needs_review"
+    },
+    {
+      "channelId": "channel-1ea0da306a47e1fe617c7d6a",
+      "name": "Tastemade UK",
+      "expectedIdentity": {
+        "id": "channel-1ea0da306a47e1fe617c7d6a",
+        "name": "Tastemade UK",
+        "epgId": "Tastemade.us@UK",
+        "countryCode": "US",
+        "regionCode": null
+      },
+      "countryCode": "US",
+      "categoryPath": [
+        "国际",
+        "美国",
+        "电视",
+        "美食"
+      ],
+      "protected": false,
+      "indicators": [
+        {
+          "kind": "explicit_epg_edition_suffix",
+          "marketHint": "GB"
+        }
+      ],
+      "resolution": "needs_review"
+    },
+    {
+      "channelId": "channel-92969db652ed6cb5f963a907",
+      "name": "The Pet Collective Australia",
+      "expectedIdentity": {
+        "id": "channel-92969db652ed6cb5f963a907",
+        "name": "The Pet Collective Australia",
+        "epgId": "ThePetCollective.us@Australia",
+        "countryCode": "US",
+        "regionCode": null
+      },
+      "countryCode": "US",
+      "categoryPath": [
+        "国际",
+        "美国",
+        "电视",
+        "家庭"
+      ],
+      "protected": false,
+      "indicators": [
+        {
+          "kind": "explicit_epg_edition_suffix",
+          "marketHint": "AU"
+        }
+      ],
+      "resolution": "needs_review"
+    },
+    {
+      "channelId": "channel-6c4beceec0613ee0ce0487d2",
+      "name": "The Pet Collective India",
+      "expectedIdentity": {
+        "id": "channel-6c4beceec0613ee0ce0487d2",
+        "name": "The Pet Collective India",
+        "epgId": "ThePetCollective.us@India",
+        "countryCode": "US",
+        "regionCode": null
+      },
+      "countryCode": "US",
+      "categoryPath": [
+        "国际",
+        "美国",
+        "电视",
+        "家庭"
+      ],
+      "protected": false,
+      "indicators": [
+        {
+          "kind": "explicit_epg_edition_suffix",
+          "marketHint": "IN"
+        }
+      ],
+      "resolution": "needs_review"
+    },
+    {
+      "channelId": "channel-b39cfb70c4dedb878bbaad63",
+      "name": "The Pet Collective Italy",
+      "expectedIdentity": {
+        "id": "channel-b39cfb70c4dedb878bbaad63",
+        "name": "The Pet Collective Italy",
+        "epgId": "ThePetCollective.us@Italy",
+        "countryCode": "US",
+        "regionCode": null
+      },
+      "countryCode": "US",
+      "categoryPath": [
+        "国际",
+        "美国",
+        "电视",
+        "家庭"
+      ],
+      "protected": false,
+      "indicators": [
+        {
+          "kind": "explicit_epg_edition_suffix",
+          "marketHint": "IT"
+        }
+      ],
+      "resolution": "needs_review"
+    },
+    {
+      "channelId": "channel-598543595e285d692bd2291b",
+      "name": "The Pet Collective Mexico",
+      "expectedIdentity": {
+        "id": "channel-598543595e285d692bd2291b",
+        "name": "The Pet Collective Mexico",
+        "epgId": "ThePetCollective.us@Mexico",
+        "countryCode": "US",
+        "regionCode": null
+      },
+      "countryCode": "US",
+      "categoryPath": [
+        "国际",
+        "美国",
+        "电视",
+        "家庭"
+      ],
+      "protected": false,
+      "indicators": [
+        {
+          "kind": "explicit_epg_edition_suffix",
+          "marketHint": "MX"
+        }
+      ],
+      "resolution": "needs_review"
+    },
+    {
+      "channelId": "channel-cf0b551a46aef3aeb4d0273e",
+      "name": "The Pet Collective Poland",
+      "expectedIdentity": {
+        "id": "channel-cf0b551a46aef3aeb4d0273e",
+        "name": "The Pet Collective Poland",
+        "epgId": "ThePetCollective.us@Poland",
+        "countryCode": "US",
+        "regionCode": null
+      },
+      "countryCode": "US",
+      "categoryPath": [
+        "国际",
+        "美国",
+        "电视",
+        "家庭"
+      ],
+      "protected": false,
+      "indicators": [
+        {
+          "kind": "explicit_epg_edition_suffix",
+          "marketHint": "PL"
+        }
+      ],
+      "resolution": "needs_review"
+    },
+    {
+      "channelId": "channel-ab193f32c45d37d520ce07fe",
+      "name": "The Pet Collective Spain",
+      "expectedIdentity": {
+        "id": "channel-ab193f32c45d37d520ce07fe",
+        "name": "The Pet Collective Spain",
+        "epgId": "ThePetCollective.us@Spain",
+        "countryCode": "US",
+        "regionCode": null
+      },
+      "countryCode": "US",
+      "categoryPath": [
+        "国际",
+        "美国",
+        "电视",
+        "家庭"
+      ],
+      "protected": false,
+      "indicators": [
+        {
+          "kind": "explicit_epg_edition_suffix",
+          "marketHint": "ES"
+        }
+      ],
+      "resolution": "needs_review"
+    },
+    {
+      "channelId": "channel-d42e958e0ebd4c86b2517e85",
+      "name": "The Pet Collective Sweden",
+      "expectedIdentity": {
+        "id": "channel-d42e958e0ebd4c86b2517e85",
+        "name": "The Pet Collective Sweden",
+        "epgId": "ThePetCollective.us@Sweden",
+        "countryCode": "US",
+        "regionCode": null
+      },
+      "countryCode": "US",
+      "categoryPath": [
+        "国际",
+        "美国",
+        "电视",
+        "家庭"
+      ],
+      "protected": false,
+      "indicators": [
+        {
+          "kind": "explicit_epg_edition_suffix",
+          "marketHint": "SE"
+        }
+      ],
+      "resolution": "needs_review"
+    },
+    {
+      "channelId": "channel-e65280d794ea90e394a2bed4",
+      "name": "The Pet Collective UK",
+      "expectedIdentity": {
+        "id": "channel-e65280d794ea90e394a2bed4",
+        "name": "The Pet Collective UK",
+        "epgId": "ThePetCollective.us@UK",
+        "countryCode": "US",
+        "regionCode": null
+      },
+      "countryCode": "US",
+      "categoryPath": [
+        "国际",
+        "美国",
+        "电视",
+        "家庭"
+      ],
+      "protected": false,
+      "indicators": [
+        {
+          "kind": "explicit_epg_edition_suffix",
+          "marketHint": "GB"
+        }
+      ],
+      "resolution": "needs_review"
+    },
+    {
+      "channelId": "channel-7d04ddf31f945f8f32d8af2c",
+      "name": "Trace Sport Stars Russia",
+      "expectedIdentity": {
+        "id": "channel-7d04ddf31f945f8f32d8af2c",
+        "name": "Trace Sport Stars Russia",
+        "epgId": "TraceSportStars.fr@Russia",
+        "countryCode": "FR",
+        "regionCode": null
+      },
+      "countryCode": "FR",
+      "categoryPath": [
+        "国际",
+        "法国",
+        "电视",
+        "体育"
+      ],
+      "protected": false,
+      "indicators": [
+        {
+          "kind": "explicit_epg_edition_suffix",
+          "marketHint": "RU"
+        }
+      ],
+      "resolution": "needs_review"
+    },
+    {
+      "channelId": "channel-be86898662ce52b110cf48af",
+      "name": "Trailers UK",
+      "expectedIdentity": {
+        "id": "channel-be86898662ce52b110cf48af",
+        "name": "Trailers UK",
+        "epgId": "Trailers.es@UK",
+        "countryCode": "ES",
+        "regionCode": null
+      },
+      "countryCode": "ES",
+      "categoryPath": [
+        "国际",
+        "西班牙",
+        "电视",
+        "新闻"
+      ],
+      "protected": false,
+      "indicators": [
+        {
+          "kind": "explicit_epg_edition_suffix",
+          "marketHint": "GB"
+        }
+      ],
+      "resolution": "needs_review"
+    },
+    {
+      "channelId": "channel-d61d34876dbfaf076e7e8f8a",
+      "name": "Undercover Boss Global",
+      "expectedIdentity": {
+        "id": "channel-d61d34876dbfaf076e7e8f8a",
+        "name": "Undercover Boss Global",
+        "epgId": "UndercoverBossGlobal.us@UK",
+        "countryCode": "US",
+        "regionCode": null
+      },
+      "countryCode": "US",
+      "categoryPath": [
+        "国际",
+        "美国",
+        "电视",
+        "娱乐"
+      ],
+      "protected": false,
+      "indicators": [
+        {
+          "kind": "explicit_epg_edition_suffix",
+          "marketHint": "GB"
+        }
+      ],
+      "resolution": "needs_review"
+    },
+    {
+      "channelId": "channel-a676c72a1b7b45ae6fd2a89d",
+      "name": "Universal TV Latin America Colombia",
+      "expectedIdentity": {
+        "id": "channel-a676c72a1b7b45ae6fd2a89d",
+        "name": "Universal TV Latin America Colombia",
+        "epgId": "UniversalTVLatinAmerica.us@Colombia",
+        "countryCode": "US",
+        "regionCode": null
+      },
+      "countryCode": "US",
+      "categoryPath": [
+        "国际",
+        "美国",
+        "电视",
+        "综合"
+      ],
+      "protected": false,
+      "indicators": [
+        {
+          "kind": "explicit_epg_edition_suffix",
+          "marketHint": "CO"
+        }
+      ],
+      "resolution": "needs_review"
+    },
+    {
+      "channelId": "channel-516021cb70ae0199f0a5120c",
+      "name": "Viasat Epic Drama Poland",
+      "expectedIdentity": {
+        "id": "channel-516021cb70ae0199f0a5120c",
+        "name": "Viasat Epic Drama Poland",
+        "epgId": "ViasatEpicDrama.uk@Poland",
+        "countryCode": "GB",
+        "regionCode": null
+      },
+      "countryCode": "GB",
+      "categoryPath": [
+        "国际",
+        "英国",
+        "电视",
+        "剧集"
+      ],
+      "protected": false,
+      "indicators": [
+        {
+          "kind": "explicit_epg_edition_suffix",
+          "marketHint": "PL"
+        }
+      ],
+      "resolution": "needs_review"
+    },
+    {
+      "channelId": "channel-e11683f4eacfbc6859ca78d1",
+      "name": "World Poker Tour Poland",
+      "expectedIdentity": {
+        "id": "channel-e11683f4eacfbc6859ca78d1",
+        "name": "World Poker Tour Poland",
+        "epgId": "WorldPokerTour.us@Poland",
+        "countryCode": "US",
+        "regionCode": null
+      },
+      "countryCode": "US",
+      "categoryPath": [
+        "国际",
+        "美国",
+        "电视",
+        "体育"
+      ],
+      "protected": false,
+      "indicators": [
+        {
+          "kind": "explicit_epg_edition_suffix",
+          "marketHint": "PL"
+        }
+      ],
+      "resolution": "needs_review"
+    },
+    {
+      "channelId": "channel-fb191d098b992501bf657cd3",
+      "name": "World Poker Tour UK",
+      "expectedIdentity": {
+        "id": "channel-fb191d098b992501bf657cd3",
+        "name": "World Poker Tour UK",
+        "epgId": "WorldPokerTour.us@UK",
+        "countryCode": "US",
+        "regionCode": null
+      },
+      "countryCode": "US",
+      "categoryPath": [
+        "国际",
+        "美国",
+        "电视",
+        "体育"
+      ],
+      "protected": false,
+      "indicators": [
+        {
+          "kind": "explicit_epg_edition_suffix",
+          "marketHint": "GB"
+        }
+      ],
+      "resolution": "needs_review"
+    },
+    {
+      "channelId": "channel-6e1abfaf32935dc3d4f35264",
+      "name": "XITE Hits Germany",
+      "expectedIdentity": {
+        "id": "channel-6e1abfaf32935dc3d4f35264",
+        "name": "XITE Hits Germany",
+        "epgId": "XITEHits.nl@Germany",
+        "countryCode": "NL",
+        "regionCode": null
+      },
+      "countryCode": "NL",
+      "categoryPath": [
+        "国际",
+        "荷兰",
+        "电视",
+        "音乐"
+      ],
+      "protected": false,
+      "indicators": [
+        {
+          "kind": "explicit_epg_edition_suffix",
+          "marketHint": "DE"
+        }
+      ],
+      "resolution": "needs_review"
+    },
+    {
+      "channelId": "channel-87884bb7beb3dd3477f08eaa",
+      "name": "XITE Hits UK",
+      "expectedIdentity": {
+        "id": "channel-87884bb7beb3dd3477f08eaa",
+        "name": "XITE Hits UK",
+        "epgId": "XITEHits.nl@UK",
+        "countryCode": "NL",
+        "regionCode": null
+      },
+      "countryCode": "NL",
+      "categoryPath": [
+        "国际",
+        "荷兰",
+        "电视",
+        "音乐"
+      ],
+      "protected": false,
+      "indicators": [
+        {
+          "kind": "explicit_epg_edition_suffix",
+          "marketHint": "GB"
+        }
+      ],
+      "resolution": "needs_review"
+    },
+    {
+      "channelId": "channel-5be03f52c6103c178272d037",
+      "name": "XITE Just Chill",
+      "expectedIdentity": {
+        "id": "channel-5be03f52c6103c178272d037",
+        "name": "XITE Just Chill",
+        "epgId": "XITEJustChill.nl@US",
+        "countryCode": "NL",
+        "regionCode": null
+      },
+      "countryCode": "NL",
+      "categoryPath": [
+        "国际",
+        "荷兰",
+        "电视",
+        "音乐"
+      ],
+      "protected": false,
+      "indicators": [
+        {
+          "kind": "explicit_epg_edition_suffix",
+          "marketHint": "US"
+        }
+      ],
+      "resolution": "needs_review"
+    },
+    {
+      "channelId": "channel-52f0ea2e24c72f7ca0ad694f",
+      "name": "XITE Rock x Metal",
+      "expectedIdentity": {
+        "id": "channel-52f0ea2e24c72f7ca0ad694f",
+        "name": "XITE Rock x Metal",
+        "epgId": "XITERockxMetal.nl@US",
+        "countryCode": "NL",
+        "regionCode": null
+      },
+      "countryCode": "NL",
+      "categoryPath": [
+        "国际",
+        "荷兰",
+        "电视",
+        "音乐"
+      ],
+      "protected": false,
+      "indicators": [
+        {
+          "kind": "explicit_epg_edition_suffix",
+          "marketHint": "US"
+        }
+      ],
+      "resolution": "needs_review"
+    },
+    {
+      "channelId": "channel-1530a5c8e2ac2d89ccae44f6",
+      "name": "YRF Music Nepal",
+      "expectedIdentity": {
+        "id": "channel-1530a5c8e2ac2d89ccae44f6",
+        "name": "YRF Music Nepal",
+        "epgId": "YRFMusic.in@Nepal",
+        "countryCode": "IN",
+        "regionCode": null
+      },
+      "countryCode": "IN",
+      "categoryPath": [
+        "国际",
+        "印度",
+        "电视",
+        "音乐"
+      ],
+      "protected": false,
+      "indicators": [
+        {
+          "kind": "explicit_epg_edition_suffix",
+          "marketHint": "NP"
+        }
+      ],
+      "resolution": "needs_review"
+    },
+    {
+      "channelId": "channel-66ca6d23e67572e90ce69203",
+      "name": "Zoom (India) Nepal",
+      "expectedIdentity": {
+        "id": "channel-66ca6d23e67572e90ce69203",
+        "name": "Zoom (India) Nepal",
+        "epgId": "Zoom.in@Nepal",
+        "countryCode": "IN",
+        "regionCode": null
+      },
+      "countryCode": "IN",
+      "categoryPath": [
+        "国际",
+        "印度",
+        "电视",
+        "音乐"
+      ],
+      "protected": false,
+      "indicators": [
+        {
+          "kind": "explicit_epg_edition_suffix",
+          "marketHint": "NP"
+        }
+      ],
+      "resolution": "needs_review"
+    }
+  ],
+  "persistentHolds": [
+    {
+      "channel_id": "channel-a5b2b5ae71973b25108d979e",
+      "status": "pending",
+      "expected_identity": "{\"id\": \"channel-a5b2b5ae71973b25108d979e\", \"name\": \"Drama Movies\", \"epgId\": \"GB2600012R3\", \"countryCode\": \"US\", \"regionCode\": null}",
+      "manual_event_id": null
+    },
+    {
+      "channel_id": "channel-7b2ece1b9fca7f2a50fa536e",
+      "status": "pending",
+      "expected_identity": "{\"id\": \"channel-7b2ece1b9fca7f2a50fa536e\", \"name\": \"Top Movies\", \"epgId\": \"GB2600018PD\", \"countryCode\": \"US\", \"regionCode\": null}",
+      "manual_event_id": null
+    },
+    {
+      "channel_id": "channel-26df487b6d80f30294ed3fba",
+      "status": "pending",
+      "expected_identity": "{\"id\": \"channel-26df487b6d80f30294ed3fba\", \"name\": \"Comedy Movies\", \"epgId\": \"GB2600020OP\", \"countryCode\": \"US\", \"regionCode\": null}",
+      "manual_event_id": null
+    },
+    {
+      "channel_id": "channel-dc656094f7268d6982766103",
+      "status": "pending",
+      "expected_identity": "{\"id\": \"channel-dc656094f7268d6982766103\", \"name\": \"BBC Earth Czechia\", \"epgId\": \"BBCEarth.uk@Czechia\", \"countryCode\": \"GB\", \"regionCode\": null}",
+      "manual_event_id": null
+    },
+    {
+      "channel_id": "channel-d89d6a5eeb6e7dd0eb6f3eed",
+      "status": "pending",
+      "expected_identity": "{\"id\": \"channel-d89d6a5eeb6e7dd0eb6f3eed\", \"name\": \"Cartoon Network Latin America Brazil\", \"epgId\": \"CartoonNetworkLatinAmerica.us@Brazil\", \"countryCode\": \"US\", \"regionCode\": null}",
+      "manual_event_id": null
+    },
+    {
+      "channel_id": "channel-6769bac240d4ae96ba175062",
+      "status": "pending",
+      "expected_identity": "{\"id\": \"channel-6769bac240d4ae96ba175062\", \"name\": \"AMC Europe Poland (576i)\", \"epgId\": \"AMCEurope.uk@Poland\", \"countryCode\": \"GB\", \"regionCode\": null}",
+      "manual_event_id": null
+    },
+    {
+      "channel_id": "channel-e3f3df1701e97a3089d6b451",
+      "status": "pending",
+      "expected_identity": "{\"id\": \"channel-e3f3df1701e97a3089d6b451\", \"name\": \"BBC Brit\", \"epgId\": \"BBCBrit.uk@Poland\", \"countryCode\": \"GB\", \"regionCode\": null}",
+      "manual_event_id": null
+    },
+    {
+      "channel_id": "channel-6040d24f3a8ba4b3321ffe1f",
+      "status": "pending",
+      "expected_identity": "{\"id\": \"channel-6040d24f3a8ba4b3321ffe1f\", \"name\": \"BBC Earth\", \"epgId\": \"BBCEarth.uk@Poland\", \"countryCode\": \"GB\", \"regionCode\": null}",
+      "manual_event_id": null
+    },
+    {
+      "channel_id": "channel-298983204cea896ccabd86a0",
+      "status": "pending",
+      "expected_identity": "{\"id\": \"channel-298983204cea896ccabd86a0\", \"name\": \"BBC First\", \"epgId\": \"BBCFirst.uk@Poland\", \"countryCode\": \"GB\", \"regionCode\": null}",
+      "manual_event_id": null
+    },
+    {
+      "channel_id": "channel-e58fca29c115e53b9abee6a6",
+      "status": "pending",
+      "expected_identity": "{\"id\": \"channel-e58fca29c115e53b9abee6a6\", \"name\": \"BBC Lifestyle Poland\", \"epgId\": \"BBCLifestyle.uk@Poland\", \"countryCode\": \"GB\", \"regionCode\": null}",
+      "manual_event_id": null
+    },
+    {
+      "channel_id": "channel-aada21d72f8091fe40160516",
+      "status": "pending",
+      "expected_identity": "{\"id\": \"channel-aada21d72f8091fe40160516\", \"name\": \"Cartoon Network CEE Poland\", \"epgId\": \"CartoonNetworkCEE.uk@Poland\", \"countryCode\": \"GB\", \"regionCode\": null}",
+      "manual_event_id": null
+    },
+    {
+      "channel_id": "channel-e230b7a50247540273a61483",
+      "status": "pending",
+      "expected_identity": "{\"id\": \"channel-e230b7a50247540273a61483\", \"name\": \"Cartoonito CEE Poland\", \"epgId\": \"CartoonitoCEE.uk@Poland\", \"countryCode\": \"GB\", \"regionCode\": null}",
+      "manual_event_id": null
+    },
+    {
+      "channel_id": "channel-3519673e56983e137ead2a5f",
+      "status": "pending",
+      "expected_identity": "{\"id\": \"channel-3519673e56983e137ead2a5f\", \"name\": \"Cinemax 2 Central Europe Poland\", \"epgId\": \"Cinemax2CentralEurope.hu@Poland\", \"countryCode\": \"HU\", \"regionCode\": null}",
+      "manual_event_id": null
+    },
+    {
+      "channel_id": "channel-08bc5510178290d1f383be3e",
+      "status": "pending",
+      "expected_identity": "{\"id\": \"channel-08bc5510178290d1f383be3e\", \"name\": \"Cinemax Central Europe Poland\", \"epgId\": \"CinemaxCentralEurope.hu@Poland\", \"countryCode\": \"HU\", \"regionCode\": null}",
+      "manual_event_id": null
+    },
+    {
+      "channel_id": "channel-2d4344a017299bb1fd78d215",
+      "status": "pending",
+      "expected_identity": "{\"id\": \"channel-2d4344a017299bb1fd78d215\", \"name\": \"Discovery Science Europe Poland\", \"epgId\": \"DiscoveryScienceEurope.uk@Poland\", \"countryCode\": \"GB\", \"regionCode\": null}",
+      "manual_event_id": null
+    },
+    {
+      "channel_id": "channel-d86c483394df8921a6a11e02",
+      "status": "pending",
+      "expected_identity": "{\"id\": \"channel-d86c483394df8921a6a11e02\", \"name\": \"TNT International Belarus\", \"epgId\": \"TNTInternational.ru@Belarus\", \"countryCode\": \"RU\", \"regionCode\": null}",
+      "manual_event_id": null
+    },
+    {
+      "channel_id": "channel-ab6ca72aa37e4346635332c1",
+      "status": "pending",
+      "expected_identity": "{\"id\": \"channel-ab6ca72aa37e4346635332c1\", \"name\": \"Cartoonito CEE Czechia\", \"epgId\": \"CartoonitoCEE.uk@Czechia\", \"countryCode\": \"GB\", \"regionCode\": null}",
+      "manual_event_id": null
+    },
+    {
+      "channel_id": "channel-c7b8d6753f9ccfd0a855708f",
+      "status": "pending",
+      "expected_identity": "{\"id\": \"channel-c7b8d6753f9ccfd0a855708f\", \"name\": \"Eurosport 1 Hungary\", \"epgId\": \"Eurosport1.fr@Hungary\", \"countryCode\": \"FR\", \"regionCode\": null}",
+      "manual_event_id": null
+    },
+    {
+      "channel_id": "channel-618b8d53339b531067f16aa3",
+      "status": "pending",
+      "expected_identity": "{\"id\": \"channel-618b8d53339b531067f16aa3\", \"name\": \"Eurosport 2 Hungary\", \"epgId\": \"Eurosport2.fr@Hungary\", \"countryCode\": \"FR\", \"regionCode\": null}",
+      "manual_event_id": null
+    },
+    {
+      "channel_id": "channel-c79b5ec89fa0af7044268102",
+      "status": "pending",
+      "expected_identity": "{\"id\": \"channel-c79b5ec89fa0af7044268102\", \"name\": \"BTV\", \"epgId\": \"BTV.lt\", \"countryCode\": \"CN\", \"regionCode\": \"\\u5317\\u4eac\"}",
+      "manual_event_id": null
+    },
+    {
+      "channel_id": "channel-4cf13f9e0ef6edc8c4524a12",
+      "status": "pending",
+      "expected_identity": "{\"id\": \"channel-4cf13f9e0ef6edc8c4524a12\", \"name\": \"A&E Latin America Brazil\", \"epgId\": \"AELatinAmerica.us@Brazil\", \"countryCode\": \"US\", \"regionCode\": null}",
+      "manual_event_id": null
+    },
+    {
+      "channel_id": "channel-3b74b634a554e2eda5a46e3b",
+      "status": "pending",
+      "expected_identity": "{\"id\": \"channel-3b74b634a554e2eda5a46e3b\", \"name\": \"AMC Latin America Brazil\", \"epgId\": \"AMCLatinAmerica.us@Brazil\", \"countryCode\": \"US\", \"regionCode\": null}",
+      "manual_event_id": null
+    },
+    {
+      "channel_id": "channel-bf917fdfb8db9ac9fbb79cd9",
+      "status": "pending",
+      "expected_identity": "{\"id\": \"channel-bf917fdfb8db9ac9fbb79cd9\", \"name\": \"AXN Asia Taiwan\", \"epgId\": \"AXNAsia.sg@Taiwan\", \"countryCode\": \"SG\", \"regionCode\": null}",
+      "manual_event_id": null
+    },
+    {
+      "channel_id": "channel-047a04f02afb662c801054c6",
+      "status": "pending",
+      "expected_identity": "{\"id\": \"channel-047a04f02afb662c801054c6\", \"name\": \"AXN Black (United States) Hungary\", \"epgId\": \"AXNBlack.us@Hungary\", \"countryCode\": \"US\", \"regionCode\": null}",
+      "manual_event_id": null
+    },
+    {
+      "channel_id": "channel-cce377e473ed9ee2e8b1b3b7",
+      "status": "pending",
+      "expected_identity": "{\"id\": \"channel-cce377e473ed9ee2e8b1b3b7\", \"name\": \"AXN Black (United States) Poland\", \"epgId\": \"AXNBlack.us@Poland\", \"countryCode\": \"US\", \"regionCode\": null}",
+      "manual_event_id": null
+    },
+    {
+      "channel_id": "channel-ff730ec3239671fa3d1a1a62",
+      "status": "pending",
+      "expected_identity": "{\"id\": \"channel-ff730ec3239671fa3d1a1a62\", \"name\": \"AXN White (United States) Poland\", \"epgId\": \"AXNWhite.us@Poland\", \"countryCode\": \"US\", \"regionCode\": null}",
+      "manual_event_id": null
+    },
+    {
+      "channel_id": "channel-1b8df979890f2c19a878002f",
+      "status": "pending",
+      "expected_identity": "{\"id\": \"channel-1b8df979890f2c19a878002f\", \"name\": \"Animax Asia India\", \"epgId\": \"AnimaxAsia.sg@India\", \"countryCode\": \"SG\", \"regionCode\": null}",
+      "manual_event_id": null
+    },
+    {
+      "channel_id": "channel-f354d7e6191d29997cea09e8",
+      "status": "pending",
+      "expected_identity": "{\"id\": \"channel-f354d7e6191d29997cea09e8\", \"name\": \"Animax Asia Taiwan\", \"epgId\": \"AnimaxAsia.sg@Taiwan\", \"countryCode\": \"SG\", \"regionCode\": null}",
+      "manual_event_id": null
+    },
+    {
+      "channel_id": "channel-660667d8d44dac1572c7ec27",
+      "status": "pending",
+      "expected_identity": "{\"id\": \"channel-660667d8d44dac1572c7ec27\", \"name\": \"BBC Drama\", \"epgId\": \"BBCDrama.uk@Spain\", \"countryCode\": \"GB\", \"regionCode\": null}",
+      "manual_event_id": null
+    },
+    {
+      "channel_id": "channel-d9002c843165892acd977294",
+      "status": "pending",
+      "expected_identity": "{\"id\": \"channel-d9002c843165892acd977294\", \"name\": \"BBC Earth US\", \"epgId\": \"BBCEarth.uk@US\", \"countryCode\": \"GB\", \"regionCode\": null}",
+      "manual_event_id": null
+    },
+    {
+      "channel_id": "channel-9804817cea83feac28a7eca6",
+      "status": "pending",
+      "expected_identity": "{\"id\": \"channel-9804817cea83feac28a7eca6\", \"name\": \"BTV (Uganda)\", \"epgId\": \"BTV.ug@SD\", \"countryCode\": \"CN\", \"regionCode\": \"\\u5317\\u4eac\"}",
+      "manual_event_id": null
+    },
+    {
+      "channel_id": "channel-0b99817478d5acd52b5739e6",
+      "status": "pending",
+      "expected_identity": "{\"id\": \"channel-0b99817478d5acd52b5739e6\", \"name\": \"Bollywood HD Russia\", \"epgId\": \"BollywoodHD.ro@Russia\", \"countryCode\": \"RO\", \"regionCode\": null}",
+      "manual_event_id": null
+    },
+    {
+      "channel_id": "channel-05184d45f426d0a77bacf3c9",
+      "status": "pending",
+      "expected_identity": "{\"id\": \"channel-05184d45f426d0a77bacf3c9\", \"name\": \"Cartoon Network CEE Ukraine\", \"epgId\": \"CartoonNetworkCEE.uk@Ukraine\", \"countryCode\": \"GB\", \"regionCode\": null}",
+      "manual_event_id": null
+    },
+    {
+      "channel_id": "channel-375972451b89282ab733e42d",
+      "status": "pending",
+      "expected_identity": "{\"id\": \"channel-375972451b89282ab733e42d\", \"name\": \"Da Vinci Asia Vietnam\", \"epgId\": \"DaVinciAsia.de@Vietnam\", \"countryCode\": \"DE\", \"regionCode\": null}",
+      "manual_event_id": null
+    },
+    {
+      "channel_id": "channel-fc04700873a84f03d742a464",
+      "status": "pending",
+      "expected_identity": "{\"id\": \"channel-fc04700873a84f03d742a464\", \"name\": \"Deadly Women\", \"epgId\": \"DeadlyWomen.us@UK\", \"countryCode\": \"US\", \"regionCode\": null}",
+      "manual_event_id": null
+    },
+    {
+      "channel_id": "channel-9aeaa3591f0168c1caace796",
+      "status": "pending",
+      "expected_identity": "{\"id\": \"channel-9aeaa3591f0168c1caace796\", \"name\": \"Discovery Kids Latin America Brazil\", \"epgId\": \"DiscoveryKidsLatinAmerica.us@Brazil\", \"countryCode\": \"US\", \"regionCode\": null}",
+      "manual_event_id": null
+    },
+    {
+      "channel_id": "channel-5dfab9bb58e24dfe3407267a",
+      "status": "pending",
+      "expected_identity": "{\"id\": \"channel-5dfab9bb58e24dfe3407267a\", \"name\": \"Discovery Kids Latin America Chile\", \"epgId\": \"DiscoveryKidsLatinAmerica.us@Chile\", \"countryCode\": \"US\", \"regionCode\": null}",
+      "manual_event_id": null
+    },
+    {
+      "channel_id": "channel-11816b8502407d61a40723c2",
+      "status": "pending",
+      "expected_identity": "{\"id\": \"channel-11816b8502407d61a40723c2\", \"name\": \"Discovery Kids Latin America Colombia\", \"epgId\": \"DiscoveryKidsLatinAmerica.us@Colombia\", \"countryCode\": \"US\", \"regionCode\": null}",
+      "manual_event_id": null
+    },
+    {
+      "channel_id": "channel-1bc957fe7713c641a8dbc618",
+      "status": "pending",
+      "expected_identity": "{\"id\": \"channel-1bc957fe7713c641a8dbc618\", \"name\": \"Discovery Kids Latin America Mexico\", \"epgId\": \"DiscoveryKidsLatinAmerica.us@Mexico\", \"countryCode\": \"US\", \"regionCode\": null}",
+      "manual_event_id": null
+    },
+    {
+      "channel_id": "channel-01d4e25882b05b34e3fb4377",
+      "status": "pending",
+      "expected_identity": "{\"id\": \"channel-01d4e25882b05b34e3fb4377\", \"name\": \"Discovery World Brazil\", \"epgId\": \"DiscoveryWorld.us@Brazil\", \"countryCode\": \"US\", \"regionCode\": null}",
+      "manual_event_id": null
+    },
+    {
+      "channel_id": "channel-d511a4bfbaed005615a23944",
+      "status": "pending",
+      "expected_identity": "{\"id\": \"channel-d511a4bfbaed005615a23944\", \"name\": \"Disney Channel Latin America Mexico\", \"epgId\": \"DisneyChannelLatinAmerica.ar@Mexico\", \"countryCode\": \"AR\", \"regionCode\": null}",
+      "manual_event_id": null
+    },
+    {
+      "channel_id": "channel-19ac5cf762bdbcecc705a75a",
+      "status": "pending",
+      "expected_identity": "{\"id\": \"channel-19ac5cf762bdbcecc705a75a\", \"name\": \"Dog the Bounty Hunter UK\", \"epgId\": \"DogtheBountyHunter.us@UK\", \"countryCode\": \"US\", \"regionCode\": null}",
+      "manual_event_id": null
+    },
+    {
+      "channel_id": "channel-859ec67271f7935c1ee3b03b",
+      "status": "pending",
+      "expected_identity": "{\"id\": \"channel-859ec67271f7935c1ee3b03b\", \"name\": \"Duck Dynasty\", \"epgId\": \"DuckDynasty.us@UK\", \"countryCode\": \"US\", \"regionCode\": null}",
+      "manual_event_id": null
+    },
+    {
+      "channel_id": "channel-b732ce1ffdd72492c2ae4750",
+      "status": "pending",
+      "expected_identity": "{\"id\": \"channel-b732ce1ffdd72492c2ae4750\", \"name\": \"E! Latin America Mexico\", \"epgId\": \"ELatinAmerica.us@Mexico\", \"countryCode\": \"US\", \"regionCode\": null}",
+      "manual_event_id": null
+    },
+    {
+      "channel_id": "channel-1562dac58f4a4e57d6b3eed7",
+      "status": "pending",
+      "expected_identity": "{\"id\": \"channel-1562dac58f4a4e57d6b3eed7\", \"name\": \"ESPN Latin America Mexico\", \"epgId\": \"ESPNLatinAmerica.us@Mexico\", \"countryCode\": \"US\", \"regionCode\": null}",
+      "manual_event_id": null
+    },
+    {
+      "channel_id": "channel-4e6058265d96fd4d55794dff",
+      "status": "pending",
+      "expected_identity": "{\"id\": \"channel-4e6058265d96fd4d55794dff\", \"name\": \"Energia TV\", \"epgId\": \"EnergiaTV.bq@SD\", \"countryCode\": \"BQ\", \"regionCode\": null}",
+      "manual_event_id": null
+    },
+    {
+      "channel_id": "channel-beb2a90d1bd1d2bb14f84ff5",
+      "status": "pending",
+      "expected_identity": "{\"id\": \"channel-beb2a90d1bd1d2bb14f84ff5\", \"name\": \"Europa Plus TV Belarus\", \"epgId\": \"EuropaPlusTV.ru@Belarus\", \"countryCode\": \"RU\", \"regionCode\": null}",
+      "manual_event_id": null
+    },
+    {
+      "channel_id": "channel-94db9d5b1e1126a4864c1924",
+      "status": "pending",
+      "expected_identity": "{\"id\": \"channel-94db9d5b1e1126a4864c1924\", \"name\": \"F1 Channel\", \"epgId\": \"F1Channel.ie@US\", \"countryCode\": \"IE\", \"regionCode\": null}",
+      "manual_event_id": null
+    },
+    {
+      "channel_id": "channel-2703139ea599dfffd9070851",
+      "status": "pending",
+      "expected_identity": "{\"id\": \"channel-2703139ea599dfffd9070851\", \"name\": \"FIFA+ Italy\", \"epgId\": \"FIFAPlus.uk@Italy\", \"countryCode\": \"GB\", \"regionCode\": null}",
+      "manual_event_id": null
+    },
+    {
+      "channel_id": "channel-8914940cff00ef1f23da9eea",
+      "status": "pending",
+      "expected_identity": "{\"id\": \"channel-8914940cff00ef1f23da9eea\", \"name\": \"FIFA+ Spain\", \"epgId\": \"FIFAPlus.uk@Spain\", \"countryCode\": \"GB\", \"regionCode\": null}",
+      "manual_event_id": null
+    },
+    {
+      "channel_id": "channel-abbf6efdc7ae1ba8c429fd7e",
+      "status": "pending",
+      "expected_identity": "{\"id\": \"channel-abbf6efdc7ae1ba8c429fd7e\", \"name\": \"FILMBOX+ Comedy Romania\", \"epgId\": \"FILMBOXPlusComedy.pl@Romania\", \"countryCode\": \"PL\", \"regionCode\": null}",
+      "manual_event_id": null
+    },
+    {
+      "channel_id": "channel-d9d1be91010aa89fa9b8b072",
+      "status": "pending",
+      "expected_identity": "{\"id\": \"channel-d9d1be91010aa89fa9b8b072\", \"name\": \"FILMBOX+ Hits Romania\", \"epgId\": \"FILMBOXPlusHits.pl@Romania\", \"countryCode\": \"PL\", \"regionCode\": null}",
+      "manual_event_id": null
+    },
+    {
+      "channel_id": "channel-da0488d9aff786d451d9cd60",
+      "status": "pending",
+      "expected_identity": "{\"id\": \"channel-da0488d9aff786d451d9cd60\", \"name\": \"FILMBOX+ Love & Crime Romania\", \"epgId\": \"FILMBOXPlusLoveCrime.pl@Romania\", \"countryCode\": \"PL\", \"regionCode\": null}",
+      "manual_event_id": null
+    },
+    {
+      "channel_id": "channel-5fb90d32e4f00474282a5f35",
+      "status": "pending",
+      "expected_identity": "{\"id\": \"channel-5fb90d32e4f00474282a5f35\", \"name\": \"FUEL TV AU\", \"epgId\": \"FUELTV.pt@AU\", \"countryCode\": \"PT\", \"regionCode\": null}",
+      "manual_event_id": null
+    },
+    {
+      "channel_id": "channel-fa3ae8c21472eef683d40c16",
+      "status": "pending",
+      "expected_identity": "{\"id\": \"channel-fa3ae8c21472eef683d40c16\", \"name\": \"FUEL TV US\", \"epgId\": \"FUELTV.pt@US\", \"countryCode\": \"PT\", \"regionCode\": null}",
+      "manual_event_id": null
+    },
+    {
+      "channel_id": "channel-da88425cc82ed34d4024e53e",
+      "status": "pending",
+      "expected_identity": "{\"id\": \"channel-da88425cc82ed34d4024e53e\", \"name\": \"FailArmy Poland\", \"epgId\": \"FailArmy.us@Poland\", \"countryCode\": \"US\", \"regionCode\": null}",
+      "manual_event_id": null
+    },
+    {
+      "channel_id": "channel-6d0b5d852de3f0cf72ae3491",
+      "status": "pending",
+      "expected_identity": "{\"id\": \"channel-6d0b5d852de3f0cf72ae3491\", \"name\": \"FailArmy UK\", \"epgId\": \"FailArmy.us@UK\", \"countryCode\": \"US\", \"regionCode\": null}",
+      "manual_event_id": null
+    },
+    {
+      "channel_id": "channel-e22fd147d193d236946ec12a",
+      "status": "pending",
+      "expected_identity": "{\"id\": \"channel-e22fd147d193d236946ec12a\", \"name\": \"FightBox Poland (576i)\", \"epgId\": \"FightBox.nl@Poland\", \"countryCode\": \"NL\", \"regionCode\": null}",
+      "manual_event_id": null
+    },
+    {
+      "channel_id": "channel-278dcd161e1914b6120a6a17",
+      "status": "pending",
+      "expected_identity": "{\"id\": \"channel-278dcd161e1914b6120a6a17\", \"name\": \"Get.factual\", \"epgId\": \"Getfactual.us@UK\", \"countryCode\": \"US\", \"regionCode\": null}",
+      "manual_event_id": null
+    },
+    {
+      "channel_id": "channel-8e01298ff62ac2d693df55cf",
+      "status": "pending",
+      "expected_identity": "{\"id\": \"channel-8e01298ff62ac2d693df55cf\", \"name\": \"Ghost Hunters\", \"epgId\": \"GhostHunters.us@UK\", \"countryCode\": \"US\", \"regionCode\": null}",
+      "manual_event_id": null
+    },
+    {
+      "channel_id": "channel-f1ecf16e013aec69d5c3c558",
+      "status": "pending",
+      "expected_identity": "{\"id\": \"channel-f1ecf16e013aec69d5c3c558\", \"name\": \"Glory Kickboxing Poland\", \"epgId\": \"GloryKickboxing.us@Poland\", \"countryCode\": \"US\", \"regionCode\": null}",
+      "manual_event_id": null
+    },
+    {
+      "channel_id": "channel-039d8659b8c848e9eba92e60",
+      "status": "pending",
+      "expected_identity": "{\"id\": \"channel-039d8659b8c848e9eba92e60\", \"name\": \"HBO Asia Taiwan\", \"epgId\": \"HBOAsia.sg@Taiwan\", \"countryCode\": \"SG\", \"regionCode\": null}",
+      "manual_event_id": null
+    },
+    {
+      "channel_id": "channel-dc2e4f8bbd53f84d268c9591",
+      "status": "pending",
+      "expected_identity": "{\"id\": \"channel-dc2e4f8bbd53f84d268c9591\", \"name\": \"Hell's Kitchen\", \"epgId\": \"HellsKitchen.us@UK\", \"countryCode\": \"US\", \"regionCode\": null}",
+      "manual_event_id": null
+    },
+    {
+      "channel_id": "channel-67a92d39da2b8fee1d08feda",
+      "status": "pending",
+      "expected_identity": "{\"id\": \"channel-67a92d39da2b8fee1d08feda\", \"name\": \"History 2 Latin America Brazil\", \"epgId\": \"History2LatinAmerica.us@Brazil\", \"countryCode\": \"US\", \"regionCode\": null}",
+      "manual_event_id": null
+    },
+    {
+      "channel_id": "channel-a5e1bcb2f91b8b0d37519717",
+      "status": "pending",
+      "expected_identity": "{\"id\": \"channel-a5e1bcb2f91b8b0d37519717\", \"name\": \"Homeful US\", \"epgId\": \"Homeful.ca@US\", \"countryCode\": \"CA\", \"regionCode\": null}",
+      "manual_event_id": null
+    },
+    {
+      "channel_id": "channel-d412689974e0cc1aed3080ee",
+      "status": "pending",
+      "expected_identity": "{\"id\": \"channel-d412689974e0cc1aed3080ee\", \"name\": \"Homes Under Hammer\", \"epgId\": \"HomesUnderHammer.us@UK\", \"countryCode\": \"US\", \"regionCode\": null}",
+      "manual_event_id": null
+    },
+    {
+      "channel_id": "channel-ca2be6df34ae0dbf89faed61",
+      "status": "pending",
+      "expected_identity": "{\"id\": \"channel-ca2be6df34ae0dbf89faed61\", \"name\": \"INTRAVEL\", \"epgId\": \"INTRAVEL.nl@Philippines\", \"countryCode\": \"NL\", \"regionCode\": null}",
+      "manual_event_id": null
+    },
+    {
+      "channel_id": "channel-3f0fd6787cd430864145b0f1",
+      "status": "pending",
+      "expected_identity": "{\"id\": \"channel-3f0fd6787cd430864145b0f1\", \"name\": \"Inside Crime\", \"epgId\": \"InsideCrime.us@UK\", \"countryCode\": \"US\", \"regionCode\": null}",
+      "manual_event_id": null
+    },
+    {
+      "channel_id": "channel-f9f2662d8db1ac161933f7a2",
+      "status": "pending",
+      "expected_identity": "{\"id\": \"channel-f9f2662d8db1ac161933f7a2\", \"name\": \"KCM India\", \"epgId\": \"KCM.sg@India\", \"countryCode\": \"SG\", \"regionCode\": null}",
+      "manual_event_id": null
+    },
+    {
+      "channel_id": "channel-38990795b74d76c50111382f",
+      "status": "pending",
+      "expected_identity": "{\"id\": \"channel-38990795b74d76c50111382f\", \"name\": \"Lifetime Latin America Brazil\", \"epgId\": \"LifetimeLatinAmerica.us@Brazil\", \"countryCode\": \"US\", \"regionCode\": null}",
+      "manual_event_id": null
+    },
+    {
+      "channel_id": "channel-35526da8b0fa2652db34e2b5",
+      "status": "pending",
+      "expected_identity": "{\"id\": \"channel-35526da8b0fa2652db34e2b5\", \"name\": \"Lifetime Latin America Mexico\", \"epgId\": \"LifetimeLatinAmerica.us@Mexico\", \"countryCode\": \"US\", \"regionCode\": null}",
+      "manual_event_id": null
+    },
+    {
+      "channel_id": "channel-5ab518827c1a6fb6229c486d",
+      "status": "pending",
+      "expected_identity": "{\"id\": \"channel-5ab518827c1a6fb6229c486d\", \"name\": \"Live99FM\", \"epgId\": \"Live99FM.bq@SD\", \"countryCode\": \"BQ\", \"regionCode\": null}",
+      "manual_event_id": null
+    },
+    {
+      "channel_id": "channel-d204641dd8e0c98960b46f35",
+      "status": "pending",
+      "expected_identity": "{\"id\": \"channel-d204641dd8e0c98960b46f35\", \"name\": \"Lone Star Poland\", \"epgId\": \"LoneStar.us@Poland\", \"countryCode\": \"US\", \"regionCode\": null}",
+      "manual_event_id": null
+    },
+    {
+      "channel_id": "channel-196e5287334705fc055a9fb2",
+      "status": "pending",
+      "expected_identity": "{\"id\": \"channel-196e5287334705fc055a9fb2\", \"name\": \"Love Pets\", \"epgId\": \"LovePets.ca@US\", \"countryCode\": \"CA\", \"regionCode\": null}",
+      "manual_event_id": null
+    },
+    {
+      "channel_id": "channel-590eacdd9a2ef7d3bc30a9ec",
+      "status": "pending",
+      "expected_identity": "{\"id\": \"channel-590eacdd9a2ef7d3bc30a9ec\", \"name\": \"McLeod's Daughters\", \"epgId\": \"McLeodsDaughters.us@UK\", \"countryCode\": \"US\", \"regionCode\": null}",
+      "manual_event_id": null
+    },
+    {
+      "channel_id": "channel-636301bf3ff496eca18b67f0",
+      "status": "pending",
+      "expected_identity": "{\"id\": \"channel-636301bf3ff496eca18b67f0\", \"name\": \"Mir Kazakhstan\", \"epgId\": \"Mir.ru@Kazakhstan\", \"countryCode\": \"RU\", \"regionCode\": null}",
+      "manual_event_id": null
+    },
+    {
+      "channel_id": "channel-fb261f09b19f3c6e7da334dd",
+      "status": "pending",
+      "expected_identity": "{\"id\": \"channel-fb261f09b19f3c6e7da334dd\", \"name\": \"MovieSphere AU\", \"epgId\": \"MovieSphere.us@AU\", \"countryCode\": \"US\", \"regionCode\": null}",
+      "manual_event_id": null
+    },
+    {
+      "channel_id": "channel-f4e85fd82df57c4e414d4ff6",
+      "status": "pending",
+      "expected_identity": "{\"id\": \"channel-f4e85fd82df57c4e414d4ff6\", \"name\": \"Mr Bean Animated ES\", \"epgId\": \"MrBeanAnimated.uk@ES\", \"countryCode\": \"GB\", \"regionCode\": null}",
+      "manual_event_id": null
+    },
+    {
+      "channel_id": "channel-9b56c24198c6ddf715d0d583",
+      "status": "pending",
+      "expected_identity": "{\"id\": \"channel-9b56c24198c6ddf715d0d583\", \"name\": \"Mr Bean Animated FR\", \"epgId\": \"MrBeanAnimated.uk@FR\", \"countryCode\": \"GB\", \"regionCode\": null}",
+      "manual_event_id": null
+    },
+    {
+      "channel_id": "channel-f4f6500afd3a9180d60d47f6",
+      "status": "pending",
+      "expected_identity": "{\"id\": \"channel-f4f6500afd3a9180d60d47f6\", \"name\": \"Mr Bean Animated IT\", \"epgId\": \"MrBeanAnimated.uk@IT\", \"countryCode\": \"GB\", \"regionCode\": null}",
+      "manual_event_id": null
+    },
+    {
+      "channel_id": "channel-08282e7d58c20f6a9ce99f5a",
+      "status": "pending",
+      "expected_identity": "{\"id\": \"channel-08282e7d58c20f6a9ce99f5a\", \"name\": \"Mystery TV\", \"epgId\": \"MysteryTV.us@UK\", \"countryCode\": \"US\", \"regionCode\": null}",
+      "manual_event_id": null
+    },
+    {
+      "channel_id": "channel-f328d01b3da18b698ae7f1be",
+      "status": "pending",
+      "expected_identity": "{\"id\": \"channel-f328d01b3da18b698ae7f1be\", \"name\": \"Mythbusters\", \"epgId\": \"Mythbusters.us@UK\", \"countryCode\": \"US\", \"regionCode\": null}",
+      "manual_event_id": null
+    },
+    {
+      "channel_id": "channel-f85dc2651e529ea3bfd4086b",
+      "status": "pending",
+      "expected_identity": "{\"id\": \"channel-f85dc2651e529ea3bfd4086b\", \"name\": \"NatureTime AU\", \"epgId\": \"NatureTime.ca@AU\", \"countryCode\": \"CA\", \"regionCode\": null}",
+      "manual_event_id": null
+    },
+    {
+      "channel_id": "channel-9844b0973acd794948ad1e6f",
+      "status": "pending",
+      "expected_identity": "{\"id\": \"channel-9844b0973acd794948ad1e6f\", \"name\": \"NatureTime France\", \"epgId\": \"NatureTime.ca@France\", \"countryCode\": \"CA\", \"regionCode\": null}",
+      "manual_event_id": null
+    },
+    {
+      "channel_id": "channel-c960d672fd80a3d883d5ba11",
+      "status": "pending",
+      "expected_identity": "{\"id\": \"channel-c960d672fd80a3d883d5ba11\", \"name\": \"NatureTime UK\", \"epgId\": \"NatureTime.ca@UK\", \"countryCode\": \"CA\", \"regionCode\": null}",
+      "manual_event_id": null
+    },
+    {
+      "channel_id": "channel-0566f398686040eaffb147a6",
+      "status": "pending",
+      "expected_identity": "{\"id\": \"channel-0566f398686040eaffb147a6\", \"name\": \"NosTV Bonaire 2\", \"epgId\": \"NosTVBonaire2.bq@SD\", \"countryCode\": \"BQ\", \"regionCode\": null}",
+      "manual_event_id": null
+    },
+    {
+      "channel_id": "channel-53846076445e13544ca26aef",
+      "status": "pending",
+      "expected_identity": "{\"id\": \"channel-53846076445e13544ca26aef\", \"name\": \"Now 90s00s\", \"epgId\": \"Now90s00s.uk@Poland\", \"countryCode\": \"GB\", \"regionCode\": null}",
+      "manual_event_id": null
+    },
+    {
+      "channel_id": "channel-2ddbce96299f7b4f835f5d1d",
+      "status": "pending",
+      "expected_identity": "{\"id\": \"channel-2ddbce96299f7b4f835f5d1d\", \"name\": \"People Are Awesome Poland\", \"epgId\": \"PeopleAreAwesome.us@Poland\", \"countryCode\": \"US\", \"regionCode\": null}",
+      "manual_event_id": null
+    },
+    {
+      "channel_id": "channel-665d5058730b28ed98032e0a",
+      "status": "pending",
+      "expected_identity": "{\"id\": \"channel-665d5058730b28ed98032e0a\", \"name\": \"Rakuten TV Action Movies Germany\", \"epgId\": \"RakutenTVActionMovies.es@Germany\", \"countryCode\": \"ES\", \"regionCode\": null}",
+      "manual_event_id": null
+    },
+    {
+      "channel_id": "channel-e6ec61227acc98a5fb239b0c",
+      "status": "pending",
+      "expected_identity": "{\"id\": \"channel-e6ec61227acc98a5fb239b0c\", \"name\": \"Rakuten Viki Poland\", \"epgId\": \"RakutenViki.us@Poland\", \"countryCode\": \"US\", \"regionCode\": null}",
+      "manual_event_id": null
+    },
+    {
+      "channel_id": "channel-e0bb847718ad1004ccf263c6",
+      "status": "pending",
+      "expected_identity": "{\"id\": \"channel-e0bb847718ad1004ccf263c6\", \"name\": \"Red Bull TV AU\", \"epgId\": \"RedBullTV.at@AU\", \"countryCode\": \"AT\", \"regionCode\": null}",
+      "manual_event_id": null
+    },
+    {
+      "channel_id": "channel-ddd214c3d448d4c46b1e90fd",
+      "status": "pending",
+      "expected_identity": "{\"id\": \"channel-ddd214c3d448d4c46b1e90fd\", \"name\": \"Red Bull TV BR\", \"epgId\": \"RedBullTV.at@BR\", \"countryCode\": \"AT\", \"regionCode\": null}",
+      "manual_event_id": null
+    },
+    {
+      "channel_id": "channel-a07a62a220fc1d91c1ff9006",
+      "status": "pending",
+      "expected_identity": "{\"id\": \"channel-a07a62a220fc1d91c1ff9006\", \"name\": \"Red Bull TV DE\", \"epgId\": \"RedBullTV.at@DE\", \"countryCode\": \"AT\", \"regionCode\": null}",
+      "manual_event_id": null
+    },
+    {
+      "channel_id": "channel-644e02ce7efff5ac56c7f5d7",
+      "status": "pending",
+      "expected_identity": "{\"id\": \"channel-644e02ce7efff5ac56c7f5d7\", \"name\": \"Red Bull TV ES\", \"epgId\": \"RedBullTV.at@ES\", \"countryCode\": \"AT\", \"regionCode\": null}",
+      "manual_event_id": null
+    },
+    {
+      "channel_id": "channel-7b09784e60c074cb3593179a",
+      "status": "pending",
+      "expected_identity": "{\"id\": \"channel-7b09784e60c074cb3593179a\", \"name\": \"Red Bull TV UK\", \"epgId\": \"RedBullTV.at@UK\", \"countryCode\": \"AT\", \"regionCode\": null}",
+      "manual_event_id": null
+    },
+    {
+      "channel_id": "channel-6acacaa115f440aa2d6ffc0d",
+      "status": "pending",
+      "expected_identity": "{\"id\": \"channel-6acacaa115f440aa2d6ffc0d\", \"name\": \"Red Bull TV US\", \"epgId\": \"RedBullTV.at@US\", \"countryCode\": \"AT\", \"regionCode\": null}",
+      "manual_event_id": null
+    },
+    {
+      "channel_id": "channel-063d8687544da4d9b86a6b52",
+      "status": "pending",
+      "expected_identity": "{\"id\": \"channel-063d8687544da4d9b86a6b52\", \"name\": \"So... Real UK\", \"epgId\": \"SoReal.us@UK\", \"countryCode\": \"US\", \"regionCode\": null}",
+      "manual_event_id": null
+    },
+    {
+      "channel_id": "channel-72337e92d346ca3c0346f35a",
+      "status": "pending",
+      "expected_identity": "{\"id\": \"channel-72337e92d346ca3c0346f35a\", \"name\": \"Star Vijay UK\", \"epgId\": \"StarVijay.in@UK\", \"countryCode\": \"IN\", \"regionCode\": null}",
+      "manual_event_id": null
+    },
+    {
+      "channel_id": "channel-d659837407737572aca01cf0",
+      "status": "pending",
+      "expected_identity": "{\"id\": \"channel-d659837407737572aca01cf0\", \"name\": \"Strongman\", \"epgId\": \"Strongman.us@Germany\", \"countryCode\": \"US\", \"regionCode\": null}",
+      "manual_event_id": null
+    },
+    {
+      "channel_id": "channel-b40f90326f1181b268a86991",
+      "status": "pending",
+      "expected_identity": "{\"id\": \"channel-b40f90326f1181b268a86991\", \"name\": \"Strongman UK\", \"epgId\": \"Strongman.us@UK\", \"countryCode\": \"US\", \"regionCode\": null}",
+      "manual_event_id": null
+    },
+    {
+      "channel_id": "channel-1935716149b81d136a57d0dc",
+      "status": "pending",
+      "expected_identity": "{\"id\": \"channel-1935716149b81d136a57d0dc\", \"name\": \"Studio Universal Latin America Brazil\", \"epgId\": \"StudioUniversalLatinAmerica.us@Brazil\", \"countryCode\": \"US\", \"regionCode\": null}",
+      "manual_event_id": null
+    },
+    {
+      "channel_id": "channel-28301578bf044c14b728d0ec",
+      "status": "pending",
+      "expected_identity": "{\"id\": \"channel-28301578bf044c14b728d0ec\", \"name\": \"TCM Latin America Chile\", \"epgId\": \"TCMLatinAmerica.us@Chile\", \"countryCode\": \"US\", \"regionCode\": null}",
+      "manual_event_id": null
+    },
+    {
+      "channel_id": "channel-d1dfc4b9abaa1ca2f6b1229c",
+      "status": "pending",
+      "expected_identity": "{\"id\": \"channel-d1dfc4b9abaa1ca2f6b1229c\", \"name\": \"TLC Latin America Brazil\", \"epgId\": \"TLCLatinAmerica.us@Brazil\", \"countryCode\": \"US\", \"regionCode\": null}",
+      "manual_event_id": null
+    },
+    {
+      "channel_id": "channel-bdd35b8a69eac95d5e81a71f",
+      "status": "pending",
+      "expected_identity": "{\"id\": \"channel-bdd35b8a69eac95d5e81a71f\", \"name\": \"TNT Latin America Brazil\", \"epgId\": \"TNTLatinAmerica.us@Brazil\", \"countryCode\": \"US\", \"regionCode\": null}",
+      "manual_event_id": null
+    },
+    {
+      "channel_id": "channel-d8e920028fe5e51fadae4895",
+      "status": "pending",
+      "expected_identity": "{\"id\": \"channel-d8e920028fe5e51fadae4895\", \"name\": \"TNT Latin America Colombia\", \"epgId\": \"TNTLatinAmerica.us@Colombia\", \"countryCode\": \"US\", \"regionCode\": null}",
+      "manual_event_id": null
+    },
+    {
+      "channel_id": "channel-5166ea97c9f2f2486f73f3a8",
+      "status": "pending",
+      "expected_identity": "{\"id\": \"channel-5166ea97c9f2f2486f73f3a8\", \"name\": \"TNT Novelas Brazil\", \"epgId\": \"TNTNovelas.us@Brazil\", \"countryCode\": \"US\", \"regionCode\": null}",
+      "manual_event_id": null
+    },
+    {
+      "channel_id": "channel-d443c423552da0b65ec63b6a",
+      "status": "pending",
+      "expected_identity": "{\"id\": \"channel-d443c423552da0b65ec63b6a\", \"name\": \"TNT Novelas Colombia\", \"epgId\": \"TNTNovelas.us@Colombia\", \"countryCode\": \"US\", \"regionCode\": null}",
+      "manual_event_id": null
+    },
+    {
+      "channel_id": "channel-82ddbf57c69cf1a7488f9558",
+      "status": "pending",
+      "expected_identity": "{\"id\": \"channel-82ddbf57c69cf1a7488f9558\", \"name\": \"TV-3 Belarus\", \"epgId\": \"TV3.ru@Belarus\", \"countryCode\": \"RU\", \"regionCode\": null}",
+      "manual_event_id": null
+    },
+    {
+      "channel_id": "channel-1ea0da306a47e1fe617c7d6a",
+      "status": "pending",
+      "expected_identity": "{\"id\": \"channel-1ea0da306a47e1fe617c7d6a\", \"name\": \"Tastemade UK\", \"epgId\": \"Tastemade.us@UK\", \"countryCode\": \"US\", \"regionCode\": null}",
+      "manual_event_id": null
+    },
+    {
+      "channel_id": "channel-92969db652ed6cb5f963a907",
+      "status": "pending",
+      "expected_identity": "{\"id\": \"channel-92969db652ed6cb5f963a907\", \"name\": \"The Pet Collective Australia\", \"epgId\": \"ThePetCollective.us@Australia\", \"countryCode\": \"US\", \"regionCode\": null}",
+      "manual_event_id": null
+    },
+    {
+      "channel_id": "channel-6c4beceec0613ee0ce0487d2",
+      "status": "pending",
+      "expected_identity": "{\"id\": \"channel-6c4beceec0613ee0ce0487d2\", \"name\": \"The Pet Collective India\", \"epgId\": \"ThePetCollective.us@India\", \"countryCode\": \"US\", \"regionCode\": null}",
+      "manual_event_id": null
+    },
+    {
+      "channel_id": "channel-b39cfb70c4dedb878bbaad63",
+      "status": "pending",
+      "expected_identity": "{\"id\": \"channel-b39cfb70c4dedb878bbaad63\", \"name\": \"The Pet Collective Italy\", \"epgId\": \"ThePetCollective.us@Italy\", \"countryCode\": \"US\", \"regionCode\": null}",
+      "manual_event_id": null
+    },
+    {
+      "channel_id": "channel-598543595e285d692bd2291b",
+      "status": "pending",
+      "expected_identity": "{\"id\": \"channel-598543595e285d692bd2291b\", \"name\": \"The Pet Collective Mexico\", \"epgId\": \"ThePetCollective.us@Mexico\", \"countryCode\": \"US\", \"regionCode\": null}",
+      "manual_event_id": null
+    },
+    {
+      "channel_id": "channel-cf0b551a46aef3aeb4d0273e",
+      "status": "pending",
+      "expected_identity": "{\"id\": \"channel-cf0b551a46aef3aeb4d0273e\", \"name\": \"The Pet Collective Poland\", \"epgId\": \"ThePetCollective.us@Poland\", \"countryCode\": \"US\", \"regionCode\": null}",
+      "manual_event_id": null
+    },
+    {
+      "channel_id": "channel-ab193f32c45d37d520ce07fe",
+      "status": "pending",
+      "expected_identity": "{\"id\": \"channel-ab193f32c45d37d520ce07fe\", \"name\": \"The Pet Collective Spain\", \"epgId\": \"ThePetCollective.us@Spain\", \"countryCode\": \"US\", \"regionCode\": null}",
+      "manual_event_id": null
+    },
+    {
+      "channel_id": "channel-d42e958e0ebd4c86b2517e85",
+      "status": "pending",
+      "expected_identity": "{\"id\": \"channel-d42e958e0ebd4c86b2517e85\", \"name\": \"The Pet Collective Sweden\", \"epgId\": \"ThePetCollective.us@Sweden\", \"countryCode\": \"US\", \"regionCode\": null}",
+      "manual_event_id": null
+    },
+    {
+      "channel_id": "channel-e65280d794ea90e394a2bed4",
+      "status": "pending",
+      "expected_identity": "{\"id\": \"channel-e65280d794ea90e394a2bed4\", \"name\": \"The Pet Collective UK\", \"epgId\": \"ThePetCollective.us@UK\", \"countryCode\": \"US\", \"regionCode\": null}",
+      "manual_event_id": null
+    },
+    {
+      "channel_id": "channel-7d04ddf31f945f8f32d8af2c",
+      "status": "pending",
+      "expected_identity": "{\"id\": \"channel-7d04ddf31f945f8f32d8af2c\", \"name\": \"Trace Sport Stars Russia\", \"epgId\": \"TraceSportStars.fr@Russia\", \"countryCode\": \"FR\", \"regionCode\": null}",
+      "manual_event_id": null
+    },
+    {
+      "channel_id": "channel-be86898662ce52b110cf48af",
+      "status": "pending",
+      "expected_identity": "{\"id\": \"channel-be86898662ce52b110cf48af\", \"name\": \"Trailers UK\", \"epgId\": \"Trailers.es@UK\", \"countryCode\": \"ES\", \"regionCode\": null}",
+      "manual_event_id": null
+    },
+    {
+      "channel_id": "channel-d61d34876dbfaf076e7e8f8a",
+      "status": "pending",
+      "expected_identity": "{\"id\": \"channel-d61d34876dbfaf076e7e8f8a\", \"name\": \"Undercover Boss Global\", \"epgId\": \"UndercoverBossGlobal.us@UK\", \"countryCode\": \"US\", \"regionCode\": null}",
+      "manual_event_id": null
+    },
+    {
+      "channel_id": "channel-a676c72a1b7b45ae6fd2a89d",
+      "status": "pending",
+      "expected_identity": "{\"id\": \"channel-a676c72a1b7b45ae6fd2a89d\", \"name\": \"Universal TV Latin America Colombia\", \"epgId\": \"UniversalTVLatinAmerica.us@Colombia\", \"countryCode\": \"US\", \"regionCode\": null}",
+      "manual_event_id": null
+    },
+    {
+      "channel_id": "channel-516021cb70ae0199f0a5120c",
+      "status": "pending",
+      "expected_identity": "{\"id\": \"channel-516021cb70ae0199f0a5120c\", \"name\": \"Viasat Epic Drama Poland\", \"epgId\": \"ViasatEpicDrama.uk@Poland\", \"countryCode\": \"GB\", \"regionCode\": null}",
+      "manual_event_id": null
+    },
+    {
+      "channel_id": "channel-e11683f4eacfbc6859ca78d1",
+      "status": "pending",
+      "expected_identity": "{\"id\": \"channel-e11683f4eacfbc6859ca78d1\", \"name\": \"World Poker Tour Poland\", \"epgId\": \"WorldPokerTour.us@Poland\", \"countryCode\": \"US\", \"regionCode\": null}",
+      "manual_event_id": null
+    },
+    {
+      "channel_id": "channel-fb191d098b992501bf657cd3",
+      "status": "pending",
+      "expected_identity": "{\"id\": \"channel-fb191d098b992501bf657cd3\", \"name\": \"World Poker Tour UK\", \"epgId\": \"WorldPokerTour.us@UK\", \"countryCode\": \"US\", \"regionCode\": null}",
+      "manual_event_id": null
+    },
+    {
+      "channel_id": "channel-6e1abfaf32935dc3d4f35264",
+      "status": "pending",
+      "expected_identity": "{\"id\": \"channel-6e1abfaf32935dc3d4f35264\", \"name\": \"XITE Hits Germany\", \"epgId\": \"XITEHits.nl@Germany\", \"countryCode\": \"NL\", \"regionCode\": null}",
+      "manual_event_id": null
+    },
+    {
+      "channel_id": "channel-87884bb7beb3dd3477f08eaa",
+      "status": "pending",
+      "expected_identity": "{\"id\": \"channel-87884bb7beb3dd3477f08eaa\", \"name\": \"XITE Hits UK\", \"epgId\": \"XITEHits.nl@UK\", \"countryCode\": \"NL\", \"regionCode\": null}",
+      "manual_event_id": null
+    },
+    {
+      "channel_id": "channel-5be03f52c6103c178272d037",
+      "status": "pending",
+      "expected_identity": "{\"id\": \"channel-5be03f52c6103c178272d037\", \"name\": \"XITE Just Chill\", \"epgId\": \"XITEJustChill.nl@US\", \"countryCode\": \"NL\", \"regionCode\": null}",
+      "manual_event_id": null
+    },
+    {
+      "channel_id": "channel-52f0ea2e24c72f7ca0ad694f",
+      "status": "pending",
+      "expected_identity": "{\"id\": \"channel-52f0ea2e24c72f7ca0ad694f\", \"name\": \"XITE Rock x Metal\", \"epgId\": \"XITERockxMetal.nl@US\", \"countryCode\": \"NL\", \"regionCode\": null}",
+      "manual_event_id": null
+    },
+    {
+      "channel_id": "channel-1530a5c8e2ac2d89ccae44f6",
+      "status": "pending",
+      "expected_identity": "{\"id\": \"channel-1530a5c8e2ac2d89ccae44f6\", \"name\": \"YRF Music Nepal\", \"epgId\": \"YRFMusic.in@Nepal\", \"countryCode\": \"IN\", \"regionCode\": null}",
+      "manual_event_id": null
+    },
+    {
+      "channel_id": "channel-66ca6d23e67572e90ce69203",
+      "status": "pending",
+      "expected_identity": "{\"id\": \"channel-66ca6d23e67572e90ce69203\", \"name\": \"Zoom (India) Nepal\", \"epgId\": \"Zoom.in@Nepal\", \"countryCode\": \"IN\", \"regionCode\": null}",
+      "manual_event_id": null
+    }
+  ],
+  "reasonGroups": {
+    "explicit_epg_edition_suffix": 122,
+    "rakuten_routes_not_all_officially_bound": 3,
+    "category_metadata_country_conflict": 2,
+    "category_label_scope_difference": 3
+  }
+}

@@ -150,7 +150,7 @@ def publish(payload, data_dir=DATA, *, market_review_conn=None):
     from market_review_hold import preserve_public_geography
     payload = preserve_public_geography(payload, data_dir, active_conn=market_review_conn)
     payload = normalize_catalog_taxonomy(payload)
-    validate(payload)
+    channel_count, route_count = validate(payload)
     raw = json.dumps(payload, ensure_ascii=False, separators=(",", ":"), sort_keys=True).encode("utf-8")
     compressed = gzip.compress(raw, mtime=0)
     if len(compressed) > MAX_COMPRESSED:

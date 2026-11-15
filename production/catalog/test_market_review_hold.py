@@ -70,7 +70,8 @@ def test_route_rebind_and_new_public_id_are_held_at_both_boundaries(held):
         assert conn.execute('SELECT status FROM catalog_market_review_holds').fetchone()[0]=='context_changed'
     _,payload=load(folder);payload['version']='rebound';payload['channels'][0].update(id='rebound',countryCode='GB')
     publish(payload,folder)
-    _,after=load(folder);by={c['id']:c for c in after['channels']}
+    manifest,after=load(folder);by={c['id']:c for c in after['channels']}
+    assert manifest['channelCount']==len(by)
     assert set(by)=={'action','other'} and by['action']['countryCode']=='US'
     assert by['action']['routes'][0]['url']==URL
 

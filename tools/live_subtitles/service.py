@@ -5,7 +5,6 @@ retrieves existing subtitle files and runs local ASR for alignment only. Media
 and subtitle caches are private, bounded to the active viewing session.
 """
 import argparse
-import base64
 import gzip
 import hashlib
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -236,7 +235,8 @@ def main():
     from faster_whisper import WhisperModel
     model = WhisperModel('tiny.en', device='cpu', compute_type='int8', cpu_threads=2,
                          download_root=args.model_root, local_files_only=True)
-    hub = Hub(args.root, model, imageio_ffmpeg.get_ffmpeg_exe(), args.base)
+    ffmpeg = shutil.which('ffmpeg') or imageio_ffmpeg.get_ffmpeg_exe()
+    hub = Hub(args.root, model, ffmpeg, args.base)
     serve(hub, '127.0.0.1', args.port)
 
 

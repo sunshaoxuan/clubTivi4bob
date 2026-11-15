@@ -103,7 +103,8 @@ class Engine:
     def run(self):
         try:
             if self.candidates is None:
-                self.candidates = discover(self.programme['title'], self.programme['year'], self.root / 'subtitles')
+                self.candidates = discover(self.programme['title'], self.programme['year'], self.root / 'subtitles',
+                                           requested_language=self.preferred_language)
             self.candidates.sort(key=lambda c: (self.preferred_language not in c['tracks'], -len(c['tracks'])))
             self.event('subtitle_discovery', candidates=[dict(page=c['page'], languages=list(c['tracks'])) for c in self.candidates])
             if not self.candidates:

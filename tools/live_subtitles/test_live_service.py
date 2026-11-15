@@ -43,6 +43,20 @@ class LiveServiceTests(unittest.TestCase):
         self.assertEqual(len({x['cue'] for x in anchors}),3)
         self.assertIsNone(align(words[:6],cues,0)[0])
 
+    def test_published_english_original_requires_matching_same_page_grid(self):
+        search = '<tr><td><a href="/subs/2/film.html">In Hell 2003</a> (translated from English)</td></tr>'
+        detail = '<a id="download_es" href="/subs/2/es.srt">Download</a><h3>Original subtitles</h3>' + ''.join('<p dir="auto">'+s+'</p>' for s in ['One','Two','Three']) + '</div>'
+        srt = b'1\n00:00:01,000 --> 00:00:02,000\nUno\n\n2\n00:00:03,000 --> 00:00:04,000\nDos\n\n3\n00:00:05,000 --> 00:00:06,000\nTres\n'
+        def read(url):
+            return search.encode() if 'index.php?' in url else detail.encode() if url.endswith('.html') else srt
+        with tempfile.TemporaryDirectory() as root,patch('subtitle_catalog.read',read):
+            result=discover('In Hell',2003,root)
+        self.assertEqual([c['text'] for c in result[0]['tracks']['en']],['One','Two','Three'])
+        self.assertEqual(result[0]['provenance']['en']['clockGridLanguage'],'es')
+        detail=detail.replace('<p dir="auto">Three</p>','')
+        with tempfile.TemporaryDirectory() as root,patch('subtitle_catalog.read',read):
+            self.assertEqual(discover('In Hell',2003,root),[])
+
     def test_session_requires_current_exact_route_and_programme(self):
         hub = Hub.__new__(Hub); hub.source='https://public.example/route'; hub.gap=False
         hub.last_guide_success=time.time(); hub.programme=dict(key='current',stopUtc=time.time()+3600)

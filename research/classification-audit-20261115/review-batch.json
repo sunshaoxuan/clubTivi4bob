@@ -1,0 +1,175 @@
+{
+  "snapshotVersion": "2026-11-15T09:06:17.512837Z",
+  "candidateCount": 5,
+  "candidates": [
+    {
+      "expectedIdentity": {
+        "id": "channel-b842f9cdd43743693f77fc81",
+        "name": "Action Movies",
+        "epgId": "GB2600015OS",
+        "countryCode": "US",
+        "regionCode": null
+      },
+      "routeSha256": [
+        "caa8692d9b3a5e33a7ae29313746f18ecb464d7f4de6faf75fcfa2752082ba6c"
+      ],
+      "reviewedProviderService": {
+        "provider": "rakuten-tv",
+        "host": "action-rakuten-tv-uk.fast.rakuten.tv",
+        "serviceId": "6065",
+        "market": "GB",
+        "officialMarketParameter": "uk",
+        "officialSlug": "action-rakuten-tv",
+        "evidenceUrls": [
+          "https://gizmo.rakuten.tv/v3/live_channels/action-rakuten-tv?classification_id=18&device_identifier=web&locale=en&market_code=uk",
+          "https://action-rakuten-tv-uk.fast.rakuten.tv/v1/master/0547f18649bd788bec7b67b746e47670f558b6b2/production-LiveChannel-6065/master.m3u8"
+        ]
+      },
+      "proposedCountryCode": "GB",
+      "proposedMarketLabel": "英国",
+      "preserveGenre": true,
+      "preserveChannelId": true,
+      "protected": true,
+      "boundRoutes": 1,
+      "totalRoutes": 1,
+      "status": "requires_explicit_manual_review",
+      "automaticApplyAllowed": false
+    },
+    {
+      "expectedIdentity": {
+        "id": "channel-a5b2b5ae71973b25108d979e",
+        "name": "Drama Movies",
+        "epgId": "GB2600012R3",
+        "countryCode": "US",
+        "regionCode": null
+      },
+      "routeSha256": [
+        "70502d501f99ed54eb1ced8f1bd0aa0c87f8607447835c86acfdc5272d1ccb8c",
+        "85fb54d0a678192cbd76f63cd531538c847a6375e4163e29b7983360dfed1a74"
+      ],
+      "reviewedProviderService": {
+        "provider": "rakuten-tv",
+        "host": "drama-rakuten-tv-uk.fast.rakuten.tv",
+        "serviceId": "6093",
+        "market": "GB",
+        "officialMarketParameter": "uk",
+        "officialSlug": "drama-rakuten-tv",
+        "evidenceUrls": [
+          "https://gizmo.rakuten.tv/v3/live_channels/drama-rakuten-tv?classification_id=18&device_identifier=web&locale=en&market_code=uk",
+          "https://drama-rakuten-tv-uk.fast.rakuten.tv/v1/master/0547f18649bd788bec7b67b746e47670f558b6b2/production-LiveChannel-6093/master.m3u8"
+        ]
+      },
+      "proposedCountryCode": "GB",
+      "proposedMarketLabel": "英国",
+      "preserveGenre": true,
+      "preserveChannelId": true,
+      "protected": true,
+      "boundRoutes": 1,
+      "totalRoutes": 2,
+      "status": "hold_unbound_alternative_routes",
+      "automaticApplyAllowed": false
+    },
+    {
+      "expectedIdentity": {
+        "id": "channel-7b2ece1b9fca7f2a50fa536e",
+        "name": "Top Movies",
+        "epgId": "GB2600018PD",
+        "countryCode": "US",
+        "regionCode": null
+      },
+      "routeSha256": [
+        "79713b38a6ddd8e4e27da6f06c3c9fa4edbbddbd02dfc303324203fa7d29e3d3",
+        "25d931c285d0d6470df7403594e60a9a8a4fe28e148535bacce2a1bd30222855"
+      ],
+      "reviewedProviderService": {
+        "provider": "rakuten-tv",
+        "host": "top-movies-rakuten-tv-uk.fast.rakuten.tv",
+        "serviceId": "5987",
+        "market": "GB",
+        "officialMarketParameter": "uk",
+        "officialSlug": "top-movies-rakuten-tv",
+        "evidenceUrls": [
+          "https://gizmo.rakuten.tv/v3/live_channels/top-movies-rakuten-tv?classification_id=18&device_identifier=web&locale=en&market_code=uk",
+          "https://top-movies-rakuten-tv-uk.fast.rakuten.tv/v1/master/0547f18649bd788bec7b67b746e47670f558b6b2/production-LiveChannel-5987/master.m3u8"
+        ]
+      },
+      "proposedCountryCode": "GB",
+      "proposedMarketLabel": "英国",
+      "preserveGenre": true,
+      "preserveChannelId": true,
+      "protected": true,
+      "boundRoutes": 1,
+      "totalRoutes": 2,
+      "status": "hold_unbound_alternative_routes",
+      "automaticApplyAllowed": false
+    },
+    {
+      "expectedIdentity": {
+        "id": "channel-9294d4892ed3478727d98e6d",
+        "name": "Romance Movies",
+        "epgId": "GB2600014LQ",
+        "countryCode": "US",
+        "regionCode": null
+      },
+      "routeSha256": [
+        "4d865efabe93623b9cc7839668c5340cac0559ee114e0dfa1d4e98d18c21f28d"
+      ],
+      "reviewedProviderService": {
+        "provider": "rakuten-tv",
+        "host": "romance-rakuten-tv-uk.fast.rakuten.tv",
+        "serviceId": "6194",
+        "market": "GB",
+        "officialMarketParameter": "uk",
+        "officialSlug": "romance-rakuten-tv",
+        "evidenceUrls": [
+          "https://gizmo.rakuten.tv/v3/live_channels/romance-rakuten-tv?classification_id=18&device_identifier=web&locale=en&market_code=uk",
+          "https://romance-rakuten-tv-uk.fast.rakuten.tv/v1/master/0547f18649bd788bec7b67b746e47670f558b6b2/production-LiveChannel-6194/master.m3u8"
+        ]
+      },
+      "proposedCountryCode": "GB",
+      "proposedMarketLabel": "英国",
+      "preserveGenre": true,
+      "preserveChannelId": true,
+      "protected": true,
+      "boundRoutes": 1,
+      "totalRoutes": 1,
+      "status": "requires_explicit_manual_review",
+      "automaticApplyAllowed": false
+    },
+    {
+      "expectedIdentity": {
+        "id": "channel-26df487b6d80f30294ed3fba",
+        "name": "Comedy Movies",
+        "epgId": "GB2600020OP",
+        "countryCode": "US",
+        "regionCode": null
+      },
+      "routeSha256": [
+        "d10d2ff7a6dbaeafbf6ffd333cfe4c11d36cc8f96980ad24da89bea1eb03dc25",
+        "df100efcf96a5bfc084f679a89b98caf6bae288bcf9efcd0f2891006c76e93d8"
+      ],
+      "reviewedProviderService": {
+        "provider": "rakuten-tv",
+        "host": "comedy-rakuten-tv-uk.fast.rakuten.tv",
+        "serviceId": "6181",
+        "market": "GB",
+        "officialMarketParameter": "uk",
+        "officialSlug": "comedy-rakuten-tv",
+        "evidenceUrls": [
+          "https://gizmo.rakuten.tv/v3/live_channels/comedy-rakuten-tv?classification_id=18&device_identifier=web&locale=en&market_code=uk",
+          "https://comedy-rakuten-tv-uk.fast.rakuten.tv/v1/master/0547f18649bd788bec7b67b746e47670f558b6b2/production-LiveChannel-6181/master.m3u8"
+        ]
+      },
+      "proposedCountryCode": "GB",
+      "proposedMarketLabel": "英国",
+      "preserveGenre": true,
+      "preserveChannelId": true,
+      "protected": true,
+      "boundRoutes": 1,
+      "totalRoutes": 2,
+      "status": "hold_unbound_alternative_routes",
+      "automaticApplyAllowed": false
+    }
+  ],
+  "appliedChanges": 0
+}

@@ -1,0 +1,75 @@
+{
+  "schemaVersion": 1,
+  "policyVersion": "broadcast-edition-market-v1",
+  "reviewedAt": "2026-11-15T09:22:04.359042Z",
+  "bindings": [
+    {
+      "provider": "rakuten-tv",
+      "host": "action-rakuten-tv-uk.fast.rakuten.tv",
+      "serviceId": "6065",
+      "market": "GB",
+      "officialMarketParameter": "uk",
+      "officialSlug": "action-rakuten-tv",
+      "evidenceUrls": [
+        "https://gizmo.rakuten.tv/v3/live_channels/action-rakuten-tv?classification_id=18&device_identifier=web&locale=en&market_code=uk",
+        "https://action-rakuten-tv-uk.fast.rakuten.tv/v1/master/0547f18649bd788bec7b67b746e47670f558b6b2/production-LiveChannel-6065/master.m3u8"
+      ]
+    },
+    {
+      "provider": "rakuten-tv",
+      "host": "drama-rakuten-tv-uk.fast.rakuten.tv",
+      "serviceId": "6093",
+      "market": "GB",
+      "officialMarketParameter": "uk",
+      "officialSlug": "drama-rakuten-tv",
+      "evidenceUrls": [
+        "https://gizmo.rakuten.tv/v3/live_channels/drama-rakuten-tv?classification_id=18&device_identifier=web&locale=en&market_code=uk",
+        "https://drama-rakuten-tv-uk.fast.rakuten.tv/v1/master/0547f18649bd788bec7b67b746e47670f558b6b2/production-LiveChannel-6093/master.m3u8"
+      ]
+    },
+    {
+      "provider": "rakuten-tv",
+      "host": "top-movies-rakuten-tv-uk.fast.rakuten.tv",
+      "serviceId": "5987",
+      "market": "GB",
+      "officialMarketParameter": "uk",
+      "officialSlug": "top-movies-rakuten-tv",
+      "evidenceUrls": [
+        "https://gizmo.rakuten.tv/v3/live_channels/top-movies-rakuten-tv?classification_id=18&device_identifier=web&locale=en&market_code=uk",
+        "https://top-movies-rakuten-tv-uk.fast.rakuten.tv/v1/master/0547f18649bd788bec7b67b746e47670f558b6b2/production-LiveChannel-5987/master.m3u8"
+      ]
+    },
+    {
+      "provider": "rakuten-tv",
+      "host": "romance-rakuten-tv-uk.fast.rakuten.tv",
+      "serviceId": "6194",
+      "market": "GB",
+      "officialMarketParameter": "uk",
+      "officialSlug": "romance-rakuten-tv",
+      "evidenceUrls": [
+        "https://gizmo.rakuten.tv/v3/live_channels/romance-rakuten-tv?classification_id=18&device_identifier=web&locale=en&market_code=uk",
+        "https://romance-rakuten-tv-uk.fast.rakuten.tv/v1/master/0547f18649bd788bec7b67b746e47670f558b6b2/production-LiveChannel-6194/master.m3u8"
+      ]
+    },
+    {
+      "provider": "rakuten-tv",
+      "host": "comedy-rakuten-tv-uk.fast.rakuten.tv",
+      "serviceId": "6181",
+      "market": "GB",
+      "officialMarketParameter": "uk",
+      "officialSlug": "comedy-rakuten-tv",
+      "evidenceUrls": [
+        "https://gizmo.rakuten.tv/v3/live_channels/comedy-rakuten-tv?classification_id=18&device_identifier=web&locale=en&market_code=uk",
+        "https://comedy-rakuten-tv-uk.fast.rakuten.tv/v1/master/0547f18649bd788bec7b67b746e47670f558b6b2/production-LiveChannel-6181/master.m3u8"
+      ]
+    }
+  ],
+  "excludedEvidence": [
+    "operator registration country",
+    "film production country",
+    "spoken language",
+    "viewer location or CDN geolocation",
+    "playlist group or source directory country",
+    "EPG identifier country suffix without edition binding"
+  ]
+}

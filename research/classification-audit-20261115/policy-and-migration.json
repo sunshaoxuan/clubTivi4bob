@@ -1,0 +1,42 @@
+{
+  "policyVersion": "broadcast-edition-market-v1",
+  "countryCodeMeaning": "该播出版本的服务市场；运营主体注册地、节目产地和来源列表国家分别保留在独立证据字段。多市场或身份不明确时保持未知并提交复核。",
+  "authoritativeRule": "官方市场接口的准确服务ID与已审核发布者域名、完整服务命名空间共同绑定；所有线路必须证明同一播出版本。",
+  "weakIndicatorsOnly": [
+    "EPG .国家后缀或@版别",
+    "台名语言及地区词",
+    "来源列表分组",
+    "CDN地理位置",
+    "节目产地",
+    "运营主体注册地"
+  ],
+  "manualProtection": "保留用户本地分类。共享库存 manual_category、manual_name、merge_id、transferred 的频道只生成复核候选。",
+  "persistenceDesign": {
+    "outOfBandTable": "catalog_broadcast_market_reviews",
+    "fields": [
+      "channel_id",
+      "expected_identity_hash",
+      "expected_route_digests_and_revisions",
+      "provider_service_id",
+      "broadcast_market",
+      "operator_country",
+      "source_directory_country",
+      "evidence_urls",
+      "reviewed_at",
+      "policy_version",
+      "status"
+    ],
+    "atomicChange": [
+      "compare snapshot version, expected identity, route sets and revisions",
+      "require explicit per-channel review for protected shared identities",
+      "update catalog_channels.metadata.countryCode and categoryId, catalog_channels.profile.country and group_name, approved route.group_name together",
+      "retain channel ids, route ids, URLs, favorites and EPG tokens",
+      "invalidate stale classification signatures and caches using policy version",
+      "write old/new state and evidence audit before publishing one validated snapshot",
+      "fail closed on any changed or conflicting row"
+    ],
+    "epgBoundary": "国家修正不自动批准EPG映射、节目分发或替换epgId。原有EPG身份哈希变更须由既有匹配机制重新审核。"
+  },
+  "deploymentLimit": "本分支提供离线审计和复核候选。线上 channel_matching.py/channel_taxonomy.py 等实际核心源码未在远端main跟踪，须先对齐来源与哈希，再实施持久化事务集成。",
+  "onlineWrites": 0
+}

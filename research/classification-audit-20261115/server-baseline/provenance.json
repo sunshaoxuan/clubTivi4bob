@@ -1,0 +1,32 @@
+[
+  {
+    "name": "channel_matching.py",
+    "sha256": "5d92a0733492e63902c4e590136a2007527af7737cfe3b19fa5ecdc313dd4db5",
+    "source": "ccnode:/opt/bobtv/site/channel_matching.py"
+  },
+  {
+    "name": "channel_taxonomy.py",
+    "sha256": "6012961b3964cca4847c180e2300ffc2f626d3a46240a50301e166283afe0f52",
+    "source": "ccnode:/opt/bobtv/site/channel_taxonomy.py"
+  },
+  {
+    "name": "channel_classification_rules.json",
+    "sha256": "85ec47b4f2efd64932e8d76d0b527ee031a2b68c5c16c94233bcd72f588c45d4",
+    "source": "ccnode:/opt/bobtv/site/channel_classification_rules.json"
+  },
+  {
+    "name": "public_source_catalog.py",
+    "sha256": "3b9d708d20e16836f6feb0ecfd8ae5a855c662c3fcc24bff1ad77db9df791fe5",
+    "source": "ccnode:/opt/bobtv/site/public_source_catalog.py"
+  },
+  {
+    "name": "process_channel_inventory.py",
+    "sha256": "3b44368f9b14e6500cd230228c4790ee9f1f74fc0bf2eac128063340dc77dc1f",
+    "source": "ccnode:/opt/bobtv/site/process_channel_inventory.py"
+  },
+  {
+    "name": "channel_reference.py",
+    "sha256": "889016a1d50a1c633f823e37c131338c5d107c5bf99d6f8828a6956054ee2c50",
+    "source": "ccnode:/opt/bobtv/site/channel_reference.py"
+  }
+]

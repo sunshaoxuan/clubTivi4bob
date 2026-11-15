@@ -1,0 +1,387 @@
+{
+  "observedAt": "2026-11-15T09:24:12.046677+00:00",
+  "catalogVersion": "2026-11-15T09:06:17.512837Z",
+  "catalogSha256": "dedeb14639d5dada492c7d892711fa1eba31940a9545e81f485e1d843a256621",
+  "channelsScanned": 9098,
+  "routesScanned": 10127,
+  "reviewFindings": 132,
+  "reasonCounts": {
+    "platform_epg_id_prefix": 5,
+    "provider_host_edition_token": 5,
+    "explicit_epg_edition_suffix": 122,
+    "category_metadata_country_conflict": 2,
+    "category_label_scope_difference": 3
+  },
+  "editionHintPairs": [
+    {
+      "catalogCountryCode": "US",
+      "editionHint": "GB",
+      "count": 18
+    },
+    {
+      "catalogCountryCode": "US",
+      "editionHint": "BR",
+      "count": 11
+    },
+    {
+      "catalogCountryCode": "GB",
+      "editionHint": "PL",
+      "count": 10
+    },
+    {
+      "catalogCountryCode": "US",
+      "editionHint": "PL",
+      "count": 9
+    },
+    {
+      "catalogCountryCode": "US",
+      "editionHint": "MX",
+      "count": 5
+    },
+    {
+      "catalogCountryCode": "US",
+      "editionHint": "CO",
+      "count": 4
+    },
+    {
+      "catalogCountryCode": "RU",
+      "editionHint": "BY",
+      "count": 3
+    },
+    {
+      "catalogCountryCode": "SG",
+      "editionHint": "TW",
+      "count": 3
+    },
+    {
+      "catalogCountryCode": "GB",
+      "editionHint": "ES",
+      "count": 3
+    },
+    {
+      "catalogCountryCode": "PL",
+      "editionHint": "RO",
+      "count": 3
+    },
+    {
+      "catalogCountryCode": "GB",
+      "editionHint": "CZ",
+      "count": 2
+    },
+    {
+      "catalogCountryCode": "HU",
+      "editionHint": "PL",
+      "count": 2
+    },
+    {
+      "catalogCountryCode": "FR",
+      "editionHint": "HU",
+      "count": 2
+    },
+    {
+      "catalogCountryCode": "SG",
+      "editionHint": "IN",
+      "count": 2
+    },
+    {
+      "catalogCountryCode": "US",
+      "editionHint": "CL",
+      "count": 2
+    },
+    {
+      "catalogCountryCode": "GB",
+      "editionHint": "IT",
+      "count": 2
+    },
+    {
+      "catalogCountryCode": "CA",
+      "editionHint": "US",
+      "count": 2
+    },
+    {
+      "catalogCountryCode": "US",
+      "editionHint": "AU",
+      "count": 2
+    },
+    {
+      "catalogCountryCode": "NL",
+      "editionHint": "US",
+      "count": 2
+    },
+    {
+      "catalogCountryCode": "IN",
+      "editionHint": "NP",
+      "count": 2
+    },
+    {
+      "catalogCountryCode": "US",
+      "editionHint": "HU",
+      "count": 1
+    },
+    {
+      "catalogCountryCode": "GB",
+      "editionHint": "US",
+      "count": 1
+    },
+    {
+      "catalogCountryCode": "RO",
+      "editionHint": "RU",
+      "count": 1
+    },
+    {
+      "catalogCountryCode": "GB",
+      "editionHint": "UA",
+      "count": 1
+    },
+    {
+      "catalogCountryCode": "DE",
+      "editionHint": "VN",
+      "count": 1
+    },
+    {
+      "catalogCountryCode": "AR",
+      "editionHint": "MX",
+      "count": 1
+    },
+    {
+      "catalogCountryCode": "IE",
+      "editionHint": "US",
+      "count": 1
+    },
+    {
+      "catalogCountryCode": "PT",
+      "editionHint": "AU",
+      "count": 1
+    },
+    {
+      "catalogCountryCode": "PT",
+      "editionHint": "US",
+      "count": 1
+    },
+    {
+      "catalogCountryCode": "NL",
+      "editionHint": "PL",
+      "count": 1
+    },
+    {
+      "catalogCountryCode": "NL",
+      "editionHint": "PH",
+      "count": 1
+    },
+    {
+      "catalogCountryCode": "RU",
+      "editionHint": "KZ",
+      "count": 1
+    },
+    {
+      "catalogCountryCode": "GB",
+      "editionHint": "FR",
+      "count": 1
+    },
+    {
+      "catalogCountryCode": "CA",
+      "editionHint": "AU",
+      "count": 1
+    },
+    {
+      "catalogCountryCode": "CA",
+      "editionHint": "FR",
+      "count": 1
+    },
+    {
+      "catalogCountryCode": "CA",
+      "editionHint": "GB",
+      "count": 1
+    },
+    {
+      "catalogCountryCode": "ES",
+      "editionHint": "DE",
+      "count": 1
+    },
+    {
+      "catalogCountryCode": "AT",
+      "editionHint": "AU",
+      "count": 1
+    },
+    {
+      "catalogCountryCode": "AT",
+      "editionHint": "BR",
+      "count": 1
+    },
+    {
+      "catalogCountryCode": "AT",
+      "editionHint": "DE",
+      "count": 1
+    },
+    {
+      "catalogCountryCode": "AT",
+      "editionHint": "ES",
+      "count": 1
+    },
+    {
+      "catalogCountryCode": "AT",
+      "editionHint": "GB",
+      "count": 1
+    },
+    {
+      "catalogCountryCode": "AT",
+      "editionHint": "US",
+      "count": 1
+    },
+    {
+      "catalogCountryCode": "IN",
+      "editionHint": "GB",
+      "count": 1
+    },
+    {
+      "catalogCountryCode": "US",
+      "editionHint": "DE",
+      "count": 1
+    },
+    {
+      "catalogCountryCode": "US",
+      "editionHint": "IN",
+      "count": 1
+    },
+    {
+      "catalogCountryCode": "US",
+      "editionHint": "IT",
+      "count": 1
+    },
+    {
+      "catalogCountryCode": "US",
+      "editionHint": "ES",
+      "count": 1
+    },
+    {
+      "catalogCountryCode": "US",
+      "editionHint": "SE",
+      "count": 1
+    },
+    {
+      "catalogCountryCode": "FR",
+      "editionHint": "RU",
+      "count": 1
+    },
+    {
+      "catalogCountryCode": "ES",
+      "editionHint": "GB",
+      "count": 1
+    },
+    {
+      "catalogCountryCode": "NL",
+      "editionHint": "DE",
+      "count": 1
+    },
+    {
+      "catalogCountryCode": "NL",
+      "editionHint": "GB",
+      "count": 1
+    }
+  ],
+  "officialApiObservations": [
+    {
+      "localFile": "rakuten-uk.json",
+      "sha256": "9e9916458843b36b3f84f938808dc877028796844a3fa2cb7a3f5a6e3b37fad6",
+      "serviceId": 6065,
+      "slug": "action-rakuten-tv",
+      "title": "Action Movies - Rakuten TV",
+      "languages": [
+        "ENG"
+      ]
+    },
+    {
+      "localFile": "rakuten-de.json",
+      "sha256": "1f3fb534ab0003cf2bb5fd0a3189a1d2741cf409fb74e7474cd48c2950f99488",
+      "serviceId": 6066,
+      "slug": "action-rakuten-tv",
+      "title": "Actionfilme - Rakuten TV",
+      "languages": [
+        "DEU"
+      ]
+    },
+    {
+      "localFile": "rakuten-es.json",
+      "sha256": "3e3b39e64c88ea27144abb56a5c2034ce510b5cd7ee16f1b6f24667895195f1b",
+      "serviceId": 6069,
+      "slug": "action-rakuten-tv",
+      "title": "Películas de Acción - Rakuten TV",
+      "languages": [
+        "SPA"
+      ]
+    },
+    {
+      "localFile": "drama-uk.json",
+      "sha256": "8c453b31418c4c8030f0158ada72457871a78182c8c7b18001901fdbdc9744bd",
+      "serviceId": 6093,
+      "slug": "drama-rakuten-tv",
+      "title": "Drama Movies - Rakuten TV",
+      "languages": [
+        "ENG"
+      ]
+    },
+    {
+      "localFile": "top-movies-uk.json",
+      "sha256": "c40364f49ade90acc1098c5a60cdc0213f511f8dde521dccfe5d983897c7ff6f",
+      "serviceId": 5987,
+      "slug": "top-movies-rakuten-tv",
+      "title": "Top Movies - Rakuten TV",
+      "languages": [
+        "ENG"
+      ]
+    },
+    {
+      "localFile": "romance-uk.json",
+      "sha256": "3514d2793d459708511ddf415f95038dbd30d463c74d28695f566e25bdca069c",
+      "serviceId": 6194,
+      "slug": "romance-rakuten-tv",
+      "title": "Romance Movies - Rakuten TV",
+      "languages": [
+        "ENG"
+      ]
+    },
+    {
+      "localFile": "comedy-uk.json",
+      "sha256": "80ecc54328cf62a6a136b050f3dfcf0f34cc4dc005f93d6467ab59ac5a0cb124",
+      "serviceId": 6181,
+      "slug": "comedy-rakuten-tv",
+      "title": "Comedy Movies - Rakuten TV",
+      "languages": [
+        "ENG"
+      ]
+    }
+  ],
+  "protectedSharedIdentities": 90,
+  "findingInterpretation": {
+    "countryConflict": 2,
+    "labelScopeDifference": 3,
+    "epgEditionHint": 122,
+    "providerAndPlatformEditionHint": 5,
+    "findingsAreNotConfirmedErrors": true
+  },
+  "sourceOwnership": {
+    "trackedBaseline": "881211c99f13b47dfd5c1e97c7d26303c7e02123",
+    "remoteMainVerified": true,
+    "productionCoreUntracked": [
+      "channel_matching.py",
+      "channel_taxonomy.py",
+      "channel_reference.py",
+      "channel_classification_rules.json",
+      "public_source_catalog.py"
+    ],
+    "exactCauseAction": "Persistent entity metadata and profile hold US, inventory group is 国际 / 美国 / 电影 and manual_category=1. Initial source of that assignment has not been proven from current rows.",
+    "systemicRisks": [
+      "One country field mixes edition identity, reference directory country and declared category country",
+      "Qualified EPG suffix is promoted to country while @edition is only a variant",
+      "Generic platform EPG ids such as GB2600015OS are not qualified geography",
+      "Current paths can re-enter country inference through declared_country",
+      "Persistent metadata country is only filled when absent, so correcting a path alone can retain stale metadata"
+    ]
+  },
+  "tests": {
+    "command": "python -m pytest website/tests/test_broadcast_market.py -q",
+    "passed": 9
+  },
+  "productionWrites": 0,
+  "scope": "Offline generic market policy, complete snapshot audit and guarded review batch; no production integration or publication"
+}

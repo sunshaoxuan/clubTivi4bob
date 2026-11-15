@@ -103,7 +103,14 @@ void main() {
         );
         if (targets != null) {
           final mappings = await database.getAllMappings();
-          expect(mappings.length, manifest.channelCount);
+          expect(
+            mappings.length,
+            targets.fold<int>(
+              0,
+              (count, target) =>
+                  count + ((target as Map)['channel']['routes'] as List).length,
+            ),
+          );
           for (final mapping in mappings) {
             expect(mapping.epgSourceId, serverEpgSourceId);
             final upcoming = await database.getUpcomingProgrammes(

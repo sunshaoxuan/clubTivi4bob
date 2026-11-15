@@ -23,7 +23,7 @@ def main():
     ids={c['id'] for c in payload['channels']};targets=[{'channel':c,'group':group(c)} for c in catalog['channels'] if c['id'] in ids]
     assert len(targets)==manifest['channelCount']
     capture={'verifiedAtUtc':int(time.time()),'nodes':NODES,'manifest':manifest,
-        'snapshotBase64':base64.b64encode(snapshots[0]).decode(),'catalogTargets':targets,'catalogVersion':catalog['version']}
+        'snapshotBase64':base64.b64encode(snapshots[0]).decode(),'catalogTargets':targets,'catalogManifest':catalog_manifest,'catalogVersion':catalog['version']}
     a.output.parent.mkdir(parents=True,exist_ok=True);a.output.write_text(json.dumps(capture,ensure_ascii=False))
     print(json.dumps({'version':manifest['version'],'channels':manifest['channelCount'],'programmes':manifest['programmeCount'],'nodesVerified':2}))
 if __name__=='__main__':main()

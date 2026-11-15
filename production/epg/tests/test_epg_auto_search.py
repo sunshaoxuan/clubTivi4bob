@@ -727,3 +727,13 @@ def test_catalogue_scope_counts_are_disjoint(conn):
     result=run(conn)
     scope=result['catalogScope']
     assert scope['catalogChannels']==scope['reviewedMappingsProtected']+scope['researchQueuedChannels']+scope['notYetAdmittedChannels']
+
+
+def test_dated_programme_api_accepts_public_contract_parameters_only():
+    url='https://gizmo.rakuten.tv/v3/live_channels?market_code=uk&classification_id=18&device_identifier=web&locale=en&per_page=25&page=1&epg_starts_at=2026-11-15T00%3A00%3A00Z&epg_ends_at=2026-11-17T00%3A00%3A00Z'
+    assert s.candidate_allowed(url,['rakuten.tv'],'structured_api')
+    assert not s.candidate_allowed(url,['rakuten.tv'],'identity')
+    for tail in ['&token=secret','&api_key=secret','&page=2','&unknown=anything','&channel=%0Aprivate']:
+        assert not s.candidate_allowed(url+tail,['rakuten.tv'],'structured_api')
+    assert not s.candidate_allowed(url.replace('gizmo.rakuten.tv','127.0.0.1'),[],'structured_api')
+    assert not s.candidate_allowed(url.replace('/v3/live_channels','/login'),[],'structured_api')

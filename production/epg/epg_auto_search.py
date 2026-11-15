@@ -8,7 +8,7 @@ import time
 import unicodedata
 import urllib.error
 import urllib.request
-from urllib.parse import unquote, urlsplit
+from urllib.parse import parse_qsl, unquote, urlsplit
 
 from epg_channel_search import _domains
 from epg_identity_search import transport, validate_settings, reserve_shared_budget, SearchDeferred
@@ -263,8 +263,25 @@ def plan(channel, category_path, identity_facts, attempts, phase_index=0, review
 
 def candidate_allowed(url, domains, stage, *, request=None):
     try:
-        validate_public_url(url)
         p = urlsplit(url)
+        if p.query and stage != 'identity':
+            # Public schedule parameters only. The generic identity/source URL
+            # policy remains query-free; no credentials or arbitrary queries.
+            keys = {'date','day','from','to','start','end','starts_at','ends_at',
+                'start_time','end_time','startTime','endTime','startDate','endDate',
+                'start_date','end_date','epg_starts_at','epg_ends_at','channel',
+                'channel_id','channelId','channelid','channelname','service',
+                'service_id','serviceId','market','market_code','country','locale',
+                'language','lang','timezone','tz','page','per_page','limit','offset',
+                'classification_id','device_identifier','type','format','days','duration'}
+            pairs = parse_qsl(p.query,keep_blank_values=True,strict_parsing=True,max_num_fields=16)
+            if (len(url)>4096 or not pairs or len({k for k,v in pairs})!=len(pairs)
+                    or any(k not in keys or not v or len(v)>256
+                           or any(ord(c)<32 or ord(c)==127 for c in v) for k,v in pairs)):
+                return False
+            validate_public_url(p._replace(query='').geturl())
+        else:
+            validate_public_url(url)
         if domains and not any(p.hostname == d or p.hostname.endswith('.' + d) for d in domains):
             return False
         path = unquote(p.path).lower()
@@ -288,7 +305,7 @@ def candidate_allowed(url, domains, stage, *, request=None):
             technical = path == '/' or bool(re.search(
                 r'/(?:live|radio|station|stations|channel|channels|frequency|frequencies|about|aboutus|about-us|profile|introduce|introduction|tv|pc-portal|feeds)(?:[/_\-.]|$)', path))
             if stage != 'identity':
-                technical |= bool(re.search(r'(?:epg|schedule|calendar|programme|program|\.xml|\.gz|\.ics|\.csv|\.json)', path))
+                technical |= bool(re.search(r'(?:epg|schedule|calendar|programme|program|\.xml|\.gz|\.ics|\.csv|\.json)', location))
             if not technical and not (stage == 'identity' and reviewed_identity_page(url, request)):
                 return False
         return True

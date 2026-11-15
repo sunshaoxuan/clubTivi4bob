@@ -61,6 +61,17 @@ def install_schema(conn):
         NEW.name IS NOT json_extract(h.expected_context,'$.name') OR NEW.url IS NOT json_extract(h.expected_context,'$.url') OR
         NEW.epg_id IS NOT json_extract(h.expected_context,'$.epg_id') OR NEW.revision IS NOT json_extract(h.expected_context,'$.revision') OR NEW.blocked OR NEW.deleted))
       BEGIN UPDATE catalog_market_review_holds SET status='context_changed' WHERE channel_id=(SELECT channel_id FROM catalog_market_hold_routes WHERE digest=NEW.digest); END''')
+    # Replacement of a known route retains its hold and rechecks its context.
+    for source, target, operation in [
+        ('market_hold_route_group', 'market_hold_route_group_insert', 'INSERT'),
+        ('market_hold_route_context', 'market_hold_route_context_insert', 'INSERT')]:
+        sql = conn.execute("SELECT sql FROM sqlite_master WHERE type='trigger' AND name=?", (source,)).fetchone()[0]
+        sql = sql.replace('CREATE TRIGGER '+source, 'CREATE TRIGGER '+target)
+        if source.endswith('group'):
+            sql = sql.replace('AFTER UPDATE OF group_name', 'AFTER INSERT')
+        else:
+            sql = sql.replace('AFTER UPDATE OF name,url,epg_id,revision,blocked,deleted', 'AFTER INSERT')
+        conn.execute(sql)
     for operation in ('INSERT', 'UPDATE'):
         conn.execute(f'''CREATE TRIGGER market_hold_assignment_{operation.lower()} AFTER {operation} ON catalog_channel_routes
           WHEN EXISTS(SELECT 1 FROM catalog_market_hold_routes WHERE digest=NEW.digest) OR EXISTS(SELECT 1 FROM catalog_market_review_holds WHERE channel_id=NEW.channel_id)
@@ -68,7 +79,8 @@ def install_schema(conn):
             UPDATE catalog_market_review_holds SET status='context_changed' WHERE channel_id=(SELECT channel_id FROM catalog_market_hold_routes WHERE digest=NEW.digest AND channel_id IS NOT NEW.channel_id);
             UPDATE catalog_market_review_holds SET status='context_changed' WHERE channel_id=NEW.channel_id AND NOT EXISTS(SELECT 1 FROM catalog_market_hold_routes WHERE digest=NEW.digest);
             INSERT OR IGNORE INTO catalog_market_hold_routes(digest,channel_id,expected_context,frozen_group)
-              SELECT r.digest,NEW.channel_id,json_object('name',r.name,'url',r.url,'epg_id',r.epg_id,'revision',r.revision,'match_state',NEW.state),r.group_name FROM routes r JOIN catalog_market_review_holds h ON h.channel_id=NEW.channel_id WHERE r.digest=NEW.digest AND NOT EXISTS(SELECT 1 FROM catalog_market_hold_routes WHERE digest=NEW.digest);
+              SELECT r.digest,NEW.channel_id,json_object('name',r.name,'url',r.url,'epg_id',r.epg_id,'revision',r.revision,'match_state',NEW.state),h.frozen_group FROM routes r JOIN catalog_market_review_holds h ON h.channel_id=NEW.channel_id WHERE r.digest=NEW.digest AND NOT EXISTS(SELECT 1 FROM catalog_market_hold_routes WHERE digest=NEW.digest);
+            UPDATE routes SET group_name=(SELECT frozen_group FROM catalog_market_hold_routes WHERE digest=NEW.digest) WHERE digest=NEW.digest AND EXISTS(SELECT 1 FROM catalog_market_hold_routes WHERE digest=NEW.digest);
             UPDATE catalog_channel_routes SET channel_id=(SELECT channel_id FROM catalog_market_hold_routes WHERE digest=NEW.digest),state=coalesce((SELECT json_extract(expected_context,'$.match_state') FROM catalog_market_hold_routes WHERE digest=NEW.digest),'pending'),reason='market-review-held' WHERE digest=NEW.digest AND EXISTS(SELECT 1 FROM catalog_market_hold_routes WHERE digest=NEW.digest) AND channel_id IS NOT (SELECT channel_id FROM catalog_market_hold_routes WHERE digest=NEW.digest);
           END''')
 

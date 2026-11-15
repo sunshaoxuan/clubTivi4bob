@@ -165,3 +165,14 @@ def test_worker_queue_excludes_holds_without_stopping_other_classification():
     assert eligible_targets([base],{},123)==[]
     ordinary=dict(base,key='ordinary',marketReviewHeld=False)
     assert eligible_targets([base,ordinary],{},123)==[ordinary]
+
+
+def test_route_replace_retains_frozen_group_and_flags_context_change(held):
+    folder,digest=held
+    with connect(folder) as conn:
+        old=dict(conn.execute('SELECT * FROM routes WHERE digest=?',(digest,)).fetchone())
+        old.update(group_name='国际 / 德国 / 电影',revision=old['revision']+1)
+        columns=list(old)
+        conn.execute('INSERT OR REPLACE INTO routes ('+','.join(columns)+') VALUES ('+','.join('?' for _ in columns)+')',list(old.values()))
+        assert conn.execute('SELECT group_name FROM routes WHERE digest=?',(digest,)).fetchone()[0]=='国际 / 美国 / 电影'
+        assert conn.execute('SELECT status FROM catalog_market_review_holds').fetchone()[0]=='context_changed'

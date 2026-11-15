@@ -1,0 +1,310 @@
+{
+  "checkedAtUtc": 1794756819,
+  "coverage": {
+    "catalogChannels": 9098,
+    "verifiedMappings": 16,
+    "currentAndFutureChannels": 16,
+    "publishedCurrentAndFutureChannels": 16,
+    "channelsWithFutureProgrammes": 16,
+    "publishedChannelsWithFutureProgrammes": 16,
+    "publishedEpgVersion": "epg-200e97888c00e2274b56a20ff9ffb44855041edc9b7a7201de892f17e82e8c4e",
+    "publishedSnapshotVerifiedLocally": true,
+    "coverageError": null
+  },
+  "preexistingMappingsUnchanged": true,
+  "newMappingCount": 2,
+  "checkpoints": {
+    "channel_auto_search": {
+      "activeJobs": 1779,
+      "aiRequestsAttempted": 5,
+      "cachedIdentityEvidenceRecovery": {
+        "recoveredChannels": 0,
+        "state": "no_eligible_cached_identity"
+      },
+      "catalogChannels": 9098,
+      "catalogScope": {
+        "catalogChannels": 9098,
+        "notYetAdmittedChannels": 7305,
+        "pendingStates": {
+          "pending_identity": 1777
+        },
+        "policy": "all_public_catalog_channels; country_rotation; alternate_new_and_due; no_daily_request_cap",
+        "researchQueuedChannels": 1777,
+        "reviewedMappingsProtected": 16
+      },
+      "catalogVersion": "2026-11-15T14:43:29.284935Z",
+      "checkedAtUtc": 1794756665,
+      "claimedChannels": 5,
+      "finishedAtUtc": 1794756771,
+      "identitiesConfirmedThisRun": 0,
+      "identityAutomaticallyApproved": false,
+      "identityEvidencePacketsStaged": 3,
+      "identityReviewExecutorImplemented": true,
+      "identityReviewed": false,
+      "lastAcceptedChannelIds": [
+        "channel-0c105c1ae77ad944b49d73b8",
+        "channel-4d09f3e9f578dd7bef36f9f1",
+        "channel-0c2e9b8e627987e7267f49d8",
+        "channel-4d74ad464a76212739446247",
+        "channel-0c59c42c39b6dded3c4f7a55"
+      ],
+      "lastAcceptedSearchAtUtc": 1794756771,
+      "legacyCountryProviderDiscoveryEnabled": false,
+      "lockedMappingRecovery": {
+        "activeChannels": 0,
+        "admittedChannels": 0,
+        "implemented": true,
+        "newGrants": 0,
+        "newMappings": 0,
+        "programmesChanged": false
+      },
+      "networkSearchExecutorImplemented": true,
+      "newGrants": 0,
+      "newMappings": 0,
+      "newProgrammeRows": 0,
+      "nextRetryAtUtc": 1795361571,
+      "processedChannels": [
+        {
+          "auditRecorded": true,
+          "candidateCount": 0,
+          "channelId": "channel-0c105c1ae77ad944b49d73b8",
+          "identityReviewed": false,
+          "name": "Fierro a Fondo TV",
+          "nextRetryAtUtc": 1795361493,
+          "safeError": null,
+          "searchEvidenceAccepted": true,
+          "stage": "identity",
+          "state": "identity_pending_backoff",
+          "technicalCheckCount": 0
+        },
+        {
+          "auditRecorded": true,
+          "candidateCount": 0,
+          "channelId": "channel-4d09f3e9f578dd7bef36f9f1",
+          "identityReviewed": false,
+          "name": "TV Spravedliva Bulgariya",
+          "nextRetryAtUtc": 1794778316,
+          "safeError": null,
+          "searchEvidenceAccepted": true,
+          "stage": "identity",
+          "state": "identity_pending_backoff",
+          "technicalCheckCount": 0
+        },
+        {
+          "auditRecorded": true,
+          "candidateCount": 1,
+          "channelId": "channel-0c2e9b8e627987e7267f49d8",
+          "identityReviewed": false,
+          "name": "Epiloges TV",
+          "nextRetryAtUtc": 1795361533,
+          "safeError": null,
+          "searchEvidenceAccepted": true,
+          "stage": "identity",
+          "state": "identity_pending_backoff",
+          "technicalCheckCount": 1
+        },
+        {
+          "auditRecorded": true,
+          "candidateCount": 1,
+          "channelId": "channel-4d74ad464a76212739446247",
+          "identityReviewed": false,
+          "name": "Tatai TV",
+          "nextRetryAtUtc": 1794778349,
+          "safeError": null,
+          "searchEvidenceAccepted": true,
+          "stage": "identity",
+          "state": "identity_pending_backoff",
+          "technicalCheckCount": 1
+        },
+        {
+          "auditRecorded": true,
+          "candidateCount": 2,
+          "channelId": "channel-0c59c42c39b6dded3c4f7a55",
+          "identityReviewed": false,
+          "name": "12 TV Parma",
+          "nextRetryAtUtc": 1795361571,
+          "safeError": null,
+          "searchEvidenceAccepted": true,
+          "stage": "identity",
+          "state": "identity_pending_backoff",
+          "technicalCheckCount": 2
+        }
+      ],
+      "published": false,
+      "routeDirectoryEvidence": {
+        "attachedChannels": 0,
+        "state": "no_unattached_directory_observation"
+      },
+      "schemaVersion": 1,
+      "selectedCategoryPath": [
+        "国际",
+        "意大利",
+        "电视",
+        "综合"
+      ],
+      "selectedChannelId": "channel-0c59c42c39b6dded3c4f7a55",
+      "selectedChannelName": "12 TV Parma",
+      "sourceCheckAttempts": 4,
+      "sourceValidation": {
+        "sourceValidatorRequests": 0,
+        "state": "no_due_channel_source"
+      },
+      "sourceValidationHandoffs": 0,
+      "stage": "channel_first_automatic_search",
+      "state": "progressed"
+    },
+    "channel_auto_search_last_execution": {
+      "auditHistoryRetained": true,
+      "checkedAtUtc": 1794756771,
+      "claimedChannels": 5,
+      "finishedAtUtc": 1794756771,
+      "retryFloorsRetained": true,
+      "safeError": null,
+      "state": "progressed"
+    },
+    "search_admission_policy_v2": {
+      "dailyLimit": null,
+      "hourlyLimit": 60,
+      "installedAtUtc": 1794756291
+    },
+    "channel_search_fairness": {
+      "claims": 13,
+      "countryLastClaim": {
+        "BG": 10,
+        "CL": 6,
+        "CO": 2,
+        "CR": 7,
+        "DO": 8,
+        "FR": 3,
+        "GR": 11,
+        "HU": 12,
+        "ID": 5,
+        "IN": 1,
+        "IT": 13,
+        "US": 9,
+        "VN": 4
+      }
+    },
+    "publisher": {
+      "schemaVersion": 1,
+      "stage": "epg_publication",
+      "checkedAtUtc": 1794756775,
+      "state": "unchanged",
+      "published": false,
+      "error": null,
+      "failures": 0,
+      "nextRetryAt": 0,
+      "version": "epg-200e97888c00e2274b56a20ff9ffb44855041edc9b7a7201de892f17e82e8c4e",
+      "sha256": "5061b28cbe7bf0a207d91e46f6d32f9c3c864aea19edab4feb79cb30cf6e9041",
+      "attemptId": 35540,
+      "activeVersion": "epg-200e97888c00e2274b56a20ff9ffb44855041edc9b7a7201de892f17e82e8c4e",
+      "lastPublishedChannelCount": 16,
+      "activeCoverageExpired": false
+    },
+    "rakuten_adapter_activation": {
+      "checkedAtUtc": 1794756444,
+      "catalogVersion": "2026-11-15T14:43:29.284935Z",
+      "sourceReceipt": {
+        "sourceUrl": "https://gizmo.rakuten.tv/v3/live_channels",
+        "marketCode": "uk",
+        "windowStart": "2026-11-15T00:00:00.000Z",
+        "windowEnd": "2026-11-17T00:00:00.000Z",
+        "pagesFetched": 8,
+        "channelsFetched": 193,
+        "fetchedAtUtc": 1794756444,
+        "requestReceipts": [
+          {
+            "url": "https://gizmo.rakuten.tv/v3/live_channels?classification_id=18&device_identifier=web&locale=en&market_code=uk&per_page=25&page=1&epg_starts_at=2026-11-15T00%3A00%3A00.000Z&epg_ends_at=2026-11-17T00%3A00%3A00.000Z",
+            "sha256": "c5fa2bd62917bca0c6c2fdfb19f90c430a88a2b70c55892c8a63a2f2a70fe2ad",
+            "fetchedAtUtc": 1794756445,
+            "serverDate": "Sun, 15 Nov 2026 15:27:24 GMT"
+          },
+          {
+            "url": "https://gizmo.rakuten.tv/v3/live_channels?classification_id=18&device_identifier=web&locale=en&market_code=uk&per_page=25&page=2&epg_starts_at=2026-11-15T00%3A00%3A00.000Z&epg_ends_at=2026-11-17T00%3A00%3A00.000Z",
+            "sha256": "ce37991e51942ac3746434e5e276f3317a586e480d11a90522c04f5071d53a42",
+            "fetchedAtUtc": 1794756445,
+            "serverDate": "Sun, 15 Nov 2026 15:27:25 GMT"
+          },
+          {
+            "url": "https://gizmo.rakuten.tv/v3/live_channels?classification_id=18&device_identifier=web&locale=en&market_code=uk&per_page=25&page=3&epg_starts_at=2026-11-15T00%3A00%3A00.000Z&epg_ends_at=2026-11-17T00%3A00%3A00.000Z",
+            "sha256": "764c4203a8728368921a79eeaf67418b69da3067149b8a327167a2a5e8b88d23",
+            "fetchedAtUtc": 1794756445,
+            "serverDate": "Sun, 15 Nov 2026 15:27:25 GMT"
+          },
+          {
+            "url": "https://gizmo.rakuten.tv/v3/live_channels?classification_id=18&device_identifier=web&locale=en&market_code=uk&per_page=25&page=4&epg_starts_at=2026-11-15T00%3A00%3A00.000Z&epg_ends_at=2026-11-17T00%3A00%3A00.000Z",
+            "sha256": "77f1bac7f11f8e985ead9c2181f27a6c7e3b47a19d70bb71ef0b917d2d458775",
+            "fetchedAtUtc": 1794756445,
+            "serverDate": "Sun, 15 Nov 2026 15:27:25 GMT"
+          },
+          {
+            "url": "https://gizmo.rakuten.tv/v3/live_channels?classification_id=18&device_identifier=web&locale=en&market_code=uk&per_page=25&page=5&epg_starts_at=2026-11-15T00%3A00%3A00.000Z&epg_ends_at=2026-11-17T00%3A00%3A00.000Z",
+            "sha256": "81f611d0c6f55450751a650ed6702a09fa23b117105ac508125b8be4b2d1f516",
+            "fetchedAtUtc": 1794756446,
+            "serverDate": "Sun, 15 Nov 2026 15:27:26 GMT"
+          },
+          {
+            "url": "https://gizmo.rakuten.tv/v3/live_channels?classification_id=18&device_identifier=web&locale=en&market_code=uk&per_page=25&page=6&epg_starts_at=2026-11-15T00%3A00%3A00.000Z&epg_ends_at=2026-11-17T00%3A00%3A00.000Z",
+            "sha256": "fcf69cca57948dbd4956605c0b9a8aeeb3d4da1c445920d5e421a311bd6fae21",
+            "fetchedAtUtc": 1794756446,
+            "serverDate": "Sun, 15 Nov 2026 15:27:26 GMT"
+          },
+          {
+            "url": "https://gizmo.rakuten.tv/v3/live_channels?classification_id=18&device_identifier=web&locale=en&market_code=uk&per_page=25&page=7&epg_starts_at=2026-11-15T00%3A00%3A00.000Z&epg_ends_at=2026-11-17T00%3A00%3A00.000Z",
+            "sha256": "6aacbd9ab1bcb7030e05ae9008cf1904639886ed42f56c107ae87b3b48275388",
+            "fetchedAtUtc": 1794756446,
+            "serverDate": "Sun, 15 Nov 2026 15:27:26 GMT"
+          },
+          {
+            "url": "https://gizmo.rakuten.tv/v3/live_channels?classification_id=18&device_identifier=web&locale=en&market_code=uk&per_page=25&page=8&epg_starts_at=2026-11-15T00%3A00%3A00.000Z&epg_ends_at=2026-11-17T00%3A00%3A00.000Z",
+            "sha256": "8f04810a5fc023fc4ff65f1df3210e0b9b81a80495712da17f10777f5ee28d11",
+            "fetchedAtUtc": 1794756447,
+            "serverDate": "Sun, 15 Nov 2026 15:27:27 GMT"
+          }
+        ]
+      },
+      "mappedChannels": [
+        "channel-b842f9cdd43743693f77fc81",
+        "channel-9294d4892ed3478727d98e6d"
+      ],
+      "pending": [
+        {
+          "channelId": "channel-a5b2b5ae71973b25108d979e",
+          "state": "catalog_country_context_pending_review"
+        },
+        {
+          "channelId": "channel-7b2ece1b9fca7f2a50fa536e",
+          "state": "catalog_country_context_pending_review"
+        },
+        {
+          "channelId": "channel-26df487b6d80f30294ed3fba",
+          "state": "catalog_country_context_pending_review"
+        },
+        {
+          "channelId": "channel-5653256b79094369378318ec",
+          "state": "catalog_country_context_pending_review"
+        },
+        {
+          "channelId": "channel-bed6cfd0cd28aa6973ad95dd",
+          "state": "catalog_country_context_pending_review"
+        }
+      ],
+      "ingestion": [
+        {
+          "channelId": "channel-b842f9cdd43743693f77fc81",
+          "changed": false,
+          "retainedLastGood": false
+        },
+        {
+          "channelId": "channel-9294d4892ed3478727d98e6d",
+          "changed": false,
+          "retainedLastGood": false
+        }
+      ]
+    }
+  },
+  "rakutenProgrammes": {
+    "channel-b842f9cdd43743693f77fc81": 28,
+    "channel-9294d4892ed3478727d98e6d": 27
+  }
+}

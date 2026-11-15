@@ -1,0 +1,111 @@
+{
+  "deployedRuntimeCommit": "9d8fc295574e9e8882e7dc7782d675179e69a19d",
+  "backup": "/opt/bobtv/backups/deploy-20261115T153743Z",
+  "publicManifest": {
+    "channelCount": 16,
+    "compressedBytes": 52762,
+    "coverageEndUtc": 1795363200,
+    "coverageStartUtc": 1794582000,
+    "generatedAt": "2026-11-15T15:27:39Z",
+    "programmeCount": 959,
+    "schemaVersion": 1,
+    "sha256": "5061b28cbe7bf0a207d91e46f6d32f9c3c864aea19edab4feb79cb30cf6e9041",
+    "snapshotUrl": "/api/v1/epg/snapshots/5061b28cbe7bf0a207d91e46f6d32f9c3c864aea19edab4feb79cb30cf6e9041.json.gz",
+    "version": "epg-200e97888c00e2274b56a20ff9ffb44855041edc9b7a7201de892f17e82e8c4e"
+  },
+  "coverage": {
+    "catalogChannels": 9098,
+    "verifiedMappings": 16,
+    "currentAndFutureChannels": 16,
+    "publishedCurrentAndFutureChannels": 16,
+    "channelsWithFutureProgrammes": 16,
+    "publishedChannelsWithFutureProgrammes": 16,
+    "publishedEpgVersion": "epg-200e97888c00e2274b56a20ff9ffb44855041edc9b7a7201de892f17e82e8c4e",
+    "publishedSnapshotVerifiedLocally": true,
+    "coverageError": null
+  },
+  "preexistingMappingsUnchanged": true,
+  "programmeApiRead": {
+    "url": "https://gizmo.rakuten.tv/v3/live_channels?classification_id=18&device_identifier=web&locale=en&market_code=uk&per_page=25&page=8&epg_starts_at=2026-11-15T00%3A00%3A00.000Z&epg_ends_at=2026-11-17T00%3A00%3A00.000Z",
+    "httpStatus": 200,
+    "contentType": "application/json",
+    "bodyBytes": 559379,
+    "bodySha256": "8f04810a5fc023fc4ff65f1df3210e0b9b81a80495712da17f10777f5ee28d11",
+    "contentInspectionVersion": 2,
+    "method": "GET",
+    "programmeIdentityApproved": false,
+    "published": false,
+    "result": "programme_intervals_read_requires_feed_review",
+    "validIntervalRecords": 677,
+    "currentIntervalRecords": 18,
+    "futureIntervalRecords": 448,
+    "inspectionTruncated": false,
+    "nextAction": "verify_exact_channel_edition_and_schema",
+    "reason": "Actual public response read. Exact identity and publication remain separate reviews."
+  },
+  "globalResearchScope": {
+    "catalogChannels": 9098,
+    "notYetAdmittedChannels": 7305,
+    "pendingStates": {
+      "pending_identity": 1777
+    },
+    "policy": "all_public_catalog_channels; country_rotation; alternate_new_and_due; no_daily_request_cap",
+    "researchQueuedChannels": 1777,
+    "reviewedMappingsProtected": 16
+  },
+  "providerAvailability": {
+    "channels": 193,
+    "acceptedProgrammeRecords": 11980,
+    "pages": 8,
+    "mappedBobTvChannels": 2
+  },
+  "tests": {
+    "pythonEpgPassed": 1109,
+    "clientCorePassed": 70,
+    "clientCoreSkipped": 2,
+    "actualPublicClientReplayPassed": 1
+  },
+  "nativeClient": {
+    "version": "1.1.21",
+    "platform": "macOS Intel",
+    "observedActionMoviesCurrent": "Saints and Soldiers - Battle of the Tanks",
+    "observedNext": [
+      "Adrift",
+      "Superfast!"
+    ],
+    "observedCurrentLocalInterval": "2026-11-16 00:26 至 02:16 Asia/Tokyo"
+  },
+  "sharedAdmission": {
+    "observedAtUtc": 1794757079,
+    "last24HourAiRequests": 512,
+    "lastHourAiRequests": 37,
+    "dailyLimit": null,
+    "rollingHourlyLimit": 60
+  },
+  "canonicalSourceCommit": "82d183026aaa45fe6631768d9df7c874cec41d42",
+  "canonicalRuntimeMatchesProduction": true,
+  "runtimeSha256": {
+    "epg_ingest.py": "1bfe03e29b1a82211a99c1d59964f902bc9dd5f15c925856a85f657f9fd932a7",
+    "epg_store.py": "60746d77659bd42e867bcb77ab2dda64ac9c589f7aa941c452dce5b42f55b2d9",
+    "epg_channel_search.py": "9f6b8779571505a1aa587119e99339c84737db2fbe1cb93e73f1663850bfb366",
+    "epg_auto_search.py": "0b40b5d2edc34e265572ed24ce99d153e3b55655a68185a1bba03cdabd2b0c64",
+    "epg_auto_search_worker.py": "d41f65e9d31c66c529dbd3c62b9a77564e687c8cf987429d5d60867911721f1b",
+    "epg_rakuten.py": "1dfbe6d81bfb6b84785382b74fbc28bd60f70346dc897a1a1d2d225365f1d293",
+    "epg_programme_probe.py": "686df550bd4d052a5c61ff22bfe6a76254f6316445f0d800c0d505bbc894bff7",
+    "epg_sources.json": "2a6802a59f889035b368ce2d89e90096af249304b4856ef6840d0070f753c155"
+  },
+  "unattendedRefresh": {
+    "completed": true,
+    "sourceLastSuccessUtc": 1794757403,
+    "pagesFetched": 8,
+    "programmeJobsCompletedAtUtc": 1794757475,
+    "newCacheSha256": "db61146add91897194c5cdd64dc355dade6e9ada43c1ac5c33241fcf6aa70c6d"
+  },
+  "publicAfterAutomaticRefresh": {
+    "verifiedNodes": 2,
+    "channelCount": 16,
+    "programmeCount": 959,
+    "sha256": "5061b28cbe7bf0a207d91e46f6d32f9c3c864aea19edab4feb79cb30cf6e9041",
+    "sameSnapshotWhenProgrammeFactsUnchanged": true
+  }
+}

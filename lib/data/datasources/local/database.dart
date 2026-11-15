@@ -139,6 +139,15 @@ class AppDatabase extends _$AppDatabase {
       '(channel_id TEXT PRIMARY KEY, metadata TEXT NOT NULL)',
     );
     await customStatement(
+      'CREATE TABLE IF NOT EXISTS server_epg_programme_identities '
+      '(channel_id TEXT NOT NULL,start_utc INTEGER NOT NULL,stop_utc INTEGER NOT NULL,'
+      'metadata TEXT NOT NULL,PRIMARY KEY(channel_id,start_utc,stop_utc))',
+    );
+    await customStatement(
+      'CREATE TABLE IF NOT EXISTS server_epg_programme_identity_version '
+      '(id INTEGER PRIMARY KEY CHECK(id=1),version TEXT NOT NULL)',
+    );
+    await customStatement(
       'CREATE TABLE IF NOT EXISTS server_epg_attributions '
       '(source_id TEXT PRIMARY KEY, metadata TEXT NOT NULL)',
     );

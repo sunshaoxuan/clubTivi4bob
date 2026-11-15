@@ -158,7 +158,13 @@ class ServerEpgSyncService {
             installed?.sha256 != manifest.sha256) {
           throw const FormatException('Mutated immutable EPG version');
         }
-        if (installed?.version != manifest.version) {
+        final programmeReceipt = await database
+            .customSelect(
+              'SELECT version FROM server_epg_programme_identity_version WHERE id=1',
+            )
+            .getSingleOrNull();
+        if (installed?.version != manifest.version ||
+            programmeReceipt?.read<String>('version') != manifest.version) {
           final bytes = await api.downloadEpgSnapshot(manifest);
           if (_disposed) return false;
           final snapshot = await _decode({
@@ -209,6 +215,26 @@ class ServerEpgSyncService {
                 [entry.key, jsonEncode(entry.value)],
               );
             }
+            await database.customStatement(
+              'DELETE FROM server_epg_programme_identities',
+            );
+            await database.batch((batch) {
+              for (final programme in snapshot.programmeIdentities) {
+                batch.customStatement(
+                  'INSERT INTO server_epg_programme_identities VALUES(?,?,?,?)',
+                  [
+                    '${serverEpgSourceId}_${programme['catalogChannelId']}',
+                    programme['startUtc'],
+                    programme['stopUtc'],
+                    jsonEncode(programme),
+                  ],
+                );
+              }
+            });
+            await database.customStatement(
+              'INSERT OR REPLACE INTO server_epg_programme_identity_version VALUES(1,?)',
+              [manifest.version],
+            );
             await database.customStatement(
               'INSERT OR REPLACE INTO server_epg_receipt VALUES(1,?)',
               [jsonEncode(manifest.json)],

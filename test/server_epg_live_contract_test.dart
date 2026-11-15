@@ -6,6 +6,7 @@ import 'package:clubtivi/data/models/server_epg_snapshot.dart';
 import 'package:clubtivi/data/models/catalog_epg_identity.dart';
 import 'package:clubtivi/data/services/bobtv_api_client.dart';
 import 'package:clubtivi/data/services/server_epg_binding.dart';
+import 'package:clubtivi/data/services/server_epg_programme_lookup.dart';
 import 'package:clubtivi/data/services/server_epg_sync_service.dart';
 import 'package:drift/drift.dart' show Value;
 import 'package:drift/native.dart';
@@ -133,6 +134,53 @@ void main() {
               isTrue,
             );
           }
+        }
+        final programmeRows = await database
+            .customSelect(
+              'SELECT metadata FROM server_epg_programme_identities',
+            )
+            .get();
+        expect(programmeRows.length, manifest.programmeCount);
+        if (targets != null) {
+          final lookup = ServerEpgProgrammeLookup(database, now: () => clock);
+          final action = targets
+              .cast<Map>()
+              .where(
+                (t) =>
+                    (t['channel'] as Map)['id'] ==
+                    'channel-b842f9cdd43743693f77fc81',
+              )
+              .firstOrNull;
+          if (action != null) {
+            final route =
+                ((action['channel'] as Map)['routes'] as List).first as Map;
+            final programme = await lookup.forSource(route['url'] as String);
+            expect(programme, isNotNull);
+            expect(programme!['serviceId'], 6065);
+            expect(programme['movieId'], isNotNull);
+            expect(programme['sourceEventId'], isNotNull);
+            expect(programme['clockIsSubtitleOffset'], isFalse);
+          }
+          const addedServices = {
+            'channel-a5b2b5ae71973b25108d979e': 6093,
+            'channel-26df487b6d80f30294ed3fba': 6181,
+            'channel-bed6cfd0cd28aa6973ad95dd': 6203,
+          };
+          for (final target in targets.cast<Map>()) {
+            final channel = target['channel'] as Map;
+            final serviceId = addedServices[channel['id']];
+            if (serviceId == null) continue;
+            final route = (channel['routes'] as List).first as Map;
+            final programme = await lookup.forSource(route['url'] as String);
+            expect(programme, isNotNull);
+            expect(programme!['serviceId'], serviceId);
+            expect(programme['catalogChannelId'], channel['id']);
+            expect(programme['sourceEventId'], isNotNull);
+          }
+          expect(
+            await lookup.forSource('https://private.example/secret'),
+            isNull,
+          );
         }
         expect(
           service.state.value.attributions.single.dataLicense,

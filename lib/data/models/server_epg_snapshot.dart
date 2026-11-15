@@ -61,11 +61,13 @@ class ServerEpgSnapshot {
     this.guide,
     this.identities, {
     this.attributions = const [],
+    this.programmeIdentities = const [],
   });
   final XmltvResult guide;
   // Preserved for exact catalog-identity integration. Never fuzzy auto-mapped.
   final Map<String, Map<String, dynamic>> identities;
   final List<ServerEpgAttribution> attributions;
+  final List<Map<String, Object?>> programmeIdentities;
 }
 
 /// Display-only metadata. The receiver never fetches attribution URLs.
@@ -203,6 +205,7 @@ Future<ServerEpgSnapshot> decodeServerEpg(Map<String, Object> message) async {
     attributions[credit.sourceId] = credit;
   }
   final programmes = <EpgProgramme>[];
+  final programmeIdentities = <Map<String, Object?>>[];
   final byChannel = <String, List<EpgProgramme>>{};
   var minStart = 4102444800, maxStop = 0;
   for (final item in payload['programmes'] as List) {
@@ -239,6 +242,33 @@ Future<ServerEpgSnapshot> decodeServerEpg(Map<String, Object> message) async {
         stop < now - 2 * 86400) {
       throw const FormatException('Invalid EPG UTC interval');
     }
+    final provenance = item['provenance'] as Map;
+    String? factualId(String key, RegExp pattern) {
+      final value = provenance[key];
+      return value is String && pattern.hasMatch(value) ? value : null;
+    }
+
+    final event = factualId(
+      'sourceEventId',
+      RegExp(r'^[A-Za-z0-9_.:-]{1,128}$'),
+    );
+    programmeIdentities.add({
+      'key':
+          '${item['sourceId']}:${item['originalChannelId']}:${event ?? start}:$stop',
+      'catalogChannelId': item['channelId'],
+      'programmeSourceId': item['sourceId'],
+      'originalChannelId': item['originalChannelId'],
+      'sourceEventId': event,
+      'movieId': factualId('movieId', RegExp(r'^[a-z0-9-]{1,200}$')),
+      'marketCode': factualId('marketCode', RegExp(r'^[a-z]{2}$')),
+      'serviceId': provenance['serviceId'] is int
+          ? provenance['serviceId']
+          : null,
+      'title': item['title'],
+      'startUtc': start,
+      'stopUtc': stop,
+      'clockIsSubtitleOffset': false,
+    });
     final programme = EpgProgramme(
       channelId: item['channelId'] as String,
       sourceId: serverEpgSourceId,
@@ -278,6 +308,7 @@ Future<ServerEpgSnapshot> decodeServerEpg(Map<String, Object> message) async {
     XmltvResult(channels: channels, programmes: programmes),
     Map.unmodifiable(identities),
     attributions: List.unmodifiable(attributions.values),
+    programmeIdentities: List.unmodifiable(programmeIdentities),
   );
 }
 

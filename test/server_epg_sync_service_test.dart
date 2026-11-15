@@ -146,6 +146,29 @@ void main() {
           ?.read<String>('manifest');
 
   test(
+    'existing EPG installation backfills programme identities exactly once',
+    () async {
+      expect(await service.check(), isTrue);
+      await database.customStatement(
+        'DELETE FROM server_epg_programme_identity_version',
+      );
+      await database.customStatement(
+        'DELETE FROM server_epg_programme_identities',
+      );
+      expect(await service.check(forceVersionCheck: true), isTrue);
+      expect(
+        (await database
+            .customSelect('SELECT * FROM server_epg_programme_identities')
+            .get()),
+        isNotEmpty,
+      );
+      final count = api.downloads;
+      expect(await service.check(forceVersionCheck: true), isFalse);
+      expect(api.downloads, count);
+    },
+  );
+
+  test(
     'government data credits import and hot update without false sharealike',
     () async {
       Map<String, dynamic> government(String version) {

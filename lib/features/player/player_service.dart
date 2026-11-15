@@ -1469,6 +1469,14 @@ class PlayerService {
       'stream': AppDiagnostics.summarizeStreamUrl(activeUrl),
       'changedFromRequested': selectedUrl != url,
     });
+    await _runPlayStep(
+      _bufferManager.applyForStream(activeUrl, this, monitor: false),
+      generation: playGeneration,
+      step: 'apply_buffer',
+      timeout: const Duration(seconds: 2),
+      continueOnError: true,
+    );
+    if (playGeneration != _playGeneration) return;
     final opened = await _runPlayStep(
       _openAllowedMedia(player, activeUrl),
       generation: playGeneration,
@@ -1489,13 +1497,7 @@ class PlayerService {
       }
       return;
     }
-    await _runPlayStep(
-      _bufferManager.applyForStream(activeUrl, this),
-      generation: playGeneration,
-      step: 'apply_buffer',
-      timeout: const Duration(seconds: 2),
-      continueOnError: true,
-    );
+    _bufferManager.monitorForStream(activeUrl, this);
     if (playGeneration != _playGeneration) return;
     await _runPlayStep(
       player.setVolume(100.0),

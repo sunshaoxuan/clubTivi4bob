@@ -146,3 +146,12 @@ Movies source. Its native decoder position, not wall time or the network edge,
 is used to display cues. Fresh live test reports must distinguish server
 relock time, first rendered caption time, holdout synchronization error,
 startup holdback and any interruption in video playback.
+
+The producer remuxes each served segment onto the continuous collector timeline
+without re-encoding audio or video. Raw source PTS and encryption metadata remain
+in the private acoustic-analysis cache. Ads can retain the movie CAID and jump
+their raw PTS without declaring an HLS discontinuity; passing those raw clocks
+to the decoder caused an observed minute-scale playhead jump. Normalized output
+uses a pinned session origin; real ad/film segment smoke checks measured first
+video PTS within 70 ms of the declared timeline start. Fresh native live tests
+must still validate decoder clock continuity across the insertion.

@@ -7,6 +7,7 @@ import math
 import os
 from pathlib import Path
 import re
+import subprocess
 import threading
 import time
 from urllib.parse import urljoin, urlsplit
@@ -125,6 +126,7 @@ class Collector:
                             self.rows = [r for r in self.rows if r['timelineEnd'] >= cutoff]
                             for previous in expired:
                                 Path(previous['localPath']).unlink(missing_ok=True)
+                                (self.root / 'normalized' / (str(previous['sequence'])+'.ts')).unlink(missing_ok=True)
                         if gap:
                             self.log('sequence_gap', previous=last, next=row['sequence'])
                         if len(self.rows) == 1 or self.rows[-2]['asset'] != record['asset']:
@@ -160,6 +162,27 @@ def playlist(rows, *, uri=lambda r: r['localPath'], local_keys=True, end=False):
     if end:
         lines.append('#EXT-X-ENDLIST')
     return '\n'.join(lines) + '\n'
+
+
+def normalize_segment(row, ffmpeg, root):
+    """Remux without transcoding onto the collector's continuous media clock.
+
+    Provider ad PTS can jump by minutes without a discontinuity tag. Serving
+    those raw timestamps makes a player's decoded clock diverge from EXTINF.
+    Source media/PTS remain private and unchanged for acoustic verification.
+    """
+    root=Path(root);folder=root/'normalized';folder.mkdir(exist_ok=True)
+    target=folder/(str(row['sequence'])+'.ts')
+    if target.exists():return target
+    manifest=folder/(str(row['sequence'])+'.m3u8');manifest.write_text(playlist([row],end=True))
+    temporary=folder/(str(row['sequence'])+'.tmp.ts')
+    subprocess.run([ffmpeg,'-hide_banner','-loglevel','error','-copyts','-start_at_zero',
+        '-protocol_whitelist','file,crypto,data','-allowed_extensions','ALL','-i',str(manifest),
+        '-map','0:v:0','-map','0:a:0','-c','copy','-mpegts_copyts','1','-muxdelay','0','-muxpreload','0',
+        '-output_ts_offset',str(row['timelineStart']),'-y',str(temporary)],
+        timeout=12,capture_output=True,check=True)
+    if temporary.stat().st_size<188:raise ValueError('empty_normalized_media')
+    os.replace(temporary,target);return target
 
 
 if __name__ == '__main__':

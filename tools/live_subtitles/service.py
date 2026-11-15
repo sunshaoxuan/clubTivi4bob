@@ -12,6 +12,7 @@ import json
 from pathlib import Path
 import re
 import shutil
+import subprocess
 import threading
 import time
 from urllib.parse import urlencode, urlsplit
@@ -19,7 +20,7 @@ from urllib.request import Request, urlopen
 import uuid
 
 from live_engine import Engine
-from live_media import playlist
+from live_media import playlist, normalize_segment
 from subtitle_catalog import LANGUAGES
 
 CHANNEL = 'channel-b842f9cdd43743693f77fc81'
@@ -76,6 +77,7 @@ class Hub:
         self.root, self.model, self.ffmpeg, self.base = Path(root), model, ffmpeg, base.rstrip('/') + '/'
         self.root.mkdir(parents=True, exist_ok=True)
         self.lock = threading.RLock(); self.sessions = {}; self.engine = None
+        self.remux_lock = threading.Lock()
         self.source, self.programme = current_guide(); self.last_guide_success = time.time()
         self.gap = False
         threading.Thread(target=self.maintain, daemon=True).start()
@@ -217,12 +219,20 @@ def serve(hub, host, port):
                         rows = [r for r in collector.snapshot() if r['timelineStart'] >= session['origin']]
                     if not rows:
                         return self.send(b'{"error":"acquiring_media"}', status=503)
-                    content = playlist(rows, uri=lambda r: 'segments/' + Path(r['localPath']).name, local_keys=False)
+                    normalized=[{**r,'keyLine':None} for r in rows]
+                    content = playlist(normalized, uri=lambda r: 'segments/' + Path(r['localPath']).name, local_keys=False)
                     return self.send(content.encode(), 'application/vnd.apple.mpegurl')
                 filename = resource.split('/')[-1]
-                return self.send((collector.root / 'segments' / filename).read_bytes(),
+                if not filename.endswith('.ts'):
+                    raise KeyError()
+                sequence=int(filename[:-3]);row=next(r for r in collector.snapshot() if r['sequence']==sequence)
+                with hub.remux_lock:
+                    media=normalize_segment(row,hub.ffmpeg,collector.root)
+                return self.send(media.read_bytes(),
                                  'video/mp2t' if filename.endswith('.ts') else 'application/octet-stream', cache=True)
-            except (KeyError, OSError):
+            except (subprocess.SubprocessError, ValueError):
+                self.send(b'{"error":"media_clock_conversion_failed"}', status=502)
+            except (KeyError, OSError, StopIteration):
                 self.send(b'{"error":"not_found"}', status=404)
     ThreadingHTTPServer((host, port), Handler).serve_forever()
 

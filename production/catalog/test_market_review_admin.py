@@ -100,6 +100,25 @@ def test_protected_shared_entry_requires_explicit_review(catalog):
     assert load(folder)[0] == m
 
 
+def test_unpublished_member_must_have_same_verified_market_and_stays_unpublished(catalog):
+    folder, _ = catalog
+    master = ('https://action-rakuten-tv-uk.fast.rakuten.tv/v1/master/'
+              '0547f18649bd788bec7b67b746e47670f558b6b2/production-LiveChannel-6065/master.m3u8')
+    digest = hashlib.sha256(master.encode()).hexdigest()
+    with sqlite3.connect(folder / 'channel_inventory.sqlite3') as conn:
+        conn.execute('INSERT INTO routes VALUES(?,?,?,?,?,?,0,0,NULL,0,0,0,0)',
+                     (digest,'Action Movies',master,'国际 / 未识别地区','fixture','GB2600015OS'))
+        conn.execute('INSERT INTO catalog_channel_routes VALUES(?,?,?,?,?)', (digest,'action','assigned','fixture',''))
+    batch = build_batch(folder, ['action'], authorization='explicit', allow_protected_shared=True)
+    assert len(batch['reviews'][0]['routeSha256']) == 1
+    assert len(batch['reviews'][0]['inventoryRouteSha256']) == 2
+    apply_batch(folder, batch)
+    assert load(folder)[0]['routeCount'] == 2
+    with sqlite3.connect(folder / 'channel_inventory.sqlite3') as conn:
+        assert conn.execute('SELECT group_name,manual_category,revision FROM routes WHERE digest=?',
+                            (digest,)).fetchone() == ('国际 / 英国 / 电影',0,1)
+
+
 def test_concurrent_revision_change_aborts_without_publication(catalog):
     folder, _ = catalog
     m, _ = load(folder)

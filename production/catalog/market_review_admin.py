@@ -65,12 +65,17 @@ def build_batch(data_dir, channel_ids, *, authorization, allow_protected_shared=
             rows = conn.execute('SELECT r.* FROM routes r JOIN catalog_channel_routes m USING(digest) '
                                 'WHERE m.channel_id=? AND r.blocked=0 AND r.deleted=0', (identity,)).fetchall()
             digests = sorted(hashlib.sha256(r['url'].encode()).hexdigest() for r in channel['routes'])
-            if {r['digest'] for r in rows} != set(digests):
+            if not set(digests) <= {r['digest'] for r in rows}:
                 raise ValueError('market_review_route_set_changed')
+            inventory_fact = resolve_market({'routes': [{'url': r['url']} for r in rows]}, bindings)
+            if inventory_fact.get('market') != market['market']:
+                raise ValueError('market_review_unbound_inventory_route')
             reviews.append(dict(expectedIdentity={k: channel.get(k) for k in
                                   ('id', 'name', 'epgId', 'countryCode', 'regionCode')},
                                 routeSha256=digests,
+                                inventoryRouteSha256=sorted(r['digest'] for r in rows),
                                 expectedRevisions={r['digest']: r['revision'] for r in rows},
+                                expectedGroups={r['digest']: r['group_name'] for r in rows},
                                 expectedEntity=dict(entity),
                                 newCountryCode=market['market'], evidenceUrls=market['evidenceUrls'],
                                 allowProtectedShared=allow_protected_shared))
@@ -165,8 +170,10 @@ def apply_batch_locked(data_dir, batch, *, publisher=publish, now=None):
             rows = conn.execute('SELECT r.*,m.state AS match_state FROM routes r '
                                 'JOIN catalog_channel_routes m USING(digest) WHERE m.channel_id=? '
                                 'AND r.blocked=0 AND r.deleted=0', (target['id'],)).fetchall()
-            if {r['digest'] for r in rows} != hashes:
+            if {r['digest'] for r in rows} != set(review['inventoryRouteSha256']):
                 raise ValueError('market_review_inventory_members_changed')
+            if resolve_market({'routes': [{'url': r['url']} for r in rows]}, bindings).get('market') != market:
+                raise ValueError('market_review_inventory_market_changed')
             if any(r['revision'] != review['expectedRevisions'].get(r['digest'])
                    or r['match_state'] != 'assigned' or r['merge_id'] or r['transferred'] for r in rows):
                 raise ValueError('market_review_route_revision_or_ownership_changed')
@@ -187,7 +194,7 @@ def apply_batch_locked(data_dir, batch, *, publisher=publish, now=None):
                                       market, entity_metadata['regionCode'], True, rows[0]['url'])
             old_rows, new_rows = [], []
             for row in rows:
-                if row['group_name'] != entity['group_name']:
+                if row['group_name'] != review['expectedGroups'].get(row['digest']):
                     raise ValueError('market_review_route_group_changed')
                 old_rows.append({k: row[k] for k in ('digest', 'group_name', 'revision')})
                 conn.execute('UPDATE routes SET group_name=?,revision=revision+1 WHERE digest=? AND revision=?',

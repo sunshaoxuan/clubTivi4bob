@@ -124,3 +124,11 @@ def test_spanish_market_uses_its_classification_service_and_local_calendar():
         return json.dumps({'data':value['data'],'meta':{'pagination':{'page':1,'count':1,'total_pages':1}}}).encode(),{}
     body,receipt=r.fetch_schedule(source,NOW,fetch)
     assert receipt['channelsFetched']==1 and receipt['marketCode']=='es'
+
+
+def test_episode_identity_is_retained_without_fabricating_a_movie():
+    value=payload();event=value['data'][0]['live_programs'][0]
+    event.update(movie_id=None,episode_id='fixture-show-1-6',season_id='fixture-show-1',subtitle='S1:E6 Fixture')
+    record=parse(value)['programmes'][0]
+    assert record['movieId'] is None and record['episodeId']=='fixture-show-1-6'
+    assert record['seasonId']=='fixture-show-1' and record['episodeLabel']=='S1:E6 Fixture'

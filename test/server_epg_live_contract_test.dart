@@ -165,6 +165,8 @@ void main() {
             'channel-a5b2b5ae71973b25108d979e': 6093,
             'channel-26df487b6d80f30294ed3fba': 6181,
             'channel-bed6cfd0cd28aa6973ad95dd': 6203,
+            'channel-5fa4c5b9814b3e1342bd61ca': 6433,
+            'channel-5653256b79094369378318ec': 6233,
           };
           for (final target in targets.cast<Map>()) {
             final channel = target['channel'] as Map;
@@ -176,6 +178,11 @@ void main() {
             expect(programme!['serviceId'], serviceId);
             expect(programme['catalogChannelId'], channel['id']);
             expect(programme['sourceEventId'], isNotNull);
+            if (serviceId == 6233) {
+              expect(programme['movieId'], isNull);
+              expect(programme['episodeId'], isNotNull);
+              expect(programme['seasonId'], isNotNull);
+            }
           }
           expect(
             await lookup.forSource('https://private.example/secret'),

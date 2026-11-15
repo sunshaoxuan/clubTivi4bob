@@ -146,6 +146,35 @@ void main() {
           ?.read<String>('manifest');
 
   test(
+    'episode provenance survives import and changes subtitle identity',
+    () async {
+      final programmes = api.payload!['programmes'] as List;
+      for (final programme in programmes) {
+        programme['provenance'] = {
+          'sourceEventId': 'episode-event',
+          'episodeId': 'series-1-6',
+          'seasonId': 'series-1',
+          'episodeLabel': 'S1:E6 Episode six',
+        };
+      }
+      expect(await service.check(), isTrue);
+      final rows = await database
+          .customSelect('SELECT metadata FROM server_epg_programme_identities')
+          .get();
+      expect(rows, hasLength(3));
+      for (final row in rows) {
+        final metadata = jsonDecode(row.read<String>('metadata')) as Map;
+        expect(metadata['movieId'], isNull);
+        expect(metadata['episodeId'], 'series-1-6');
+        expect(metadata['seasonId'], 'series-1');
+        expect(metadata['episodeLabel'], 'S1:E6 Episode six');
+        expect(metadata['key'], endsWith(':series-1-6'));
+        expect(metadata['clockIsSubtitleOffset'], isFalse);
+      }
+    },
+  );
+
+  test(
     'existing EPG installation backfills programme identities exactly once',
     () async {
       expect(await service.check(), isTrue);

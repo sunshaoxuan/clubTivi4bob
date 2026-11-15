@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "policyVersion": "broadcast-edition-market-v1",
-  "reviewedAt": "2026-11-15T16:01:37.151603+00:00",
+  "reviewedAt": "2026-11-15T16:59:32.417861+00:00",
   "bindings": [
     {
       "provider": "rakuten-tv",
@@ -113,6 +113,20 @@
         "https://family-rakuten-tv-uk.fast.rakuten.tv/v1/manifest/0547f18649bd788bec7b67b746e47670f558b6b2/production-LiveChannel-6203/0426b7a3-6dd5-4a24-ac4c-22227a2b2f9d/4.m3u8"
       ],
       "programmeRouteProofSha256": "2d5b19c68eaef25cae3974d53892001b7cf3e394fa79d826357867c18a19399f"
+    },
+    {
+      "provider": "rakuten-tv",
+      "host": "reality-rakuten-tv-uk.fast.rakuten.tv",
+      "serviceId": "6233",
+      "market": "GB",
+      "officialMarketParameter": "uk",
+      "officialSlug": "reality-rakuten-tv",
+      "matchingEnabled": true,
+      "evidenceUrls": [
+        "https://gizmo.rakuten.tv/v3/live_channels/reality-rakuten-tv",
+        "https://reality-rakuten-tv-uk.fast.rakuten.tv/v1/manifest/0547f18649bd788bec7b67b746e47670f558b6b2/production-LiveChannel-6233/228208ef-d17f-4825-a278-eccf505de378/4.m3u8"
+      ],
+      "programmeRouteProofSha256": "2ce66e357b1e0f5fdb6c33c215036671a369d69233af4029ca82293810792649"
     }
   ],
   "excludedEvidence": [

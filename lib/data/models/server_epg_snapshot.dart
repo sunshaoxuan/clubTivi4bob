@@ -252,14 +252,22 @@ Future<ServerEpgSnapshot> decodeServerEpg(Map<String, Object> message) async {
       'sourceEventId',
       RegExp(r'^[A-Za-z0-9_.:-]{1,128}$'),
     );
+    final movieId = factualId('movieId', RegExp(r'^[a-z0-9-]{1,200}$'));
+    final episodeId = factualId('episodeId', RegExp(r'^[a-z0-9-]{1,200}$'));
+    final episodeLabel = provenance['episodeLabel'];
     programmeIdentities.add({
       'key':
-          '${item['sourceId']}:${item['originalChannelId']}:${event ?? start}:$stop',
+          '${item['sourceId']}:${item['originalChannelId']}:${event ?? start}:$stop:${movieId ?? episodeId ?? '-'}',
       'catalogChannelId': item['channelId'],
       'programmeSourceId': item['sourceId'],
       'originalChannelId': item['originalChannelId'],
       'sourceEventId': event,
-      'movieId': factualId('movieId', RegExp(r'^[a-z0-9-]{1,200}$')),
+      'movieId': movieId,
+      'episodeId': episodeId,
+      'seasonId': factualId('seasonId', RegExp(r'^[a-z0-9-]{1,200}$')),
+      'episodeLabel': episodeLabel is String && episodeLabel.length <= 512
+          ? episodeLabel
+          : null,
       'marketCode': factualId('marketCode', RegExp(r'^[a-z]{2}$')),
       'serviceId': provenance['serviceId'] is int
           ? provenance['serviceId']

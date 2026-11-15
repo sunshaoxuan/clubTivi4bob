@@ -4,7 +4,7 @@ from pathlib import Path
 
 
 def main():
-    parser=argparse.ArgumentParser();parser.add_argument('--source-id',required=True);parser.add_argument('--proof',type=Path,required=True);parser.add_argument('--output',type=Path,required=True);parser.add_argument('--validate-only',action='store_true');a=parser.parse_args()
+    parser=argparse.ArgumentParser();parser.add_argument('--source-id',required=True);parser.add_argument('--proof',type=Path,required=True);parser.add_argument('--output',type=Path,required=True);parser.add_argument('--validate-only',action='store_true');parser.add_argument('--review-market',action='store_true');a=parser.parse_args()
     from catalog_inventory import DATA
     from epg_ingest import registry,database,probe_batch
     from epg_rakuten import fetch_schedule,parse_schedule
@@ -16,6 +16,16 @@ def main():
     source=next(s for s in registry() if s['id']==a.source_id);assert source['format']=='rakuten-json'
     assert proof['marketCode']==source['marketCode'] and proof['hasMediaSegments']
     a.output.mkdir(parents=True,exist_ok=True)
+    if a.review_market:
+        import market_review_admin as market
+        with market.catalog_lock(root):
+            _,_,catalog=market._load_catalog(root)
+            target=next(c for c in catalog['channels'] if c['id']==proof['channelId'])
+            assert target['countryCode'] in (proof.get('expectedPreviousCountryCode'),source['countryCode'])
+            if target['countryCode']!=source['countryCode']:
+                batch=market.build_batch(root,[target['id']],authorization='User requested verified EPG integration and evidence-based market correction 2026-11-16',allow_protected_shared=True)
+                reviewed=market.apply_batch_locked(root,batch)
+                (a.output/'classification-receipt.json').write_text(json.dumps(reviewed,ensure_ascii=False,indent=2))
     with (directory/'worker.lock').open('a') as lock:
         fcntl.flock(lock,fcntl.LOCK_EX)
         conn=database(directory);discovery.migrate(conn);store.migrate(conn)
@@ -30,8 +40,9 @@ def main():
         assert parsed['identityContexts'][original]['channelSlug']==proof['officialSlug']
         assert any(p['originalChannelId']==original and p['startUtc']<=now<p['endUtc'] for p in parsed['programmes'])
         probe_batch(directory,[source],now,lambda _:(body,receipt))
-        store.approve_data_use(conn,source['id'],source_url=source['url'],evidence_url=source['dataLicense']['evidenceUrl'],
-            data_license='Rakuten TV factual schedule metadata; operator-authorized scope',programme_data_permission=True,now=now)
+        if store.reviewed_data_use(conn,source['id']) is None:
+            store.approve_data_use(conn,source['id'],source_url=source['url'],evidence_url=source['dataLicense']['evidenceUrl'],
+                data_license='Rakuten TV factual schedule metadata; operator-authorized scope',programme_data_permission=True,now=now)
         evidence={'evidenceUrl':source['dataLicense']['evidenceUrl'],'countryCode':channel['countryCode'],
             'regionCode':channel.get('regionCode'),'sourceCountryCode':source['countryCode'],'sourceRegionCode':None,
             'sameChannelAndDelayVersion':True,'providerMarketCode':source['marketCode'],'providerServiceId':proof['serviceId'],
@@ -42,15 +53,17 @@ def main():
         health=conn.execute('SELECT * FROM source_health WHERE id=?',(source['id'],)).fetchone()
         cached=conn.execute('SELECT * FROM epg_source_payloads WHERE source_id=?',(source['id'],)).fetchone();fetched_at=now
         if health['content_sha256']!=hashlib.sha256(body).hexdigest() or health['last_success']!=now:
-            if cached:
-                body=(directory/'payload-cache'/cached['file_name']).read_bytes();fetched_at=cached['fetched_at']
+            previous_body=(directory/'payload-cache'/cached['file_name']).read_bytes() if cached else None
+            enrichment=previous_body is not None and json.loads(body)['bobtvRequest'].get('projectionVersion',1)>json.loads(previous_body)['bobtvRequest'].get('projectionVersion',1)
+            if cached and not enrichment:
+                body=previous_body;fetched_at=cached['fetched_at']
                 assert hashlib.sha256(body).hexdigest()==cached['sha256']==health['content_sha256']
             else:
                 assert health['state']=='healthy' and health['last_error'] is None
                 with conn:
                     conn.execute('UPDATE source_health SET next_retry=? WHERE id=?',(now,source['id']))
                     conn.execute('INSERT INTO probe_audit(source_id,checked_at,state,error_code) VALUES(?,?,?,?)',
-                        (source['id'],now,'mapping_bootstrap_refresh','healthy_source_new_mapping_without_payload'))
+                        (source['id'],now,'contract_enrichment_refresh' if enrichment else 'mapping_bootstrap_refresh','healthy_source_factual_projection_enriched' if enrichment else 'healthy_source_new_mapping_without_payload'))
                 probe_batch(directory,[source],now,lambda _:(body,receipt))
         assert store.cache_validated_payload(conn,directory,source['id'],body,fetched_at)
         ingestion=store.ingest_batch(conn,source['id'],body,[channel['id']],fetched_at=fetched_at,now=now)
@@ -66,7 +79,9 @@ def main():
         conn.close()
     publication=publish(directory);conn=database(directory);finished=int(time.time());after=capture(conn,directory,finished)
     assert after['publishedIds'] is not None and channel['id'] in after['publishedIds'],publication
-    audit=record(conn,directory,now,now=finished,kind='verified_provider_activation')
+    audit=record(conn,directory,now,now=finished,kind='verified_provider_activation',execution={
+        'sourceCheckAttempts':receipt['pagesFetched'],'sourceBodiesRead':receipt['pagesFetched'],
+        'programmeResponsesRead':receipt['pagesFetched']})
     result={'sourceId':source['id'],'sourceReceipt':receipt,'sourceQuality':parsed['quality'],'coverageBefore':before['coverage'],
         'coverageAfter':after['coverage'],'actuallyAddedChannelIds':sorted(set(after['publishedIds'])-set(before['publishedIds'])),
         'ingestion':ingestion,'publication':publication,'round':audit,'unrelatedMappingApprovalsUnchanged':True}

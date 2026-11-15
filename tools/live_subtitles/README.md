@@ -91,6 +91,7 @@ Private/custom sources are never uploaded by a fuzzy name match.
 
 POST `sessions` additionally carries `programme` with `key`, `catalogChannelId`,
 `programmeSourceId`, `originalChannelId`, `sourceEventId`, optional `movieId`,
+`episodeId`, `seasonId` and factual `episodeLabel`,
 `marketCode`, `serviceId`, `title`, `startUtc`, `stopUtc`, and
 `clockIsSubtitleOffset:false`. These are discovery hints, never an acoustic
 anchor. A service that accepts the context must echo the exact `programmeKey`
@@ -110,3 +111,5 @@ Native subtitle selection is integrated; downloaded subtitle discovery, live
 speech acquisition and acoustic re-alignment still need a production producer.
 The local replay fixture and unit/widget checks do not establish fresh live-ad
 or seven-platform physical acceptance.
+
+Episode programmes retain their official episode identity without inventing a movie ID. The context key includes the movie or episode ID, so newly enriched programme facts invalidate an older acquisition session. EPG clock values identify a programme slot; they never establish a subtitle offset across inserted advertising.

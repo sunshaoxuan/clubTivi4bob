@@ -113,7 +113,7 @@ def fetch_schedule(source, now, fetcher=fetch_page):
                 projected = {key: row[key] for key in ('id','numerical_id','title','content_aggregator_id') if key in row}
                 if 'live_programs' in row:
                     projected['live_programs'] = [{key: event[key] for key in
-                        ('id','title','starts_at','ends_at','movie_id','is_live') if key in event}
+                        ('id','title','starts_at','ends_at','movie_id','episode_id','season_id','subtitle','is_live') if key in event}
                         for event in row['live_programs']]
                 channels.append(projected)
         except (ValueError, KeyError, TypeError):
@@ -127,12 +127,12 @@ def fetch_schedule(source, now, fetcher=fetch_page):
     if not any(row.get('id') == anchor[0] and row['numerical_id'] == anchor[1] for row in channels):
         raise EpgError('rakuten_market_identity_mismatch')
     payload = json.dumps({'data': channels, 'bobtvRequest': {'marketCode': market,
-        'startsAt': start, 'endsAt': end, 'pages': receipts}}, ensure_ascii=False).encode()
+        'startsAt': start, 'endsAt': end, 'pages': receipts,'projectionVersion':2}}, ensure_ascii=False).encode()
     if len(payload) > 8 * 1024 * 1024:
         raise EpgError('rakuten_payload_limit')
     return payload, {'sourceUrl': API, 'marketCode': market, 'windowStart': start,
         'windowEnd': end, 'pagesFetched': total_pages, 'channelsFetched': len(channels),
-        'fetchedAtUtc': now, 'requestReceipts': receipts}
+        'fetchedAtUtc': now, 'requestReceipts': receipts,'projectionVersion':2}
 
 
 def timestamp(value):
@@ -190,9 +190,18 @@ def parse_schedule(payload, source, now):
                 if movie is not None and (not isinstance(movie, str)
                         or not re.fullmatch(r'[a-z0-9-]{1,200}', movie)):
                     raise EpgError('rakuten_invalid_movie_id')
+                episode, season = event.get('episode_id'), event.get('season_id')
+                for identity in (episode,season):
+                    if identity is not None and (not isinstance(identity,str)
+                            or not re.fullmatch(r'[a-z0-9-]{1,200}',identity)):
+                        raise EpgError('rakuten_invalid_episode_id')
+                label=event.get('subtitle')
+                if label is not None and (not isinstance(label,str) or len(label)>512):
+                    raise EpgError('rakuten_invalid_episode_label')
                 programme = {'originalChannelId': original_id, 'title': title.strip(),
                     'startUtc': start, 'endUtc': end, 'endDerived': False,
                     'sourceEventId': event_id, 'movieId': movie,
+                    'episodeId':episode,'seasonId':season,'episodeLabel':label,
                     'sourceIsLive': event.get('is_live'), 'marketCode': market,
                     'serviceId': service, 'channelSlug': slug,
                     'sourceTimestampEncoding': 'iso8601_explicit_offset',

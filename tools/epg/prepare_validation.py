@@ -11,11 +11,6 @@ for source in (ROOT/'website').glob('*.json'):
     shutil.copy2(source, folder/source.name)
 shutil.copytree(ROOT/'website/deploy', folder/'deploy')
 shutil.copytree(ROOT/'website/tests', folder/'tests', ignore=shutil.ignore_patterns('__pycache__'))
-for source in (ROOT/'production/epg').glob('*.py'):
-    shutil.copy2(source, folder/source.name)
-shutil.copy2(ROOT/'production/epg/epg_sources.json', folder/'epg_sources.json')
-for source in (ROOT/'production/epg/tests').glob('test_*.py'):
-    shutil.copy2(source, folder/'tests'/source.name)
 (folder/'assets').mkdir(exist_ok=True)
 (folder/'templates').mkdir(exist_ok=True)
 shutil.copytree(ROOT/'test/fixtures', folder.parent/'test/fixtures', dirs_exist_ok=True)

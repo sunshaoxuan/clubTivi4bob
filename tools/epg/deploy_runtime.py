@@ -65,8 +65,8 @@ def main():
     with tempfile.TemporaryDirectory() as d:
         d=Path(d);(d/'deployment.json').write_text(json.dumps(meta))
         with tarfile.open(d/'runtime.tar.gz','w:gz') as t:
-            for n in FILES:t.add(ROOT/'production/epg'/n,arcname=n)
-            t.add(ROOT/'production/epg/deploy/20-channel-first.conf',arcname='20-channel-first.conf');t.add(d/'deployment.json',arcname='deployment.json')
+            for n in FILES:t.add(ROOT/'website'/n,arcname=n)
+            t.add(ROOT/'website/deploy/bobtv-epg-source-discovery.service.d/20-channel-first.conf',arcname='20-channel-first.conf');t.add(d/'deployment.json',arcname='deployment.json')
         subprocess.run(['scp','-q','-i',a.ssh_key,str(d/'runtime.tar.gz'),a.host+':/tmp/bobtv-epg-runtime.tar.gz'],check=True)
     subprocess.run(['ssh','-i',a.ssh_key,'-o','BatchMode=yes',a.host,'python3','-'],input=REMOTE,text=True,check=True)
 if __name__=='__main__':main()

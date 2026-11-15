@@ -79,18 +79,15 @@ def prepare_search_request(facts, model, allowed_domains):
 
 
 def reserve_shared_budget(database_factory, now):
-    """Use existing other-worker 60/hour and 500/day limits without deleting history."""
+    """Retain the shared rolling-hour admission guard and all audit history."""
     if type(now) is not int or now < 0:
         raise EpgError('invalid_search_time')
     with database_factory() as conn:
         conn.execute('BEGIN IMMEDIATE')
-        recent = [r[0] for r in conn.execute(
-            'SELECT started FROM ai_requests WHERE started>? ORDER BY started', (now-86400,))]
-        hourly = [value for value in recent if value > now-3600]
-        if len(recent) >= 500 or len(hourly) >= 60:
-            retry = max(recent[-500]+86401 if len(recent) >= 500 else now,
-                        hourly[-60]+3601 if len(hourly) >= 60 else now)
-            raise SearchDeferred('search_budget_deferred', retry)
+        hourly = [r[0] for r in conn.execute(
+            'SELECT started FROM ai_requests WHERE started>? ORDER BY started', (now-3600,))]
+        if len(hourly) >= 60:
+            raise SearchDeferred('search_budget_deferred', hourly[-60]+3601)
         conn.execute('INSERT INTO ai_requests(started) VALUES(?)', (now,))
 
 

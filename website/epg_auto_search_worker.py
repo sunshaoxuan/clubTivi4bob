@@ -174,18 +174,22 @@ def choose(conn, manifest, channels, paths, protected, now, handled):
     ranks = {r['channel_id']: 10 * (research_priority(by_id[r['channel_id']], paths[r['channel_id']]) // 10)
              + r['priority'] % 10
              for r in eligible}
-    eligible.sort(key=lambda r: (r['channel_id'] not in recovering, ranks[r['channel_id']] // 10,
+    fairness = read_checkpoint(conn, 'channel_search_fairness')
+    country_turns = fairness.get('countryLastClaim', {})
+    eligible.sort(key=lambda r: (r['channel_id'] not in recovering,
+        country_turns.get(by_id[r['channel_id']].get('countryCode') or '__unknown__', -1), ranks[r['channel_id']] // 10,
         0 if r['identity_evidence'] is not None else 1, ranks[r['channel_id']],
         broadcast_rank(by_id[r['channel_id']], paths[r['channel_id']]),
         r['next_retry'], r['channel_id']))
     row = next(iter(eligible), None)
-    if row:
+    fair = read_checkpoint(conn, 'channel_search_fairness').get('claims', 0)
+    if row and (row['channel_id'] in recovering or fair % 2 == 0):
         return row
     known = {r[0] for r in conn.execute('SELECT channel_id FROM epg_channel_research_jobs')}
-    channel = next((c for c in sorted(channels, key=lambda c: (research_priority(c, paths[c['id']]), broadcast_rank(c, paths[c['id']]), c['id']))
+    channel = next((c for c in sorted(channels, key=lambda c: (country_turns.get(c.get('countryCode') or '__unknown__', -1), research_priority(c, paths[c['id']]), broadcast_rank(c, paths[c['id']]), c['id']))
                     if c['id'] not in known and c['id'] not in protected and c['id'] not in handled), None)
     if channel is None:
-        return None
+        return row
     # Admit a single real public target, never a bulk provider/source scan.
     queue.enqueue(conn, channel, manifest['version'], paths[channel['id']], now)
     return conn.execute('SELECT * FROM epg_channel_research_jobs WHERE channel_id=?', (channel['id'],)).fetchone()
@@ -239,6 +243,12 @@ def claim_target(conn, expected, now, *, admit=None):
             return None
         row = conn.execute('SELECT * FROM epg_channel_research_jobs WHERE channel_id=?', (expected['channel_id'],)).fetchone()
         queue._audit(conn, row, now, 'channel_auto_search_claimed', {'networkRequests': 0, 'nextRetryAt': row['next_retry']})
+        fairness = read_checkpoint(conn, 'channel_search_fairness')
+        fairness['claims'] = int(fairness.get('claims', 0)) + 1
+        country = json.loads(row['payload']).get('countryCode') or '__unknown__'
+        fairness.setdefault('countryLastClaim', {})[country] = fairness['claims']
+        conn.execute('INSERT OR REPLACE INTO epg_checkpoints VALUES(?,?)',
+                     ('channel_search_fairness', queue.encoded(fairness)))
         conn.commit()
         return dict(row)
     except BaseException:
@@ -259,7 +269,11 @@ def checked_candidates(conn, evidence, request, now, checker):
                 'reason': 'candidate_phase_or_access_policy_rejected'})
             continue
         cached = conn.execute('SELECT checked_at,result FROM epg_research_http_cache WHERE url=?', (url,)).fetchone()
-        if cached and now - cached[0] < 21600:
+        cached_value = json.loads(cached[1]) if cached else {}
+        old_head = (request['stage'] != 'identity' and cached_value.get('httpStatus') == 200
+                    and cached_value.get('bodyBytes') == 0
+                    and cached_value.get('contentInspectionVersion', 0) < 2)
+        if cached and now - cached[0] < 21600 and not old_head:
             check = json.loads(cached[1])
             # A shared page is not downloaded again for a different target;
             # target-specific snippets from the first check are not reused.
@@ -367,6 +381,14 @@ def run(conn, manifest, channels, paths, settings_factory, shared_database, *, m
         'newGrants': 0, 'newProgrammeRows': 0, 'published': False}
     result['lockedMappingRecovery'] = recovery.sync(conn, manifest, channels, paths, now)
     by_id, protected = sync_known(conn, manifest, channels, paths, now)
+    known_ids = {r[0] for r in conn.execute('SELECT channel_id FROM epg_channel_research_jobs')}
+    result['catalogScope'] = {'catalogChannels': len(channels),
+        'reviewedMappingsProtected': len(protected),
+        'researchQueuedChannels': len((set(by_id) & known_ids) - protected),
+        'notYetAdmittedChannels': len(set(by_id) - known_ids - protected),
+        'pendingStates': {r[0]: r[1] for r in conn.execute(
+            'SELECT state,count(*) FROM epg_channel_research_jobs WHERE active=1 GROUP BY state')},
+        'policy': 'all_public_catalog_channels; country_rotation; alternate_new_and_due; no_daily_request_cap'}
     result['cachedIdentityEvidenceRecovery'] = review.recover_one_cached_identity(conn, now, protected)
     result['identityEvidencePacketsStaged'] += result['cachedIdentityEvidenceRecovery']['recoveredChannels']
     # Public source checks need no AI request and must not stop just because
@@ -377,6 +399,15 @@ def run(conn, manifest, channels, paths, settings_factory, shared_database, *, m
     # Opt-in exact-route metadata is separate from model admission. It only
     # observes the selected target and cannot grant identity or EPG rights.
     pause = read_checkpoint(conn, CONTROL)
+    policy = read_checkpoint(conn, 'search_admission_policy_v2')
+    if not policy and pause.get('safeError') == 'search_budget_deferred' and not pause.get('requiresManualAction'):
+        pause = {**pause, 'retryAtUtc': 0, 'dailyCapRemoved': True}
+        with conn:
+            conn.execute('INSERT OR REPLACE INTO epg_checkpoints VALUES(?,?)', (CONTROL, queue.encoded(pause)))
+    if not policy:
+        with conn:
+            conn.execute('INSERT OR REPLACE INTO epg_checkpoints VALUES(?,?)',
+                ('search_admission_policy_v2', queue.encoded({'installedAtUtc': now, 'dailyLimit': None, 'hourlyLimit': 60})))
     metadata_requests = 0
     if route_directory_checker is not None and not pause.get('requiresManualAction'):
         checked_targets = route_directory_due(conn, now, channels, paths) if route_directory_due is not None else set()

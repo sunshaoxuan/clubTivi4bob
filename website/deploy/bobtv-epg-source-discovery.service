@@ -9,7 +9,7 @@ User=bobtv
 Group=bobtv
 WorkingDirectory=/opt/bobtv/site
 Environment=BOBTV_DATA_DIR=/var/lib/bobtv
-ExecStart=/opt/bobtv/venv/bin/python /opt/bobtv/site/epg_auto_search_worker.py --max-channels 3
+ExecStart=/opt/bobtv/venv/bin/python /opt/bobtv/site/epg_auto_search_worker.py --max-channels 5
 TimeoutStartSec=180
 MemoryMax=384M
 CPUQuota=15%

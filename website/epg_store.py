@@ -213,6 +213,10 @@ def _approved(conn, channel_id):
     # any raw cache handoff, programme ingestion or new public snapshot.
     if reviewed_data_use(conn, row['source_id']) is None:
         raise EpgError('current_data_use_review_required')
+    context = _source_context(row)
+    if context.get('provider') == 'rakuten-tv':
+        from epg_rakuten import verify_current_catalogue_route
+        verify_current_catalogue_route(channel_id, context, json.loads(row['evidence']))
     return row
 
 

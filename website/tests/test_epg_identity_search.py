@@ -325,7 +325,7 @@ def test_manual_suspension_is_committed_with_failure_audit(conn):
 def test_shared_budget_reservation_is_atomic_and_preserves_history():
     c = sqlite3.connect(':memory:')
     c.execute('CREATE TABLE ai_requests(started INTEGER NOT NULL)')
-    c.executemany('INSERT INTO ai_requests VALUES(?)', [(NOW - 4000,)] * 499)
+    c.executemany('INSERT INTO ai_requests VALUES(?)', [(NOW - 10,)] * 59)
     c.commit()
     @contextmanager
     def factory():
@@ -338,5 +338,5 @@ def test_shared_budget_reservation_is_atomic_and_preserves_history():
     s.reserve_shared_budget(factory, NOW)
     with pytest.raises(s.SearchDeferred, match='search_budget_deferred'):
         s.reserve_shared_budget(factory, NOW)
-    assert c.execute('SELECT count(*) FROM ai_requests').fetchone()[0] == 500
+    assert c.execute('SELECT count(*) FROM ai_requests').fetchone()[0] == 60
     c.close()

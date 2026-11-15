@@ -222,7 +222,7 @@ def test_missing_and_cyclic_categories_fail_closed(tmp_path,parent):
 
 def test_persistent_service_entry_point_has_no_legacy_country_discovery():
     unit=(Path(__file__).parents[1]/'deploy/bobtv-epg-source-discovery.service').read_text()
-    assert '/epg_auto_search_worker.py --max-channels 3' in unit
+    assert '/epg_auto_search_worker.py --max-channels 5' in unit
     assert '--preferred-channel' not in unit
     assert '/epg_source_discovery.py' not in unit
 

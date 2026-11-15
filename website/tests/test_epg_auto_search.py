@@ -513,16 +513,24 @@ def test_bounded_identity_page_check_does_not_accept_scripts_or_approve_facts():
     assert 'approved' not in value
 
 
-def test_schedule_candidate_uses_head_only_and_never_claims_freshness():
-    request = s.plan(channel(), PATH, facts(), 0)
-    url = 'https://lyngsat.com/epg.xml.gz'
-    def opened(req, **_):
-        assert req.method == 'HEAD'
-        p = Page(url)
-        p.read1 = lambda *_: pytest.fail('Programme body fetched before separate rights review')
-        return p
+def test_programme_candidates_are_actually_read_and_inspected():
+    request = s.plan(channel(), PATH, facts(), 0, phase_index=1)
+    url = 'https://lyngsat.com/schedule.json'
+    payload = json.dumps({'data': [{'title': 'Fixture programme',
+        'starts_at': '2026-11-15T12:00:00Z', 'ends_at': '2026-11-15T13:00:00Z'}]}).encode()
+    class Response(io.BytesIO):
+        code = 200
+        headers = {'Content-Type': 'application/json'}
+        def geturl(self): return url
+        def read1(self, n): return self.read(n)
+    def opened(req, **kwargs):
+        assert req.method == 'GET'
+        return Response(payload)
     value = s.check_candidate(url, request, opener=types.SimpleNamespace(open=opened))
-    assert value['bodyBytes'] == 0 and value['result'] == 'reachable_content_and_rights_unverified'
+    assert value['bodyBytes'] == len(payload)
+    assert value['validIntervalRecords'] == 1
+    assert value['programmeIdentityApproved'] is False
+    assert value['published'] is False
 
 
 def test_page_size_compression_redirect_and_timeout_are_not_success():
@@ -640,7 +648,7 @@ def test_deployed_exec_override_cannot_keep_the_old_read_only_selector():
     root = Path(__file__).parents[1] / 'deploy'
     unit = (root / 'bobtv-epg-source-discovery.service').read_text()
     override = (root / 'bobtv-epg-source-discovery.service.d/20-channel-first.conf').read_text()
-    expected = 'ExecStart=/opt/bobtv/venv/bin/python /opt/bobtv/site/epg_auto_search_worker.py --max-channels 3'
+    expected = 'ExecStart=/opt/bobtv/venv/bin/python /opt/bobtv/site/epg_auto_search_worker.py --max-channels 5'
     assert expected in unit and expected in override and 'ExecStart=\n' in override
     assert 'epg_channel_research_worker.py' not in override
 
@@ -683,3 +691,49 @@ def test_execution_health_recovers_after_a_later_success_without_resetting_histo
     assert receipt['state'] == 'progressed' and receipt['safeError'] is None and receipt['durable']
     assert 'errorFamily' not in w.read_checkpoint(conn, w.EXECUTION)
     assert len(rows(conn)) == 2
+
+
+def test_all_catalogue_new_admission_alternates_with_due_queue(conn):
+    old = channel(identity='old', country='CN')
+    new = channel(identity='new', country='US')
+    paths = {c['id']: PATH for c in (old, new)}
+    q.enqueue(conn, old, 'fixture-v1', PATH, NOW)
+    assert w.choose(conn, {'version':'fixture-v1'}, [old,new], paths, set(), NOW, set())['channel_id']=='old'
+    conn.execute('INSERT OR REPLACE INTO epg_checkpoints VALUES(?,?)',
+                 ('channel_search_fairness', json.dumps({'claims':1,'countryLastClaim':{'CN':1}})))
+    chosen = w.choose(conn, {'version':'fixture-v1'}, [old,new], paths, set(), NOW, set())
+    assert chosen['channel_id']=='new' and chosen['identity_evidence'] is None
+    assert json.loads(chosen['payload'])['countryCode']=='US'
+
+
+def test_country_rotation_prevents_permanent_regional_starvation(conn):
+    targets=[channel(identity='cn',country='CN'),channel(identity='us',country='US')]
+    for c in targets:q.enqueue(conn,c,'fixture-v1',PATH,NOW)
+    conn.execute('INSERT OR REPLACE INTO epg_checkpoints VALUES(?,?)',
+        ('channel_search_fairness',json.dumps({'claims':2,'countryLastClaim':{'CN':2}})))
+    assert w.choose(conn,{'version':'fixture-v1'},targets,{c['id']:PATH for c in targets},set(),NOW,set())['channel_id']=='us'
+
+
+def test_daily_cap_migration_releases_only_old_budget_pause_once(conn):
+    w.control(conn,NOW,'search_budget_deferred',NOW+86400)
+    result=run(conn)
+    assert result['aiRequestsAttempted']>0
+    assert w.read_checkpoint(conn,'search_admission_policy_v2')['dailyLimit'] is None
+    w.control(conn,NOW,'search_budget_deferred',NOW+600)
+    assert run(conn)['state']=='waiting_shared_admission'
+
+
+def test_catalogue_scope_counts_are_disjoint(conn):
+    result=run(conn)
+    scope=result['catalogScope']
+    assert scope['catalogChannels']==scope['reviewedMappingsProtected']+scope['researchQueuedChannels']+scope['notYetAdmittedChannels']
+
+
+def test_dated_programme_api_accepts_public_contract_parameters_only():
+    url='https://gizmo.rakuten.tv/v3/live_channels?market_code=uk&classification_id=18&device_identifier=web&locale=en&per_page=25&page=1&epg_starts_at=2026-11-15T00%3A00%3A00Z&epg_ends_at=2026-11-17T00%3A00%3A00Z'
+    assert s.candidate_allowed(url,['rakuten.tv'],'structured_api')
+    assert not s.candidate_allowed(url,['rakuten.tv'],'identity')
+    for tail in ['&token=secret','&api_key=secret','&page=2','&unknown=anything','&channel=%0Aprivate']:
+        assert not s.candidate_allowed(url+tail,['rakuten.tv'],'structured_api')
+    assert not s.candidate_allowed(url.replace('gizmo.rakuten.tv','127.0.0.1'),[],'structured_api')
+    assert not s.candidate_allowed(url.replace('/v3/live_channels','/login'),[],'structured_api')

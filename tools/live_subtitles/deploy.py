@@ -8,7 +8,7 @@ import tempfile
 
 ROOT = Path(__file__).resolve().parents[2]
 FILES = ['live_media.py', 'subtitle_catalog.py', 'live_engine.py', 'service.py', 'test_live_service.py',
-         'bobtv-live-subtitles.service', 'bobtv-live-subtitles.conf']
+         'bobtv-live-subtitles.service', 'bobtv-live-subtitles.conf', 'requirements.txt']
 
 REMOTE = r'''
 import pathlib,tarfile,subprocess,pwd,os,shutil,json,time,hashlib,urllib.request
@@ -21,6 +21,17 @@ u=pwd.getpwnam('bobtv')
 for file in release.iterdir():file.chmod(0o644)
 release.chmod(0o755)
 data=pathlib.Path('/var/lib/bobtv/live-subtitles');data.mkdir(exist_ok=True);os.chown(data,u.pw_uid,u.pw_gid);data.chmod(0o700)
+preflight="""import av,tempfile,wave,importlib.metadata
+from pathlib import Path
+assert av.__version__=='15.1.0'
+assert importlib.metadata.version('faster-whisper')=='1.2.1'
+with tempfile.TemporaryDirectory() as d:
+ p=Path(d)/'silence.wav'
+ with wave.open(str(p),'wb') as w:
+  w.setnchannels(1);w.setsampwidth(2);w.setframerate(16000);w.writeframes(b'\\0'*64000)
+ with av.open(str(p),mode='r',metadata_errors='ignore') as c:assert c.streams.audio[0].sample_rate==16000
+"""
+subprocess.run(['/opt/bobtv/subtitles-venv/bin/python','-c',preflight],check=True)
 subprocess.run(['/opt/bobtv/subtitles-venv/bin/python','-m','unittest','discover','-s',str(release),'-p','test_live_service.py'],check=True)
 backup=base/'backups'/str(int(time.time()));backup.mkdir(parents=True)
 nginx=pathlib.Path('/etc/nginx/conf.d/bobtv.conf');original=nginx.read_bytes();(backup/'bobtv.conf').write_bytes(original)

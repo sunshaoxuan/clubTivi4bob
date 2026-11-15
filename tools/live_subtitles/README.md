@@ -127,7 +127,10 @@ most four clients sharing one live collector, retains a two-hour live-media wind
 and expires idle sessions. Runtime media, keys, transcripts and subtitle files
 are private cache material outside the repository. CPU is limited to 50% of one
 core and memory to 768 MiB. Dependencies and the existing tiny.en model are
-provisioned separately; no paid ASR API or API credential is needed.
+provisioned separately from requirements.txt; no paid ASR API or API credential is needed.
+PyAV is pinned to the tested 15.1.0 interface. System FFmpeg is preferred over
+the bundled static Linux build after an observed encrypted-HLS decoder crash.
+Deployment checks WAV decoding compatibility before switching the service.
 
 A movie CAID on an inserted asset is insufficient for caption release. The
 current movie `epid` and an acoustic lock establish the initial media mapping.

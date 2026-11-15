@@ -42,6 +42,10 @@ def provider_service(url):
     except ValueError:
         return None
     host = (p.hostname or '').lower()
+    if host == 'service-stitcher.clusters.pluto.tv':
+        from epg_pluto import route_id
+        identity = route_id(url)
+        return ('pluto-tv', host, identity) if identity else None
     # Delivery host parsing conveys no market authority. Every host/service
     # still requires an explicit reviewed registry binding below.
     if not (host.endswith('.fast.rakuten.tv') or re.fullmatch(

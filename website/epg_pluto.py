@@ -1,8 +1,8 @@
 """Exact Pluto channel IDs with explicit UTC programme windows.
 
 The generic channel listing may be empty while channel detail contains a full
-schedule when start/stop are supplied. Only reviewed German feed IDs are in
-this source. Other countries, names and query hints cannot approve a mapping.
+schedule when start/stop are supplied. Reviewed German, British and Spanish feed IDs have separate source scopes.
+Names and route query hints cannot approve a mapping.
 """
 from collections import Counter
 from datetime import datetime, timezone
@@ -23,10 +23,27 @@ CHANNELS = {
 }
 
 
+SCOPES = {
+    'pluto-de-official-v1': ('DE', 'Europe/Berlin', CHANNELS),
+    'pluto-de-comedy-official-v1': ('DE', 'Europe/Berlin', {'5d4947590ba40f75dc29c26b': 'comedy-central-pluto-tv-de'}),
+    'pluto-gb-official-v1': ('GB', 'Europe/London', {'5cb6f6f9a461406ffe4022cf': 'the-fbi-files-gb'}),
+    'pluto-es-official-v1': ('ES', 'Europe/Madrid', {'5f1aca8310a30e00074fab92': 'los-asesinatos-de-midsomer-es'}),
+}
+ALL_CHANNELS = {identity:(country,slug) for country,_,channels in SCOPES.values() for identity,slug in channels.items()}
+
+
+def scope(source):
+    from epg_ingest import EpgError
+    value=SCOPES.get(source.get('id','pluto-de-official-v1'))
+    if value is None:raise EpgError('unreviewed_pluto_source_scope')
+    return value
+
+
 def validate_source(source):
     from epg_ingest import EpgError
-    if (source.get('url') != API or source.get('countryCode') != 'DE'
-            or source.get('calendarTimezone') != 'Europe/Berlin'
+    country,zone,_=scope(source)
+    if (source.get('url') != API or source.get('countryCode') != country
+            or source.get('calendarTimezone') != zone
             or source.get('redirectUrls') or source.get('redirectPolicy')):
         raise EpgError('invalid_pluto_source_contract')
 
@@ -63,8 +80,9 @@ def fetch_schedule(source, now, fetcher=None):
             return raw
     stamp=lambda seconds:datetime.fromtimestamp(seconds,timezone.utc).isoformat(timespec='milliseconds').replace('+00:00','Z')
     start=now//3600*3600-3600;stop=now//3600*3600+13*3600
+    country,_,channels=scope(source)
     records=[];receipts=[]
-    for identity,slug in CHANNELS.items():
+    for identity,slug in channels.items():
         url=API+'/'+identity+'?'+urlencode({'start':stamp(start),'stop':stamp(stop)})
         raw=fetcher(url)
         try:
@@ -78,17 +96,17 @@ def fetch_schedule(source, now, fetcher=None):
             records.append(projected)
         except (ValueError,KeyError,TypeError):raise EpgError('pluto_invalid_json_contract') from None
         receipts.append({'url':url,'sha256':hashlib.sha256(raw).hexdigest()})
-    payload=json.dumps({'market':'DE','data':records},ensure_ascii=False).encode()
+    payload=json.dumps({'market':country,'data':records},ensure_ascii=False).encode()
     return payload,{'sourceUrl':API,'fetchedAtUtc':now,'pagesFetched':len(receipts),'requestReceipts':receipts,
                     'windowStart':stamp(start),'windowEnd':stamp(stop)}
 
 
 def parse_schedule(payload,source,now):
     from epg_ingest import EpgError
-    validate_source(source)
+    validate_source(source);country,_,selected=scope(source)
     try:
         value=json.loads(payload)
-        if value['market']!='DE' or {r['_id'] for r in value['data']}!=set(CHANNELS) or len(value['data'])!=len(CHANNELS):raise ValueError()
+        if value['market']!=country or {r['_id'] for r in value['data']}!=set(selected) or len(value['data'])!=len(selected):raise ValueError()
     except (ValueError,TypeError,KeyError):raise EpgError('pluto_market_identity_mismatch') from None
     channels={};contexts={};programmes=[];rejected=Counter()
     def stamp(text):
@@ -97,12 +115,12 @@ def parse_schedule(payload,source,now):
         if dt.tzinfo is None:raise ValueError()
         return int(dt.timestamp())
     for row in value['data']:
-        identity=row['_id'];original='pluto:de:'+identity
-        if row.get('slug')!=CHANNELS[identity] or not isinstance(row.get('name'),str) or not 0<len(row['name'])<=512:
+        identity=row['_id'];original='pluto:'+country.lower()+':'+identity
+        if row.get('slug')!=selected[identity] or not isinstance(row.get('name'),str) or not 0<len(row['name'])<=512:
             raise EpgError('pluto_feed_identity_mismatch')
         channels[original]=[row['name']]
         contexts[original]={'provider':'pluto-tv','providerChannelId':identity,'channelSlug':row['slug'],
-            'countryCode':'DE','regionCode':None,'sourceTimestampEncoding':'iso8601_explicit_offset'}
+            'countryCode':country,'regionCode':None,'sourceTimestampEncoding':'iso8601_explicit_offset'}
         unique={};conflicts=set()
         for e in row['timelines']:
             try:
@@ -142,7 +160,8 @@ def verify_current_catalogue_route(channel_id,context,evidence):
         if key not in _CACHE:
             _,rows=load_catalog(DATA);_CACHE.clear();_CACHE[key]={c['id']:c for c in rows}
         channel=_CACHE[key][channel_id];identity=context['providerChannelId']
-        if (channel['countryCode']!='DE' or identity not in CHANNELS or context['channelSlug']!=CHANNELS[identity]
+        expected_country,expected_slug=ALL_CHANNELS[identity]
+        if (channel['countryCode']!=expected_country or context['countryCode']!=expected_country or context['channelSlug']!=expected_slug
                 or evidence.get('providerChannelId')!=identity or not channel['routes']
                 or any(route_id(r['url'])!=identity for r in channel['routes'])):raise ValueError()
     except (OSError,ValueError,TypeError,KeyError):raise EpgError('pluto_current_route_edition_requires_review') from None

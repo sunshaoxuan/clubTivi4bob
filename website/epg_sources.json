@@ -61,6 +61,63 @@
       }
     },
     {
+      "id": "pluto-es-official-v1",
+      "url": "https://api.pluto.tv/v2/channels",
+      "format": "pluto-json",
+      "countryCode": "ES",
+      "calendarTimezone": "Europe/Madrid",
+      "redirectUrls": [],
+      "refreshSeconds": 900,
+      "minimumRetrySeconds": 900,
+      "publicationAllowed": false,
+      "scope": "One exact provider feed ID; official edition and full route set reviewed independently of the catalogue country.",
+      "dataLicense": {
+        "status": "operator_authorized_factual_schedule_scope",
+        "name": "Pluto TV factual schedule metadata",
+        "reviewedAt": "2026-11-16",
+        "evidenceUrl": "https://api.pluto.tv/v2/channels/5f1aca8310a30e00074fab92",
+        "restriction": "Operator requested all-channel BobTV production integration of verified factual title/time/event/episode identifiers. No descriptions, summaries, artwork or video are published by this EPG adapter; no blanket third-party content licence is asserted."
+      }
+    },
+    {
+      "id": "pluto-gb-official-v1",
+      "url": "https://api.pluto.tv/v2/channels",
+      "format": "pluto-json",
+      "countryCode": "GB",
+      "calendarTimezone": "Europe/London",
+      "redirectUrls": [],
+      "refreshSeconds": 900,
+      "minimumRetrySeconds": 900,
+      "publicationAllowed": false,
+      "scope": "One exact provider feed ID; official edition and full route set reviewed independently of the catalogue country.",
+      "dataLicense": {
+        "status": "operator_authorized_factual_schedule_scope",
+        "name": "Pluto TV factual schedule metadata",
+        "reviewedAt": "2026-11-16",
+        "evidenceUrl": "https://api.pluto.tv/v2/channels/5cb6f6f9a461406ffe4022cf",
+        "restriction": "Operator requested all-channel BobTV production integration of verified factual title/time/event/episode identifiers. No descriptions, summaries, artwork or video are published by this EPG adapter; no blanket third-party content licence is asserted."
+      }
+    },
+    {
+      "id": "pluto-de-comedy-official-v1",
+      "url": "https://api.pluto.tv/v2/channels",
+      "format": "pluto-json",
+      "countryCode": "DE",
+      "calendarTimezone": "Europe/Berlin",
+      "redirectUrls": [],
+      "refreshSeconds": 900,
+      "minimumRetrySeconds": 900,
+      "publicationAllowed": false,
+      "scope": "One exact provider feed ID; official edition and full route set reviewed independently of the catalogue country.",
+      "dataLicense": {
+        "status": "operator_authorized_factual_schedule_scope",
+        "name": "Pluto TV factual schedule metadata",
+        "reviewedAt": "2026-11-16",
+        "evidenceUrl": "https://api.pluto.tv/v2/channels/5d4947590ba40f75dc29c26b",
+        "restriction": "Operator requested all-channel BobTV production integration of verified factual title/time/event/episode identifiers. No descriptions, summaries, artwork or video are published by this EPG adapter; no blanket third-party content licence is asserted."
+      }
+    },
+    {
       "id": "epgtalk-us-lite-v1",
       "url": "https://epgtalk.com/US_lite.xml.gz",
       "format": "xmltv",

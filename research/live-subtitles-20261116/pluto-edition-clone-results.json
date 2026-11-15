@@ -1,0 +1,20 @@
+[
+  {
+    "sourceId": "pluto-de-comedy-official-v1",
+    "exitCode": 0,
+    "output": "{\"validationOnly\": true, \"candidateChannels\": 26, \"allTargetsPresent\": true, \"sourceReceipt\": {\"sourceUrl\": \"https://api.pluto.tv/v2/channels\", \"fetchedAtUtc\": 1794786580, \"pagesFetched\": 1, \"requestReceipts\": [{\"url\": \"https://api.pluto.tv/v2/channels/5d4947590ba40f75dc29c26b?start=2026-11-15T22%3A00%3A00.000Z&stop=2026-11-16T12%3A00%3A00.000Z\", \"sha256\": \"6a7ba4109e5741f666f25ede5d9aef13911ca4c11fae0f118b9de04d95788f21\"}], \"windowStart\": \"2026-11-15T22:00:00.000Z\", \"windowEnd\": \"2026-11-16T12:00:00.000Z\"}, \"sourceQuality\": {\"declaredChannels\": 1, \"usableChannels\": 1, \"acceptedProgrammes\": 29, \"currentChannels\": 1, \"futureChannels\": 1, \"currentAndFutureChannels\": 1, \"coverageStartUtc\": 1794778704, \"coverageEndUtc\": 1794830904, \"rejected\": {\"conflicting_programme\": 0}}, \"ingestion\": [{\"channelId\": \"channel-4d8a60824b0727e6787f0440\", \"changed\": true, \"retainedLastGood\": false}], \"unrelatedApprovalsUnchanged\": true}\n",
+    "error": ""
+  },
+  {
+    "sourceId": "pluto-gb-official-v1",
+    "exitCode": 0,
+    "output": "{\"validationOnly\": true, \"candidateChannels\": 27, \"allTargetsPresent\": true, \"sourceReceipt\": {\"sourceUrl\": \"https://api.pluto.tv/v2/channels\", \"fetchedAtUtc\": 1794786594, \"pagesFetched\": 1, \"requestReceipts\": [{\"url\": \"https://api.pluto.tv/v2/channels/5cb6f6f9a461406ffe4022cf?start=2026-11-15T22%3A00%3A00.000Z&stop=2026-11-16T12%3A00%3A00.000Z\", \"sha256\": \"16c2703555ef81807451c6ee71e78a1865a606a5a722b9310cf1b0077cb08244\"}], \"windowStart\": \"2026-11-15T22:00:00.000Z\", \"windowEnd\": \"2026-11-16T12:00:00.000Z\"}, \"sourceQuality\": {\"declaredChannels\": 1, \"usableChannels\": 1, \"acceptedProgrammes\": 14, \"currentChannels\": 1, \"futureChannels\": 1, \"currentAndFutureChannels\": 1, \"coverageStartUtc\": 1794779205, \"coverageEndUtc\": 1794831165, \"rejected\": {\"conflicting_programme\": 0}}, \"ingestion\": [{\"channelId\": \"channel-f71c49e8fce59482c51d83af\", \"changed\": true, \"retainedLastGood\": false}], \"unrelatedApprovalsUnchanged\": true}\n",
+    "error": ""
+  },
+  {
+    "sourceId": "pluto-es-official-v1",
+    "exitCode": 0,
+    "output": "{\"validationOnly\": true, \"candidateChannels\": 28, \"allTargetsPresent\": true, \"sourceReceipt\": {\"sourceUrl\": \"https://api.pluto.tv/v2/channels\", \"fetchedAtUtc\": 1794786609, \"pagesFetched\": 1, \"requestReceipts\": [{\"url\": \"https://api.pluto.tv/v2/channels/5f1aca8310a30e00074fab92?start=2026-11-15T22%3A00%3A00.000Z&stop=2026-11-16T12%3A00%3A00.000Z\", \"sha256\": \"16acbb8b22ffc8357cad9e77eeecc824ed1daf05159953314a87bccbcecd8106\"}], \"windowStart\": \"2026-11-15T22:00:00.000Z\", \"windowEnd\": \"2026-11-16T12:00:00.000Z\"}, \"sourceQuality\": {\"declaredChannels\": 1, \"usableChannels\": 1, \"acceptedProgrammes\": 9, \"currentChannels\": 1, \"futureChannels\": 1, \"currentAndFutureChannels\": 1, \"coverageStartUtc\": 1794777004, \"coverageEndUtc\": 1794836228, \"rejected\": {\"conflicting_programme\": 0}}, \"ingestion\": [{\"channelId\": \"channel-f161e64e591831aeaabad869\", \"changed\": true, \"retainedLastGood\": false}], \"unrelatedApprovalsUnchanged\": true}\n",
+    "error": ""
+  }
+]

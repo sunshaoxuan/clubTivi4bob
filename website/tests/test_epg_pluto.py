@@ -14,7 +14,7 @@ SOURCE={'url':p.API,'countryCode':'DE','calendarTimezone':'Europe/Berlin','redir
 stamp=lambda t:datetime.fromtimestamp(t,timezone.utc).isoformat().replace('+00:00','Z')
 
 def channel(identity):
-    return {'_id':identity,'slug':p.CHANNELS[identity],'name':'Fixture '+identity,'number':1,
+    return {'_id':identity,'slug':p.ALL_CHANNELS[identity][1],'name':'Fixture '+identity,'number':1,
         'timelines':[{'_id':f'{i+1:024x}','title':'Fixture programme '+str(i),'start':stamp(a),'stop':stamp(b),
             'episode':{'_id':f'{i+10:024x}','description':'excluded rich text'}}
             for i,(a,b) in enumerate([(NOW-100,NOW+100),(NOW+100,NOW+900)])]}
@@ -72,7 +72,17 @@ def test_all_current_catalogue_routes_must_retain_the_exact_feed(tmp_path,monkey
     root=tmp_path/'channel-catalog';root.mkdir();(root/'manifest.json').write_text(json.dumps({'sha256':'a'*64}))
     monkeypatch.setattr(catalog_inventory,'DATA',tmp_path)
     monkeypatch.setattr(epg_discovery,'load_catalog',lambda _:(None,[c]));p._CACHE.clear()
-    context={'providerChannelId':identity,'channelSlug':p.CHANNELS[identity]};evidence={'providerChannelId':identity}
+    context={'providerChannelId':identity,'channelSlug':p.CHANNELS[identity],'countryCode':'DE'};evidence={'providerChannelId':identity}
     p.verify_current_catalogue_route(c['id'],context,evidence)
     c['routes'].append({'url':route.replace(identity,'f'*24)})
     with pytest.raises(EpgError):p.verify_current_catalogue_route(c['id'],context,evidence)
+
+@pytest.mark.parametrize('source_id',['pluto-de-comedy-official-v1','pluto-gb-official-v1','pluto-es-official-v1'])
+def test_additional_market_scopes_cannot_reinterpret_a_global_feed_id(source_id):
+    country,zone,channels=p.SCOPES[source_id]
+    source={**SOURCE,'id':source_id,'countryCode':country,'calendarTimezone':zone}
+    body,receipt=p.fetch_schedule(source,NOW,lambda url:json.dumps(channel(urlsplit(url).path.rsplit('/',1)[-1])).encode())
+    parsed=p.parse_schedule(body,source,NOW)
+    assert receipt['pagesFetched']==1 and parsed['quality']['currentAndFutureChannels']==1
+    assert set(parsed['channels'])=={'pluto:'+country.lower()+':'+next(iter(channels))}
+    with pytest.raises(EpgError):p.validate_source({**source,'countryCode':'US'})

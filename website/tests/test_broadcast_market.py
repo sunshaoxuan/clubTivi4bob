@@ -111,3 +111,15 @@ def test_delivery_hostname_needs_explicit_reviewed_service_binding():
     reviewed={**BINDING,'host':'b'*32+'.mediatailor.eu-west-1.amazonaws.com'}
     assert resolve_market(channel([URL,alias]),[BINDING,reviewed])['market']=='GB'
     assert resolve_market(channel([URL,alias.replace('6065','6066')]),[BINDING,reviewed])['market'] is None
+
+
+def test_pluto_global_id_requires_reviewed_country_binding_and_ignores_query_market():
+    identity='5d4947590ba40f75dc29c26b'
+    route='https://service-stitcher.clusters.pluto.tv/stitch/hls/channel/'+identity+'/master.m3u8?marketingRegion=US'
+    binding=dict(provider='pluto-tv',host='service-stitcher.clusters.pluto.tv',serviceId=identity,market='DE',
+                 evidenceUrls=['https://api.pluto.tv/v2/channels/'+identity])
+    assert provider_service(route)==('pluto-tv','service-stitcher.clusters.pluto.tv',identity)
+    assert resolve_market(channel([route]),[])['market'] is None
+    assert resolve_market(channel([route]),[binding])['market']=='DE'
+    assert resolve_market(channel([route,route.replace(identity,'f'*24)]),[binding])['market'] is None
+    assert provider_service(route.replace('pluto.tv','pluto.tv.attacker.example')) is None

@@ -179,6 +179,9 @@ def apply_batch_locked(data_dir, batch, *, publisher=publish, now=None):
                 raise ValueError('market_review_route_revision_or_ownership_changed')
             if any(r['manual_category'] or r['manual_name'] for r in rows) and review.get('allowProtectedShared') is not True:
                 raise ValueError('market_review_shared_protection_requires_explicit_review')
+            from market_review_hold import release_verified_hold
+            release_verified_hold(conn, data_dir, target['id'], market, review['inventoryRouteSha256'],
+                                  {'authorization': batch['authorization'], 'evidenceUrls': fact['evidenceUrls']})
             parts = entity['group_name'].split(' / ')
             if len(parts) < 2 or parts[0] != '国际':
                 raise ValueError('market_review_entity_hierarchy_changed')
@@ -224,7 +227,7 @@ def apply_batch_locked(data_dir, batch, *, publisher=publish, now=None):
             receipt['changes'].append(change)
         payload['categories'] = list(categories.values())
         payload['version'] = now.strftime('%Y-%m-%dT%H:%M:%S.%fZ')
-        receipt['newManifest'] = publisher(payload, data_dir)
+        receipt['newManifest'] = publisher(payload, data_dir, market_review_conn=conn)
         conn.commit()
         receipt['state'] = 'applied'
     except BaseException:

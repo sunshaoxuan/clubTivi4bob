@@ -138,7 +138,7 @@ def _atomic_write(path, data):
             os.unlink(temporary)
 
 
-def publish(payload, data_dir=DATA):
+def publish(payload, data_dir=DATA, *, market_review_conn=None):
     channel_count, route_count = validate(payload)
     from country_names import normalize_catalog_countries
     payload = normalize_catalog_countries(payload)
@@ -147,6 +147,10 @@ def publish(payload, data_dir=DATA):
     validate(payload)
     from catalog_metadata_reviews import apply_reviews
     apply_reviews(payload['channels'])
+    from market_review_hold import preserve_public_geography
+    payload = preserve_public_geography(payload, data_dir, active_conn=market_review_conn)
+    payload = normalize_catalog_taxonomy(payload)
+    validate(payload)
     raw = json.dumps(payload, ensure_ascii=False, separators=(",", ":"), sort_keys=True).encode("utf-8")
     compressed = gzip.compress(raw, mtime=0)
     if len(compressed) > MAX_COMPRESSED:
@@ -171,7 +175,7 @@ def publish(payload, data_dir=DATA):
     # A queue write failure must not break a valid catalog publication.
     try:
         from audit_broadcast_markets import write_review_queue
-        write_review_queue(payload, data_dir, manifest)
+        write_review_queue(payload, data_dir, manifest, active_conn=market_review_conn)
     except Exception:
         import logging
         logging.getLogger(__name__).warning('broadcast_market_review_queue_failed')

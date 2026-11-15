@@ -80,6 +80,7 @@ def audit(payload, bindings, protected_ids=frozenset()):
                 risks.append(hint)
         if risks:
             findings.append({'channelId': channel['id'], 'name': channel['name'],
+                             'expectedIdentity': {k:channel.get(k) for k in ('id','name','epgId','countryCode','regionCode')},
                              'countryCode': current, 'categoryPath': path,
                              'protected': channel['id'] in protected_ids,
                              'indicators': sorted(risks, key=lambda r: r['kind']),
@@ -97,10 +98,37 @@ def audit(payload, bindings, protected_ids=frozenset()):
                             'Private client classifications are outside this audit']}
 
 
-def write_review_queue(payload, data_dir, manifest):
+def write_review_queue(payload, data_dir, manifest, *, active_conn=None):
     """Refresh the persistent review queue after each catalog publication."""
     registry = json.loads(Path(__file__).with_name('broadcast_market_bindings.json').read_text())
     result = audit(payload, registry['bindings'])
+    # Context changes cannot erase an existing hold just by removing a weak
+    # name/EPG indicator. Approved releases are visible in the same transaction.
+    import sqlite3
+    database = Path(data_dir) / 'channel_inventory.sqlite3'
+    held = []
+    if database.is_file():
+        conn = active_conn or sqlite3.connect('file:'+str(database.resolve())+'?mode=ro', uri=True)
+        conn.row_factory = sqlite3.Row
+        try:
+            if conn.execute("SELECT 1 FROM sqlite_master WHERE name='catalog_market_review_holds'").fetchone():
+                held = [dict(r) for r in conn.execute('SELECT channel_id,status,expected_identity,manual_event_id FROM catalog_market_review_holds')]
+        finally:
+            if active_conn is None: conn.close()
+    result['persistentHolds'] = held
+    result['persistentHoldCount'] = len(held)
+    present = {f['channelId'] for f in result['reviewFindings']}
+    channels = {c['id']:c for c in payload['channels']}
+    categories = {c['id']:c for c in payload['categories']}
+    for hold in held:
+        channel = channels.get(hold['channel_id'])
+        if channel and channel['id'] not in present:
+            result['reviewFindings'].append(dict(channelId=channel['id'], name=channel['name'],
+                expectedIdentity=json.loads(hold['expected_identity']), countryCode=channel.get('countryCode'),
+                categoryPath=category_path(channel, categories), protected=True, resolution='persistent_hold',
+                indicators=[dict(kind='persistent_market_hold', status=hold['status'])]))
+    result['reviewFindingCount'] = len(result['reviewFindings'])
+    result['findingKinds'] = dict(Counter(i['kind'] for f in result['reviewFindings'] for i in f['indicators']))
     result.update(catalogSha256=manifest['sha256'], automaticApplyAllowed=False,
                   inventoryManualProtectionChecked=False)
     target = Path(data_dir) / 'broadcast-market-review-queue.json'

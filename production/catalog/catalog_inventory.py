@@ -107,6 +107,10 @@ def database(data_dir=None, *, timeout=30):
         with conn:
             _migrate_route_identity(conn)
             conn.execute('CREATE UNIQUE INDEX IF NOT EXISTS routes_url_unique ON routes(url)')
+            from market_review_hold import refresh_holds
+            refresh_holds(conn, directory)
+            # Setup is complete before callers may open their own explicit transaction.
+            if conn.in_transaction: conn.commit()
             yield conn
     finally:
         conn.close()
@@ -303,6 +307,8 @@ def ingest_events(events, fingerprint, data_dir=None, *, busy_timeout=30):
                     if type(base) is not int or base != revision:
                         receipt.update(status='conflict', revision=revision)
                     else:
+                        from market_review_hold import manual_category_override
+                        manual_category_override(conn, digest, group, str(event_id))
                         conn.execute('UPDATE routes SET group_name=?,manual_category=1,revision=revision+1 WHERE digest=?', (group,digest))
                         receipt.update(status='applied', revision=revision+1)
                 elif kind == 'health':

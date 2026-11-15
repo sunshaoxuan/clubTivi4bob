@@ -272,6 +272,8 @@ class Matcher:
                 for route in channel["routes"]:
                     digest = hashlib.sha256(route["url"].encode()).hexdigest()
                     conn.execute("INSERT OR IGNORE INTO catalog_channel_routes VALUES (?,?,'assigned','published','')", (digest, channel["id"]))
+        from market_review_hold import refresh_holds
+        refresh_holds(conn, Path(conn.execute('PRAGMA database_list').fetchone()[2]).parent)
         _migrate_taxonomy(conn, self.reference, self.countries)
         self.entities = {r["id"]: {"metadata": json.loads(r["metadata"]), "group": r["group_name"], "profile": json.loads(r["profile"])} for r in conn.execute("SELECT * FROM catalog_channels ORDER BY id")}
         self.pending_ids = {r[0] for r in conn.execute("SELECT channel_id FROM catalog_channel_routes GROUP BY channel_id HAVING sum(state='assigned')=0")}
@@ -306,11 +308,18 @@ class Matcher:
 
     def _save_entity(self, identity, metadata, group, p):
         self.conn.execute("INSERT INTO catalog_channels VALUES (?,?,?,?) ON CONFLICT(id) DO UPDATE SET metadata=excluded.metadata,group_name=excluded.group_name,profile=excluded.profile", (identity, json.dumps(metadata, ensure_ascii=False), group, json.dumps(p)))
+        from market_review_hold import channel_held
+        if channel_held(self.conn, identity):
+            saved = self.conn.execute('SELECT * FROM catalog_channels WHERE id=?', (identity,)).fetchone()
+            metadata, group, p = json.loads(saved['metadata']), saved['group_name'], json.loads(saved['profile'])
         self.entities[identity] = {"metadata": metadata, "group": group, "profile": p}
         self._index(identity, p)
         if metadata.get("mergeId"): self.merges[metadata["mergeId"]] = identity
 
     def resolve(self, row):
+        from market_review_hold import resolve_held_route
+        held = resolve_held_route(self, row)
+        if held is not None: return held
         evidence = self.category_evidence.get(row['digest'], ())
         signature = _signature(row, evidence)
         saved = self.assignments.get(row["digest"])

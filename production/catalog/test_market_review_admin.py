@@ -139,8 +139,8 @@ def test_failed_publisher_restores_manifest_and_transaction(catalog):
     m, _ = load(folder)
     old_queue = (folder / 'broadcast-market-review-queue.json').read_bytes()
     batch = build_batch(folder, ['action'], authorization='explicit', allow_protected_shared=True)
-    def failed(payload, directory):
-        publish(payload, directory)
+    def failed(payload, directory, **kwargs):
+        publish(payload, directory, **kwargs)
         raise RuntimeError('failure after manifest replacement')
     with pytest.raises(RuntimeError):
         apply_batch(folder, batch, publisher=failed)

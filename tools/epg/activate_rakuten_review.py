@@ -30,7 +30,7 @@ def main():
         manifest,channels=discovery.load_catalog(DATA);byid={c['id']:c for c in channels}
         discovery.sync_catalog(conn,manifest,channels,now)
         probe=probe_batch(directory,[source],now,lambda _:(body,receipt))
-        assert probe['sources'][0]['state']=='healthy'
+        assert next(x for x in probe['sources'] if x['id']==source['id'])['state']=='healthy'
         store.approve_data_use(conn,source['id'],source_url=source['url'],
             evidence_url='https://www.rakuten.tv/uk/live_channels/action-rakuten-tv',
             data_license='Rakuten TV factual schedule metadata; operator-authorized scope',
@@ -52,8 +52,29 @@ def main():
             store.approve_mapping(conn,channel['id'],source['id'],f'rakuten:uk:{service}',evidence=evidence,now=now)
             approved.append(channel['id'])
         assert approved
-        assert store.cache_validated_payload(conn,directory,source['id'],body,now)
-        ingested=store.ingest_batch(conn,source['id'],body,approved,fetched_at=now,now=now)
+        health=conn.execute('SELECT * FROM source_health WHERE id=?',(source['id'],)).fetchone()
+        cached=conn.execute('SELECT * FROM epg_source_payloads WHERE source_id=?',(source['id'],)).fetchone()
+        fetched_at=now
+        if health['content_sha256'] != hashlib.sha256(body).hexdigest() or health['last_success'] != now:
+            if cached is not None:
+                body=(directory/'payload-cache'/cached['file_name']).read_bytes()
+                assert hashlib.sha256(body).hexdigest()==cached['sha256']==health['content_sha256']
+                assert cached['fetched_at']==health['last_success']
+                fetched_at=cached['fetched_at']
+            else:
+                # First source probe had no approved mapping, so it correctly
+                # retained no payload. A single audited bootstrap refresh of a
+                # healthy source makes the new mapping usable now. Failure,
+                # authentication and rate-limit retry floors are never changed.
+                assert health['state']=='healthy' and health['last_error'] is None
+                with conn:
+                    conn.execute('UPDATE source_health SET next_retry=? WHERE id=?',(now,source['id']))
+                    conn.execute('INSERT INTO probe_audit(source_id,checked_at,state,error_code) VALUES(?,?,?,?)',
+                        (source['id'],now,'mapping_bootstrap_refresh','healthy_source_new_mapping_without_payload'))
+                refreshed=probe_batch(directory,[source],now,lambda _:(body,receipt))
+                assert next(x for x in refreshed['sources'] if x['id']==source['id'])['last_success']==now
+        assert store.cache_validated_payload(conn,directory,source['id'],body,fetched_at)
+        ingested=store.ingest_batch(conn,source['id'],body,approved,fetched_at=fetched_at,now=now)
         result={'checkedAtUtc':now,'catalogVersion':manifest['version'],'sourceReceipt':receipt,
             'mappedChannels':approved,'pending':pending,'ingestion':ingested}
         with conn:conn.execute('INSERT OR REPLACE INTO epg_checkpoints VALUES(?,?)',('rakuten_adapter_activation',json.dumps(result)))

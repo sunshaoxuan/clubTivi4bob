@@ -238,7 +238,14 @@ def plan(channel, category_path, identity_facts, attempts, phase_index=0, review
             'Do not infer language, number, no-delay edition or country from names or hostnames. '
             'This proposal cannot approve identity or programme data.')
     else:
-        instruction += ' Return candidate technical URLs and unresolved validation questions only.'
+        instruction += (' Return candidate technical URLs and unresolved validation questions only. '
+            'HTTP 200 without actual dated programme rows is unresolved, not EPG coverage. '
+            'For structured APIs, investigate required start/end date encodings, market, timezone, '
+            'service identifiers, pagination and response programme fields. When an official '
+            'schedule page is JavaScript-only, trace its public client scripts or documented '
+            'public schedule API contract rather than stopping at its HTML shell. '
+            'Keep exact regional/delay edition evidence separate from programme availability. '
+            'Prefer concrete dated programme payloads over repeated station directory links.')
     return {'stage': stage, 'fullName': full, 'aliases': [alias] if alias else [],
             'channelId': channel['id'], 'categoryPath': list(category_path),
             'catalogueContext': {key: channel.get(key) for key in ('name','countryCode','regionCode','epgId')},

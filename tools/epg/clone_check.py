@@ -13,7 +13,7 @@ now=int(time.time());body,receipt=fetch_schedule(source,now)
 conn=database(directory);discovery.migrate(conn);store.migrate(conn)
 before=[dict(r) for r in conn.execute('SELECT * FROM epg_mapping_approvals ORDER BY channel_id')]
 manifest,channels=discovery.load_catalog(root);byid={c['id']:c for c in channels};discovery.sync_catalog(conn,manifest,channels,now);conn.close()
-probe=probe_batch(directory,[source],now,lambda _:(body,receipt));assert probe['sources'][0]['state']=='healthy',probe['sources'][0]['last_error']
+probe=probe_batch(directory,[source],now,lambda _:(body,receipt));assert next(x for x in probe['sources'] if x['id']==source['id'])['state']=='healthy',next(x for x in probe['sources'] if x['id']==source['id'])['last_error']
 conn=database(directory);store.approve_data_use(conn,source['id'],source_url=source['url'],evidence_url='https://www.rakuten.tv/uk/live_channels/action-rakuten-tv',data_license='Rakuten TV factual schedule metadata; operator-authorized scope',programme_data_permission=True,now=now)
 approved=[];pending=[]
 for item in reviews:

@@ -56,11 +56,12 @@ finally:
 '''
 
 def main():
-    p=argparse.ArgumentParser(description=__doc__);p.add_argument('--ssh-key',required=True);p.add_argument('--host',required=True);a=p.parse_args()
+    p=argparse.ArgumentParser(description=__doc__);p.add_argument('--ssh-key',required=True);p.add_argument('--host',required=True);p.add_argument('--baseline',type=Path);a=p.parse_args()
     commit=subprocess.check_output(['git','rev-parse','HEAD'],cwd=ROOT,text=True).strip()
     assert not subprocess.check_output(['git','status','--porcelain','--untracked-files=no'],cwd=ROOT,text=True).strip(),'commit source first'
-    baseline=json.loads((ROOT/'production/epg/production-baseline.json').read_text())['files']
-    meta={'sourceCommit':commit,'files':FILES,'baseline':{n:baseline[n]['sha256'] for n in FILES if n in baseline},'newFiles':[n for n in FILES if n not in baseline]}
+    baseline=json.loads((a.baseline or ROOT/'production/epg/production-baseline.json').read_text())['files']
+    baseline={n:(v['sha256'] if isinstance(v,dict) else v) for n,v in baseline.items()}
+    meta={'sourceCommit':commit,'files':FILES,'baseline':{n:baseline[n] for n in FILES if n in baseline},'newFiles':[n for n in FILES if n not in baseline]}
     with tempfile.TemporaryDirectory() as d:
         d=Path(d);(d/'deployment.json').write_text(json.dumps(meta))
         with tarfile.open(d/'runtime.tar.gz','w:gz') as t:

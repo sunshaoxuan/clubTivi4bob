@@ -384,7 +384,7 @@ def run(conn, manifest, channels, paths, settings_factory, shared_database, *, m
     known_ids = {r[0] for r in conn.execute('SELECT channel_id FROM epg_channel_research_jobs')}
     result['catalogScope'] = {'catalogChannels': len(channels),
         'reviewedMappingsProtected': len(protected),
-        'researchQueuedChannels': len(set(by_id) & known_ids),
+        'researchQueuedChannels': len((set(by_id) & known_ids) - protected),
         'notYetAdmittedChannels': len(set(by_id) - known_ids - protected),
         'pendingStates': {r[0]: r[1] for r in conn.execute(
             'SELECT state,count(*) FROM epg_channel_research_jobs WHERE active=1 GROUP BY state')},

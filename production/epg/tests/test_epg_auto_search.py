@@ -721,3 +721,9 @@ def test_daily_cap_migration_releases_only_old_budget_pause_once(conn):
     assert w.read_checkpoint(conn,'search_admission_policy_v2')['dailyLimit'] is None
     w.control(conn,NOW,'search_budget_deferred',NOW+600)
     assert run(conn)['state']=='waiting_shared_admission'
+
+
+def test_catalogue_scope_counts_are_disjoint(conn):
+    result=run(conn)
+    scope=result['catalogScope']
+    assert scope['catalogChannels']==scope['reviewedMappingsProtected']+scope['researchQueuedChannels']+scope['notYetAdmittedChannels']

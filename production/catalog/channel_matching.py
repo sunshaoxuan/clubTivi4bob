@@ -161,6 +161,14 @@ def _compatible(left, right):
             and all(not left[k] or not right[k] or left[k] == right[k] for k in ("country", "region")))
 
 
+def _market_group_allowed(p, group, countries=COUNTRIES):
+    """Cached or new model proposals cannot contradict verified editions."""
+    if not p.get('broadcastMarketVerified'):
+        return True
+    parts = group.split(' / ')
+    return len(parts) >= 2 and parts[0] == '国际' and parts[1] == countries.get(p['country'])
+
+
 def _signature(row, evidence=()):
     fields = ("name", "group_name", "epg_id", "manual_category", "manual_name", "merge_id", "transferred")
     values = [*[row[f] for f in fields], effective_scope(row, evidence), sorted(set(evidence))]
@@ -356,6 +364,8 @@ class Matcher:
             if decision and decision["signature"] == signature and not any(row[k] for k in ("manual_name", "manual_category", "merge_id", "transferred")):
                 from channel_ai_matching import accepted_identity
                 accepted = accepted_identity(self, row, json.loads(decision["response"]))
+                if accepted and not _market_group_allowed(accepted[1], accepted[2], self.countries):
+                    accepted = None
                 if accepted:
                     identity, p, group, display = accepted
                     if identity not in self.entities or identity in self.pending_ids or self.entities[identity]['group'].startswith('其他'):

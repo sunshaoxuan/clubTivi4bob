@@ -11,7 +11,7 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / 'website'))
 sys.path.insert(0, str(Path(__file__).parent))
 
-from channel_matching import profile, _evidence_profile
+from channel_matching import profile, _evidence_profile, _market_group_allowed
 from channel_reference import Reference
 from market_review_admin import build_batch, apply_batch
 from publish_channel_catalog import publish
@@ -60,6 +60,8 @@ def catalog(tmp_path):
 def test_verified_route_market_overrides_source_country_and_unknown_routes_keep_review():
     p = profile('Action Movies', 'GB2600015OS', '国际 / 美国 / 电影', 'US', None, True, URL)
     assert p['country'] == 'GB' and p['broadcastMarketVerified'] and not p['conflict']
+    assert _market_group_allowed(p, '国际 / 英国 / 电影')
+    assert not _market_group_allowed(p, '国际 / 美国 / 电影')
     unknown = profile('Other', 'Other.us@UK', '国际 / 美国', 'US', None, True,
                       'https://unreviewed.example/live.m3u8')
     assert unknown['country'] == 'US' and 'broadcastMarketVerified' not in unknown

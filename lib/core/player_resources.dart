@@ -3,6 +3,10 @@ import 'dart:async';
 import 'package:media_kit/media_kit.dart';
 
 import 'app_diagnostics.dart';
+import '../features/player/native_subtitle_selection.dart';
+import '../features/player/live_subtitle_session.dart';
+import '../features/player/hls_buffer_proxy.dart';
+import 'package:media_kit/src/player/native/player/real.dart' as native_player;
 
 /// Owns every decoder, including disposals whose caller stopped waiting.
 /// A UI timeout never cancels the native disposal or removes it from this set.
@@ -75,10 +79,81 @@ class ManagedPlayer extends Player {
     this._resources,
     String role,
   ) : super(configuration: configuration, platformPlayer: platformPlayer) {
-    _resources.register(this, () => super.dispose(), role);
+    subtitles = NativeSubtitleSelection(this);
+    liveSubtitles = LiveSubtitleSession(this, subtitles);
+    _resources.register(this, () async {
+      ++_openGeneration;
+      await _hlsBuffer.stop();
+      await liveSubtitles.dispose();
+      await subtitles.dispose();
+      await super.dispose();
+    }, role);
   }
 
   final PlayerResourceRegistry _resources;
+  late final NativeSubtitleSelection subtitles;
+  late final LiveSubtitleSession liveSubtitles;
+  int _openGeneration = 0;
+  final _hlsBuffer = HlsBufferProxy();
+  bool _liveStartOptionApplied = false;
+
+  @override
+  Future<void> open(Playable playable, {bool play = true}) async {
+    final generation = ++_openGeneration;
+    liveSubtitles.clear();
+    if (playable is Media) {
+      var uri = await liveSubtitles.prepare(playable.uri);
+      if (generation != _openGeneration) return;
+      final native = platform;
+      if (native is native_player.NativePlayer) {
+        if (isActionMoviesUk(uri)) {
+          // A string round-trip loses escaping inside protocol_whitelist.
+          // Mutate only this key through mpv's structured list operation.
+          await native.command([
+            'change-list',
+            'demuxer-lavf-o',
+            'append',
+            'prefer_x_start=1',
+          ]);
+          _liveStartOptionApplied = true;
+        } else if (_liveStartOptionApplied) {
+          await native.command([
+            'change-list',
+            'demuxer-lavf-o',
+            'remove',
+            'prefer_x_start',
+          ]);
+          _liveStartOptionApplied = false;
+        }
+        uri = await _hlsBuffer.start(uri, playable.httpHeaders);
+      }
+      if (generation != _openGeneration) return;
+      await super.open(
+        uri == playable.uri
+            ? playable
+            : Media(
+                uri,
+                httpHeaders: playable.httpHeaders,
+                extras: playable.extras,
+                start: playable.start,
+                end: playable.end,
+              ),
+        play: play,
+      );
+    } else {
+      await _hlsBuffer.stop();
+      await super.open(playable, play: play);
+    }
+    if (generation == _openGeneration) liveSubtitles.activate();
+  }
+
+  @override
+  Future<void> stop() async {
+    ++_openGeneration;
+    liveSubtitles.clear();
+    await _hlsBuffer.stop();
+    await super.stop();
+  }
 
   @override
   Future<void> dispose() => _resources.dispose(this);

@@ -5,6 +5,7 @@
 /// Use of this source code is governed by MIT license that can be found in the LICENSE file.
 // ignore_for_file: avoid_web_libraries_in_flutter
 import 'dart:js_interop';
+import 'package:media_kit_video/src/subtitle/subtitle_view.dart';
 
 import 'package:web/web.dart';
 import 'dart:async';
@@ -438,11 +439,16 @@ class VideoState extends State<Video> with WidgetsBindingObserver {
                     !(widget.controller.player.platform?.configuration.libass ??
                         false))
                   Positioned.fill(
-                    child: SubtitleView(
+                    child: VideoSubtitleViewport(
                       controller: widget.controller,
-                      key: _subtitleViewKey,
-                      configuration:
-                          videoViewParameters.subtitleViewConfiguration,
+                      fit: videoViewParameters.fit,
+                      alignment: videoViewParameters.alignment,
+                      aspectRatio: videoViewParameters.aspectRatio,
+                      child: SubtitleView(
+                        controller: widget.controller,
+                        key: _subtitleViewKey,
+                        configuration: videoViewParameters.subtitleViewConfiguration,
+                      ),
                     ),
                   ),
                 if (videoViewParameters.controls != null)

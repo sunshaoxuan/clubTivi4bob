@@ -1129,5 +1129,7 @@
   "验证": "Verify",
   "黑龙江": "Heilongjiang",
   "，已恢复旧版 ": ", the old version has been restored",
-  "，旧版恢复尚未完成，请保留更新日志和备份": ", the old version recovery has not been completed, please keep the update log and backup"
+  "，旧版恢复尚未完成，请保留更新日志和备份": ", the old version recovery has not been completed, please keep the update log and backup",
+  "字幕语言及回退": "Requested language, then English, then no subtitles",
+  "跟随界面语言": "Follow interface language"
 }

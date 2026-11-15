@@ -6,6 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../core/i18n/app_language.dart';
 import '../core/i18n/language_menu.dart';
+import '../features/player/subtitle_preferences.dart';
 
 import '../core/platform_info.dart';
 import 'router.dart';
@@ -30,6 +31,7 @@ class _ClubTiviAppState extends State<ClubTiviApp> with WidgetsBindingObserver {
   @override
   void initState() {
     super.initState();
+    SubtitlePreferences.instance.initialize(widget.preferences);
     _selected = AppLanguage.fromTag(
       widget.preferences?.getString(AppLanguage.preferenceKey),
     );
@@ -84,6 +86,10 @@ class _ClubTiviAppState extends State<ClubTiviApp> with WidgetsBindingObserver {
 
   @override
   Widget build(BuildContext context) {
+    SubtitlePreferences.instance.applicationLanguage(
+      _selected ?? AppLanguage.resolve(
+        WidgetsBinding.instance.platformDispatcher.locales, _timeZone),
+    );
     return LanguageScope(
       selected: _selected,
       onSelected: _selectLanguage,

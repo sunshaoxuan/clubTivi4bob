@@ -1,0 +1,109 @@
+{
+  "generatedAt": "2026-11-15T12:59:08.736077+00:00",
+  "status": "development integration; production acceptance incomplete",
+  "supportedLanguages": [
+    "en",
+    "zh-CN",
+    "zh-TW",
+    "ja",
+    "fr",
+    "es",
+    "ko"
+  ],
+  "selectionOrder": [
+    "requested",
+    "en",
+    "none"
+  ],
+  "nativeUnitAndWidgetTestsPassed": 32,
+  "adReplay": {
+    "scope": "Native client replay of previously captured real movie/ad/movie cycle; not a new live ad or ASR reacquisition test",
+    "duration": 270.0,
+    "adDuration": 150.0,
+    "adSamples": 2999,
+    "adSamplesWithFilmCaption": 0,
+    "nativeCaptionResumeSeconds": 0.021332999999998492,
+    "sampledLayouts": [
+      0,
+      1,
+      2
+    ],
+    "bufferingSamplesAfterStartup": 0,
+    "cueCount": 6,
+    "medianAbsoluteError": 0.3636660000000802,
+    "maximumAbsoluteError": 0.5986659999998665,
+    "errors": [
+      {
+        "cue": 1237,
+        "asrOnset": 1186.9099999999999,
+        "nativeCaptionOnset": 1187.378666,
+        "errorSeconds": 0.4686660000002121
+      },
+      {
+        "cue": 1236,
+        "asrOnset": 1186.38,
+        "nativeCaptionOnset": 1186.418666,
+        "errorSeconds": 0.03866599999992104
+      },
+      {
+        "cue": 1244,
+        "asrOnset": 1202.7,
+        "nativeCaptionOnset": 1202.938666,
+        "errorSeconds": 0.23866599999996652
+      },
+      {
+        "cue": 1247,
+        "asrOnset": 1208.28,
+        "nativeCaptionOnset": 1208.618666,
+        "errorSeconds": 0.33866600000010294
+      },
+      {
+        "cue": 1243,
+        "asrOnset": 1200.66,
+        "nativeCaptionOnset": 1201.258666,
+        "errorSeconds": 0.5986659999998665
+      },
+      {
+        "cue": 1250,
+        "asrOnset": 1212.71,
+        "nativeCaptionOnset": 1213.098666,
+        "errorSeconds": 0.38866600000005747
+      }
+    ],
+    "errorReference": "Previously recorded local ASR word onsets, including any remux timestamp shift; sampled native caption state, not screen OCR"
+  },
+  "liveBufferTest": {
+    "source": "https://action-rakuten-tv-uk.fast.rakuten.tv/v1/manifest/0547f18649bd788bec7b67b746e47670f558b6b2/production-LiveChannel-6065/4765fd49-89ac-4dc2-ad5e-14638385c7a7/4.m3u8",
+    "samples": 5951,
+    "errors": [],
+    "lastPosition": 293.0003,
+    "elapsed": 300.025,
+    "bufferingSamplesAfterStartup": 0,
+    "lavfOptions": "seg_max_retry=5,strict=experimental,allowed_extensions=ALL,protocol_whitelist=udp,rtp,tcp,tls,data,file,http,https,crypto,prefer_x_start=1",
+    "cachePauseInitial": "yes",
+    "cachePauseWait": "4.000000",
+    "cacheSeconds": "12.160000",
+    "pipeline": "PlayerService and AdaptiveBufferManager",
+    "scope": "native Flutter development fixture, not production release",
+    "bufferEvents": [
+      {
+        "startElapsed": 1.974,
+        "durationSeconds": 4.398,
+        "position": 0.0
+      },
+      {
+        "startElapsed": 6.681,
+        "durationSeconds": 0.44200000000000017,
+        "position": 0.0803
+      }
+    ],
+    "frozenSourceUnchanged": true,
+    "resolution": "1920x1080 from native video texture log",
+    "scopeLimit": "Five-minute current live sample; no new live ASR ad-resumption acceptance"
+  },
+  "externalServiceProductionEnabled": false,
+  "newLiveAdRecognitionAccepted": false,
+  "installedAppReplaced": false,
+  "officialReleasePublished": false,
+  "artifacts": "/Users/shou/Documents/Codex/2026-07-18/git/outputs/BobTV-subtitle-client-20261115"
+}

@@ -1,3 +1,5 @@
+import '../player/bobtv_video.dart';
+import 'subtitle_preferences.dart';
 import 'radio_playback_surface.dart';
 import '../../core/server_image.dart';
 import 'dart:async';
@@ -136,7 +138,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
 
   // Track selection state
   bool _subtitlesEnabled = false;
-  List<SubtitleTrack> _subtitleTracks = [];
   List<AudioTrack> _audioTracks = [];
 
   @override
@@ -480,125 +481,53 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     final player = ref.read(playerServiceProvider).player;
     final tracks = player.state.tracks;
     setState(() {
-      _subtitleTracks = tracks.subtitle
-          .where((t) => t.id != 'auto' && t.id != 'no')
-          .toList();
       _audioTracks = tracks.audio
           .where((t) => t.id != 'auto' && t.id != 'no')
           .toList();
-      _subtitlesEnabled =
-          player.state.track.subtitle.id != 'no' &&
-          player.state.track.subtitle.id != 'auto';
+      _subtitlesEnabled = SubtitlePreferences.instance.enabled;
     });
   }
 
   void _toggleSubtitles() {
-    final player = ref.read(playerServiceProvider).player;
-    if (_subtitlesEnabled) {
-      player.setSubtitleTrack(SubtitleTrack.no());
-      setState(() => _subtitlesEnabled = false);
-    } else if (_subtitleTracks.isNotEmpty) {
-      player.setSubtitleTrack(_subtitleTracks.first);
-      setState(() => _subtitlesEnabled = true);
-    }
+    final preferences = SubtitlePreferences.instance;
+    preferences.setEnabled(!preferences.enabled);
+    setState(() => _subtitlesEnabled = preferences.enabled);
   }
 
   void _showSubtitlePicker() {
-    _loadTrackInfo();
-    final player = ref.read(playerServiceProvider).player;
-    final currentId = player.state.track.subtitle.id;
+    final preferences = SubtitlePreferences.instance;
     showModalBottomSheet<void>(
       context: context,
       backgroundColor: BobTvPalette.panel,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-      ),
-      builder: (ctx) {
-        return Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Icon(Icons.closed_caption, color: Colors.white, size: 20),
-                  SizedBox(width: 8),
-                  Text(
-                    AppMessages.text(context, "字幕"),
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 15,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 8),
-              ListTile(
-                dense: true,
-                leading: Icon(
-                  Icons.block,
-                  color: currentId == 'no'
-                      ? Colors.greenAccent
-                      : Colors.white54,
-                  size: 20,
-                ),
-                title: Text(
-                  AppMessages.text(context, "关闭"),
-                  style: TextStyle(color: Colors.white70, fontSize: 13),
-                ),
-                trailing: currentId == 'no'
-                    ? const Icon(
-                        Icons.check,
-                        color: Colors.greenAccent,
-                        size: 18,
-                      )
-                    : null,
-                onTap: () {
-                  player.setSubtitleTrack(SubtitleTrack.no());
-                  setState(() => _subtitlesEnabled = false);
-                  Navigator.of(ctx).pop();
-                },
-              ),
-              ..._subtitleTracks.map((t) {
-                final isActive = t.id == currentId;
-                return ListTile(
-                  dense: true,
-                  title: Text(
-                    t.title ?? t.language ?? t.id,
-                    style: TextStyle(
-                      color: isActive ? Colors.white : Colors.white70,
-                      fontSize: 13,
-                    ),
-                  ),
-                  subtitle: t.language != null
-                      ? Text(
-                          t.language!,
-                          style: const TextStyle(
-                            color: Colors.white38,
-                            fontSize: 11,
-                          ),
-                        )
-                      : null,
-                  trailing: isActive
-                      ? const Icon(
-                          Icons.check,
-                          color: Colors.greenAccent,
-                          size: 18,
-                        )
-                      : null,
-                  onTap: () {
-                    player.setSubtitleTrack(t);
-                    setState(() => _subtitlesEnabled = true);
-                    Navigator.of(ctx).pop();
-                  },
-                );
+      builder: (ctx) => SafeArea(child: SingleChildScrollView(child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          ListTile(title: Text(AppMessages.text(context, '字幕语言及回退'),
+            style: const TextStyle(color: Colors.white))),
+          ListTile(title: Text(AppMessages.text(context, '关闭')),
+            selected: !preferences.enabled,
+            onTap: () {
+              preferences.setEnabled(false);
+              setState(() => _subtitlesEnabled = false);
+              Navigator.of(ctx).pop();
+            }),
+          for (final language in AppLanguage.values)
+            ListTile(title: Text(language.label),
+              selected: preferences.enabled && preferences.language == language,
+              onTap: () {
+                preferences.choose(language);
+                setState(() => _subtitlesEnabled = true);
+                Navigator.of(ctx).pop();
               }),
-            ],
-          ),
-        );
-      },
+          ListTile(title: Text(AppMessages.text(context, '跟随界面语言')),
+            selected: preferences.enabled && preferences.followsApplication,
+            onTap: () {
+              preferences.choose(null);
+              setState(() => _subtitlesEnabled = true);
+              Navigator.of(ctx).pop();
+            }),
+        ],
+      ))),
     );
   }
 
@@ -1339,7 +1268,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                           logoUrl: _currentChannelLogo,
                         );
                       }
-                      return Video(
+                      return BobtvVideo(
                         key: ValueKey(active),
                         controller: active,
                         controls: NoVideoControls,
@@ -1416,7 +1345,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                     PlayerControlBar(
                       isCasting: ref.read(castServiceProvider).isCasting,
                       isFavorite: _isFavorite,
-                      hasSubtitles: _subtitleTracks.isNotEmpty,
+                      hasSubtitles: true,
                       subtitlesEnabled: _subtitlesEnabled,
                       onSubtitleToggle: _toggleSubtitles,
                       onSubtitleSelect: _showSubtitlePicker,

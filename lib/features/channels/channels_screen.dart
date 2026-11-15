@@ -1,3 +1,4 @@
+import '../player/bobtv_video.dart';
 import '../../core/server_image.dart';
 import '../../core/i18n/language_menu.dart';
 import 'dart:async';
@@ -3583,7 +3584,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
           );
         }
         return RepaintBoundary(
-          child: Video(
+          child: BobtvVideo(
             key: ValueKey(controller ?? initialController),
             controller: controller ?? initialController,
             controls: NoVideoControls,
@@ -3950,7 +3951,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                         Positioned.fill(
                           child: IgnorePointer(
                             child: RepaintBoundary(
-                              child: Video(
+                              child: BobtvVideo(
                                 controller: previewController,
                                 controls: NoVideoControls,
                                 fill: Colors.black,

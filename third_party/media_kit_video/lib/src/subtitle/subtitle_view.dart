@@ -8,6 +8,69 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 
 import 'package:media_kit_video/src/video_controller/video_controller.dart';
+import 'package:media_kit_video/src/video_controller/platform_video_controller.dart';
+
+Rect subtitleViewportRect(
+    Size viewport, Size picture, BoxFit fit, Alignment alignment) {
+  if (viewport.isEmpty ||
+      picture.isEmpty ||
+      !viewport.width.isFinite ||
+      !viewport.height.isFinite) {
+    return Rect.zero;
+  }
+  final sizes = applyBoxFit(fit, picture, viewport);
+  return alignment
+      .inscribe(sizes.destination, Offset.zero & viewport)
+      .intersect(Offset.zero & viewport);
+}
+
+/// Uses the same decoded picture size, fit and alignment as the video texture.
+/// Every video surface owns its own coordinates; no window/global offsets.
+class VideoSubtitleViewport extends StatelessWidget {
+  const VideoSubtitleViewport(
+      {super.key,
+      required this.controller,
+      required this.child,
+      this.fit = BoxFit.contain,
+      this.alignment = Alignment.center,
+      this.aspectRatio});
+  final VideoController controller;
+  final Widget child;
+  final BoxFit fit;
+  final Alignment alignment;
+  final double? aspectRatio;
+
+  @override
+  Widget build(BuildContext context) =>
+      ValueListenableBuilder<PlatformVideoController?>(
+        valueListenable: controller.notifier,
+        builder: (context, platform, _) => platform == null
+            ? const SizedBox.shrink()
+            : ValueListenableBuilder<Rect?>(
+                valueListenable: platform.rect,
+                builder: (context, picture, _) => LayoutBuilder(
+                  builder: (context, constraints) {
+                    if (picture == null) return const SizedBox.shrink();
+                    final size = Size(
+                        aspectRatio == null
+                            ? picture.width
+                            : picture.height * aspectRatio!,
+                        picture.height);
+                    final rect = subtitleViewportRect(
+                        constraints.biggest, size, fit, alignment);
+                    return ClipRect(
+                        child: Stack(children: [
+                      if (!rect.isEmpty)
+                        Positioned.fromRect(
+                            rect: rect,
+                            child:
+                                IgnorePointer(child: ClipRect(child: child))),
+                    ]));
+                  },
+                ),
+              ),
+      );
+}
 
 /// {@template subtitle_view}
 ///

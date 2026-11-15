@@ -110,6 +110,7 @@ class Hub:
             usable = not self.gap and time.time() - self.last_guide_success <= 120 and time.time() < self.programme['stopUtc']
             return dict(session=token, source=session['source'], programmeKey=self.programme['key'] if usable else None,
                         playbackUrl=self.base + 'media/' + token + '/index.m3u8',
+                        mediaClockOrigin=session['origin'],
                         windows=self.engine.windows(session['origin']) if usable else [])
 
     def maintain(self):

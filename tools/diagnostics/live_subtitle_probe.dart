@@ -91,6 +91,9 @@ Future<void> main() async {
   final backend = player.platform;
   if (backend is native.NativePlayer) await backend.setProperty('mute', 'yes');
   await service.play(source, channelName: 'Action Movies subtitle pilot');
+  await File('${directory.path}/resolved-media.json').writeAsString(
+    jsonEncode({'mediaPath': await service.getMpvProperty('path')}),
+  );
   final limit = int.parse(
     Platform.environment['BOBTV_SUBTITLE_PROBE_SECONDS'] ?? '285',
   );

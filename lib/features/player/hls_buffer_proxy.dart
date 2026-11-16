@@ -10,6 +10,40 @@ bool isActionMoviesUk(String source) {
       uri!.path.contains('/production-LiveChannel-6065/');
 }
 
+/// Avoid probing every bitrate and experimental HLS WebVTT before video starts.
+/// Only reviewed Action UK video renditions can become a playback target.
+Uri selectActionMoviesMedia(String body, Uri master) {
+  final lines = const LineSplitter().convert(body);
+  Uri? selected;
+  var highest = -1;
+  int? bandwidth;
+  for (final raw in lines) {
+    final line = raw.trim();
+    if (line.startsWith('#EXT-X-STREAM-INF:')) {
+      bandwidth = int.tryParse(
+        RegExp(r'(?:[:,])BANDWIDTH=(\d+)').firstMatch(line)?[1] ?? '',
+      );
+    } else if (line.isNotEmpty && !line.startsWith('#')) {
+      final candidate = master.resolve(line);
+      if (bandwidth != null &&
+          bandwidth > highest &&
+          isActionMoviesUk(candidate.toString()) &&
+          candidate.path.contains('/v1/manifest/') &&
+          candidate.path.endsWith('.m3u8') &&
+          candidate.userInfo.isEmpty &&
+          candidate.port == 443) {
+        highest = bandwidth;
+        selected = candidate;
+      }
+      bandwidth = null;
+    }
+  }
+  if (selected == null) {
+    throw const FormatException('No reviewed Action UK audio/video rendition');
+  }
+  return selected;
+}
+
 /// Keep a duration-based distance from the live edge, including one-second
 /// advert segments. Media and encryption keys continue directly from the CDN.
 String rewriteBufferedHls(
@@ -81,6 +115,40 @@ class HlsBufferProxy {
     _headers = headers ?? const {};
     final client = ServerEgress.createMediaClient();
     client.connectionTimeout = const Duration(seconds: 5);
+    _client = client;
+    var origin = Uri.parse(source);
+    if (origin.path.contains('/v1/master/')) {
+      try {
+        final request = await client.getUrl(origin);
+        (headers ?? const <String, String>{}).forEach(request.headers.set);
+        final response = await request.close().timeout(
+          const Duration(seconds: 8),
+        );
+        if (response.statusCode != 200) {
+          await response.drain<void>();
+          throw HttpException(
+            'Action UK master returned ${response.statusCode}',
+          );
+        }
+        final bytes = <int>[];
+        await for (final chunk in response.timeout(
+          const Duration(seconds: 8),
+        )) {
+          bytes.addAll(chunk);
+          if (bytes.length > 256 * 1024) {
+            throw const FormatException('Action UK master exceeds size limit');
+          }
+        }
+        origin = selectActionMoviesMedia(utf8.decode(bytes), origin);
+      } catch (_) {
+        client.close(force: true);
+        rethrow;
+      }
+      if (generation != _generation) {
+        client.close(force: true);
+        return source;
+      }
+    }
     final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
     if (generation != _generation) {
       client.close(force: true);
@@ -130,7 +198,7 @@ class HlsBufferProxy {
         }
       }
     });
-    return _register(Uri.parse(source));
+    return _register(origin);
   }
 
   Future<void> stop() async {

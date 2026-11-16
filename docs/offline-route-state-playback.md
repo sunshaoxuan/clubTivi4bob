@@ -7,3 +7,17 @@
 2026-11-16 维护中，root 执行目录原子发布生成了服务账号不可读的文件，造成目录与线路状态接口 HTTP 500。已恢复当前清单、快照的 bobtv 归属与公开读取权限，给原子发布补充权限与归属保持。两个节点的目录与线路状态接口已重新核验为 HTTP 200。
 
 原生静音验收使用显式 `BOBTV_TEST_MUTE=1`，在每个主、预览和暖播放器打开前设置静音，不修改用户保存的音量偏好。独立离线诊断使用内存数据库及失败的状态同步接口，验证实际原生播放器仍能播放已有 URL。
+
+## Action Movies master-playlist fallback
+
+With programme/subtitle discovery unavailable, the original Rakuten master
+playlist reaches the native decoder. The bundled FFmpeg experimental HLS WebVTT
+reader can wait indefinitely for nonempty packets from the provider's
+`empty_sub.vtt` rendition, preventing audio/video initialization. For this
+reviewed Action UK source, bootstrap the master once and select its highest
+bandwidth reviewed same-host/service audio/video rendition. This also avoids
+initially probing every bitrate. Keep caption retrieval in the independent
+subtitle session. Native HLS WebVTT is unavailable
+on this compatibility path; unavailable caption services yield no captions and
+must still allow video. Other sources retain their original master and native track handling.
+Embedded subtitles in supported audio/video streams retain the selection policy.

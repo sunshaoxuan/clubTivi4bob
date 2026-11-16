@@ -54,6 +54,44 @@ void main() {
       );
     },
   );
+  test(
+    'Action bootstrap selects one reviewed AV rendition without subtitle IO',
+    () {
+      final master = Uri.parse(
+        'https://action-rakuten-tv-uk.fast.rakuten.tv/v1/master/key/production-LiveChannel-6065/master.m3u8',
+      );
+      final selected = selectActionMoviesMedia(
+        '#EXTM3U\n'
+        '#EXT-X-MEDIA:TYPE=SUBTITLES,URI="empty.m3u8"\n'
+        '#EXT-X-STREAM-INF:AVERAGE-BANDWIDTH=9000000,BANDWIDTH=600000\n'
+        '../../../manifest/key/production-LiveChannel-6065/session/low.m3u8\n'
+        '#EXT-X-STREAM-INF:BANDWIDTH=4000000\n'
+        '../../../manifest/key/production-LiveChannel-6065/session/high.m3u8\n',
+        master,
+      );
+      expect(selected.path, endsWith('/session/high.m3u8'));
+      expect(selected.path, startsWith('/v1/manifest/'));
+    },
+  );
+  test('Action bootstrap rejects unreviewed hosts, services and protocols', () {
+    final master = Uri.parse(
+      'https://action-rakuten-tv-uk.fast.rakuten.tv/v1/master/key/production-LiveChannel-6065/master.m3u8',
+    );
+    for (final uri in [
+      'https://evil.example/v1/manifest/key/production-LiveChannel-6065/4.m3u8',
+      'https://action-rakuten-tv-uk.fast.rakuten.tv/v1/manifest/key/production-LiveChannel-9999/4.m3u8',
+      'http://action-rakuten-tv-uk.fast.rakuten.tv/v1/manifest/key/production-LiveChannel-6065/4.m3u8',
+      'https://action-rakuten-tv-uk.fast.rakuten.tv:8443/v1/manifest/key/production-LiveChannel-6065/4.m3u8',
+    ]) {
+      expect(
+        () => selectActionMoviesMedia(
+          '#EXTM3U\n#EXT-X-STREAM-INF:BANDWIDTH=4000000\n$uri\n',
+          master,
+        ),
+        throwsFormatException,
+      );
+    }
+  });
   test('live holdback uses elapsed seconds across short advert segments', () {
     final body =
         '#EXTM3U\n#EXT-X-TARGETDURATION:6\n'

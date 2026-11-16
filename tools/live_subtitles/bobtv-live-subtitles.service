@@ -10,7 +10,7 @@ WorkingDirectory=/opt/bobtv/live-subtitles/current-v2
 Environment=PYTHONDONTWRITEBYTECODE=1
 Environment=HF_HUB_OFFLINE=1
 Environment=OMP_NUM_THREADS=2
-ExecStart=/opt/bobtv/subtitles-venv/bin/python service.py --root /var/lib/bobtv/live-subtitles-v2 --model-root /var/lib/bobtv/live-subtitle-models --base https://bobtv.briconbric.com/api/v1/subtitles/ --port 8922 --legacy-port 8921
+ExecStart=/opt/bobtv/subtitles-venv/bin/python service.py --root /var/lib/bobtv/live-subtitles-v2 --subtitle-cache-root /var/lib/bobtv/resource-cache/subtitles --model-root /var/lib/bobtv/live-subtitle-models --base https://bobtv.briconbric.com/api/v1/subtitles/ --port 8922 --legacy-port 8921
 Restart=on-failure
 RestartSec=10
 MemoryMax=768M
@@ -22,7 +22,7 @@ NoNewPrivileges=true
 ProtectSystem=strict
 ProtectHome=true
 PrivateTmp=true
-ReadWritePaths=/var/lib/bobtv/live-subtitles
+ReadWritePaths=/var/lib/bobtv/live-subtitles-v2 /var/lib/bobtv/resource-cache/subtitles
 RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
 
 [Install]

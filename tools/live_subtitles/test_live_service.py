@@ -13,6 +13,17 @@ from subtitle_catalog import discover, parse_srt, title_norm
 
 
 class LiveServiceTests(unittest.TestCase):
+    def test_hardened_service_allows_only_its_media_and_cache_writes(self):
+        import shlex
+        unit=(Path(__file__).parent/'bobtv-live-subtitles.service').read_text()
+        settings=dict(line.split('=',1) for line in unit.splitlines() if '=' in line)
+        arguments=shlex.split(settings['ExecStart']);writable=settings['ReadWritePaths'].split()
+        for option in ['--root','--subtitle-cache-root']:
+            self.assertIn(arguments[arguments.index(option)+1],writable)
+        self.assertEqual(settings['ProtectSystem'],'strict')
+        self.assertEqual(settings['ProtectHome'],'true')
+        self.assertNotIn('/var/lib/bobtv',writable)
+
     def test_only_unambiguous_official_imdb_identifiers_are_admitted(self):
         self.assertEqual(official_imdb_id({'imdb_id':'tt1234567'}),'tt1234567')
         self.assertEqual(official_imdb_id({'external_links':['https://www.imdb.com/title/tt1234567/']}),'tt1234567')

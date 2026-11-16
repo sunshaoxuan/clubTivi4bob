@@ -15,7 +15,7 @@ import shutil
 import subprocess
 import threading
 import time
-from urllib.parse import urlencode, urlsplit
+from urllib.parse import urlencode, urlsplit, urljoin
 from urllib.request import Request, urlopen
 import uuid
 
@@ -83,6 +83,23 @@ def pilot_channel(catalog):
     return matches[0]
 
 
+def media_route(source):
+    """Bootstrap a fresh provider media session from its stable public master."""
+    body=public_read(source).decode()
+    if '#EXT-X-STREAM-INF:' not in body:return source
+    variants=[];bandwidth=None
+    for line in body.splitlines():
+        if line.startswith('#EXT-X-STREAM-INF:'):
+            found=re.search(r'(?:^|,)BANDWIDTH=(\d+)',line.split(':',1)[1]);bandwidth=int(found[1]) if found else 0
+        elif line and not line.startswith('#') and bandwidth is not None:
+            uri=urljoin(source,line);parts=urlsplit(uri)
+            if parts.scheme!='https' or parts.hostname!='action-rakuten-tv-uk.fast.rakuten.tv' or '/production-LiveChannel-6065/' not in parts.path:
+                raise ValueError('unreviewed_media_variant')
+            variants.append((bandwidth,uri));bandwidth=None
+    if not variants:raise ValueError('reviewed_media_variant_required')
+    return max(variants)[1]
+
+
 class Hub:
     def __init__(self, root, model, ffmpeg, base):
         self.root, self.model, self.ffmpeg, self.base = Path(root), model, ffmpeg, base.rstrip('/') + '/'
@@ -107,7 +124,7 @@ class Hub:
                 raise RuntimeError('pilot_capacity')
             if self.engine is None:
                 root = self.root / uuid.uuid4().hex
-                self.engine = Engine(source, self.programme, root, self.model, self.ffmpeg, preferred_language=language)
+                self.engine = Engine(media_route(source), self.programme, root, self.model, self.ffmpeg, preferred_language=language)
                 self.engine.start()
                 self.publisher=MediaPublisher(self.engine.collector,self.ffmpeg)
                 threading.Thread(target=self.publisher.run,daemon=True).start()
@@ -152,7 +169,7 @@ class Hub:
                     self.programme, self.last_guide_success, self.gap = programme, time.time(), False
                     if changed and self.engine is not None:
                         old = self.engine; old.controller_stop.set()
-                        self.engine = Engine(source, programme, old.root / 'programme-' / uuid.uuid4().hex,
+                        self.engine = Engine(old.collector.source, programme, old.root / 'programme-' / uuid.uuid4().hex,
                                              self.model, self.ffmpeg, preferred_language=next(iter(self.sessions.values()))['language'])
                         self.engine.collector = old.collector
                         self.engine.last_sequence = old.collector.snapshot()[-1]['sequence'] if old.collector.snapshot() else -1

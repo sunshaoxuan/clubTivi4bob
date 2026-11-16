@@ -8,11 +8,17 @@ from unittest.mock import patch
 
 from live_media import parse_media, playlist, continuous_counters, MediaPublisher
 from live_engine import Engine, align
-from service import Hub, CHANNEL, pilot_channel
+from service import Hub, CHANNEL, pilot_channel, media_route
 from subtitle_catalog import discover, parse_srt, title_norm
 
 
 class LiveServiceTests(unittest.TestCase):
+    def test_stable_master_bootstraps_only_the_reviewed_owned_feed(self):
+        source='https://action-rakuten-tv-uk.fast.rakuten.tv/production-LiveChannel-6065/master.m3u8'
+        raw=b'#EXTM3U\n#EXT-X-STREAM-INF:BANDWIDTH=100\nlow.m3u8\n#EXT-X-STREAM-INF:BANDWIDTH=200\nhigh.m3u8\n'
+        with patch('service.public_read',lambda _:raw):self.assertTrue(media_route(source).endswith('/high.m3u8'))
+        with patch('service.public_read',lambda _:raw.replace(b'low.m3u8',b'https://unreviewed.example/low.m3u8')):
+            with self.assertRaises(ValueError):media_route(source)
     def test_current_catalogue_identity_requires_exact_owned_feed_and_market(self):
         route='https://action-rakuten-tv-uk.fast.rakuten.tv/v1/manifest/key/production-LiveChannel-6065/session/4.m3u8'
         channel=dict(id='current-public-id',countryCode='GB',routes=[dict(url=route)])

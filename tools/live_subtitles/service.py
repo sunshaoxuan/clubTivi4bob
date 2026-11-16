@@ -139,7 +139,9 @@ class Hub:
         with self.lock:
             session = self.sessions[token]; session['lastAccess'] = time.time()
             usable = not self.gap and time.time() - self.last_guide_success <= 120 and time.time() < self.programme['stopUtc']
-            return dict(session=token, source=session['source'], programmeKey=self.programme['key'] if usable else None,
+            rows = [r for r in self.publisher.snapshot() if r['timelineStart'] >= session['origin']]
+            ready = usable and sum(r['duration'] for r in rows) >= 24
+            return dict(session=token, source=session['source'], playbackReady=ready, programmeKey=self.programme['key'] if usable else None,
                         playbackUrl=self.base + 'media/' + token + '/index.m3u8',
                         mediaClockOrigin=session['origin'],
                         windows=self.engine.windows(session['origin']) if usable else [])

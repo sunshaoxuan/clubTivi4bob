@@ -31,6 +31,36 @@ class _Player extends Fake implements Player {
 }
 
 void main() {
+  test(
+    'warming optional media keeps the original provider and no captions',
+    () async {
+      final player = _Player();
+      final selection = NativeSubtitleSelection(player);
+      final session = LiveSubtitleSession(
+        player,
+        selection,
+        client: MockClient(
+          (_) async => http.Response(
+            jsonEncode({
+              'session': 'warming',
+              'source': 'channel',
+              'playbackReady': false,
+              'playbackUrl': 'http://127.0.0.1/unready',
+              'windows': [],
+            }),
+            200,
+          ),
+        ),
+        serviceEndpoint: 'http://127.0.0.1/',
+      );
+      expect(await session.prepare('channel'), 'channel');
+      session.activate();
+      expect(selection.external, isFalse);
+      expect(session.text.value, isEmpty);
+      await session.dispose();
+      await selection.dispose();
+    },
+  );
   test('late session response cannot caption the next channel', () async {
     final response = Completer<http.Response>();
     final player = _Player();
@@ -49,6 +79,7 @@ void main() {
         jsonEncode({
           'session': 'old',
           'source': 'old-channel',
+          'playbackReady': true,
           'playbackUrl': 'http://127.0.0.1/video',
           'windows': [],
         }),
@@ -76,6 +107,7 @@ void main() {
                 jsonEncode({
                   'session': 'a',
                   'source': 'channel',
+                  'playbackReady': true,
                   'playbackUrl': 'http://127.0.0.1/video',
                   'windows': [
                     {
@@ -151,6 +183,7 @@ void main() {
         'session': 'session',
         'source': 'channel',
         'programmeKey': replyKey,
+        'playbackReady': true,
         'playbackUrl': 'http://127.0.0.1/media',
         'windows': [
           {

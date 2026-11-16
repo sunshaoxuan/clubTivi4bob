@@ -134,6 +134,27 @@ class LiveServiceTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as root,patch('subtitle_catalog.read',read):
             self.assertEqual(discover('In Hell',2003,root),[])
 
+    def test_warming_media_is_not_offered_as_ready_playback(self):
+        hub = Hub.__new__(Hub)
+        hub.lock = threading.RLock(); hub.gap = False
+        hub.last_guide_success = time.time()
+        hub.programme = dict(key='current', stopUtc=time.time()+3600)
+        hub.base = 'https://public.example/'
+        hub.sessions = {'token':dict(source='reviewed-source', origin=0)}
+        rows = []
+        class Publisher:
+            def snapshot(self):return list(rows)
+        class Engine:
+            def windows(self, origin):return []
+        hub.publisher = Publisher(); hub.engine = Engine()
+        self.assertFalse(hub.response('token')['playbackReady'])
+        rows.extend([dict(timelineStart=0,duration=6),dict(timelineStart=6,duration=6)])
+        self.assertFalse(hub.response('token')['playbackReady'])
+        rows.extend([dict(timelineStart=12,duration=6),dict(timelineStart=18,duration=6)])
+        self.assertTrue(hub.response('token')['playbackReady'])
+        hub.gap = True
+        self.assertFalse(hub.response('token')['playbackReady'])
+
     def test_session_requires_current_exact_route_and_programme(self):
         hub = Hub.__new__(Hub); hub.source='https://public.example/route'; hub.gap=False
         hub.last_guide_success=time.time(); hub.programme=dict(key='current',stopUtc=time.time()+3600,catalogChannelId=CHANNEL)

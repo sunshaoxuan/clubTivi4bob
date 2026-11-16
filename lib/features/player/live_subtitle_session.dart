@@ -85,6 +85,8 @@ class LiveSubtitleSession {
         return source;
       }
       final data = jsonDecode(response.body) as Map<String, dynamic>;
+      // Optional caption media must be ready before replacing the provider URL.
+      if (data['playbackReady'] != true) return source;
       final session = data['session'] as String;
       final playback = Uri.parse(data['playbackUrl'] as String);
       if (!ServerEgress.canConnect(playback)) return source;

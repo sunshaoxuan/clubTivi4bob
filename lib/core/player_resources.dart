@@ -84,8 +84,15 @@ class ManagedPlayer extends Player {
   ) : super(configuration: configuration, platformPlayer: platformPlayer) {
     subtitles = NativeSubtitleSelection(this);
     liveSubtitles = LiveSubtitleSession(this, subtitles);
+    _fallbackBuffering = stream.buffering.listen(
+      (_) => _updateFallbackWatchdog(),
+    );
+    _fallbackPlaying = stream.playing.listen((_) => _updateFallbackWatchdog());
     _resources.register(this, () async {
       ++_openGeneration;
+      _clearFallback();
+      await _fallbackBuffering.cancel();
+      await _fallbackPlaying.cancel();
       await _hlsBuffer.stop();
       await liveSubtitles.dispose();
       await subtitles.dispose();
@@ -99,9 +106,74 @@ class ManagedPlayer extends Player {
   int _openGeneration = 0;
   final _hlsBuffer = HlsBufferProxy();
   bool _liveStartOptionApplied = false;
+  Media? _fallbackMedia;
+  Timer? _fallbackTimer;
+  late final StreamSubscription<bool> _fallbackBuffering, _fallbackPlaying;
+
+  /// The owning route guard must approve every asynchronous fallback open.
+  Future<void> Function(Future<void> Function() operation)? fallbackOpenGate;
+
+  void _clearFallback() {
+    _fallbackTimer?.cancel();
+    _fallbackTimer = null;
+    _fallbackMedia = null;
+  }
+
+  void _updateFallbackWatchdog() {
+    if (_fallbackMedia == null || !state.playing || !state.buffering) {
+      _fallbackTimer?.cancel();
+      _fallbackTimer = null;
+      return;
+    }
+    final generation = _openGeneration;
+    _fallbackTimer ??= Timer(const Duration(seconds: 10), () {
+      _fallbackTimer = null;
+      unawaited(_fallbackToOriginal(generation));
+    });
+  }
+
+  Future<void> _fallbackToOriginal(int generation) async {
+    final media = _fallbackMedia;
+    final gate = fallbackOpenGate;
+    if (generation != _openGeneration ||
+        media == null ||
+        !state.playing ||
+        !state.buffering)
+      return;
+    _clearFallback();
+    Future<void> reopen() async {
+      if (generation != _openGeneration) return;
+      AppDiagnostics.instance.log('subtitle_media_unavailable_using_original', {
+        'reason': 'media_buffer_timeout',
+      });
+      await _openPlayable(media, play: true, discoverSubtitles: false);
+    }
+
+    try {
+      if (gate == null) {
+        await reopen();
+      } else {
+        await gate(reopen);
+      }
+    } catch (error, stack) {
+      AppDiagnostics.instance.recordError(
+        'subtitle_media_fallback_failed',
+        error,
+        stack,
+      );
+    }
+  }
 
   @override
-  Future<void> open(Playable playable, {bool play = true}) async {
+  Future<void> open(Playable playable, {bool play = true}) =>
+      _openPlayable(playable, play: play);
+
+  Future<void> _openPlayable(
+    Playable playable, {
+    bool play = true,
+    bool discoverSubtitles = true,
+  }) async {
+    _clearFallback();
     final generation = ++_openGeneration;
     // Explicit native acceptance runs must never emit audio, including warm
     // and preview decoders. This diagnostic flag does not change preferences.
@@ -114,7 +186,10 @@ class ManagedPlayer extends Player {
     }
     liveSubtitles.clear();
     if (playable is Media) {
-      var uri = await liveSubtitles.prepare(playable.uri);
+      var uri = discoverSubtitles
+          ? await liveSubtitles.prepare(playable.uri)
+          : playable.uri;
+      if (uri != playable.uri) _fallbackMedia = playable;
       if (generation != _openGeneration) return;
       final native = platform;
       if (native is native_player.NativePlayer) {
@@ -156,12 +231,16 @@ class ManagedPlayer extends Player {
       await _hlsBuffer.stop();
       await super.open(playable, play: play);
     }
-    if (generation == _openGeneration) liveSubtitles.activate();
+    if (generation == _openGeneration) {
+      liveSubtitles.activate();
+      _updateFallbackWatchdog();
+    }
   }
 
   @override
   Future<void> stop() async {
     ++_openGeneration;
+    _clearFallback();
     liveSubtitles.clear();
     await _hlsBuffer.stop();
     await super.stop();

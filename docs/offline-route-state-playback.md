@@ -21,3 +21,13 @@ subtitle session. Native HLS WebVTT is unavailable
 on this compatibility path; unavailable caption services yield no captions and
 must still allow video. Other sources retain their original master and native track handling.
 Embedded subtitles in supported audio/video streams retain the selection policy.
+
+## Optional subtitle-media availability
+
+The subtitle service advertises `playbackReady` only after at least 24 seconds
+of normalized audio/video exist in the session. A warming or unavailable service
+leaves the provider source in use. If an accepted subtitle-media stream stalls
+for ten seconds while playing, clear its subtitle timeline and open the original
+provider once, without another subtitle-service attempt. The owning route guard
+checks durable exclusions again before and after this asynchronous fallback.
+Changing channel, pausing or disposing cancels the watchdog.

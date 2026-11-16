@@ -88,18 +88,27 @@ class PlayerService {
       ServerEgress.mediaUrl(url), httpHeaders: ServerEgress.mediaHeaders(url),
     ));
     final guard = _retirementGuard;
+    final endpoint = originalUrl ?? url;
+    Future<void> stopRetired() async {
+      if (!identical(target, _player) || (_currentUrl != null &&
+          canonicalRouteUrl(_currentUrl!) == canonicalRouteUrl(endpoint))) {
+        await target.stop();
+      }
+    }
+    if (target is ManagedPlayer) {
+      target.fallbackOpenGate = (operation) async {
+        if (_disposed) throw const RetiredRouteException();
+        if (guard == null) {
+          await operation();
+        } else {
+          await guard.open(endpoint, operation, stop: stopRetired);
+        }
+      };
+    }
     if (guard == null) {
       await open();
     } else {
-      final endpoint = originalUrl ?? url;
-      await guard.open(endpoint, open, stop: () async {
-        // An old asynchronous open must not stop a newer channel that reused
-        // the main player while the durable exclusion check was completing.
-        if (!identical(target, _player) || (_currentUrl != null &&
-            canonicalRouteUrl(_currentUrl!) == canonicalRouteUrl(endpoint))) {
-          await target.stop();
-        }
-      });
+      await guard.open(endpoint, open, stop: stopRetired);
     }
   }
 

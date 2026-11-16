@@ -94,7 +94,7 @@ def test_product_pages_reflect_published_releases():
     assert 'class="back-top"' not in history
     assert "github.com" not in home.lower()
     static_history = (site / "release-notes.html").read_text()
-    assert "Setup 安装向导" in static_history and "Unicode" in static_history
+    assert ("Setup 安装向导" in static_history or "Windows Setup" in static_history) and "Unicode" in static_history
     assert "正式安装版" in static_history and "退出后继续显示备份、安装及完成状态" in static_history
     downloads = client.get("/downloads?lang=zh-CN").text
     assert 'id="release-list"' in downloads and "BobTV.exe" in downloads

@@ -7,7 +7,7 @@ import unittest
 from unittest.mock import patch
 
 from live_media import parse_media, playlist, continuous_counters, MediaPublisher
-from live_engine import Engine, align
+from live_engine import Engine, align, fit_clock_rate, mapped_cues
 from service import Hub, CHANNEL, pilot_channel, media_route, official_imdb_id
 from subtitle_catalog import discover, parse_srt, title_norm, matches_movie_title
 
@@ -263,10 +263,52 @@ class LiveServiceTests(unittest.TestCase):
             self.assertTrue(e.acquisition_exhausted)
             hub=Hub.__new__(Hub);hub.engine=e
             self.assertEqual(hub.caption_status(True)['phase'],'unavailable')
-            with patch('live_engine.transcribe',return_value=words),patch('live_engine.align',return_value=(1,[dict(cue=1)])):
+            with patch('live_engine.transcribe',return_value=words),patch('live_engine.align',return_value=(1,[dict(cue=1,subtitleStart=100.,asrStart=0.,offset=100.)])):
                 e.analyze([row],row,100,e.generation)
             self.assertFalse(e.acquisition_exhausted)
             self.assertEqual(hub.caption_status(True)['phase'],'matched')
+
+    def test_rate_fit_requires_multi_window_evidence_and_rejects_a_clock_step(self):
+        rate=(24000/1001)/25
+        points=[dict(sourcePts=1000+i*8,subtitleStart=rate*(1000+i*8)+10) for i in range(12)]
+        model=fit_clock_rate(points);self.assertAlmostEqual(model['rate'],rate)
+        self.assertIsNone(fit_clock_rate(points[:4]))
+        plain=[dict(sourcePts=i*8,subtitleStart=i*8+10) for i in range(12)]
+        self.assertIsNone(fit_clock_rate(plain))
+        step=[dict(sourcePts=i*8,subtitleStart=i*8+10-(3 if i>=6 else 0)) for i in range(12)]
+        self.assertIsNone(fit_clock_rate(step))
+
+    def test_cue_mapping_applies_rate_and_clips_to_actual_video_segment(self):
+        row=dict(timelineStart=20.,timelineEnd=26.)
+        cues=[dict(index=1,start=106.,end=107.92,text='existing subtitle')]
+        actual=mapped_cues(cues,row,100.,.96,10.)
+        self.assertAlmostEqual(actual[0]['start'],20.)
+        self.assertAlmostEqual(actual[0]['end'],22.)
+
+    def test_rate_correction_retimes_buffered_cues_without_touching_ads_or_old_clocks(self):
+        with tempfile.TemporaryDirectory() as root:
+            c=dict(page='existing',tracks={'en':[dict(index=1,start=106,end=107.92,text='caption')]})
+            e=Engine('https://public.example/live',dict(movieId='film',title='Film',year=2003),root,None,'ffmpeg',candidates=[c])
+            e.reference=c;e.rate=.96;e.k=10;e.generation=2
+            base=dict(state='LOCKED',asset='film',clockGeneration=2,pts=100,start=20,end=26,tracks=[])
+            e.decisions={1:{**base},2:{**base,'state':'SUSPENDED'},3:{**base,'clockGeneration':1},4:{**base,'asset':'other'}}
+            e.retime_decisions('film')
+            self.assertAlmostEqual(e.decisions[1]['tracks'][0]['cues'][0]['start'],20)
+            self.assertAlmostEqual(e.decisions[1]['tracks'][0]['cues'][0]['end'],22)
+            for i in (2,3,4):self.assertEqual(e.decisions[i]['tracks'],[])
+
+    def test_fps_drift_is_calibrated_without_repeated_acquisition(self):
+        with tempfile.TemporaryDirectory() as root:
+            rate=(24000/1001)/25
+            c=dict(page='existing',tracks={'en':[dict(index=1,start=0,end=2,text='caption')]})
+            e=Engine('https://public.example/live',dict(movieId='film',title='Film',year=2003),root,None,'ffmpeg',candidates=[c]);e.active_asset='film'
+            for frame,t in enumerate(range(0,109,18)):
+                row=dict(sequence=frame,asset='film',timelineStart=t,timelineEnd=t+18)
+                anchors=[dict(cue=frame*3+i,subtitleStart=rate*(1000+t+i*5)+10,asrStart=t+i*5,offset=rate*(1000+t+i*5)+10-t-i*5,words=20) for i in range(3)]
+                with patch('live_engine.transcribe',return_value=[]),patch('live_engine.align',return_value=(anchors[1]['offset'],anchors)):
+                    e.analyze([row],row,1000+t,e.generation)
+            self.assertEqual(e.state,'LOCKED');self.assertAlmostEqual(e.rate,rate)
+            self.assertAlmostEqual(e.k,10);self.assertEqual(e.generation,0)
 
     def test_alignment_requires_multiple_distinct_cues_and_temporal_span(self):
         cues = [dict(index=i+1,start=100+i*5,end=104+i*5,text=text) for i,text in enumerate([
@@ -335,7 +377,7 @@ class LiveServiceTests(unittest.TestCase):
                 def transcribe(*args):
                     e.collector.stop.set()
                     return []
-                with patch('live_engine.media_pts',lambda row,*_: {1:0.,2:6.,4:return_pts}[row['sequence']]),patch('live_engine.transcribe',transcribe),patch('live_engine.align',lambda *args:(100.,[dict(cue=1)])):
+                with patch('live_engine.media_pts',lambda row,*_: {1:0.,2:6.,4:return_pts}[row['sequence']]),patch('live_engine.transcribe',transcribe),patch('live_engine.align',lambda *args:(100.,[dict(cue=1,subtitleStart=100.,asrStart=0.,offset=100.)])):
                     e.run()
                 self.assertEqual(e.decisions[3]['state'],'SUSPENDED')
                 self.assertEqual(e.decisions[3]['tracks'],[])
@@ -352,7 +394,7 @@ class LiveServiceTests(unittest.TestCase):
             started=threading.Event();release=threading.Event()
             def slow(*args):
                 started.set();release.wait(2);return []
-            with patch('live_engine.media_pts',lambda row,*_:row['timelineStart']),patch('live_engine.transcribe',slow),patch('live_engine.align',lambda *args:(100.,[dict(cue=1)])):
+            with patch('live_engine.media_pts',lambda row,*_:row['timelineStart']),patch('live_engine.transcribe',slow),patch('live_engine.align',lambda *args:(100.,[dict(cue=1,subtitleStart=100.,asrStart=0.,offset=100.)])):
                 controller=threading.Thread(target=e.run);controller.start()
                 self.assertTrue(started.wait(1))
                 deadline=time.monotonic()+1

@@ -51,6 +51,32 @@ def align(words, cues, timeline):
     return offset, cluster
 
 
+
+def fit_clock_rate(points):
+    """Require multi-window evidence before accepting a standard FPS ratio."""
+    if len(points)<8:return None
+    xs=[p['sourcePts'] for p in points];origin=min(xs)
+    if max(xs)-origin<45 or len({int((x-origin)//15) for x in xs})<3:return None
+    models=[]
+    for rate in (1.0,24/25,(24000/1001)/25,25/24,25/(24000/1001)):
+        intercept=statistics.median(p['subtitleStart']-rate*p['sourcePts'] for p in points)
+        errors=sorted(abs(p['subtitleStart']-rate*p['sourcePts']-intercept) for p in points)
+        models.append(dict(rate=rate,intercept=intercept,error=statistics.median(errors),p90=errors[int((len(errors)-1)*.9)]))
+    best=min(models,key=lambda m:m['error'])
+    if best['rate']==1 or best['error']>.35 or best['p90']>.75 or models[0]['error']-best['error']<.2:return None
+    return best
+
+
+def mapped_cues(cues,row,pts,rate,intercept):
+    movie_start=rate*pts+intercept;result=[]
+    for c in cues:
+        start=row['timelineStart']+(c['start']-movie_start)/rate
+        end=row['timelineStart']+(c['end']-movie_start)/rate
+        if end>row['timelineStart'] and start<row['timelineEnd']:
+            result.append(dict(index=c['index'],start=max(start,row['timelineStart']),
+                               end=min(end,row['timelineEnd']),text=c['text']))
+    return result
+
 def media_pts(row, ffmpeg, root):
     path = root / 'analysis' / ('pts-' + str(row['sequence']) + '.m3u8')
     path.write_text(playlist([row], end=True))
@@ -97,6 +123,7 @@ class Engine:
         self.discovery_thread = None
         self.preferred_language = preferred_language
         self.state = 'ACQUIRING'; self.last_sequence = -1
+        self.rate = 1.0; self.clock_points = {}; self.clock_key = None
         self.k = None; self.verified_asset = None; self.last_pts_end = None
         self.pause = None; self.returned = None; self.resume = None; self.holdout = {}
         self.calibration_cues = set()
@@ -177,6 +204,7 @@ class Engine:
                         self.state = 'SUSPENDED'; run = []
                     if eligible:
                         if self.state == 'SUSPENDED':
+                            if self.last_pts_end is not None and abs(pts-self.last_pts_end)>.16:self.clock_points.clear()
                             self.state = 'ACQUIRING'; run = []
                             if self.pause is not None and self.returned is None:
                                 self.returned = dict(start=row['timelineStart'], observedWall=row['observedWall'], sequence=row['sequence'])
@@ -189,6 +217,7 @@ class Engine:
                                            continuityErrorSeconds=pts - self.last_pts_end,
                                            observedRecoverySeconds=time.time() - row['observedWall'])
                         if self.state == 'LOCKED' and old_state == 'LOCKED' and self.last_pts_end is not None and abs(pts - self.last_pts_end) > .2:
+                            self.clock_points.clear()
                             self.state = 'ACQUIRING'; self.k = None; self.verified_asset = None; run = []; self.generation += 1
                             self.event('clock_discontinuity', sequence=row['sequence'], errorSeconds=pts - self.last_pts_end)
                         run.append(row)
@@ -209,17 +238,15 @@ class Engine:
                             last_analysis = row['timelineEnd']
                     reference = self.reference
                     tracks = []
-                    offset = self.k + pts - row['timelineStart'] if self.state == 'LOCKED' and self.k is not None and pts is not None else None
+                    offset = self.rate*pts + self.k - row['timelineStart'] if self.state == 'LOCKED' and self.k is not None and pts is not None else None
                     if offset is not None and reference:
                         for language, cues in reference['tracks'].items():
-                            emitted = [dict(index=c['index'], start=max(c['start'] - offset, row['timelineStart']),
-                                            end=min(c['end'] - offset, row['timelineEnd']), text=c['text'])
-                                       for c in cues if c['end'] - offset > row['timelineStart'] and c['start'] - offset < row['timelineEnd']]
+                            emitted = mapped_cues(cues,row,pts,self.rate,self.k)
                             if emitted:
                                 tracks.append(dict(language=language, verified=True, cues=emitted))
                     decision = dict(start=row['timelineStart'], end=row['timelineEnd'], state=self.state,
                                     program=self.programme['movieId'], asset=row['asset'], tracks=tracks,
-                                    sequence=row['sequence'], generatedWall=time.time(), pts=pts, offset=offset)
+                                    sequence=row['sequence'], generatedWall=time.time(), pts=pts, offset=offset, rate=self.rate, clockGeneration=self.generation)
                     with self.lock:
                         self.decisions[row['sequence']] = decision
                         cutoff=row['timelineEnd']-7200
@@ -231,6 +258,17 @@ class Engine:
                         holdout=list(self.holdout.values()), subtitleCandidates=len(self.candidates or []),
                         unmatchedWindows=self.unmatched_windows, acquisitionExhausted=self.acquisition_exhausted)))
             self.collector.stop.wait(.15)
+
+    def retime_decisions(self, asset):
+        for decision in self.decisions.values():
+            if (decision['state']!='LOCKED' or decision['asset']!=asset
+                    or decision.get('clockGeneration')!=self.generation or decision.get('pts') is None):continue
+            row=dict(timelineStart=decision['start'],timelineEnd=decision['end'])
+            tracks=[]
+            for language,cues in self.reference['tracks'].items():
+                emitted=mapped_cues(cues,row,decision['pts'],self.rate,self.k)
+                if emitted:tracks.append(dict(language=language,verified=True,cues=emitted))
+            decision.update(tracks=tracks,rate=self.rate,offset=self.rate*decision['pts']+self.k-decision['start'])
 
     def analyze(self, window, row, pts, generation):
         started = time.time()
@@ -248,23 +286,43 @@ class Engine:
                             or self.active_asset != row['asset'] or self.state == 'SUSPENDED'):
                         self.event('stale_acoustic_result_rejected', sequence=row['sequence'])
                         break
-                    candidate_k = found - pts + row['timelineStart']
+                    key=(candidate['page'],row['asset'])
+                    same_clock=key==self.clock_key
+                    if not same_clock:self.clock_points={};self.clock_key=key
+                    for anchor in anchors:
+                        self.clock_points[anchor['cue']]=dict(cue=anchor['cue'],sourcePts=pts+anchor['asrStart']-row['timelineStart'],
+                                                            subtitleStart=anchor['subtitleStart'],asrStart=anchor['asrStart'])
+                    self.clock_points={cue:p for cue,p in self.clock_points.items() if p['asrStart']>=row['timelineEnd']-600}
+                    points=sorted(self.clock_points.values(),key=lambda p:p['asrStart'])[-128:]
+                    proposal=fit_clock_rate(points)
+                    candidate_rate=proposal['rate'] if proposal else (self.rate if same_clock else 1.0)
+                    candidate_k=proposal['intercept'] if proposal else statistics.median(
+                        a['subtitleStart']-candidate_rate*(pts+a['asrStart']-row['timelineStart']) for a in anchors)
                     if self.state != 'LOCKED':
                         self.unmatched_windows = 0; self.acquisition_exhausted = False
+                        self.rate = candidate_rate
                         self.reference = candidate; self.k = candidate_k; self.verified_asset = row['asset']; self.state = 'LOCKED'
-                        self.calibration_cues = {a['cue'] for a in anchors}
+                        self.calibration_cues = {a['cue'] for a in (points if proposal else anchors)}
                         if self.returned:
                             latest=self.collector.snapshot()[-1]
                             self.resume = dict(timeline=latest['timelineEnd'], wall=time.time(), mode='fresh_acoustic_lock')
                         self.event('acoustic_lock', timeline=row['timelineEnd'], wallSeconds=time.time()-started,
-                                   subtitleMinusPts=self.k, anchors=anchors, afterReturn=bool(self.returned))
+                                   subtitleMinusPts=self.k, rate=self.rate, anchors=anchors, afterReturn=bool(self.returned))
                     else:
-                        offset=self.k+pts-row['timelineStart'];residuals=[a['offset']-offset for a in anchors]
+                        offset=self.k+self.rate*pts-row['timelineStart']
+                        residuals=[a['subtitleStart']-(self.rate*(pts+a['asrStart']-row['timelineStart'])+self.k) for a in anchors]
                         self.event('acoustic_validation', timeline=row['timelineEnd'], anchors=anchors,
-                                   residualSeconds=residuals,activeOffset=offset,afterReturn=bool(self.returned))
-                        if abs(found-offset)>.9:
+                                   residualSeconds=residuals,activeOffset=offset,rate=self.rate,afterReturn=bool(self.returned))
+                        if proposal and abs(proposal['rate']-self.rate)>.0005 and (self.rate==1 or abs(statistics.median(residuals))>.5):
+                            previous_rate=self.rate;self.rate=proposal['rate'];self.k=proposal['intercept']
+                            self.calibration_cues={a['cue'] for a in points};self.holdout={}
+                            self.retime_decisions(row['asset'])
+                            self.event('clock_rate_calibrated',previousRate=previous_rate,rate=self.rate,intercept=self.k,
+                                       anchorCount=len(points),spanSeconds=max(p['sourcePts'] for p in points)-min(p['sourcePts'] for p in points),
+                                       medianAbsoluteResidual=proposal['error'])
+                        elif abs(statistics.median(residuals))>.9:
                             self.state='ACQUIRING';self.k=None;self.verified_asset=None;self.generation+=1;self.decisions.clear()
-                            self.event('acoustic_calibration_invalidated', deviationSeconds=found-offset)
+                            self.event('acoustic_calibration_invalidated', deviationSeconds=statistics.median(residuals))
                         elif self.returned:
                             for anchor,residual in zip(anchors,residuals):
                                 if anchor['asrStart']>=self.returned['start'] and anchor['cue'] not in self.calibration_cues:

@@ -64,3 +64,10 @@ prepared live timeline. This covers the single reviewed pilot feed, with the
 existing two-hour bounded private media retention. Programme handovers work
 without viewers and use sibling analysis folders rather than nested paths.
 Secondary discovery inspects missing languages even when English already exists.
+
+Clock calibration also handles standard 24/25 and 23.976/25 FPS differences.
+A rate change requires at least eight distinct speech cues across 45 seconds and
+three time ranges, with bounded robust residuals and a clear improvement over a
+constant offset. Cues are mapped through that affine clock inside each video
+segment. Subsequent ASR windows validate the previous model independently;
+calibration and insertion offsets remain session state, outside resource caches.

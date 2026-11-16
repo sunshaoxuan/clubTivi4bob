@@ -84,11 +84,15 @@ def transcribe(rows, model, ffmpeg, root):
 
 
 class Engine:
-    def __init__(self, source, programme, root, model, ffmpeg, *, candidates=None, preferred_language='en', synchronous_analysis=False):
+    def __init__(self, source, programme, root, model, ffmpeg, *, candidates=None, preferred_language='en', synchronous_analysis=False, subtitle_cache=None):
         self.root = Path(root); (self.root / 'analysis').mkdir(parents=True, exist_ok=True)
         self.collector = Collector(source, self.root, seconds=0)
         self.programme, self.model, self.ffmpeg = programme, model, ffmpeg
         self.lock = threading.RLock(); self.decisions = {}; self.candidates = candidates
+        self.subtitle_cache = subtitle_cache
+        self.discovery_error = False
+        self.last_discovery = 0
+        self.discovery_thread = None
         self.preferred_language = preferred_language
         self.state = 'ACQUIRING'; self.last_sequence = -1
         self.k = None; self.verified_asset = None; self.last_pts_end = None
@@ -113,19 +117,35 @@ class Engine:
             threading.Thread(target=self.collector.run, daemon=True).start()
         threading.Thread(target=self.run, daemon=True).start()
 
-    def run(self):
+    def discover_subtitles(self):
+        self.last_discovery = time.monotonic()
+        self.discovery_error = False
         try:
             if self.candidates is None:
-                self.candidates = discover(self.programme['title'], self.programme['year'], self.root / 'subtitles',
-                                           requested_language=self.preferred_language)
+                if self.subtitle_cache is not None:
+                    self.candidates = self.subtitle_cache.get_or_discover(self.programme, self.root/'subtitles', discover,
+                                                                         requested_language=self.preferred_language)
+                else:
+                    self.candidates = discover(self.programme['title'], self.programme['year'], self.root / 'subtitles',
+                                               requested_language=self.preferred_language)
             self.candidates.sort(key=lambda c: (self.preferred_language not in c['tracks'], -len(c['tracks'])))
-            self.event('subtitle_discovery', candidates=[dict(page=c['page'], languages=list(c['tracks'])) for c in self.candidates])
+            self.event('subtitle_discovery', candidates=[dict(page=c['page'], languages=list(c['tracks']), cacheHit=bool(c.get('cacheHit'))) for c in self.candidates])
             if not self.candidates:
                 self.event('no_existing_english_reference')
         except Exception as error:
+            self.discovery_error = True
             self.candidates = []; self.event('subtitle_discovery_error', errorType=type(error).__name__)
+
+    def run(self):
+        self.discover_subtitles()
         run, last_analysis = [], -100.
         while not self.collector.stop.is_set() and not self.controller_stop.is_set():
+            retry_after = 60 if self.discovery_error else 900
+            if (not self.candidates and time.monotonic()-self.last_discovery >= retry_after and
+                    (self.discovery_thread is None or not self.discovery_thread.is_alive())):
+                self.candidates = None
+                self.discovery_thread = threading.Thread(target=self.discover_subtitles, daemon=True)
+                self.discovery_thread.start()
             fresh = [r for r in self.collector.snapshot() if r['sequence'] > self.last_sequence]
             for row in fresh:
                 self.last_sequence = row['sequence']

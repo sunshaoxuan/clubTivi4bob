@@ -61,6 +61,16 @@ class LiveSubtitleTimeline {
     return LiveSubtitleTimeline(session, source, windows);
   }
 
+  Map<String, dynamic>? windowAt(double position) {
+    if (!position.isFinite) return null;
+    return windows
+        .where(
+          (w) =>
+              position >= (w['start'] as num) && position < (w['end'] as num),
+        )
+        .firstOrNull;
+  }
+
   /// Evaluated against decoded playback time, never against the network edge.
   /// Each interval must carry its own confirmed programme and source asset.
   String textAt(double position, String language) {

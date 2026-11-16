@@ -1,0 +1,209 @@
+import 'dart:async';
+import 'dart:convert';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
+import 'package:media_kit/media_kit.dart';
+import 'package:clubtivi/core/i18n/app_language.dart';
+import 'package:clubtivi/features/player/live_subtitle_session.dart';
+import 'package:clubtivi/features/player/native_subtitle_selection.dart';
+import 'package:clubtivi/features/player/subtitle_preferences.dart';
+import 'package:clubtivi/features/player/subtitle_status.dart';
+
+class _Streams extends Fake implements PlayerStream {
+  @override
+  Stream<Tracks> get tracks => const Stream.empty();
+  @override
+  Stream<Duration> get position => const Stream.empty();
+  @override
+  Stream<bool> get buffering => const Stream.empty();
+  @override
+  Stream<bool> get playing => const Stream.empty();
+}
+
+class _Player extends Fake implements Player {
+  @override
+  PlayerState state = const PlayerState(
+    position: Duration(seconds: 1),
+    playing: true,
+  );
+  @override
+  PlayerStream stream = _Streams();
+  @override
+  Future<void> setSubtitleTrack(SubtitleTrack track) async {}
+}
+
+Map<String, Object?> reply({
+  bool ready = true,
+  String phase = 'matched',
+  bool cues = true,
+}) => {
+  'session': 'session',
+  'source': 'channel',
+  'playbackReady': ready,
+  'playbackUrl': 'http://127.0.0.1/media',
+  'subtitleStatus': {
+    'phase': phase,
+    'availableLanguages': phase == 'matched' ? ['en'] : [],
+  },
+  'windows': [
+    {
+      'start': 0,
+      'end': 10,
+      'state': 'LOCKED',
+      'program': 'film',
+      'asset': 'edition',
+      'tracks': [
+        {
+          'language': 'en',
+          'verified': true,
+          'cues': cues
+              ? [
+                  {'start': 0, 'end': 10, 'text': 'Existing caption'},
+                ]
+              : [],
+        },
+      ],
+    },
+  ],
+};
+void main() {
+  setUp(() {
+    SubtitlePreferences.instance.initialize(null);
+    SubtitlePreferences.instance.choose(AppLanguage.english);
+  });
+  test(
+    'pending search and confirmed absence are distinct and do not move playback',
+    () async {
+      final response = Completer<http.Response>();
+      final player = _Player();
+      final selection = NativeSubtitleSelection(player);
+      final session = LiveSubtitleSession(
+        player,
+        selection,
+        serviceEndpoint: 'http://127.0.0.1/',
+        client: MockClient((_) => response.future),
+      );
+      final preparing = session.prepare('channel');
+      expect(session.status.value, SubtitlePhase.searching);
+      response.complete(
+        http.Response(jsonEncode({...reply(phase: 'unavailable'), 'windows': []}), 200),
+      );
+      await preparing;
+      session.activate();
+      expect(session.status.value, SubtitlePhase.unavailable);
+      expect(player.state.position, const Duration(seconds: 1));
+      await session.dispose();
+      await selection.dispose();
+    },
+  );
+  test('dialogue gaps retain file readiness and English fallback', () async {
+    SubtitlePreferences.instance.choose(AppLanguage.japanese);
+    final player = _Player();
+    final selection = NativeSubtitleSelection(player);
+    final session = LiveSubtitleSession(
+      player,
+      selection,
+      serviceEndpoint: 'http://127.0.0.1/',
+      client: MockClient(
+        (_) async => http.Response(jsonEncode(reply(cues: false)), 200),
+      ),
+    );
+    await session.prepare('channel');
+    session.activate();
+    expect(session.text.value, isEmpty);
+    expect(session.status.value, SubtitlePhase.englishFallback);
+    await session.dispose();
+    await selection.dispose();
+  });
+  test(
+    'warming discovery automatically connects a fresh media origin without user action',
+    () async {
+      final player = _Player();
+      final selection = NativeSubtitleSelection(player);
+      var connects = 0;
+      var polls = 0;
+      final done = Completer<void>();
+      final requests = <http.Request>[];
+      final session = LiveSubtitleSession(
+        player,
+        selection,
+        serviceEndpoint: 'http://127.0.0.1/',
+        client: MockClient((request) async {
+          requests.add(request);
+          if (request.url.path == '/sessions')
+            return http.Response(
+              jsonEncode(reply(ready: false, phase: 'searching')),
+              200,
+            );
+          if (request.url.path.endsWith('/connect')) {
+            connects++;
+            return http.Response(
+              jsonEncode({...reply(), 'mediaClockOrigin': 900}),
+              200,
+            );
+          }
+          polls++;
+          return http.Response(jsonEncode(reply()), 200);
+        }),
+      );
+      session.onMediaReady = () async {
+        expect(
+          await session.attachReadyMedia('channel'),
+          'http://127.0.0.1/media',
+        );
+        // Server captions cannot be rendered against the original source clock.
+        expect(session.text.value, isEmpty);
+        session.activate();
+        if (!done.isCompleted) done.complete();
+      };
+      expect(await session.prepare('channel'), 'channel');
+      session.activate();
+      expect(session.text.value, isEmpty);
+      await done.future.timeout(const Duration(seconds: 3));
+      expect(connects, 1);
+      expect(polls, greaterThan(0));
+      expect(session.text.value, 'Existing caption');
+      expect(requests.every((r) => r.url.host == '127.0.0.1'), isTrue);
+      expect(player.state.position, const Duration(seconds: 1));
+      await session.dispose();
+      await selection.dispose();
+    },
+  );
+  test(
+    'cleared channel rejects a late ready response and cannot trigger reconnection',
+    () async {
+      final player = _Player();
+      final selection = NativeSubtitleSelection(player);
+      final late = Completer<http.Response>();
+      var connects = 0;
+      final session = LiveSubtitleSession(
+        player,
+        selection,
+        serviceEndpoint: 'http://127.0.0.1/',
+        client: MockClient((request) async {
+          if (request.method == 'POST')
+            return http.Response(
+              jsonEncode(reply(ready: false, phase: 'searching')),
+              200,
+            );
+          return late.future;
+        }),
+      );
+      session.onMediaReady = () async {
+        connects++;
+      };
+      await session.prepare('channel');
+      session.activate();
+      await Future<void>.delayed(const Duration(milliseconds: 550));
+      session.clear();
+      late.complete(http.Response(jsonEncode(reply()), 200));
+      await Future<void>.delayed(Duration.zero);
+      expect(connects, 0);
+      expect(session.status.value, SubtitlePhase.idle);
+      expect(session.text.value, isEmpty);
+      await session.dispose();
+      await selection.dispose();
+    },
+  );
+}

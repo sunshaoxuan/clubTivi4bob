@@ -84,6 +84,7 @@ class ManagedPlayer extends Player {
   ) : super(configuration: configuration, platformPlayer: platformPlayer) {
     subtitles = NativeSubtitleSelection(this);
     liveSubtitles = LiveSubtitleSession(this, subtitles);
+    liveSubtitles.onMediaReady = _connectReadySubtitleMedia;
     _fallbackBuffering = stream.buffering.listen(
       (_) => _updateFallbackWatchdog(),
     );
@@ -107,11 +108,38 @@ class ManagedPlayer extends Player {
   final _hlsBuffer = HlsBufferProxy();
   bool _liveStartOptionApplied = false;
   Media? _fallbackMedia;
+  Media? _requestedMedia;
+  int subtitleMediaAutoOpens = 0;
   Timer? _fallbackTimer;
   late final StreamSubscription<bool> _fallbackBuffering, _fallbackPlaying;
 
   /// The owning route guard must approve every asynchronous fallback open.
   Future<void> Function(Future<void> Function() operation)? fallbackOpenGate;
+
+  Future<void> _connectReadySubtitleMedia() async {
+    final media = _requestedMedia;
+    final generation = _openGeneration;
+    final gate = fallbackOpenGate;
+    if (media == null || _resources.closing) return;
+    Future<void> connect() async {
+      if (generation != _openGeneration) return;
+      // Rebase a ready server session to the latest live window before opening.
+      // Its verified caption timeline always belongs to the media we open.
+      final uri = await liveSubtitles.attachReadyMedia(media.uri);
+      if (generation != _openGeneration) return;
+      await _openPlayable(
+        media,
+        play: state.playing,
+        preparedSubtitleMedia: uri,
+      );
+    }
+
+    if (gate == null) {
+      await connect();
+    } else {
+      await gate(connect);
+    }
+  }
 
   void _clearFallback() {
     _fallbackTimer?.cancel();
@@ -147,6 +175,7 @@ class ManagedPlayer extends Player {
         'reason': 'media_buffer_timeout',
       });
       await _openPlayable(media, play: true, discoverSubtitles: false);
+      liveSubtitles.deferMediaRetry();
     }
 
     try {
@@ -172,6 +201,7 @@ class ManagedPlayer extends Player {
     Playable playable, {
     bool play = true,
     bool discoverSubtitles = true,
+    String? preparedSubtitleMedia,
   }) async {
     _clearFallback();
     final generation = ++_openGeneration;
@@ -184,11 +214,15 @@ class ManagedPlayer extends Player {
         await native.setProperty('mute', 'yes');
       }
     }
-    liveSubtitles.clear();
+    if (preparedSubtitleMedia == null) liveSubtitles.clear();
     if (playable is Media) {
-      var uri = discoverSubtitles
-          ? await liveSubtitles.prepare(playable.uri)
-          : playable.uri;
+      _requestedMedia = playable;
+      var uri =
+          preparedSubtitleMedia ??
+          (discoverSubtitles
+              ? await liveSubtitles.prepare(playable.uri)
+              : playable.uri);
+      if (!discoverSubtitles) liveSubtitles.mediaUnavailable(playable.uri);
       if (uri != playable.uri) _fallbackMedia = playable;
       if (generation != _openGeneration) return;
       final native = platform;
@@ -232,6 +266,12 @@ class ManagedPlayer extends Player {
       await super.open(playable, play: play);
     }
     if (generation == _openGeneration) {
+      if (preparedSubtitleMedia != null) {
+        subtitleMediaAutoOpens++;
+        AppDiagnostics.instance.log('subtitle_media_auto_connected', {
+          'attempt': subtitleMediaAutoOpens,
+        });
+      }
       liveSubtitles.activate();
       _updateFallbackWatchdog();
     }
@@ -241,6 +281,7 @@ class ManagedPlayer extends Player {
   Future<void> stop() async {
     ++_openGeneration;
     _clearFallback();
+    _requestedMedia = null;
     liveSubtitles.clear();
     await _hlsBuffer.stop();
     await super.stop();

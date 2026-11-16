@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:media_kit_video/media_kit_video.dart';
 import '../../core/player_resources.dart';
+import 'subtitle_status_badge.dart';
+import 'subtitle_status.dart';
 
 class BobtvVideo extends StatelessWidget {
   const BobtvVideo({
@@ -54,6 +56,13 @@ class BobtvVideo extends StatelessWidget {
                   ),
                 ),
               ),
+            ),
+          ),
+        if (player is ManagedPlayer)
+          Positioned.fill(
+            child: ValueListenableBuilder<SubtitlePhase>(
+              valueListenable: player.liveSubtitles.status,
+              builder: (context, phase, _) => SubtitleStatusBadge(phase: phase),
             ),
           ),
       ],

@@ -8,11 +8,86 @@ from unittest.mock import patch
 
 from live_media import parse_media, playlist, continuous_counters, MediaPublisher
 from live_engine import Engine, align
-from service import Hub, CHANNEL, pilot_channel, media_route
+from service import Hub, CHANNEL, pilot_channel, media_route, official_imdb_id
 from subtitle_catalog import discover, parse_srt, title_norm
 
 
 class LiveServiceTests(unittest.TestCase):
+    def test_only_unambiguous_official_imdb_identifiers_are_admitted(self):
+        self.assertEqual(official_imdb_id({'imdb_id':'tt1234567'}),'tt1234567')
+        self.assertEqual(official_imdb_id({'external_links':['https://www.imdb.com/title/tt1234567/']}),'tt1234567')
+        self.assertIsNone(official_imdb_id({'imdb_id':'tt1234567','related':{'imdb_id':'tt7654321'}}))
+        self.assertIsNone(official_imdb_id({'title':'tt1234567','rating':7.0}))
+
+    def test_automatic_connection_rebases_ready_media_instead_of_replaying_old_origin(self):
+        hub=Hub.__new__(Hub);hub.lock=threading.RLock();hub.source='reviewed';hub.gap=False
+        hub.last_guide_success=time.time();hub.programme=dict(key='current',catalogChannelId=CHANNEL,stopUtc=time.time()+3600)
+        hub.sessions={'token':dict(source='reviewed',origin=0,openedMedia=True)}
+        class Publisher:
+            def snapshot(self):return [dict(timelineStart=i*6,timelineEnd=i*6+6,duration=6) for i in range(20)]
+        hub.publisher=Publisher()
+        hub.connect_media('token','reviewed',dict(key='current',catalogChannelId=CHANNEL))
+        self.assertEqual(hub.sessions['token']['origin'],90)
+        self.assertFalse(hub.sessions['token']['openedMedia'])
+        with self.assertRaises(ValueError):hub.connect_media('token','reviewed',dict(key='old',catalogChannelId=CHANNEL))
+
+    def test_readiness_uses_full_matched_file_languages_during_silent_gaps(self):
+        hub=Hub.__new__(Hub)
+        class Engine:
+            candidates=[{'tracks':{'en':[]}}]
+            reference={'tracks':{'en':[], 'ja':[]}}
+        hub.engine=Engine()
+        self.assertEqual(hub.caption_status(True),dict(phase='matched',availableLanguages=['en','ja'], cacheHit=False))
+        self.assertEqual(hub.caption_status(False)['phase'],'programme_unavailable')
+
+    def test_position_windows_handle_cold_start_and_paused_playheads(self):
+        hub=Hub.__new__(Hub);hub.lock=threading.RLock();hub.gap=False;hub.last_guide_success=time.time()
+        hub.programme=dict(key='current',stopUtc=time.time()+3600)
+        hub.base='https://public.example/';hub.sessions={'token':dict(source='reviewed',origin=0,positionWindow=True)}
+        rows=[dict(timelineStart=0,duration=6)]
+        windows=[dict(start=i*6,end=i*6+6) for i in range(100)]
+        class Publisher:
+            def snapshot(self):return list(rows)
+        class Engine:
+            candidates=[];reference=None
+            def windows(self,origin):return windows[:1] if len(rows)==1 else windows
+        hub.publisher=Publisher();hub.engine=Engine()
+        self.assertEqual(len(hub.response('token')['windows']),1)
+        rows.append(dict(timelineStart=6,duration=6))
+        old=hub.response('token',60)['windows'];live=hub.response('token',500)['windows']
+        self.assertTrue(all(w['end']>30 and w['start']<150 for w in old))
+        self.assertTrue(all(w['end']>470 for w in live))
+        self.assertLess(len(old),len(windows))
+
+    def test_new_service_preserves_legacy_sessions_and_owns_new_tokens(self):
+        import http.server,urllib.request
+        from service import serve
+        old_requests=[]
+        class Legacy(http.server.BaseHTTPRequestHandler):
+            def log_message(self,*args):pass
+            def do_GET(self):
+                old_requests.append(self.path);data=b'legacy-live-playlist'
+                self.send_response(200);self.send_header('Content-Length',str(len(data)));self.end_headers();self.wfile.write(data)
+        class NewHub:
+            sessions={}
+            def response(self,token,position=None):return dict(owner='new')
+        old=http.server.ThreadingHTTPServer(('127.0.0.1',0),Legacy)
+        threading.Thread(target=old.serve_forever,daemon=True).start()
+        ready=threading.Event();servers=[]
+        def create(*args,**kwargs):
+            server=http.server.ThreadingHTTPServer(*args,**kwargs);servers.append(server);ready.set();return server
+        with patch('service.ThreadingHTTPServer',create):
+            thread=threading.Thread(target=serve,args=(NewHub(),'127.0.0.1',0,old.server_port),daemon=True);thread.start();self.assertTrue(ready.wait(3))
+            server=servers[0];token='a'*32
+            try:
+                with urllib.request.urlopen(f'http://127.0.0.1:{server.server_port}/media/{token}/index.m3u8',timeout=3) as response:
+                    self.assertEqual(response.read(),b'legacy-live-playlist')
+                NewHub.sessions[token]={}
+                with urllib.request.urlopen(f'http://127.0.0.1:{server.server_port}/sessions/{token}',timeout=3) as response:
+                    self.assertEqual(json.load(response),dict(owner='new'))
+                self.assertEqual(len(old_requests),1)
+            finally:server.shutdown();server.server_close();thread.join(3);old.shutdown();old.server_close()
+
     def test_stable_master_bootstraps_only_the_reviewed_owned_feed(self):
         source='https://action-rakuten-tv-uk.fast.rakuten.tv/production-LiveChannel-6065/master.m3u8'
         raw=b'#EXTM3U\n#EXT-X-STREAM-INF:BANDWIDTH=100\nlow.m3u8\n#EXT-X-STREAM-INF:BANDWIDTH=200\nhigh.m3u8\n'
@@ -145,6 +220,8 @@ class LiveServiceTests(unittest.TestCase):
         class Publisher:
             def snapshot(self):return list(rows)
         class Engine:
+            candidates = []
+            reference = None
             def windows(self, origin):return []
         hub.publisher = Publisher(); hub.engine = Engine()
         self.assertFalse(hub.response('token')['playbackReady'])

@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:flutter/foundation.dart';
 import 'package:media_kit/media_kit.dart';
 import 'subtitle_preferences.dart';
 import 'subtitle_policy.dart';
@@ -14,6 +15,7 @@ class NativeSubtitleSelection {
   Future<void> _pending = Future.value();
   bool _disposed = false;
   bool external = false;
+  final selected = ValueNotifier<SubtitleTrack?>(null);
 
   void _schedule() {
     _pending = _pending
@@ -35,6 +37,7 @@ class NativeSubtitleSelection {
           if (player.state.track.subtitle != next) {
             await player.setSubtitleTrack(next);
           }
+          if (!_disposed) this.selected.value = selected;
         })
         .catchError((Object _) {});
   }
@@ -46,5 +49,6 @@ class NativeSubtitleSelection {
     SubtitlePreferences.instance.removeListener(_schedule);
     await _subscription?.cancel();
     await _pending;
+    selected.dispose();
   }
 }

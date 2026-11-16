@@ -202,6 +202,11 @@
     "history_title": "Cambios recientes",
     "history": [
       [
+        "2026-11-17",
+        "v1.1.23 · Subtítulos automáticos y caché por película",
+        "Se añaden indicadores de subtítulos en siete idiomas. El piloto Action Movies UK busca y reintenta los subtítulos en el servidor y los conecta automáticamente cuando están listos. Los archivos se conservan por película, edición e idioma. Se prioriza el idioma solicitado y después el inglés. Al reutilizar la caché, se vuelve a verificar la sincronización con la emisión en directo."
+      ],
+      [
         "2026-11-16",
         "v1.1.22 · Programación y subtítulos en directo",
         "Ampliamos la programación verificada. Prueba de subtítulos en Action Movies UK: idioma elegido, inglés y sin subtítulos. Se suspenden durante los anuncios y se verifica la sincronización al volver a la película. Mejoramos la reproducción de segmentos publicitarios cortos. La lista de países y su índice siguen el idioma de la interfaz. Los avisos de la guía siguen el idioma elegido. Los canales almacenados siguen reproduciéndose si falla la sincronización."
@@ -356,7 +361,7 @@
     "closing_text": "Una columna para Windows, macOS y Android, con opciones de CPU en su interior. Hay disponibles paquetes nativos de Windows ARM64; Las pruebas de hardware de superficie están pendientes."
   },
   "downloads": {
-    "intro": "Windows, macOS y Android comparten la versión 1.1.22+117. Cambia de idioma en la parte superior de la aplicación. La selección manual se guarda. El modo automático usa el idioma del sistema, la zona horaria y, como último recurso, el inglés. Todos los instaladores incluyen los recursos de idioma. Se ha cerrado el acceso al modo avanzado. La sincronización de diagnósticos está desactivada de forma predeterminada. Con tu consentimiento, puede enviar hasta 30 días de registros depurados y puedes desactivarla en cualquier momento. La aplicación de macOS utiliza una firma ad-hoc.",
+    "intro": "Windows, macOS y Android comparten la versión 1.1.23+118. Cambia de idioma en la parte superior de la aplicación. La selección manual se guarda. El modo automático usa el idioma del sistema, la zona horaria y, como último recurso, el inglés. Todos los instaladores incluyen los recursos de idioma. Se ha cerrado el acceso al modo avanzado. La sincronización de diagnósticos está desactivada de forma predeterminada. Con tu consentimiento, puede enviar hasta 30 días de registros depurados y puedes desactivarla en cualquier momento. La aplicación de macOS utiliza una firma ad-hoc.",
     "latest": "Últimos instaladores",
     "local": "Descargas alojadas en este sitio",
     "sections": [

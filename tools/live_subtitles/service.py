@@ -9,19 +9,22 @@ import gzip
 import hashlib
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
+import math
+import http.client
 from pathlib import Path
 import re
 import shutil
 import subprocess
 import threading
 import time
-from urllib.parse import urlencode, urlsplit, urljoin
+from urllib.parse import urlencode, urlsplit, urljoin, parse_qs
 from urllib.request import Request, urlopen
 import uuid
 
 from live_engine import Engine
 from live_media import playlist, MediaPublisher
 from subtitle_catalog import LANGUAGES
+from subtitle_cache import SubtitleCache
 
 CHANNEL = 'channel-b842f9cdd43743693f77fc81'
 NODE = 'https://bobtv.briconbric.com'
@@ -49,6 +52,25 @@ def snapshot(kind):
     return json.loads(decoded)
 
 
+def official_imdb_id(metadata):
+    # Admit only identifiers from the validated official movie record.
+    found = set()
+    def visit(value, key=''):
+        if isinstance(value, dict):
+            for name, item in value.items(): visit(item, name.lower())
+        elif isinstance(value, list):
+            for item in value: visit(item, key)
+        elif isinstance(value, str):
+            if 'imdb' in key and re.fullmatch(r'tt[0-9]{7,10}', value): found.add(value)
+            try: parts = urlsplit(value)
+            except ValueError: return
+            if parts.hostname in {'imdb.com','www.imdb.com'}:
+                match = re.fullmatch(r'/title/(tt[0-9]{7,10})/?', parts.path)
+                if match: found.add(match[1])
+    visit(metadata)
+    return next(iter(found)) if len(found) == 1 else None
+
+
 def current_guide():
     now = int(time.time())
     catalog, guide = snapshot('channel-catalog'), snapshot('epg')
@@ -67,7 +89,7 @@ def current_guide():
     return route, dict(key=key, catalogChannelId=channel['id'], programmeSourceId=p['sourceId'],
         originalChannelId=p['originalChannelId'], sourceEventId=facts['sourceEventId'], movieId=movie,
         title=metadata['title'], year=metadata['year'], numericalMovieId=metadata['numerical_id'],
-        marketCode='uk', serviceId=6065, startUtc=p['startUtc'], stopUtc=p['stopUtc'], clockIsSubtitleOffset=False)
+        imdbId=official_imdb_id(metadata), marketCode='uk', serviceId=6065, startUtc=p['startUtc'], stopUtc=p['stopUtc'], clockIsSubtitleOffset=False)
 
 
 def pilot_channel(catalog):
@@ -101,11 +123,12 @@ def media_route(source):
 
 
 class Hub:
-    def __init__(self, root, model, ffmpeg, base):
+    def __init__(self, root, model, ffmpeg, base, subtitle_cache=None):
         self.root, self.model, self.ffmpeg, self.base = Path(root), model, ffmpeg, base.rstrip('/') + '/'
         self.root.mkdir(parents=True, exist_ok=True)
         self.lock = threading.RLock(); self.sessions = {}; self.engine = None
         self.publisher = None
+        self.subtitle_cache = subtitle_cache
         self.source, self.programme = current_guide(); self.last_guide_success = time.time()
         self.gap = False
         threading.Thread(target=self.maintain, daemon=True).start()
@@ -116,7 +139,7 @@ class Hub:
         return programme is None or (isinstance(programme, dict) and programme.get('key') == self.programme['key']
                                      and programme.get('catalogChannelId') == self.programme['catalogChannelId'])
 
-    def create(self, source, context, language):
+    def create(self, source, context, language, features=()):
         with self.lock:
             if not self.valid_context(source, context):
                 raise ValueError('exact_current_public_route_required')
@@ -124,7 +147,7 @@ class Hub:
                 raise RuntimeError('pilot_capacity')
             if self.engine is None:
                 root = self.root / uuid.uuid4().hex
-                self.engine = Engine(media_route(source), self.programme, root, self.model, self.ffmpeg, preferred_language=language)
+                self.engine = Engine(media_route(source), self.programme, root, self.model, self.ffmpeg, preferred_language=language, subtitle_cache=self.subtitle_cache)
                 self.engine.start()
                 self.publisher=MediaPublisher(self.engine.collector,self.ffmpeg)
                 threading.Thread(target=self.publisher.run,daemon=True).start()
@@ -132,19 +155,54 @@ class Hub:
             chosen = [r for r in rows if r['timelineEnd'] > (rows[-1]['timelineEnd'] - 30)] if rows else []
             token = uuid.uuid4().hex
             self.sessions[token] = dict(origin=chosen[0]['timelineStart'] if chosen else 0,
-                                        lastAccess=time.time(), source=source, language=language,openedMedia=False)
+                                        lastAccess=time.time(), source=source, language=language,openedMedia=False,
+                                        positionWindow='positionWindowV1' in features)
             return token
 
-    def response(self, token):
+    def connect_media(self, token, source, programme):
+        with self.lock:
+            if not self.valid_context(source, programme) or self.sessions[token]['source'] != source:
+                raise ValueError('current_programme_required')
+            rows = self.publisher.snapshot()
+            chosen = [r for r in rows if r['timelineEnd'] > rows[-1]['timelineEnd']-30] if rows else []
+            if sum(r['duration'] for r in chosen) < 24:
+                raise RuntimeError('media_not_ready')
+            self.sessions[token].update(origin=chosen[0]['timelineStart'], openedMedia=False, lastAccess=time.time())
+
+    def caption_status(self, usable):
+        engine = self.engine
+        if not usable:
+            return dict(phase='programme_unavailable', availableLanguages=[])
+        if getattr(engine, 'discovery_error', False):
+            return dict(phase='service_unavailable', availableLanguages=[])
+        if engine.candidates is None:
+            return dict(phase='searching', availableLanguages=[])
+        if not engine.candidates:
+            return dict(phase='unavailable', availableLanguages=[])
+        # Availability describes the complete matched file, including silent
+        # gaps. A window with no spoken cue does not mean the track is missing.
+        reference = engine.reference
+        languages = sorted(reference['tracks']) if reference else []
+        return dict(phase='matched' if reference else 'synchronizing',
+                    availableLanguages=languages, cacheHit=bool(engine.candidates and all(c.get('cacheHit') for c in engine.candidates)))
+
+    def response(self, token, position=None):
         with self.lock:
             session = self.sessions[token]; session['lastAccess'] = time.time()
             usable = not self.gap and time.time() - self.last_guide_success <= 120 and time.time() < self.programme['stopUtc']
             rows = [r for r in self.publisher.snapshot() if r['timelineStart'] >= session['origin']]
             ready = usable and sum(r['duration'] for r in rows) >= 24
+            windows = self.engine.windows(session['origin']) if usable else []
+            if session.get('positionWindow') and windows:
+                center = position if position is not None else max(0, max(w['end'] for w in windows)-24)
+                if not math.isfinite(center) or center < 0:
+                    raise ValueError('invalid_playback_position')
+                windows = [w for w in windows if w['end'] > center-30 and w['start'] < center+90]
             return dict(session=token, source=session['source'], playbackReady=ready, programmeKey=self.programme['key'] if usable else None,
                         playbackUrl=self.base + 'media/' + token + '/index.m3u8',
                         mediaClockOrigin=session['origin'],
-                        windows=self.engine.windows(session['origin']) if usable else [])
+                        subtitleStatus=self.caption_status(usable),
+                        windows=windows)
 
     def maintain(self):
         next_guide = time.monotonic() + 25
@@ -172,7 +230,7 @@ class Hub:
                     if changed and self.engine is not None:
                         old = self.engine; old.controller_stop.set()
                         self.engine = Engine(old.collector.source, programme, old.root / 'programme-' / uuid.uuid4().hex,
-                                             self.model, self.ffmpeg, preferred_language=next(iter(self.sessions.values()))['language'])
+                                             self.model, self.ffmpeg, preferred_language=next(iter(self.sessions.values()))['language'], subtitle_cache=self.subtitle_cache)
                         self.engine.collector = old.collector
                         self.engine.last_sequence = old.collector.snapshot()[-1]['sequence'] if old.collector.snapshot() else -1
                         self.engine.start(collect=False)
@@ -188,7 +246,7 @@ class Hub:
                         shutil.rmtree(folder)
 
 
-def serve(hub, host, port):
+def serve(hub, host, port, legacy_port=None):
     class Handler(BaseHTTPRequestHandler):
         def log_message(self, *args):
             pass
@@ -209,19 +267,39 @@ def serve(hub, host, port):
                 raise ValueError('request_limit')
             return json.loads(self.rfile.read(length))
 
+        def legacy(self, path, body=None):
+            match = re.fullmatch(r'/(?:sessions|media)/([a-f0-9]{32})(?:/(?:programme|connect|index\.m3u8|segments/[0-9]+\.ts))?', path)
+            if legacy_port is None or not match or match[1] in hub.sessions:
+                return False
+            connection = http.client.HTTPConnection('127.0.0.1', legacy_port, timeout=10)
+            try:
+                raw = json.dumps(body).encode() if body is not None else None
+                connection.request('POST' if body is not None else 'GET', self.path, body=raw,
+                                   headers={'Content-Type':'application/json'})
+                response = connection.getresponse()
+                data = response.read(16*1024*1024+1)
+                if len(data)>16*1024*1024: raise ValueError('legacy_response_limit')
+                self.send(data, response.getheader('Content-Type','application/json'), response.status)
+            except (OSError, http.client.HTTPException):
+                self.send(b'{"error":"expired_session"}', status=404)
+            finally: connection.close()
+            return True
+
         def do_POST(self):
             try:
                 body = self.body(); path = urlsplit(self.path).path
+                if self.legacy(path, body): return
                 if path == '/sessions':
                     language = body.get('language', 'en')
                     if language not in LANGUAGES:
                         raise ValueError('unsupported_language')
-                    token = hub.create(body.get('source'), body.get('programme'), language)
+                    token = hub.create(body.get('source'), body.get('programme'), language, body.get('features', ()))
                 else:
-                    match = re.fullmatch(r'/sessions/([a-f0-9]{32})/programme', path)
+                    match = re.fullmatch(r'/sessions/([a-f0-9]{32})/(programme|connect)', path)
                     if not match or not hub.valid_context(body.get('source'), body.get('programme')):
                         raise ValueError('current_programme_required')
                     token = match[1]
+                    if match[2] == 'connect': hub.connect_media(token, body.get('source'), body.get('programme'))
                 self.send(json.dumps(hub.response(token), ensure_ascii=False).encode())
             except RuntimeError:
                 self.send(b'{"error":"pilot_capacity"}', status=503)
@@ -231,12 +309,15 @@ def serve(hub, host, port):
         def do_GET(self):
             try:
                 path = urlsplit(self.path).path
+                if self.legacy(path): return
                 if path == '/health':
                     return self.send(json.dumps(dict(status='ready', pilot='rakuten-uk-6065',
                                                      activeSessions=len(hub.sessions))).encode())
                 match = re.fullmatch(r'/sessions/([a-f0-9]{32})', path)
                 if match:
-                    return self.send(json.dumps(hub.response(match[1]), ensure_ascii=False).encode())
+                    position=parse_qs(urlsplit(self.path).query).get('position',[None])[0]
+                    position=float(position) if position is not None else None
+                    return self.send(json.dumps(hub.response(match[1], position), ensure_ascii=False).encode())
                 match = re.fullmatch(r'/media/([a-f0-9]{32})/(index\.m3u8|segments/(?:[0-9]+\.ts|key-[a-f0-9]{20}\.bin))', path)
                 if not match:
                     raise KeyError()
@@ -270,15 +351,15 @@ def serve(hub, host, port):
 
 def main():
     parser = argparse.ArgumentParser(); parser.add_argument('--root', required=True); parser.add_argument('--model-root', required=True)
-    parser.add_argument('--base', required=True); parser.add_argument('--port', type=int, default=8921)
+    parser.add_argument('--subtitle-cache-root', default='/var/lib/bobtv/resource-cache/subtitles'); parser.add_argument('--base', required=True); parser.add_argument('--port', type=int, default=8922); parser.add_argument('--legacy-port', type=int)
     args = parser.parse_args()
     import imageio_ffmpeg
     from faster_whisper import WhisperModel
     model = WhisperModel('tiny.en', device='cpu', compute_type='int8', cpu_threads=2,
                          download_root=args.model_root, local_files_only=True)
     ffmpeg = shutil.which('ffmpeg') or imageio_ffmpeg.get_ffmpeg_exe()
-    hub = Hub(args.root, model, ffmpeg, args.base)
-    serve(hub, '127.0.0.1', args.port)
+    hub = Hub(args.root, model, ffmpeg, args.base, SubtitleCache(args.subtitle_cache_root, legacy_roots=['/var/lib/bobtv/live-subtitles']))
+    serve(hub, '127.0.0.1', args.port, args.legacy_port)
 
 
 if __name__ == '__main__':

@@ -137,6 +137,7 @@ Future<void> main() async {
       'buffering': player.state.buffering,
       'playing': player.state.playing,
       'text': player.liveSubtitles.text.value,
+      'subtitleStatus': player.liveSubtitles.status.value.name,
       'layout': layout.value,
     };
     output.writeln(jsonEncode(sample));
@@ -170,6 +171,8 @@ Future<void> main() async {
           'scope': 'native Flutter development fixture, not production release',
           'simulatedRouteApiOffline': offline,
           'routeSyncFetches': syncFetches,
+          'subtitleStatus': player.liveSubtitles.status.value.name,
+          'subtitleMediaAutoOpens': player.subtitleMediaAutoOpens,
           'finalMediaPath': await service.getMpvProperty('path'),
           'videoWidth': await service.getMpvProperty('video-params/w'),
           'videoHeight': await service.getMpvProperty('video-params/h'),

@@ -9,6 +9,9 @@ import 'live_subtitle_timeline.dart';
 import 'native_subtitle_selection.dart';
 import 'subtitle_preferences.dart';
 import 'subtitle_programme_context.dart';
+import 'subtitle_status.dart';
+import 'subtitle_policy.dart';
+import 'hls_buffer_proxy.dart';
 
 /// Optional synchronization service. Video remains one continuous decoder;
 /// caption fetches never reload media or move the playhead.
@@ -24,6 +27,7 @@ class LiveSubtitleSession {
     _buffering = player.stream.buffering.listen((_) => _render());
     _playing = player.stream.playing.listen((_) => _render());
     SubtitlePreferences.instance.addListener(_render);
+    selection.selected.addListener(_render);
   }
   static const endpoint = String.fromEnvironment(
     'BOBTV_SUBTITLE_SERVICE',
@@ -34,6 +38,17 @@ class LiveSubtitleSession {
   final String serviceEndpoint;
   final SubtitleProgrammeLookup? programmeLookup;
   final text = ValueNotifier<String>('');
+  final status = ValueNotifier<SubtitlePhase>(SubtitlePhase.idle);
+  SubtitlePhase _phase = SubtitlePhase.idle;
+  String? _remotePhase;
+  List<String> _availableLanguages = const [];
+  bool _mediaAttached = false;
+  bool _playbackReady = false;
+  Future<void> Function()? onMediaReady;
+  Timer? _retry;
+  bool _autoConnecting = false;
+  DateTime? _nextConnectAttempt;
+  DateTime? _mediaRetryAfter;
   final http.Client _client;
   StreamSubscription<Duration>? _position;
   StreamSubscription<bool>? _buffering, _playing;
@@ -50,14 +65,28 @@ class LiveSubtitleSession {
   bool _disposed = false;
   bool _active = false;
 
-  Future<String> prepare(String source) async {
+  Future<String> prepare(String source, {bool monitorOnly = false}) async {
+    final wasActive = _active;
+    final retryAfter = _mediaRetryAfter;
     clear();
+    if (monitorOnly) {
+      _active = wasActive;
+      _mediaRetryAfter = retryAfter;
+    }
+    _source = source;
     if (serviceEndpoint.isEmpty) return source;
     final generation = _generation;
+    _phase = SubtitlePhase.searching;
+    _render();
     try {
       final base = Uri.parse(serviceEndpoint);
       // Only our API nodes and explicit local development services are allowed.
-      if (!ServerEgress.canConnect(base)) return source;
+      if (!ServerEgress.canConnect(base)) {
+        _phase = SubtitlePhase.serviceUnavailable;
+        _render();
+        _retryDiscovery(source, generation);
+        return source;
+      }
       final lookup = programmeLookup ?? SubtitleProgrammeContext.lookup;
       _programme = await lookup
           ?.call(source)
@@ -65,7 +94,14 @@ class LiveSubtitleSession {
       if (_disposed || generation != _generation) return source;
       final local = const {'127.0.0.1', 'localhost', '::1'}.contains(base.host);
       // External production discovery accepts only a bound public EPG route.
-      if (!local && _programme == null) return source;
+      if (!local && _programme == null) {
+        _phase = isActionMoviesUk(source)
+            ? SubtitlePhase.programmeUnavailable
+            : SubtitlePhase.unavailable;
+        _render();
+        if (isActionMoviesUk(source)) _retryDiscovery(source, generation);
+        return source;
+      }
       _requiresProgramme = _programme != null;
       _lastProgrammeCheck = DateTime.now();
       final response = await _client
@@ -74,58 +110,48 @@ class LiveSubtitleSession {
             headers: {'Content-Type': 'application/json'},
             body: jsonEncode({
               'source': source,
+              'features': [
+                'subtitleStatusV1',
+                'positionWindowV1',
+                'autoConnectV1',
+              ],
               'language': SubtitlePreferences.instance.language.tag,
               if (_programme != null) 'programme': _programme,
             }),
           )
           .timeout(const Duration(seconds: 3));
-      if (_disposed ||
-          generation != _generation ||
-          response.statusCode != 200) {
+      if (_disposed || generation != _generation) return source;
+      if (response.statusCode != 200) {
+        _phase =
+            const {404, 422}.contains(response.statusCode) &&
+                !isActionMoviesUk(source)
+            ? SubtitlePhase.unavailable
+            : SubtitlePhase.serviceUnavailable;
+        _render();
+        _retryDiscovery(source, generation);
         return source;
       }
       final data = jsonDecode(response.body) as Map<String, dynamic>;
-      // Optional caption media must be ready before replacing the provider URL.
-      if (data['playbackReady'] != true) return source;
+      _playbackReady = data['playbackReady'] == true;
       final session = data['session'] as String;
       final playback = Uri.parse(data['playbackUrl'] as String);
-      if (!ServerEgress.canConnect(playback)) return source;
+      if (!ServerEgress.canConnect(playback)) {
+        _phase = SubtitlePhase.serviceUnavailable;
+        _render();
+        return source;
+      }
       _base = base;
       _session = session;
       _source = source;
+      _mediaAttached = _playbackReady && !monitorOnly;
       _accept(data, session, source);
-      _poll = Timer.periodic(const Duration(milliseconds: 500), (_) async {
-        // One outstanding request at a time, even on a slow service.
-        if (_fetching || _disposed || generation != _generation) return;
-        _fetching = true;
-        try {
-          if (DateTime.now()
-                  .difference(_lastProgrammeCheck ?? DateTime(1970))
-                  .inSeconds >=
-              5) {
-            await _refreshProgramme(base, session, source, generation);
-          }
-          final result = await _client
-              .get(base.resolve('sessions/${Uri.encodeComponent(session)}'))
-              .timeout(const Duration(seconds: 2));
-          if (!_disposed &&
-              generation == _generation &&
-              result.statusCode == 200) {
-            _accept(
-              jsonDecode(result.body) as Map<String, dynamic>,
-              session,
-              source,
-            );
-          }
-        } catch (_) {
-          // The short lease below clears captions if refreshes stop.
-        } finally {
-          _fetching = false;
-        }
-      });
-      return playback.toString();
+      _startPolling(base, session, source, generation);
+      return _mediaAttached ? playback.toString() : source;
     } catch (error) {
       if (!_disposed && generation == _generation) {
+        _phase = SubtitlePhase.serviceUnavailable;
+        _render();
+        _retryDiscovery(source, generation);
         AppDiagnostics.instance.log('subtitle_session_unavailable', {
           'errorType': error.runtimeType.toString(),
         });
@@ -134,10 +160,168 @@ class LiveSubtitleSession {
     }
   }
 
+  void _startPolling(Uri base, String session, String source, int generation) {
+    _poll = Timer.periodic(const Duration(milliseconds: 500), (_) async {
+      // One outstanding request at a time, even on a slow service.
+      if (_fetching || _disposed || generation != _generation) return;
+      _fetching = true;
+      try {
+        if (DateTime.now()
+                .difference(_lastProgrammeCheck ?? DateTime(1970))
+                .inSeconds >=
+            5) {
+          await _refreshProgramme(base, session, source, generation);
+        }
+        final result = await _client
+            .get(
+              base
+                  .resolve('sessions/${Uri.encodeComponent(session)}')
+                  .replace(
+                    queryParameters: _mediaAttached
+                        ? {
+                            'position':
+                                (player.state.position.inMicroseconds /
+                                        Duration.microsecondsPerSecond)
+                                    .toStringAsFixed(3),
+                          }
+                        : null,
+                  ),
+            )
+            .timeout(const Duration(seconds: 2));
+        if (!_disposed &&
+            generation == _generation &&
+            result.statusCode == 200) {
+          _accept(
+            jsonDecode(result.body) as Map<String, dynamic>,
+            session,
+            source,
+          );
+        } else if (!_disposed &&
+            generation == _generation &&
+            const {404, 410}.contains(result.statusCode)) {
+          _retryDiscovery(source, generation);
+        }
+      } catch (_) {
+        // The short lease below clears captions if refreshes stop.
+      } finally {
+        _fetching = false;
+      }
+    });
+  }
+
+  void _retryDiscovery(String source, int generation) {
+    if (_retry?.isActive ?? false) return;
+    _retry = Timer(const Duration(seconds: 30), () {
+      if (!_disposed && generation == _generation) {
+        unawaited(prepare(source, monitorOnly: true));
+      }
+    });
+  }
+
+  Future<String> attachReadyMedia(String source) async {
+    final base = _base, session = _session;
+    if (base == null || session == null || source != _source) {
+      throw const FormatException('Subtitle discovery session expired');
+    }
+    final wasActive = _active;
+    final generation = ++_generation;
+    _poll?.cancel();
+    _expiry?.cancel();
+    _timeline = null;
+    _mediaAttached = false;
+    _active = false;
+    _phase = SubtitlePhase.connecting;
+    _render();
+    try {
+      final response = await _client
+          .post(
+            base.resolve('sessions/${Uri.encodeComponent(session)}/connect'),
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode({'source': source, 'programme': _programme}),
+          )
+          .timeout(const Duration(seconds: 3));
+      if (_disposed ||
+          generation != _generation ||
+          response.statusCode != 200) {
+        throw const FormatException('Subtitle media connection unavailable');
+      }
+      final data = jsonDecode(response.body) as Map<String, dynamic>;
+      final playback = Uri.parse(data['playbackUrl'] as String);
+      if (data['playbackReady'] != true || !ServerEgress.canConnect(playback)) {
+        throw const FormatException('Subtitle media is not ready');
+      }
+      _mediaAttached = true;
+      _accept(data, session, source);
+      _startPolling(base, session, source, generation);
+      return playback.toString();
+    } catch (_) {
+      if (!_disposed && generation == _generation) {
+        _active = wasActive;
+        _mediaAttached = false;
+        _timeline = null;
+        selection.external = false;
+        selection.refresh();
+        _phase = SubtitlePhase.serviceUnavailable;
+        _render();
+        _startPolling(base, session, source, generation);
+      }
+      rethrow;
+    }
+  }
+
+  void mediaUnavailable(String source) {
+    _source = source;
+    _phase = SubtitlePhase.serviceUnavailable;
+    _render();
+    if (_source != null) _retryDiscovery(_source!, _generation);
+  }
+
+  void deferMediaRetry() {
+    // A failed native media route must not interrupt working provider playback
+    // repeatedly. Discovery/status polling continues during the cooldown.
+    _mediaRetryAfter = DateTime.now().add(const Duration(minutes: 5));
+    _render();
+  }
+
+  void _maybeConnect() {
+    if (_disposed ||
+        !_active ||
+        !player.state.playing ||
+        _mediaAttached ||
+        !_playbackReady ||
+        _remotePhase != 'matched' ||
+        !_hasUsableLanguage ||
+        !SubtitlePreferences.instance.enabled ||
+        _autoConnecting ||
+        onMediaReady == null ||
+        (_mediaRetryAfter?.isAfter(DateTime.now()) ?? false) ||
+        (_nextConnectAttempt?.isAfter(DateTime.now()) ?? false))
+      return;
+    _autoConnecting = true;
+    _nextConnectAttempt = DateTime.now().add(const Duration(seconds: 15));
+    final generation = _generation;
+    Future<void>.microtask(() async {
+      try {
+        if (!_disposed && generation == _generation) await onMediaReady?.call();
+      } catch (_) {
+        // The provider remains in use; the status lease and poll drive retries.
+      } finally {
+        _autoConnecting = false;
+      }
+    });
+  }
+
   bool _fetching = false;
 
   /// Refreshes programme discovery without reopening or seeking the decoder.
   Future<void> refreshProgramme() async {
+    if (!_disposed &&
+        !_fetching &&
+        _source != null &&
+        (_base == null || _session == null)) {
+      await prepare(_source!, monitorOnly: true);
+      return;
+    }
     if (_fetching ||
         _disposed ||
         _base == null ||
@@ -173,7 +357,10 @@ class LiveSubtitleSession {
     _programme = next;
     _requiresProgramme = _requiresProgramme || next != null;
     _timeline = null;
-    text.value = '';
+    _phase = SubtitlePhase.programmeUnavailable;
+    _remotePhase = null;
+    _availableLanguages = const [];
+    _render();
     final response = await _client
         .post(
           base.resolve('sessions/${Uri.encodeComponent(session)}/programme'),
@@ -200,9 +387,28 @@ class LiveSubtitleSession {
       session: session,
       source: source,
     );
-    _timeline = timeline;
+    _timeline = _mediaAttached ? timeline : null;
+    _playbackReady = data['playbackReady'] == true;
+    final metadata = data['subtitleStatus'];
+    _remotePhase = metadata is Map ? metadata['phase'] as String? : null;
+    final languages = metadata is Map ? metadata['availableLanguages'] : null;
+    _availableLanguages = languages is List
+        ? languages.whereType<String>().toList()
+        : const [];
+    _phase = switch (_remotePhase) {
+      'unavailable' => SubtitlePhase.unavailable,
+      'service_unavailable' => SubtitlePhase.serviceUnavailable,
+      'programme_unavailable' => SubtitlePhase.programmeUnavailable,
+      'searching' => SubtitlePhase.searching,
+      _ => _playbackReady ? SubtitlePhase.synchronizing : SubtitlePhase.warming,
+    };
+    if (!_mediaAttached && _playbackReady && _remotePhase == 'matched') {
+      _phase = _hasUsableLanguage
+          ? SubtitlePhase.connecting
+          : SubtitlePhase.unavailable;
+    }
     _programmeAcknowledged = true;
-    if (!selection.external) {
+    if (_mediaAttached && !selection.external) {
       selection.external = true;
       selection.refresh();
     }
@@ -210,7 +416,10 @@ class LiveSubtitleSession {
     _expiry = Timer(const Duration(seconds: 3), () {
       _timeline = null;
       if (!_disposed) {
-        text.value = '';
+        _phase = SubtitlePhase.serviceUnavailable;
+        _remotePhase = null;
+        _availableLanguages = const [];
+        _render();
         selection.external = false;
         selection.refresh();
       }
@@ -218,27 +427,88 @@ class LiveSubtitleSession {
     _render();
   }
 
+  bool get _hasUsableLanguage =>
+      selectSubtitle(
+        _availableLanguages,
+        SubtitlePreferences.instance.language.tag,
+        language: (language) => language,
+      ) !=
+      null;
+
   void _render() {
     if (_disposed) return;
     final prefs = SubtitlePreferences.instance;
+    final position =
+        player.state.position.inMicroseconds / Duration.microsecondsPerSecond;
     text.value =
         !prefs.enabled ||
             !_active ||
+            !_mediaAttached ||
             !player.state.playing ||
             player.state.buffering
         ? ''
-        : _timeline?.textAt(
-                player.state.position.inMicroseconds /
-                    Duration.microsecondsPerSecond,
-                prefs.language.tag,
-              ) ??
-              '';
+        : _timeline?.textAt(position, prefs.language.tag) ?? '';
+    var phase = _phase;
+    if (!prefs.enabled) {
+      phase = SubtitlePhase.idle;
+    } else if (!selection.external && selection.selected.value != null) {
+      phase =
+          subtitleLanguage(selection.selected.value!.language) == 'en' &&
+              subtitleLanguage(prefs.language.tag) != 'en'
+          ? SubtitlePhase.englishFallback
+          : SubtitlePhase.ready;
+    } else if (_mediaAttached && _timeline != null && _active) {
+      final window = _timeline!.windowAt(position);
+      if (window?['state'] == 'SUSPENDED' &&
+          !const {
+            SubtitlePhase.unavailable,
+            SubtitlePhase.serviceUnavailable,
+            SubtitlePhase.programmeUnavailable,
+            SubtitlePhase.searching,
+          }.contains(_phase)) {
+        phase = SubtitlePhase.suspended;
+      } else if (window?['state'] == 'LOCKED') {
+        final tracks = (window?['tracks'] as List? ?? const [])
+            .whereType<Map>()
+            .where((t) => t['verified'] == true)
+            .map((t) => t['language'])
+            .whereType<String>();
+        final languages = {..._availableLanguages, ...tracks};
+        final selected = selectSubtitle(
+          languages,
+          prefs.language.tag,
+          language: (language) => language,
+        );
+        if (selected != null) {
+          phase =
+              subtitleLanguage(selected) == 'en' &&
+                  subtitleLanguage(prefs.language.tag) != 'en'
+              ? SubtitlePhase.englishFallback
+              : SubtitlePhase.ready;
+        } else if (_remotePhase == 'matched') {
+          phase = SubtitlePhase.unavailable;
+        }
+      }
+    } else if (!_mediaAttached && _playbackReady && _remotePhase == 'matched') {
+      phase = _hasUsableLanguage
+          ? SubtitlePhase.connecting
+          : SubtitlePhase.unavailable;
+    }
+    if (!_mediaAttached &&
+        (_mediaRetryAfter?.isAfter(DateTime.now()) ?? false)) {
+      phase = SubtitlePhase.serviceUnavailable;
+    }
+    status.value = phase;
+    _maybeConnect();
   }
 
   void clear() {
     ++_generation;
     _poll?.cancel();
     _expiry?.cancel();
+    _retry?.cancel();
+    _nextConnectAttempt = null;
+    _mediaRetryAfter = null;
     _timeline = null;
     _programme = null;
     _requiresProgramme = false;
@@ -247,6 +517,12 @@ class LiveSubtitleSession {
     _session = null;
     _source = null;
     _active = false;
+    _mediaAttached = false;
+    _playbackReady = false;
+    _phase = SubtitlePhase.idle;
+    _remotePhase = null;
+    _availableLanguages = const [];
+    status.value = SubtitlePhase.idle;
     text.value = '';
     selection.external = false;
     selection.refresh();
@@ -262,9 +538,11 @@ class LiveSubtitleSession {
     _disposed = true;
     _client.close();
     SubtitlePreferences.instance.removeListener(_render);
+    selection.selected.removeListener(_render);
     await _position?.cancel();
     await _buffering?.cancel();
     await _playing?.cancel();
     text.dispose();
+    status.dispose();
   }
 }

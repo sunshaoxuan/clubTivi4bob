@@ -202,6 +202,11 @@
     "history_title": "Recent changes",
     "history": [
       [
+        "2026-11-17",
+        "v1.1.23 · Automatic subtitles and movie caching",
+        "Added subtitle status feedback in seven languages. The Action Movies UK pilot discovers and retries subtitles on the server and connects automatically when ready. Movie, edition and language identify persistent cached subtitle files. Selection prefers the requested language, then English. Live synchronization is verified again when cached files are reused."
+      ],
+      [
         "2026-11-16",
         "v1.1.22 · Programme guides and live subtitles",
         "Expanded verified programme guides. Added a live subtitle pilot for Action Movies UK, with preferred-language, English and no-subtitle fallback, automatic advert suspension and verified recovery. Improved playback across short advert fragments. Country selection and its index now follow the interface language. EPG hints follow the interface language, and cached channels remain playable when route-state sync is unavailable."
@@ -356,7 +361,7 @@
     "closing_text": "One column each for Windows, macOS and Android, with CPU choices inside. Native Windows ARM64 packages are available; Surface hardware tests are pending."
   },
   "downloads": {
-    "intro": "Windows, macOS and Android share version 1.1.22+117. Switch languages at the top of the app. Manual choices persist. Automatic mode uses the system language, then the time zone, then English. The language resources are included with each installer. The advanced mode entry has been closed. Diagnostic sync is off by default. Explicit consent enables up to 30 days of redacted records and can be withdrawn at any time.",
+    "intro": "Windows, macOS and Android share version 1.1.23+118. Switch languages at the top of the app. Manual choices persist. Automatic mode uses the system language, then the time zone, then English. The language resources are included with each installer. The advanced mode entry has been closed. Diagnostic sync is off by default. Explicit consent enables up to 30 days of redacted records and can be withdrawn at any time.",
     "latest": "Latest installers",
     "local": "Downloads hosted on this site",
     "sections": [

@@ -202,6 +202,11 @@
     "history_title": "Modifications récentes",
     "history": [
       [
+        "2026-11-17",
+        "v1.1.23 · Sous-titres automatiques et cache par film",
+        "Ajout d’indicateurs de sous-titres en sept langues. Le pilote Action Movies UK recherche et réessaie les sous-titres sur le serveur, puis se connecte automatiquement lorsqu’ils sont prêts. Les fichiers sont conservés par film, édition et langue. La langue demandée est prioritaire, puis l’anglais. La synchronisation avec le direct est vérifiée à nouveau lors de la réutilisation du cache."
+      ],
+      [
         "2026-11-16",
         "v1.1.22 · Programmes et sous-titres en direct",
         "Extension des programmes vérifiés. Pilote de sous-titres sur Action Movies UK : langue choisie, anglais, puis aucun sous-titre. Suspension pendant les publicités et reprise synchronisée vérifiée. Amélioration de la lecture des courts segments publicitaires. La liste des pays et son index suivent la langue de l’interface. Les indications du guide suivent la langue choisie. Les chaînes en cache restent lisibles si la synchronisation est indisponible."
@@ -356,7 +361,7 @@
     "closing_text": "Une colonne chacune pour Windows, macOS et Android, avec les choix de processeur à l'intérieur. Des packages natifs Windows ARM64 sont disponibles ; Les tests du matériel Surface sont en attente."
   },
   "downloads": {
-    "intro": "Windows, macOS et Android utilisent la version 1.1.22+117. Changez de langue en haut de l’application. Votre choix est mémorisé. En mode automatique, l’application utilise la langue du système, le fuseau horaire, puis l’anglais. Chaque programme d’installation contient les ressources linguistiques. L’accès au mode avancé a été fermé. La synchronisation des diagnostics est désactivée par défaut. Avec votre accord, elle transmet jusqu’à 30 jours de données expurgées. Vous pouvez la désactiver à tout moment. L’application macOS utilise une signature ad-hoc.",
+    "intro": "Windows, macOS et Android utilisent la version 1.1.23+118. Changez de langue en haut de l’application. Votre choix est mémorisé. En mode automatique, l’application utilise la langue du système, le fuseau horaire, puis l’anglais. Chaque programme d’installation contient les ressources linguistiques. L’accès au mode avancé a été fermé. La synchronisation des diagnostics est désactivée par défaut. Avec votre accord, elle transmet jusqu’à 30 jours de données expurgées. Vous pouvez la désactiver à tout moment. L’application macOS utilise une signature ad-hoc.",
     "latest": "Derniers installateurs",
     "local": "Téléchargements hébergés sur ce site",
     "sections": [

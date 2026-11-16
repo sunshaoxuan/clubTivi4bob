@@ -1,0 +1,17 @@
+{
+  "sourceCommit": "0745c9baac99da9b14c96a31c93c55b0ed79effe",
+  "backup": "/opt/bobtv/live-subtitles/backups/1794790021",
+  "deployedAtUtc": 1794790026,
+  "files": {
+    "live_media.py": "87c70becbc92a67524780f60014ec5420f51e0559405e3ec86eabbe8e94231b1",
+    "subtitle_catalog.py": "94547597bea0839f377a6dce6e6ae9099b4b8b5e2956b4f2666ee5964ca1daa6",
+    "live_engine.py": "1d0bd42de55eed13e75a7dddbe481d881c6eec4bfd0f4a09cc6e1010c984968c",
+    "service.py": "068c5a8615d19c9714f361b1ae4b0afffe66c48f18287fadf79c1fd28dc350a4",
+    "test_live_service.py": "5d7a65d511d9fa3d20fcde30d27b045d42e96331ad74c3f8bfb25af1adf56b28",
+    "bobtv-live-subtitles.service": "0eba4443753ae3724ce141c5daa6574ab882cf4bab3ea4cb1693c17efb218f5e",
+    "bobtv-live-subtitles.conf": "8a4c1b8135bba9a5bda97650b7261d21de164095601e97442870342bdb4cda85",
+    "requirements.txt": "35dc43c2b82664e15b95617f3493cabf7898132cc8627cc3368279269775a54a"
+  },
+  "publicPath": "/api/v1/subtitles/",
+  "pilot": "rakuten-uk-6065"
+}

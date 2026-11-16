@@ -1,0 +1,27 @@
+{
+  "checkedAtUtc": 1794791394,
+  "units": {
+    "bobtv-epg-validator.timer": "active",
+    "bobtv-epg-schedules.timer": "active",
+    "bobtv-epg-publisher.timer": "active",
+    "bobtv-epg-discovery.timer": "active",
+    "bobtv-epg-source-discovery.timer": "active",
+    "bobtv-live-subtitles.service": "active"
+  },
+  "subtitleRelease": "/opt/bobtv/live-subtitles/releases/0745c9baac99da9b14c96a31c93c55b0ed79effe",
+  "sourceCommit": "0745c9baac99da9b14c96a31c93c55b0ed79effe",
+  "deployedBytesMatch": true,
+  "systemd": "NRestarts=0\nActiveEnterTimestamp=Mon 2026-11-16 00:47:01 UTC\n",
+  "fastResume": [
+    {
+      "event": "fast_clock_resume",
+      "wall": 1794791077.504232,
+      "timeline": 1050.0,
+      "mode": "verified_pts_continuity",
+      "sequence": 8324598,
+      "continuityErrorSeconds": 0.0,
+      "observedRecoverySeconds": 1.0009829998016357
+    }
+  ],
+  "lastTimeline": 1368.0
+}

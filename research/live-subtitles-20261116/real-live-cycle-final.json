@@ -1,0 +1,103 @@
+{
+  "realLive": true,
+  "scope": "server live ASR and native Flutter client; sampled caption state, not OCR",
+  "testStartedWall": 1794790053.4718752,
+  "baseline": {
+    "wall": 1794790132.5010078,
+    "position": 70.213933,
+    "serverTimeline": 102.0,
+    "mediaClockOrigin": 0
+  },
+  "pause": {
+    "start": 900.0,
+    "observedWall": 1794790936.8656096,
+    "sequence": 8324448
+  },
+  "returned": {
+    "start": 1050.0,
+    "observedWall": 1794791076.5032527,
+    "sequence": 8324598
+  },
+  "resume": {
+    "timeline": 1050.0,
+    "wall": 1794791077.504232,
+    "mode": "verified_pts_continuity"
+  },
+  "mediaClockOrigin": 0,
+  "adMediaSeconds": 150.0,
+  "advertSamples": 3000,
+  "advertSamplesWithFilmCaption": 0,
+  "serverObservedRecoverySeconds": 1.0009791851043701,
+  "serverMediaRecoverySeconds": 0.0,
+  "nativeFirstCaptionDelaySeconds": 15.379265999999916,
+  "holdoutCueCount": 3,
+  "holdout": [
+    {
+      "cue": 270,
+      "subtitleStart": 1142.851,
+      "asrStart": 1191.4,
+      "offset": -48.54899999999998,
+      "words": 52,
+      "errorSeconds": -0.3550000000000182
+    },
+    {
+      "cue": 271,
+      "subtitleStart": 1145.311,
+      "asrStart": 1193.92,
+      "offset": -48.60900000000015,
+      "words": 52,
+      "errorSeconds": -0.415000000000191
+    },
+    {
+      "cue": 272,
+      "subtitleStart": 1147.897,
+      "asrStart": 1196.16,
+      "offset": -48.26300000000015,
+      "words": 46,
+      "errorSeconds": -0.06900000000018736
+    }
+  ],
+  "nativeHoldout": [
+    {
+      "cue": 270,
+      "language": "zh-CN",
+      "asrStart": 1191.4,
+      "nativeCaptionPosition": 1191.0646,
+      "errorSeconds": -0.33540000000016335
+    },
+    {
+      "cue": 271,
+      "language": "zh-CN",
+      "asrStart": 1193.92,
+      "nativeCaptionPosition": 1193.5446,
+      "errorSeconds": -0.37540000000012697
+    },
+    {
+      "cue": 272,
+      "language": "zh-CN",
+      "asrStart": 1196.16,
+      "nativeCaptionPosition": 1196.149933,
+      "errorSeconds": -0.010067000000162807
+    }
+  ],
+  "nativeMedianAbsoluteReferenceErrorSeconds": 0.33540000000016335,
+  "nativeMaximumAbsoluteReferenceErrorSeconds": 0.37540000000012697,
+  "medianAbsoluteAsrReferenceErrorSeconds": 0.3550000000000182,
+  "maximumAbsoluteAsrReferenceErrorSeconds": 0.415000000000191,
+  "layouts": [
+    0,
+    1,
+    2
+  ],
+  "bufferingSamplesAfterStartup": 0,
+  "bufferingSamplesAfterVerifiedBaseline": 0,
+  "captionCyclePassed": true,
+  "bufferingIntervalsAfterVerifiedBaseline": [],
+  "bufferingApproximateSecondsAfterVerifiedBaseline": 0,
+  "corruptMediaWarnings": 0,
+  "nativeErrors": [],
+  "firstScheduledCaptionAfterReturn": 1065.377,
+  "nativeFirstCaptionLatenessSeconds": 0.002265999999963242,
+  "referenceScope": "tiny.en word onset estimates; 50 ms native state sampling, backend decoded-position notifications; no manual lip-sync judgement",
+  "overallAccepted": true
+}

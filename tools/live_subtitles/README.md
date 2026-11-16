@@ -171,3 +171,18 @@ remain unchanged. Initial playlists wait for 24 seconds of ready media, and
 HTTP readers never launch a remux subprocess. An unusable source segment is
 logged and skipped with a discontinuity rather than blocking the producer.
 Private media and caption decision memory retain at most two hours.
+
+Short source fragments are grouped into approximately six-second transport
+chunks after normalization, without changing their timestamped elementary
+payloads. Groups stop at content, advert, source-gap and discontinuity boundaries.
+The output playlist has its own consecutive media sequence; source sequence IDs
+remain diagnostic facts. New session origins use an existing output boundary.
+This bounds per-fragment HTTPS overhead on distant clients while retaining the
+same source clock used by subtitle suspension and acoustic checks.
+
+The live probe waits until three independent post-return acoustic holdouts
+have actually passed through the native player. It records displayed cue onset
+errors separately from the service's scheduled onset errors. Playback acceptance
+requires no buffering after the verified baseline; initial acquisition and
+buffering before that baseline are reported separately. Native sampling is
+50 ms, with the backend's own decoded-position notification granularity.

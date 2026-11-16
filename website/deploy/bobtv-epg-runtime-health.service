@@ -1,0 +1,24 @@
+[Unit]
+Description=BobTV independent read-only EPG runtime health receipt
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=bobtv
+Group=bobtv
+WorkingDirectory=/opt/bobtv/site
+Environment=BOBTV_DATA_DIR=/var/lib/bobtv
+Environment=PYTHONDONTWRITEBYTECODE=1
+ExecStart=/opt/bobtv/venv/bin/python /opt/bobtv/site/epg_runtime_health.py
+TimeoutStartSec=60
+MemoryMax=192M
+CPUQuota=10%
+TasksMax=16
+Nice=15
+UMask=0077
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ReadWritePaths=/var/lib/bobtv/epg

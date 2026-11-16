@@ -27,7 +27,7 @@ def fetch(url, limit=16 * 1024 * 1024):
 def parse_media(raw, url):
     lines = raw.splitlines()
     sequence = int(next(x.split(':', 1)[1] for x in lines if x.startswith('#EXT-X-MEDIA-SEQUENCE:')))
-    key, tags, duration, discontinuity = None, [], None, False
+    key, tags, duration, discontinuity, declared_ad = None, [], None, False, False
     output = []
     for line in lines:
         if line.startswith('#EXT-X-KEY:'):
@@ -39,6 +39,10 @@ def parse_media(raw, url):
             tags.append(line)
         elif line.startswith(('#EXT-X-ASSET:', '#EXT-X-CUE', '#EXT-X-DATERANGE')):
             tags.append(line)
+            if line.startswith('#EXT-X-CUE-OUT'):
+                declared_ad=True
+            if line.startswith('#EXT-X-CUE-IN'):
+                declared_ad=False
         elif line and not line.startswith('#') and duration is not None:
             if not math.isfinite(duration) or not 0 < duration <= 30:
                 raise ValueError('invalid_segment_duration')
@@ -51,6 +55,7 @@ def parse_media(raw, url):
                                key=key, discontinuity=discontinuity,
                                contentId=episode[1] if episode else None,
                                caid=caid[1] if caid else None,
+                               declaredAd=declared_ad,
                                asset=path.rsplit('/media-', 1)[0], sourcePath=path))
             sequence += 1
             tags, duration, discontinuity = [], None, False

@@ -129,7 +129,7 @@ class Engine:
             fresh = [r for r in self.collector.snapshot() if r['sequence'] > self.last_sequence]
             for row in fresh:
                 self.last_sequence = row['sequence']
-                matches = row['contentId'] == self.programme['movieId']
+                matches = row['contentId'] == self.programme['movieId'] and not row.get('declaredAd',False)
                 old_state = self.state
                 if self.active_asset != row['asset'] or self.active_movie != matches or row['sequenceGap']:
                     with self.lock:

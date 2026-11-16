@@ -47,6 +47,19 @@ class LiveServiceTests(unittest.TestCase):
         self.assertIsNone(rows[0]['contentId'])
         self.assertEqual(rows[1]['contentId'], 'film')
 
+    def test_declared_ad_overrides_a_retained_film_id(self):
+        raw='#EXTM3U\n#EXT-X-MEDIA-SEQUENCE:1\n#EXT-X-CUE-OUT:30\n#EXTINF:6.0,epid=film\na.ts\n#EXT-X-CUE-IN\n#EXTINF:6.0,epid=film\nb.ts\n'
+        rows=parse_media(raw,'https://public.example/live')
+        self.assertEqual([r['declaredAd'] for r in rows],[True,False])
+        with tempfile.TemporaryDirectory() as root:
+            e=Engine('https://public.example/live',dict(movieId='film',title='Film',year=2003),root,None,'ffmpeg',candidates=[])
+            e.state='LOCKED';e.k=0;e.verified_asset=rows[0]['asset']
+            row={**rows[0],'timelineStart':0,'timelineEnd':6,'sequenceGap':False,'observedWall':time.time()}
+            e.collector.rows=[row]
+            with patch.object(e.collector.stop,'wait',lambda _:e.collector.stop.set()):e.run()
+            self.assertEqual(e.decisions[1]['state'],'SUSPENDED')
+            self.assertEqual(e.decisions[1]['tracks'],[])
+
     def test_subtitle_search_excludes_same_year_tv_episode_with_title_words(self):
         search = '<a href="/subs/1/tv.html">Two and a Half Men 2003 S06 A Jock Strap in Hell</a><a href="/subs/2/film.html">In Hell 2003 BluRay</a>'
         detail = '<a id="download_en" href="/subs/2/a.srt">Download</a><button onclick="generate()">Translate</button>'

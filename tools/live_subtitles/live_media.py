@@ -218,18 +218,45 @@ class MediaPublisher:
     def __init__(self,collector,ffmpeg):
         self.collector,self.ffmpeg=collector,ffmpeg
         self.rows=[];self.last_sequence=-1;self.counters={};self.lock=threading.RLock();self.pending_gap=False
+        self.pending=[];self.output_sequence=0
+
+    def publish_pending(self):
+        if not self.pending:return
+        first,last=self.pending[0],self.pending[-1]
+        folder=self.collector.root/'published';folder.mkdir(exist_ok=True)
+        target=folder/(str(self.output_sequence)+'.ts');temporary=target.with_suffix('.tmp')
+        with temporary.open('wb') as output:
+            for row in self.pending:
+                output.write((self.collector.root/'normalized'/(str(row['sequence'])+'.ts')).read_bytes())
+        os.replace(temporary,target)
+        published={**first,'sequence':self.output_sequence,'localPath':str(target),'keyLine':None,
+                   'timelineEnd':last['timelineEnd'],'duration':sum(r['duration'] for r in self.pending),
+                   'sourceFirstSequence':first['sequence'],'sourceLastSequence':last['sequence'],
+                   'sequenceGap':first['sequenceGap'] or self.pending_gap}
+        with self.lock:
+            self.rows.append(published)
+            expired=[r for r in self.rows if r['timelineEnd']<last['timelineEnd']-7200]
+            self.rows=[r for r in self.rows if r not in expired]
+            for row in expired:Path(row['localPath']).unlink(missing_ok=True)
+        self.output_sequence+=1;self.pending=[];self.pending_gap=False
 
     def run(self):
         while not self.collector.stop.is_set():
             for row in self.collector.snapshot():
                 if row['sequence']<=self.last_sequence:continue
                 try:
+                    # Preserve boundary timing. Group short ad fragments into
+                    # transport chunks so one-second HTTPS requests cannot
+                    # consume the client's buffer on a distant connection.
+                    if self.pending and (row['discontinuity'] or row['sequenceGap'] or
+                            row.get('declaredAd')!=self.pending[-1].get('declaredAd') or
+                            row.get('contentId')!=self.pending[-1].get('contentId')):
+                        self.publish_pending()
                     normalize_segment(row,self.ffmpeg,self.collector.root,self.counters)
-                    with self.lock:
-                        self.rows.append({**row,'keyLine':None,'sequenceGap':row['sequenceGap'] or self.pending_gap})
-                        self.rows=[r for r in self.rows if r['timelineEnd']>=row['timelineEnd']-7200]
-                    self.pending_gap=False
+                    self.pending.append(row)
+                    if sum(r['duration'] for r in self.pending)>=6:self.publish_pending()
                 except (OSError,ValueError,subprocess.SubprocessError) as error:
+                    self.publish_pending()
                     self.pending_gap=True
                     self.collector.log('media_publish_error',sequence=row['sequence'],errorType=type(error).__name__)
                 self.last_sequence=row['sequence']

@@ -28,17 +28,37 @@ class LiveServiceTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as root:
             from live_media import Collector
             c=Collector('https://public.example/route',root)
-            c.rows=[dict(sequence=i,timelineStart=(i-1)*6,timelineEnd=i*6,sequenceGap=False,keyLine=None) for i in [1,2,3]]
+            c.rows=[dict(sequence=i,timelineStart=(i-1)*6,timelineEnd=i*6,duration=6,discontinuity=False,sequenceGap=False,keyLine=None) for i in [1,2,3]]
             calls=[];publisher=MediaPublisher(c,'ffmpeg')
             def normalize(row,*args):
                 calls.append(row['sequence'])
                 if row['sequence']==2:raise ValueError('unusable source segment')
+                folder=Path(root)/'normalized';folder.mkdir(exist_ok=True)
+                (folder/(str(row['sequence'])+'.ts')).write_bytes(b'x'*188)
                 if row['sequence']==3:c.stop.set()
             with patch('live_media.normalize_segment',normalize):publisher.run()
             ready=publisher.snapshot()
             self.assertEqual(calls,[1,2,3])
-            self.assertEqual([r['sequence'] for r in ready],[1,3])
+            self.assertEqual([r['sequence'] for r in ready],[0,1])
             self.assertTrue(ready[-1]['sequenceGap'])
+
+    def test_short_inserts_are_grouped_without_changing_the_clock_or_boundaries(self):
+        from live_media import Collector
+        with tempfile.TemporaryDirectory() as root:
+            c=Collector('https://public.example/route',root)
+            c.rows=[dict(sequence=i,timelineStart=i,timelineEnd=i+1,duration=1,
+                discontinuity=False,sequenceGap=False,keyLine=None,declaredAd=i<7,
+                contentId=None if i<7 else 'movie') for i in range(13)]
+            publisher=MediaPublisher(c,'ffmpeg')
+            def normalize(row,*args):
+                folder=Path(root)/'normalized';folder.mkdir(exist_ok=True)
+                (folder/(str(row['sequence'])+'.ts')).write_bytes(bytes([row['sequence']])*188)
+                if row['sequence']==12:c.stop.set()
+            with patch('live_media.normalize_segment',normalize):publisher.run()
+            rows=publisher.snapshot()
+            self.assertEqual([(r['timelineStart'],r['timelineEnd'],r['duration']) for r in rows],[(0,6,6),(6,7,1),(7,13,6)])
+            self.assertEqual([r['sequence'] for r in rows],[0,1,2])
+            self.assertEqual(Path(rows[0]['localPath']).read_bytes(),b''.join(bytes([i])*188 for i in range(6)))
 
     def test_movie_caid_on_an_insert_does_not_become_episode_identity(self):
         raw = '#EXTM3U\n#EXT-X-MEDIA-SEQUENCE:10\n#EXT-X-ASSET:CAID="m_9"\n#EXTINF:1.0,\nad.ts\n#EXTINF:6.0,extke=Rakutentv:epid=film:ct=m:vt=s\nfilm.ts\n'

@@ -100,7 +100,7 @@ class Hub:
                 self.engine.start()
                 self.publisher=MediaPublisher(self.engine.collector,self.ffmpeg)
                 threading.Thread(target=self.publisher.run,daemon=True).start()
-            rows = self.engine.collector.snapshot()
+            rows = self.publisher.snapshot()
             chosen = [r for r in rows if r['timelineEnd'] > (rows[-1]['timelineEnd'] - 30)] if rows else []
             token = uuid.uuid4().hex
             self.sessions[token] = dict(origin=chosen[0]['timelineStart'] if chosen else 0,
@@ -228,7 +228,7 @@ def serve(hub, host, port):
                 if not filename.endswith('.ts'):
                     raise KeyError()
                 sequence=int(filename[:-3]);row=next(r for r in publisher.snapshot() if r['sequence']==sequence)
-                media=collector.root/'normalized'/filename
+                media=Path(row['localPath'])
                 return self.send(media.read_bytes(),
                                  'video/mp2t' if filename.endswith('.ts') else 'application/octet-stream', cache=True)
             except (subprocess.SubprocessError, ValueError):

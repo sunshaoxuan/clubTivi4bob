@@ -77,11 +77,23 @@ def main():
             if not (frozen and pause and returned and resume and pause['observedWall']>frozen['wall'] and len(status['holdout'])>=3):
                 continue
             origin=response['mediaClockOrigin'];lo=pause['start']-origin;hi=returned['start']-origin
-            if not samples or samples[-1]['position']<hi+60:continue
+            # New acoustic holdouts can be minutes after the return. Wait
+            # until those actual cues have passed through the native player.
+            holdout=status['holdout'][:3]
+            if not samples or samples[-1]['position']<max(hi+60,max(h['asrStart'] for h in holdout)-origin+3):continue
             ad=[s for s in samples if lo<=s['position']<hi]
             after=[s for s in samples if s['position']>=hi and s.get('text')]
             if not ad or not after:continue
-            holdout=status['holdout'];errors=[abs(h['errorSeconds']) for h in holdout]
+            errors=[abs(h['errorSeconds']) for h in holdout]
+            native_errors=[]
+            for h in holdout:
+                cues=[c for w in response['windows'] for t in w['tracks'] if t['language']=='en'
+                      for c in t['cues'] if c['index']==h['cue']]
+                texts={' '.join(c['text'].split()) for c in cues}
+                matched=[s for s in after if ' '.join((s.get('text') or '').split()) in texts]
+                if matched:
+                    native_errors.append(dict(cue=h['cue'],position=matched[0]['position'],
+                        asrStart=h['asrStart']-origin,errorSeconds=matched[0]['position']-(h['asrStart']-origin)))
             result=dict(realLive=True,scope='server live ASR and native Flutter client; sampled caption state, not OCR',
                 testStartedWall=started,baseline=frozen,pause=pause,returned=returned,resume=resume,
                 mediaClockOrigin=origin,adMediaSeconds=hi-lo,advertSamples=len(ad),
@@ -90,13 +102,16 @@ def main():
                 serverMediaRecoverySeconds=resume['timeline']-returned['start'],
                 nativeFirstCaptionDelaySeconds=after[0]['position']-hi,
                 holdoutCueCount=len(holdout),holdout=holdout,
+                nativeHoldout=native_errors,
+                nativeMedianAbsoluteReferenceErrorSeconds=statistics.median(abs(x['errorSeconds']) for x in native_errors) if native_errors else None,
+                nativeMaximumAbsoluteReferenceErrorSeconds=max((abs(x['errorSeconds']) for x in native_errors),default=None),
                 medianAbsoluteAsrReferenceErrorSeconds=statistics.median(errors),maximumAbsoluteAsrReferenceErrorSeconds=max(errors),
                 layouts=sorted({s['layout'] for s in samples}),
                 bufferingSamplesAfterStartup=sum(s['buffering'] for s in samples if s['elapsed']>10))
-            passed=result['advertSamplesWithFilmCaption']==0
+            result['captionCyclePassed']=result['advertSamplesWithFilmCaption']==0 and len(native_errors)>=3
+            passed=result['captionCyclePassed'] and result['bufferingSamplesAfterStartup']==0
             result['unattendedCyclePassed']=passed;(root/'cycle-result.json').write_text(json.dumps(result,indent=2))
-            if passed:
-                (native/'STOP').write_text('verified live cycle complete');print(json.dumps(result),flush=True);break
+            (native/'STOP').write_text('measured live cycle complete');print(json.dumps(result),flush=True);break
         if process.poll() is None:
             (native/'STOP').write_text('runner deadline or completion')
             process.wait(timeout=30)

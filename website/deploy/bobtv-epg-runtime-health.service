@@ -11,7 +11,7 @@ WorkingDirectory=/opt/bobtv/site
 Environment=BOBTV_DATA_DIR=/var/lib/bobtv
 Environment=PYTHONDONTWRITEBYTECODE=1
 ExecStart=/opt/bobtv/venv/bin/python /opt/bobtv/site/epg_runtime_health.py
-TimeoutStartSec=60
+TimeoutStartSec=75
 MemoryMax=192M
 CPUQuota=10%
 TasksMax=16

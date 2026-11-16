@@ -143,3 +143,37 @@ def test_atomic_receipt_is_private_and_never_follows_destination_symlink(tmp_pat
     assert not dest.is_symlink()
     assert dest.stat().st_mode & 0o777 == 0o600
     assert json.loads(dest.read_text()) == {'state': 'healthy'}
+
+
+@pytest.mark.parametrize('oversized', [False, True])
+def test_manifest_fetch_is_bounded_and_bypasses_cache(monkeypatch, oversized):
+    seen = {}
+    class Response:
+        status = 200
+        def __enter__(self):
+            return self
+        def __exit__(self, *_):
+            pass
+        def geturl(self):
+            return health.NODES[0] + '/api/v1/epg/manifest'
+        def read(self, size):
+            assert size == 65537
+            return b'x' * size if oversized else b'{"version":null}'
+    class Opener:
+        def open(self, request, timeout):
+            seen.update(timeout=timeout, headers={k.lower(): v for k, v in request.header_items()})
+            return Response()
+    monkeypatch.setattr(health.urllib.request, 'build_opener', lambda *_: Opener())
+    if oversized:
+        with pytest.raises(ValueError, match='size_limit'):
+            health.read_node(health.NODES[0])
+    else:
+        assert health.read_node(health.NODES[0]) == {'version': None}
+    assert seen['timeout'] == 12
+    assert seen['headers']['cache-control'] == 'no-cache, no-store'
+    assert seen['headers']['pragma'] == 'no-cache'
+
+
+def test_manifest_fetch_rejects_arbitrary_host():
+    with pytest.raises(ValueError, match='unapproved_node'):
+        health.read_node('http://127.0.0.1')

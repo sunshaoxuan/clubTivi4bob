@@ -62,7 +62,7 @@ def read_node(node):
     opener = urllib.request.build_opener(urllib.request.ProxyHandler({}), NoRedirect(), _HTTPHandler(), _HTTPSHandler())
     request = urllib.request.Request(url, headers={'User-Agent': 'BobTV-EPG-Health/1.0',
         'Accept-Encoding': 'identity', 'Cache-Control': 'no-cache, no-store', 'Pragma': 'no-cache'})
-    with opener.open(request, timeout=6) as response:
+    with opener.open(request, timeout=12) as response:
         if response.status != 200 or response.geturl() != url:
             raise ValueError('node_manifest_unavailable')
         raw = response.read(65537)

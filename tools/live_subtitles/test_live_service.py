@@ -9,10 +9,14 @@ from unittest.mock import patch
 from live_media import parse_media, playlist, continuous_counters, MediaPublisher
 from live_engine import Engine, align
 from service import Hub, CHANNEL
-from subtitle_catalog import discover, parse_srt
+from subtitle_catalog import discover, parse_srt, title_norm
 
 
 class LiveServiceTests(unittest.TestCase):
+    def test_possessive_title_release_punctuation_preserves_identity(self):
+        self.assertEqual(title_norm("Tom Clancy's Without Remorse"),title_norm('Tom.Clancys.Without.Remorse'))
+        self.assertEqual(title_norm('Tom Clancy’s Without Remorse'),title_norm('Tom.Clancys.Without.Remorse'))
+        self.assertNotEqual(title_norm("Tom Clancy's Jack Ryan"),title_norm('Tom.Clancys.Without.Remorse'))
     def test_transport_continuity_survives_independent_segment_muxes(self):
         def packet(pid,counter,control=1):
             return bytes([0x47,(pid>>8)&31,pid&255,(control<<4)|counter])+bytes([0xff])*184

@@ -107,9 +107,11 @@ def main():
                 nativeMaximumAbsoluteReferenceErrorSeconds=max((abs(x['errorSeconds']) for x in native_errors),default=None),
                 medianAbsoluteAsrReferenceErrorSeconds=statistics.median(errors),maximumAbsoluteAsrReferenceErrorSeconds=max(errors),
                 layouts=sorted({s['layout'] for s in samples}),
-                bufferingSamplesAfterStartup=sum(s['buffering'] for s in samples if s['elapsed']>10))
+                bufferingSamplesAfterStartup=sum(s['buffering'] for s in samples if s['elapsed']>10),
+                bufferingSamplesAfterVerifiedBaseline=sum(s['buffering'] for s in samples
+                    if s['elapsed']>frozen['wall']-started))
             result['captionCyclePassed']=result['advertSamplesWithFilmCaption']==0 and len(native_errors)>=3
-            passed=result['captionCyclePassed'] and result['bufferingSamplesAfterStartup']==0
+            passed=result['captionCyclePassed'] and result['bufferingSamplesAfterVerifiedBaseline']==0
             result['unattendedCyclePassed']=passed;(root/'cycle-result.json').write_text(json.dumps(result,indent=2))
             (native/'STOP').write_text('measured live cycle complete');print(json.dumps(result),flush=True);break
         if process.poll() is None:

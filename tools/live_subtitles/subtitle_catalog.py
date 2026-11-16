@@ -49,6 +49,12 @@ def norm(text):
     return re.findall(r"[a-z]+(?:'[a-z]+)?|[0-9]+", html.unescape(text).lower())
 
 
+def title_norm(text):
+    # Release labels commonly omit possessive punctuation. Keep every title
+    # word and the exact year while treating Clancy's / Clancys equally.
+    return norm(html.unescape(text).replace("'", '').replace('\u2019', ''))
+
+
 def seconds(value):
     h, m, s = value.replace(',', '.').split(':')
     return int(h) * 3600 + int(m) * 60 + float(s)
@@ -82,11 +88,11 @@ def discover(title, year, root, *, max_candidates=3, requested_language='en'):
         row_parser = Links(); row_parser.feed(row)
         if '(translated from English)' in html.unescape(re.sub(r'<[^>]*>', '', row)):
             english_originals.update(link['url'] for link in row_parser.links)
-    title_words = norm(title)
+    title_words = title_norm(title)
     required = set(title_words) | {str(year)}
     matches = [x for x in parser.links if urlsplit(urljoin(ORIGIN, x['url'])).path.startswith('/subs/')
-               and x['url'].endswith('.html') and required <= set(norm(x['text']))
-               and norm(x['text'])[:len(title_words)] == title_words]
+               and x['url'].endswith('.html') and required <= set(title_norm(x['text']))
+               and title_norm(x['text'])[:len(title_words)] == title_words]
     # Inspect multiple editions before choosing files. A missing requested
     # language on the first result does not establish provider-wide absence.
     pages = []

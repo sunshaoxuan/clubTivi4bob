@@ -91,6 +91,8 @@ class Engine:
         self.lock = threading.RLock(); self.decisions = {}; self.candidates = candidates
         self.subtitle_cache = subtitle_cache
         self.discovery_error = False
+        self.unmatched_windows = 0
+        self.acquisition_exhausted = False
         self.last_discovery = 0
         self.discovery_thread = None
         self.preferred_language = preferred_language
@@ -127,7 +129,7 @@ class Engine:
                                                                          requested_language=self.preferred_language)
                 else:
                     self.candidates = discover(self.programme['title'], self.programme['year'], self.root / 'subtitles',
-                                               requested_language=self.preferred_language)
+                                               requested_language=self.preferred_language, imdb_id=self.programme.get('imdbId'))
             self.candidates.sort(key=lambda c: (self.preferred_language not in c['tracks'], -len(c['tracks'])))
             self.event('subtitle_discovery', candidates=[dict(page=c['page'], languages=list(c['tracks']), cacheHit=bool(c.get('cacheHit'))) for c in self.candidates])
             if not self.candidates:
@@ -226,7 +228,8 @@ class Engine:
                             file.write(json.dumps(decision, ensure_ascii=False) + '\n')
                     (self.root / 'status.json').write_text(json.dumps(dict(state=self.state, lastSequence=self.last_sequence,
                         timeline=row['timelineEnd'], pause=self.pause, returned=self.returned, resume=self.resume,
-                        holdout=list(self.holdout.values()), subtitleCandidates=len(self.candidates or []))))
+                        holdout=list(self.holdout.values()), subtitleCandidates=len(self.candidates or []),
+                        unmatchedWindows=self.unmatched_windows, acquisitionExhausted=self.acquisition_exhausted)))
             self.collector.stop.wait(.15)
 
     def analyze(self, window, row, pts, generation):
@@ -247,6 +250,7 @@ class Engine:
                         break
                     candidate_k = found - pts + row['timelineStart']
                     if self.state != 'LOCKED':
+                        self.unmatched_windows = 0; self.acquisition_exhausted = False
                         self.reference = candidate; self.k = candidate_k; self.verified_asset = row['asset']; self.state = 'LOCKED'
                         self.calibration_cues = {a['cue'] for a in anchors}
                         if self.returned:
@@ -266,6 +270,15 @@ class Engine:
                                 if anchor['asrStart']>=self.returned['start'] and anchor['cue'] not in self.calibration_cues:
                                     self.holdout[anchor['cue']]=dict(**anchor,errorSeconds=residual)
                 break
+            with self.lock:
+                if (not self.reference and generation == self.generation and not self.controller_stop.is_set()
+                        and self.state != 'SUSPENDED' and self.active_asset == row['asset']
+                        and len(words) >= 12 and observations and all(o['offset'] is None for o in observations)):
+                    self.unmatched_windows += 1
+                    if self.unmatched_windows >= 3 and not self.acquisition_exhausted:
+                        self.acquisition_exhausted = True
+                        self.event('subtitle_acquisition_exhausted', attempts=self.unmatched_windows,
+                                   candidates=len(trial), reason='speech_did_not_match_any_file')
             (self.root/'analysis'/(str(row['sequence'])+'.json')).write_text(json.dumps(dict(
                 observedWall=time.time(),timelineStart=window[0]['timelineStart'],timelineEnd=row['timelineEnd'],
                 processSeconds=time.time()-started,observations=observations,words=words)))

@@ -9,7 +9,7 @@ from unittest.mock import patch
 from live_media import parse_media, playlist, continuous_counters, MediaPublisher
 from live_engine import Engine, align
 from service import Hub, CHANNEL, pilot_channel, media_route, official_imdb_id
-from subtitle_catalog import discover, parse_srt, title_norm
+from subtitle_catalog import discover, parse_srt, title_norm, matches_movie_title
 
 
 class LiveServiceTests(unittest.TestCase):
@@ -195,6 +195,30 @@ class LiveServiceTests(unittest.TestCase):
         self.assertEqual(len(result), 1)
         self.assertEqual(set(result[0]['tracks']), {'en'})
         self.assertFalse(any('tv.html' in url or 'generate' in url for url in calls))
+
+    def test_subtitle_title_admission_rejects_longer_same_prefix_movies(self):
+        self.assertTrue(matches_movie_title('The.Prince.2014.1080p.BluRay','The Prince',2014))
+        self.assertFalse(matches_movie_title('The.Prince.and.the.108.Demons.2014','The Prince',2014))
+        self.assertFalse(matches_movie_title('The.Prince.2019.BluRay','The Prince',2014))
+        self.assertFalse(matches_movie_title('The.Green.Prince.2014','The Prince',2014))
+        self.assertTrue(matches_movie_title('1917.2019.WEBRip','1917',2019))
+
+    def test_repeated_unmatched_speech_stops_indefinite_sync_hint_and_later_lock_recovers(self):
+        with tempfile.TemporaryDirectory() as root:
+            c=dict(page='file',tracks={'en':[dict(index=1,start=0,end=2,text='caption')]})
+            e=Engine('https://public.example/route',dict(movieId='film',title='Film',year=2003),root,None,'ffmpeg',candidates=[c])
+            e.active_asset='movie'
+            row=dict(sequence=1,asset='movie',timelineStart=0,timelineEnd=24)
+            words=[dict(word='word',start=i,end=i+.5) for i in range(16)]
+            with patch('live_engine.transcribe',return_value=words),patch('live_engine.align',return_value=(None,[])):
+                for i in range(3):e.analyze([row],row,100,e.generation)
+            self.assertTrue(e.acquisition_exhausted)
+            hub=Hub.__new__(Hub);hub.engine=e
+            self.assertEqual(hub.caption_status(True)['phase'],'unavailable')
+            with patch('live_engine.transcribe',return_value=words),patch('live_engine.align',return_value=(1,[dict(cue=1)])):
+                e.analyze([row],row,100,e.generation)
+            self.assertFalse(e.acquisition_exhausted)
+            self.assertEqual(hub.caption_status(True)['phase'],'matched')
 
     def test_alignment_requires_multiple_distinct_cues_and_temporal_span(self):
         cues = [dict(index=i+1,start=100+i*5,end=104+i*5,text=text) for i,text in enumerate([

@@ -177,7 +177,7 @@ class Hub:
             return dict(phase='service_unavailable', availableLanguages=[])
         if engine.candidates is None:
             return dict(phase='searching', availableLanguages=[])
-        if not engine.candidates:
+        if not engine.candidates or (getattr(engine, 'acquisition_exhausted', False) and not engine.reference):
             return dict(phase='unavailable', availableLanguages=[])
         # Availability describes the complete matched file, including silent
         # gaps. A window with no spoken cue does not mean the track is missing.

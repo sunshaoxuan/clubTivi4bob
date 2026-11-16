@@ -45,6 +45,20 @@ class SubtitleCacheTests(unittest.TestCase):
             self.assertNotEqual(movie_aliases(dict(title='Film',year=2003)),movie_aliases(dict(title='Film',year=2023)))
             self.assertNotEqual(movie_aliases(dict(title='英雄',year=2003)),movie_aliases(dict(title='无间道',year=2003)))
 
+    def test_cached_title_prefix_collision_cannot_reuse_another_movie(self):
+        with tempfile.TemporaryDirectory() as directory:
+            cache=SubtitleCache(directory)
+            film=dict(movieId='the-prince',marketCode='uk',title='The Prince',year=2014,imdbId='tt1085492')
+            wrong={**candidate(['en']), 'label':'The.Prince.and.the.108.Demons.2014.720p.WEBRip.x264'}
+            folder=Path(directory)/cache.identity(film)
+            with cache.locked(cache.identity(film)):
+                cache.store(folder,film,[wrong],directory)
+            calls=[]
+            correct={**candidate(), 'label':'The.Prince.2014.BluRay'}
+            def find(*a,**kw):calls.append(1);return [correct]
+            rows=cache.get_or_discover(film,directory,find,requested_language='ja')
+            self.assertEqual(calls,[1]);self.assertEqual([c['label'] for c in rows],['The.Prince.2014.BluRay'])
+
     def test_single_flight_per_movie_across_concurrent_viewers(self):
         with tempfile.TemporaryDirectory() as directory:
             calls=[]

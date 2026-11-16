@@ -55,6 +55,14 @@ def title_norm(text):
     return norm(html.unescape(text).replace("'", '').replace('\u2019', ''))
 
 
+def matches_movie_title(label, title, year):
+    """Match the complete title before its release year, never a prefix film."""
+    expected = title_norm(title)
+    words = title_norm(label)
+    return bool(expected and words[:len(expected)] == expected
+                and words[len(expected):len(expected)+1] == [str(year)])
+
+
 def seconds(value):
     h, m, s = value.replace(',', '.').split(':')
     return int(h) * 3600 + int(m) * 60 + float(s)
@@ -77,7 +85,7 @@ def parse_srt(raw):
     return cues
 
 
-def discover(title, year, root, *, max_candidates=3, requested_language='en'):
+def _discover_subtitlecat(title, year, root, *, max_candidates=3, requested_language='en'):
     """Title/year selects candidates only. An acoustic lock is mandatory later."""
     root = Path(root); root.mkdir(parents=True, exist_ok=True)
     search = ORIGIN + '/index.php?' + urlencode({'search': f'{title} {year}'})
@@ -88,11 +96,8 @@ def discover(title, year, root, *, max_candidates=3, requested_language='en'):
         row_parser = Links(); row_parser.feed(row)
         if '(translated from English)' in html.unescape(re.sub(r'<[^>]*>', '', row)):
             english_originals.update(link['url'] for link in row_parser.links)
-    title_words = title_norm(title)
-    required = set(title_words) | {str(year)}
     matches = [x for x in parser.links if urlsplit(urljoin(ORIGIN, x['url'])).path.startswith('/subs/')
-               and x['url'].endswith('.html') and required <= set(title_norm(x['text']))
-               and title_norm(x['text'])[:len(title_words)] == title_words]
+               and x['url'].endswith('.html') and matches_movie_title(x['text'], title, year)]
     # Inspect multiple editions before choosing files. A missing requested
     # language on the first result does not establish provider-wide absence.
     pages = []
@@ -156,4 +161,26 @@ def discover(title, year, root, *, max_candidates=3, requested_language='en'):
         results.append(result)
         # Keep a bounded candidate set; a failed acoustic match tries the next file.
     (root / 'discovery.json').write_text(json.dumps(results, ensure_ascii=False))
+    return results
+
+
+def discover(title, year, root, *, max_candidates=3, requested_language='en', imdb_id=None):
+    """Independent provider failures must not prevent the next verified source."""
+    root=Path(root);root.mkdir(parents=True,exist_ok=True)
+    results=[];errors=[];last_error=None
+    try:
+        results=_discover_subtitlecat(title,year,root,max_candidates=max_candidates,requested_language=requested_language)
+    except Exception as error:
+        errors.append(dict(provider='Subtitle Cat',error=type(error).__name__,httpStatus=getattr(error,'code',None)))
+        last_error=error
+    if imdb_id and not any(requested_language in c['tracks'] for c in results):
+        try:
+            from subtitle_subdl import discover as subdl_discover
+            results.extend(subdl_discover(title,year,root,imdb_id=imdb_id,max_candidates=max_candidates))
+        except Exception as error:
+            errors.append(dict(provider='SubDL',error=type(error).__name__,httpStatus=getattr(error,'code',None)))
+            last_error=error
+    (root/'provider-errors.json').write_text(json.dumps(errors))
+    (root/'discovery.json').write_text(json.dumps(results,ensure_ascii=False))
+    if not results and last_error is not None:raise last_error
     return results

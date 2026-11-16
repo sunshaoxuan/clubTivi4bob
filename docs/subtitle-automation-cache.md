@@ -39,3 +39,14 @@ Deployment starts the v2 service on loopback port 8922, separately from the
 existing service on 8921. Unknown legacy session/media tokens are forwarded to
 the old process so active viewers can finish. `--stage-only` tests the v2 service
 without changing the public Nginx route. Rollout retains rollback files.
+
+IMDb-bound secondary lookup now uses SubDL's public search and existing ZIP
+resources. Each result must have an unambiguous IMDb query result, complete
+original title and exact year. All seven language containers are inspected;
+translated tracks still require a verified matching English clock grid. Normal
+provider Referer headers accompany downloads. Provider errors do not prevent
+trying another source. Complete title matching also rechecks older cache entries,
+so a longer film title sharing a prefix cannot poison another IMDb identity.
+After three speech windows fail every candidate, the API reports no usable file
+while continuing later acoustic attempts; it no longer promises indefinite
+synchronization. A later successful lock restores normal delivery automatically.

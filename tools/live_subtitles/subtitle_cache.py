@@ -11,7 +11,7 @@ import tempfile
 import time
 import unicodedata
 
-from subtitle_catalog import LANGUAGES, parse_srt, title_norm
+from subtitle_catalog import LANGUAGES, parse_srt, matches_movie_title
 
 NEGATIVE_TTL = 900
 
@@ -149,8 +149,7 @@ class SubtitleCache:
                         except ValueError: continue
                     if not observed or observed.get('program') != programme.get('movieId'): continue
                     candidates = json.loads(path.read_text())
-                    required = set(title_norm(programme['title'])) | {str(programme['year'])}
-                    candidates = [c for c in candidates if required <= set(title_norm(c.get('label','')))]
+                    candidates = [c for c in candidates if matches_movie_title(c.get('label',''), programme['title'], programme['year'])]
                     if not candidates: continue
                     self.store(folder, programme, candidates, path.parent)
                     return True
@@ -163,6 +162,11 @@ class SubtitleCache:
             cached, searches = self.load(folder)
             if not cached and not searches and self.import_existing(programme, folder):
                 cached, searches = self.load(folder)
+            admitted = [c for c in cached if matches_movie_title(c.get('label',''), programme['title'], programme['year'])]
+            if len(admitted) != len(cached):
+                # Old prefix matches must neither poison this IMDb identity nor
+                # retain their negative language-search TTL after rejection.
+                cached, searches = admitted, {}
             languages = {lang for candidate in cached for lang in candidate['tracks']}
             attempted = searches.get(requested_language, {})
             age = self.clock()-attempted.get('checkedAt', 0)
@@ -174,7 +178,7 @@ class SubtitleCache:
             if cached and (requested_language in languages or fresh_miss): return cached
             if not cached and fresh_miss: return []
             try:
-                found = discover(programme['title'], programme['year'], download_root, requested_language=requested_language)
+                found = discover(programme['title'], programme['year'], download_root, requested_language=requested_language, imdb_id=programme.get('imdbId'))
             except Exception:
                 try: manifest = json.loads((folder/'index.json').read_text())
                 except (OSError, ValueError): manifest = dict(schemaVersion=1, identity=movie_aliases(programme), title=programme['title'], year=programme['year'], editions=[], searches={})

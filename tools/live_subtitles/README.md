@@ -161,3 +161,13 @@ Slow or stale ASR results cannot block advert suspension or reactivate captions
 after a content boundary. The online gate reads packet PTS with ffprobe, and
 only one acoustic analysis is outstanding per engine. Beam size 1 bounds pilot
 CPU cost; calibrated source PTS carries the continuous subtitle clock.
+
+The media publisher remuxes and caches segments in source order before HTTP
+serves them. A PID-specific MPEG-TS continuity counter is carried across all
+segments and content boundaries. Per-segment mux counter resets caused observed
+`Packet corrupt` warnings, including during a real insertion. Only TS header
+counter bits are rewritten; elementary payloads, normalized PTS/DTS and PCR
+remain unchanged. Initial playlists wait for 24 seconds of ready media, and
+HTTP readers never launch a remux subprocess. An unusable source segment is
+logged and skipped with a discontinuity rather than blocking the producer.
+Private media and caption decision memory retain at most two hours.

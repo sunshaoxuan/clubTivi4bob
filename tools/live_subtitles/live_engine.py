@@ -200,6 +200,8 @@ class Engine:
                                     sequence=row['sequence'], generatedWall=time.time(), pts=pts, offset=offset)
                     with self.lock:
                         self.decisions[row['sequence']] = decision
+                        cutoff=row['timelineEnd']-7200
+                        self.decisions={sequence:d for sequence,d in self.decisions.items() if d['end']>=cutoff}
                         with (self.root / 'decisions.jsonl').open('a') as file:
                             file.write(json.dumps(decision, ensure_ascii=False) + '\n')
                     (self.root / 'status.json').write_text(json.dumps(dict(state=self.state, lastSequence=self.last_sequence,

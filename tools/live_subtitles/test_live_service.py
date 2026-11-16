@@ -6,13 +6,40 @@ import threading
 import unittest
 from unittest.mock import patch
 
-from live_media import parse_media, playlist
+from live_media import parse_media, playlist, continuous_counters, MediaPublisher
 from live_engine import Engine, align
 from service import Hub, CHANNEL
 from subtitle_catalog import discover, parse_srt
 
 
 class LiveServiceTests(unittest.TestCase):
+    def test_transport_continuity_survives_independent_segment_muxes(self):
+        def packet(pid,counter,control=1):
+            return bytes([0x47,(pid>>8)&31,pid&255,(control<<4)|counter])+bytes([0xff])*184
+        first=packet(256,0)+packet(257,0)+packet(256,1)
+        second=packet(256,0)+packet(257,0)+packet(256,0,2)+packet(256,1)
+        counters={};a=continuous_counters(first,counters);b=continuous_counters(second,counters)
+        self.assertEqual([b[i+3]&15 for i in range(0,len(b),188)],[2,1,2,3])
+        self.assertEqual(a,first)
+        for i in range(0,len(b),188):self.assertEqual(b[i+4:i+188],second[i+4:i+188])
+        with self.assertRaises(ValueError):continuous_counters(b'bad ts',{})
+
+    def test_media_publication_is_ordered_and_readers_use_ready_segments(self):
+        with tempfile.TemporaryDirectory() as root:
+            from live_media import Collector
+            c=Collector('https://public.example/route',root)
+            c.rows=[dict(sequence=i,timelineStart=(i-1)*6,timelineEnd=i*6,sequenceGap=False,keyLine=None) for i in [1,2,3]]
+            calls=[];publisher=MediaPublisher(c,'ffmpeg')
+            def normalize(row,*args):
+                calls.append(row['sequence'])
+                if row['sequence']==2:raise ValueError('unusable source segment')
+                if row['sequence']==3:c.stop.set()
+            with patch('live_media.normalize_segment',normalize):publisher.run()
+            ready=publisher.snapshot()
+            self.assertEqual(calls,[1,2,3])
+            self.assertEqual([r['sequence'] for r in ready],[1,3])
+            self.assertTrue(ready[-1]['sequenceGap'])
+
     def test_movie_caid_on_an_insert_does_not_become_episode_identity(self):
         raw = '#EXTM3U\n#EXT-X-MEDIA-SEQUENCE:10\n#EXT-X-ASSET:CAID="m_9"\n#EXTINF:1.0,\nad.ts\n#EXTINF:6.0,extke=Rakutentv:epid=film:ct=m:vt=s\nfilm.ts\n'
         rows = parse_media(raw, 'https://example.org/live')

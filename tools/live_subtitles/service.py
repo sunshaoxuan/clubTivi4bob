@@ -20,7 +20,7 @@ from urllib.request import Request, urlopen
 import uuid
 
 from live_engine import Engine
-from live_media import playlist, normalize_segment
+from live_media import playlist, MediaPublisher
 from subtitle_catalog import LANGUAGES
 
 CHANNEL = 'channel-b842f9cdd43743693f77fc81'
@@ -77,7 +77,7 @@ class Hub:
         self.root, self.model, self.ffmpeg, self.base = Path(root), model, ffmpeg, base.rstrip('/') + '/'
         self.root.mkdir(parents=True, exist_ok=True)
         self.lock = threading.RLock(); self.sessions = {}; self.engine = None
-        self.remux_lock = threading.Lock()
+        self.publisher = None
         self.source, self.programme = current_guide(); self.last_guide_success = time.time()
         self.gap = False
         threading.Thread(target=self.maintain, daemon=True).start()
@@ -98,11 +98,13 @@ class Hub:
                 root = self.root / uuid.uuid4().hex
                 self.engine = Engine(source, self.programme, root, self.model, self.ffmpeg, preferred_language=language)
                 self.engine.start()
+                self.publisher=MediaPublisher(self.engine.collector,self.ffmpeg)
+                threading.Thread(target=self.publisher.run,daemon=True).start()
             rows = self.engine.collector.snapshot()
             chosen = [r for r in rows if r['timelineEnd'] > (rows[-1]['timelineEnd'] - 30)] if rows else []
             token = uuid.uuid4().hex
             self.sessions[token] = dict(origin=chosen[0]['timelineStart'] if chosen else 0,
-                                        lastAccess=time.time(), source=source, language=language)
+                                        lastAccess=time.time(), source=source, language=language,openedMedia=False)
             return token
 
     def response(self, token):
@@ -124,7 +126,7 @@ class Hub:
                         del self.sessions[token]
                 if not self.sessions and self.engine is not None:
                     self.engine.collector.stop.set(); self.engine.controller_stop.set()
-                    self.engine = None
+                    self.engine = None; self.publisher=None
             if time.monotonic() < next_guide:
                 continue
             next_guide = time.monotonic() + 25
@@ -210,24 +212,23 @@ def serve(hub, host, port):
                     raise KeyError()
                 token, resource = match[1], match[2]
                 with hub.lock:
-                    session = hub.sessions[token]; session['lastAccess'] = time.time(); collector = hub.engine.collector
+                    session = hub.sessions[token]; session['lastAccess'] = time.time(); collector = hub.engine.collector;publisher=hub.publisher
                 if resource == 'index.m3u8':
-                    rows = [r for r in collector.snapshot() if r['timelineStart'] >= session['origin']]
+                    rows = [r for r in publisher.snapshot() if r['timelineStart'] >= session['origin']]
                     deadline = time.monotonic() + 12
-                    while not rows and time.monotonic() < deadline and not collector.stop.is_set():
+                    while (not rows or (not session['openedMedia'] and sum(r['duration'] for r in rows)<24)) and time.monotonic() < deadline and not collector.stop.is_set():
                         time.sleep(.1)
-                        rows = [r for r in collector.snapshot() if r['timelineStart'] >= session['origin']]
+                        rows = [r for r in publisher.snapshot() if r['timelineStart'] >= session['origin']]
                     if not rows:
                         return self.send(b'{"error":"acquiring_media"}', status=503)
-                    normalized=[{**r,'keyLine':None} for r in rows]
-                    content = playlist(normalized, uri=lambda r: 'segments/' + Path(r['localPath']).name, local_keys=False)
+                    session['openedMedia']=True
+                    content = playlist(rows, uri=lambda r: 'segments/' + Path(r['localPath']).name, local_keys=False)
                     return self.send(content.encode(), 'application/vnd.apple.mpegurl')
                 filename = resource.split('/')[-1]
                 if not filename.endswith('.ts'):
                     raise KeyError()
-                sequence=int(filename[:-3]);row=next(r for r in collector.snapshot() if r['sequence']==sequence)
-                with hub.remux_lock:
-                    media=normalize_segment(row,hub.ffmpeg,collector.root)
+                sequence=int(filename[:-3]);row=next(r for r in publisher.snapshot() if r['sequence']==sequence)
+                media=collector.root/'normalized'/filename
                 return self.send(media.read_bytes(),
                                  'video/mp2t' if filename.endswith('.ts') else 'application/octet-stream', cache=True)
             except (subprocess.SubprocessError, ValueError):

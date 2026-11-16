@@ -127,6 +127,7 @@ class Collector:
                             for previous in expired:
                                 Path(previous['localPath']).unlink(missing_ok=True)
                                 (self.root / 'normalized' / (str(previous['sequence'])+'.ts')).unlink(missing_ok=True)
+                                (self.root / 'normalized' / (str(previous['sequence'])+'.m3u8')).unlink(missing_ok=True)
                         if gap:
                             self.log('sequence_gap', previous=last, next=row['sequence'])
                         if len(self.rows) == 1 or self.rows[-2]['asset'] != record['asset']:
@@ -164,7 +165,23 @@ def playlist(rows, *, uri=lambda r: r['localPath'], local_keys=True, end=False):
     return '\n'.join(lines) + '\n'
 
 
-def normalize_segment(row, ffmpeg, root):
+def continuous_counters(data, counters):
+    """Preserve TS payloads while carrying each PID's counter across segments."""
+    output=bytearray(data)
+    if len(output)%188:raise ValueError('invalid_transport_packet_size')
+    for offset in range(0,len(output),188):
+        if output[offset]!=0x47:raise ValueError('invalid_transport_sync')
+        pid=((output[offset+1]&0x1f)<<8)|output[offset+2]
+        if pid==0x1fff:continue
+        control=(output[offset+3]>>4)&3
+        if control==0:raise ValueError('invalid_transport_control')
+        value=(counters.get(pid,-1)+1)&15 if control in (1,3) else counters.get(pid,0)
+        if control in (1,3):counters[pid]=value
+        output[offset+3]=(output[offset+3]&0xf0)|value
+    return bytes(output)
+
+
+def normalize_segment(row, ffmpeg, root, counters=None):
     """Remux without transcoding onto the collector's continuous media clock.
 
     Provider ad PTS can jump by minutes without a discontinuity tag. Serving
@@ -182,7 +199,39 @@ def normalize_segment(row, ffmpeg, root):
         '-output_ts_offset',str(row['timelineStart']),'-y',str(temporary)],
         timeout=12,capture_output=True,check=True)
     if temporary.stat().st_size<188:raise ValueError('empty_normalized_media')
-    os.replace(temporary,target);return target
+    updated=dict(counters) if counters is not None else None
+    if updated is not None:
+        temporary.write_bytes(continuous_counters(temporary.read_bytes(),updated))
+    os.replace(temporary,target)
+    if updated is not None:
+        counters.clear();counters.update(updated)
+    return target
+
+
+class MediaPublisher:
+    """One ordered producer, ahead of viewers; HTTP never invokes the remuxer."""
+    def __init__(self,collector,ffmpeg):
+        self.collector,self.ffmpeg=collector,ffmpeg
+        self.rows=[];self.last_sequence=-1;self.counters={};self.lock=threading.RLock();self.pending_gap=False
+
+    def run(self):
+        while not self.collector.stop.is_set():
+            for row in self.collector.snapshot():
+                if row['sequence']<=self.last_sequence:continue
+                try:
+                    normalize_segment(row,self.ffmpeg,self.collector.root,self.counters)
+                    with self.lock:
+                        self.rows.append({**row,'keyLine':None,'sequenceGap':row['sequenceGap'] or self.pending_gap})
+                        self.rows=[r for r in self.rows if r['timelineEnd']>=row['timelineEnd']-7200]
+                    self.pending_gap=False
+                except (OSError,ValueError,subprocess.SubprocessError) as error:
+                    self.pending_gap=True
+                    self.collector.log('media_publish_error',sequence=row['sequence'],errorType=type(error).__name__)
+                self.last_sequence=row['sequence']
+            self.collector.stop.wait(.1)
+
+    def snapshot(self):
+        with self.lock:return list(self.rows)
 
 
 if __name__ == '__main__':

@@ -72,6 +72,13 @@ class SubdlTests(unittest.TestCase):
             adapter.discover('The Prince',2014,root,imdb_id='tt1085492')
             self.assertEqual(len(downloads),2)
 
+    def test_existing_english_does_not_hide_missing_supported_languages(self):
+        import subtitle_catalog
+        row=dict(page='existing',label='The.Prince.2014.BluRay',tracks={'en':[]})
+        with tempfile.TemporaryDirectory() as root,patch.object(subtitle_catalog,'_discover_subtitlecat',return_value=[row]),patch.object(adapter,'discover',return_value=[]) as fallback:
+            self.assertEqual(subtitle_catalog.discover('The Prince',2014,root,imdb_id='tt1085492',requested_language='en'),[row])
+            fallback.assert_called_once()
+
     def test_primary_provider_failure_still_tries_imdb_fallback(self):
         import subtitle_catalog
         row=dict(page='existing',label='The.Prince.2014.BluRay',tracks={'en':[]})

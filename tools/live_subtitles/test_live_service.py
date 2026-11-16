@@ -13,6 +13,54 @@ from subtitle_catalog import discover, parse_srt, title_norm, matches_movie_titl
 
 
 class LiveServiceTests(unittest.TestCase):
+    def test_prewarm_starts_without_a_client_and_survives_last_viewer_expiry(self):
+        from unittest.mock import Mock
+        from types import SimpleNamespace
+        hub=Hub.__new__(Hub);hub.lock=threading.RLock();hub.sessions={};hub.prewarm=True
+        hub.next_bootstrap=0;hub.engine=None;hub.source='reviewed'
+        hub.valid_context=lambda *a:True;hub.ensure_engine=Mock()
+        hub.expire_and_prewarm();hub.ensure_engine.assert_called_once_with()
+        stop=threading.Event();control=threading.Event()
+        hub.engine=SimpleNamespace(collector=SimpleNamespace(stop=stop),controller_stop=control)
+        hub.sessions={'expired':dict(lastAccess=time.time()-181)}
+        hub.expire_and_prewarm()
+        self.assertEqual(hub.sessions,{})
+        self.assertFalse(stop.is_set());self.assertFalse(control.is_set())
+
+    def test_idle_prewarm_recovers_expired_provider_media_session(self):
+        from types import SimpleNamespace
+        from unittest.mock import Mock
+        stop=threading.Event();control=threading.Event()
+        hub=Hub.__new__(Hub);hub.lock=threading.RLock();hub.sessions={};hub.prewarm=True;hub.next_bootstrap=0
+        hub.engine=SimpleNamespace(collector=SimpleNamespace(stop=stop,snapshot=lambda:[dict(downloadedWall=time.time()-46)]),controller_stop=control)
+        hub.publisher=object();hub.source='reviewed';hub.valid_context=lambda *a:True;hub.ensure_engine=Mock()
+        hub.expire_and_prewarm();self.assertTrue(stop.is_set());self.assertTrue(control.is_set())
+        hub.ensure_engine.assert_called_once_with()
+
+    def test_on_demand_mode_keeps_existing_idle_shutdown(self):
+        from types import SimpleNamespace
+        hub=Hub.__new__(Hub);hub.lock=threading.RLock();hub.sessions={};hub.prewarm=False
+        stop=threading.Event();control=threading.Event()
+        hub.engine=SimpleNamespace(collector=SimpleNamespace(stop=stop),controller_stop=control)
+        hub.publisher=object();hub.expire_and_prewarm()
+        self.assertTrue(stop.is_set());self.assertTrue(control.is_set())
+        self.assertIsNone(hub.engine);self.assertIsNone(hub.publisher)
+
+    def test_programme_handover_without_viewers_keeps_collector_and_sibling_paths(self):
+        from types import SimpleNamespace
+        with tempfile.TemporaryDirectory() as root:
+            collector=SimpleNamespace(source='reviewed',root=Path(root)/'media',snapshot=lambda:[dict(sequence=123)])
+            old=SimpleNamespace(root=collector.root/'programmes'/'old',collector=collector,controller_stop=threading.Event())
+            hub=Hub.__new__(Hub);hub.engine=old;hub.sessions={};hub.model=None;hub.ffmpeg='ffmpeg';hub.subtitle_cache=None
+            with patch('service.Engine') as make:
+                hub.handover(dict(movieId='next'))
+                self.assertEqual(make.call_args.args[2].parent,collector.root/'programmes')
+                self.assertEqual(make.call_args.kwargs['preferred_language'],'en')
+                self.assertIs(hub.engine.collector,collector)
+                self.assertEqual(hub.engine.last_sequence,123)
+                hub.engine.start.assert_called_once_with(collect=False)
+            self.assertTrue(old.controller_stop.is_set())
+
     def test_hardened_service_allows_only_its_media_and_cache_writes(self):
         import shlex
         unit=(Path(__file__).parent/'bobtv-live-subtitles.service').read_text()

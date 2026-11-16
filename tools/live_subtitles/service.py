@@ -123,12 +123,14 @@ def media_route(source):
 
 
 class Hub:
-    def __init__(self, root, model, ffmpeg, base, subtitle_cache=None):
+    def __init__(self, root, model, ffmpeg, base, subtitle_cache=None, prewarm=False):
         self.root, self.model, self.ffmpeg, self.base = Path(root), model, ffmpeg, base.rstrip('/') + '/'
         self.root.mkdir(parents=True, exist_ok=True)
         self.lock = threading.RLock(); self.sessions = {}; self.engine = None
         self.publisher = None
         self.subtitle_cache = subtitle_cache
+        self.prewarm = prewarm
+        self.next_bootstrap = 0
         self.source, self.programme = current_guide(); self.last_guide_success = time.time()
         self.gap = False
         threading.Thread(target=self.maintain, daemon=True).start()
@@ -139,18 +141,51 @@ class Hub:
         return programme is None or (isinstance(programme, dict) and programme.get('key') == self.programme['key']
                                      and programme.get('catalogChannelId') == self.programme['catalogChannelId'])
 
+    def ensure_engine(self, language='en'):
+        if self.engine is not None:return
+        root=self.root/uuid.uuid4().hex
+        self.engine=Engine(media_route(self.source),self.programme,root,self.model,self.ffmpeg,
+                           preferred_language=language,subtitle_cache=self.subtitle_cache)
+        self.engine_started=time.monotonic()
+        self.engine.start()
+        self.publisher=MediaPublisher(self.engine.collector,self.ffmpeg)
+        threading.Thread(target=self.publisher.run,daemon=True).start()
+
+    def expire_and_prewarm(self):
+        with self.lock:
+            for token in list(self.sessions):
+                if time.time()-self.sessions[token]['lastAccess']>180:del self.sessions[token]
+            if not self.sessions and self.engine is not None and not self.prewarm:
+                self.engine.collector.stop.set();self.engine.controller_stop.set()
+                self.engine=None;self.publisher=None
+            if self.prewarm and not self.sessions and self.engine is not None:
+                collector=self.engine.collector
+                rows=collector.snapshot() if hasattr(collector,'snapshot') else []
+                stale=(time.time()-rows[-1].get('downloadedWall',time.time())>45) if rows else (time.monotonic()-getattr(self,'engine_started',time.monotonic())>45)
+                if stale:
+                    collector.stop.set();self.engine.controller_stop.set()
+                    self.engine=None;self.publisher=None
+            if (self.prewarm and self.engine is None and time.monotonic() >= self.next_bootstrap
+                    and self.valid_context(self.source,None)):
+                self.ensure_engine()
+
+    def handover(self, programme):
+        old=self.engine;old.controller_stop.set()
+        language=next(iter(self.sessions.values()),{'language':'en'})['language']
+        self.engine=Engine(old.collector.source,programme,old.collector.root/'programmes'/uuid.uuid4().hex,
+                           self.model,self.ffmpeg,preferred_language=language,subtitle_cache=self.subtitle_cache)
+        self.engine.collector=old.collector
+        rows=old.collector.snapshot()
+        self.engine.last_sequence=rows[-1]['sequence'] if rows else -1
+        self.engine.start(collect=False)
+
     def create(self, source, context, language, features=()):
         with self.lock:
             if not self.valid_context(source, context):
                 raise ValueError('exact_current_public_route_required')
             if len(self.sessions) >= 4:
                 raise RuntimeError('pilot_capacity')
-            if self.engine is None:
-                root = self.root / uuid.uuid4().hex
-                self.engine = Engine(media_route(source), self.programme, root, self.model, self.ffmpeg, preferred_language=language, subtitle_cache=self.subtitle_cache)
-                self.engine.start()
-                self.publisher=MediaPublisher(self.engine.collector,self.ffmpeg)
-                threading.Thread(target=self.publisher.run,daemon=True).start()
+            self.ensure_engine(language)
             rows = self.publisher.snapshot()
             chosen = [r for r in rows if r['timelineEnd'] > (rows[-1]['timelineEnd'] - 30)] if rows else []
             token = uuid.uuid4().hex
@@ -191,8 +226,9 @@ class Hub:
             session = self.sessions[token]; session['lastAccess'] = time.time()
             usable = not self.gap and time.time() - self.last_guide_success <= 120 and time.time() < self.programme['stopUtc']
             rows = [r for r in self.publisher.snapshot() if r['timelineStart'] >= session['origin']]
-            ready = usable and sum(r['duration'] for r in rows) >= 24
-            windows = self.engine.windows(session['origin']) if usable else []
+            fresh = not rows or time.time()-rows[-1].get('downloadedWall',time.time())<=45
+            ready = usable and fresh and sum(r['duration'] for r in rows) >= 24
+            windows = self.engine.windows(session['origin']) if usable and fresh else []
             if session.get('positionWindow') and windows:
                 center = position if position is not None else max(0, max(w['end'] for w in windows)-24)
                 if not math.isfinite(center) or center < 0:
@@ -201,20 +237,16 @@ class Hub:
             return dict(session=token, source=session['source'], playbackReady=ready, programmeKey=self.programme['key'] if usable else None,
                         playbackUrl=self.base + 'media/' + token + '/index.m3u8',
                         mediaClockOrigin=session['origin'],
-                        subtitleStatus=self.caption_status(usable),
+                        subtitleStatus=self.caption_status(usable) if fresh else dict(phase='service_unavailable',availableLanguages=[]),
                         windows=windows)
 
     def maintain(self):
         next_guide = time.monotonic() + 25
         while True:
             time.sleep(1)
-            with self.lock:
-                for token in list(self.sessions):
-                    if time.time() - self.sessions[token]['lastAccess'] > 180:
-                        del self.sessions[token]
-                if not self.sessions and self.engine is not None:
-                    self.engine.collector.stop.set(); self.engine.controller_stop.set()
-                    self.engine = None; self.publisher=None
+            try:self.expire_and_prewarm()
+            except Exception:
+                with self.lock:self.next_bootstrap=time.monotonic()+15
             if time.monotonic() < next_guide:
                 continue
             next_guide = time.monotonic() + 25
@@ -228,18 +260,19 @@ class Hub:
                         continue
                     self.programme, self.last_guide_success, self.gap = programme, time.time(), False
                     if changed and self.engine is not None:
-                        old = self.engine; old.controller_stop.set()
-                        self.engine = Engine(old.collector.source, programme, old.root / 'programme-' / uuid.uuid4().hex,
-                                             self.model, self.ffmpeg, preferred_language=next(iter(self.sessions.values()))['language'], subtitle_cache=self.subtitle_cache)
-                        self.engine.collector = old.collector
-                        self.engine.last_sequence = old.collector.snapshot()[-1]['sequence'] if old.collector.snapshot() else -1
-                        self.engine.start(collect=False)
+                        self.handover(programme)
             except Exception:
                 with self.lock:
                     self.gap = True
             # Inactive private media is deleted after two hours;
             # audit receipts can be exported before cleanup by the test runner.
             with self.lock:
+                if self.engine:
+                    programmes=self.engine.collector.root/'programmes'
+                    if programmes.exists():
+                        for folder in programmes.iterdir():
+                            if folder.is_dir() and folder!=self.engine.root and time.time()-folder.stat().st_mtime>7200:
+                                shutil.rmtree(folder)
                 active = self.engine.collector.root.parts if self.engine else ()
                 for folder in self.root.iterdir():
                     if folder.is_dir() and folder.name not in active and time.time() - folder.stat().st_mtime > 7200:
@@ -312,7 +345,9 @@ def serve(hub, host, port, legacy_port=None):
                 if self.legacy(path): return
                 if path == '/health':
                     return self.send(json.dumps(dict(status='ready', pilot='rakuten-uk-6065',
-                                                     activeSessions=len(hub.sessions))).encode())
+                                                     activeSessions=len(hub.sessions), prewarmEnabled=getattr(hub,'prewarm',False),
+                                                     engineRunning=getattr(hub,'engine',None) is not None,
+                                                     programmeTitle=getattr(hub,'programme',{}).get('title'))).encode())
                 match = re.fullmatch(r'/sessions/([a-f0-9]{32})', path)
                 if match:
                     position=parse_qs(urlsplit(self.path).query).get('position',[None])[0]
@@ -351,14 +386,14 @@ def serve(hub, host, port, legacy_port=None):
 
 def main():
     parser = argparse.ArgumentParser(); parser.add_argument('--root', required=True); parser.add_argument('--model-root', required=True)
-    parser.add_argument('--subtitle-cache-root', default='/var/lib/bobtv/resource-cache/subtitles'); parser.add_argument('--base', required=True); parser.add_argument('--port', type=int, default=8922); parser.add_argument('--legacy-port', type=int)
+    parser.add_argument('--subtitle-cache-root', default='/var/lib/bobtv/resource-cache/subtitles'); parser.add_argument('--base', required=True); parser.add_argument('--port', type=int, default=8922); parser.add_argument('--legacy-port', type=int); parser.add_argument('--prewarm', action='store_true')
     args = parser.parse_args()
     import imageio_ffmpeg
     from faster_whisper import WhisperModel
     model = WhisperModel('tiny.en', device='cpu', compute_type='int8', cpu_threads=2,
                          download_root=args.model_root, local_files_only=True)
     ffmpeg = shutil.which('ffmpeg') or imageio_ffmpeg.get_ffmpeg_exe()
-    hub = Hub(args.root, model, ffmpeg, args.base, SubtitleCache(args.subtitle_cache_root, legacy_roots=['/var/lib/bobtv/live-subtitles']))
+    hub = Hub(args.root, model, ffmpeg, args.base, SubtitleCache(args.subtitle_cache_root, legacy_roots=['/var/lib/bobtv/live-subtitles']), prewarm=args.prewarm)
     serve(hub, '127.0.0.1', args.port, args.legacy_port)
 
 

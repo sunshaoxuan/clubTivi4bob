@@ -56,3 +56,11 @@ files whose clock grid cannot yet be paired with English. Such files are cached
 for later validation and never emitted as verified captions. Subsequent provider
 searches hydrate these hash-checked resources before downloading anything.
 Older manifests receive one resource audit when a missing language is retried.
+
+The production Action Movies pilot now prewarms independently of viewers: it
+keeps its collector and acoustic calibration alive between sessions, discovers
+new EPG programmes automatically, and lets clients subscribe to an already
+prepared live timeline. This covers the single reviewed pilot feed, with the
+existing two-hour bounded private media retention. Programme handovers work
+without viewers and use sibling analysis folders rather than nested paths.
+Secondary discovery inspects missing languages even when English already exists.

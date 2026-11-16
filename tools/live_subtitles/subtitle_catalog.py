@@ -200,7 +200,7 @@ def discover(title, year, root, *, max_candidates=3, requested_language='en', im
     except Exception as error:
         errors.append(dict(provider='Subtitle Cat',error=type(error).__name__,httpStatus=getattr(error,'code',None)))
         last_error=error
-    if imdb_id and not any(requested_language in c['tracks'] for c in results):
+    if imdb_id and not set(LANGUAGES) <= {language for c in results for language in c['tracks']}:
         try:
             from subtitle_subdl import discover as subdl_discover
             results.extend(subdl_discover(title,year,root,imdb_id=imdb_id,max_candidates=max_candidates))

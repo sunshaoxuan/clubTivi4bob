@@ -202,6 +202,11 @@
     "history_title": "Recent changes",
     "history": [
       [
+        "2026-11-16",
+        "v1.1.22 · Programme guides and live subtitles",
+        "Expanded verified programme guides. Added a live subtitle pilot for Action Movies UK, with preferred-language, English and no-subtitle fallback, automatic advert suspension and verified recovery. Improved playback across short advert fragments."
+      ],
+      [
         "2026-11-12",
         "v1.1.21 · Improved casting",
         "Improved local device discovery, casting address forwarding and media metadata, with clearer connection failures and better discovery cleanup."
@@ -351,7 +356,7 @@
     "closing_text": "One column each for Windows, macOS and Android, with CPU choices inside. Native Windows ARM64 packages are available; Surface hardware tests are pending."
   },
   "downloads": {
-    "intro": "Windows, macOS and Android share version 1.1.21+116. Switch languages at the top of the app. Manual choices persist. Automatic mode uses the system language, then the time zone, then English. The language resources are included with each installer. The advanced mode entry has been closed. Diagnostic sync is off by default. Explicit consent enables up to 30 days of redacted records and can be withdrawn at any time.",
+    "intro": "Windows, macOS and Android share version 1.1.22+117. Switch languages at the top of the app. Manual choices persist. Automatic mode uses the system language, then the time zone, then English. The language resources are included with each installer. The advanced mode entry has been closed. Diagnostic sync is off by default. Explicit consent enables up to 30 days of redacted records and can be withdrawn at any time.",
     "latest": "Latest installers",
     "local": "Downloads hosted on this site",
     "sections": [

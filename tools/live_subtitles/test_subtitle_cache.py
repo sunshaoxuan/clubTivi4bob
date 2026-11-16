@@ -45,6 +45,27 @@ class SubtitleCacheTests(unittest.TestCase):
             self.assertNotEqual(movie_aliases(dict(title='Film',year=2003)),movie_aliases(dict(title='Film',year=2023)))
             self.assertNotEqual(movie_aliases(dict(title='英雄',year=2003)),movie_aliases(dict(title='无间道',year=2003)))
 
+    def test_unpaired_language_resources_survive_restart_without_redownload(self):
+        from subtitle_catalog import save_resource,load_resource
+        with tempfile.TemporaryDirectory() as directory:
+            base=Path(directory);now=[1000.];cache=SubtitleCache(base/'cache',clock=lambda:now[0])
+            url='https://dl.subdl.com/subtitle/1-2.zip';downloads=[]
+            raw=srt_bytes(candidate(['ja'])['tracks']['ja'])
+            def find(title,year,root,**kwargs):
+                Path(root).mkdir(parents=True,exist_ok=True)
+                if not load_resource(root,url,'ja'):
+                    downloads.append(1);save_resource(root,url,'ja','Film 2003',raw,'SubDL')
+                return [candidate(['en'])]
+            rows=cache.get_or_discover(self.film,base/'first',find,requested_language='ja')
+            self.assertNotIn('ja',rows[0]['tracks'])
+            index=json.loads(next((base/'cache').glob('*/index.json')).read_text())
+            self.assertEqual(index['resources'][0]['language'],'ja')
+            self.assertFalse(index['resources'][0]['pairedWithEnglish'])
+            now[0]+=NEGATIVE_TTL+1
+            restarted=SubtitleCache(base/'cache',clock=lambda:now[0])
+            restarted.get_or_discover(self.film,base/'second',find,requested_language='ja')
+            self.assertEqual(downloads,[1]);self.assertIsNotNone(load_resource(base/'second',url,'ja'))
+
     def test_cached_title_prefix_collision_cannot_reuse_another_movie(self):
         with tempfile.TemporaryDirectory() as directory:
             cache=SubtitleCache(directory)

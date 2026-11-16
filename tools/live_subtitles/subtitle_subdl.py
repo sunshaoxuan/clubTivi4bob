@@ -10,7 +10,7 @@ from urllib.parse import urlencode, urlsplit
 from urllib.request import Request, urlopen
 import zipfile
 
-from subtitle_catalog import LANGUAGES, matches_movie_title, parse_srt, title_norm
+from subtitle_catalog import LANGUAGES, matches_movie_title, parse_srt, title_norm, save_resource, load_resource
 
 LANGUAGE_CODES = {'english':'en', 'chinese_bg_code':'zh-CN', 'big_5_code':'zh-TW',
                   'chinesebgcode':'zh-CN', 'big5code':'zh-TW', 'japanese':'ja', 'french':'fr', 'spanish':'es', 'korean':'ko'}
@@ -93,9 +93,11 @@ def discover(title,year,root,*,imdb_id,max_candidates=3):
     tracks=[]
     def download(row):
         try:
-            archive=read(row['url']);data,cues=unpack(archive);digest=hashlib.sha256(data).hexdigest()
-            (root/(digest+'.srt')).write_bytes(data)
-            return {**row,'cues':cues,'sha256':digest,'archiveSha256':hashlib.sha256(archive).hexdigest()}
+            cached=load_resource(root,row['url'],row['language'])
+            if cached:return {**row,**cached[0],'cues':cached[1]}
+            archive=read(row['url']);data,cues=unpack(archive)
+            record=save_resource(root,row['url'],row['language'],row['label'],data,'SubDL',archiveSha256=hashlib.sha256(archive).hexdigest())
+            return {**row,**record,'cues':cues}
         except (OSError,ValueError,UnicodeError,zipfile.BadZipFile):return None
     with concurrent.futures.ThreadPoolExecutor(max_workers=4) as pool:
         tracks=[r for r in pool.map(download,selected) if r]

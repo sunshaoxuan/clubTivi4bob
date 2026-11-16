@@ -50,3 +50,9 @@ so a longer film title sharing a prefix cannot poison another IMDb identity.
 After three speech windows fail every candidate, the API reports no usable file
 while continuing later acoustic attempts; it no longer promises indefinite
 synchronization. A later successful lock restores normal delivery automatically.
+
+All downloaded subtitle languages are retained as resource records, including
+files whose clock grid cannot yet be paired with English. Such files are cached
+for later validation and never emitted as verified captions. Subsequent provider
+searches hydrate these hash-checked resources before downloading anything.
+Older manifests receive one resource audit when a missing language is retried.

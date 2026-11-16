@@ -10,8 +10,9 @@ import sqlite3
 import tempfile
 import time
 import unicodedata
+from urllib.parse import urlsplit
 
-from subtitle_catalog import LANGUAGES, parse_srt, matches_movie_title
+from subtitle_catalog import LANGUAGES, parse_srt, matches_movie_title, resource_path
 
 NEGATIVE_TTL = 900
 
@@ -105,6 +106,44 @@ class SubtitleCache:
                                'provenance': {lang:provenance[lang] for lang in tracks}, 'cacheHit': True})
         return candidates, manifest.get('searches', {})
 
+    def resource_records(self, folder):
+        try:return json.loads((folder/'index.json').read_text()).get('resources',[])
+        except (OSError,ValueError):return []
+
+    def resource_bytes(self, record, root):
+        try:
+            url=urlsplit(record['url']);language=record['language'];sha=record['sha256']
+            if (language not in LANGUAGES or url.scheme!='https' or url.username
+                    or url.port not in (None,443) or url.hostname not in ('www.subtitlecat.com','dl.subdl.com')
+                    or not re.fullmatch(r'[0-9a-f]{64}',sha)):
+                return None
+            raw=(Path(root)/(sha+'.srt')).read_bytes()
+            if not 0<len(raw)<=2*1024*1024 or len(raw)!=record['bytes'] or hashlib.sha256(raw).hexdigest()!=sha:return None
+            parse_srt(raw)
+            return raw
+        except (OSError,ValueError,KeyError,UnicodeError,TypeError):return None
+
+    def hydrate_resources(self, folder, download_root):
+        for record in self.resource_records(folder):
+            raw=self.resource_bytes(record,self.root/'blobs')
+            if raw is None:continue
+            destination=Path(download_root);destination.mkdir(parents=True,exist_ok=True)
+            atomic(destination/(record['sha256']+'.srt'),raw)
+            atomic(resource_path(destination,record['url'],record['language']),json.dumps(record,ensure_ascii=False).encode())
+
+    def preserve_resources(self, folder, download_root):
+        records={(r['url'],r['language']):r for r in self.resource_records(folder)
+                 if self.resource_bytes(r,self.root/'blobs') is not None}
+        for path in Path(download_root).glob('subtitle-resource-*.json'):
+            try:source=json.loads(path.read_text())
+            except (OSError,ValueError):continue
+            raw=self.resource_bytes(source,download_root)
+            if raw is None:continue
+            record={key:source[key] for key in ('provider','url','language','label','sha256','bytes','cueCount','archiveSha256') if key in source}
+            atomic(self.root/'blobs'/(record['sha256']+'.srt'),raw)
+            records[(record['url'],record['language'])]=record
+        return list(records.values())
+
     def store(self, folder, programme, candidates, download_root):
         editions = []
         for candidate in candidates:
@@ -129,10 +168,13 @@ class SubtitleCache:
             metadata = {k:candidate[k] for k in ('page','label','searchUrl','rejectedClockGridLanguages') if k in candidate}
             edition = hashlib.sha256(json.dumps([candidate['page'], records['en']['sha256']], sort_keys=True).encode()).hexdigest()
             editions.append(dict(id=edition, metadata=metadata, tracks=records))
+        resources=self.preserve_resources(folder,download_root)
+        paired={record['sha256'] for e in editions for record in e['tracks'].values()}
+        for resource in resources:resource['pairedWithEnglish']=resource['sha256'] in paired
         available = {lang for e in editions for lang in e['tracks']}
         searches = {lang:dict(checkedAt=self.clock(), outcome='cached' if lang in available else 'not_found_this_search') for lang in LANGUAGES}
-        atomic(folder/'index.json', json.dumps(dict(schemaVersion=1, identity=movie_aliases(programme),
-            title=programme['title'], year=programme['year'], editions=editions, searches=searches), ensure_ascii=False).encode())
+        atomic(folder/'index.json', json.dumps(dict(schemaVersion=1, resourceSchemaVersion=1, identity=movie_aliases(programme),
+            title=programme['title'], year=programme['year'], editions=editions, resources=resources, searches=searches), ensure_ascii=False).encode())
 
     def import_existing(self, programme, folder):
         for root in self.legacy_roots:
@@ -160,6 +202,9 @@ class SubtitleCache:
         if requested_language not in LANGUAGES: raise ValueError('unsupported_language')
         with self.locked(self.identity(programme)) as folder:
             cached, searches = self.load(folder)
+            try:resource_schema=json.loads((folder/'index.json').read_text()).get('resourceSchemaVersion',0)
+            except (OSError,ValueError):resource_schema=0
+            if not resource_schema:searches={}
             if not cached and not searches and self.import_existing(programme, folder):
                 cached, searches = self.load(folder)
             admitted = [c for c in cached if matches_movie_title(c.get('label',''), programme['title'], programme['year'])]
@@ -177,11 +222,14 @@ class SubtitleCache:
                 raise RuntimeError('subtitle_provider_temporarily_unavailable')
             if cached and (requested_language in languages or fresh_miss): return cached
             if not cached and fresh_miss: return []
+            self.hydrate_resources(folder,download_root)
             try:
                 found = discover(programme['title'], programme['year'], download_root, requested_language=requested_language, imdb_id=programme.get('imdbId'))
             except Exception:
                 try: manifest = json.loads((folder/'index.json').read_text())
                 except (OSError, ValueError): manifest = dict(schemaVersion=1, identity=movie_aliases(programme), title=programme['title'], year=programme['year'], editions=[], searches={})
+                manifest['resources']=self.preserve_resources(folder,download_root)
+                for resource in manifest['resources']:resource.setdefault('pairedWithEnglish',False)
                 manifest.setdefault('searches', {})[requested_language] = dict(checkedAt=self.clock(), outcome='temporarily_unavailable')
                 atomic(folder/'index.json', json.dumps(manifest, ensure_ascii=False).encode())
                 if cached: return cached

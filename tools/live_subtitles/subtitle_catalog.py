@@ -85,6 +85,31 @@ def parse_srt(raw):
     return cues
 
 
+def resource_path(root, url, language):
+    key=hashlib.sha256(json.dumps([url,language],separators=(',',':')).encode()).hexdigest()
+    return Path(root)/('subtitle-resource-'+key+'.json')
+
+
+def save_resource(root, url, language, label, raw, provider, **facts):
+    cues=parse_srt(raw);digest=hashlib.sha256(raw).hexdigest();root=Path(root)
+    (root/(digest+'.srt')).write_bytes(raw)
+    record=dict(provider=provider,url=url,language=language,label=label,
+                sha256=digest,bytes=len(raw),cueCount=len(cues),**facts)
+    resource_path(root,url,language).write_text(json.dumps(record,ensure_ascii=False))
+    return record
+
+
+def load_resource(root, url, language):
+    try:
+        record=json.loads(resource_path(root,url,language).read_text())
+        digest=record['sha256']
+        if record['url']!=url or record['language']!=language or not re.fullmatch(r'[0-9a-f]{64}',digest):return None
+        raw=(Path(root)/(digest+'.srt')).read_bytes()
+        if len(raw)!=record['bytes'] or len(raw)>2*1024*1024 or hashlib.sha256(raw).hexdigest()!=digest:return None
+        return record,parse_srt(raw)
+    except (OSError,ValueError,KeyError,UnicodeError):return None
+
+
 def _discover_subtitlecat(title, year, root, *, max_candidates=3, requested_language='en'):
     """Title/year selects candidates only. An acoustic lock is mandatory later."""
     root = Path(root); root.mkdir(parents=True, exist_ok=True)
@@ -124,12 +149,14 @@ def _discover_subtitlecat(title, year, root, *, max_candidates=3, requested_lang
                 continue
             url = urljoin(ORIGIN, link['url'])
             try:
-                raw = read(url); cues = parse_srt(raw)
+                cached = load_resource(root,url,language)
+                raw = (root/(cached[0]['sha256']+'.srt')).read_bytes() if cached else read(url)
+                cues = parse_srt(raw)
             except (ValueError, OSError, UnicodeError):
                 continue
             tracks[language] = cues
             digest = hashlib.sha256(raw).hexdigest()
-            (root / (digest + '.srt')).write_bytes(raw)
+            save_resource(root,url,language,candidate['text'],raw,'Subtitle Cat')
             facts[language] = dict(url=url, sha256=digest, cueCount=len(cues), provider='Subtitle Cat',
                                    quality='existing provider file; translation quality unreviewed')
         if 'en' not in tracks and tracks and candidate['url'] in english_originals:

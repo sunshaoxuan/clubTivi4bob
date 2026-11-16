@@ -61,6 +61,17 @@ class SubdlTests(unittest.TestCase):
             return archive(SRT.replace(b'00:00:01,000',b'00:00:01,500')) if '3-4' in url else archive()
         with tempfile.TemporaryDirectory() as root,patch.object(adapter,'read',read):
             rows=adapter.discover('The Prince',2014,root,imdb_id='tt1085492');self.assertEqual(set(rows[0]['tracks']),{'en'})
+    def test_repeated_provider_search_reuses_all_downloaded_language_files(self):
+        downloads=[]
+        def read(url):
+            if '/auto?' in url:return json.dumps(dict(results=[self.movie])).encode()
+            if url.startswith('https://subdl.com/'):return (page()+page('french',number='3-4')).encode()
+            downloads.append(url);return archive()
+        with tempfile.TemporaryDirectory() as root,patch.object(adapter,'read',read):
+            adapter.discover('The Prince',2014,root,imdb_id='tt1085492')
+            adapter.discover('The Prince',2014,root,imdb_id='tt1085492')
+            self.assertEqual(len(downloads),2)
+
     def test_primary_provider_failure_still_tries_imdb_fallback(self):
         import subtitle_catalog
         row=dict(page='existing',label='The.Prince.2014.BluRay',tracks={'en':[]})

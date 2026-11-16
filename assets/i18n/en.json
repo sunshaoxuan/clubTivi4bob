@@ -1131,5 +1131,6 @@
   "，已恢复旧版 ": ", the old version has been restored",
   "，旧版恢复尚未完成，请保留更新日志和备份": ", the old version recovery has not been completed, please keep the update log and backup",
   "字幕语言及回退": "Requested language, then English, then no subtitles",
-  "跟随界面语言": "Follow interface language"
+  "跟随界面语言": "Follow interface language",
+  "无法读取本地线路状态，请重试": "Cannot read local route status. Please retry."
 }

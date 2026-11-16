@@ -204,7 +204,7 @@
       [
         "2026-11-16",
         "v1.1.22 · Programmes et sous-titres en direct",
-        "Extension des programmes vérifiés. Pilote de sous-titres sur Action Movies UK : langue choisie, anglais, puis aucun sous-titre. Suspension pendant les publicités et reprise synchronisée vérifiée. Amélioration de la lecture des courts segments publicitaires. La liste des pays et son index suivent la langue de l’interface."
+        "Extension des programmes vérifiés. Pilote de sous-titres sur Action Movies UK : langue choisie, anglais, puis aucun sous-titre. Suspension pendant les publicités et reprise synchronisée vérifiée. Amélioration de la lecture des courts segments publicitaires. La liste des pays et son index suivent la langue de l’interface. Les indications du guide suivent la langue choisie. Les chaînes en cache restent lisibles si la synchronisation est indisponible."
       ],
       [
         "2026-11-12",

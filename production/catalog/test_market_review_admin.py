@@ -14,7 +14,7 @@ sys.path.insert(0, str(Path(__file__).parent))
 from channel_matching import profile, _evidence_profile, _market_group_allowed
 from channel_reference import Reference
 from market_review_admin import build_batch, apply_batch
-from publish_channel_catalog import publish
+from publish_channel_catalog import publish, _atomic_write
 
 URL = ('https://action-rakuten-tv-uk.fast.rakuten.tv/v1/manifest/'
        '0547f18649bd788bec7b67b746e47670f558b6b2/production-LiveChannel-6065/'
@@ -149,3 +149,13 @@ def test_failed_publisher_restores_manifest_and_transaction(catalog):
     with sqlite3.connect(folder / 'channel_inventory.sqlite3') as conn:
         assert conn.execute('SELECT group_name,revision FROM routes').fetchone() == ('国际 / 美国 / 电影',4)
         assert json.loads(conn.execute('SELECT metadata FROM catalog_channels').fetchone()[0])['countryCode'] == 'US'
+
+
+def test_atomic_operator_publication_remains_readable_by_service_user(tmp_path):
+    import stat
+    target=tmp_path/'manifest.json'
+    target.write_bytes(b'old')
+    target.chmod(0o600)
+    _atomic_write(target,b'new')
+    assert target.read_bytes()==b'new'
+    assert stat.S_IMODE(target.stat().st_mode)&stat.S_IROTH

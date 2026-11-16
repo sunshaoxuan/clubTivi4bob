@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:media_kit/media_kit.dart';
 
@@ -102,6 +103,15 @@ class ManagedPlayer extends Player {
   @override
   Future<void> open(Playable playable, {bool play = true}) async {
     final generation = ++_openGeneration;
+    // Explicit native acceptance runs must never emit audio, including warm
+    // and preview decoders. This diagnostic flag does not change preferences.
+    if (Platform.environment['BOBTV_TEST_MUTE'] == '1') {
+      await super.setVolume(0);
+      final native = platform;
+      if (native is native_player.NativePlayer) {
+        await native.setProperty('mute', 'yes');
+      }
+    }
     liveSubtitles.clear();
     if (playable is Media) {
       var uri = await liveSubtitles.prepare(playable.uri);

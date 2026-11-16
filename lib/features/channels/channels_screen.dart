@@ -1834,7 +1834,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
       if (mounted && selectionGeneration == _channelSelectionGeneration) {
         setState(() => _pendingChannelId = null);
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text(AppMessages.text(context, "同步线路状态失败，原频道继续播放，请重试")),
+          content: Text(AppMessages.text(context, "无法读取本地线路状态，请重试")),
         ));
       }
       return;

@@ -126,6 +126,12 @@ def _atomic_write(path, data):
     path.parent.mkdir(parents=True, exist_ok=True)
     descriptor, temporary = tempfile.mkstemp(prefix=".catalog-", dir=path.parent)
     try:
+        # Catalog files are public data. Operator writes must remain readable
+        # by the serving process after atomic replacement under another UID.
+        os.fchmod(descriptor, 0o644)
+        if hasattr(os, 'geteuid') and os.geteuid() == 0:
+            owner = path.parent.stat()
+            os.fchown(descriptor, owner.st_uid, owner.st_gid)
         with os.fdopen(descriptor, "wb") as output:
             output.write(data)
             output.flush()

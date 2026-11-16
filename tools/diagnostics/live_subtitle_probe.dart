@@ -2,6 +2,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'package:drift/native.dart';
 import 'package:flutter/material.dart';
 import 'package:media_kit/media_kit.dart';
 import 'package:media_kit_video/media_kit_video.dart';
@@ -13,6 +14,9 @@ import 'package:clubtivi/features/player/bobtv_video.dart';
 import 'package:clubtivi/features/player/subtitle_preferences.dart';
 import 'package:clubtivi/features/player/subtitle_programme_context.dart';
 import 'package:clubtivi/features/player/player_service.dart';
+import 'package:clubtivi/data/datasources/local/database.dart' as db;
+import 'package:clubtivi/data/services/channel_route_sync_service.dart';
+import 'package:clubtivi/data/services/retired_route_guard.dart';
 import 'package:media_kit/src/player/native/player/real.dart' as native;
 
 Future<void> main() async {
@@ -27,7 +31,28 @@ Future<void> main() async {
   await AppDiagnostics.instance.initialize(
     directoryOverride: Directory('${directory.path}/logs'),
   );
-  final service = PlayerService();
+  final offline = Platform.environment['BOBTV_SUBTITLE_PROBE_OFFLINE'] == '1';
+  final isolatedDatabase = offline
+      ? db.AppDatabase.forTesting(NativeDatabase.memory())
+      : null;
+  var syncFetches = 0;
+  final routeSync = isolatedDatabase == null
+      ? null
+      : ChannelRouteSyncService(
+          database: isolatedDatabase,
+          fetch: (_) async {
+            syncFetches++;
+            throw const SocketException('offline acceptance fixture');
+          },
+        );
+  final guard = isolatedDatabase == null
+      ? null
+      : RetiredRouteGuard(
+          read: isolatedDatabase.getBlockedStreamUrls,
+          updates: const Stream<Set<String>>.empty(),
+          beforeOpen: routeSync!.beforeOpen,
+        );
+  final service = PlayerService(retirementGuard: guard);
   final player = service.player as ManagedPlayer;
   final video = service.videoController;
   player.stream.buffering.listen(service.onBufferingChanged);
@@ -53,7 +78,9 @@ Future<void> main() async {
       Platform.environment['BOBTV_SUBTITLE_PROBE_SOURCE'] ??
       const String.fromEnvironment('BOBTV_SUBTITLE_PROBE_SOURCE');
   final contextPath = Platform.environment['BOBTV_SUBTITLE_PROBE_CONTEXT'];
-  if (contextPath != null) {
+  if (offline) {
+    SubtitleProgrammeContext.lookup = (_) async => null;
+  } else if (contextPath != null) {
     SubtitleProgrammeContext.lookup = (requested) async {
       final data = jsonDecode(await File(contextPath).readAsString()) as Map;
       return requested == data['source']
@@ -141,9 +168,16 @@ Future<void> main() async {
           ),
           'pipeline': 'PlayerService and AdaptiveBufferManager',
           'scope': 'native Flutter development fixture, not production release',
+          'simulatedRouteApiOffline': offline,
+          'routeSyncFetches': syncFetches,
+          'nativeMute': await service.getMpvProperty('mute'),
+          'nativeVolume': await service.getMpvProperty('volume'),
         }),
       );
       await service.dispose();
+      await routeSync?.shutdown();
+      await guard?.dispose();
+      await isolatedDatabase?.close();
       await logSubscription.cancel();
       await mpvLog.close();
       exit(errors.isEmpty ? 0 : 1);

@@ -22,6 +22,19 @@ class ChannelRouteSyncService {
   Future<void>? _background;
   bool _disposed = false;
   int _categoryGeneration = 0;
+  DateTime? _unavailableUntil;
+
+  bool get _temporarilyUnavailable =>
+      _unavailableUntil?.isAfter(DateTime.now()) ?? false;
+
+  void _offline(_RouteStateUnavailable failure) {
+    _unavailableUntil = DateTime.now().add(const Duration(seconds: 15));
+    AppDiagnostics.instance.recordError(
+      'route_state_unavailable_using_local_cache',
+      failure.error,
+      failure.stack,
+    );
+  }
 
   List<String> _publicUrls(Iterable<String> urls) => urls
       .map(canonicalRouteUrl)
@@ -31,15 +44,20 @@ class ChannelRouteSyncService {
 
   Future<void> priority(Iterable<String> urls) async {
     final requested = _publicUrls(urls);
-    if (_disposed || requested.isEmpty) return;
+    if (_disposed || requested.isEmpty || _temporarilyUnavailable) return;
     // Each click reads fresh state. Duplicate concurrent clicks share a request.
     for (var offset = 0; offset < requested.length; offset += 200) {
       if (_disposed) return;
       final page = requested.skip(offset).take(200).toList()..sort();
       final key = page.join('\n');
-      await (_foreground[key] ??= _read(page).whenComplete(() {
-        _foreground.remove(key);
-      }));
+      try {
+        await (_foreground[key] ??= _read(page).whenComplete(() {
+          _foreground.remove(key);
+        }));
+      } on _RouteStateUnavailable catch (failure) {
+        _offline(failure);
+        return;
+      }
     }
   }
 
@@ -68,6 +86,10 @@ class ChannelRouteSyncService {
 
   Future<void> _drain() async {
     while (!_disposed && _queued.isNotEmpty) {
+      if (_temporarilyUnavailable) {
+        _queued = [];
+        return;
+      }
       // Wait for foreground work before beginning another background page.
       if (_foreground.isNotEmpty) {
         await Future.wait(
@@ -80,6 +102,10 @@ class ChannelRouteSyncService {
       _queued = _queued.skip(page.length).toList();
       try {
         await _read(page);
+      } on _RouteStateUnavailable catch (failure) {
+        _offline(failure);
+        _queued = [];
+        return;
       } catch (error, stack) {
         AppDiagnostics.instance.recordError(
           'category_route_state_sync',
@@ -97,7 +123,12 @@ class ChannelRouteSyncService {
   }
 
   Future<void> _read(List<String> urls) async {
-    final state = await fetch(urls).timeout(const Duration(seconds: 3));
+    BobTvRouteState state;
+    try {
+      state = await fetch(urls).timeout(const Duration(seconds: 3));
+    } catch (error, stack) {
+      throw _RouteStateUnavailable(error, stack);
+    }
     if (_disposed) return;
     // Permanent tombstones are applied before this request can authorize open.
     for (final url in state.retiredUrls) {
@@ -131,4 +162,10 @@ class ChannelRouteSyncService {
     _disposed = true;
     _queued = [];
   }
+}
+
+class _RouteStateUnavailable implements Exception {
+  const _RouteStateUnavailable(this.error, this.stack);
+  final Object error;
+  final StackTrace stack;
 }

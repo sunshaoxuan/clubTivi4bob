@@ -1,9 +1,32 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show SynchronousFuture;
 import 'dart:io';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
+import 'package:clubtivi/core/i18n/app_language.dart';
 import 'package:clubtivi/data/datasources/local/database.dart' as db;
 import 'package:clubtivi/features/player/fullscreen_programme_overlay.dart';
+
+class _FileMessagesDelegate extends LocalizationsDelegate<AppMessages> {
+  const _FileMessagesDelegate(this.language);
+  final AppLanguage language;
+  @override
+  bool isSupported(Locale locale) => true;
+  @override
+  Future<AppMessages> load(Locale locale) => SynchronousFuture(
+    AppMessages(
+      (jsonDecode(File(language.bundlePath).readAsStringSync()) as Map)
+          .cast<String, String>(),
+      (jsonDecode(File(AppLanguage.english.bundlePath).readAsStringSync())
+              as Map)
+          .cast<String, String>(),
+    ),
+  );
+  @override
+  bool shouldReload(_FileMessagesDelegate old) => language != old.language;
+}
 
 void main() {
   final now = DateTime(2026, 10, 6, 12, 30);
@@ -22,6 +45,7 @@ void main() {
     int shift = 0,
     double width = 752,
     double scale = 1,
+    AppLanguage? language,
   }) async {
     tester.view.physicalSize = Size(width, 600);
     tester.view.devicePixelRatio = 1;
@@ -29,6 +53,16 @@ void main() {
     addTearDown(tester.view.resetDevicePixelRatio);
     await tester.pumpWidget(
       MaterialApp(
+        locale: language?.locale,
+        supportedLocales: AppLanguage.values.map((l) => l.locale),
+        localizationsDelegates: language == null
+            ? null
+            : [
+                _FileMessagesDelegate(language),
+                GlobalMaterialLocalizations.delegate,
+                GlobalWidgetsLocalizations.delegate,
+                GlobalCupertinoLocalizations.delegate,
+              ],
         theme: ThemeData.dark().copyWith(
           textTheme: ThemeData.dark().textTheme.apply(
             fontFamily: 'BobTVFullscreenPreview',
@@ -74,6 +108,36 @@ void main() {
           ),
         ),
       ),
+    );
+  }
+
+  for (final language in AppLanguage.values) {
+    testWidgets(
+      '${language.tag} localizes next/later hints including empty slots',
+      (tester) async {
+        final messages =
+            (jsonDecode(File(language.bundlePath).readAsStringSync()) as Map)
+                .cast<String, String>();
+        await pump(
+          tester,
+          language: language,
+          rows: [
+            programme(1, now.subtract(const Duration(minutes: 30)), 'Film one'),
+            programme(2, now.add(const Duration(minutes: 30)), 'Film two'),
+          ],
+        );
+        await tester.pumpAndSettle();
+        expect(
+          find.textContaining('${messages['接下来']}：Film two'),
+          findsOneWidget,
+        );
+        expect(find.textContaining(messages['随后']!), findsOneWidget);
+        if (language != AppLanguage.simplifiedChinese &&
+            language != AppLanguage.traditionalChinese) {
+          expect(find.textContaining('接下来'), findsNothing);
+          expect(find.textContaining('随后'), findsNothing);
+        }
+      },
     );
   }
 

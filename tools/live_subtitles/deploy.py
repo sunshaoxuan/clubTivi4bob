@@ -44,6 +44,8 @@ try:
  if temporary.is_symlink():temporary.unlink()
  temporary.symlink_to(release,target_is_directory=True);os.replace(temporary,current)
  shutil.copy2(release/'bobtv-live-subtitles.service',unit)
+ if meta.get('stageOnly') and meta.get('stageBase'):
+  unit.write_text(unit.read_text().replace('--base https://bobtv.briconbric.com/api/v1/subtitles/', '--base '+meta['stageBase']))
  if not meta.get('stageOnly'):shutil.copy2(release/snippet.name,snippet)
  subprocess.run(['systemctl','daemon-reload'],check=True);subprocess.run(['install','-d','-o','bobtv','-g','bobtv','-m','700','/var/lib/bobtv/resource-cache/subtitles'],check=True)
  subprocess.run(['systemctl','restart','bobtv-live-subtitles-v2'],check=True)
@@ -62,7 +64,7 @@ try:
    nginx.write_text(text.replace(marker,marker+'\n'+include))
   subprocess.run(['nginx','-t'],check=True);subprocess.run(['systemctl','reload','nginx'],check=True)
   subprocess.run(['systemctl','enable','bobtv-live-subtitles-v2'],check=True)
- receipt={'sourceCommit':meta['commit'],'backup':str(backup),'deployedAtUtc':int(time.time()),'files':meta['files'],'publicPath':'/api/v1/subtitles/','pilot':'rakuten-uk-6065','serviceUnit':'bobtv-live-subtitles-v2','legacySessionsPreserved':True,'cacheRoot':'/var/lib/bobtv/resource-cache/subtitles','stageOnly':bool(meta.get('stageOnly'))}
+ receipt={'sourceCommit':meta['commit'],'backup':str(backup),'deployedAtUtc':int(time.time()),'files':meta['files'],'publicPath':'/api/v1/subtitles/','pilot':'rakuten-uk-6065','serviceUnit':'bobtv-live-subtitles-v2','legacySessionsPreserved':True,'cacheRoot':'/var/lib/bobtv/resource-cache/subtitles','stageOnly':bool(meta.get('stageOnly')),'stagePlaybackBase':meta.get('stageBase')}
  (backup/'receipt.json').write_text(json.dumps(receipt,indent=2));print(json.dumps(receipt))
 except BaseException:
  nginx.write_bytes(original)
@@ -71,13 +73,18 @@ except BaseException:
   elif p.exists():p.unlink()
  if old_link:
   current.unlink();current.symlink_to(old_link,target_is_directory=True)
+ elif current.is_symlink():current.unlink()
  subprocess.run(['systemctl','daemon-reload']);subprocess.run(['systemctl','stop' if not old_link else 'restart','bobtv-live-subtitles-v2'])
  subprocess.run(['nginx','-t'],check=True);subprocess.run(['systemctl','reload','nginx']);raise
 '''
 
 
 def main():
-    p=argparse.ArgumentParser();p.add_argument('--key',required=True);p.add_argument('--host',default='root@ccnode.briconbric.com');p.add_argument('--stage-only',action='store_true');a=p.parse_args()
+    p=argparse.ArgumentParser();p.add_argument('--key',required=True);p.add_argument('--host',default='root@ccnode.briconbric.com');p.add_argument('--stage-only',action='store_true');p.add_argument('--stage-base');a=p.parse_args()
+    if a.stage_base:
+        from urllib.parse import urlsplit
+        target=urlsplit(a.stage_base)
+        assert a.stage_only and target.scheme=='http' and target.hostname=='127.0.0.1' and target.path=='/' and target.port and not target.username
     commit=subprocess.check_output(['git','rev-parse','HEAD'],cwd=ROOT,text=True).strip()
     import hashlib
     hashes={}
@@ -86,12 +93,12 @@ def main():
         assert file.read_bytes()==subprocess.check_output(['git','show',commit+':'+str(file.relative_to(ROOT))],cwd=ROOT)
         hashes[name]=hashlib.sha256(file.read_bytes()).hexdigest()
     with tempfile.TemporaryDirectory() as folder:
-        folder=Path(folder);(folder/'receipt.json').write_text(json.dumps(dict(commit=commit,files=hashes,stageOnly=a.stage_only)))
+        folder=Path(folder);(folder/'receipt.json').write_text(json.dumps(dict(commit=commit,files=hashes,stageOnly=a.stage_only,stageBase=a.stage_base)))
         with tarfile.open(folder/'runtime.tar','w') as archive:
             for name in FILES:archive.add(ROOT/'tools/live_subtitles'/name,arcname=name)
             archive.add(folder/'receipt.json',arcname='receipt.json')
-        subprocess.run(['scp','-q','-i',a.key,str(folder/'runtime.tar'),a.host+':/tmp/bobtv-live-subtitles.tar'],check=True)
-    subprocess.run(['ssh','-i',a.key,a.host,'python3','-'],input=REMOTE,text=True,check=True)
+        subprocess.run(['scp','-4','-q','-o','ConnectTimeout=10','-i',a.key,str(folder/'runtime.tar'),a.host+':/tmp/bobtv-live-subtitles.tar'],check=True)
+    subprocess.run(['ssh','-4','-o','ConnectTimeout=10','-i',a.key,a.host,'python3','-'],input=REMOTE,text=True,check=True)
 
 
 if __name__=='__main__':main()

@@ -87,7 +87,7 @@ def main():
             errors=[abs(h['errorSeconds']) for h in holdout]
             native_errors=[]
             for h in holdout:
-                cues=[c for w in response['windows'] for t in w['tracks'] if t['language']=='en'
+                cues=[c for w in response['windows'] for t in w['tracks']
                       for c in t['cues'] if c['index']==h['cue']]
                 texts={' '.join(c['text'].split()) for c in cues}
                 matched=[s for s in after if ' '.join((s.get('text') or '').split()) in texts]

@@ -204,7 +204,7 @@
       [
         "2026-11-16",
         "v1.1.22 · Programme guides and live subtitles",
-        "Expanded verified programme guides. Added a live subtitle pilot for Action Movies UK, with preferred-language, English and no-subtitle fallback, automatic advert suspension and verified recovery. Improved playback across short advert fragments."
+        "Expanded verified programme guides. Added a live subtitle pilot for Action Movies UK, with preferred-language, English and no-subtitle fallback, automatic advert suspension and verified recovery. Improved playback across short advert fragments. Country selection and its index now follow the interface language."
       ],
       [
         "2026-11-12",

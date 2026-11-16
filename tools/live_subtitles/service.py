@@ -52,10 +52,8 @@ def snapshot(kind):
 def current_guide():
     now = int(time.time())
     catalog, guide = snapshot('channel-catalog'), snapshot('epg')
-    channel = next(c for c in catalog['channels'] if c['id'] == CHANNEL)
-    route = next(r['url'] for r in channel['routes'] if urlsplit(r['url']).hostname == 'action-rakuten-tv-uk.fast.rakuten.tv'
-                 and '/production-LiveChannel-6065/' in r['url'])
-    programmes = [p for p in guide['programmes'] if p['channelId'] == CHANNEL and p['startUtc'] <= now < p['stopUtc']]
+    channel,route = pilot_channel(catalog)
+    programmes = [p for p in guide['programmes'] if p['channelId'] == channel['id'] and p['startUtc'] <= now < p['stopUtc']]
     if len(programmes) != 1:
         raise ValueError('unambiguous_current_programme_required')
     p = programmes[0]; facts = p['provenance']; movie = facts.get('movieId')
@@ -66,10 +64,23 @@ def current_guide():
     if metadata['id'] != movie or not isinstance(metadata.get('year'), int):
         raise ValueError('official_movie_identity_mismatch')
     key = f"{p['sourceId']}:{p['originalChannelId']}:{facts['sourceEventId']}:{p['stopUtc']}:{movie}"
-    return route, dict(key=key, catalogChannelId=CHANNEL, programmeSourceId=p['sourceId'],
+    return route, dict(key=key, catalogChannelId=channel['id'], programmeSourceId=p['sourceId'],
         originalChannelId=p['originalChannelId'], sourceEventId=facts['sourceEventId'], movieId=movie,
         title=metadata['title'], year=metadata['year'], numericalMovieId=metadata['numerical_id'],
         marketCode='uk', serviceId=6065, startUtc=p['startUtc'], stopUtc=p['stopUtc'], clockIsSubtitleOffset=False)
+
+
+def pilot_channel(catalog):
+    """Bind the current public identity by the reviewed provider feed, not a title."""
+    matches=[]
+    for channel in catalog['channels']:
+        if channel.get('countryCode')!='GB':continue
+        routes=[r['url'] for r in channel['routes'] if urlsplit(r['url']).scheme=='https'
+                and urlsplit(r['url']).hostname=='action-rakuten-tv-uk.fast.rakuten.tv'
+                and '/production-LiveChannel-6065/' in urlsplit(r['url']).path]
+        if routes:matches.append((channel,routes[0]))
+    if len(matches)!=1:raise ValueError('unambiguous_reviewed_public_feed_required')
+    return matches[0]
 
 
 class Hub:
@@ -86,7 +97,7 @@ class Hub:
         if source != self.source or self.gap or time.time() > self.programme['stopUtc'] or time.time() - self.last_guide_success > 120:
             return False
         return programme is None or (isinstance(programme, dict) and programme.get('key') == self.programme['key']
-                                     and programme.get('catalogChannelId') == CHANNEL)
+                                     and programme.get('catalogChannelId') == self.programme['catalogChannelId'])
 
     def create(self, source, context, language):
         with self.lock:
@@ -133,7 +144,7 @@ class Hub:
             try:
                 source, programme = current_guide()
                 with self.lock:
-                    changed = programme['key'] != self.programme['key']
+                    changed = (programme['key'] != self.programme['key'] or programme['catalogChannelId'] != self.programme['catalogChannelId'])
                     if source != self.source:
                         # A catalogue route change requires a new explicit playback session.
                         self.gap = True

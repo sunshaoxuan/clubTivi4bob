@@ -8,11 +8,17 @@ from unittest.mock import patch
 
 from live_media import parse_media, playlist, continuous_counters, MediaPublisher
 from live_engine import Engine, align
-from service import Hub, CHANNEL
+from service import Hub, CHANNEL, pilot_channel
 from subtitle_catalog import discover, parse_srt, title_norm
 
 
 class LiveServiceTests(unittest.TestCase):
+    def test_current_catalogue_identity_requires_exact_owned_feed_and_market(self):
+        route='https://action-rakuten-tv-uk.fast.rakuten.tv/v1/manifest/key/production-LiveChannel-6065/session/4.m3u8'
+        channel=dict(id='current-public-id',countryCode='GB',routes=[dict(url=route)])
+        self.assertEqual(pilot_channel(dict(channels=[channel]))[0]['id'],'current-public-id')
+        for rows in [[{**channel,'countryCode':'US'}],[{**channel,'routes':[dict(url=route.replace('6065','6066'))]}],[channel,{**channel,'id':'ambiguous'}]]:
+            with self.assertRaises(ValueError):pilot_channel(dict(channels=rows))
     def test_possessive_title_release_punctuation_preserves_identity(self):
         self.assertEqual(title_norm("Tom Clancy's Without Remorse"),title_norm('Tom.Clancys.Without.Remorse'))
         self.assertEqual(title_norm('Tom Clancy’s Without Remorse'),title_norm('Tom.Clancys.Without.Remorse'))
@@ -124,7 +130,7 @@ class LiveServiceTests(unittest.TestCase):
 
     def test_session_requires_current_exact_route_and_programme(self):
         hub = Hub.__new__(Hub); hub.source='https://public.example/route'; hub.gap=False
-        hub.last_guide_success=time.time(); hub.programme=dict(key='current',stopUtc=time.time()+3600)
+        hub.last_guide_success=time.time(); hub.programme=dict(key='current',stopUtc=time.time()+3600,catalogChannelId=CHANNEL)
         self.assertTrue(hub.valid_context(hub.source,dict(key='current',catalogChannelId=CHANNEL)))
         self.assertFalse(hub.valid_context('https://private.example/route',None))
         self.assertFalse(hub.valid_context(hub.source,dict(key='previous',catalogChannelId=CHANNEL)))

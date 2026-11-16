@@ -126,10 +126,27 @@ def test_official_review_has_separate_audited_unlock_and_same_transaction_public
     result=apply_batch(folder,batch)
     assert result['state']=='applied'
     with connect(folder) as conn:
-        assert conn.execute('SELECT count(*) FROM catalog_market_review_holds').fetchone()[0]==0
+        assert conn.execute("SELECT count(*) FROM catalog_market_review_holds WHERE status='verified'").fetchone()[0]==1
         assert conn.execute('SELECT count(*) FROM catalog_market_verified_releases').fetchone()[0]==1
         assert conn.execute("SELECT count(*) FROM catalog_market_hold_events WHERE kind='official_market_review_released'").fetchone()[0]==1
     assert next(c for c in load(folder)[1]['channels'] if c['id']=='action')['countryCode']=='GB'
+
+
+def test_verified_review_survives_later_old_source_country_and_identity_proposal(held):
+    folder,digest=held
+    batch=build_batch(folder,['action'],authorization='retain verified correction',allow_protected_shared=True)
+    apply_batch(folder,batch)
+    with connect(folder) as conn:
+        conn.execute("UPDATE routes SET group_name='国际 / 美国 / 电影',revision=revision+1 WHERE digest=?",(digest,))
+        assert conn.execute('SELECT group_name FROM routes WHERE digest=?',(digest,)).fetchone()[0]=='国际 / 英国 / 电影'
+    _,payload=load(folder)
+    route=payload['channels'][0]['routes'][0]
+    target=next(c for c in payload['channels'] if c['id']=='action')
+    target['id']='new-wrong-country-id';target['countryCode']='US';payload['version']='stale-source-republish'
+    publish(payload,folder)
+    _,after=load(folder)
+    recovered=next(c for c in after['channels'] if any(r['url']==route['url'] for r in c['routes']))
+    assert recovered['id']=='action' and recovered['countryCode']=='GB'
 
 
 def test_context_revision_and_name_changes_do_not_unlock_geography(held):

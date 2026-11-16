@@ -286,3 +286,28 @@ def release_verified_hold(conn, data_dir, channel_id, market, expected_digests, 
     conn.execute('DELETE FROM catalog_market_hold_routes WHERE channel_id=?',(channel_id,))
     conn.execute('DELETE FROM catalog_market_review_holds WHERE channel_id=?',(channel_id,))
     return True
+
+
+def retain_verified_geography(conn, channel, entity_profile, group, category_path, rows):
+    """Pin reviewed ownership after the admin transaction, including rematches.
+
+    Releasing a pending hold permits the explicit correction. Once corrected,
+    keep the exact route ownership and new geography so a later import of old
+    source groups cannot recreate another country/channel identity.
+    """
+    install_schema(conn)
+    metadata={k:v for k,v in channel.items() if k!='routes'}
+    identity={k:metadata.get(k) for k in ('id','name','epgId','countryCode','regionCode')}
+    cid=channel['id']
+    conn.execute('INSERT OR REPLACE INTO catalog_market_review_holds VALUES(?,?,?,?,?,?,?,?,NULL)',
+        (cid,json.dumps(identity),json.dumps(metadata),json.dumps(entity_profile),group,
+         json.dumps(category_path,ensure_ascii=False),'verified',int(time.time())))
+    for row in rows:
+        owner=conn.execute('SELECT channel_id,state FROM catalog_channel_routes WHERE digest=?',(row['digest'],)).fetchone()
+        if not owner or owner['channel_id']!=cid:raise ValueError('verified_geography_owner_changed')
+        context={k:row[k] for k in ('name','url','epg_id','revision')}
+        context['match_state']=owner['state']
+        conn.execute('INSERT OR REPLACE INTO catalog_market_hold_routes VALUES(?,?,?,?)',
+            (row['digest'],cid,json.dumps(context),group))
+    conn.execute('INSERT OR IGNORE INTO catalog_market_hold_events(channel_id,kind,detail,created_at) VALUES(?,?,?,?)',
+        (cid,'official_market_review_retained',json.dumps(identity,sort_keys=True),int(time.time())))

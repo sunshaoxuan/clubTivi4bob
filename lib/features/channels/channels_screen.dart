@@ -3654,7 +3654,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
         }
       }
     } else if (international) {
-      if (_internationalCountries.isNotEmpty) { levels.add(CompactCategoryRow(tiny: tiny, level: 2, title: AppMessages.text(context, "国家或地区"), countryIndex: true, options: [
+      if (_internationalCountries.isNotEmpty) { levels.add(CompactCategoryRow(tiny: tiny, level: 2, title: AppMessages.text(context, "国家或地区"), countryIndex: true, countryLocale: AppLanguage.resolve([Localizations.localeOf(context)], null).tag, options: [
         for (final country in _internationalCountries) CompactCategoryOption(id: country, label: AppMessages.category(context, country), selected: country == _selectedInternationalCountry, onTap: () => _selectInternationalCountry(country), onContextMenu: (p) => _showCountryPinMenu(country, p)),
       ])); }
       levels.add(CompactCategoryRow(tiny: tiny, level: 3, title: AppMessages.text(context, "广播或电视"), options: [

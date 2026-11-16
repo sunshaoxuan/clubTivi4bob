@@ -223,6 +223,9 @@ def apply_batch_locked(data_dir, batch, *, publisher=publish, now=None):
                               group_name=new_group, profile=json.dumps(updated_profile))
             conn.execute('UPDATE catalog_channels SET metadata=?,group_name=?,profile=? WHERE id=?',
                          (new_entity['metadata'], new_group, new_entity['profile'], target['id']))
+            from market_review_hold import retain_verified_geography
+            retained_rows=[conn.execute('SELECT * FROM routes WHERE digest=?',(r['digest'],)).fetchone() for r in rows]
+            retain_verified_geography(conn, target, updated_profile, new_group, new_path, retained_rows)
             change = dict(channelId=target['id'], oldCountryCode=expected['countryCode'],
                           newCountryCode=market, oldPath=old_path, newPath=new_path,
                           oldEntity=dict(entity), newEntity=new_entity, oldRoutes=old_rows, newRoutes=new_rows,

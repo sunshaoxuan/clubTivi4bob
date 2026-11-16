@@ -1,4 +1,5 @@
 import 'country_names.dart';
+import 'country_collation_data.dart';
 
 /// Initials for the finite country-name vocabulary in CountryNames.
 /// This is navigation metadata, not a general Chinese transliterator.
@@ -30,27 +31,58 @@ class CountryNameIndex {
     'Z': '中智直泽乍赞',
   };
 
-  static String initial(String label) {
+  static String initial(String label, {String locale = 'zh-CN'}) {
     final name = label.trim();
+    final indexed = countryLocaleCollation[locale]?[name];
+    if (indexed != null) return indexed.$2;
     if (name.isEmpty || name == '未识别地区') return '#';
     // The country name is pronounced bì lǔ.
-    if (name == '秘鲁' || name == '秘魯') return 'B';
+    if (locale == 'zh-CN' && (name == '秘鲁' || name == '秘魯')) return 'B';
     final first = String.fromCharCode(name.runes.first).toUpperCase();
     if (RegExp(r'^[A-Z]$').hasMatch(first)) return first;
+    if (locale != 'zh-CN') {
+      final folded = searchKey(first).toUpperCase();
+      return RegExp(r'^[A-Z]').hasMatch(folded) ? folded[0] : '#';
+    }
     for (final entry in _initials.entries) {
       if (entry.value.contains(first)) return entry.key;
     }
     return '#';
   }
 
-  static bool matches(String label, String query) {
+  static String searchKey(String text) => text.runes
+      .map(
+        (rune) =>
+            countrySearchFolds[String.fromCharCode(rune)] ??
+            String.fromCharCode(rune),
+      )
+      .join()
+      .replaceAll(RegExp(r'[\u0300-\u036f]'), '')
+      .toLowerCase();
+
+  static bool matches(String label, String query, {String locale = 'zh-CN'}) {
     final term = query.trim().toLowerCase();
     if (term.isEmpty) return true;
-    if (label.toLowerCase().contains(term)) return true;
-    if (term.length == 1 && initial(label).toLowerCase() == term) return true;
+    if (searchKey(label).contains(searchKey(term))) return true;
+    if (term.length == 1 &&
+        initial(label, locale: locale).toLowerCase() == term) {
+      return true;
+    }
+    final canonical = countryLocaleCollation[locale]?[label]?.$3 ?? label;
     return CountryNames.normalize(
-      label,
+      canonical,
     ).toLowerCase().contains(CountryNames.normalize(term).toLowerCase());
+  }
+
+  static int compare(String a, String b, {String locale = 'zh-CN'}) {
+    final left = countryLocaleCollation[locale]?[a];
+    final right = countryLocaleCollation[locale]?[b];
+    if (left != null && right != null) return left.$1.compareTo(right.$1);
+    final groups = compareInitials(
+      initial(a, locale: locale),
+      initial(b, locale: locale),
+    );
+    return groups != 0 ? groups : searchKey(a).compareTo(searchKey(b));
   }
 
   static int compareInitials(String a, String b) => a == b
@@ -59,5 +91,10 @@ class CountryNameIndex {
       ? 1
       : b == '#'
       ? -1
+      : int.tryParse(a.replaceFirst('畫', '')) != null &&
+            int.tryParse(b.replaceFirst('畫', '')) != null
+      ? int.parse(
+          a.replaceFirst('畫', ''),
+        ).compareTo(int.parse(b.replaceFirst('畫', '')))
       : a.compareTo(b);
 }

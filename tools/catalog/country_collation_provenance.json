@@ -1,0 +1,21 @@
+{
+  "icuVersion": [
+    78,
+    1,
+    0,
+    0
+  ],
+  "unihanVersion": "17.0.0",
+  "unihanSha256": "f7a48b2b545acfaa77b2d607ae28747404ce02baefee16396c5d2d7a8ef34b5e",
+  "locales": {
+    "en": 263,
+    "zh-CN": 263,
+    "zh-TW": 263,
+    "ja": 263,
+    "fr": 263,
+    "es": 263,
+    "ko": 263
+  },
+  "specification": "https://unicode.org/reports/tr35/tr35-collation.html",
+  "scope": "finite country vocabulary only; Japanese reviewed reading prefixes; runtime offline"
+}

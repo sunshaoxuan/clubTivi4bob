@@ -189,6 +189,9 @@ void main() {
             'channel-170189df6c2b381a9e5e81e0': '5d767b1c126c65d0a307355f',
             'channel-ceff8c78c1c489157ff99d16': '5caf325764025859afdd6c4d',
             'channel-3d53af390311be1dbd89cbb1': '5db6a697d5f34a000934cd13',
+            'channel-4d8a60824b0727e6787f0440': '5d4947590ba40f75dc29c26b',
+            'channel-f71c49e8fce59482c51d83af': '5cb6f6f9a461406ffe4022cf',
+            'channel-f161e64e591831aeaabad869': '5f1aca8310a30e00074fab92',
           };
           for (final target in targets.cast<Map>()) {
             final channel = target['channel'] as Map;
@@ -197,8 +200,9 @@ void main() {
             final route = (channel['routes'] as List).first as Map;
             final programme = await lookup.forSource(route['url'] as String);
             expect(programme, isNotNull);
-            expect(programme!['programmeSourceId'], 'pluto-de-official-v1');
-            expect(programme['originalChannelId'], 'pluto:de:$feed');
+            final country = (channel['countryCode'] as String).toLowerCase();
+            expect(programme!['programmeSourceId'], startsWith('pluto-'));
+            expect(programme['originalChannelId'], 'pluto:$country:$feed');
             expect(programme['sourceEventId'], isNotNull);
             expect(programme['episodeId'], isNotNull);
             expect(programme['clockIsSubtitleOffset'], isFalse);

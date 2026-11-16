@@ -6,6 +6,7 @@ Names and route query hints cannot approve a mapping.
 """
 from collections import Counter
 from datetime import datetime, timezone
+from email.utils import parsedate_to_datetime
 import hashlib
 import json
 from pathlib import Path
@@ -71,8 +72,10 @@ def fetch_schedule(source, now, fetcher=None):
             try:
                 response=opener.open(urllib.request.Request(url,headers={'User-Agent':'BobTV-EPG-Validator/1.0','Accept-Encoding':'identity'}),timeout=8)
             except urllib.error.HTTPError as error:
-                retry=error.headers.get('Retry-After','0')
-                raise EpgError('http_'+str(error.code),int(retry) if retry.isdecimal() else 0) from None
+                value=error.headers.get('Retry-After','0').strip()
+                try:retry=int(value) if value.isdecimal() else max(0,int(parsedate_to_datetime(value).timestamp()-now))
+                except (ValueError,TypeError,OverflowError):retry=0
+                raise EpgError('http_'+str(error.code),retry) from None
             with response:
                 if response.status!=200 or response.geturl()!=url:raise EpgError('pluto_unreviewed_response')
                 raw=response.read(2*1024*1024+1)

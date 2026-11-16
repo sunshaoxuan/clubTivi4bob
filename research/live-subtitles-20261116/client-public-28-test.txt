@@ -1,0 +1,3 @@
+00:00 +0: loading /Users/shou/Documents/Codex/2026-07-18/git/work/bobtv-epg-rakuten-20261115/test/server_epg_live_contract_test.dart
+00:00 +0: actual licensed public snapshot imports, is idempotent and survives offline
+00:01 +1: All tests passed!

@@ -86,3 +86,14 @@ def test_additional_market_scopes_cannot_reinterpret_a_global_feed_id(source_id)
     assert receipt['pagesFetched']==1 and parsed['quality']['currentAndFutureChannels']==1
     assert set(parsed['channels'])=={'pluto:'+country.lower()+':'+next(iter(channels))}
     with pytest.raises(EpgError):p.validate_source({**source,'countryCode':'US'})
+
+def test_provider_http_date_retry_floor_is_preserved(monkeypatch):
+    import source_registry,urllib.request,urllib.error
+    from email.utils import formatdate
+    monkeypatch.setattr(source_registry,'validate_public_url',lambda _:None)
+    class Opener:
+        def open(self,request,**kwargs):
+            raise urllib.error.HTTPError(request.full_url,429,'limited',{'Retry-After':formatdate(NOW+3600,usegmt=True)},None)
+    monkeypatch.setattr(urllib.request,'build_opener',lambda *args:Opener())
+    with pytest.raises(EpgError) as raised:p.fetch_schedule(SOURCE,NOW)
+    assert str(raised.value)=='http_429' and raised.value.retry_after==3600

@@ -76,6 +76,8 @@ class PlayerService {
   StreamSubscription<Set<String>>? _retirementSubscription;
   Future<void> _retirementCleanup = Future.value();
   bool _disposed = false;
+  ManagedPlayer? _subtitleWarmPlayer;
+  int subtitleMediaPromotions = 0;
 
   bool _routeAllowed(String url) =>
       !_disposed && (_retirementGuard?.allowsCached(url) ?? true);
@@ -96,6 +98,9 @@ class PlayerService {
       }
     }
     if (target is ManagedPlayer) {
+      if (identical(target, _player)) {
+        target.liveSubtitles.onMediaReady = () => _warmSubtitleMedia(target, endpoint);
+      }
       target.fallbackOpenGate = (operation) async {
         if (_disposed) throw const RetiredRouteException();
         if (guard == null) {
@@ -109,6 +114,96 @@ class PlayerService {
       await open();
     } else {
       await guard.open(endpoint, open, stop: stopRetired);
+    }
+  }
+
+  /// Keep the current decoder visible until the caption media has decoded
+  /// frames and enough buffered media to survive the handoff.
+  Future<void> _warmSubtitleMedia(ManagedPlayer original, String url) async {
+    if (_subtitleWarmPlayer != null ||
+        !identical(_player, original) ||
+        !_routeAllowed(url))
+      return;
+    final request = _channelSwitchGeneration;
+    bool valid() =>
+        !_disposed &&
+        identical(_player, original) &&
+        request == _channelSwitchGeneration &&
+        _routeAllowed(url);
+    final candidate = ManagedPlayer(
+      role: 'subtitle_warm',
+      configuration: PlayerConfiguration(
+        bufferSize: PlaybackMemoryBudget(tablet: Platform.isAndroid).warm,
+        logLevel: MPVLogLevel.warn,
+      ),
+    );
+    _subtitleWarmPlayer = candidate;
+    candidate.subtitleStartupGrace = const Duration(seconds: 45);
+    candidate.liveSubtitles.onMediaReady = null;
+    var promoted = false;
+    final started = Stopwatch()..start();
+    try {
+      final controller = _createVideoController(candidate);
+      await candidate.setVolume(0);
+      final native = candidate.platform;
+      if (native is native_player.NativePlayer) {
+        await native.setProperty('mute', 'yes');
+        await native.setProperty('cache-pause-wait', '4');
+      }
+      if (!valid()) return;
+      await _openAllowedMedia(candidate, url);
+      final ready = await _waitForPreparedChannel(
+        candidate,
+        null,
+        allowAudioOnly: _allowsAudioOnly,
+        requireUltraHd: false,
+        timeout: const Duration(seconds: 45),
+        minimumCacheSeconds: 8,
+        stillValid: valid,
+      );
+      if (!ready || !valid() || !candidate.liveSubtitles.hasAttachedMedia) {
+        throw StateError('subtitle_media_not_ready');
+      }
+      await candidate.setVolume(original.state.volume);
+      if (!valid()) return;
+      await _promotePreparedChannel(
+        candidate,
+        controller,
+        url,
+        channelId: _currentChannelId,
+        epgChannelId: _currentEpgChannelId,
+        tvgId: _currentTvgId,
+        channelName: _currentChannelName,
+        vanityName: _currentVanityName,
+        originalName: _currentOriginalName,
+        failoverGroupUrls: _failoverGroupUrls,
+        allowAudioOnly: _allowsAudioOnly,
+        selectionRequest: request,
+      );
+      promoted = identical(_player, candidate);
+      if (promoted) {
+        candidate.subtitleStartupGrace = const Duration(seconds: 10);
+        candidate.liveSubtitles.onMediaReady = () =>
+            _warmSubtitleMedia(candidate, url);
+        subtitleMediaPromotions++;
+        AppDiagnostics.instance.log('subtitle_media_prebuffered', {
+          'elapsedMs': started.elapsedMilliseconds,
+        });
+      }
+    } catch (error, stack) {
+      if (valid()) {
+        original.liveSubtitles.mediaUnavailable(url);
+        original.liveSubtitles.deferMediaRetry();
+      }
+      AppDiagnostics.instance.recordError(
+        'subtitle_media_prebuffer',
+        error,
+        stack,
+      );
+    } finally {
+      if (identical(_subtitleWarmPlayer, candidate)) _subtitleWarmPlayer = null;
+      if (!promoted && !identical(_player, candidate))
+        await candidate.dispose();
     }
   }
 
@@ -1068,8 +1163,10 @@ class PlayerService {
     required bool allowAudioOnly,
     required bool requireUltraHd,
     bool Function()? stillValid,
+    Duration timeout = const Duration(seconds: 15),
+    double minimumCacheSeconds = 0,
   }) async {
-    final deadline = DateTime.now().add(const Duration(seconds: 15));
+    final deadline = DateTime.now().add(timeout);
     final stopwatch = Stopwatch()..start();
     var startingPosition = candidate.state.position;
     var positionAdvanced = false;
@@ -1103,15 +1200,21 @@ class PlayerService {
         advanced: positionAdvanced,
         allowAudioOnly: allowAudioOnly,
       );
-      if (requireUltraHd && width > 0 && height > 0 &&
-          width < 3000 && height < 1700) {
+      if (requireUltraHd &&
+          width > 0 &&
+          height > 0 &&
+          width < 3000 &&
+          height < 1700) {
         AppDiagnostics.instance.log('channel_preload_rejected_resolution', {
           'width': width,
           'height': height,
         });
         return false;
       }
-      if (!allowAudioOnly && positionAdvanced && hasAudio && !hasVideo &&
+      if (!allowAudioOnly &&
+          positionAdvanced &&
+          hasAudio &&
+          !hasVideo &&
           stopwatch.elapsed >= const Duration(seconds: 5)) {
         AppDiagnostics.instance.log('channel_preload_audio_only', {
           'positionMs': state.position.inMilliseconds,
@@ -1121,16 +1224,27 @@ class PlayerService {
         });
         return false;
       }
-      if (state.buffering && !hasAudio && !hasVideo &&
+      if (state.buffering &&
+          !hasAudio &&
+          !hasVideo &&
           state.position == Duration.zero &&
-          stopwatch.elapsed >= const Duration(seconds: 10)) {
+          stopwatch.elapsed >= timeout - const Duration(seconds: 5)) {
         AppDiagnostics.instance.log('channel_preload_no_signal');
         return false;
       }
-      readySince = ready ? (readySince ?? DateTime.now()) : null;
+      var enoughCache = minimumCacheSeconds == 0;
+      if (ready && !enoughCache) {
+        final native = candidate.platform;
+        if (native is native_player.NativePlayer) {
+          final cache = await native.getProperty('demuxer-cache-duration');
+          enoughCache = (double.tryParse(cache) ?? 0) >= minimumCacheSeconds;
+        }
+      }
+      readySince = ready && enoughCache ? (readySince ?? DateTime.now()) : null;
       if (readySince != null &&
           DateTime.now().difference(readySince) >=
-              const Duration(milliseconds: 700)) return true;
+              const Duration(milliseconds: 700))
+        return true;
       await Future<void>.delayed(const Duration(milliseconds: 300));
     }
     final state = candidate.state;
@@ -1291,7 +1405,7 @@ class PlayerService {
     _activePlayerController.add(candidate);
     if (native is native_player.NativePlayer) {
       try {
-        await native.setProperty('mute', 'no');
+        await native.setProperty('mute', Platform.environment['BOBTV_TEST_MUTE'] == '1' ? 'yes' : 'no');
       } catch (error) {
         AppDiagnostics.instance.log('prepared_player_unmute_failed', {
           'error': error.toString(),
@@ -3031,6 +3145,8 @@ class PlayerService {
 
   Future<void> _dispose() async {
     _disposed = true;
+    await _subtitleWarmPlayer?.dispose();
+    _subtitleWarmPlayer = null;
     ++_playGeneration;
     ++_channelSwitchGeneration;
     _bufferManager.stop();

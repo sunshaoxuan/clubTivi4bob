@@ -104,6 +104,16 @@ class SubtitleCacheTests(unittest.TestCase):
             cache.get_or_discover(self.film,directory,unavailable,requested_language='ja')
             self.assertEqual(len(calls),2)
 
+    def test_live_offsets_and_session_state_are_never_reused_from_cache(self):
+        with tempfile.TemporaryDirectory() as directory:
+            cache=SubtitleCache(directory)
+            row={**candidate(), 'offset':128.5, 'session':'old-session', 'adCalibration':{'delta':30}}
+            cache.get_or_discover(self.film,directory,lambda *a,**k:[row])
+            loaded,_=cache.load(Path(directory)/cache.identity(self.film))
+            self.assertNotIn('offset',loaded[0]);self.assertNotIn('session',loaded[0])
+            self.assertNotIn('adCalibration',loaded[0])
+            self.assertEqual(set(loaded[0]['tracks']),set(LANGUAGES))
+
     def test_editions_and_language_grids_are_not_combined(self):
         with tempfile.TemporaryDirectory() as directory:
             cache=SubtitleCache(directory);first=candidate(['en','ja']);second=candidate(['en','fr'])

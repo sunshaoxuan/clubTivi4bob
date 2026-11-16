@@ -110,6 +110,7 @@ class ManagedPlayer extends Player {
   Media? _fallbackMedia;
   Media? _requestedMedia;
   int subtitleMediaAutoOpens = 0;
+  Duration subtitleStartupGrace = const Duration(seconds: 10);
   Timer? _fallbackTimer;
   late final StreamSubscription<bool> _fallbackBuffering, _fallbackPlaying;
 
@@ -154,7 +155,7 @@ class ManagedPlayer extends Player {
       return;
     }
     final generation = _openGeneration;
-    _fallbackTimer ??= Timer(const Duration(seconds: 10), () {
+    _fallbackTimer ??= Timer(subtitleStartupGrace, () {
       _fallbackTimer = null;
       unawaited(_fallbackToOriginal(generation));
     });

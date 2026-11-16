@@ -126,7 +126,7 @@ class SubtitleCache:
                 digest = hashlib.sha256(raw).hexdigest()
                 atomic(self.root/'blobs'/(digest+'.srt'), raw)
                 records[language] = dict(sha256=digest, bytes=len(raw), provenance=facts)
-            metadata = {k:v for k,v in candidate.items() if k not in ('tracks','provenance','cacheHit')}
+            metadata = {k:candidate[k] for k in ('page','label','searchUrl','rejectedClockGridLanguages') if k in candidate}
             edition = hashlib.sha256(json.dumps([candidate['page'], records['en']['sha256']], sort_keys=True).encode()).hexdigest()
             editions.append(dict(id=edition, metadata=metadata, tracks=records))
         available = {lang for e in editions for lang in e['tracks']}

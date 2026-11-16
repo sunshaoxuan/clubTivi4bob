@@ -53,14 +53,14 @@ Future<void> main() async {
           beforeOpen: routeSync!.beforeOpen,
         );
   final service = PlayerService(retirementGuard: guard);
-  final player = service.player as ManagedPlayer;
+  var player = service.player as ManagedPlayer;
   final video = service.videoController;
   player.stream.buffering.listen(service.onBufferingChanged);
   final layout = ValueNotifier<int>(0);
   final output = File('${directory.path}/observations.jsonl').openWrite();
   SubtitlePreferences.instance.choose(AppLanguage.simplifiedChinese);
   final mpvLog = File('${directory.path}/mpv.jsonl').openWrite();
-  final logSubscription = player.stream.log.listen(
+  var logSubscription = player.stream.log.listen(
     (entry) => mpvLog.writeln(
       jsonEncode({
         'at': DateTime.now().toUtc().toIso8601String(),
@@ -105,7 +105,13 @@ Future<void> main() async {
             child: SizedBox(
               width: [850.0, 420.0, 280.0][value],
               height: [580.0, 315.0, 210.0][value],
-              child: BobtvVideo(controller: video, controls: NoVideoControls),
+              child: ValueListenableBuilder<VideoController?>(
+                valueListenable: service.activeVideoController,
+                builder: (_, active, __) => BobtvVideo(
+                  controller: active ?? video,
+                  controls: NoVideoControls,
+                ),
+              ),
             ),
           ),
         ),
@@ -127,6 +133,7 @@ Future<void> main() async {
   Timer? timer;
   timer = Timer.periodic(const Duration(milliseconds: 50), (_) async {
     final elapsed = DateTime.now().difference(started).inMilliseconds / 1000;
+    player = service.player as ManagedPlayer;
     final position = player.state.position.inMicroseconds / 1000000;
     final next = (position ~/ 30) % 3;
     if (layout.value != next) layout.value = next;
@@ -173,6 +180,7 @@ Future<void> main() async {
           'routeSyncFetches': syncFetches,
           'subtitleStatus': player.liveSubtitles.status.value.name,
           'subtitleMediaAutoOpens': player.subtitleMediaAutoOpens,
+          'subtitleMediaPromotions': service.subtitleMediaPromotions,
           'finalMediaPath': await service.getMpvProperty('path'),
           'videoWidth': await service.getMpvProperty('video-params/w'),
           'videoHeight': await service.getMpvProperty('video-params/h'),

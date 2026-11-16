@@ -13,8 +13,10 @@ matched file available. Insertion status follows decoded playback position.
 
 Cold sessions continue polling discovery while the original stream plays.
 Once a matched language and normalized media are ready, a guarded automatic
-connection rebases the session to the latest buffered live window. Old response
-generations are rejected. A media failure falls back to the provider and cools
+connection first opens a separate muted decoder. Promotion requires decoded
+frames, advancing playback, and at least eight seconds of buffered media. Failed
+preparation leaves the original decoder playing. Old response generations and
+superseded channel selections are rejected. A media failure falls back to the provider and cools
 auto-connection for five minutes while discovery/status polling continues.
 Expired sessions and missing programme information retry automatically.
 

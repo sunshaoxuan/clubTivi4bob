@@ -43,6 +43,7 @@ class LiveSubtitleSession {
   String? _remotePhase;
   List<String> _availableLanguages = const [];
   bool _mediaAttached = false;
+  bool get hasAttachedMedia => _mediaAttached;
   bool _playbackReady = false;
   Future<void> Function()? onMediaReady;
   Timer? _retry;

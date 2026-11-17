@@ -15,6 +15,7 @@ import 'adaptive_buffer.dart';
 import 'prepared_channel_commit_gate.dart';
 import 'playback_stall_detector.dart';
 import 'stream_proxy.dart';
+import 'hls_buffer_proxy.dart';
 import '../../data/services/channel_name_normalizer.dart';
 import '../../data/services/stream_alternatives_service.dart';
 import '../../data/services/stream_health_tracker.dart';
@@ -1604,7 +1605,9 @@ class PlayerService {
       _openAllowedMedia(player, activeUrl),
       generation: playGeneration,
       step: 'open_media',
-      timeout: const Duration(seconds: 5),
+      timeout: isActionMoviesUk(activeUrl)
+            ? const Duration(seconds: 35)
+            : const Duration(seconds: 5),
     );
     if (!opened) {
       _failedFailoverUrls.add(activeUrl);
@@ -1655,7 +1658,9 @@ class PlayerService {
           _openAllowedMedia(player, activeUrl),
           generation: playGeneration,
           step: 'restore_requested_media',
-          timeout: const Duration(seconds: 5),
+          timeout: isActionMoviesUk(activeUrl)
+            ? const Duration(seconds: 35)
+            : const Duration(seconds: 5),
         );
         if (!restored) {
           _failedFailoverUrls.add(activeUrl);
@@ -3052,7 +3057,9 @@ class PlayerService {
         _openAllowedMedia(player, candidateUrl),
         generation: playGeneration,
         step: 'failover_open_media',
-        timeout: const Duration(seconds: 5),
+        timeout: isActionMoviesUk(candidateUrl)
+            ? const Duration(seconds: 35)
+            : const Duration(seconds: 5),
       );
       if (!opened) return false;
       await _runPlayStep(
@@ -3123,7 +3130,9 @@ class PlayerService {
       _openAllowedMedia(player, previousUrl),
       generation: playGeneration,
       step: 'failover_restore_media',
-      timeout: const Duration(seconds: 5),
+      timeout: isActionMoviesUk(previousUrl)
+            ? const Duration(seconds: 35)
+            : const Duration(seconds: 5),
     );
     if (restored) {
       await _runPlayStep(

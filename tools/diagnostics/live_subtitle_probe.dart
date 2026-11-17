@@ -112,7 +112,7 @@ Future<void> main() async {
               height: [580.0, 315.0, 210.0][value],
               child: ValueListenableBuilder<VideoController?>(
                 valueListenable: service.activeVideoController,
-                builder: (_, active, __) => BobtvVideo(
+                builder: (_, active, _) => BobtvVideo(
                   controller: active ?? video,
                   controls: NoVideoControls,
                 ),

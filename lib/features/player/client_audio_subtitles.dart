@@ -39,7 +39,8 @@ class ClientAudioSubtitles {
   Process? _worker;
   Directory? _directory;
   StreamSubscription<String>? _lines;
-  Timer? _timer, _poll;
+  Timer? _timer, _poll, _startupRetry;
+  int _startupFailures = 0;
   final _client = http.Client();
   bool _polling = false;
   Completer<Map<String, dynamic>>? _recognition;
@@ -59,6 +60,42 @@ class ClientAudioSubtitles {
   NativePlayer? get _native =>
       player.platform is NativePlayer ? player.platform as NativePlayer : null;
   Future<void> start(String source, Map<String, Object?>? programme) async {
+    if (_disposed) return;
+    _startupRetry?.cancel();
+    try {
+      await _start(source, programme);
+      _startupFailures = 0;
+    } catch (_) {
+      _timer?.cancel();
+      _poll?.cancel();
+      final worker = _worker;
+      _worker = null;
+      worker?.kill();
+      await _lines?.cancel();
+      _lines = null;
+      try {
+        await worker?.exitCode.timeout(const Duration(seconds: 2));
+      } catch (_) {}
+      try {
+        await _directory?.delete(recursive: true);
+      } catch (_) {}
+      _directory = null;
+      _session = null;
+      if (_disposed) return;
+      failed();
+      final seconds = math.min(60, 5 * (1 << math.min(_startupFailures++, 4)));
+      AppDiagnostics.instance.log('client_subtitle_start_retry', {
+        'delaySeconds': seconds,
+      });
+      _startupRetry = Timer(Duration(seconds: seconds), () {
+        // The server resolves the current programme again on every retry.
+        unawaited(start(source, null).catchError((Object _) {}));
+      });
+      rethrow;
+    }
+  }
+
+  Future<void> _start(String source, Map<String, Object?>? programme) async {
     _source = source;
     final body = await _post('sessions', {
       'source': source,
@@ -144,6 +181,10 @@ class ClientAudioSubtitles {
         .timeout(const Duration(seconds: 8));
     downloadedBytes += response.bodyBytes.length;
     if (response.statusCode != 200) {
+      AppDiagnostics.instance.log('client_subtitle_http_error', {
+        'status': response.statusCode,
+        'operation': path.contains('observations') ? 'observations' : 'session',
+      });
       throw HttpException('Subtitle response ${response.statusCode}');
     }
     return jsonDecode(response.body) as Map<String, dynamic>;
@@ -455,6 +496,7 @@ class ClientAudioSubtitles {
 
   Future<void> dispose() async {
     _disposed = true;
+    _startupRetry?.cancel();
     _timer?.cancel();
     _poll?.cancel();
     _client.close();

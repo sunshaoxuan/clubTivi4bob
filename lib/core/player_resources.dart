@@ -169,7 +169,14 @@ class ManagedPlayer extends Player {
       return;
     }
     final generation = _openGeneration;
-    _fallbackTimer ??= Timer(subtitleStartupGrace, () {
+    final grace =
+        Platform.isAndroid &&
+            _hlsBuffer.linearClockReady &&
+            state.position < const Duration(seconds: 2) &&
+            subtitleStartupGrace < const Duration(seconds: 30)
+        ? const Duration(seconds: 30)
+        : subtitleStartupGrace;
+    _fallbackTimer ??= Timer(grace, () {
       _fallbackTimer = null;
       unawaited(_fallbackToOriginal(generation));
     });

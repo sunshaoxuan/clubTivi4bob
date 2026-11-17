@@ -71,7 +71,11 @@ class AndroidVideoController extends PlatformVideoController {
       // Instead of seeking to the start (Duration.zero), seek to the current playback position
       // without jumping the user to the start of the media.
       final currentPosition = player.state.position;
-      await player.seek(currentPosition);
+      // Stream-copy live pipes cannot seek. Reinitializing their surface must
+      // preserve the running clock instead of requesting an unsupported seek.
+      if (await platform.getProperty('seekable') == 'yes') {
+        await player.seek(currentPosition);
+      }
     });
   }
 

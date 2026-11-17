@@ -31,6 +31,8 @@ def prepare(app,cmake):
     for file in (binary,model,source/'LICENSE',ROOT/'tools/native/client_asr.cpp'):shutil.copy2(file,target/file.name)
     (target/'receipt.json').write_text(json.dumps(dict(sourceCommit=COMMIT,modelSha256=MODEL_SHA,scope='Mac native client pilot',architecture=subprocess.check_output(['uname','-m'],text=True).strip()),indent=2))
     run('codesign','--force','--sign','-',target/binary.name)
+    from prepare_client_remux import prepare as prepare_remux
+    prepare_remux(app)
     run('codesign','--force','--deep','--sign','-',app)
 if __name__=='__main__':
     p=argparse.ArgumentParser();p.add_argument('app',type=Path);p.add_argument('--cmake',default=shutil.which('cmake'));a=p.parse_args()

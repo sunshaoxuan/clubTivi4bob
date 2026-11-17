@@ -261,6 +261,14 @@ class ClientAudioSubtitles {
     onChanged();
   }
 
+  void clockUnavailable() {
+    _workerFailed = true;
+    _timeline = null;
+    text = '';
+    phase = SubtitlePhase.serviceUnavailable;
+    onChanged();
+  }
+
   Future<void> _tick() async {
     if (_disposed || _sampling || !_active) return;
     _sampling = true;

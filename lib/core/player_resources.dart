@@ -110,6 +110,7 @@ class ManagedPlayer extends Player {
   bool _liveStartOptionApplied = false;
   String? _previousLiveDiskCache;
   String? _previousLiveTimestampPolicy;
+  String? _previousLiveNetworkTimeout;
   Media? _fallbackMedia;
   Media? _requestedMedia;
   int subtitleMediaAutoOpens = 0;
@@ -233,12 +234,16 @@ class ManagedPlayer extends Player {
       final native = platform;
       if (native is native_player.NativePlayer) {
         if (isActionMoviesUk(playable.uri)) {
+          _previousLiveNetworkTimeout ??= await native.getProperty(
+            'network-timeout',
+          );
+          await native.setProperty('network-timeout', '30');
           _previousLiveDiskCache ??= await native.getProperty('cache-on-disk');
           await native.setProperty('cache-on-disk', 'no');
           _previousLiveTimestampPolicy ??= await native.getProperty(
             'demuxer-lavf-linearize-timestamps',
           );
-          await native.setProperty('demuxer-lavf-linearize-timestamps', 'yes');
+          await native.setProperty('demuxer-lavf-linearize-timestamps', 'no');
           await native.command([
             'change-list',
             'demuxer-lavf-o',
@@ -255,6 +260,13 @@ class ManagedPlayer extends Player {
           ]);
           _liveStartOptionApplied = true;
         } else if (_liveStartOptionApplied) {
+          if (_previousLiveNetworkTimeout != null) {
+            await native.setProperty(
+              'network-timeout',
+              _previousLiveNetworkTimeout!,
+            );
+            _previousLiveNetworkTimeout = null;
+          }
           if (_previousLiveTimestampPolicy != null) {
             await native.setProperty(
               'demuxer-lavf-linearize-timestamps',
@@ -282,8 +294,14 @@ class ManagedPlayer extends Player {
         }
         _hlsBuffer.captureClock = liveSubtitles.usesClientAudio;
         uri = await _hlsBuffer.start(uri, playable.httpHeaders);
+        if (Platform.isMacOS &&
+            liveSubtitles.usesClientAudio &&
+            !_hlsBuffer.linearClockReady) {
+          liveSubtitles.mediaClockUnavailable();
+        }
       }
       if (generation != _openGeneration) return;
+      if (uri != playable.uri) _fallbackMedia ??= playable;
       await super.open(
         uri == playable.uri
             ? playable

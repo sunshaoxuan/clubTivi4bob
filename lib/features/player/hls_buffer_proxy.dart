@@ -2,6 +2,8 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import '../../core/server_egress.dart';
+import '../../core/app_diagnostics.dart';
+import 'hls_linearized_pipe.dart';
 
 const actionMoviesLegacyConfig = 'production-LiveChannel-6065';
 const actionMoviesCurrentConfig = 'production-hls-aes128-rtv-6065-playout';
@@ -230,6 +232,8 @@ class HlsBufferProxy {
     return lines.join('\n');
   }
 
+  final _linearized = HlsLinearizedPipe();
+  bool linearClockReady = false;
   HttpServer? _server;
   HttpClient? _client;
   final _sources = <String, Uri>{};
@@ -368,11 +372,28 @@ class HlsBufferProxy {
         }
       }
     });
-    return _register(origin);
+    final playlist = _register(origin);
+    if (Platform.isMacOS && captureClock) {
+      try {
+        final media = await _linearized.start(playlist);
+        linearClockReady = true;
+        return media;
+      } on Object catch (error) {
+        await _linearized.stop();
+        captureClock = false;
+        AppDiagnostics.instance.log('client_remux_unavailable', {
+          'errorType': error.runtimeType.toString(),
+          'providerPlaybackContinues': true,
+        });
+      }
+    }
+    return playlist;
   }
 
   Future<void> stop() async {
     ++_generation;
+    await _linearized.stop();
+    linearClockReady = false;
     final server = _server;
     _server = null;
     _client?.close(force: true);

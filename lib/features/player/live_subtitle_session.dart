@@ -316,6 +316,10 @@ class LiveSubtitleSession {
     }
   }
 
+  void mediaClockUnavailable() {
+    _localAudio?.clockUnavailable();
+  }
+
   void mediaUnavailable(String source) {
     _source = source;
     _phase = SubtitlePhase.serviceUnavailable;

@@ -130,6 +130,33 @@ Future<void> main() async {
   final limit = int.parse(
     Platform.environment['BOBTV_SUBTITLE_PROBE_SECONDS'] ?? '285',
   );
+  final nativeClock = File('${directory.path}/native-clock.jsonl').openWrite();
+  var nativePollBusy = false;
+  final nativePoll = Timer.periodic(const Duration(seconds: 1), (_) async {
+    if (nativePollBusy) return;
+    nativePollBusy = true;
+    try {
+      final row = <String, Object?>{
+        'at': DateTime.now().toUtc().toIso8601String(),
+      };
+      for (final key in [
+        'time-pos',
+        'demuxer-start-time',
+        'audio-pts',
+        'video-pts',
+        'avsync',
+        'demuxer-cache-duration',
+        'paused-for-cache',
+        'cache-on-disk',
+        'demuxer-lavf-linearize-timestamps',
+      ]) {
+        row[key] = await service.getMpvProperty(key);
+      }
+      nativeClock.writeln(jsonEncode(row));
+    } finally {
+      nativePollBusy = false;
+    }
+  });
   Timer? timer;
   timer = Timer.periodic(const Duration(milliseconds: 50), (_) async {
     final elapsed = DateTime.now().difference(started).inMilliseconds / 1000;
@@ -153,6 +180,11 @@ Future<void> main() async {
         File('${directory.path}/STOP').existsSync() ||
         (position > 260 && player.state.completed)) {
       timer?.cancel();
+      nativePoll.cancel();
+      while (nativePollBusy) {
+        await Future<void>.delayed(const Duration(milliseconds: 10));
+      }
+      await nativeClock.close();
       await output.close();
       await File('${directory.path}/result.json').writeAsString(
         jsonEncode({

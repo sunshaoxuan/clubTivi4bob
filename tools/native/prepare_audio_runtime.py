@@ -46,6 +46,8 @@ def prepare(platform, arch, output):
                     data = incoming.read(entry.filename)
                     if entry.filename == 'META-INF/bobtv-native-runtime.json':
                         entry.filename = f'META-INF/bobtv-native-runtime-{architecture}.json'
+                    elif entry.filename.startswith('META-INF/sources-and-licenses/'):
+                        entry.filename = entry.filename.replace('META-INF/sources-and-licenses/', f'META-INF/sources-and-licenses/{architecture}/', 1)
                     outgoing.writestr(entry, data)
         else:
             with zipfile.ZipFile(path) as archive:

@@ -399,7 +399,11 @@ class ClientAudioSubtitles {
         ));
       }
       _lastEnd = end;
-      _chunks.removeWhere((c) => c.start + c.bytes.length / 32000 < end - 32);
+      // Bound decoder work on mobile while retaining overlapping dialogue.
+      final windowSeconds = Platform.isAndroid ? 16.0 : 32.0;
+      _chunks.removeWhere(
+        (c) => c.start + c.bytes.length / 32000 < end - windowSeconds,
+      );
       final duration = _chunks.isEmpty ? 0 : end - _chunks.first.start;
       if (!_recognizing && duration >= 12 && end - _lastAnalysisEnd >= 6) {
         _lastAnalysisEnd = end;

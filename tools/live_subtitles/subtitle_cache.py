@@ -12,6 +12,7 @@ import time
 import unicodedata
 from urllib.parse import urlsplit
 
+from subtitle_identity import resolve as resolve_identity
 from subtitle_catalog import LANGUAGES, parse_srt, matches_movie_title, resource_path
 
 NEGATIVE_TTL = 900
@@ -114,7 +115,7 @@ class SubtitleCache:
         try:
             url=urlsplit(record['url']);language=record['language'];sha=record['sha256']
             if (language not in LANGUAGES or url.scheme!='https' or url.username
-                    or url.port not in (None,443) or url.hostname not in ('www.subtitlecat.com','dl.subdl.com')
+                    or url.port not in (None,443) or url.hostname not in ('www.subtitlecat.com','dl.subdl.com','subs5.strem.io')
                     or not re.fullmatch(r'[0-9a-f]{64}',sha)):
                 return None
             raw=(Path(root)/(sha+'.srt')).read_bytes()
@@ -200,11 +201,15 @@ class SubtitleCache:
 
     def get_or_discover(self, programme, download_root, discover, *, requested_language='en'):
         if requested_language not in LANGUAGES: raise ValueError('unsupported_language')
+        programme=resolve_identity(programme,self.root)
         with self.locked(self.identity(programme)) as folder:
             cached, searches = self.load(folder)
-            try:resource_schema=json.loads((folder/'index.json').read_text()).get('resourceSchemaVersion',0)
+            try:
+                manifest=json.loads((folder/'index.json').read_text())
+                resource_schema=manifest.get('resourceSchemaVersion',0)
+                if programme.get('imdbId') and 'imdb:'+programme['imdbId'] not in manifest.get('identity',[]):resource_schema=0
             except (OSError,ValueError):resource_schema=0
-            if resource_schema < 2:searches={}
+            if resource_schema < 2:searches={k:v for k,v in searches.items() if v.get('outcome')=='temporarily_unavailable'}
             if not cached and not searches and self.import_existing(programme, folder):
                 cached, searches = self.load(folder)
             admitted = [c for c in cached if matches_movie_title(c.get('label',''), programme['title'], programme['year'])]
@@ -243,6 +248,6 @@ class SubtitleCache:
                 if previous:
                     candidate = {**candidate,'tracks':{**previous['tracks'],**candidate['tracks']},'provenance':{**previous.get('provenance',{}),**candidate.get('provenance',{})}}
                 merged[key] = candidate
-            values = list(merged.values())
+            values = sorted(merged.values(),key=lambda c: 0 if c.get('provenance',{}).get('en',{}).get('provider')=='OpenSubtitles via Stremio' else 1)
             self.store(folder, programme, values, download_root)
             return values

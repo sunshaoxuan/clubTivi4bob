@@ -67,7 +67,7 @@ class TextHub:
             if 'clientClockV1' not in features or not self.valid_context(source,context) or language not in LANGUAGES:raise ValueError('client_clock_required')
             if len(self.sessions)>=32:raise RuntimeError('pilot_capacity')
             token=uuid.uuid4().hex
-            self.sessions[token]=dict(source=source,lastAccess=time.time(),language=language,epoch=None,asset=None,reference=None,rate=1.,intercept=None,points={},windows=[],lastObservation=-1,programmeKey=self.programme['key'],ad=False,lastWindow=None)
+            self.sessions[token]=dict(source=source,lastAccess=time.time(),language=language,epoch=None,asset=None,reference=None,rate=1.,intercept=None,points={},windows=[],lastObservation=-1,programmeKey=self.programme['key'],ad=False,lastWindow=None,unmatchedWindows=0,exhausted=False)
             return token
     def ingest(self,token,data):
         with self.lock:
@@ -93,7 +93,7 @@ class TextHub:
                     session.pop('priorReference',None);session.pop('priorRate',None)
                 elif session['reference'] is not None:
                     session['priorReference']=session['reference'];session['priorRate']=session['rate']
-                session.update(epoch=epoch,asset=asset,reference=None,intercept=None,rate=1.,points={},programmeKey=self.programme['key'])
+                session.update(epoch=epoch,asset=asset,reference=None,intercept=None,rate=1.,points={},programmeKey=self.programme['key'],unmatchedWindows=0,exhausted=False)
             session.update(lastObservation=serial,lastAccess=time.time(),lastWindow=dict(start=start,end=end),ad=ad)
             if ad:
                 session['windows']=[w for w in session['windows'] if w['end']<=start]
@@ -118,6 +118,7 @@ class TextHub:
                 if offset is not None:selected=(candidate,anchors);break
             if selected is None:
                 if len(words)>=10:
+                    session['unmatchedWindows']+=1;session['exhausted']=session['unmatchedWindows']>=3
                     session['reference']=None;session['intercept']=None;session['windows']=[w for w in session['windows'] if w['end']<=start]
                     self.event('unmatched_speech',session=token,start=start,end=end,words=len(words))
                 return
@@ -129,7 +130,7 @@ class TextHub:
             rate=proposal['rate'] if proposal else session['rate']
             intercept=proposal['intercept'] if proposal else statistics.median(a['subtitleStart']-rate*a['asrStart'] for a in anchors)
             prior=session['intercept'];residuals=[(a['subtitleStart']-(session['rate']*a['asrStart']+prior))/session['rate'] for a in anchors] if prior is not None else []
-            session.update(reference=candidate,intercept=intercept,rate=rate)
+            session.update(reference=candidate,intercept=intercept,rate=rate,unmatchedWindows=0,exhausted=False)
             # Refresh only observed movie windows; ad intervals remain excluded.
             movie_end=end+12
             tracks=[]
@@ -142,7 +143,7 @@ class TextHub:
     def response(self,token,position=None):
         with self.lock:
             s=self.sessions[token];s['lastAccess']=time.time();valid=self.valid_context(s['source'],None)
-            phase='programme_unavailable' if not valid else 'service_unavailable' if self.discovery_error else 'searching' if self.candidates is None else 'unavailable' if not self.candidates else 'matched' if s['reference'] else 'synchronizing'
+            phase='programme_unavailable' if not valid else 'service_unavailable' if self.discovery_error else 'searching' if self.candidates is None else 'unavailable' if not self.candidates or s['exhausted'] else 'matched' if s['reference'] else 'synchronizing'
             return dict(session=token,source=s['source'],clientClock=True,playbackReady=False,playbackUrl=s['source'],programmeKey=self.programme['key'],programme=self.programme,mediaClockOrigin=0,subtitleStatus=dict(phase=phase,availableLanguages=sorted(s['reference']['tracks']) if s['reference'] else [],cacheHit=bool(self.candidates and all(c.get('cacheHit') for c in self.candidates))),windows=s['windows'] if valid and s['programmeKey']==self.programme['key'] else [])
     def maintain(self):
         next_guide=time.monotonic()+25

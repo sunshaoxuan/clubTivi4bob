@@ -67,6 +67,17 @@ class ClientClockTests(unittest.TestCase):
             h=self.hub(d);t=h.create(h.source,None,'en',['clientClockV1'])
             for change in [dict(start=float('nan')),dict(epoch=True),dict(words=[dict(word='x'*201,start=0,end=1,probability=.9)]),dict(end=1000)]:
                 with self.assertRaises(ValueError):h.ingest(t,self.observation(h,**change))
+    def test_failed_speech_does_not_leave_an_endless_sync_hint(self):
+        with tempfile.TemporaryDirectory() as d:
+            h=self.hub(d);t=h.create(h.source,None,'en',['clientClockV1'])
+            words=[dict(word='unrelated',start=i,end=i+.1,probability=.9) for i in range(10)]
+            with patch('client_clock.align',return_value=(None,[])):
+                for serial in range(1,4):h.ingest(t,self.observation(h,serial=serial,words=words))
+            self.assertEqual(h.response(t)['subtitleStatus']['phase'],'unavailable')
+            with patch('client_clock.align',return_value=(100,self.anchors())):
+                h.ingest(t,self.observation(h,serial=4,words=words))
+            self.assertEqual(h.response(t)['subtitleStatus']['phase'],'matched')
+
     def test_expired_programme_never_emits_subtitles(self):
         with tempfile.TemporaryDirectory() as d:
             h=self.hub(d);t=h.create(h.source,None,'en',['clientClockV1']);h.programme['stopUtc']=time.time()-1

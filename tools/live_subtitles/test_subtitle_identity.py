@@ -1,7 +1,7 @@
 import tempfile
 import unittest
 from unittest.mock import patch
-from subtitle_identity import resolve
+from subtitle_identity import resolve, release_year
 
 class IdentityTests(unittest.TestCase):
     film=dict(title='The Prince',year=2014,movieId='the-prince')
@@ -21,4 +21,13 @@ class IdentityTests(unittest.TestCase):
             for _ in range(2):resolve(self.film,root,clock=lambda:now[0])
             self.assertEqual(fetch.call_count,1);now[0]+=61;resolve(self.film,root,clock=lambda:now[0]);self.assertEqual(fetch.call_count,2)
             self.assertEqual(resolve(dict(self.film,imdbId='tt1085492'),root)['imdbId'],'tt1085492');self.assertEqual(fetch.call_count,2)
+    def test_release_year_requires_exact_imdb_title_and_movie_type(self):
+        film=dict(title='Nighthawks',year=2020,imdbId='tt6801218')
+        exact=dict(id='tt6801218',l='Nighthawks',y=2019,qid='movie')
+        for rows,expected in [([exact],2019),([dict(exact,id='tt0082817')],None),([dict(exact,l='Nighthawks II')],None),([dict(exact,qid='tvSeries')],None)]:
+            with tempfile.TemporaryDirectory() as root,patch('subtitle_identity.read',return_value=dict(d=rows)) as fetch:
+                for _ in range(2):self.assertEqual(release_year(film,root),expected)
+                self.assertEqual(fetch.call_count,1)
+                self.assertEqual(film['year'],2020)
+
 if __name__=='__main__':unittest.main()

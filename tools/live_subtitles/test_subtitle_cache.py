@@ -5,6 +5,7 @@ import tempfile
 import threading
 import time
 import unittest
+from unittest.mock import patch
 from subtitle_cache import SubtitleCache, movie_aliases, srt_bytes, NEGATIVE_TTL
 from subtitle_catalog import LANGUAGES
 
@@ -16,7 +17,25 @@ def candidate(languages=LANGUAGES):
 
 
 class SubtitleCacheTests(unittest.TestCase):
+    def setUp(self):
+        stub=patch('subtitle_cache.release_year',return_value=None);stub.start();self.addCleanup(stub.stop)
+
     film=dict(movieId='film',marketCode='uk',title='Film',year=2003,imdbId='tt1234567')
+
+    def test_imdb_release_year_retries_a_prior_negative_without_changing_epg_year(self):
+        with tempfile.TemporaryDirectory() as directory:
+            cache=SubtitleCache(Path(directory)/'cache');film=dict(self.film,year=2004);calls=[]
+            def find(title,year,*args,**kwargs):
+                calls.append(year)
+                return [candidate()] if year==2003 else []
+            self.assertEqual(cache.get_or_discover(film,Path(directory)/'download',find),[])
+            with patch('subtitle_cache.release_year',return_value=2003):
+                self.assertTrue(cache.get_or_discover(film,Path(directory)/'download',find))
+                self.assertTrue(cache.get_or_discover(film,Path(directory)/'download',find))
+            self.assertEqual(calls,[2004,2003])
+            index=json.loads(next((Path(directory)/'cache').glob('*/index.json')).read_text())
+            self.assertEqual(index['year'],2004);self.assertEqual(index['subtitleYear'],2003)
+            self.assertEqual(film['year'],2004)
 
     def test_all_seven_languages_survive_a_new_cache_instance_without_network(self):
         with tempfile.TemporaryDirectory() as directory:

@@ -12,7 +12,7 @@ import time
 import unicodedata
 from urllib.parse import urlsplit
 
-from subtitle_identity import resolve as resolve_identity
+from subtitle_identity import resolve as resolve_identity, release_year
 from subtitle_catalog import LANGUAGES, parse_srt, matches_movie_title, resource_path
 
 NEGATIVE_TTL = 900
@@ -175,7 +175,7 @@ class SubtitleCache:
         available = {lang for e in editions for lang in e['tracks']}
         searches = {lang:dict(checkedAt=self.clock(), outcome='cached' if lang in available else 'not_found_this_search') for lang in LANGUAGES}
         atomic(folder/'index.json', json.dumps(dict(schemaVersion=1, resourceSchemaVersion=2, identity=movie_aliases(programme),
-            title=programme['title'], year=programme['year'], editions=editions, resources=resources, searches=searches), ensure_ascii=False).encode())
+            title=programme['title'], year=programme['year'], subtitleYear=programme.get('subtitleYear',programme['year']), editions=editions, resources=resources, searches=searches), ensure_ascii=False).encode())
 
     def import_existing(self, programme, folder):
         for root in self.legacy_roots:
@@ -208,11 +208,17 @@ class SubtitleCache:
                 manifest=json.loads((folder/'index.json').read_text())
                 resource_schema=manifest.get('resourceSchemaVersion',0)
                 if programme.get('imdbId') and 'imdb:'+programme['imdbId'] not in manifest.get('identity',[]):resource_schema=0
-            except (OSError,ValueError):resource_schema=0
+            except (OSError,ValueError):resource_schema=0;manifest={}
             if resource_schema < 2:searches={k:v for k,v in searches.items() if v.get('outcome')=='temporarily_unavailable'}
             if not cached and not searches and self.import_existing(programme, folder):
                 cached, searches = self.load(folder)
-            admitted = [c for c in cached if matches_movie_title(c.get('label',''), programme['title'], programme['year'])]
+            lookup_year=programme['year']
+            if not cached or manifest.get('subtitleYear',programme['year'])!=programme['year']:
+                verified_year=release_year(programme,self.root)
+                if verified_year is not None:lookup_year=verified_year
+                if lookup_year!=manifest.get('subtitleYear',programme['year']):searches={}
+            programme={**programme,'subtitleYear':lookup_year}
+            admitted = [c for c in cached if matches_movie_title(c.get('label',''), programme['title'], lookup_year)]
             if len(admitted) != len(cached):
                 # Old prefix matches must neither poison this IMDb identity nor
                 # retain their negative language-search TTL after rejection.
@@ -229,7 +235,7 @@ class SubtitleCache:
             if not cached and fresh_miss: return []
             self.hydrate_resources(folder,download_root)
             try:
-                found = discover(programme['title'], programme['year'], download_root, requested_language=requested_language, imdb_id=programme.get('imdbId'))
+                found = discover(programme['title'], lookup_year, download_root, requested_language=requested_language, imdb_id=programme.get('imdbId'))
             except Exception:
                 try: manifest = json.loads((folder/'index.json').read_text())
                 except (OSError, ValueError): manifest = dict(schemaVersion=1, identity=movie_aliases(programme), title=programme['title'], year=programme['year'], editions=[], searches={})

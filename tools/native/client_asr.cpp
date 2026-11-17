@@ -8,9 +8,29 @@
 #include <vector>
 #include <chrono>
 #include <cmath>
+#if defined(_WIN32) && defined(__x86_64__)
+#include <cpuid.h>
+static bool fast_cpu(){
+ unsigned a,b,c,d;if(!__get_cpuid(1,&a,&b,&c,&d))return false;
+ const unsigned required=(1u<<27)|(1u<<28)|(1u<<12)|(1u<<29);
+ if((c&required)!=required)return false;
+ unsigned low,high;__asm__ volatile("xgetbv":"=a"(low),"=d"(high):"c"(0));
+ if((low&6)!=6)return false;
+ if(!__get_cpuid_count(7,0,&a,&b,&c,&d))return false;
+ return (b&((1u<<5)|(1u<<8)))==((1u<<5)|(1u<<8));
+}
+#endif
 using json=nlohmann::json;
 int main(int argc,char **argv) {
  if(argc!=2)return 2;
+ if(std::string(argv[1])=="--capabilities"){
+#if defined(_WIN32) && defined(__x86_64__)
+  std::cout<<json({{"avx2",fast_cpu()}}).dump()<<std::endl;
+#else
+  std::cout<<"{\"avx2\":false}"<<std::endl;
+#endif
+  return 0;
+ }
  whisper_log_set([](ggml_log_level,const char*,void*){},nullptr);
  auto cp=whisper_context_default_params();cp.use_gpu=false;cp.flash_attn=false;cp.dtw_token_timestamps=true;cp.dtw_aheads_preset=WHISPER_AHEADS_BASE_EN;
  std::ifstream model(std::filesystem::u8path(argv[1]),std::ios::binary);if(!model)return 3;

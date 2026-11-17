@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/services.dart';
 
@@ -28,6 +29,16 @@ class ClientSubtitleRuntime {
         asr = '$root/bobtv-client-asr$suffix';
         remux = '$root/bobtv-client-remux$suffix';
         model = '$root/ggml-base.en-q5_1.bin';
+        if (Platform.isWindows &&
+            await File('$root/bobtv-client-asr-avx2.exe').exists()) {
+          final capability = await Process.run(asr!, [
+            '--capabilities',
+          ]).timeout(const Duration(seconds: 3));
+          if (capability.exitCode == 0 &&
+              jsonDecode(capability.stdout as String)['avx2'] == true) {
+            asr = '$root/bobtv-client-asr-avx2.exe';
+          }
+        }
       }
       if (!available ||
           !await File(asr!).exists() ||

@@ -16,6 +16,7 @@ import time
 import uuid
 from live_engine import align, fit_clock_rate, clock_rate_confident
 from subtitle_catalog import discover, LANGUAGES
+from service import reviewed_pilot_source
 
 
 def finite(value, low, high):
@@ -63,7 +64,7 @@ class TextHub:
             finally:self.discovery_busy=False;self.last_discovery=time.monotonic()
         threading.Thread(target=work,daemon=True).start()
     def valid_context(self,source,programme):
-        return source==self.source and not self.gap and time.time()<self.programme['stopUtc'] and time.time()-self.last_guide_success<=120 and (programme is None or isinstance(programme,dict) and programme.get('key')==self.programme['key'])
+        return (source==self.source or reviewed_pilot_source(source) and reviewed_pilot_source(self.source)) and not self.gap and time.time()<self.programme['stopUtc'] and time.time()-self.last_guide_success<=120 and (programme is None or isinstance(programme,dict) and programme.get('key')==self.programme['key'])
     def create(self,source,context,language,features=()):
         with self.lock:
             if 'clientClockV1' not in features or not self.valid_context(source,context) or language not in LANGUAGES:raise ValueError('client_clock_required')
@@ -95,8 +96,8 @@ class TextHub:
                 if session['programmeKey']!=self.programme['key']:
                     session.pop('priorReference',None);session.pop('priorRate',None);session.pop('lastMatchedReference',None)
                 elif session.get('reference') is not None or session.get('lastMatchedReference') is not None:
-                    session['priorReference']=session['reference'] or session['lastMatchedReference'];session['priorRate']=session['rate']
-                session.update(epoch=epoch,asset=asset,reference=None,intercept=None,rate=session.get('priorRate',1.),points={},programmeKey=self.programme['key'],unmatchedWindows=0,exhausted=False,pendingAnchors={})
+                    session['priorReference']=session['reference'] or session['lastMatchedReference'];session['priorRate']=session['rate'];session['priorRateVerified']=session.get('rateVerified',False)
+                session.update(epoch=epoch,asset=asset,reference=None,intercept=None,rate=session.get('priorRate',1.),points={},rateVerified=False,programmeKey=self.programme['key'],unmatchedWindows=0,exhausted=False,pendingAnchors={})
             session.update(lastObservation=serial,lastAccess=time.time(),lastWindow=dict(start=start,end=end),ad=ad)
             if ad:
                 session['windows']=[w for w in session['windows'] if w['end']<=start]
@@ -125,7 +126,7 @@ class TextHub:
                 pending={key:a for key,a in pending.items() if end-60 <= a['asrStart'] <= end}
                 session['pendingAnchors'][candidate['page']]=pending
                 accumulated=list(pending.values())
-                known_rate=session.get('candidateKey')==candidate['page'] or candidate is prior
+                known_rate=(session.get('candidateKey')==candidate['page'] and session.get('rateVerified',False) or candidate is prior and session.get('priorRateVerified',False))
                 rates=[candidate_rate] if known_rate else [1.,24/25,(24000/1001)/25,25/24,25/(24000/1001)]
                 identity=candidate.get('provenance',{}).get('en',{}).get('imdbId')
                 bound=bool(isinstance(identity,str) and re.fullmatch(r'tt[0-9]{7,10}',identity) and
@@ -175,8 +176,8 @@ class TextHub:
                 session.update(candidateKey=candidate['page'],points={},intercept=None,rate=selected_rate)
             old_points=dict(session['points'])
             for a in anchors:session['points'][a['cue']]=dict(cue=a['cue'],sourcePts=a['asrStart'],subtitleStart=a['subtitleStart'])
-            points=list(session['points'].values())[-128:];proposal=fit_clock_rate(points)
-            rate=proposal['rate'] if proposal else session['rate']
+            points=list(session['points'].values())[-128:];proposal=fit_clock_rate(points,session['rate'])
+            rate=proposal['rate'] if proposal else session['rate'] if session.get('rateVerified',False) else selected_rate
             intercept=proposal['intercept'] if proposal else statistics.median(a['subtitleStart']-rate*a['asrStart'] for a in anchors)
             baseline=session.get('acceptedClock',{})
             baseline=baseline if baseline.get('page')==candidate['page'] else {}
@@ -198,7 +199,7 @@ class TextHub:
                 self.event('acoustic_clock_jump_confirmed',session=token,epoch=epoch,start=start,end=end,innovationSeconds=innovation)
             session.pop('clockJump',None)
             session['acceptedClock']=dict(page=candidate['page'],rate=rate,intercept=intercept)
-            session.update(lastMatchedReference=candidate,reference=candidate,intercept=intercept,rate=rate,unmatchedWindows=0,exhausted=False)
+            session.update(lastMatchedReference=candidate,reference=candidate,intercept=intercept,rate=rate,rateVerified=clock_rate_confident(points,rate,intercept),unmatchedWindows=0,exhausted=False)
             # Refresh only observed movie windows; ad intervals remain excluded.
             movie_end=end+12
             tracks=[]

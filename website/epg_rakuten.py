@@ -261,9 +261,9 @@ def verify_current_catalogue_route(channel_id, context, evidence):
             raise ValueError()
         for route in routes:
             uri = urlsplit(route['url'].split('|', 1)[0])
-            match = re.search(r'/production-LiveChannel-(\d+)/', uri.path)
+            match = re.search(r'/production-(?:LiveChannel-(\d+)|hls-aes128-rtv-(\d+)-playout)/', uri.path)
             if (uri.scheme != 'https' or not uri.hostname
-                    or not match or int(match[1]) != context['serviceId']):
+                    or not match or int(match[1] or match[2]) != context['serviceId']):
                 raise ValueError()
             if not uri.hostname.endswith('-'+context['marketCode']+'.fast.rakuten.tv'):
                 # Explicit delivery aliases only, reviewed against the same

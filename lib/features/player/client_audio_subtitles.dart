@@ -100,7 +100,11 @@ class ClientAudioSubtitles {
         });
     unawaited(worker.stderr.drain<void>());
     unawaited(
-      worker.exitCode.then((_) {
+      worker.exitCode.then((code) {
+        AppDiagnostics.instance.log('client_asr_exit', {
+          'code': code,
+          'current': identical(_worker, worker),
+        });
         if (!ready.isCompleted) {
           ready.completeError(StateError('Offline ASR worker exited'));
         }

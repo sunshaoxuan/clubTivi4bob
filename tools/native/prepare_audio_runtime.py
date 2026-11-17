@@ -16,7 +16,10 @@ def digest(path): return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
 def prepare(platform, arch, output):
-    lock = json.loads((ROOT / 'tools/native/runtime-lock.json').read_text())
+    lock_path = Path(os.environ.get('BOBTV_AUDIO_RUNTIME_LOCK', ROOT / 'tools/native/runtime-lock.json'))
+    lock = json.loads(lock_path.read_text())
+    if lock.get('pcmSourceSha256') and digest(ROOT / 'tools/native/af_bobtv_pcm.c') != lock['pcmSourceSha256']:
+        raise RuntimeError('The PCM source and native runtimes differ; rebuild the native artifacts')
     if digest(ROOT / 'tools/native/af_bobtv_spectrum.c') != lock['fftSourceSha256']:
         raise RuntimeError('The source and native FFT runtimes differ; rebuild the native artifacts')
     local = os.environ.get('BOBTV_AUDIO_RUNTIME_ARCHIVES')

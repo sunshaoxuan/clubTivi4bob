@@ -89,6 +89,9 @@ def test_changed_route_edition_suspends_mapping(monkeypatch,tmp_path):
     monkeypatch.setattr(epg_discovery,'load_catalog',lambda _:({},[row]))
     context={'marketCode':'uk','serviceId':6065};proof={'providerMarketCode':'uk','providerServiceId':6065}
     r._ROUTE_CACHE.clear();r.verify_current_catalogue_route('fixture',context,proof)
+    row['routes'][0]['url']=row['routes'][0]['url'].replace('production-LiveChannel-6065','production-hls-aes128-rtv-6065-playout')
+    (root/'manifest.json').write_text(json.dumps({'sha256':'reviewed-current-profile'}))
+    r.verify_current_catalogue_route('fixture',context,proof)
     row['routes'].append({'url':'https://fixture-de.fast.rakuten.tv/production-LiveChannel-6066/master.m3u8'})
     (root/'manifest.json').write_text(json.dumps({'sha256':'fixture-v2'}))
     with pytest.raises(EpgError,match='route_edition_requires_review'):r.verify_current_catalogue_route('fixture',context,proof)

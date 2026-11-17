@@ -82,7 +82,11 @@ def build(args):
         cross = ['--target-os=mingw32', '--enable-cross-compile', f'--arch={ffarch}']
         extra_link += ['-static', '-lws2_32', '-lsecur32', '-lbcrypt']
         names = ['bobtv-client-asr.exe', 'bobtv-client-remux.exe']
-    whisper_build = build / 'whisper'
+    if args.cpu == 'avx2':
+        if (args.platform,args.arch) != ('windows','x64'): raise RuntimeError('AVX2 worker requires Windows x64')
+        cmake_flags += [f'-DGGML_{flag}=ON' for flag in ['SSE42','AVX','AVX2','F16C','FMA','BMI2']]
+        names[0]='bobtv-client-asr-avx2.exe'
+    whisper_build = build / ('whisper-avx2' if args.cpu == 'avx2' else 'whisper')
     run(args.cmake, '-S', source, '-B', whisper_build, '-G', 'Ninja', *cmake_flags)
     run(args.cmake, '--build', whisper_build, '-j4')
     libraries = [whisper_build / p for p in ['src/libwhisper.a', 'ggml/src/libggml.a',
@@ -110,7 +114,7 @@ def build(args):
                    modelSha256=MODEL_SHA, alignment='dtw', decodersEnabled=False, encodersEnabled=False,
                    files={name: hashlib.sha256((output / name).read_bytes()).hexdigest() for name in names},
                    ffmpegFlags=flags)
-    (output / 'receipt.json').write_text(json.dumps(receipt, indent=2))
+    (output / ('receipt-avx2.json' if args.cpu == 'avx2' else 'receipt.json')).write_text(json.dumps(receipt, indent=2))
 
 
 if __name__ == '__main__':
@@ -118,5 +122,6 @@ if __name__ == '__main__':
     p.add_argument('--platform', choices=['windows', 'android'], required=True)
     p.add_argument('--arch', choices=['arm', 'arm64', 'x64'], required=True)
     p.add_argument('--cache', type=Path, required=True); p.add_argument('--output', type=Path, required=True)
+    p.add_argument('--cpu',choices=['baseline','avx2'],default='baseline')
     p.add_argument('--toolchain', type=Path); p.add_argument('--cmake', default='cmake')
     build(p.parse_args())

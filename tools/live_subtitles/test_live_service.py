@@ -284,6 +284,8 @@ class LiveServiceTests(unittest.TestCase):
         self.assertIsNone(fit_clock_rate(points[:4]))
         plain=[dict(sourcePts=i*8,subtitleStart=i*8+10) for i in range(12)]
         self.assertIsNone(fit_clock_rate(plain))
+        self.assertEqual(fit_clock_rate(plain,25/24)['rate'],1.)
+        self.assertEqual(fit_clock_rate(plain,24/25)['rate'],1.)
         step=[dict(sourcePts=i*8,subtitleStart=i*8+10-(3 if i>=6 else 0)) for i in range(12)]
         self.assertIsNone(fit_clock_rate(step))
 

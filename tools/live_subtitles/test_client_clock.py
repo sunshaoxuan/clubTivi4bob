@@ -143,6 +143,14 @@ class ClientClockTests(unittest.TestCase):
                 h.ingest(t,self.observation(h,serial=6,start=36,end=56,words=words))
                 self.assertEqual(h.sessions[t]['candidateKey'],alternate['page'])
 
+    def test_reviewed_master_profiles_share_identity_but_other_markets_do_not(self):
+        with tempfile.TemporaryDirectory() as d:
+            h=self.hub(d)
+            current=h.source.replace('production-LiveChannel-6065','production-hls-aes128-rtv-6065-playout')
+            self.assertTrue(h.valid_context(current,None))
+            self.assertFalse(h.valid_context(current.replace('-uk.fast.','-de.fast.'),None))
+            self.assertFalse(h.valid_context(current.replace('6065','6066'),None))
+
     def test_clock_and_observations_are_isolated_between_viewers(self):
         with tempfile.TemporaryDirectory() as d:
             h=self.hub(d);a=h.create(h.source,None,'en',['clientClockV1']);b=h.create(h.source,None,'en',['clientClockV1'])

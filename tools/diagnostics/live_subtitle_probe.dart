@@ -22,7 +22,8 @@ import 'package:media_kit/src/player/native/player/real.dart' as native;
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   MediaKit.ensureInitialized();
-  await windowManager.ensureInitialized();
+  final desktop = Platform.isWindows || Platform.isMacOS || Platform.isLinux;
+  if (desktop) await windowManager.ensureInitialized();
   final directory = Directory(
     Platform.environment['BOBTV_SUBTITLE_PROBE_OUTPUT'] ??
         const String.fromEnvironment('BOBTV_SUBTITLE_PROBE_OUTPUT'),
@@ -31,7 +32,9 @@ Future<void> main() async {
   await AppDiagnostics.instance.initialize(
     directoryOverride: Directory('${directory.path}/logs'),
   );
-  final offline = Platform.environment['BOBTV_SUBTITLE_PROBE_OFFLINE'] == '1';
+  final offline =
+      Platform.environment['BOBTV_SUBTITLE_PROBE_OFFLINE'] == '1' ||
+      const bool.fromEnvironment('BOBTV_SUBTITLE_PROBE_OFFLINE');
   final isolatedDatabase = offline
       ? db.AppDatabase.forTesting(NativeDatabase.memory())
       : null;
@@ -88,8 +91,10 @@ Future<void> main() async {
           : null;
     };
   }
-  await windowManager.setTitle('BobTV subtitle development probe');
-  await windowManager.setSize(const Size(900, 650));
+  if (desktop) {
+    await windowManager.setTitle('BobTV subtitle development probe');
+    await windowManager.setSize(const Size(900, 650));
+  }
   runApp(
     MaterialApp(
       home: Scaffold(
@@ -118,7 +123,7 @@ Future<void> main() async {
       ),
     ),
   );
-  await windowManager.show();
+  if (desktop) await windowManager.show();
   await player.setVolume(0);
   await Future<void>.delayed(const Duration(milliseconds: 500));
   final backend = player.platform;
@@ -128,7 +133,11 @@ Future<void> main() async {
     jsonEncode({'mediaPath': await service.getMpvProperty('path')}),
   );
   final limit = int.parse(
-    Platform.environment['BOBTV_SUBTITLE_PROBE_SECONDS'] ?? '285',
+    Platform.environment['BOBTV_SUBTITLE_PROBE_SECONDS'] ??
+        const String.fromEnvironment(
+          'BOBTV_SUBTITLE_PROBE_SECONDS',
+          defaultValue: '285',
+        ),
   );
   final nativeClock = File('${directory.path}/native-clock.jsonl').openWrite();
   var nativePollBusy = false;

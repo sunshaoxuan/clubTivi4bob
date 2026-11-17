@@ -100,14 +100,20 @@ def current_guide():
         imdbId=official_imdb_id(metadata), marketCode='uk', serviceId=6065, startUtc=p['startUtc'], stopUtc=p['stopUtc'], clockIsSubtitleOffset=False)
 
 
+def reviewed_pilot_source(source):
+    if not isinstance(source,str):return False
+    uri=urlsplit(source)
+    return (uri.scheme=='https' and uri.hostname=='action-rakuten-tv-uk.fast.rakuten.tv'
+            and uri.port in (None,443) and uri.username is None and uri.password is None
+            and re.fullmatch(r'/v1/(?:master|manifest)/[^/]+/production-(?:LiveChannel-6065|hls-aes128-rtv-6065-playout)/(?:[^/]+/)*[^/]+\.m3u8',uri.path) is not None)
+
+
 def pilot_channel(catalog):
     """Bind the current public identity by the reviewed provider feed, not a title."""
     matches=[]
     for channel in catalog['channels']:
         if channel.get('countryCode')!='GB':continue
-        routes=[r['url'] for r in channel['routes'] if urlsplit(r['url']).scheme=='https'
-                and urlsplit(r['url']).hostname=='action-rakuten-tv-uk.fast.rakuten.tv'
-                and '/production-LiveChannel-6065/' in urlsplit(r['url']).path]
+        routes=[r['url'] for r in channel['routes'] if reviewed_pilot_source(r['url'])]
         if routes:matches.append((channel,routes[0]))
     if len(matches)!=1:raise ValueError('unambiguous_reviewed_public_feed_required')
     return matches[0]
@@ -123,7 +129,7 @@ def media_route(source):
             found=re.search(r'(?:^|,)BANDWIDTH=(\d+)',line.split(':',1)[1]);bandwidth=int(found[1]) if found else 0
         elif line and not line.startswith('#') and bandwidth is not None:
             uri=urljoin(source,line);parts=urlsplit(uri)
-            if parts.scheme!='https' or parts.hostname!='action-rakuten-tv-uk.fast.rakuten.tv' or '/production-LiveChannel-6065/' not in parts.path:
+            if parts.scheme!='https' or parts.hostname!='action-rakuten-tv-uk.fast.rakuten.tv' or not re.search(r'/production-(?:LiveChannel-6065|hls-aes128-rtv-6065-playout)/',parts.path):
                 raise ValueError('unreviewed_media_variant')
             variants.append((bandwidth,uri));bandwidth=None
     if not variants:raise ValueError('reviewed_media_variant_required')

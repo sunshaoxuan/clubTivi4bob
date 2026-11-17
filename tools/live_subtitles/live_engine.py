@@ -99,7 +99,7 @@ def align(words, cues, timeline, *, rate=1.):
 
 
 
-def fit_clock_rate(points):
+def fit_clock_rate(points,current_rate=1.):
     """Require multi-window evidence before accepting a standard FPS ratio."""
     if len(points)<8:return None
     xs=[p['sourcePts'] for p in points];origin=min(xs)
@@ -110,7 +110,8 @@ def fit_clock_rate(points):
         errors=sorted(abs(p['subtitleStart']-rate*p['sourcePts']-intercept) for p in points)
         models.append(dict(rate=rate,intercept=intercept,error=statistics.median(errors),p90=errors[int((len(errors)-1)*.9)]))
     best=min(models,key=lambda m:m['error'])
-    if best['rate']==1 or best['error']>.35 or best['p90']>.75 or models[0]['error']-best['error']<.2:return None
+    baseline=min(models,key=lambda m:abs(m['rate']-current_rate))
+    if abs(best['rate']-current_rate)<1e-8 or best['error']>.35 or best['p90']>.75 or baseline['error']-best['error']<.2:return None
     return best
 
 
@@ -352,7 +353,7 @@ class Engine:
                                                             subtitleStart=anchor['subtitleStart'],asrStart=anchor['asrStart'])
                     self.clock_points={cue:p for cue,p in self.clock_points.items() if p['asrStart']>=row['timelineEnd']-600}
                     points=sorted(self.clock_points.values(),key=lambda p:p['asrStart'])[-128:]
-                    proposal=fit_clock_rate(points)
+                    proposal=fit_clock_rate(points,self.rate)
                     candidate_rate=proposal['rate'] if proposal else (self.rate if same_clock else 1.0)
                     candidate_k=proposal['intercept'] if proposal else statistics.median(
                         a['subtitleStart']-candidate_rate*(pts+a['asrStart']-row['timelineStart']) for a in anchors)

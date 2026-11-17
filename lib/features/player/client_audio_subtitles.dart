@@ -500,6 +500,7 @@ class ClientAudioSubtitles {
         'source': _source,
         'programme': _programme,
         'programmeKey': _programme?['key'],
+        'language': SubtitlePreferences.instance.language.tag,
         'epoch': epoch,
         'asset': asset,
         'ad': ad,

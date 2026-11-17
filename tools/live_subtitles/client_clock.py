@@ -89,6 +89,9 @@ class TextHub:
                 if not isinstance(w,dict) or not isinstance(w.get('word'),str) or not 0<len(w['word'])<=200:raise ValueError('invalid_word')
                 a=finite(w.get('start'),0,end-start+.5);b=finite(w.get('end'),a,end-start+.5)
                 words.append(dict(word=w['word'],start=a,end=b,probability=finite(w.get('probability'),0,1)))
+            language=data.get('language',session['language'])
+            if language not in LANGUAGES:raise ValueError('unsupported_language')
+            session['language']=language
             previous=session['lastWindow']
             if previous and epoch<session['epoch']:raise ValueError('stale_epoch')
             changed=(session['epoch']!=epoch or session['asset']!=asset or session['programmeKey']!=self.programme['key'])
@@ -109,11 +112,13 @@ class TextHub:
             if not words:return
             prior=session.get('priorReference')
             known=session['reference'] or session.get('lastMatchedReference') or prior
-            trial=([known] if known else [])
-            # Sparse dialogue must not cause a correctly matched edition to flap.
-            # Search alternatives only after three genuinely unmatched windows.
+            preferred=[c for c in self.candidates or [] if session['language'] in c['tracks']]
+            # Prove the requested language's edition first. An already matched
+            # fallback remains available until a preferred edition is verified.
+            trial=([known] if known and session['language'] in known['tracks'] else preferred[:])
+            if known is not None and known not in trial:trial.append(known)
             if known is None or session['unmatchedWindows']>=3:
-                trial += [c for c in self.candidates or [] if c is not known]
+                trial += [c for c in self.candidates or [] if c not in trial]
             selected=None
             for candidate in trial:
                 candidate_rate=session['rate'] if session.get('candidateKey')==candidate['page'] else session.get('priorRate',1.) if candidate is prior else 1.
@@ -124,7 +129,7 @@ class TextHub:
                 pending=session.setdefault('pendingAnchors',{}).setdefault(candidate['page'],{})
                 for anchor in anchors:
                     pending[anchor['cue']]=anchor
-                pending={key:a for key,a in pending.items() if end-60 <= a['asrStart'] <= end}
+                pending={key:a for key,a in pending.items() if end-120 <= a['asrStart'] <= end}
                 session['pendingAnchors'][candidate['page']]=pending
                 accumulated=list(pending.values())
                 known_rate=(session.get('candidateKey')==candidate['page'] and session.get('rateVerified',False) or candidate is prior and session.get('priorRateVerified',False))
@@ -141,7 +146,9 @@ class TextHub:
                     count=len({a['cue'] for a in cluster})
                     span=max(a['asrStart'] for a in cluster)-min(a['asrStart'] for a in cluster)
                     long_pair=(candidate is prior or bound) and count>=2 and span>=2 and all(a['words']>=8 for a in cluster)
-                    if not ((count>=3 and span>=4) or long_pair):continue
+                    warm_pair=(candidate is prior and session.get('priorRateVerified',False) and
+                               count>=2 and span>=2 and all(a['words']>=4 for a in cluster))
+                    if not ((count>=3 and span>=4) or long_pair or warm_pair):continue
                     intercept=statistics.median(a['offset'] for a in cluster)
                     spread=statistics.median(abs(a['offset']-intercept) for a in cluster)
                     hypotheses.append((count,-spread,trial_rate,intercept,cluster))

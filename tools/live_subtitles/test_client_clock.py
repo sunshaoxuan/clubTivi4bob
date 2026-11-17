@@ -143,6 +143,58 @@ class ClientClockTests(unittest.TestCase):
                 h.ingest(t,self.observation(h,serial=6,start=36,end=56,words=words))
                 self.assertEqual(h.sessions[t]['candidateKey'],alternate['page'])
 
+    def test_sparse_exact_cues_accumulate_for_two_minutes_but_never_cross_epoch(self):
+        with tempfile.TemporaryDirectory() as d:
+            h=self.hub(d);t=h.create(h.source,None,'en',['clientClockV1'])
+            words=[dict(word='clear speech',start=1,end=2,probability=.9)]
+            for serial,start in enumerate((0.,50.,100.),1):
+                a=dict(cue=serial,asrStart=start+1,subtitleStart=start+101,offset=100.,words=5)
+                with patch('client_clock.align',return_value=(None,[a])):
+                    h.ingest(t,self.observation(h,start=start,end=start+20,serial=serial,words=words))
+            self.assertIsNotNone(h.sessions[t]['reference'])
+            a=dict(cue=4,asrStart=131.,subtitleStart=231.,offset=100.,words=5)
+            with patch('client_clock.align',return_value=(None,[a])):
+                h.ingest(t,self.observation(h,start=130.,end=150.,serial=4,epoch=2,asset='after-ad',words=words))
+            self.assertIsNone(h.sessions[t]['reference'])
+
+    def test_only_verified_movie_rate_can_resume_with_two_new_exact_cue_prefixes(self):
+        for verified in (False,True):
+            with tempfile.TemporaryDirectory() as d:
+                h=self.hub(d);t=h.create(h.source,None,'en',['clientClockV1'])
+                s=h.sessions[t];s.update(epoch=1,asset='ad',lastWindow=dict(start=0,end=20),priorReference=h.candidates[0],priorRate=1.,priorRateVerified=verified)
+                words=[dict(word='clear speech',start=1,end=2,probability=.9)]
+                anchors=[dict(cue=i,asrStart=20+i*3,subtitleStart=120+i*3,offset=100.,words=4) for i in (1,2)]
+                with patch('client_clock.align',return_value=(None,anchors)):
+                    h.ingest(t,self.observation(h,start=20.,end=40.,serial=1,epoch=2,asset='movie-return',words=words))
+                self.assertEqual(h.sessions[t]['reference'] is not None,verified)
+
+    def test_requested_language_edition_precedes_an_english_only_match(self):
+        with tempfile.TemporaryDirectory() as d:
+            h=self.hub(d);english=h.candidates[0]
+            preferred=dict(page='preferred-edition',tracks=dict(en=english['tracks']['en'],**{'zh-CN':english['tracks']['en']}))
+            h.candidates.append(preferred)
+            t=h.create(h.source,None,'zh-CN',['clientClockV1'])
+            words=[dict(word='clear speech',start=1,end=2,probability=.9)]
+            with patch('client_clock.align',return_value=(100.,self.anchors())):
+                h.ingest(t,self.observation(h,words=words))
+            self.assertEqual(h.sessions[t]['reference']['page'],'preferred-edition')
+            self.assertIn('zh-CN',h.response(t)['subtitleStatus']['availableLanguages'])
+            h.sessions[t]['language']='en'
+            with patch('client_clock.align',return_value=(100.,self.anchors())):
+                h.ingest(t,self.observation(h,words=words,serial=2,language='zh-CN'))
+            self.assertEqual(h.sessions[t]['language'],'zh-CN')
+
+    def test_unmatched_requested_edition_falls_back_to_proven_english(self):
+        with tempfile.TemporaryDirectory() as d:
+            h=self.hub(d);english=h.candidates[0]
+            h.candidates.append(dict(page='different-cut',tracks=dict(en=[],**{'zh-CN':[]})))
+            t=h.create(h.source,None,'zh-CN',['clientClockV1'])
+            words=[dict(word='clear speech',start=1,end=2,probability=.9)]
+            def match(words,cues,start,**kwargs):return (100.,self.anchors()) if cues else (None,[])
+            with patch('client_clock.align',side_effect=match):
+                h.ingest(t,self.observation(h,words=words))
+            self.assertEqual(h.sessions[t]['reference']['page'],english['page'])
+
     def test_temporary_guide_failure_retains_only_fresh_unexpired_programme(self):
         with tempfile.TemporaryDirectory() as d:
             h=self.hub(d)

@@ -72,6 +72,23 @@ def align(words, cues, timeline, *, rate=1.):
             onset = timeline + word['start']
             anchors.append(dict(cue=cue['index'], subtitleStart=cue['start'], asrStart=onset,
                                 offset=cue['start'] - rate*onset, words=min(remaining,len(values))))
+    # Recover a single ASR word substitution only in a unique six-token
+    # prefix. The first two words and five of six words must agree, and a
+    # second reference within one substitution makes the match ambiguous.
+    references=[(cue,cue_words[cue['index']]) for cue in cues if len(cue_words[cue['index']])>=6]
+    anchored={a['cue'] for a in anchors}
+    for cue,values in references:
+        if cue['index'] in anchored:continue
+        prefix=values[:6]
+        neighbors=[other for other,v in references if v[:2]==prefix[:2] and sum(a!=b for a,b in zip(prefix,v[:6]))<=1]
+        if len(neighbors)!=1:continue
+        for i in range(len(asr)-5):
+            if asr[i:i+2]!=prefix[:2] or sum(a!=b for a,b in zip(prefix,asr[i:i+6]))>1:continue
+            if owners[i]['probability']<.6 or statistics.mean(w['probability'] for w in owners[i:i+6])<.8:continue
+            onset=timeline+owners[i]['start']
+            anchors.append(dict(cue=cue['index'],subtitleStart=cue['start'],asrStart=onset,
+                offset=cue['start']-rate*onset,words=5,fuzzyPrefix=True))
+            anchored.add(cue['index']);break
     if not anchors:
         return None, []
     cluster = max(([a for a in anchors if abs(a['offset'] - c['offset']) < .9] for c in anchors), key=len)

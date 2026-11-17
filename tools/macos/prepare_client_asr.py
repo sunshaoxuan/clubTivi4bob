@@ -29,7 +29,7 @@ def prepare(app,cmake):
     run('clang++','-std=c++17','-O2',ROOT/'tools/native/client_asr.cpp','-I',source/'include','-I',source/'ggml/include','-I',source/'examples',build/'src/libwhisper.a',build/'ggml/src/libggml.a',build/'ggml/src/libggml-base.a',build/'ggml/src/libggml-cpu.a',build/'ggml/src/ggml-blas/libggml-blas.a','-framework','Accelerate','-framework','Foundation','-o',binary)
     target=app/'Contents/Resources/ClientASR';target.mkdir(parents=True,exist_ok=True)
     for file in (binary,model,source/'LICENSE',ROOT/'tools/native/client_asr.cpp'):shutil.copy2(file,target/file.name)
-    (target/'receipt.json').write_text(json.dumps(dict(sourceCommit=COMMIT,modelSha256=MODEL_SHA,scope='Mac native client pilot',architecture=subprocess.check_output(['uname','-m'],text=True).strip()),indent=2))
+    (target/'receipt.json').write_text(json.dumps(dict(sourceCommit=COMMIT,modelSha256=MODEL_SHA,scope='Mac native client pilot',alignment='dtw',architecture=subprocess.check_output(['uname','-m'],text=True).strip()),indent=2))
     run('codesign','--force','--sign','-',target/binary.name)
     from prepare_client_remux import prepare as prepare_remux
     prepare_remux(app)

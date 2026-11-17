@@ -43,4 +43,18 @@ class StremioTests(unittest.TestCase):
         self.assertEqual(acoustic_norm('PIPPIN: Oh my god, I can not get my shoes wet.'),acoustic_norm('Oh my god, I cannot get my shoes wet.'))
         self.assertEqual(acoustic_norm('The clock: it is late.'),acoustic_norm('The clock it is late.'))
 
+    def fuzzy_case(self,ambiguous=False):
+        texts=['They are in the hole', 'That is not a lake that is a puddle', 'Oh my god I can not get my shoes wet', 'That is not a good idea']
+        if ambiguous:texts.append('That is not a pond that is a puddle')
+        starts=[100,120,123,500,600]
+        cues=[dict(index=i,start=starts[i],end=starts[i]+3,text=text) for i,text in enumerate(texts)]
+        words=[dict(word=w,start=starts[i]-100+j*.1,end=starts[i]-100+j*.1+.1,probability=.95) for i,text in enumerate(texts[:3]) for j,w in enumerate(text.replace('lake','link').split())]
+        return cues,words
+    def test_one_substituted_word_needs_unique_context_and_other_fresh_cues(self):
+        cues,words=self.fuzzy_case();offset,anchors=align(words,cues,0)
+        self.assertAlmostEqual(offset,100);self.assertTrue(any(a.get('fuzzyPrefix') for a in anchors))
+    def test_near_duplicate_reference_rejects_fuzzy_prefix(self):
+        cues,words=self.fuzzy_case(ambiguous=True)
+        self.assertIsNone(align(words,cues,0)[0])
+
 if __name__=='__main__':unittest.main()

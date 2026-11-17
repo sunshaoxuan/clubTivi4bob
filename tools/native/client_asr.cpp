@@ -11,7 +11,7 @@ using json=nlohmann::json;
 int main(int argc,char **argv) {
  if(argc!=2)return 2;
  whisper_log_set([](ggml_log_level,const char*,void*){},nullptr);
- auto cp=whisper_context_default_params();cp.use_gpu=false;
+ auto cp=whisper_context_default_params();cp.use_gpu=false;cp.flash_attn=false;cp.dtw_token_timestamps=true;cp.dtw_aheads_preset=WHISPER_AHEADS_BASE_EN;
  auto *ctx=whisper_init_from_file_with_params(argv[1],cp);if(!ctx)return 3;
  std::cout<<"{\"ready\":true,\"engine\":\"whisper.cpp-v1.8.2\"}"<<std::endl;
  std::string line;
@@ -39,12 +39,12 @@ int main(int argc,char **argv) {
     p.token_timestamps=true;p.split_on_word=true;p.max_len=1;p.suppress_blank=true;p.suppress_nst=true;
     if(whisper_full(ctx,p,pcm.data(),int(pcm.size()))!=0)throw std::runtime_error("recognition_failed");
     for(int s=0;s<whisper_full_n_segments(ctx);s++) {
-     std::string text=whisper_full_get_segment_text(ctx,s);float probability=1;
+     std::string text=whisper_full_get_segment_text(ctx,s);float probability=1;double dtw_start=1e30;
      for(int t=0;t<whisper_full_n_tokens(ctx,s);t++) {
       auto data=whisper_full_get_token_data(ctx,s,t);
-      if(data.id<whisper_token_eot(ctx))probability=std::min(probability,data.p);
+      if(data.id<whisper_token_eot(ctx)){probability=std::min(probability,data.p);if(data.t_dtw>=0)dtw_start=std::min(dtw_start,data.t_dtw/100.0+shift);}
      }
-     double t0=whisper_full_get_segment_t0(ctx,s)/100.0+shift;
+     double t0=dtw_start<1e20?dtw_start:whisper_full_get_segment_t0(ctx,s)/100.0+shift;
      double t1=whisper_full_get_segment_t1(ctx,s)/100.0+shift;
      // Refine a token onset that falls inside a real PCM silence gap. Keep
      // consonant pre-roll and never invent an onset when no energy is present.

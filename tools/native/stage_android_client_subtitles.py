@@ -49,9 +49,12 @@ def stage(artifacts,output,arches):
             (target/'libbobtv_client_asr_avx2.so').unlink(missing_ok=True)
         base_item=json.loads((ROOT/'tools/native/runtime-lock.json').read_text())['android'][abi]
         base=ROOT/'build/native-audio-runtime-cache'/base_item['filename']
-        if not base.exists():
+        if not base.exists() or digest(base)!=base_item['sha256']:
             base.parent.mkdir(parents=True,exist_ok=True)
-            urllib.request.urlretrieve(base_item['url'],base)
+            temporary=base.with_suffix('.download')
+            urllib.request.urlretrieve(base_item['url'],temporary)
+            assert digest(temporary)==base_item['sha256']
+            temporary.replace(base)
         assert digest(base)==base_item['sha256']
         record['androidHelperArchiveSha256']=base_item['sha256']
         jar=output/f'bobtv-audio-android-{abi}.jar'

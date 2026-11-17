@@ -40,7 +40,8 @@ class ClientAudioSubtitles {
   Process? _worker;
   Directory? _directory;
   StreamSubscription<String>? _lines;
-  Timer? _timer, _poll, _startupRetry;
+  Timer? _timer, _poll, _startupRetry, _workerRetry;
+  int _workerFailures = 0;
   int _startupFailures = 0;
   final _client = http.Client();
   bool _polling = false;
@@ -49,7 +50,7 @@ class ClientAudioSubtitles {
       _sampling = false,
       _recognizing = false,
       _active = false;
-  bool _attached = false, _workerFailed = false;
+  bool _attached = false, _workerFailed = false, _clockAvailable = true;
   int _epoch = 0, _nativeEpoch = -1, _sequence = -1, _serial = 0;
   String? _asset;
   bool? _ad;
@@ -107,6 +108,26 @@ class ClientAudioSubtitles {
     if (_disposed) return;
     _session = body['session'] as String;
     _accept(body);
+    await _launchWorker();
+    _poll = Timer.periodic(
+      const Duration(seconds: 5),
+      (_) => unawaited(_refresh()),
+    );
+    _timer = Timer.periodic(
+      const Duration(milliseconds: 100),
+      (_) => unawaited(_tick()),
+    );
+    AppDiagnostics.instance.log('client_asr_ready', {
+      'engine': 'whisper.cpp-v1.8.2',
+      'model': _workerModel,
+      'cpuVariant': ClientSubtitleRuntime.asr!.contains('avx2')
+          ? 'avx2'
+          : 'baseline',
+      'audioUploaded': false,
+    });
+  }
+
+  Future<void> _launchWorker() async {
     _directory = await Directory.systemTemp.createTemp('bobtv-client-asr-');
     if (_disposed) {
       await _directory?.delete(recursive: true);
@@ -125,6 +146,7 @@ class ClientAudioSubtitles {
         .transform(utf8.decoder)
         .transform(const LineSplitter())
         .listen((line) {
+          if (!identical(_worker, worker)) return;
           try {
             final message = jsonDecode(line) as Map<String, dynamic>;
             if (message['ready'] == true && !ready.isCompleted) {
@@ -147,28 +169,69 @@ class ClientAudioSubtitles {
         if (!ready.isCompleted) {
           ready.completeError(StateError('Offline ASR worker exited'));
         }
-        if (_recognition != null && !_recognition!.isCompleted) {
-          _recognition!.completeError(StateError('Offline ASR worker exited'));
+        if (identical(_worker, worker)) {
+          if (_recognition != null && !_recognition!.isCompleted) {
+            _recognition!.completeError(
+              StateError('Offline ASR worker exited'),
+            );
+          }
+          if (_timer?.isActive == true && !_disposed) {
+            _workerFailed = true;
+            _timeline = null;
+            failed();
+            _scheduleWorkerRetry();
+          }
         }
       }),
     );
     await ready.future.timeout(const Duration(seconds: 30));
     if (_disposed) return;
-    _poll = Timer.periodic(
-      const Duration(seconds: 5),
-      (_) => unawaited(_refresh()),
-    );
-    _timer = Timer.periodic(
-      const Duration(milliseconds: 100),
-      (_) => unawaited(_tick()),
-    );
-    AppDiagnostics.instance.log('client_asr_ready', {
-      'engine': 'whisper.cpp-v1.8.2',
-      'model': _workerModel,
-      'cpuVariant': ClientSubtitleRuntime.asr!.contains('avx2')
-          ? 'avx2'
-          : 'baseline',
-      'audioUploaded': false,
+  }
+
+  void _scheduleWorkerRetry() {
+    if (_disposed ||
+        !_clockAvailable ||
+        _session == null ||
+        _workerRetry?.isActive == true) {
+      return;
+    }
+    final delay = math.min(60, 5 * (1 << math.min(_workerFailures++, 4)));
+    AppDiagnostics.instance.log('client_asr_restart_scheduled', {
+      'delaySeconds': delay,
+    });
+    _workerRetry = Timer(Duration(seconds: delay), () async {
+      _workerRetry = null;
+      if (_disposed || !_clockAvailable) return;
+      final previous = _worker;
+      _worker = null;
+      previous?.kill();
+      await _lines?.cancel();
+      _lines = null;
+      try {
+        await previous?.exitCode.timeout(const Duration(seconds: 2));
+      } catch (_) {}
+      try {
+        await _directory?.delete(recursive: true);
+      } catch (_) {}
+      _directory = null;
+      _chunks.clear();
+      _lastEnd = -1;
+      _lastAnalysisEnd = -1;
+      _sequence = -1;
+      try {
+        await _launchWorker();
+        if (_disposed || !_clockAvailable) {
+          _worker?.kill();
+          return;
+        }
+        _workerFailed = false;
+        AppDiagnostics.instance.log('client_asr_restarted', {
+          'epoch': _epoch,
+          'playbackRestarted': false,
+        });
+      } catch (_) {
+        _scheduleWorkerRetry();
+      }
     });
   }
 
@@ -273,10 +336,10 @@ class ClientAudioSubtitles {
     text = '';
     if (!enabled) {
       phase = SubtitlePhase.idle;
-    } else if (_workerFailed) {
-      phase = SubtitlePhase.serviceUnavailable;
     } else if (segment?.ad == true) {
       phase = SubtitlePhase.suspended;
+    } else if (_workerFailed) {
+      phase = SubtitlePhase.serviceUnavailable;
     } else if (fresh &&
         segment != null &&
         segment.movieId == _programme?['movieId']) {
@@ -309,6 +372,8 @@ class ClientAudioSubtitles {
   }
 
   void clockUnavailable() {
+    _clockAvailable = false;
+    _workerRetry?.cancel();
     _workerFailed = true;
     _timeline = null;
     text = '';
@@ -335,7 +400,7 @@ class ClientAudioSubtitles {
         _attached = true;
       }
       render();
-      if (!SubtitlePreferences.instance.enabled || _workerFailed) return;
+      if (!_clockAvailable || !SubtitlePreferences.instance.enabled) return;
       if (!player.state.playing || player.state.buffering) return;
       final raw = await native.getProperty('af-metadata/$label');
       if (_disposed || raw.isEmpty) return;
@@ -380,7 +445,7 @@ class ClientAudioSubtitles {
         );
         return;
       }
-      if (ad) return;
+      if (ad || _workerFailed) return;
       final bytes = base64Decode(metadata['lavfi.bobtv_pcm.pcm'] as String);
       if (bytes.length > 64000 ||
           bytes.length.isOdd ||
@@ -470,6 +535,7 @@ class ClientAudioSubtitles {
       _worker!.stdin.writeln(jsonEncode({'path': file.path, 'id': epoch}));
       final response = await future.future.timeout(const Duration(seconds: 40));
       final words = response['words'] as List? ?? [];
+      _workerFailures = 0;
       AppDiagnostics.instance.log('client_asr_window', {
         'epoch': epoch,
         'start': start,
@@ -493,6 +559,7 @@ class ClientAudioSubtitles {
       _timeline = null;
       _worker?.kill();
       failed();
+      _scheduleWorkerRetry();
       AppDiagnostics.instance.log('client_asr_recognition_error', {
         'errorType': error.runtimeType.toString(),
       });
@@ -508,6 +575,7 @@ class ClientAudioSubtitles {
   Future<void> dispose() async {
     _disposed = true;
     _startupRetry?.cancel();
+    _workerRetry?.cancel();
     _timer?.cancel();
     _poll?.cancel();
     _client.close();

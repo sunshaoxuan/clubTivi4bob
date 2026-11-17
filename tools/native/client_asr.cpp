@@ -70,6 +70,11 @@ int main(int argc,char **argv) {
    if(energy/pcm.size()>1e-7) {
     auto p=whisper_full_default_params(WHISPER_SAMPLING_GREEDY);p.n_threads=tiny?2:3;p.language="en";
     p.translate=false;p.no_context=true;p.print_progress=false;p.print_realtime=false;p.print_timestamps=false;
+#if defined(__ANDROID__)
+    // Live playback cannot wait for repeated temperature fallback on music.
+    // A single greedy pass leaves weak speech unmatched instead of resampling.
+    p.temperature_inc=0.f;p.greedy.best_of=1;
+#endif
     p.token_timestamps=true;p.split_on_word=true;p.max_len=1;p.suppress_blank=true;p.suppress_nst=true;
     if(whisper_full(ctx,p,pcm.data(),int(pcm.size()))!=0)throw std::runtime_error("recognition_failed");
     for(int s=0;s<whisper_full_n_segments(ctx);s++) {

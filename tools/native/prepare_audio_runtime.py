@@ -32,7 +32,7 @@ def prepare(platform, arch, output):
         entries = {**entries, 'subtitle-models': lock['clientSubtitleModels']}
     for architecture, item in entries.items():
         path = Path(local) / item['filename'] if local else cache / item['filename']
-        if not path.exists():
+        if not path.exists() or (not local and digest(path) != item['sha256']):
             if local: raise RuntimeError('Missing local runtime archive: ' + str(path))
             temporary = path.with_suffix(path.suffix + '.partial')
             urllib.request.urlretrieve(item['url'], temporary)

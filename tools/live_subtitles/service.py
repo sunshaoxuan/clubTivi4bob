@@ -355,7 +355,11 @@ def serve(hub, host, port, legacy_port=None):
                 self.send(json.dumps(hub.response(token), ensure_ascii=False).encode())
             except RuntimeError:
                 self.send(b'{"error":"pilot_capacity"}', status=503)
-            except (ValueError, KeyError, TypeError):
+            except (ValueError, KeyError, TypeError) as error:
+                if getattr(hub,'client_only',False):
+                    reason=str(error)
+                    allowed={'current_programme_required','stale_programme','invalid_clock_observation','invalid_epoch','replayed_observation','word_limit','invalid_word','stale_epoch','client_clock_required','unsupported_language'}
+                    hub.event('client_request_rejected',errorType=type(error).__name__,reason=reason if reason in allowed else 'invalid_request',guideGap=hub.gap,lastGoodGuideAgeSeconds=round(time.time()-hub.last_guide_success,3))
                 self.send(b'{"error":"unsupported_or_stale_programme"}', status=404)
 
         def do_GET(self):

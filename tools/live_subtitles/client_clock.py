@@ -216,6 +216,14 @@ class TextHub:
             s=self.sessions[token];s['lastAccess']=time.time();valid=self.valid_context(s['source'],None)
             phase='programme_unavailable' if not valid else 'service_unavailable' if self.discovery_error else 'searching' if self.candidates is None else 'unavailable' if not self.candidates or s['exhausted'] else 'matched' if s['reference'] else 'synchronizing'
             return dict(session=token,source=s['source'],clientClock=True,playbackReady=False,playbackUrl=s['source'],programmeKey=self.programme['key'],programme=self.programme,mediaClockOrigin=0,subtitleStatus=dict(phase=phase,availableLanguages=sorted(s['reference']['tracks']) if s['reference'] else [],cacheHit=bool(self.candidates and all(c.get('cacheHit') for c in self.candidates))),windows=s['windows'] if valid and s['programmeKey']==self.programme['key'] else [])
+    def guide_failed(self,error):
+        with self.lock:
+            age=time.time()-self.last_guide_success
+            # Retain the current verified programme only inside its scheduled
+            # interval and the existing 120-second freshness limit.
+            self.gap=age>120 or time.time()>=self.programme['stopUtc']
+            self.event('programme_poll_failed',errorType=type(error).__name__,
+                       lastGoodAgeSeconds=round(age,3),retainedCurrentProgramme=not self.gap)
     def maintain(self):
         next_guide=time.monotonic()+25
         while True:
@@ -231,4 +239,4 @@ class TextHub:
                     self.last_guide_success=time.time();self.gap=False
                     if changed:self.discovery_generation+=1;self.candidates=None
                     if changed or self.discovery_error and time.monotonic()-self.last_discovery>60:self.fetch_subtitles()
-            except Exception:self.gap=True
+            except Exception as error:self.guide_failed(error)

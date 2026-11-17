@@ -143,6 +143,18 @@ class ClientClockTests(unittest.TestCase):
                 h.ingest(t,self.observation(h,serial=6,start=36,end=56,words=words))
                 self.assertEqual(h.sessions[t]['candidateKey'],alternate['page'])
 
+    def test_temporary_guide_failure_retains_only_fresh_unexpired_programme(self):
+        with tempfile.TemporaryDirectory() as d:
+            h=self.hub(d)
+            h.guide_failed(TimeoutError())
+            self.assertTrue(h.valid_context(h.source,None))
+            h.last_guide_success=time.time()-121
+            h.guide_failed(TimeoutError())
+            self.assertFalse(h.valid_context(h.source,None))
+            h.last_guide_success=time.time();h.programme['stopUtc']=time.time()-1
+            h.guide_failed(TimeoutError())
+            self.assertFalse(h.valid_context(h.source,None))
+
     def test_reviewed_master_profiles_share_identity_but_other_markets_do_not(self):
         with tempfile.TemporaryDirectory() as d:
             h=self.hub(d)

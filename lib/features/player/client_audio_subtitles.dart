@@ -529,7 +529,10 @@ class ClientAudioSubtitles {
         data.add(c.bytes);
       }
       final bytes = data.takeBytes();
-      file = File('${_directory!.path}/window.pcm');
+      final directory = _directory!;
+      await directory.create(recursive: true);
+      if (_disposed) return;
+      file = File('${directory.path}/window.pcm');
       await file.writeAsBytes(bytes, flush: true);
       final future = _recognition = Completer<Map<String, dynamic>>();
       _worker!.stdin.writeln(jsonEncode({'path': file.path, 'id': epoch}));

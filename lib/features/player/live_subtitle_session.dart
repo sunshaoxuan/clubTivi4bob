@@ -12,6 +12,7 @@ import 'subtitle_programme_context.dart';
 import 'subtitle_status.dart';
 import 'subtitle_policy.dart';
 import 'hls_buffer_proxy.dart';
+import 'client_audio_subtitles.dart';
 
 /// Optional synchronization service. Video remains one continuous decoder;
 /// caption fetches never reload media or move the playhead.
@@ -29,6 +30,9 @@ class LiveSubtitleSession {
     SubtitlePreferences.instance.addListener(_render);
     selection.selected.addListener(_render);
   }
+  HlsPlaybackSegment? Function(double)? segmentAt;
+  ClientAudioSubtitles? _localAudio;
+  bool get usesClientAudio => _localAudio != null;
   static const endpoint = String.fromEnvironment(
     'BOBTV_SUBTITLE_SERVICE',
     defaultValue: 'https://bobtv.briconbric.com/api/v1/subtitles/',
@@ -75,6 +79,48 @@ class LiveSubtitleSession {
       _mediaRetryAfter = retryAfter;
     }
     _source = source;
+    if (ClientAudioSubtitles.supported &&
+        isActionMoviesUk(source) &&
+        segmentAt != null) {
+      final local = ClientAudioSubtitles(
+        player,
+        Uri.parse(serviceEndpoint).resolve('client/'),
+        segmentAt!,
+        onChanged: () {
+          final current = _localAudio;
+          if (current != null && !_disposed) {
+            text.value = current.text;
+            status.value = current.phase;
+            final external = const {
+              SubtitlePhase.ready,
+              SubtitlePhase.englishFallback,
+              SubtitlePhase.suspended,
+            }.contains(current.phase);
+            if (selection.external != external) {
+              selection.external = external;
+              selection.refresh();
+            }
+          }
+        },
+      );
+      _localAudio = local;
+      Map<String, Object?>? context;
+      try {
+        final lookup = programmeLookup ?? SubtitleProgrammeContext.lookup;
+        context = await lookup
+            ?.call(source)
+            .timeout(const Duration(milliseconds: 500));
+      } catch (_) {}
+      unawaited(
+        local.start(source, context).catchError((Object error) {
+          local.failed();
+          AppDiagnostics.instance.log('client_subtitle_start_error', {
+            'errorType': error.runtimeType.toString(),
+          });
+        }),
+      );
+      return source;
+    }
     if (serviceEndpoint.isEmpty) return source;
     final generation = _generation;
     _phase = SubtitlePhase.searching;
@@ -296,8 +342,9 @@ class LiveSubtitleSession {
         _autoConnecting ||
         onMediaReady == null ||
         (_mediaRetryAfter?.isAfter(DateTime.now()) ?? false) ||
-        (_nextConnectAttempt?.isAfter(DateTime.now()) ?? false))
+        (_nextConnectAttempt?.isAfter(DateTime.now()) ?? false)) {
       return;
+    }
     _autoConnecting = true;
     _nextConnectAttempt = DateTime.now().add(const Duration(seconds: 15));
     final generation = _generation;
@@ -438,6 +485,10 @@ class LiveSubtitleSession {
 
   void _render() {
     if (_disposed) return;
+    if (_localAudio != null) {
+      _localAudio!.render();
+      return;
+    }
     final prefs = SubtitlePreferences.instance;
     final position =
         player.state.position.inMicroseconds / Duration.microsecondsPerSecond;
@@ -504,6 +555,9 @@ class LiveSubtitleSession {
   }
 
   void clear() {
+    final audio = _localAudio;
+    _localAudio = null;
+    if (audio != null) unawaited(audio.dispose());
     ++_generation;
     _poll?.cancel();
     _expiry?.cancel();
@@ -530,6 +584,7 @@ class LiveSubtitleSession {
   }
 
   void activate() {
+    _localAudio?.activate();
     _active = true;
     _render();
   }

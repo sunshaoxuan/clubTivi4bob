@@ -7,7 +7,7 @@ import tarfile
 import tempfile
 
 ROOT = Path(__file__).resolve().parents[2]
-FILES = ['subtitle_cache.py','subtitle_subdl.py','test_subtitle_subdl.py', 'live_media.py', 'subtitle_catalog.py', 'live_engine.py', 'service.py', 'test_live_service.py', 'test_subtitle_cache.py',
+FILES = ['client_clock.py', 'test_client_clock.py', 'subtitle_cache.py','subtitle_subdl.py','test_subtitle_subdl.py', 'live_media.py', 'subtitle_catalog.py', 'live_engine.py', 'service.py', 'test_live_service.py', 'test_subtitle_cache.py',
          'bobtv-live-subtitles.service', 'bobtv-live-subtitles.conf', 'requirements.txt']
 
 REMOTE = r'''

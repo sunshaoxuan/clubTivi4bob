@@ -84,6 +84,7 @@ class ManagedPlayer extends Player {
   ) : super(configuration: configuration, platformPlayer: platformPlayer) {
     subtitles = NativeSubtitleSelection(this);
     liveSubtitles = LiveSubtitleSession(this, subtitles);
+    liveSubtitles.segmentAt = _hlsBuffer.segmentAt;
     liveSubtitles.onMediaReady = _connectReadySubtitleMedia;
     _fallbackBuffering = stream.buffering.listen(
       (_) => _updateFallbackWatchdog(),
@@ -247,6 +248,7 @@ class ManagedPlayer extends Player {
           ]);
           _liveStartOptionApplied = false;
         }
+        _hlsBuffer.captureClock = liveSubtitles.usesClientAudio;
         uri = await _hlsBuffer.start(uri, playable.httpHeaders);
       }
       if (generation != _openGeneration) return;

@@ -285,6 +285,7 @@ def serve(hub, host, port, legacy_port=None):
             pass
 
         def send(self, data, content_type='application/json', status=200, cache=False):
+            if hasattr(hub,'traffic'):hub.traffic['sentJsonBytes']+=len(data)
             self.send_response(status); self.send_header('Content-Type', content_type)
             self.send_header('Content-Length', str(len(data)))
             self.send_header('Cache-Control', 'public,max-age=60' if cache else 'no-store')
@@ -296,8 +297,9 @@ def serve(hub, host, port, legacy_port=None):
 
         def body(self):
             length = int(self.headers.get('Content-Length', '0'))
-            if not 0 < length <= 16384:
+            if not 0 < length <= 65536:
                 raise ValueError('request_limit')
+            if hasattr(hub,'traffic'):hub.traffic['receivedJsonBytes']+=length
             return json.loads(self.rfile.read(length))
 
         def legacy(self, path, body=None):
@@ -328,11 +330,14 @@ def serve(hub, host, port, legacy_port=None):
                         raise ValueError('unsupported_language')
                     token = hub.create(body.get('source'), body.get('programme'), language, body.get('features', ()))
                 else:
-                    match = re.fullmatch(r'/sessions/([a-f0-9]{32})/(programme|connect)', path)
+                    match = re.fullmatch(r'/sessions/([a-f0-9]{32})/(programme|connect|observations)', path)
                     if not match or not hub.valid_context(body.get('source'), body.get('programme')):
                         raise ValueError('current_programme_required')
                     token = match[1]
-                    if match[2] == 'connect': hub.connect_media(token, body.get('source'), body.get('programme'))
+                    if match[2] == 'connect':
+                        if getattr(hub,'client_only',False):raise ValueError('text_only_session')
+                        hub.connect_media(token, body.get('source'), body.get('programme'))
+                    if match[2] == 'observations': hub.ingest(token,body)
                 self.send(json.dumps(hub.response(token), ensure_ascii=False).encode())
             except RuntimeError:
                 self.send(b'{"error":"pilot_capacity"}', status=503)
@@ -347,6 +352,8 @@ def serve(hub, host, port, legacy_port=None):
                     return self.send(json.dumps(dict(status='ready', pilot='rakuten-uk-6065',
                                                      activeSessions=len(hub.sessions), prewarmEnabled=getattr(hub,'prewarm',False),
                                                      engineRunning=getattr(hub,'engine',None) is not None,
+                                                     clientOnly=bool(getattr(hub,'client_only',False)),
+                                                     traffic=getattr(hub,'traffic',None),
                                                      programmeTitle=getattr(hub,'programme',{}).get('title'),
                                                      alignmentState=getattr(getattr(hub,'engine',None),'state','IDLE'),
                                                      clockRate=float(getattr(getattr(hub,'engine',None),'rate',1)),
@@ -357,7 +364,7 @@ def serve(hub, host, port, legacy_port=None):
                     position=float(position) if position is not None else None
                     return self.send(json.dumps(hub.response(match[1], position), ensure_ascii=False).encode())
                 match = re.fullmatch(r'/media/([a-f0-9]{32})/(index\.m3u8|segments/(?:[0-9]+\.ts|key-[a-f0-9]{20}\.bin))', path)
-                if not match:
+                if not match or getattr(hub,'client_only',False):
                     raise KeyError()
                 token, resource = match[1], match[2]
                 with hub.lock:
@@ -389,8 +396,12 @@ def serve(hub, host, port, legacy_port=None):
 
 def main():
     parser = argparse.ArgumentParser(); parser.add_argument('--root', required=True); parser.add_argument('--model-root', required=True)
-    parser.add_argument('--subtitle-cache-root', default='/var/lib/bobtv/resource-cache/subtitles'); parser.add_argument('--base', required=True); parser.add_argument('--port', type=int, default=8922); parser.add_argument('--legacy-port', type=int); parser.add_argument('--prewarm', action='store_true')
+    parser.add_argument('--subtitle-cache-root', default='/var/lib/bobtv/resource-cache/subtitles'); parser.add_argument('--base', required=True); parser.add_argument('--port', type=int, default=8922); parser.add_argument('--legacy-port', type=int); parser.add_argument('--prewarm', action='store_true'); parser.add_argument('--client-only', action='store_true')
     args = parser.parse_args()
+    if args.client_only:
+        from client_clock import TextHub
+        hub=TextHub(args.root,SubtitleCache(args.subtitle_cache_root,legacy_roots=['/var/lib/bobtv/live-subtitles']),current_guide)
+        return serve(hub,'127.0.0.1',args.port)
     import imageio_ffmpeg
     from faster_whisper import WhisperModel
     model = WhisperModel('tiny.en', device='cpu', compute_type='int8', cpu_threads=2,

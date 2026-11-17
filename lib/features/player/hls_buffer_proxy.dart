@@ -88,8 +88,109 @@ String rewriteBufferedHls(
   return '${lines.join('\n')}\n';
 }
 
+class HlsPlaybackSegment {
+  HlsPlaybackSegment({
+    required this.sequence,
+    required this.start,
+    required this.end,
+    required this.asset,
+    required this.movieId,
+    required this.ad,
+  });
+  final int sequence;
+  final double start, end;
+  final String asset;
+  final String? movieId;
+  final bool ad;
+}
+
 class HlsBufferProxy {
+  HlsBufferProxy({this.captureClock = false});
+  bool captureClock;
   int _generation = 0;
+  final _segments = <String, HlsPlaybackSegment>{};
+  final _segmentUris = <String, Uri>{};
+  final _sequenceStarts = <int, double>{};
+  double? _playbackOrigin;
+  HlsPlaybackSegment? segmentAt(double position) {
+    final origin = _playbackOrigin;
+    if (origin == null) return null;
+    for (final segment in _segments.values) {
+      if (position >= segment.start - origin &&
+          position < segment.end - origin) {
+        return segment;
+      }
+    }
+    return null;
+  }
+
+  HlsPlaybackSegment? beginSegment(String path) {
+    final segment = _segments[path];
+    if (segment != null) _playbackOrigin ??= segment.start;
+    return segment;
+  }
+
+  String indexSegments(
+    String body,
+    Uri origin,
+    String Function(String) localUrl,
+  ) {
+    final parsedSequence = int.tryParse(
+      RegExp(r'#EXT-X-MEDIA-SEQUENCE:(\d+)').firstMatch(body)?[1] ?? '',
+    );
+    if (parsedSequence == null) return body;
+    var sequence = parsedSequence;
+    double? duration;
+    String? movie;
+    var ad = false;
+    final lines = <String>[];
+    for (final raw in const LineSplitter().convert(body)) {
+      var line = raw;
+      if (raw.startsWith('#EXT-X-CUE-OUT')) ad = true;
+      if (raw.startsWith('#EXT-X-CUE-IN')) ad = false;
+      if (raw.startsWith('#EXTINF:')) {
+        duration = double.tryParse(raw.substring(8).split(',').first);
+        movie = RegExp(r'epid=([^:,\s"]+)').firstMatch(raw)?[1];
+      } else if (!raw.startsWith('#') &&
+          raw.trim().isNotEmpty &&
+          duration != null) {
+        final remote = origin.resolve(raw.trim());
+        final key = '/segment/$sequence.ts';
+        var start = _sequenceStarts[sequence];
+        if (start == null) {
+          final previous = _segments['/segment/${sequence - 1}.ts'];
+          start =
+              previous?.end ??
+              (_sequenceStarts.isEmpty ? 0 : _segments.values.last.end);
+          _sequenceStarts[sequence] = start;
+        }
+        _segments[key] = HlsPlaybackSegment(
+          sequence: sequence,
+          start: start,
+          end: start + duration,
+          asset: remote.path.split('/media-').first,
+          movieId: movie,
+          ad: ad || movie == null,
+        );
+        _segmentUris[key] = remote;
+        line = localUrl(key);
+        sequence++;
+        duration = null;
+        movie = null;
+      }
+      lines.add(line);
+    }
+    if (_segments.length > 1000) {
+      final remove = _segments.keys.take(_segments.length - 800).toList();
+      for (final key in remove) {
+        _sequenceStarts.remove(_segments[key]!.sequence);
+        _segments.remove(key);
+        _segmentUris.remove(key);
+      }
+    }
+    return lines.join('\n');
+  }
+
   HttpServer? _server;
   HttpClient? _client;
   final _sources = <String, Uri>{};
@@ -159,6 +260,24 @@ class HlsBufferProxy {
     _server = server;
     _server!.listen((request) async {
       try {
+        final segment = _segments[request.uri.path];
+        final segmentUri = _segmentUris[request.uri.path];
+        if (segment != null && segmentUri != null) {
+          beginSegment(request.uri.path);
+          final remote = await client.getUrl(segmentUri);
+          _headers.forEach(remote.headers.set);
+          final response = await remote.close().timeout(
+            const Duration(seconds: 8),
+          );
+          request.response.statusCode = response.statusCode;
+          request.response.headers.contentType = ContentType('video', 'mp2t');
+          request.response.headers.set('Cache-Control', 'no-store');
+          // One provider fetch, streamed to the existing decoder on this device.
+          await request.response.addStream(
+            response.timeout(const Duration(seconds: 12)),
+          );
+          return;
+        }
         final uri = _sources[request.uri.path];
         if (uri == null) {
           request.response.statusCode = 404;
@@ -183,7 +302,19 @@ class HlsBufferProxy {
             if (generation != _generation) {
               throw const HttpException('HLS session closed');
             }
-            request.response.write(rewriteBufferedHls(body, uri, _register));
+            request.response.write(
+              rewriteBufferedHls(
+                captureClock
+                    ? indexSegments(
+                        body,
+                        uri,
+                        (key) => 'http://127.0.0.1:${_server!.port}$key',
+                      )
+                    : body,
+                uri,
+                _register,
+              ),
+            );
           } else {
             await response.drain<void>();
           }
@@ -208,6 +339,10 @@ class HlsBufferProxy {
     _client?.close(force: true);
     _client = null;
     _sources.clear();
+    _segments.clear();
+    _segmentUris.clear();
+    _sequenceStarts.clear();
+    _playbackOrigin = null;
     await server?.close(force: true);
   }
 }

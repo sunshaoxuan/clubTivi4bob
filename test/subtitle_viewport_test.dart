@@ -69,7 +69,7 @@ void main() {
         '../../../manifest/key/production-LiveChannel-6065/session/high.m3u8\n',
         master,
       );
-      expect(selected.path, endsWith('/session/high.m3u8'));
+      expect(selected.path, endsWith('/session/low.m3u8'));
       expect(selected.path, startsWith('/v1/manifest/'));
     },
   );

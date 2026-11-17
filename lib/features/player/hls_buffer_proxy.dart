@@ -30,10 +30,18 @@ Uri currentActionMoviesMaster(String source) {
 
 /// Avoid probing every bitrate and experimental HLS WebVTT before video starts.
 /// Only reviewed Action UK video renditions can become a playback target.
-Uri selectActionMoviesMedia(String body, Uri master) {
+/// The balanced pilot caps advertised bitrate at 3 Mbps after real 1080p
+/// transfers exhausted the live window; do not force the highest bitrate.
+Uri selectActionMoviesMedia(
+  String body,
+  Uri master, {
+  int maxBandwidth = 3000000,
+}) {
   final lines = const LineSplitter().convert(body);
   Uri? selected;
   var highest = -1;
+  Uri? smallest;
+  var smallestBandwidth = 1 << 62;
   int? bandwidth;
   for (final raw in lines) {
     final line = raw.trim();
@@ -44,18 +52,24 @@ Uri selectActionMoviesMedia(String body, Uri master) {
     } else if (line.isNotEmpty && !line.startsWith('#')) {
       final candidate = master.resolve(line);
       if (bandwidth != null &&
-          bandwidth > highest &&
           isActionMoviesUk(candidate.toString()) &&
           candidate.path.contains('/v1/manifest/') &&
           candidate.path.endsWith('.m3u8') &&
           candidate.userInfo.isEmpty &&
           candidate.port == 443) {
-        highest = bandwidth;
-        selected = candidate;
+        if (bandwidth < smallestBandwidth) {
+          smallestBandwidth = bandwidth;
+          smallest = candidate;
+        }
+        if (bandwidth <= maxBandwidth && bandwidth > highest) {
+          highest = bandwidth;
+          selected = candidate;
+        }
       }
       bandwidth = null;
     }
   }
+  selected ??= smallest;
   if (selected == null) {
     throw const FormatException('No reviewed Action UK audio/video rendition');
   }
@@ -68,7 +82,7 @@ String rewriteBufferedHls(
   String body,
   Uri origin,
   String Function(Uri) playlistUrl, {
-  double holdBackSeconds = 24,
+  double holdBackSeconds = 30,
 }) {
   final durations = RegExp(
     r'#EXTINF:([0-9.]+)',

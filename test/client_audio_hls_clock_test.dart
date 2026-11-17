@@ -20,6 +20,25 @@ void main() {
       throwsFormatException,
     );
   });
+  test(
+    'balanced live selection leaves bandwidth headroom and safely falls back',
+    () {
+      final master = currentActionMoviesMaster(
+        'https://action-rakuten-tv-uk.fast.rakuten.tv/v1/master/key/production-LiveChannel-6065/master.m3u8',
+      );
+      final body =
+          '#EXTM3U\n#EXT-X-STREAM-INF:BANDWIDTH=4935626\n../../../manifest/key/production-hls-aes128-rtv-6065-playout/session/4.m3u8\n#EXT-X-STREAM-INF:BANDWIDTH=2849771\n../../../manifest/key/production-hls-aes128-rtv-6065-playout/session/3.m3u8\n';
+      expect(selectActionMoviesMedia(body, master).path, endsWith('/3.m3u8'));
+      expect(
+        selectActionMoviesMedia(body, master, maxBandwidth: 5000000).path,
+        endsWith('/4.m3u8'),
+      );
+      expect(
+        selectActionMoviesMedia(body, master, maxBandwidth: 1).path,
+        endsWith('/3.m3u8'),
+      );
+    },
+  );
   final origin = Uri.parse(
     'https://action-rakuten-tv-uk.fast.rakuten.tv/live/playlist.m3u8',
   );

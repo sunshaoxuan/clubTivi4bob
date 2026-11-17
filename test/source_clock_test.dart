@@ -52,4 +52,57 @@ void main() {
       }
     },
   );
+  test('recorded Android ad transition clears on the first AV stream', () {
+    final ledger = SourceClockLedger()..reset();
+    ledger.observe({
+      'event': 'remux_discontinuity',
+      'stream': 0,
+      'outputDts': 4289.770066667,
+      'removedSeconds': 94469.792655556,
+    });
+    ledger.observe({
+      'event': 'remux_discontinuity',
+      'stream': 1,
+      'outputDts': 4290.32,
+      'removedSeconds': 94469.744355556,
+    });
+    expect(
+      sourceBoundaryBeforeAdvert(
+        ledger.at(4289.3 + .25),
+        4289.3,
+        advertWithinLookahead: true,
+      ),
+      isFalse,
+    );
+    for (final position in [4289.8, 4290.0, 4290.4, 4297.9]) {
+      expect(
+        sourceBoundaryBeforeAdvert(
+          ledger.at(position + .25),
+          position,
+          advertWithinLookahead: true,
+        ),
+        isTrue,
+      );
+    }
+    expect(
+      sourceBoundaryBeforeAdvert(
+        ledger.at(4297),
+        4297,
+        advertWithinLookahead: false,
+      ),
+      isFalse,
+    );
+    expect(
+      sourceBoundaryBeforeAdvert(null, 4297, advertWithinLookahead: true),
+      isFalse,
+    );
+    expect(
+      sourceBoundaryBeforeAdvert(
+        ledger.at(4350),
+        4350,
+        advertWithinLookahead: true,
+      ),
+      isFalse,
+    );
+  });
 }

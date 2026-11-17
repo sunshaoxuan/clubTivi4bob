@@ -65,6 +65,23 @@ class SourceClockLedger {
       'videoRemoved': a.removed,
       'audioRemoved': b.removed,
       'updatedAt': math.min(a.at, b.at),
+      'boundaryAt': math.max(a.at, b.at),
     };
   }
+}
+
+/// A fresh AV transition next to a known upcoming advert clears captions at
+/// render time, including manifest clocks that trail actual packets. Looking
+/// ahead alone never pauses subtitles; the transition must be within a 250 ms render safety margin.
+bool sourceBoundaryBeforeAdvert(
+  Map<String, Object?>? clock,
+  double position, {
+  required bool advertWithinLookahead,
+}) {
+  final boundary = clock?['boundaryAt'];
+  return advertWithinLookahead &&
+      boundary is num &&
+      boundary > 0 &&
+      boundary <= position + .25 &&
+      position - boundary < 30;
 }

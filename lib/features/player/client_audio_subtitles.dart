@@ -9,6 +9,7 @@ import 'package:media_kit/media_kit.dart';
 import '../../core/app_diagnostics.dart';
 import '../../core/server_egress.dart';
 import 'hls_buffer_proxy.dart';
+import 'source_clock.dart';
 import 'client_subtitle_runtime.dart';
 import 'live_subtitle_timeline.dart';
 import 'subtitle_policy.dart';
@@ -340,7 +341,12 @@ class ClientAudioSubtitles {
     text = '';
     if (!enabled) {
       phase = SubtitlePhase.idle;
-    } else if (segment?.ad == true) {
+    } else if (segment?.ad == true ||
+        sourceBoundaryBeforeAdvert(
+          segmentAt(position + .25)?.sourceClock,
+          position,
+          advertWithinLookahead: segmentAt(position + 30)?.ad == true,
+        )) {
       phase = SubtitlePhase.suspended;
     } else if (_workerFailed && !_transportLocked) {
       phase = SubtitlePhase.serviceUnavailable;

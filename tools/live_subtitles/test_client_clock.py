@@ -71,6 +71,21 @@ class ClientClockTests(unittest.TestCase):
                 h.ingest(t,self.observation(h,serial=5,epoch=3,start=26,end=40,words=words))
             self.assertIsNone(h.sessions[t]['reference'])
 
+    def test_one_bad_clock_jump_cannot_move_captions_but_confirmed_edit_can(self):
+        with tempfile.TemporaryDirectory() as d:
+            h=self.hub(d);t=h.create(h.source,None,'en',['clientClockV1'])
+            words=[dict(word='we have number',start=1,end=2,probability=.9)]
+            with patch('client_clock.align',return_value=(100,self.anchors())):
+                h.ingest(t,self.observation(h,words=words))
+            def shifted(first,base):
+                return [dict(cue=first+i,subtitleStart=107+base+i*3,asrStart=base+i*3,offset=107,words=9) for i in range(4)]
+            with patch('client_clock.align',return_value=(107,shifted(10,20))):
+                h.ingest(t,self.observation(h,serial=2,start=20,end=40,words=words))
+            self.assertEqual(h.sessions[t]['intercept'],100)
+            with patch('client_clock.align',return_value=(107,shifted(14,26))):
+                h.ingest(t,self.observation(h,serial=3,start=26,end=46,words=words))
+            self.assertEqual(h.sessions[t]['intercept'],107)
+
     def test_clock_and_observations_are_isolated_between_viewers(self):
         with tempfile.TemporaryDirectory() as d:
             h=self.hub(d);a=h.create(h.source,None,'en',['clientClockV1']);b=h.create(h.source,None,'en',['clientClockV1'])

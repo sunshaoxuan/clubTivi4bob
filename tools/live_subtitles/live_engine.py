@@ -5,6 +5,7 @@ Verified media PTS may resume the same asset after an insertion. Clock resets,
 asset changes and failed acoustic checks invalidate that calibration.
 """
 import difflib
+from collections import Counter
 import json
 from pathlib import Path
 import re
@@ -39,20 +40,30 @@ def align(words, cues, timeline):
     for word in words:
         for token in acoustic_norm(word['word']):
             asr.append(token); owners.append(word)
+    cue_words={c['index']:acoustic_norm(c['text']) for c in cues}
+    prefixes={n:Counter(tuple(values[:n]) for values in cue_words.values() if len(values)>=n) for n in range(4,9)}
     anchors = []
     for match in difflib.SequenceMatcher(None, tokens, asr, autojunk=False).get_matching_blocks():
         if match.size < 4:
             continue
         for index in range(match.a, match.a + match.size - 2):
             cue = firsts.get(index)
-            if cue is None or len(acoustic_norm(cue['text'])) < 3:
+            if cue is None:
                 continue
-            word = owners[match.b + index - match.a]
+            values=cue_words[cue['index']]
+            required=next((n for n in dict.fromkeys((4,6,8,min(len(values),8))) if n>=4 and len(values)>=n and prefixes[n][tuple(values[:n])]==1),None)
+            remaining=match.a+match.size-index
+            if required is None or remaining<required:
+                continue
+            owner_index=match.b+index-match.a
+            if statistics.mean(w['probability'] for w in owners[owner_index:owner_index+required])<.65:
+                continue
+            word = owners[owner_index]
             if word['probability'] < .55:
                 continue
             onset = timeline + word['start']
             anchors.append(dict(cue=cue['index'], subtitleStart=cue['start'], asrStart=onset,
-                                offset=cue['start'] - onset, words=match.size))
+                                offset=cue['start'] - onset, words=min(remaining,len(values))))
     if not anchors:
         return None, []
     cluster = max(([a for a in anchors if abs(a['offset'] - c['offset']) < .9] for c in anchors), key=len)

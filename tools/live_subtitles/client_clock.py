@@ -89,6 +89,7 @@ class TextHub:
             if previous and epoch<session['epoch']:raise ValueError('stale_epoch')
             changed=(session['epoch']!=epoch or session['asset']!=asset or session['programmeKey']!=self.programme['key'])
             if changed:
+                session.pop('clockJump',None);session.pop('acceptedClock',None)
                 if session['programmeKey']!=self.programme['key']:
                     session.pop('priorReference',None);session.pop('priorRate',None);session.pop('lastMatchedReference',None)
                 elif session.get('reference') is not None or session.get('lastMatchedReference') is not None:
@@ -138,11 +139,31 @@ class TextHub:
             candidate,anchors=selected
             if session.get('candidateKey')!=candidate['page']:
                 session.update(candidateKey=candidate['page'],points={},intercept=None,rate=session.get('priorRate',1.) if candidate is prior else 1.)
+            old_points=dict(session['points'])
             for a in anchors:session['points'][a['cue']]=dict(cue=a['cue'],sourcePts=a['asrStart'],subtitleStart=a['subtitleStart'])
             points=list(session['points'].values())[-128:];proposal=fit_clock_rate(points)
             rate=proposal['rate'] if proposal else session['rate']
             intercept=proposal['intercept'] if proposal else statistics.median(a['subtitleStart']-rate*a['asrStart'] for a in anchors)
-            prior=session['intercept'];residuals=[(a['subtitleStart']-(session['rate']*a['asrStart']+prior))/session['rate'] for a in anchors] if prior is not None else []
+            baseline=session.get('acceptedClock',{})
+            baseline=baseline if baseline.get('page')==candidate['page'] else {}
+            prior=baseline.get('intercept',session['intercept']);old_rate=baseline.get('rate',session['rate'])
+            residuals=[(a['subtitleStart']-(old_rate*a['asrStart']+prior))/old_rate for a in anchors] if prior is not None else []
+            innovation=abs((rate*end+intercept)-(old_rate*end+prior))/rate if prior is not None else 0
+            if innovation>.9:
+                jumps=session.setdefault('clockJump',[])
+                jumps[:]=[j for j in jumps if end-j['end']<=30 and abs(j['offset']-(rate*end+intercept-end))<.5]
+                jumps.append(dict(end=end,offset=rate*end+intercept-end,cues=[a['cue'] for a in anchors]))
+                confirmed=(len({j['end'] for j in jumps})>=2 and
+                    max(j['end'] for j in jumps)-min(j['end'] for j in jumps)>=6 and
+                    len({cue for j in jumps for cue in j['cues']})>=4)
+                if not confirmed:
+                    session['points']=old_points
+                    self.event('acoustic_clock_rejected',session=token,epoch=epoch,start=start,end=end,innovationSeconds=innovation)
+                    return
+                session['points']={a['cue']:dict(cue=a['cue'],sourcePts=a['asrStart'],subtitleStart=a['subtitleStart']) for a in anchors}
+                self.event('acoustic_clock_jump_confirmed',session=token,epoch=epoch,start=start,end=end,innovationSeconds=innovation)
+            session.pop('clockJump',None)
+            session['acceptedClock']=dict(page=candidate['page'],rate=rate,intercept=intercept)
             session.update(lastMatchedReference=candidate,reference=candidate,intercept=intercept,rate=rate,unmatchedWindows=0,exhausted=False)
             # Refresh only observed movie windows; ad intervals remain excluded.
             movie_end=end+12

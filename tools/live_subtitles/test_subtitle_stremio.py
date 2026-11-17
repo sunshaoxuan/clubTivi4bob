@@ -25,8 +25,8 @@ class StremioTests(unittest.TestCase):
             with self.assertRaises(ValueError):adapter.read(url)
     def test_contractions_preserve_actual_first_word_timestamp(self):
         self.assertEqual(acoustic_norm("There's nothing we can't do"),acoustic_norm('There is nothing we can not do'))
-        cues=[dict(index=i,start=i*5,end=i*5+3,text="There is nothing we can do") for i in range(3)]
-        words=[dict(word=w,start=i*5+j*.2,end=i*5+j*.2+.1,probability=.9) for i in range(3) for j,w in enumerate("There's nothing we can do".split())]
+        cues=[dict(index=i,start=i*5,end=i*5+3,text=f"There is nothing we can do {i}") for i in range(3)]
+        words=[dict(word=w,start=i*5+j*.2,end=i*5+j*.2+.1,probability=.9) for i in range(3) for j,w in enumerate(f"There's nothing we can do {i}".split())]
         offset,anchors=align(words,cues,0)
         self.assertEqual(offset,0);self.assertEqual([a['asrStart'] for a in anchors],[0,5,10])
 if __name__=='__main__':unittest.main()

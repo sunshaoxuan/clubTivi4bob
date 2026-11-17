@@ -108,16 +108,18 @@ def build(arch, cache, output):
     source = source_root / f'ffmpeg-{ffversion}'
     if not source.exists():
         with tar_open(source_tar) as tar: tar.extractall(source_root)
-    shutil.copy2(ROOT / 'tools/native/af_bobtv_spectrum.c', source / 'libavfilter/af_bobtv_spectrum.c')
-    registry = source / 'libavfilter/allfilters.c'
-    text = registry.read_text()
-    if 'ff_af_bobtv_spectrum;' not in text:
-        match = re.search(r'extern const (?:FFFilter|AVFilter) ff_af_astats;', text)
-        if not match: raise RuntimeError('Review this FFmpeg registry version')
-        registry.write_text(text.replace(match.group(), match.group() + '\n' + match.group().replace('ff_af_astats', 'ff_af_bobtv_spectrum')))
-    makefile = source / 'libavfilter/Makefile'
-    if 'CONFIG_BOBTV_SPECTRUM_FILTER' not in makefile.read_text():
-        with makefile.open('a') as target: target.write('\nOBJS-$(CONFIG_BOBTV_SPECTRUM_FILTER) += af_bobtv_spectrum.o\n')
+    for name in ('spectrum', 'pcm'):
+        shutil.copy2(ROOT / f'tools/native/af_bobtv_{name}.c', source / f'libavfilter/af_bobtv_{name}.c')
+        registry = source / 'libavfilter/allfilters.c'
+        text = registry.read_text()
+        if f'ff_af_bobtv_{name};' not in text:
+            match = re.search(r'extern const (?:FFFilter|AVFilter) ff_af_astats;', text)
+            if not match: raise RuntimeError('Review this FFmpeg registry version')
+            registry.write_text(text.replace(match.group(), match.group() + '\n' + match.group().replace('ff_af_astats', f'ff_af_bobtv_{name}')))
+        makefile = source / 'libavfilter/Makefile'
+        if f'CONFIG_BOBTV_{name.upper()}_FILTER' not in makefile.read_text():
+            with makefile.open('a') as target:
+                target.write(f'\nOBJS-$(CONFIG_BOBTV_{name.upper()}_FILTER) += af_bobtv_{name}.o\n')
     llvm_archive = fetch(f'https://github.com/mstorsjo/llvm-mingw/releases/download/20261020/{LLVM_NAME}.tar.xz', cache / (LLVM_NAME + '.tar.xz'), LLVM_SHA256)
     toolchain = cache / LLVM_NAME
     if not toolchain.exists():
@@ -132,13 +134,13 @@ def build(arch, cache, output):
              '--disable-programs', '--disable-doc', '--disable-avdevice', '--disable-avformat',
              '--disable-avcodec', '--disable-x86asm', '--enable-shared',
              '--disable-static', '--enable-avfilter', '--enable-swresample', '--enable-swscale',
-             '--enable-filter=aformat,aresample,format,scale,overlay,yadif,bwdif,volume,pan,equalizer,loudnorm,bobtv_spectrum',
+             '--enable-filter=aformat,aresample,format,scale,overlay,yadif,bwdif,volume,pan,equalizer,loudnorm,bobtv_spectrum,bobtv_pcm',
              '--target-os=mingw32', '--enable-cross-compile', '--arch=' + ('x86_64' if arch == 'x64' else 'aarch64'),
              '--cc=' + str(clang), '--cross-prefix=' + str(toolchain / 'bin' / (triple + '-')),
              '--ar=' + str(toolchain / 'bin/llvm-ar'), '--ranlib=' + str(toolchain / 'bin/llvm-ranlib'),
              '--nm=' + str(toolchain / 'bin/llvm-nm'), '--strip=' + str(toolchain / 'bin/llvm-strip'),
              '--prefix=' + str(install), '--extra-cflags=-D_WIN32_WINNT=0x0A00']
-    fingerprint = hashlib.sha256(('\n'.join(flags) + digest(ROOT / 'tools/native/af_bobtv_spectrum.c')).encode()).hexdigest()
+    fingerprint = hashlib.sha256(('\n'.join(flags) + digest(ROOT / 'tools/native/af_bobtv_spectrum.c') + digest(ROOT / 'tools/native/af_bobtv_pcm.c')).encode()).hexdigest()
     stamp = binary_dir / 'fingerprint'
     if not stamp.exists() or stamp.read_text() != fingerprint:
         run(*flags, cwd=binary_dir)
@@ -169,11 +171,13 @@ def build(arch, cache, output):
     notices.mkdir(parents=True, exist_ok=True)
     shutil.copy2(source_tar, notices)
     shutil.copy2(ROOT / 'tools/native/af_bobtv_spectrum.c', notices)
+    shutil.copy2(ROOT / 'tools/native/af_bobtv_pcm.c', notices)
     shutil.copy2(Path(__file__), notices)
     shutil.copy2(source / 'COPYING.LGPLv2.1', notices)
     if (sysroot / 'share/licenses').exists():
         shutil.copytree(sysroot / 'share/licenses', notices / 'MSYS2', dirs_exist_ok=True)
     record = {'architecture': arch, 'repo': repo, 'ffmpegVersion': ffversion, 'ffmpegSourceSha256': digest(source_tar),
+              'pcmSourceSha256': digest(ROOT / 'tools/native/af_bobtv_pcm.c'),
               'fftSourceSha256': digest(ROOT / 'tools/native/af_bobtv_spectrum.c'),
               'llvm': {'name': LLVM_NAME, 'sha256': LLVM_SHA256},
               'packages': {name: {'version': value['VERSION'][0], 'filename': value['FILENAME'][0], 'sha256': value['SHA256SUM'][0],

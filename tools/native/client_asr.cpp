@@ -3,6 +3,7 @@
 #include "whisper.h"
 #include "json.hpp"
 #include <fstream>
+#include <filesystem>
 #include <iostream>
 #include <vector>
 #include <chrono>
@@ -18,7 +19,7 @@ int main(int argc,char **argv) {
  while(std::getline(std::cin,line)) {
   try {
    auto request=json::parse(line);std::string path=request.at("path");
-   std::ifstream input(path,std::ios::binary|std::ios::ate);auto size=input.tellg();
+   std::ifstream input(std::filesystem::u8path(path),std::ios::binary|std::ios::ate);auto size=input.tellg();
    if(size<3200||size>16000*2*40||size%2)throw std::runtime_error("pcm_limit");
    input.seekg(0);std::vector<int16_t> raw(size_t(size)/2);input.read((char*)raw.data(),size);
    std::vector<float> pcm(raw.size());double energy=0;for(size_t i=0;i<raw.size();i++){pcm[i]=raw[i]/32768.f;energy+=pcm[i]*pcm[i];}

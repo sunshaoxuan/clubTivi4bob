@@ -45,16 +45,17 @@ def checkout(path, repo, ref):
 
 
 def patch_ffmpeg(source):
-    shutil.copy2(ROOT / 'tools/native/af_bobtv_spectrum.c', source / 'libavfilter/af_bobtv_spectrum.c')
-    registry = source / 'libavfilter/allfilters.c'
-    text = registry.read_text()
-    if 'ff_af_bobtv_spectrum;' not in text:
-        registry.write_text(text.replace('extern const AVFilter ff_af_astats;',
-            'extern const AVFilter ff_af_astats;\nextern const AVFilter ff_af_bobtv_spectrum;'))
-    makefile = source / 'libavfilter/Makefile'
-    if 'CONFIG_BOBTV_SPECTRUM_FILTER' not in makefile.read_text():
-        with makefile.open('a') as output:
-            output.write('\nOBJS-$(CONFIG_BOBTV_SPECTRUM_FILTER) += af_bobtv_spectrum.o\n')
+    for name in ('spectrum', 'pcm'):
+        shutil.copy2(ROOT / f'tools/native/af_bobtv_{name}.c', source / f'libavfilter/af_bobtv_{name}.c')
+        registry = source / 'libavfilter/allfilters.c'
+        text = registry.read_text()
+        if f'ff_af_bobtv_{name};' not in text:
+            registry.write_text(text.replace('extern const AVFilter ff_af_astats;',
+                f'extern const AVFilter ff_af_astats;\nextern const AVFilter ff_af_bobtv_{name};'))
+        makefile = source / 'libavfilter/Makefile'
+        if f'CONFIG_BOBTV_{name.upper()}_FILTER' not in makefile.read_text():
+            with makefile.open('a') as output:
+                output.write(f'\nOBJS-$(CONFIG_BOBTV_{name.upper()}_FILTER) += af_bobtv_{name}.o\n')
 
 
 def build(arch, cache, output):
@@ -81,7 +82,7 @@ def build(arch, cache, output):
     depinfo = scripts / 'include/depinfo.sh'
     depinfo.write_text(depinfo.read_text().replace('25.2.9519653', NDK))
     flavor = (scripts / 'flavors/default.sh').read_text()
-    flavor = flavor.replace('--enable-filter=equalizer', '--enable-filter=equalizer,bobtv_spectrum')
+    flavor = flavor.replace('--enable-filter=equalizer', '--enable-filter=equalizer,bobtv_spectrum,bobtv_pcm')
     (scripts / 'scripts/ffmpeg.sh').write_text(flavor)
     # Avoid changing the shared SDK or launching helper applications.
     env = {**os.environ, 'cores': '4'}
@@ -96,15 +97,17 @@ def build(arch, cache, output):
     run(toolchain / 'bin/llvm-strip', '--strip-all', destination / 'libmpv.so')
     shutil.copy2(toolchain / 'sysroot/usr/lib' / triple / 'libc++_shared.so', destination / 'libc++_shared.so')
     strings = subprocess.check_output([str(toolchain / 'bin/llvm-strings'), str(destination / 'libmpv.so')], text=True)
-    if 'bobtv_spectrum' not in strings: raise RuntimeError('The packaged runtime omitted the FFT filter')
+    if not all(name in strings for name in ('bobtv_spectrum', 'bobtv_pcm')): raise RuntimeError('The packaged runtime omitted the FFT filter')
     commits = {name: subprocess.check_output(['git', '-C', str(scripts / 'deps' / name), 'rev-parse', 'HEAD'], text=True).strip() for name in REPOS}
     record = {'architecture': abi, 'upstream': UPSTREAM, 'ndk': NDK, 'dependencies': commits,
+              'pcmSourceSha256': hashlib.sha256((ROOT / 'tools/native/af_bobtv_pcm.c').read_bytes()).hexdigest(),
               'fftSourceSha256': hashlib.sha256((ROOT / 'tools/native/af_bobtv_spectrum.c').read_bytes()).hexdigest(),
               'files': {p.name: hashlib.sha256(p.read_bytes()).hexdigest() for p in destination.glob('*.so')}}
     (destination / 'runtime-build.json').write_text(json.dumps(record, indent=2))
     notices = destination / 'sources-and-licenses'
     notices.mkdir(exist_ok=True)
     shutil.copy2(ROOT / 'tools/native/af_bobtv_spectrum.c', notices)
+    shutil.copy2(ROOT / 'tools/native/af_bobtv_pcm.c', notices)
     shutil.copy2(Path(__file__), notices)
     for name in REPOS:
         for pattern in ('COPYING*', 'LICENSE*'):

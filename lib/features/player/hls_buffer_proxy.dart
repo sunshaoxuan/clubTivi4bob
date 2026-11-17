@@ -85,6 +85,7 @@ String rewriteBufferedHls(
   Uri origin,
   String Function(Uri) playlistUrl, {
   double holdBackSeconds = 30,
+  String Function(Uri)? keyUrl,
 }) {
   final durations = RegExp(
     r'#EXTINF:([0-9.]+)',
@@ -109,7 +110,12 @@ String rewriteBufferedHls(
     if (raw.startsWith('#')) {
       line = raw.replaceAllMapped(RegExp(r'URI="([^"]+)"'), (match) {
         final absolute = origin.resolve(match[1]!);
-        return 'URI="${absolute.path.endsWith('.m3u8') ? playlistUrl(absolute) : absolute}"';
+        final rewritten = absolute.path.endsWith('.m3u8')
+            ? playlistUrl(absolute)
+            : raw.startsWith('#EXT-X-KEY:') && keyUrl != null
+            ? keyUrl(absolute)
+            : absolute.toString();
+        return 'URI="$rewritten"';
       });
     } else if (raw.trim().isNotEmpty) {
       final absolute = origin.resolve(raw.trim());
@@ -239,6 +245,21 @@ class HlsBufferProxy {
   HttpServer? _server;
   HttpClient? _client;
   final _sources = <String, Uri>{};
+  final _keys = <String, Uri>{};
+  String _registerKey(Uri uri) {
+    final key =
+        _keys.entries
+            .where((e) => e.value == uri)
+            .map((e) => e.key)
+            .firstOrNull ??
+        '/key/${_keys.length}';
+    if (_keys.length >= 128 && !_keys.containsKey(key)) {
+      throw const FormatException('Too many HLS encryption keys');
+    }
+    _keys[key] = uri;
+    return 'http://127.0.0.1:${_server!.port}$key';
+  }
+
   Map<String, String> _headers = const {};
   String _register(Uri uri) {
     final key =
@@ -305,6 +326,28 @@ class HlsBufferProxy {
     _server = server;
     _server!.listen((request) async {
       try {
+        final key = _keys[request.uri.path];
+        if (key != null) {
+          final remote = await client.getUrl(key);
+          _headers.forEach(remote.headers.set);
+          final response = await remote.close().timeout(
+            const Duration(seconds: 8),
+          );
+          request.response.statusCode = response.statusCode;
+          request.response.headers.contentType = ContentType.binary;
+          request.response.headers.set('Cache-Control', 'no-store');
+          final bytes = <int>[];
+          await for (final chunk in response.timeout(
+            const Duration(seconds: 8),
+          )) {
+            bytes.addAll(chunk);
+            if (bytes.length > 64) {
+              throw const FormatException('Invalid HLS key size');
+            }
+          }
+          request.response.add(bytes);
+          return;
+        }
         final segment = _segments[request.uri.path];
         final segmentUri = _segmentUris[request.uri.path];
         if (segment != null && segmentUri != null) {
@@ -358,6 +401,7 @@ class HlsBufferProxy {
                     : body,
                 uri,
                 _register,
+                keyUrl: captureClock && !Platform.isMacOS ? _registerKey : null,
               ),
             );
           } else {
@@ -375,7 +419,7 @@ class HlsBufferProxy {
       }
     });
     final playlist = _register(origin);
-    if (Platform.isMacOS && captureClock) {
+    if (captureClock) {
       try {
         final media = await _linearized.start(playlist);
         linearClockReady = true;
@@ -401,6 +445,7 @@ class HlsBufferProxy {
     _client?.close(force: true);
     _client = null;
     _sources.clear();
+    _keys.clear();
     _segments.clear();
     _segmentUris.clear();
     _sequenceStarts.clear();

@@ -4,7 +4,14 @@ extern "C" {
 #include <libavutil/avutil.h>
 #include <libavutil/mathematics.h>
 }
+#ifdef _WIN32
+#include <io.h>
+#include <fcntl.h>
+#define write _write
+#define STDOUT_FILENO 1
+#else
 #include <unistd.h>
+#endif
 #include <csignal>
 #include <cmath>
 #include <cstdio>
@@ -43,7 +50,12 @@ static void learn_aac(AVCodecParameters* par,const AVPacket* packet){
 }
 int main(int argc,char**argv){
  if(argc!=2||std::string(argv[1]).rfind("http://127.0.0.1:",0)!=0)return 2;
- signal(SIGTERM,stop);signal(SIGINT,stop);signal(SIGPIPE,stop);av_log_set_level(AV_LOG_ERROR);av_log_set_callback(safe_log);avformat_network_init();
+ #ifdef _WIN32
+ _setmode(_fileno(stdout),_O_BINARY);
+#else
+ signal(SIGPIPE,stop);
+#endif
+ signal(SIGTERM,stop);signal(SIGINT,stop);av_log_set_level(AV_LOG_ERROR);av_log_set_callback(safe_log);avformat_network_init();
  AVFormatContext* in=avformat_alloc_context();in->io_open=open_resource;in->interrupt_callback={interrupt,nullptr};AVDictionary* opts=nullptr;
  av_dict_set(&opts,"analyzeduration","1000000",0);av_dict_set(&opts,"probesize","524288",0);av_dict_set(&opts,"allowed_extensions","ALL",0);av_dict_set(&opts,"prefer_x_start","1",0);av_dict_set(&opts,"seg_max_retry","5",0);av_dict_set(&opts,"rw_timeout","8000000",0);
  check(avformat_open_input(&in,argv[1],nullptr,&opts),"open_input");av_dict_free(&opts);check(avformat_find_stream_info(in,nullptr),"stream_info");

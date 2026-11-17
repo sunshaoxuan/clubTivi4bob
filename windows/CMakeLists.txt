@@ -114,3 +114,9 @@ install(DIRECTORY "${PROJECT_BUILD_DIR}/${FLUTTER_ASSET_DIR_NAME}"
 install(FILES "${AOT_LIBRARY}" DESTINATION "${INSTALL_BUNDLE_DATA_DIR}"
   CONFIGURATIONS Profile;Release
   COMPONENT Runtime)
+
+# Prepared offline subtitle workers and model, isolated from the system runtime.
+if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/../build/client-subtitles/windows/ClientASR")
+  install(DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/../build/client-subtitles/windows/ClientASR/"
+    DESTINATION "${INSTALL_BUNDLE_DATA_DIR}/ClientASR" COMPONENT Runtime)
+endif()

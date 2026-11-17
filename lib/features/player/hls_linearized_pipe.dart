@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import '../../core/app_diagnostics.dart';
+import 'client_subtitle_runtime.dart';
 
 /// One local stream-copy pipe. It shares the existing HLS fetches and never
 /// decodes audio/video or sends media to a subtitle server.
@@ -16,8 +17,11 @@ class HlsLinearizedPipe {
   Future<String> start(String source) async {
     await stop();
     final generation = _generation;
-    final executable = File(Platform.resolvedExecutable).parent.parent.path;
-    final helper = File('$executable/Resources/ClientASR/bobtv-client-remux');
+    final path = ClientSubtitleRuntime.remux;
+    if (path == null) {
+      throw StateError('Client timestamp normalizer is unavailable');
+    }
+    final helper = File(path);
     if (!await helper.exists()) {
       throw StateError('Client timestamp normalizer is unavailable');
     }

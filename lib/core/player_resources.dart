@@ -303,9 +303,7 @@ class ManagedPlayer extends Player {
         }
         _hlsBuffer.captureClock = liveSubtitles.usesClientAudio;
         uri = await _hlsBuffer.start(uri, playable.httpHeaders);
-        if (Platform.isMacOS &&
-            liveSubtitles.usesClientAudio &&
-            !_hlsBuffer.linearClockReady) {
+        if (liveSubtitles.usesClientAudio && !_hlsBuffer.linearClockReady) {
           liveSubtitles.mediaClockUnavailable();
         }
       }

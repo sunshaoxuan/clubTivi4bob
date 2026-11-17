@@ -13,6 +13,7 @@ import 'subtitle_status.dart';
 import 'subtitle_policy.dart';
 import 'hls_buffer_proxy.dart';
 import 'client_audio_subtitles.dart';
+import 'client_subtitle_runtime.dart';
 
 /// Optional synchronization service. Video remains one continuous decoder;
 /// caption fetches never reload media or move the playhead.
@@ -79,6 +80,7 @@ class LiveSubtitleSession {
       _mediaRetryAfter = retryAfter;
     }
     _source = source;
+    await ClientSubtitleRuntime.initialize();
     if (ClientAudioSubtitles.supported &&
         isActionMoviesUk(source) &&
         segmentAt != null) {
@@ -324,7 +326,8 @@ class LiveSubtitleSession {
     _source = source;
     _phase = SubtitlePhase.serviceUnavailable;
     _render();
-    if (_source != null) _retryDiscovery(_source!, _generation);
+    // Clock normalization has failed for this playback. A new channel open
+    // can retry, but restarting ASR alone would have no trustworthy timeline.
   }
 
   void deferMediaRetry() {

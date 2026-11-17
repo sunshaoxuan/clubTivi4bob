@@ -9,6 +9,7 @@ import 'package:media_kit/media_kit.dart';
 import '../../core/app_diagnostics.dart';
 import '../../core/server_egress.dart';
 import 'hls_buffer_proxy.dart';
+import 'client_subtitle_runtime.dart';
 import 'live_subtitle_timeline.dart';
 import 'subtitle_policy.dart';
 import 'subtitle_preferences.dart';
@@ -29,12 +30,7 @@ class ClientAudioSubtitles {
   final VoidCallback onChanged;
   static int _nextLabel = 0;
   final label = 'bobtv_pcm_${_nextLabel++}';
-  static String get resources =>
-      '${File(Platform.resolvedExecutable).parent.parent.path}/Resources/ClientASR';
-  static bool get supported =>
-      Platform.isMacOS &&
-      File('$resources/bobtv-client-asr').existsSync() &&
-      File('$resources/ggml-base.en-q5_1.bin').existsSync();
+  static bool get supported => ClientSubtitleRuntime.available;
   String text = '';
   SubtitlePhase phase = SubtitlePhase.searching;
   String? _source, _session;
@@ -79,8 +75,8 @@ class ClientAudioSubtitles {
       return;
     }
     final ready = Completer<void>();
-    final worker = await Process.start('$resources/bobtv-client-asr', [
-      '$resources/ggml-base.en-q5_1.bin',
+    final worker = await Process.start(ClientSubtitleRuntime.asr!, [
+      ClientSubtitleRuntime.model!,
     ]);
     if (_disposed) {
       worker.kill();

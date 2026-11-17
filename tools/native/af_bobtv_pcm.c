@@ -79,6 +79,13 @@ static int filter_frame(AVFilterLink *link,AVFrame *frame) {
 static av_cold void uninit(AVFilterContext *ctx){BobPCM *s=ctx->priv;swr_free(&s->swr);av_dict_free(&s->metadata);}
 static const AVFilterPad inputs[]={{.name="default",.type=AVMEDIA_TYPE_AUDIO,.config_props=config_input,.filter_frame=filter_frame}};
 static const AVFilterPad outputs[]={{.name="default",.type=AVMEDIA_TYPE_AUDIO}};
-const AVFilter ff_af_bobtv_pcm={.name="bobtv_pcm",.description=NULL_IF_CONFIG_SMALL("Export bounded decoded PCM with timestamps without changing audible audio."),
+#if LIBAVFILTER_VERSION_MAJOR >= 10
+#define PCM_FILTER FFFilter
+#define PCM_PUBLIC(name) .p.name
+#else
+#define PCM_FILTER AVFilter
+#define PCM_PUBLIC(name) .name
+#endif
+const PCM_FILTER ff_af_bobtv_pcm={PCM_PUBLIC(name)="bobtv_pcm",PCM_PUBLIC(description)=NULL_IF_CONFIG_SMALL("Export bounded decoded PCM with timestamps without changing audible audio."),
  .priv_size=sizeof(BobPCM),.uninit=uninit,FILTER_INPUTS(inputs),FILTER_OUTPUTS(outputs),
- FILTER_SAMPLEFMTS(AV_SAMPLE_FMT_S16,AV_SAMPLE_FMT_S16P,AV_SAMPLE_FMT_S32,AV_SAMPLE_FMT_S32P,AV_SAMPLE_FMT_FLT,AV_SAMPLE_FMT_FLTP,AV_SAMPLE_FMT_DBL,AV_SAMPLE_FMT_DBLP),.flags=AVFILTER_FLAG_METADATA_ONLY};
+ FILTER_SAMPLEFMTS(AV_SAMPLE_FMT_S16,AV_SAMPLE_FMT_S16P,AV_SAMPLE_FMT_S32,AV_SAMPLE_FMT_S32P,AV_SAMPLE_FMT_FLT,AV_SAMPLE_FMT_FLTP,AV_SAMPLE_FMT_DBL,AV_SAMPLE_FMT_DBLP),PCM_PUBLIC(flags)=AVFILTER_FLAG_METADATA_ONLY};

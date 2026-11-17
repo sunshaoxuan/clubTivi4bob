@@ -30,6 +30,8 @@ android {
         versionName = flutter.versionName
     }
 
+    packaging { jniLibs { useLegacyPackaging = true } }
+
     signingConfigs {
         create("bobtvRelease") {
             System.getenv("BOBTV_ANDROID_KEYSTORE")?.let { storeFile = file(it) }

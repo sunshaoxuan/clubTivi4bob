@@ -31,10 +31,17 @@ def stage(artifacts,output,arches):
         for name,sha in record['files'].items():assert digest(native/name)==sha
         receipt=json.loads((worker/'receipt.json').read_text())
         assert receipt['modelSha256']==SHA and receipt['architecture']==arch
+        for name,sha in receipt.get('sourceSha256',{}).items():assert digest(ROOT/'tools/native'/name)==sha
         for name,sha in receipt['files'].items():assert digest(worker/name)==sha
         assert digest(worker/MODEL)==SHA
         target=ROOT/'android/app/src/main/jniLibs'/abi;target.mkdir(parents=True,exist_ok=True)
-        for name in ['libbobtv_client_asr.so','libbobtv_client_remux.so']:shutil.copy2(worker/name,target/name)
+        for name in receipt['files']:shutil.copy2(worker/name,target/name)
+        fast=worker/'receipt-avx2.json'
+        if fast.exists():
+            optimized=json.loads(fast.read_text())
+            for name,sha in optimized['files'].items():
+                assert digest(worker/name)==sha
+                shutil.copy2(worker/name,target/name)
         base_item=json.loads((ROOT/'tools/native/runtime-lock.json').read_text())['android'][abi]
         base=ROOT/'build/native-audio-runtime-cache'/base_item['filename']
         if not base.exists():

@@ -70,6 +70,7 @@ def build(args):
                  '--extra-cflags=-fPIC', '--extra-ldflags=-Wl,-z,max-page-size=16384']
         extra_link += ['-ldl', '-llog', '-static-libstdc++', '-Wl,-z,max-page-size=16384']
         names = ['libbobtv_client_asr.so', 'libbobtv_client_remux.so']
+        if args.arch == 'x64': cmake_flags += ['-DGGML_SSE42=ON']
     else:
         if not args.toolchain: raise RuntimeError('--toolchain must point to the pinned LLVM-mingw directory')
         toolchain = args.toolchain.resolve()
@@ -83,9 +84,9 @@ def build(args):
         extra_link += ['-static', '-lws2_32', '-lsecur32', '-lbcrypt']
         names = ['bobtv-client-asr.exe', 'bobtv-client-remux.exe']
     if args.cpu == 'avx2':
-        if (args.platform,args.arch) != ('windows','x64'): raise RuntimeError('AVX2 worker requires Windows x64')
+        if args.arch != 'x64': raise RuntimeError('AVX2 worker requires x64')
         cmake_flags += [f'-DGGML_{flag}=ON' for flag in ['SSE42','AVX','AVX2','F16C','FMA','BMI2']]
-        names[0]='bobtv-client-asr-avx2.exe'
+        names[0]='bobtv-client-asr-avx2.exe' if args.platform == 'windows' else 'libbobtv_client_asr_avx2.so'
     whisper_build = build / ('whisper-avx2' if args.cpu == 'avx2' else 'whisper')
     run(args.cmake, '-S', source, '-B', whisper_build, '-G', 'Ninja', *cmake_flags)
     run(args.cmake, '--build', whisper_build, '-j4')
@@ -113,6 +114,7 @@ def build(args):
     receipt = dict(platform=args.platform, architecture=args.arch, whisperCommit=WHISPER, ffmpegCommit=ffcommit,
                    modelSha256=MODEL_SHA, alignment='dtw', decodersEnabled=False, encodersEnabled=False,
                    files={name: hashlib.sha256((output / name).read_bytes()).hexdigest() for name in names},
+                   sourceSha256={name: hashlib.sha256((ROOT / 'tools/native' / name).read_bytes()).hexdigest() for name in ['client_asr.cpp','client_remux.cpp']},
                    ffmpegFlags=flags)
     (output / ('receipt-avx2.json' if args.cpu == 'avx2' else 'receipt.json')).write_text(json.dumps(receipt, indent=2))
 

@@ -20,6 +20,16 @@ class ClientSubtitleRuntime {
         asr = paths?['asr'];
         remux = paths?['remux'];
         model = paths?['model'];
+        final fast = paths?['asrFast'];
+        if (asr != null && fast != null) {
+          final capability = await Process.run(asr!, [
+            '--capabilities',
+          ]).timeout(const Duration(seconds: 3));
+          if (capability.exitCode == 0 &&
+              jsonDecode(capability.stdout as String)['avx2'] == true) {
+            asr = fast;
+          }
+        }
       } else if (Platform.isMacOS || Platform.isWindows) {
         final base = File(Platform.resolvedExecutable).parent;
         final root = Platform.isMacOS

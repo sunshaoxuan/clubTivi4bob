@@ -36,6 +36,9 @@ object BobTvClientSubtitles {
                 check(temporary.renameTo(model))
             } finally { temporary.delete() }
         }
-        return mapOf("asr" to asr.absolutePath, "remux" to remux.absolutePath, "model" to model.absolutePath)
+        val paths = mutableMapOf("asr" to asr.absolutePath, "remux" to remux.absolutePath, "model" to model.absolutePath)
+        val optimized = File(native, "libbobtv_client_asr_avx2.so")
+        if (optimized.canExecute()) paths["asrFast"] = optimized.absolutePath
+        return paths
     }
 }

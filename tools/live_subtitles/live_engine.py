@@ -67,6 +67,14 @@ def fit_clock_rate(points):
     return best
 
 
+
+def clock_rate_confident(points,rate,intercept):
+    if len(points)<8:return False
+    xs=[p['sourcePts'] for p in points];origin=min(xs)
+    if max(xs)-origin<45 or len({int((x-origin)//15) for x in xs})<3:return False
+    errors=sorted(abs(p['subtitleStart']-rate*p['sourcePts']-intercept) for p in points)
+    return statistics.median(errors)<=.35 and errors[int((len(errors)-1)*.9)]<=.75
+
 def mapped_cues(cues,row,pts,rate,intercept):
     movie_start=rate*pts+intercept;result=[]
     for c in cues:
@@ -123,7 +131,7 @@ class Engine:
         self.discovery_thread = None
         self.preferred_language = preferred_language
         self.state = 'ACQUIRING'; self.last_sequence = -1
-        self.rate = 1.0; self.clock_points = {}; self.clock_key = None
+        self.rate = 1.0; self.rate_verified = False; self.clock_points = {}; self.clock_key = None
         self.k = None; self.verified_asset = None; self.last_pts_end = None
         self.pause = None; self.returned = None; self.resume = None; self.holdout = {}
         self.calibration_cues = set()
@@ -204,12 +212,13 @@ class Engine:
                         self.state = 'SUSPENDED'; run = []
                     if eligible:
                         if self.state == 'SUSPENDED':
-                            if self.last_pts_end is not None and abs(pts-self.last_pts_end)>.16:self.clock_points.clear()
+                            if self.last_pts_end is not None and abs(pts-self.last_pts_end)>.16:
+                                self.clock_points.clear();self.rate_verified=False
                             self.state = 'ACQUIRING'; run = []
                             if self.pause is not None and self.returned is None:
                                 self.returned = dict(start=row['timelineStart'], observedWall=row['observedWall'], sequence=row['sequence'])
                                 self.event('movie_return_candidate', **self.returned)
-                            if (known_asset and self.k is not None and self.last_pts_end is not None
+                            if (known_asset and self.rate_verified and self.k is not None and self.last_pts_end is not None
                                     and abs(pts - self.last_pts_end) <= .16):
                                 self.state = 'LOCKED'
                                 self.resume = dict(timeline=row['timelineStart'], wall=time.time(), mode='verified_pts_continuity')
@@ -217,7 +226,7 @@ class Engine:
                                            continuityErrorSeconds=pts - self.last_pts_end,
                                            observedRecoverySeconds=time.time() - row['observedWall'])
                         if self.state == 'LOCKED' and old_state == 'LOCKED' and self.last_pts_end is not None and abs(pts - self.last_pts_end) > .2:
-                            self.clock_points.clear()
+                            self.clock_points.clear();self.rate_verified=False
                             self.state = 'ACQUIRING'; self.k = None; self.verified_asset = None; run = []; self.generation += 1
                             self.event('clock_discontinuity', sequence=row['sequence'], errorSeconds=pts - self.last_pts_end)
                         run.append(row)
@@ -256,19 +265,21 @@ class Engine:
                     (self.root / 'status.json').write_text(json.dumps(dict(state=self.state, lastSequence=self.last_sequence,
                         timeline=row['timelineEnd'], pause=self.pause, returned=self.returned, resume=self.resume,
                         holdout=list(self.holdout.values()), subtitleCandidates=len(self.candidates or []),
-                        unmatchedWindows=self.unmatched_windows, acquisitionExhausted=self.acquisition_exhausted)))
+                        unmatchedWindows=self.unmatched_windows, acquisitionExhausted=self.acquisition_exhausted,clockRate=self.rate,clockRateVerified=self.rate_verified)))
             self.collector.stop.wait(.15)
 
-    def retime_decisions(self, asset):
+    def retime_decisions(self, asset, minimum_start=float('-inf'), clock_origin=None):
         for decision in self.decisions.values():
-            if (decision['state']!='LOCKED' or decision['asset']!=asset
-                    or decision.get('clockGeneration')!=self.generation or decision.get('pts') is None):continue
+            if (decision['state'] not in ('LOCKED','ACQUIRING') or decision['asset']!=asset
+                    or decision.get('clockGeneration')!=self.generation or decision.get('pts') is None
+                    or decision['start']<minimum_start):continue
+            if clock_origin is not None and abs(decision['pts']-decision['start']-clock_origin)>.2:continue
             row=dict(timelineStart=decision['start'],timelineEnd=decision['end'])
             tracks=[]
             for language,cues in self.reference['tracks'].items():
                 emitted=mapped_cues(cues,row,decision['pts'],self.rate,self.k)
                 if emitted:tracks.append(dict(language=language,verified=True,cues=emitted))
-            decision.update(tracks=tracks,rate=self.rate,offset=self.rate*decision['pts']+self.k-decision['start'])
+            decision.update(state='LOCKED',tracks=tracks,rate=self.rate,recalibratedWall=time.time(),offset=self.rate*decision['pts']+self.k-decision['start'])
 
     def analyze(self, window, row, pts, generation):
         started = time.time()
@@ -302,6 +313,8 @@ class Engine:
                         self.unmatched_windows = 0; self.acquisition_exhausted = False
                         self.rate = candidate_rate
                         self.reference = candidate; self.k = candidate_k; self.verified_asset = row['asset']; self.state = 'LOCKED'
+                        self.rate_verified=clock_rate_confident(points,self.rate,self.k)
+                        self.retime_decisions(row['asset'],window[0]['timelineStart'],pts-row['timelineStart'])
                         self.calibration_cues = {a['cue'] for a in (points if proposal else anchors)}
                         if self.returned:
                             latest=self.collector.snapshot()[-1]
@@ -316,14 +329,17 @@ class Engine:
                         if proposal and abs(proposal['rate']-self.rate)>.0005 and (self.rate==1 or abs(statistics.median(residuals))>.5):
                             previous_rate=self.rate;self.rate=proposal['rate'];self.k=proposal['intercept']
                             self.calibration_cues={a['cue'] for a in points};self.holdout={}
-                            self.retime_decisions(row['asset'])
+                            self.rate_verified=True
+                            self.retime_decisions(row['asset'],window[0]['timelineStart'],pts-row['timelineStart'])
                             self.event('clock_rate_calibrated',previousRate=previous_rate,rate=self.rate,intercept=self.k,
                                        anchorCount=len(points),spanSeconds=max(p['sourcePts'] for p in points)-min(p['sourcePts'] for p in points),
                                        medianAbsoluteResidual=proposal['error'])
                         elif abs(statistics.median(residuals))>.9:
-                            self.state='ACQUIRING';self.k=None;self.verified_asset=None;self.generation+=1;self.decisions.clear()
+                            self.state='ACQUIRING';self.k=None;self.rate_verified=False;self.verified_asset=None;self.generation+=1;self.decisions.clear()
                             self.event('acoustic_calibration_invalidated', deviationSeconds=statistics.median(residuals))
-                        elif self.returned:
+                        else:
+                            self.rate_verified=clock_rate_confident(points,self.rate,self.k)
+                        if self.returned and self.state=='LOCKED':
                             for anchor,residual in zip(anchors,residuals):
                                 if anchor['asrStart']>=self.returned['start'] and anchor['cue'] not in self.calibration_cues:
                                     self.holdout[anchor['cue']]=dict(**anchor,errorSeconds=residual)

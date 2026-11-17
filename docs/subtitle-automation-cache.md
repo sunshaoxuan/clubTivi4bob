@@ -71,3 +71,9 @@ three time ranges, with bounded robust residuals and a clear improvement over a
 constant offset. Cues are mapped through that affine clock inside each video
 segment. Subsequent ASR windows validate the previous model independently;
 calibration and insertion offsets remain session state, outside resource caches.
+
+Fast insertion recovery additionally requires a verified clock rate. A newly
+started worker with insufficient rate evidence waits for fresh speech instead
+of resuming an unproven one-to-one clock. Newly validated clocks backfill only
+observed buffered movie windows with the same asset, generation and continuous
+PTS origin; insertion windows and previous clock epochs remain excluded.

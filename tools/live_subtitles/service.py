@@ -347,7 +347,10 @@ def serve(hub, host, port, legacy_port=None):
                     return self.send(json.dumps(dict(status='ready', pilot='rakuten-uk-6065',
                                                      activeSessions=len(hub.sessions), prewarmEnabled=getattr(hub,'prewarm',False),
                                                      engineRunning=getattr(hub,'engine',None) is not None,
-                                                     programmeTitle=getattr(hub,'programme',{}).get('title'))).encode())
+                                                     programmeTitle=getattr(hub,'programme',{}).get('title'),
+                                                     alignmentState=getattr(getattr(hub,'engine',None),'state','IDLE'),
+                                                     clockRate=getattr(getattr(hub,'engine',None),'rate',1),
+                                                     clockRateVerified=getattr(getattr(hub,'engine',None),'rate_verified',False))).encode())
                 match = re.fullmatch(r'/sessions/([a-f0-9]{32})', path)
                 if match:
                     position=parse_qs(urlsplit(self.path).query).get('position',[None])[0]

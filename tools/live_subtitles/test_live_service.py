@@ -7,7 +7,7 @@ import unittest
 from unittest.mock import patch
 
 from live_media import parse_media, playlist, continuous_counters, MediaPublisher
-from live_engine import Engine, align, fit_clock_rate, mapped_cues
+from live_engine import Engine, align, fit_clock_rate, mapped_cues, clock_rate_confident
 from service import Hub, CHANNEL, pilot_channel, media_route, official_imdb_id
 from subtitle_catalog import discover, parse_srt, title_norm, matches_movie_title
 
@@ -278,6 +278,12 @@ class LiveServiceTests(unittest.TestCase):
         step=[dict(sourcePts=i*8,subtitleStart=i*8+10-(3 if i>=6 else 0)) for i in range(12)]
         self.assertIsNone(fit_clock_rate(step))
 
+    def test_fast_resume_needs_sufficient_rate_evidence(self):
+        points=[dict(sourcePts=100+i*8,subtitleStart=.96*(100+i*8)+10) for i in range(12)]
+        self.assertTrue(clock_rate_confident(points,.96,10))
+        self.assertFalse(clock_rate_confident(points[:4],.96,10))
+        self.assertFalse(clock_rate_confident(points,1,4))
+
     def test_cue_mapping_applies_rate_and_clips_to_actual_video_segment(self):
         row=dict(timelineStart=20.,timelineEnd=26.)
         cues=[dict(index=1,start=106.,end=107.92,text='existing subtitle')]
@@ -291,11 +297,13 @@ class LiveServiceTests(unittest.TestCase):
             e=Engine('https://public.example/live',dict(movieId='film',title='Film',year=2003),root,None,'ffmpeg',candidates=[c])
             e.reference=c;e.rate=.96;e.k=10;e.generation=2
             base=dict(state='LOCKED',asset='film',clockGeneration=2,pts=100,start=20,end=26,tracks=[])
-            e.decisions={1:{**base},2:{**base,'state':'SUSPENDED'},3:{**base,'clockGeneration':1},4:{**base,'asset':'other'}}
-            e.retime_decisions('film')
+            e.decisions={1:{**base},2:{**base,'state':'SUSPENDED'},3:{**base,'clockGeneration':1},4:{**base,'asset':'other'},5:{**base,'state':'ACQUIRING'},6:{**base,'state':'ACQUIRING','pts':160}}
+            e.retime_decisions('film',20,80)
             self.assertAlmostEqual(e.decisions[1]['tracks'][0]['cues'][0]['start'],20)
             self.assertAlmostEqual(e.decisions[1]['tracks'][0]['cues'][0]['end'],22)
-            for i in (2,3,4):self.assertEqual(e.decisions[i]['tracks'],[])
+            self.assertEqual(e.decisions[5]['state'],'LOCKED')
+            self.assertTrue(e.decisions[5]['tracks'])
+            for i in (2,3,4,6):self.assertEqual(e.decisions[i]['tracks'],[])
 
     def test_fps_drift_is_calibrated_without_repeated_acquisition(self):
         with tempfile.TemporaryDirectory() as root:
@@ -367,8 +375,8 @@ class LiveServiceTests(unittest.TestCase):
         self.assertFalse(hub.valid_context(hub.source,None))
 
     def test_ad_clears_cues_and_return_requires_verified_pts_continuity(self):
-        for return_pts,expected in [(12.,'LOCKED'),(300.,'ACQUIRING')]:
-            with self.subTest(return_pts=return_pts),tempfile.TemporaryDirectory() as root:
+        for return_pts,verified,expected in [(12.,True,'LOCKED'),(12.,False,'ACQUIRING'),(300.,True,'ACQUIRING')]:
+            with self.subTest(return_pts=return_pts,rate_verified=verified),tempfile.TemporaryDirectory() as root:
                 candidate=dict(page='existing-file',tracks={'en':[dict(index=1,start=100,end=150,text='Existing subtitle')]})
                 e=Engine('https://public.example/route',dict(movieId='film',title='Film',year=2003),root,None,'ffmpeg',candidates=[candidate],synchronous_analysis=True)
                 e.collector.rows=[dict(sequence=i,duration=duration,timelineStart=start,timelineEnd=start+duration,
@@ -377,7 +385,7 @@ class LiveServiceTests(unittest.TestCase):
                 def transcribe(*args):
                     e.collector.stop.set()
                     return []
-                with patch('live_engine.media_pts',lambda row,*_: {1:0.,2:6.,4:return_pts}[row['sequence']]),patch('live_engine.transcribe',transcribe),patch('live_engine.align',lambda *args:(100.,[dict(cue=1,subtitleStart=100.,asrStart=0.,offset=100.)])):
+                with patch('live_engine.clock_rate_confident',return_value=verified),patch('live_engine.media_pts',lambda row,*_: {1:0.,2:6.,4:return_pts}[row['sequence']]),patch('live_engine.transcribe',transcribe),patch('live_engine.align',lambda *args:(100.,[dict(cue=1,subtitleStart=100.,asrStart=0.,offset=100.)])):
                     e.run()
                 self.assertEqual(e.decisions[3]['state'],'SUSPENDED')
                 self.assertEqual(e.decisions[3]['tracks'],[])

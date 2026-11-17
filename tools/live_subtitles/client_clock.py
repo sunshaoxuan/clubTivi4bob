@@ -94,7 +94,7 @@ class TextHub:
                     session.pop('priorReference',None);session.pop('priorRate',None);session.pop('lastMatchedReference',None)
                 elif session.get('reference') is not None or session.get('lastMatchedReference') is not None:
                     session['priorReference']=session['reference'] or session['lastMatchedReference'];session['priorRate']=session['rate']
-                session.update(epoch=epoch,asset=asset,reference=None,intercept=None,rate=1.,points={},programmeKey=self.programme['key'],unmatchedWindows=0,exhausted=False,pendingAnchors={})
+                session.update(epoch=epoch,asset=asset,reference=None,intercept=None,rate=session.get('priorRate',1.),points={},programmeKey=self.programme['key'],unmatchedWindows=0,exhausted=False,pendingAnchors={})
             session.update(lastObservation=serial,lastAccess=time.time(),lastWindow=dict(start=start,end=end),ad=ad)
             if ad:
                 session['windows']=[w for w in session['windows'] if w['end']<=start]

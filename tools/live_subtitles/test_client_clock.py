@@ -86,6 +86,22 @@ class ClientClockTests(unittest.TestCase):
                 h.ingest(t,self.observation(h,serial=3,start=26,end=46,words=words))
             self.assertEqual(h.sessions[t]['intercept'],107)
 
+    def test_ad_preserves_known_edition_rate_and_clears_offset(self):
+        with tempfile.TemporaryDirectory() as d:
+            h=self.hub(d);t=h.create(h.source,None,'en',['clientClockV1'])
+            words=[dict(word='we have number',start=1,end=2,probability=.9)]
+            with patch('client_clock.align',return_value=(100,self.anchors())):
+                h.ingest(t,self.observation(h,words=words))
+            h.sessions[t]['rate']=25/24
+            h.ingest(t,self.observation(h,serial=2,epoch=2,asset='advert',ad=True,start=20,end=26))
+            self.assertEqual(h.sessions[t]['rate'],25/24)
+            self.assertIsNone(h.sessions[t]['intercept'])
+            self.assertNotIn('acceptedClock',h.sessions[t])
+            with patch('client_clock.align',return_value=(None,[])) as alignment:
+                h.ingest(t,self.observation(h,serial=3,epoch=3,start=26,end=40,words=words))
+            self.assertEqual(alignment.call_args_list[0].kwargs['rate'],25/24)
+            self.assertIsNone(h.sessions[t]['intercept'])
+
     def test_clock_and_observations_are_isolated_between_viewers(self):
         with tempfile.TemporaryDirectory() as d:
             h=self.hub(d);a=h.create(h.source,None,'en',['clientClockV1']);b=h.create(h.source,None,'en',['clientClockV1'])

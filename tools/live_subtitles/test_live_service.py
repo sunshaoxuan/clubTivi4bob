@@ -284,6 +284,13 @@ class LiveServiceTests(unittest.TestCase):
         self.assertFalse(clock_rate_confident(points[:4],.96,10))
         self.assertFalse(clock_rate_confident(points,1,4))
 
+    def test_numpy_timestamps_produce_json_serializable_confidence(self):
+        import numpy as np
+        points=[dict(sourcePts=np.float64(100+i*8),subtitleStart=np.float64(.96*(100+i*8)+10)) for i in range(12)]
+        verified=clock_rate_confident(points,.96,10)
+        self.assertIs(type(verified),bool)
+        self.assertEqual(json.loads(json.dumps(dict(clockRateVerified=verified))),dict(clockRateVerified=True))
+
     def test_cue_mapping_applies_rate_and_clips_to_actual_video_segment(self):
         row=dict(timelineStart=20.,timelineEnd=26.)
         cues=[dict(index=1,start=106.,end=107.92,text='existing subtitle')]

@@ -73,7 +73,7 @@ def clock_rate_confident(points,rate,intercept):
     xs=[p['sourcePts'] for p in points];origin=min(xs)
     if max(xs)-origin<45 or len({int((x-origin)//15) for x in xs})<3:return False
     errors=sorted(abs(p['subtitleStart']-rate*p['sourcePts']-intercept) for p in points)
-    return statistics.median(errors)<=.35 and errors[int((len(errors)-1)*.9)]<=.75
+    return bool(statistics.median(errors)<=.35 and errors[int((len(errors)-1)*.9)]<=.75)
 
 def mapped_cues(cues,row,pts,rate,intercept):
     movie_start=rate*pts+intercept;result=[]

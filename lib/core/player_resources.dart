@@ -86,6 +86,13 @@ class ManagedPlayer extends Player {
     liveSubtitles = LiveSubtitleSession(this, subtitles);
     liveSubtitles.segmentAt = _hlsBuffer.segmentAt;
     liveSubtitles.onMediaReady = _connectReadySubtitleMedia;
+    _hlsBuffer.onPipeFailure = () =>
+        unawaited(_fallbackToOriginal(_openGeneration, force: true));
+    _fallbackCompleted = stream.completed.listen((completed) {
+      if (completed && _hlsBuffer.linearClockReady) {
+        unawaited(_fallbackToOriginal(_openGeneration, force: true));
+      }
+    });
     _fallbackBuffering = stream.buffering.listen(
       (_) => _updateFallbackWatchdog(),
     );
@@ -95,6 +102,7 @@ class ManagedPlayer extends Player {
       _clearFallback();
       await _fallbackBuffering.cancel();
       await _fallbackPlaying.cancel();
+      await _fallbackCompleted.cancel();
       await _hlsBuffer.stop();
       await liveSubtitles.dispose();
       await subtitles.dispose();
@@ -116,7 +124,9 @@ class ManagedPlayer extends Player {
   int subtitleMediaAutoOpens = 0;
   Duration subtitleStartupGrace = const Duration(seconds: 10);
   Timer? _fallbackTimer;
-  late final StreamSubscription<bool> _fallbackBuffering, _fallbackPlaying;
+  late final StreamSubscription<bool> _fallbackBuffering,
+      _fallbackPlaying,
+      _fallbackCompleted;
 
   /// The owning route guard must approve every asynchronous fallback open.
   Future<void> Function(Future<void> Function() operation)? fallbackOpenGate;
@@ -165,20 +175,19 @@ class ManagedPlayer extends Player {
     });
   }
 
-  Future<void> _fallbackToOriginal(int generation) async {
+  Future<void> _fallbackToOriginal(int generation, {bool force = false}) async {
     final media = _fallbackMedia;
     final gate = fallbackOpenGate;
     if (generation != _openGeneration ||
         media == null ||
-        !state.playing ||
-        !state.buffering) {
+        (!force && (!state.playing || !state.buffering))) {
       return;
     }
     _clearFallback();
     Future<void> reopen() async {
       if (generation != _openGeneration) return;
       AppDiagnostics.instance.log('subtitle_media_unavailable_using_original', {
-        'reason': 'media_buffer_timeout',
+        'reason': force ? 'media_pipe_ended' : 'media_buffer_timeout',
       });
       await _openPlayable(media, play: true, discoverSubtitles: false);
       liveSubtitles.deferMediaRetry();

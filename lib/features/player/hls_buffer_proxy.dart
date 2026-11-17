@@ -234,6 +234,8 @@ class HlsBufferProxy {
 
   final _linearized = HlsLinearizedPipe();
   bool linearClockReady = false;
+  set onPipeFailure(void Function()? callback) =>
+      _linearized.onFailure = callback;
   HttpServer? _server;
   HttpClient? _client;
   final _sources = <String, Uri>{};

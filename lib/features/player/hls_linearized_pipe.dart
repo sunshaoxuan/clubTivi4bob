@@ -6,6 +6,7 @@ import '../../core/app_diagnostics.dart';
 /// One local stream-copy pipe. It shares the existing HLS fetches and never
 /// decodes audio/video or sends media to a subtitle server.
 class HlsLinearizedPipe {
+  void Function()? onFailure;
   Process? _process;
   HttpServer? _server;
   StreamSubscription<String>? _errors;
@@ -39,7 +40,10 @@ class HlsLinearizedPipe {
             if (decoded is! Map<String, dynamic>) return;
             final data = decoded;
             if (data['event'] == 'remux_discontinuity' ||
-                data['event'] == 'remux_error') {
+                data['event'] == 'remux_error' ||
+                data['event'] == 'remux_stream_changed' ||
+                data['event'] == 'remux_packet_adjusted' ||
+                data['event'] == 'remux_mux_diagnostic') {
               AppDiagnostics.instance.log(
                 'client_${data.remove('event')}',
                 data,
@@ -100,6 +104,7 @@ class HlsLinearizedPipe {
           'code': code,
           'current': identical(_process, process),
         });
+        if (identical(_process, process)) onFailure?.call();
       }),
     );
     AppDiagnostics.instance.log('client_remux_started', {

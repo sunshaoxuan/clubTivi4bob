@@ -102,6 +102,27 @@ class ClientClockTests(unittest.TestCase):
             self.assertEqual(alignment.call_args_list[0].kwargs['rate'],25/24)
             self.assertIsNone(h.sessions[t]['intercept'])
 
+    def test_initial_fps_hypothesis_avoids_waiting_for_a_unit_rate_lock(self):
+        with tempfile.TemporaryDirectory() as d:
+            h=self.hub(d);t=h.create(h.source,None,'en',['clientClockV1'])
+            words=[dict(word='clear speech',start=1,end=2,probability=.9)]
+            anchors=[dict(cue=i,subtitleStart=100+(25/24)*(i*15),asrStart=i*15+shift,offset=100+(25/24)*(i*15)-i*15-shift,words=9) for i,shift in enumerate([.3,0,-.3])]
+            with patch('client_clock.align',return_value=(None,anchors)):
+                h.ingest(t,self.observation(h,end=40,words=words))
+            self.assertIsNotNone(h.sessions[t]['reference'])
+            self.assertGreater(h.sessions[t]['rate'],1.)
+
+    def test_imdb_bound_initial_pair_still_needs_two_long_fresh_cues(self):
+        with tempfile.TemporaryDirectory() as d:
+            h=self.hub(d);h.candidates[0]['provenance']={'en':{'imdbId':'tt1234567'}}
+            t=h.create(h.source,None,'en',['clientClockV1']);words=[dict(word='clear speech',start=1,end=2,probability=.9)]
+            with patch('client_clock.align',return_value=(None,self.anchors()[:1])):
+                h.ingest(t,self.observation(h,words=words))
+            self.assertIsNone(h.sessions[t]['reference'])
+            with patch('client_clock.align',return_value=(None,self.anchors()[:2])):
+                h.ingest(t,self.observation(h,serial=2,words=words))
+            self.assertIsNotNone(h.sessions[t]['reference'])
+
     def test_clock_and_observations_are_isolated_between_viewers(self):
         with tempfile.TemporaryDirectory() as d:
             h=self.hub(d);a=h.create(h.source,None,'en',['clientClockV1']);b=h.create(h.source,None,'en',['clientClockV1'])

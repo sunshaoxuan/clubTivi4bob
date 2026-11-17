@@ -5,6 +5,7 @@ subtitle resources only. A new asset/epoch always needs fresh acoustic evidence.
 """
 import json
 import math
+import re
 from pathlib import Path
 import statistics
 import sys
@@ -112,35 +113,43 @@ class TextHub:
                 offset,anchors=align(words,candidate['tracks']['en'],start,rate=candidate_rate)
                 # Accumulate distinct, exact cue-onset matches across overlapping
                 # windows. Epoch/asset changes clear this evidence completely.
+                fresh_ids={a['cue'] for a in anchors}
                 pending=session.setdefault('pendingAnchors',{}).setdefault(candidate['page'],{})
                 for anchor in anchors:
                     pending[anchor['cue']]=anchor
                 pending={key:a for key,a in pending.items() if end-60 <= a['asrStart'] <= end}
                 session['pendingAnchors'][candidate['page']]=pending
                 accumulated=list(pending.values())
-                cluster=max(([a for a in accumulated if abs(a['offset']-c['offset'])<.6]
-                             for c in accumulated),key=len,default=[])
-                if (offset is None and len({a['cue'] for a in cluster})>=3 and
-                    max(a['asrStart'] for a in cluster)-min(a['asrStart'] for a in cluster)>=4):
-                    offset=statistics.median(a['offset'] for a in cluster);anchors=cluster
-                if offset is None and candidate is prior:
-                    # A previously matched edition still needs fresh multi-cue
-                    # dialogue. This shortens ad recovery without reusing offset.
-                    cluster=max(([a for a in anchors if abs(a['offset']-c['offset'])<.6] for c in anchors),key=len,default=[])
-                    if (len({a['cue'] for a in cluster})>=2 and
-                        max(a['asrStart'] for a in cluster)-min(a['asrStart'] for a in cluster)>=2 and
-                        all(a['words']>=8 for a in cluster)):
-                        offset=statistics.median(a['offset'] for a in cluster);anchors=cluster
-                if offset is not None:selected=(candidate,anchors);break
+                known_rate=session.get('candidateKey')==candidate['page'] or candidate is prior
+                rates=[candidate_rate] if known_rate else [1.,24/25,(24000/1001)/25,25/24,25/(24000/1001)]
+                identity=candidate.get('provenance',{}).get('en',{}).get('imdbId')
+                bound=bool(isinstance(identity,str) and re.fullmatch(r'tt[0-9]{7,10}',identity) and
+                           (self.programme.get('imdbId') is None or self.programme['imdbId']==identity))
+                hypotheses=[]
+                for trial_rate in rates:
+                    projected=[{**a,'offset':a['subtitleStart']-trial_rate*a['asrStart']} for a in accumulated]
+                    clusters=[[a for a in projected if abs(a['offset']-c['offset'])<.6] for c in projected]
+                    cluster=max((group for group in clusters if any(a['cue'] in fresh_ids for a in group)),key=len,default=[])
+                    if not cluster:continue
+                    count=len({a['cue'] for a in cluster})
+                    span=max(a['asrStart'] for a in cluster)-min(a['asrStart'] for a in cluster)
+                    long_pair=(candidate is prior or bound) and count>=2 and span>=2 and all(a['words']>=8 for a in cluster)
+                    if not ((count>=3 and span>=4) or long_pair):continue
+                    intercept=statistics.median(a['offset'] for a in cluster)
+                    spread=statistics.median(abs(a['offset']-intercept) for a in cluster)
+                    hypotheses.append((count,-spread,trial_rate,intercept,cluster))
+                if hypotheses:
+                    _,_,candidate_rate,offset,anchors=max(hypotheses,key=lambda h:(h[0],h[1]))
+                if offset is not None:selected=(candidate,anchors,candidate_rate);break
             if selected is None:
                 if len(words)>=10:
                     session['unmatchedWindows']+=1;session['exhausted']=session['unmatchedWindows']>=3
                     session['reference']=None;session['intercept']=None;session['windows']=[w for w in session['windows'] if w['end']<=start]
                     self.event('unmatched_speech',session=token,start=start,end=end,words=len(words))
                 return
-            candidate,anchors=selected
+            candidate,anchors,selected_rate=selected
             if session.get('candidateKey')!=candidate['page']:
-                session.update(candidateKey=candidate['page'],points={},intercept=None,rate=session.get('priorRate',1.) if candidate is prior else 1.)
+                session.update(candidateKey=candidate['page'],points={},intercept=None,rate=selected_rate)
             old_points=dict(session['points'])
             for a in anchors:session['points'][a['cue']]=dict(cue=a['cue'],sourcePts=a['asrStart'],subtitleStart=a['subtitleStart'])
             points=list(session['points'].values())[-128:];proposal=fit_clock_rate(points)

@@ -31,6 +31,7 @@ class ClientAudioSubtitles {
   static int _nextLabel = 0;
   final label = 'bobtv_pcm_${_nextLabel++}';
   static bool get supported => ClientSubtitleRuntime.available;
+  String? _workerModel;
   String text = '';
   SubtitlePhase phase = SubtitlePhase.searching;
   String? _source, _session;
@@ -127,6 +128,7 @@ class ClientAudioSubtitles {
           try {
             final message = jsonDecode(line) as Map<String, dynamic>;
             if (message['ready'] == true && !ready.isCompleted) {
+              _workerModel = message['model'] as String?;
               ready.complete();
             } else if (_recognition != null && !_recognition!.isCompleted) {
               _recognition!.complete(message);
@@ -162,6 +164,10 @@ class ClientAudioSubtitles {
     );
     AppDiagnostics.instance.log('client_asr_ready', {
       'engine': 'whisper.cpp-v1.8.2',
+      'model': _workerModel,
+      'cpuVariant': ClientSubtitleRuntime.asr!.contains('avx2')
+          ? 'avx2'
+          : 'baseline',
       'audioUploaded': false,
     });
   }
@@ -430,6 +436,7 @@ class ClientAudioSubtitles {
         'ad': ad,
         'start': math.max(0, start),
         'end': end,
+        'position': player.state.position.inMicroseconds / 1e6,
         'words': words,
         'serial': serial,
       });

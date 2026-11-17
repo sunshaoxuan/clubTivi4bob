@@ -79,6 +79,7 @@ class TextHub:
             epoch=data.get('epoch');asset=data.get('asset');ad=data.get('ad')
             if not isinstance(epoch,int) or isinstance(epoch,bool) or not 0<=epoch<1e9 or not isinstance(asset,str) or not 1<=len(asset)<=512 or not isinstance(ad,bool):raise ValueError('invalid_epoch')
             start=finite(data.get('start'),0,86400*14);end=finite(data.get('end'),start,start+40)
+            position=finite(data.get('position',end),0,end+120)
             serial=data.get('serial')
             if not isinstance(serial,int) or isinstance(serial,bool) or serial<=session['lastObservation']:raise ValueError('replayed_observation')
             raw=data.get('words',[])
@@ -201,7 +202,8 @@ class TextHub:
             session['acceptedClock']=dict(page=candidate['page'],rate=rate,intercept=intercept)
             session.update(lastMatchedReference=candidate,reference=candidate,intercept=intercept,rate=rate,rateVerified=clock_rate_confident(points,rate,intercept),unmatchedWindows=0,exhausted=False)
             # Refresh only observed movie windows; ad intervals remain excluded.
-            movie_end=end+12
+            trusted_rate=session.get('rateVerified',False) or candidate is session.get('priorReference') and session.get('priorRateVerified',False) and abs(rate-session.get('priorRate',rate))<1e-8
+            movie_end=max(end+12,position+12) if trusted_rate else end+12
             tracks=[]
             for language,cues in candidate['tracks'].items():
                 emitted=[dict(index=c['index'],start=(c['start']-intercept)/rate,end=(c['end']-intercept)/rate,text=c['text']) for c in cues if c['end']>=rate*start+intercept and c['start']<=rate*movie_end+intercept]

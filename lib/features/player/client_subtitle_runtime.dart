@@ -28,7 +28,12 @@ class ClientSubtitleRuntime {
           if (capability.exitCode == 0 &&
               jsonDecode(capability.stdout as String)['avx2'] == true) {
             asr = fast;
+          } else if (paths?['tinyModel'] != null) {
+            model = paths!['tinyModel'];
           }
+        }
+        if (paths?['preferTiny'] == 'true' && paths?['tinyModel'] != null) {
+          model = paths!['tinyModel'];
         }
       } else if (Platform.isMacOS || Platform.isWindows) {
         final base = File(Platform.resolvedExecutable).parent;
@@ -47,6 +52,8 @@ class ClientSubtitleRuntime {
           if (capability.exitCode == 0 &&
               jsonDecode(capability.stdout as String)['avx2'] == true) {
             asr = '$root/bobtv-client-asr-avx2.exe';
+          } else if (await File('$root/ggml-tiny.en-q5_1.bin').exists()) {
+            model = '$root/ggml-tiny.en-q5_1.bin';
           }
         }
       }

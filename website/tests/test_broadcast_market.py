@@ -123,3 +123,10 @@ def test_pluto_global_id_requires_reviewed_country_binding_and_ignores_query_mar
     assert resolve_market(channel([route]),[binding])['market']=='DE'
     assert resolve_market(channel([route,route.replace(identity,'f'*24)]),[binding])['market'] is None
     assert provider_service(route.replace('pluto.tv','pluto.tv.attacker.example')) is None
+
+
+def test_current_hls_profile_keeps_reviewed_service_identity_and_market():
+    current = URL.replace('production-LiveChannel-6065', 'production-hls-aes128-rtv-6065-playout')
+    assert provider_service(current) == ('rakuten-tv', HOST, '6065')
+    assert resolve_market(channel((current,)), [BINDING])['market'] == 'GB'
+    assert resolve_market(channel((current.replace('-uk.fast.', '-de.fast.'),)), [BINDING])['status'] != 'verified_edition'

@@ -15,6 +15,8 @@ ROOT=Path(__file__).resolve().parents[2]
 ABIS={'arm':'armeabi-v7a','arm64':'arm64-v8a','x64':'x86_64'}
 MODEL='ggml-base.en-q5_1.bin'
 SHA='4baf70dd0d7c4247ba2b81fafd9c01005ac77c2f9ef064e00dcf195d0e2fdd2f'
+TINY='ggml-tiny.en-q5_1.bin'
+TINY_SHA='c77c5766f1cef09b6b7d47f21b546cbddd4157886b3b5d6d4f709e91e66c7c2b'
 def digest(p):return hashlib.sha256(p.read_bytes()).hexdigest()
 def stage(artifacts,output,arches):
     output.mkdir(parents=True,exist_ok=True)
@@ -31,7 +33,7 @@ def stage(artifacts,output,arches):
         for name,sha in record['files'].items():assert digest(native/name)==sha
         receipt=json.loads((worker/'receipt.json').read_text())
         assert receipt['modelSha256']==SHA and receipt['architecture']==arch
-        for name,sha in receipt.get('sourceSha256',{}).items():assert digest(ROOT/'tools/native'/name)==sha
+        for name,sha in receipt['sourceSha256'].items():assert digest(ROOT/'tools/native'/name)==sha
         for name,sha in receipt['files'].items():assert digest(worker/name)==sha
         assert digest(worker/MODEL)==SHA
         target=ROOT/'android/app/src/main/jniLibs'/abi;target.mkdir(parents=True,exist_ok=True)
@@ -39,9 +41,12 @@ def stage(artifacts,output,arches):
         fast=worker/'receipt-avx2.json'
         if fast.exists():
             optimized=json.loads(fast.read_text())
+            for name,sha in optimized['sourceSha256'].items():assert digest(ROOT/'tools/native'/name)==sha
             for name,sha in optimized['files'].items():
                 assert digest(worker/name)==sha
                 shutil.copy2(worker/name,target/name)
+        else:
+            (target/'libbobtv_client_asr_avx2.so').unlink(missing_ok=True)
         base_item=json.loads((ROOT/'tools/native/runtime-lock.json').read_text())['android'][abi]
         base=ROOT/'build/native-audio-runtime-cache'/base_item['filename']
         if not base.exists():
@@ -63,6 +68,9 @@ def stage(artifacts,output,arches):
         lock['android'][abi]=dict(filename=jar.name,sha256=digest(jar),url=jar.as_uri())
         assets=ROOT/'android/app/src/main/assets/ClientASR';assets.mkdir(parents=True,exist_ok=True)
         if not (assets/MODEL).exists() or digest(assets/MODEL)!=SHA:shutil.copy2(worker/MODEL,assets/MODEL)
+        if TINY in receipt.get('models',{}):
+            assert receipt['models'][TINY]==TINY_SHA and digest(worker/TINY)==TINY_SHA
+            shutil.copy2(worker/TINY,assets/TINY)
         notices=assets/'sources-and-licenses'/abi;shutil.copytree(worker/'sources-and-licenses',notices,dirs_exist_ok=True)
         shutil.copy2(worker/'receipt.json',notices/'receipt.json')
     (output/'runtime-lock.json').write_text(json.dumps(lock,indent=2))

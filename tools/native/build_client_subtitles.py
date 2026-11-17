@@ -17,6 +17,9 @@ ROOT = Path(__file__).resolve().parents[2]
 WHISPER = '4979e04f5dcaccb36057e059bbaed8a2f5288315'
 MODEL = 'ggml-base.en-q5_1.bin'
 MODEL_SHA = '4baf70dd0d7c4247ba2b81fafd9c01005ac77c2f9ef064e00dcf195d0e2fdd2f'
+TINY = 'ggml-tiny.en-q5_1.bin'
+TINY_SHA = 'c77c5766f1cef09b6b7d47f21b546cbddd4157886b3b5d6d4f709e91e66c7c2b'
+MODEL_REVISION = '5359861c739e955e79d9a303bcbc70fb988958b1'
 FLAGS = ['--disable-everything', '--disable-autodetect', '--disable-programs', '--disable-doc',
          '--disable-avdevice', '--disable-avfilter', '--disable-swscale', '--disable-swresample',
          '--disable-postproc', '--enable-static', '--disable-shared', '--enable-avformat',
@@ -47,12 +50,22 @@ def build(args):
         urllib.request.urlretrieve('https://huggingface.co/ggerganov/whisper.cpp/resolve/main/' + MODEL, temp)
         temp.replace(model)
     assert hashlib.sha256(model.read_bytes()).hexdigest() == MODEL_SHA
+    models={MODEL:MODEL_SHA}
+    if args.arch in ('x64','arm'):
+        tiny=cache/TINY
+        if not tiny.exists():
+            temporary=tiny.with_suffix('.download')
+            urllib.request.urlretrieve(f'https://huggingface.co/ggerganov/whisper.cpp/resolve/{MODEL_REVISION}/{TINY}',temporary)
+            temporary.replace(tiny)
+        assert hashlib.sha256(tiny.read_bytes()).hexdigest()==TINY_SHA
+        models[TINY]=TINY_SHA
     build = cache / f'{args.platform}-{args.arch}'; build.mkdir(exist_ok=True)
     output = args.output.resolve(); output.mkdir(parents=True, exist_ok=True)
     cmake_flags = ['-DCMAKE_BUILD_TYPE=Release', '-DBUILD_SHARED_LIBS=OFF', '-DWHISPER_BUILD_EXAMPLES=OFF',
                    '-DWHISPER_BUILD_TESTS=OFF', '-DGGML_NATIVE=OFF', '-DGGML_OPENMP=OFF', '-DGGML_BLAS=OFF',
                    '-DGGML_METAL=OFF', '-DGGML_VULKAN=OFF', '-DGGML_CPU_ALL_VARIANTS=OFF']
     extra_link = ['-lm']
+    blas=None
     if args.platform == 'android':
         sdk = Path(os.environ.get('ANDROID_HOME') or os.environ['ANDROID_SDK_ROOT'])
         ndk = sdk / 'ndk/28.2.13676358'
@@ -70,7 +83,13 @@ def build(args):
                  '--extra-cflags=-fPIC', '--extra-ldflags=-Wl,-z,max-page-size=16384']
         extra_link += ['-ldl', '-llog', '-static-libstdc++', '-Wl,-z,max-page-size=16384']
         names = ['libbobtv_client_asr.so', 'libbobtv_client_remux.so']
-        if args.arch == 'x64': cmake_flags += ['-DGGML_SSE42=ON']
+        if args.arch == 'x64':
+            cmake_flags += ['-DGGML_SSE42=ON']
+            from build_android_blas import prepare as prepare_blas
+            blas=prepare_blas(cache,cc,ar,ranlib)
+            cmake_flags=[flag for flag in cmake_flags if not flag.startswith('-DGGML_BLAS=')]
+            cmake_flags += ['-DGGML_BLAS=ON','-DGGML_BLAS_VENDOR=OpenBLAS',f'-DBLAS_LIBRARIES={blas[0]}',
+                            f'-DBLAS_INCLUDE_DIRS={blas[1]}',f'-DCMAKE_MODULE_PATH={blas[2]}']
     else:
         if not args.toolchain: raise RuntimeError('--toolchain must point to the pinned LLVM-mingw directory')
         toolchain = args.toolchain.resolve()
@@ -93,6 +112,7 @@ def build(args):
     libraries = [whisper_build / p for p in ['src/libwhisper.a', 'ggml/src/libggml.a',
                  'ggml/src/libggml-base.a', 'ggml/src/libggml-cpu.a']]
     libraries = [p if p.exists() else p.with_name(p.name.removeprefix('lib')) for p in libraries]
+    if blas: libraries += [whisper_build/'ggml/src/ggml-blas/libggml-blas.a',blas[0]]
     run(cxx, '-std=c++17', '-O2', ROOT / 'tools/native/client_asr.cpp', '-I', source / 'include',
         '-I', source / 'ggml/include', '-I', source / 'examples', *libraries, '-pthread', *extra_link,
         '-o', output / names[0])
@@ -107,15 +127,18 @@ def build(args):
     run(cxx, '-std=c++17', '-O2', ROOT / 'tools/native/client_remux.cpp', '-idirafter', fb, '-idirafter', ffmpeg,
         fb / 'libavformat/libavformat.a', fb / 'libavcodec/libavcodec.a', fb / 'libavutil/libavutil.a',
         '-pthread', *extra_link, '-o', output / names[1])
-    shutil.copy2(model, output / MODEL)
+    for name in models: shutil.copy2(cache/name,output/name)
     notices = output / 'sources-and-licenses'; notices.mkdir(exist_ok=True)
     for file in [source / 'LICENSE', ffmpeg / 'COPYING.LGPLv2.1', ROOT / 'tools/native/client_asr.cpp',
                  ROOT / 'tools/native/client_remux.cpp', Path(__file__)]: shutil.copy2(file, notices)
+    if blas:
+        shutil.copy2(blas[3],notices/'OpenBLAS-LICENSE')
+        shutil.copy2(blas[4],notices/'OpenBLAS-build.json')
     receipt = dict(platform=args.platform, architecture=args.arch, whisperCommit=WHISPER, ffmpegCommit=ffcommit,
-                   modelSha256=MODEL_SHA, alignment='dtw', decodersEnabled=False, encodersEnabled=False,
+                   modelSha256=MODEL_SHA, models=models, alignment='dtw', decodersEnabled=False, encodersEnabled=False,
                    files={name: hashlib.sha256((output / name).read_bytes()).hexdigest() for name in names},
                    sourceSha256={name: hashlib.sha256((ROOT / 'tools/native' / name).read_bytes()).hexdigest() for name in ['client_asr.cpp','client_remux.cpp']},
-                   ffmpegFlags=flags)
+                   whisperCmakeFlags=cmake_flags,ffmpegFlags=flags)
     (output / ('receipt-avx2.json' if args.cpu == 'avx2' else 'receipt.json')).write_text(json.dumps(receipt, indent=2))
 
 

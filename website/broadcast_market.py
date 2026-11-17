@@ -13,7 +13,7 @@ from urllib.parse import urlsplit
 
 POLICY_VERSION = 'broadcast-edition-market-v1'
 _RAKUTEN_PATH = re.compile(
-    r'/v1/(?:master|manifest)/[a-f0-9]{40}/production-LiveChannel-(\d+)/'
+    r'/v1/(?:master|manifest)/[a-f0-9]{40}/production-(?:LiveChannel-(\d+)|hls-aes128-rtv-(\d+)-playout)/'
     r'(?:[a-f0-9-]{36}/)?(?:master|[0-9]+)\.m3u8')
 
 
@@ -54,7 +54,7 @@ def provider_service(url):
     match = _RAKUTEN_PATH.fullmatch(p.path)
     if not match:
         return None
-    return ('rakuten-tv', host, match[1])
+    return ('rakuten-tv', host, match[1] or match[2])
 
 
 def resolve_market(channel, bindings):

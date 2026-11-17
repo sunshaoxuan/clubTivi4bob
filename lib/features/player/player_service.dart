@@ -847,6 +847,9 @@ class PlayerService {
     bool preferRequestedRoute = false,
     bool onlyRequestedRoute = false,
   }) async {
+    // Reviewed provider replacements must resolve before retired-route checks,
+    // so a saved favourite of the expired UK 6065 configuration can still open.
+    if (isActionMoviesUk(url)) url = currentActionMoviesMaster(url).toString();
     final request = ++_channelSwitchGeneration;
     await _retirementGuard?.refresh();
     if (request != _channelSwitchGeneration || _disposed) return false;

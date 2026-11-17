@@ -127,6 +127,12 @@ class LiveSubtitleSession {
       );
       return source;
     }
+    if (isActionMoviesUk(source)) {
+      // Missing local tools must not reactivate the legacy server video reader.
+      _phase = SubtitlePhase.serviceUnavailable;
+      _render();
+      return source;
+    }
     if (serviceEndpoint.isEmpty) return source;
     try {
       final base = Uri.parse(serviceEndpoint);

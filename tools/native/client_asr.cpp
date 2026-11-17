@@ -8,6 +8,10 @@
 #include <vector>
 #include <chrono>
 #include <cmath>
+#include <thread>
+#ifdef __ANDROID__
+#include <unistd.h>
+#endif
 #if (defined(_WIN32) || defined(__ANDROID__)) && defined(__x86_64__)
 #include <cpuid.h>
 static bool fast_cpu(){
@@ -31,15 +35,19 @@ int main(int argc,char **argv) {
 #endif
   return 0;
  }
+ const bool tiny=std::filesystem::u8path(argv[1]).filename()=="ggml-tiny.en-q5_1.bin";
+#ifdef __ANDROID__
+ nice(5);
+#endif
  whisper_log_set([](ggml_log_level,const char*,void*){},nullptr);
- auto cp=whisper_context_default_params();cp.use_gpu=false;cp.flash_attn=false;cp.dtw_token_timestamps=true;cp.dtw_aheads_preset=WHISPER_AHEADS_BASE_EN;
+ auto cp=whisper_context_default_params();cp.use_gpu=false;cp.flash_attn=false;cp.dtw_token_timestamps=true;cp.dtw_aheads_preset=tiny?WHISPER_AHEADS_TINY_EN:WHISPER_AHEADS_BASE_EN;
  std::ifstream model(std::filesystem::u8path(argv[1]),std::ios::binary);if(!model)return 3;
  whisper_model_loader loader{};loader.context=&model;
  loader.read=[](void* p,void* out,size_t count)->size_t{auto* in=static_cast<std::ifstream*>(p);in->read(static_cast<char*>(out),count);return size_t(in->gcount());};
  loader.eof=[](void* p)->bool{return static_cast<std::ifstream*>(p)->eof();};
  loader.close=[](void*){};
  auto *ctx=whisper_init_with_params(&loader,cp);model.close();if(!ctx)return 3;
- std::cout<<"{\"ready\":true,\"engine\":\"whisper.cpp-v1.8.2\"}"<<std::endl;
+ std::cout<<json({{"ready",true},{"engine","whisper.cpp-v1.8.2"},{"model",tiny?"tiny.en":"base.en"}}).dump()<<std::endl;
  std::string line;
  while(std::getline(std::cin,line)) {
   try {
@@ -60,7 +68,7 @@ int main(int argc,char **argv) {
    if(lead)pcm.erase(pcm.begin(),pcm.begin()+lead);
    json words=json::array();auto start=std::chrono::steady_clock::now();
    if(energy/pcm.size()>1e-7) {
-    auto p=whisper_full_default_params(WHISPER_SAMPLING_GREEDY);p.n_threads=3;p.language="en";
+    auto p=whisper_full_default_params(WHISPER_SAMPLING_GREEDY);p.n_threads=tiny?2:3;p.language="en";
     p.translate=false;p.no_context=true;p.print_progress=false;p.print_realtime=false;p.print_timestamps=false;
     p.token_timestamps=true;p.split_on_word=true;p.max_len=1;p.suppress_blank=true;p.suppress_nst=true;
     if(whisper_full(ctx,p,pcm.data(),int(pcm.size()))!=0)throw std::runtime_error("recognition_failed");

@@ -73,7 +73,9 @@ class AndroidVideoController extends PlatformVideoController {
       final currentPosition = player.state.position;
       // Stream-copy live pipes cannot seek. Reinitializing their surface must
       // preserve the running clock instead of requesting an unsupported seek.
-      if (await platform.getProperty('seekable') == 'yes') {
+      final source = Uri.tryParse(await platform.getProperty('path'));
+      final livePipe = source?.host == '127.0.0.1' && source?.path == '/playback.ts';
+      if (!livePipe && await platform.getProperty('seekable') == 'yes') {
         await player.seek(currentPosition);
       }
     });

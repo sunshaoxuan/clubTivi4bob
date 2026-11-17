@@ -122,6 +122,7 @@ class ManagedPlayer extends Player {
   Media? _fallbackMedia;
   Media? _requestedMedia;
   int subtitleMediaAutoOpens = 0;
+  DateTime? _normalizedOpenedAt;
   Duration subtitleStartupGrace = const Duration(seconds: 10);
   Timer? _fallbackTimer;
   late final StreamSubscription<bool> _fallbackBuffering,
@@ -172,7 +173,8 @@ class ManagedPlayer extends Player {
     final grace =
         Platform.isAndroid &&
             _hlsBuffer.linearClockReady &&
-            state.position < const Duration(seconds: 2) &&
+            _normalizedOpenedAt != null &&
+            DateTime.now().difference(_normalizedOpenedAt!).inSeconds < 60 &&
             subtitleStartupGrace < const Duration(seconds: 30)
         ? const Duration(seconds: 30)
         : subtitleStartupGrace;
@@ -227,6 +229,7 @@ class ManagedPlayer extends Player {
   }) async {
     _clearFallback();
     final generation = ++_openGeneration;
+    _normalizedOpenedAt = DateTime.now();
     // Explicit native acceptance runs must never emit audio, including warm
     // and preview decoders. This diagnostic flag does not change preferences.
     if (Platform.environment['BOBTV_TEST_MUTE'] == '1') {

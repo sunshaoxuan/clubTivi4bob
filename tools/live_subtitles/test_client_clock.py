@@ -151,6 +151,23 @@ class ClientClockTests(unittest.TestCase):
             self.assertFalse(h.valid_context(current.replace('-uk.fast.','-de.fast.'),None))
             self.assertFalse(h.valid_context(current.replace('6065','6066'),None))
 
+    def test_slow_local_inference_projects_only_an_evidenced_rate_to_render_clock(self):
+        with tempfile.TemporaryDirectory() as d:
+            h=self.hub(d);t=h.create(h.source,None,'en',['clientClockV1'])
+            words=[dict(word='clear speech',start=1,end=2,probability=.9)]
+            def anchors(first,last):
+                return [dict(cue=i,subtitleStart=100+i*8,asrStart=i*8,offset=100,words=9) for i in range(first,last)]
+            with patch('client_clock.align',return_value=(100,anchors(0,5))):
+                h.ingest(t,self.observation(h,end=32,position=60,words=words))
+            self.assertEqual(h.sessions[t]['windows'][-1]['end'],44)
+            with patch('client_clock.align',return_value=(100,anchors(3,8))):
+                h.ingest(t,self.observation(h,serial=2,start=24,end=56,position=80,words=words))
+            self.assertTrue(h.sessions[t]['rateVerified'])
+            self.assertEqual(h.sessions[t]['windows'][-1]['end'],92)
+            # The decoded PCM tap can lead the rendered ad by under one second.
+            h.ingest(t,self.observation(h,serial=3,epoch=2,asset='ad',ad=True,start=90,end=91,position=89.3))
+            self.assertEqual(h.sessions[t]['windows'][-1]['state'],'SUSPENDED')
+
     def test_clock_and_observations_are_isolated_between_viewers(self):
         with tempfile.TemporaryDirectory() as d:
             h=self.hub(d);a=h.create(h.source,None,'en',['clientClockV1']);b=h.create(h.source,None,'en',['clientClockV1'])

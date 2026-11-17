@@ -21,6 +21,10 @@ object BobTvClientSubtitles {
         }
         return digest.digest().joinToString("") { "%02x".format(it) }
     }
+    private fun modelInput(context: Context, name: String): java.io.InputStream? {
+        return context.classLoader.getResourceAsStream("bobtv-client-subtitles/$name")
+            ?: try { context.assets.open("ClientASR/$name") } catch (_: java.io.IOException) { null }
+    }
     @Synchronized fun resources(context: Context): Map<String, String> {
         val native = File(context.applicationInfo.nativeLibraryDir)
         val asr = File(native, "libbobtv_client_asr.so")
@@ -31,7 +35,7 @@ object BobTvClientSubtitles {
         if (!model.isFile || digest(model) != SHA) {
             val temporary = File(directory, "$MODEL.partial")
             try {
-                context.assets.open("ClientASR/$MODEL").use { input ->
+                checkNotNull(modelInput(context, MODEL)).use { input ->
                     temporary.outputStream().use { output -> input.copyTo(output) }
                 }
                 check(digest(temporary) == SHA)
@@ -41,18 +45,18 @@ object BobTvClientSubtitles {
         val paths = mutableMapOf("asr" to asr.absolutePath, "remux" to remux.absolutePath, "model" to model.absolutePath)
         val optimized = File(native, "libbobtv_client_asr_avx2.so")
         if (optimized.canExecute()) paths["asrFast"] = optimized.absolutePath
-        if (context.assets.list("ClientASR")?.contains(TINY) == true) {
+        if (modelInput(context, TINY)?.use { true } == true) {
             val tiny = File(directory, TINY)
             if (!tiny.isFile || digest(tiny) != TINY_SHA) {
                 val temporary = File(directory, "$TINY.partial")
                 try {
-                    context.assets.open("ClientASR/$TINY").use { input -> temporary.outputStream().use { output -> input.copyTo(output) } }
+                    checkNotNull(modelInput(context, TINY)).use { input -> temporary.outputStream().use { output -> input.copyTo(output) } }
                     check(digest(temporary) == TINY_SHA)
                     check(temporary.renameTo(tiny))
                 } finally { temporary.delete() }
             }
             paths["tinyModel"] = tiny.absolutePath
-            if (!android.os.Process.is64Bit() || (android.os.Build.SUPPORTED_ABIS.firstOrNull() == "x86_64" && !optimized.canExecute())) paths["preferTiny"] = "true"
+            if (!android.os.Process.is64Bit()) paths["preferTiny"] = "true"
         }
         return paths
     }

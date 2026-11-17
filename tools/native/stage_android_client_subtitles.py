@@ -37,14 +37,14 @@ def stage(artifacts,output,arches):
         for name,sha in receipt['files'].items():assert digest(worker/name)==sha
         assert digest(worker/MODEL)==SHA
         target=ROOT/'android/app/src/main/jniLibs'/abi;target.mkdir(parents=True,exist_ok=True)
-        for name in receipt['files']:shutil.copy2(worker/name,target/name)
+        for name in receipt['files']:(target/name).unlink(missing_ok=True)
         fast=worker/'receipt-avx2.json'
         if fast.exists():
             optimized=json.loads(fast.read_text())
             for name,sha in optimized['sourceSha256'].items():assert digest(ROOT/'tools/native'/name)==sha
             for name,sha in optimized['files'].items():
                 assert digest(worker/name)==sha
-                shutil.copy2(worker/name,target/name)
+                (target/name).unlink(missing_ok=True)
         else:
             (target/'libbobtv_client_asr_avx2.so').unlink(missing_ok=True)
         base_item=json.loads((ROOT/'tools/native/runtime-lock.json').read_text())['android'][abi]
@@ -59,9 +59,13 @@ def stage(artifacts,output,arches):
             # Keep the pinned JNI/JavaVM bridge. Only mpv and its C++ runtime
             # are replaced by the freshly compiled audio-tap build.
             for member in original.namelist():
-                if member != 'META-INF/bobtv-native-runtime.json' and member not in {f'lib/{abi}/{name}' for name in record['files']}:
+                if member != 'META-INF/bobtv-native-runtime.json' and member not in {f'lib/{abi}/{name}' for name in record['files']} and not member.startswith(f'lib/{abi}/libbobtv_client_'):
                     archive.writestr(member,original.read(member))
             for name in record['files']:archive.write(native/name,f'lib/{abi}/{name}')
+            for name in receipt['files']:archive.write(worker/name,f'lib/{abi}/{name}')
+            if fast.exists():
+                for name in optimized['files']:
+                    if name not in receipt['files']:archive.write(worker/name,f'lib/{abi}/{name}')
             archive.writestr('META-INF/bobtv-native-runtime.json',json.dumps(record))
             for f in (native/'sources-and-licenses').rglob('*'):
                 if f.is_file():archive.write(f,'META-INF/sources-and-licenses/'+str(f.relative_to(native/'sources-and-licenses')))
@@ -73,6 +77,16 @@ def stage(artifacts,output,arches):
             shutil.copy2(worker/TINY,assets/TINY)
         notices=assets/'sources-and-licenses'/abi;shutil.copytree(worker/'sources-and-licenses',notices,dirs_exist_ok=True)
         shutil.copy2(worker/'receipt.json',notices/'receipt.json')
+    # One shared resource archive, so a universal APK contains each model once.
+    models=output/'bobtv-client-subtitle-models.jar'
+    with zipfile.ZipFile(models,'w',zipfile.ZIP_DEFLATED) as archive:
+        for name,expected in [(MODEL,SHA),(TINY,TINY_SHA)]:
+            source=assets/name
+            if name==TINY and not source.exists():continue
+            assert digest(source)==expected
+            archive.write(source,'bobtv-client-subtitles/'+name)
+    lock['clientSubtitleModels']=dict(filename=models.name,sha256=digest(models),url=models.as_uri())
+    for name in [MODEL,TINY]:(assets/name).unlink(missing_ok=True)
     (output/'runtime-lock.json').write_text(json.dumps(lock,indent=2))
     print(output/'runtime-lock.json')
 if __name__=='__main__':

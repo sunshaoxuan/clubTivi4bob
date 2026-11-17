@@ -124,9 +124,12 @@ def build(args):
     run('make', '-j4', cwd=fb)
     import re
     assert not re.search(r'#define CONFIG_[A-Z0-9_]+_(?:DECODER|ENCODER) 1', (fb / 'config_components.h').read_text())
-    run(cxx, '-std=c++17', '-O2', ROOT / 'tools/native/client_remux.cpp', '-idirafter', fb, '-idirafter', ffmpeg,
-        fb / 'libavformat/libavformat.a', fb / 'libavcodec/libavcodec.a', fb / 'libavutil/libavutil.a',
-        '-pthread', *extra_link, '-o', output / names[1])
+    # The optional ASR variant must not rewrite the baseline remux executable.
+    # Windows PE link timestamps would invalidate its checksum-locked receipt.
+    if args.cpu == 'baseline':
+        run(cxx, '-std=c++17', '-O2', ROOT / 'tools/native/client_remux.cpp', '-idirafter', fb, '-idirafter', ffmpeg,
+            fb / 'libavformat/libavformat.a', fb / 'libavcodec/libavcodec.a', fb / 'libavutil/libavutil.a',
+            '-pthread', *extra_link, '-o', output / names[1])
     for name in models: shutil.copy2(cache/name,output/name)
     notices = output / 'sources-and-licenses'; notices.mkdir(exist_ok=True)
     for file in [source / 'LICENSE', ffmpeg / 'COPYING.LGPLv2.1', ROOT / 'tools/native/client_asr.cpp',
@@ -136,7 +139,7 @@ def build(args):
         shutil.copy2(blas[4],notices/'OpenBLAS-build.json')
     receipt = dict(platform=args.platform, architecture=args.arch, whisperCommit=WHISPER, ffmpegCommit=ffcommit,
                    modelSha256=MODEL_SHA, models=models, alignment='dtw', decodersEnabled=False, encodersEnabled=False,
-                   files={name: hashlib.sha256((output / name).read_bytes()).hexdigest() for name in names},
+                   files={name: hashlib.sha256((output / name).read_bytes()).hexdigest() for name in (names if args.cpu == 'baseline' else names[:1])},
                    sourceSha256={name: hashlib.sha256((ROOT / 'tools/native' / name).read_bytes()).hexdigest() for name in ['client_asr.cpp','client_remux.cpp']},
                    whisperCmakeFlags=cmake_flags,ffmpegFlags=flags)
     (output / ('receipt-avx2.json' if args.cpu == 'avx2' else 'receipt.json')).write_text(json.dumps(receipt, indent=2))

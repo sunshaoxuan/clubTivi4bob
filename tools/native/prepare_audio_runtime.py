@@ -28,6 +28,8 @@ def prepare(platform, arch, output):
     output.mkdir(parents=True, exist_ok=True)
     entries = lock[platform]
     if platform == 'windows': entries = {arch: entries[arch]}
+    if platform == 'android' and lock.get('clientSubtitleModels'):
+        entries = {**entries, 'subtitle-models': lock['clientSubtitleModels']}
     for architecture, item in entries.items():
         path = Path(local) / item['filename'] if local else cache / item['filename']
         if not path.exists():

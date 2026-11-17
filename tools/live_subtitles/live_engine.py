@@ -20,7 +20,13 @@ from subtitle_catalog import discover, norm
 
 
 def acoustic_norm(text):
-    expansions = {"there's": "there is", "it's": "it is", "that's": "that is",
+    # SDH speaker names, sound descriptions, and ASS styling are not spoken.
+    # Strip them only from acoustic reference tokens; display cues stay intact.
+    text=re.sub(r'\{\\[^}]+\}', '', text)
+    text=re.sub(r'\[[^\]]{0,160}\]', '', text)
+    text=re.sub(r'^\s*\([^)]{0,80}\)\s*', '', text, flags=re.M)
+    text=re.sub(r'^\s*-?\s*[A-Z][A-Z .\x27-]{1,30}:\s*', '', text, flags=re.M)
+    expansions = {"there's": "there is", "theres": "there is", "thats": "that is", "dont": "do not", "cant": "can not", "it's": "it is", "that's": "that is",
         "what's": "what is", "we're": "we are", "you're": "you are",
         "they're": "they are", "i'm": "i am", "don't": "do not",
         "doesn't": "does not", "didn't": "did not", "can't": "can not",
@@ -59,7 +65,9 @@ def align(words, cues, timeline, *, rate=1.):
             if statistics.mean(w['probability'] for w in owners[owner_index:owner_index+required])<.65:
                 continue
             word = owners[owner_index]
-            if word['probability'] < .55:
+            matched=min(remaining,len(values))
+            probability=statistics.mean(w['probability'] for w in owners[owner_index:owner_index+matched])
+            if word['probability'] < .55 and not (word['probability']>=.4 and matched>=8 and probability>=.8):
                 continue
             onset = timeline + word['start']
             anchors.append(dict(cue=cue['index'], subtitleStart=cue['start'], asrStart=onset,

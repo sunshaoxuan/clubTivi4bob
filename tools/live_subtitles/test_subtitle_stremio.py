@@ -37,4 +37,10 @@ class StremioTests(unittest.TestCase):
         offset,anchors=align(words,cues,0,rate=rate)
         self.assertAlmostEqual(offset,100);self.assertEqual(len(anchors),3)
 
+    def test_sdh_speakers_and_sound_labels_do_not_become_spoken_anchors(self):
+        original=r"{\an8}[door opens] CLAY: They're in the hole."
+        self.assertEqual(acoustic_norm(original),acoustic_norm('They are in the hole.'))
+        self.assertEqual(acoustic_norm('PIPPIN: Oh my god, I can not get my shoes wet.'),acoustic_norm('Oh my god, I cannot get my shoes wet.'))
+        self.assertEqual(acoustic_norm('The clock: it is late.'),acoustic_norm('The clock it is late.'))
+
 if __name__=='__main__':unittest.main()

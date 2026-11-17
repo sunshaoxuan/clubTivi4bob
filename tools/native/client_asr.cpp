@@ -13,7 +13,12 @@ int main(int argc,char **argv) {
  if(argc!=2)return 2;
  whisper_log_set([](ggml_log_level,const char*,void*){},nullptr);
  auto cp=whisper_context_default_params();cp.use_gpu=false;cp.flash_attn=false;cp.dtw_token_timestamps=true;cp.dtw_aheads_preset=WHISPER_AHEADS_BASE_EN;
- auto *ctx=whisper_init_from_file_with_params(argv[1],cp);if(!ctx)return 3;
+ std::ifstream model(std::filesystem::u8path(argv[1]),std::ios::binary);if(!model)return 3;
+ whisper_model_loader loader{};loader.context=&model;
+ loader.read=[](void* p,void* out,size_t count)->size_t{auto* in=static_cast<std::ifstream*>(p);in->read(static_cast<char*>(out),count);return size_t(in->gcount());};
+ loader.eof=[](void* p)->bool{return static_cast<std::ifstream*>(p)->eof();};
+ loader.close=[](void*){};
+ auto *ctx=whisper_init_with_params(&loader,cp);model.close();if(!ctx)return 3;
  std::cout<<"{\"ready\":true,\"engine\":\"whisper.cpp-v1.8.2\"}"<<std::endl;
  std::string line;
  while(std::getline(std::cin,line)) {

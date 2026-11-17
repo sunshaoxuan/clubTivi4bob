@@ -80,7 +80,11 @@ class LiveSubtitleSession {
       _mediaRetryAfter = retryAfter;
     }
     _source = source;
+    final generation = _generation;
+    _phase = SubtitlePhase.searching;
+    _render();
     await ClientSubtitleRuntime.initialize();
+    if (_disposed || generation != _generation) return source;
     if (ClientAudioSubtitles.supported &&
         isActionMoviesUk(source) &&
         segmentAt != null) {
@@ -124,9 +128,6 @@ class LiveSubtitleSession {
       return source;
     }
     if (serviceEndpoint.isEmpty) return source;
-    final generation = _generation;
-    _phase = SubtitlePhase.searching;
-    _render();
     try {
       final base = Uri.parse(serviceEndpoint);
       // Only our API nodes and explicit local development services are allowed.

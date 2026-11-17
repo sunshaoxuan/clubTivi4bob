@@ -3,6 +3,7 @@
 All observations are scoped to one viewer clock. The shared film cache contains
 subtitle resources only. A new asset/epoch always needs fresh acoustic evidence.
 """
+import hashlib
 import json
 import math
 import re
@@ -90,7 +91,7 @@ class TextHub:
             if previous and epoch<session['epoch']:raise ValueError('stale_epoch')
             changed=(session['epoch']!=epoch or session['asset']!=asset or session['programmeKey']!=self.programme['key'])
             if changed:
-                session.pop('clockJump',None);session.pop('acceptedClock',None)
+                session.pop('clockJump',None);session.pop('acceptedClock',None);session.pop('editionSwitch',None)
                 if session['programmeKey']!=self.programme['key']:
                     session.pop('priorReference',None);session.pop('priorRate',None);session.pop('lastMatchedReference',None)
                 elif session.get('reference') is not None or session.get('lastMatchedReference') is not None:
@@ -106,7 +107,11 @@ class TextHub:
             if not words:return
             prior=session.get('priorReference')
             known=session['reference'] or session.get('lastMatchedReference') or prior
-            trial=([known] if known else [])+[c for c in self.candidates or [] if c is not known]
+            trial=([known] if known else [])
+            # Sparse dialogue must not cause a correctly matched edition to flap.
+            # Search alternatives only after three genuinely unmatched windows.
+            if known is None or session['unmatchedWindows']>=3:
+                trial += [c for c in self.candidates or [] if c is not known]
             selected=None
             for candidate in trial:
                 candidate_rate=session['rate'] if session.get('candidateKey')==candidate['page'] else session.get('priorRate',1.) if candidate is prior else 1.
@@ -148,6 +153,24 @@ class TextHub:
                     self.event('unmatched_speech',session=token,start=start,end=end,words=len(words))
                 return
             candidate,anchors,selected_rate=selected
+            accepted=session.get('acceptedClock',{})
+            if accepted and accepted.get('page')!=candidate['page']:
+                pending=session.setdefault('editionSwitch',{})
+                if pending.get('page')!=candidate['page']:
+                    pending=dict(page=candidate['page'],windows=[]);session['editionSwitch']=pending
+                windows=pending['windows']
+                windows[:]=[w for w in windows if end-w['end']<=30]
+                windows.append(dict(end=end,cues=[a['cue'] for a in anchors]))
+                if not (len({w['end'] for w in windows})>=2 and
+                        max(w['end'] for w in windows)-min(w['end'] for w in windows)>=6 and
+                        len({cue for w in windows for cue in w['cues']})>=4):
+                    session['reference']=None
+                    session['windows']=[w for w in session['windows'] if w['end']<=start]
+                    self.event('subtitle_edition_pending',session=token,epoch=epoch,start=start,end=end)
+                    return
+                self.event('subtitle_edition_changed',session=token,epoch=epoch,start=start,end=end,
+                           referenceId=hashlib.sha256(candidate['page'].encode()).hexdigest())
+            session.pop('editionSwitch',None)
             if session.get('candidateKey')!=candidate['page']:
                 session.update(candidateKey=candidate['page'],points={},intercept=None,rate=selected_rate)
             old_points=dict(session['points'])
@@ -184,7 +207,7 @@ class TextHub:
                 if emitted:tracks.append(dict(language=language,verified=True,cues=emitted))
             session['windows']=[w for w in session['windows'] if w['end']<=start and w['end']>end-180]
             session['windows'].append(dict(start=start,end=movie_end,state='LOCKED',program=self.programme['movieId'],asset=asset,tracks=tracks))
-            self.event('client_acoustic_lock',session=token,epoch=epoch,start=start,end=end,rate=rate,intercept=intercept,anchors=anchors,residualSeconds=residuals,clockRateVerified=clock_rate_confident(points,rate,intercept))
+            self.event('client_acoustic_lock',referenceId=hashlib.sha256(candidate['page'].encode()).hexdigest(),session=token,epoch=epoch,start=start,end=end,rate=rate,intercept=intercept,anchors=anchors,residualSeconds=residuals,clockRateVerified=clock_rate_confident(points,rate,intercept))
     def response(self,token,position=None):
         with self.lock:
             s=self.sessions[token];s['lastAccess']=time.time();valid=self.valid_context(s['source'],None)

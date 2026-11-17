@@ -87,6 +87,7 @@ def build(args):
     run(args.cmake, '--build', whisper_build, '-j4')
     libraries = [whisper_build / p for p in ['src/libwhisper.a', 'ggml/src/libggml.a',
                  'ggml/src/libggml-base.a', 'ggml/src/libggml-cpu.a']]
+    libraries = [p if p.exists() else p.with_name(p.name.removeprefix('lib')) for p in libraries]
     run(cxx, '-std=c++17', '-O2', ROOT / 'tools/native/client_asr.cpp', '-I', source / 'include',
         '-I', source / 'ggml/include', '-I', source / 'examples', *libraries, '-pthread', *extra_link,
         '-o', output / names[0])

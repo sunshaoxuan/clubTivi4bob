@@ -123,6 +123,26 @@ class ClientClockTests(unittest.TestCase):
                 h.ingest(t,self.observation(h,serial=2,words=words))
             self.assertIsNotNone(h.sessions[t]['reference'])
 
+    def test_edition_switch_waits_for_failed_windows_and_independent_confirmation(self):
+        with tempfile.TemporaryDirectory() as d:
+            h=self.hub(d);first=h.candidates[0]
+            alternate=dict(page='alternate',tracks=dict(en=[]));h.candidates.append(alternate)
+            t=h.create(h.source,None,'en',['clientClockV1'])
+            words=[dict(word='clear',start=i,end=i+.1,probability=.9) for i in range(10)]
+            with patch('client_clock.align',return_value=(100,self.anchors())):
+                h.ingest(t,self.observation(h,words=words))
+            def match_alternate(words,cues,start,**kwargs):
+                return (100,self.anchors()) if cues is alternate['tracks']['en'] else (None,[])
+            with patch('client_clock.align',side_effect=match_alternate) as alignment:
+                for serial in range(2,5):
+                    h.ingest(t,self.observation(h,serial=serial,start=serial*6,end=20+serial*6,words=words))
+                self.assertEqual(len(alignment.call_args_list),3)
+                self.assertEqual(h.sessions[t]['candidateKey'],first['page'])
+                h.ingest(t,self.observation(h,serial=5,start=30,end=50,words=words))
+                self.assertEqual(h.sessions[t]['candidateKey'],first['page'])
+                h.ingest(t,self.observation(h,serial=6,start=36,end=56,words=words))
+                self.assertEqual(h.sessions[t]['candidateKey'],alternate['page'])
+
     def test_clock_and_observations_are_isolated_between_viewers(self):
         with tempfile.TemporaryDirectory() as d:
             h=self.hub(d);a=h.create(h.source,None,'en',['clientClockV1']);b=h.create(h.source,None,'en',['clientClockV1'])

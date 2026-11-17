@@ -133,3 +133,8 @@ if __name__ == '__main__':
     parser.add_argument('--cache', type=Path, default=ROOT / 'build/native-audio-spectrum')
     args = parser.parse_args()
     prepare(args.app.resolve(), args.cache.resolve())
+    from prepare_client_asr import prepare as prepare_asr
+    cmake = shutil.which(os.environ.get('BOBTV_CMAKE', 'cmake'))
+    if not cmake:
+        raise RuntimeError('CMake is required to package offline subtitle workers')
+    prepare_asr(args.app.resolve(), cmake)

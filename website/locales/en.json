@@ -202,6 +202,11 @@
     "history_title": "Recent changes",
     "history": [
       [
+        "2026-11-18",
+        "v1.1.24 · Local speech alignment and live subtitle recovery",
+        "Recognize decoded playback audio on the device while the server searches and caches subtitle files. Updated the Action Movies UK stream and improved subtitle suspension during adverts and automatic alignment after the film returns. Selection follows preferred language, English, then no subtitles. Android defers recognition when playback cache is low."
+      ],
+      [
         "2026-11-17",
         "v1.1.23 · Automatic subtitles and movie caching",
         "Added subtitle status feedback in seven languages. The Action Movies UK pilot discovers and retries subtitles on the server and connects automatically when ready. Movie, edition and language identify persistent cached subtitle files. Selection prefers the requested language, then English. Live synchronization is verified again when cached files are reused."
@@ -361,7 +366,7 @@
     "closing_text": "One column each for Windows, macOS and Android, with CPU choices inside. Native Windows ARM64 packages are available; Surface hardware tests are pending."
   },
   "downloads": {
-    "intro": "Windows, macOS and Android share version 1.1.23+118. Switch languages at the top of the app. Manual choices persist. Automatic mode uses the system language, then the time zone, then English. The language resources are included with each installer. The advanced mode entry has been closed. Diagnostic sync is off by default. Explicit consent enables up to 30 days of redacted records and can be withdrawn at any time.",
+    "intro": "Windows, macOS and Android share version 1.1.24+119. Switch languages at the top of the app. Manual choices persist. Automatic mode uses the system language, then the time zone, then English. The language resources are included with each installer. The advanced mode entry has been closed. Diagnostic sync is off by default. Explicit consent enables up to 30 days of redacted records and can be withdrawn at any time.",
     "latest": "Latest installers",
     "local": "Downloads hosted on this site",
     "sections": [

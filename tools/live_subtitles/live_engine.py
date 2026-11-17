@@ -18,15 +18,26 @@ from live_media import Collector, playlist
 from subtitle_catalog import discover, norm
 
 
+def acoustic_norm(text):
+    expansions = {"there's": "there is", "it's": "it is", "that's": "that is",
+        "what's": "what is", "we're": "we are", "you're": "you are",
+        "they're": "they are", "i'm": "i am", "don't": "do not",
+        "doesn't": "does not", "didn't": "did not", "can't": "can not",
+        "cannot": "can not", "isn't": "is not", "wasn't": "was not",
+        "won't": "will not", "i'll": "i will", "we'll": "we will"}
+    return [part for token in norm(text.replace('’', "'"))
+            for part in expansions.get(token, token).split()]
+
+
 def align(words, cues, timeline):
     tokens, firsts, asr, owners = [], {}, [], []
     for cue in cues:
-        values = norm(cue['text']) if '♪' not in cue['text'] else []
+        values = acoustic_norm(cue['text']) if '♪' not in cue['text'] else []
         if values:
             firsts[len(tokens)] = cue
             tokens.extend(values)
     for word in words:
-        for token in norm(word['word']):
+        for token in acoustic_norm(word['word']):
             asr.append(token); owners.append(word)
     anchors = []
     for match in difflib.SequenceMatcher(None, tokens, asr, autojunk=False).get_matching_blocks():
@@ -34,7 +45,7 @@ def align(words, cues, timeline):
             continue
         for index in range(match.a, match.a + match.size - 2):
             cue = firsts.get(index)
-            if cue is None or len(norm(cue['text'])) < 3:
+            if cue is None or len(acoustic_norm(cue['text'])) < 3:
                 continue
             word = owners[match.b + index - match.a]
             if word['probability'] < .55:

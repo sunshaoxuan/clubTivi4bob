@@ -108,6 +108,8 @@ class ManagedPlayer extends Player {
   int _openGeneration = 0;
   final _hlsBuffer = HlsBufferProxy();
   bool _liveStartOptionApplied = false;
+  String? _previousLiveDiskCache;
+  String? _previousLiveTimestampPolicy;
   Media? _fallbackMedia;
   Media? _requestedMedia;
   int subtitleMediaAutoOpens = 0;
@@ -168,8 +170,9 @@ class ManagedPlayer extends Player {
     if (generation != _openGeneration ||
         media == null ||
         !state.playing ||
-        !state.buffering)
+        !state.buffering) {
       return;
+    }
     _clearFallback();
     Future<void> reopen() async {
       if (generation != _openGeneration) return;
@@ -230,6 +233,18 @@ class ManagedPlayer extends Player {
       final native = platform;
       if (native is native_player.NativePlayer) {
         if (isActionMoviesUk(playable.uri)) {
+          _previousLiveDiskCache ??= await native.getProperty('cache-on-disk');
+          await native.setProperty('cache-on-disk', 'no');
+          _previousLiveTimestampPolicy ??= await native.getProperty(
+            'demuxer-lavf-linearize-timestamps',
+          );
+          await native.setProperty('demuxer-lavf-linearize-timestamps', 'yes');
+          await native.command([
+            'change-list',
+            'demuxer-lavf-o',
+            'append',
+            'seg_format_options=correct_ts_overflow=0',
+          ]);
           // A string round-trip loses escaping inside protocol_whitelist.
           // Mutate only this key through mpv's structured list operation.
           await native.command([
@@ -240,6 +255,23 @@ class ManagedPlayer extends Player {
           ]);
           _liveStartOptionApplied = true;
         } else if (_liveStartOptionApplied) {
+          if (_previousLiveTimestampPolicy != null) {
+            await native.setProperty(
+              'demuxer-lavf-linearize-timestamps',
+              _previousLiveTimestampPolicy!,
+            );
+            _previousLiveTimestampPolicy = null;
+          }
+          await native.command([
+            'change-list',
+            'demuxer-lavf-o',
+            'remove',
+            'seg_format_options',
+          ]);
+          if (_previousLiveDiskCache != null) {
+            await native.setProperty('cache-on-disk', _previousLiveDiskCache!);
+            _previousLiveDiskCache = null;
+          }
           await native.command([
             'change-list',
             'demuxer-lavf-o',

@@ -2,6 +2,24 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:clubtivi/features/player/hls_buffer_proxy.dart';
 
 void main() {
+  test('old sessions bootstrap the verified current UK AES configuration', () {
+    const old =
+        'https://action-rakuten-tv-uk.fast.rakuten.tv/v1/manifest/0547f18649bd788bec7b67b746e47670f558b6b2/production-LiveChannel-6065/expired/4.m3u8';
+    final master = currentActionMoviesMaster(old);
+    expect(
+      master.path,
+      endsWith('/production-hls-aes128-rtv-6065-playout/master.m3u8'),
+    );
+    expect(isActionMoviesUk(master.toString()), isTrue);
+    expect(
+      isActionMoviesUk(master.toString().replaceAll('6065', '6066')),
+      isFalse,
+    );
+    expect(
+      () => currentActionMoviesMaster(old.replaceAll('-uk.fast', '-de.fast')),
+      throwsFormatException,
+    );
+  });
   final origin = Uri.parse(
     'https://action-rakuten-tv-uk.fast.rakuten.tv/live/playlist.m3u8',
   );
@@ -26,6 +44,8 @@ advert/media-102.ts
       expect(proxy.segmentAt(0), isNull);
       proxy.beginSegment('/segment/101.ts');
       expect(proxy.segmentAt(0)!.movieId, 'movie');
+      expect(proxy.segmentAt(0)!.start, 0);
+      expect(proxy.segmentAt(6)!.start, 6);
       expect(proxy.segmentAt(5.99)!.ad, isFalse);
       expect(proxy.segmentAt(6)!.ad, isTrue);
       proxy.indexSegments(

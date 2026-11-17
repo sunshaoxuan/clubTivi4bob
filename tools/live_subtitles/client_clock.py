@@ -67,7 +67,7 @@ class TextHub:
             if 'clientClockV1' not in features or not self.valid_context(source,context) or language not in LANGUAGES:raise ValueError('client_clock_required')
             if len(self.sessions)>=32:raise RuntimeError('pilot_capacity')
             token=uuid.uuid4().hex
-            self.sessions[token]=dict(source=source,lastAccess=time.time(),language=language,epoch=None,asset=None,reference=None,rate=1.,intercept=None,points={},windows=[],lastObservation=-1,programmeKey=self.programme['key'],ad=False,lastWindow=None,unmatchedWindows=0,exhausted=False)
+            self.sessions[token]=dict(source=source,lastAccess=time.time(),language=language,epoch=None,asset=None,reference=None,rate=1.,intercept=None,points={},windows=[],lastObservation=-1,programmeKey=self.programme['key'],ad=False,lastWindow=None,unmatchedWindows=0,exhausted=False,pendingAnchors={})
             return token
     def ingest(self,token,data):
         with self.lock:
@@ -90,10 +90,10 @@ class TextHub:
             changed=(session['epoch']!=epoch or session['asset']!=asset or session['programmeKey']!=self.programme['key'])
             if changed:
                 if session['programmeKey']!=self.programme['key']:
-                    session.pop('priorReference',None);session.pop('priorRate',None)
-                elif session['reference'] is not None:
-                    session['priorReference']=session['reference'];session['priorRate']=session['rate']
-                session.update(epoch=epoch,asset=asset,reference=None,intercept=None,rate=1.,points={},programmeKey=self.programme['key'],unmatchedWindows=0,exhausted=False)
+                    session.pop('priorReference',None);session.pop('priorRate',None);session.pop('lastMatchedReference',None)
+                elif session.get('reference') is not None or session.get('lastMatchedReference') is not None:
+                    session['priorReference']=session['reference'] or session['lastMatchedReference'];session['priorRate']=session['rate']
+                session.update(epoch=epoch,asset=asset,reference=None,intercept=None,rate=1.,points={},programmeKey=self.programme['key'],unmatchedWindows=0,exhausted=False,pendingAnchors={})
             session.update(lastObservation=serial,lastAccess=time.time(),lastWindow=dict(start=start,end=end),ad=ad)
             if ad:
                 session['windows']=[w for w in session['windows'] if w['end']<=start]
@@ -107,6 +107,19 @@ class TextHub:
             selected=None
             for candidate in trial:
                 offset,anchors=align(words,candidate['tracks']['en'],start)
+                # Accumulate distinct, exact cue-onset matches across overlapping
+                # windows. Epoch/asset changes clear this evidence completely.
+                pending=session.setdefault('pendingAnchors',{}).setdefault(candidate['page'],{})
+                for anchor in anchors:
+                    pending[anchor['cue']]=anchor
+                pending={key:a for key,a in pending.items() if end-60 <= a['asrStart'] <= end}
+                session['pendingAnchors'][candidate['page']]=pending
+                accumulated=list(pending.values())
+                cluster=max(([a for a in accumulated if abs(a['offset']-c['offset'])<.6]
+                             for c in accumulated),key=len,default=[])
+                if (offset is None and len({a['cue'] for a in cluster})>=3 and
+                    max(a['asrStart'] for a in cluster)-min(a['asrStart'] for a in cluster)>=4):
+                    offset=statistics.median(a['offset'] for a in cluster);anchors=cluster
                 if offset is None and candidate is prior:
                     # A previously matched edition still needs fresh multi-cue
                     # dialogue. This shortens ad recovery without reusing offset.
@@ -130,7 +143,7 @@ class TextHub:
             rate=proposal['rate'] if proposal else session['rate']
             intercept=proposal['intercept'] if proposal else statistics.median(a['subtitleStart']-rate*a['asrStart'] for a in anchors)
             prior=session['intercept'];residuals=[(a['subtitleStart']-(session['rate']*a['asrStart']+prior))/session['rate'] for a in anchors] if prior is not None else []
-            session.update(reference=candidate,intercept=intercept,rate=rate,unmatchedWindows=0,exhausted=False)
+            session.update(lastMatchedReference=candidate,reference=candidate,intercept=intercept,rate=rate,unmatchedWindows=0,exhausted=False)
             # Refresh only observed movie windows; ad intervals remain excluded.
             movie_end=end+12
             tracks=[]

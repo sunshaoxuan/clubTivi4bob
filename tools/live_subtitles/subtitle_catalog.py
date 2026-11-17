@@ -195,8 +195,15 @@ def discover(title, year, root, *, max_candidates=3, requested_language='en', im
     """Independent provider failures must not prevent the next verified source."""
     root=Path(root);root.mkdir(parents=True,exist_ok=True)
     results=[];errors=[];last_error=None
+    if imdb_id:
+        try:
+            from subtitle_stremio import discover as stremio_discover
+            results.extend(stremio_discover(title, year, root, imdb_id=imdb_id, max_candidates=max_candidates))
+        except Exception as error:
+            errors.append(dict(provider='OpenSubtitles via Stremio',error=type(error).__name__,httpStatus=getattr(error,'code',None)))
+            last_error=error
     try:
-        results=_discover_subtitlecat(title,year,root,max_candidates=max_candidates,requested_language=requested_language)
+        results.extend(_discover_subtitlecat(title,year,root,max_candidates=max_candidates,requested_language=requested_language))
     except Exception as error:
         errors.append(dict(provider='Subtitle Cat',error=type(error).__name__,httpStatus=getattr(error,'code',None)))
         last_error=error

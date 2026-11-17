@@ -57,6 +57,20 @@ class ClientClockTests(unittest.TestCase):
                 h.ingest(t,self.observation(h,serial=4,epoch=3,start=26,end=40,words=words))
             self.assertIsNotNone(h.sessions[t]['reference'])
 
+    def test_partial_windows_accumulate_exact_onsets_but_never_across_ad(self):
+        with tempfile.TemporaryDirectory() as d:
+            h=self.hub(d);t=h.create(h.source,None,'en',['clientClockV1'])
+            words=[dict(word='we have number',start=1,end=2,probability=.9)]
+            for serial in (1,2,3):
+                with patch('client_clock.align',return_value=(None,[self.anchors()[serial-1]])):
+                    h.ingest(t,self.observation(h,serial=serial,words=words))
+            self.assertIsNotNone(h.sessions[t]['reference'])
+            h.ingest(t,self.observation(h,serial=4,epoch=2,ad=True,asset='advert',start=20,end=26))
+            self.assertEqual(h.sessions[t]['pendingAnchors'],{})
+            with patch('client_clock.align',return_value=(None,self.anchors()[:1])):
+                h.ingest(t,self.observation(h,serial=5,epoch=3,start=26,end=40,words=words))
+            self.assertIsNone(h.sessions[t]['reference'])
+
     def test_clock_and_observations_are_isolated_between_viewers(self):
         with tempfile.TemporaryDirectory() as d:
             h=self.hub(d);a=h.create(h.source,None,'en',['clientClockV1']);b=h.create(h.source,None,'en',['clientClockV1'])

@@ -310,8 +310,19 @@ class ClientAudioSubtitles {
           'position': player.state.position.inMicroseconds / 1e6,
           'audioEnd': end,
           'sequence': segment.sequence,
+          'segmentStart': segment.start,
+          'segmentEnd': segment.end,
         });
-        unawaited(_observe(start, end, [], _epoch, segment.asset, ad));
+        unawaited(
+          _observe(
+            math.max(0, segment.start),
+            math.min(end, segment.end),
+            [],
+            _epoch,
+            segment.asset,
+            ad,
+          ),
+        );
         return;
       }
       if (ad) return;

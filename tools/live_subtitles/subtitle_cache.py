@@ -173,7 +173,7 @@ class SubtitleCache:
         for resource in resources:resource['pairedWithEnglish']=resource['sha256'] in paired
         available = {lang for e in editions for lang in e['tracks']}
         searches = {lang:dict(checkedAt=self.clock(), outcome='cached' if lang in available else 'not_found_this_search') for lang in LANGUAGES}
-        atomic(folder/'index.json', json.dumps(dict(schemaVersion=1, resourceSchemaVersion=1, identity=movie_aliases(programme),
+        atomic(folder/'index.json', json.dumps(dict(schemaVersion=1, resourceSchemaVersion=2, identity=movie_aliases(programme),
             title=programme['title'], year=programme['year'], editions=editions, resources=resources, searches=searches), ensure_ascii=False).encode())
 
     def import_existing(self, programme, folder):
@@ -204,7 +204,7 @@ class SubtitleCache:
             cached, searches = self.load(folder)
             try:resource_schema=json.loads((folder/'index.json').read_text()).get('resourceSchemaVersion',0)
             except (OSError,ValueError):resource_schema=0
-            if not resource_schema:searches={}
+            if resource_schema < 2:searches={}
             if not cached and not searches and self.import_existing(programme, folder):
                 cached, searches = self.load(folder)
             admitted = [c for c in cached if matches_movie_title(c.get('label',''), programme['title'], programme['year'])]
@@ -220,7 +220,7 @@ class SubtitleCache:
             if recent_error:
                 if cached: return cached
                 raise RuntimeError('subtitle_provider_temporarily_unavailable')
-            if cached and (requested_language in languages or fresh_miss): return cached
+            if cached and resource_schema >= 2 and (requested_language in languages or fresh_miss): return cached
             if not cached and fresh_miss: return []
             self.hydrate_resources(folder,download_root)
             try:

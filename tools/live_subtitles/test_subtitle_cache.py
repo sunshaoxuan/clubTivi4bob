@@ -32,6 +32,18 @@ class SubtitleCacheTests(unittest.TestCase):
             self.assertEqual(set(index['editions'][0]['tracks']),set(LANGUAGES))
             self.assertIn('imdb:tt1234567',index['identity'])
 
+    def test_old_provider_manifest_is_refreshed_once_and_keeps_valid_resources(self):
+        with tempfile.TemporaryDirectory() as directory:
+            cache=SubtitleCache(Path(directory)/'cache');root=Path(directory)/'download'
+            cache.get_or_discover(self.film,root,lambda *a,**k:[candidate()])
+            index=next((Path(directory)/'cache').glob('*/index.json'))
+            manifest=json.loads(index.read_text());manifest['resourceSchemaVersion']=1
+            index.write_text(json.dumps(manifest));calls=[]
+            def refresh(*args,**kwargs):calls.append(1);return []
+            self.assertTrue(cache.get_or_discover(self.film,root,refresh))
+            self.assertTrue(cache.get_or_discover(self.film,root,refresh))
+            self.assertEqual(calls,[1])
+
     def test_promoting_verified_imdb_preserves_official_identity_and_rejects_conflicts(self):
         with tempfile.TemporaryDirectory() as directory:
             cache=SubtitleCache(directory)

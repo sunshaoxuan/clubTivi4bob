@@ -3,11 +3,29 @@ import 'dart:convert';
 import 'dart:io';
 import '../../core/server_egress.dart';
 
+const actionMoviesLegacyConfig = 'production-LiveChannel-6065';
+const actionMoviesCurrentConfig = 'production-hls-aes128-rtv-6065-playout';
+
 bool isActionMoviesUk(String source) {
   final uri = Uri.tryParse(source);
   return uri?.scheme == 'https' &&
       uri?.host == 'action-rakuten-tv-uk.fast.rakuten.tv' &&
-      uri!.path.contains('/production-LiveChannel-6065/');
+      uri!.userInfo.isEmpty &&
+      (uri.path.contains('/$actionMoviesLegacyConfig/') ||
+          uri.path.contains('/$actionMoviesCurrentConfig/'));
+}
+
+/// A fixed MediaTailor session expires, and the old playback configuration
+/// returns 404. Bootstrap a fresh session from the verified AES-128 master.
+Uri currentActionMoviesMaster(String source) {
+  if (!isActionMoviesUk(source)) {
+    throw const FormatException('Unreviewed Action Movies edition');
+  }
+  return Uri.parse(
+    'https://action-rakuten-tv-uk.fast.rakuten.tv/v1/master/'
+    '0547f18649bd788bec7b67b746e47670f558b6b2/'
+    '$actionMoviesCurrentConfig/master.m3u8',
+  );
 }
 
 /// Avoid probing every bitrate and experimental HLS WebVTT before video starts.
@@ -118,7 +136,14 @@ class HlsBufferProxy {
     for (final segment in _segments.values) {
       if (position >= segment.start - origin &&
           position < segment.end - origin) {
-        return segment;
+        return HlsPlaybackSegment(
+          sequence: segment.sequence,
+          start: segment.start - origin,
+          end: segment.end - origin,
+          asset: segment.asset,
+          movieId: segment.movieId,
+          ad: segment.ad,
+        );
       }
     }
     return null;
@@ -217,7 +242,7 @@ class HlsBufferProxy {
     final client = ServerEgress.createMediaClient();
     client.connectionTimeout = const Duration(seconds: 5);
     _client = client;
-    var origin = Uri.parse(source);
+    var origin = currentActionMoviesMaster(source);
     if (origin.path.contains('/v1/master/')) {
       try {
         final request = await client.getUrl(origin);

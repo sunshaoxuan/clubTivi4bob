@@ -51,6 +51,9 @@ class ClientAudioSubtitles {
       _recognizing = false,
       _active = false;
   bool _attached = false, _workerFailed = false, _clockAvailable = true;
+  bool _transportLocked = false;
+  double _lastClockObservation = -1;
+  String? _clockSignature;
   int _epoch = 0, _nativeEpoch = -1, _sequence = -1, _serial = 0;
   String? _asset;
   bool? _ad;
@@ -177,7 +180,7 @@ class ClientAudioSubtitles {
           }
           if (_timer?.isActive == true && !_disposed) {
             _workerFailed = true;
-            _timeline = null;
+            if (!_transportLocked) _timeline = null;
             failed();
             _scheduleWorkerRetry();
           }
@@ -298,6 +301,7 @@ class ClientAudioSubtitles {
     final programme = body['programme'];
     if (programme is Map) _programme = Map<String, dynamic>.from(programme);
     final status = body['subtitleStatus'] as Map?;
+    _transportLocked = body['transportClockVerified'] == true;
     _languages = (status?['availableLanguages'] as List? ?? [])
         .whereType<String>()
         .toList();
@@ -338,7 +342,7 @@ class ClientAudioSubtitles {
       phase = SubtitlePhase.idle;
     } else if (segment?.ad == true) {
       phase = SubtitlePhase.suspended;
-    } else if (_workerFailed) {
+    } else if (_workerFailed && !_transportLocked) {
       phase = SubtitlePhase.serviceUnavailable;
     } else if (fresh &&
         segment != null &&
@@ -373,6 +377,7 @@ class ClientAudioSubtitles {
 
   void clockUnavailable() {
     _clockAvailable = false;
+    _transportLocked = false;
     _workerRetry?.cancel();
     _workerFailed = true;
     _timeline = null;
@@ -414,6 +419,24 @@ class ClientAudioSubtitles {
       final segment = segmentAt(math.max(0, end - .01));
       if (segment == null) return;
       final ad = segment.ad || segment.movieId != _programme?['movieId'];
+      final clock = segment.sourceClock;
+      final signature = clock == null
+          ? null
+          : jsonEncode([
+              clock['epoch'],
+              clock['audioRemoved'],
+              clock['videoRemoved'],
+            ]);
+      if (_transportLocked &&
+          !ad &&
+          _ad == false &&
+          _asset == segment.asset &&
+          signature != _clockSignature) {
+        _transportLocked = false;
+        _timeline = null;
+        text = '';
+      }
+      _clockSignature = signature;
       if (_asset != segment.asset || _ad != ad || _nativeEpoch != nativeEpoch) {
         _epoch++;
         _asset = segment.asset;
@@ -422,6 +445,8 @@ class ClientAudioSubtitles {
         _chunks.clear();
         _lastEnd = end;
         _lastAnalysisEnd = -1;
+        _lastClockObservation = -1;
+        _transportLocked = false;
         _timeline = null;
         AppDiagnostics.instance.log('client_subtitle_boundary', {
           'epoch': _epoch,
@@ -444,6 +469,19 @@ class ClientAudioSubtitles {
           ),
         );
         return;
+      }
+      if (!ad && end - _lastClockObservation >= 3) {
+        _lastClockObservation = end;
+        unawaited(
+          _observe(
+            math.max(segment.start, end - .05),
+            end,
+            [],
+            _epoch,
+            segment.asset,
+            false,
+          ),
+        );
       }
       if (ad || _workerFailed) return;
       final bytes = base64Decode(metadata['lavfi.bobtv_pcm.pcm'] as String);
@@ -470,7 +508,9 @@ class ClientAudioSubtitles {
         (c) => c.start + c.bytes.length / 32000 < end - windowSeconds,
       );
       final duration = _chunks.isEmpty ? 0 : end - _chunks.first.start;
-      if (!_recognizing && duration >= 12 && end - _lastAnalysisEnd >= 6) {
+      if (!_recognizing &&
+          duration >= 12 &&
+          end - _lastAnalysisEnd >= (_transportLocked ? 30 : 6)) {
         _lastAnalysisEnd = end;
         unawaited(_recognize(_epoch, segment.asset));
       }
@@ -501,6 +541,7 @@ class ClientAudioSubtitles {
         'programme': _programme,
         'programmeKey': _programme?['key'],
         'language': SubtitlePreferences.instance.language.tag,
+        'sourceClock': segmentAt(math.max(0, end - .01))?.sourceClock,
         'epoch': epoch,
         'asset': asset,
         'ad': ad,
@@ -560,7 +601,7 @@ class ClientAudioSubtitles {
       }
     } catch (error) {
       _workerFailed = true;
-      _timeline = null;
+      if (!_transportLocked) _timeline = null;
       _worker?.kill();
       failed();
       _scheduleWorkerRetry();

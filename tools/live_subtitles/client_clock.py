@@ -17,6 +17,7 @@ import uuid
 from live_engine import align, fit_clock_rate, clock_rate_confident
 from subtitle_catalog import discover, LANGUAGES
 from service import reviewed_pilot_source
+from transport_clock import clock as source_clock, project as project_clock
 
 
 def finite(value, low, high):
@@ -72,6 +73,32 @@ class TextHub:
             token=uuid.uuid4().hex
             self.sessions[token]=dict(source=source,lastAccess=time.time(),language=language,epoch=None,asset=None,reference=None,rate=1.,intercept=None,points={},windows=[],lastObservation=-1,programmeKey=self.programme['key'],ad=False,lastWindow=None,unmatchedWindows=0,exhausted=False,pendingAnchors={})
             return token
+    def clock_window(self,session,candidate,start,end,rate,intercept):
+        tracks=[]
+        for language,cues in candidate['tracks'].items():
+            emitted=[dict(index=c['index'],start=(c['start']-intercept)/rate,end=(c['end']-intercept)/rate,text=c['text']) for c in cues if c['end']>=rate*start+intercept and c['start']<=rate*end+intercept]
+            if emitted:tracks.append(dict(language=language,verified=True,cues=emitted))
+        session['windows']=[w for w in session['windows'] if w['end']<=start and w['end']>end-180]
+        session['windows'].append(dict(start=start,end=end,state='LOCKED',program=self.programme['movieId'],asset=session['asset'],tracks=tracks))
+
+    def project_transport(self,session,clock,*,start,end,position,epoch,asset,token):
+        model=session.get('sourceModel')
+        evidence=project_clock(model,clock,asset=asset,programme=self.programme['key'],epoch=epoch,start=start,position=position,ad_start=session.get('adStart'),now=time.time())
+        if evidence is None:
+            if session.get('transportAt') is not None:
+                session.pop('transportAt',None)
+                session['windows']=[w for w in session['windows'] if w['end']<=position]
+            return False
+        candidate=model['reference'];rate=evidence['rate'];intercept=evidence['intercept']
+        session.update(reference=candidate,lastMatchedReference=candidate,rate=rate,rateVerified=True,intercept=intercept,unmatchedWindows=0,exhausted=False,transportAt=time.time())
+        session['acceptedClock']=dict(page=candidate['page'],rate=rate,intercept=intercept)
+        self.clock_window(session,candidate,evidence['start'],max(end+12,position+12),rate,intercept)
+        if evidence['resumed']:
+            self.event('client_transport_clock_resume',session=token,epoch=epoch,referenceId=hashlib.sha256(candidate['page'].encode()).hexdigest(),start=start,end=end,rate=rate,intercept=intercept,sourceMovieAdvanceSeconds=evidence['sourceMovieAdvanceSeconds'],removedSeconds=evidence['removedSeconds'])
+            session['sourceModel']={**model,'epoch':epoch,'clock':clock,'intercept':intercept,'notBefore':evidence['notBefore']}
+            session.pop('adStart',None)
+        return True
+
     def ingest(self,token,data):
         with self.lock:
             session=self.sessions[token]
@@ -80,6 +107,7 @@ class TextHub:
             if not isinstance(epoch,int) or isinstance(epoch,bool) or not 0<=epoch<1e9 or not isinstance(asset,str) or not 1<=len(asset)<=512 or not isinstance(ad,bool):raise ValueError('invalid_epoch')
             start=finite(data.get('start'),0,86400*14);end=finite(data.get('end'),start,start+40)
             position=finite(data.get('position',end),0,end+120)
+            clock=source_clock(data.get('sourceClock'),end)
             serial=data.get('serial')
             if not isinstance(serial,int) or isinstance(serial,bool) or serial<=session['lastObservation']:raise ValueError('replayed_observation')
             raw=data.get('words',[])
@@ -99,16 +127,20 @@ class TextHub:
                 session.pop('clockJump',None);session.pop('acceptedClock',None);session.pop('editionSwitch',None)
                 if session['programmeKey']!=self.programme['key']:
                     session.pop('priorReference',None);session.pop('priorRate',None);session.pop('lastMatchedReference',None)
+                    session.pop('sourceModel',None);session.pop('transportAt',None);session.pop('adStart',None)
                 elif session.get('reference') is not None or session.get('lastMatchedReference') is not None:
                     session['priorReference']=session['reference'] or session['lastMatchedReference'];session['priorRate']=session['rate'];session['priorRateVerified']=session.get('rateVerified',False)
                 session.update(epoch=epoch,asset=asset,reference=None,intercept=None,rate=session.get('priorRate',1.),points={},rateVerified=False,programmeKey=self.programme['key'],unmatchedWindows=0,exhausted=False,pendingAnchors={})
             session.update(lastObservation=serial,lastAccess=time.time(),lastWindow=dict(start=start,end=end),ad=ad)
             if ad:
+                if changed or 'adStart' not in session:session['adStart']=start
+                session.pop('transportAt',None)
                 session['windows']=[w for w in session['windows'] if w['end']<=start]
                 session['reference']=None;session['intercept']=None;session['points']={}
                 session['windows'].append(dict(start=start,end=end,state='SUSPENDED',program=self.programme['movieId'],asset=asset,tracks=[]))
                 self.event('advert_observation',session=token,epoch=epoch,start=start,end=end)
                 return
+            projected=self.project_transport(session,clock,start=start,end=end,position=position,epoch=epoch,asset=asset,token=token)
             if not words:return
             prior=session.get('priorReference')
             known=session['reference'] or session.get('lastMatchedReference') or prior
@@ -157,8 +189,9 @@ class TextHub:
                 if offset is not None:selected=(candidate,anchors,candidate_rate);break
             if selected is None:
                 if len(words)>=10:
-                    session['unmatchedWindows']+=1;session['exhausted']=session['unmatchedWindows']>=3
-                    session['reference']=None;session['intercept']=None;session['windows']=[w for w in session['windows'] if w['end']<=start]
+                    session['unmatchedWindows']+=1;session['exhausted']=not projected and session['unmatchedWindows']>=3
+                    if not projected:
+                        session['reference']=None;session['intercept']=None;session['windows']=[w for w in session['windows'] if w['end']<=start]
                     self.event('unmatched_speech',session=token,start=start,end=end,words=len(words))
                 return
             candidate,anchors,selected_rate=selected
@@ -173,6 +206,7 @@ class TextHub:
                 if not (len({w['end'] for w in windows})>=2 and
                         max(w['end'] for w in windows)-min(w['end'] for w in windows)>=6 and
                         len({cue for w in windows for cue in w['cues']})>=4):
+                    session.pop('sourceModel',None);session.pop('transportAt',None)
                     session['reference']=None
                     session['windows']=[w for w in session['windows'] if w['end']<=start]
                     self.event('subtitle_edition_pending',session=token,epoch=epoch,start=start,end=end)
@@ -200,6 +234,8 @@ class TextHub:
                     max(j['end'] for j in jumps)-min(j['end'] for j in jumps)>=6 and
                     len({cue for j in jumps for cue in j['cues']})>=4)
                 if not confirmed:
+                    session.pop('sourceModel',None);session.pop('transportAt',None)
+                    session['reference']=None;session['windows']=[w for w in session['windows'] if w['end']<=start]
                     session['points']=old_points
                     self.event('acoustic_clock_rejected',session=token,epoch=epoch,start=start,end=end,innovationSeconds=innovation)
                     return
@@ -208,6 +244,10 @@ class TextHub:
             session.pop('clockJump',None)
             session['acceptedClock']=dict(page=candidate['page'],rate=rate,intercept=intercept)
             session.update(lastMatchedReference=candidate,reference=candidate,intercept=intercept,rate=rate,rateVerified=clock_rate_confident(points,rate,intercept),unmatchedWindows=0,exhausted=False)
+            prior_model=session.get('sourceModel')
+            inherited=bool(prior_model and prior_model['reference']['page']==candidate['page'] and prior_model['rate']==rate and clock and prior_model['clock']['epoch']==clock['epoch'] and abs(prior_model['intercept']-intercept)/rate<=.75)
+            if clock and (session.get('rateVerified',False) or inherited):
+                session['sourceModel']=dict(asset=asset,programme=self.programme['key'],epoch=epoch,clock=clock,reference=candidate,rate=rate,intercept=intercept,verifiedAt=time.time(),notBefore=prior_model.get('notBefore',0) if inherited else 0)
             # Refresh only observed movie windows; ad intervals remain excluded.
             trusted_rate=session.get('rateVerified',False) or candidate is session.get('priorReference') and session.get('priorRateVerified',False) and abs(rate-session.get('priorRate',rate))<1e-8
             movie_end=max(end+12,position+12) if trusted_rate else end+12
@@ -222,7 +262,7 @@ class TextHub:
         with self.lock:
             s=self.sessions[token];s['lastAccess']=time.time();valid=self.valid_context(s['source'],None)
             phase='programme_unavailable' if not valid else 'service_unavailable' if self.discovery_error else 'searching' if self.candidates is None else 'unavailable' if not self.candidates or s['exhausted'] else 'matched' if s['reference'] else 'synchronizing'
-            return dict(session=token,source=s['source'],clientClock=True,playbackReady=False,playbackUrl=s['source'],programmeKey=self.programme['key'],programme=self.programme,mediaClockOrigin=0,subtitleStatus=dict(phase=phase,availableLanguages=sorted(s['reference']['tracks']) if s['reference'] else [],cacheHit=bool(self.candidates and all(c.get('cacheHit') for c in self.candidates))),windows=s['windows'] if valid and s['programmeKey']==self.programme['key'] else [])
+            return dict(transportClockVerified=bool(s.get('transportAt') and time.time()-s['transportAt']<=15 and s['reference'] and not s.get('ad')),session=token,source=s['source'],clientClock=True,playbackReady=False,playbackUrl=s['source'],programmeKey=self.programme['key'],programme=self.programme,mediaClockOrigin=0,subtitleStatus=dict(phase=phase,availableLanguages=sorted(s['reference']['tracks']) if s['reference'] else [],cacheHit=bool(self.candidates and all(c.get('cacheHit') for c in self.candidates))),windows=s['windows'] if valid and s['programmeKey']==self.programme['key'] else [])
     def guide_failed(self,error):
         with self.lock:
             age=time.time()-self.last_guide_success

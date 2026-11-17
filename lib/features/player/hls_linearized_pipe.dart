@@ -3,11 +3,13 @@ import 'dart:convert';
 import 'dart:io';
 import '../../core/app_diagnostics.dart';
 import 'client_subtitle_runtime.dart';
+import 'source_clock.dart';
 
 /// One local stream-copy pipe. It shares the existing HLS fetches and never
 /// decodes audio/video or sends media to a subtitle server.
 class HlsLinearizedPipe {
   void Function()? onFailure;
+  final sourceClock = SourceClockLedger();
   Process? _process;
   HttpServer? _server;
   StreamSubscription<String>? _errors;
@@ -16,6 +18,7 @@ class HlsLinearizedPipe {
 
   Future<String> start(String source) async {
     await stop();
+    sourceClock.reset();
     final generation = _generation;
     final path = ClientSubtitleRuntime.remux;
     if (path == null) {
@@ -43,6 +46,7 @@ class HlsLinearizedPipe {
             final decoded = jsonDecode(line);
             if (decoded is! Map<String, dynamic>) return;
             final data = decoded;
+            sourceClock.observe(data);
             if (data['event'] == 'remux_discontinuity' ||
                 data['event'] == 'remux_error' ||
                 data['event'] == 'remux_stream_changed' ||
@@ -108,7 +112,10 @@ class HlsLinearizedPipe {
           'code': code,
           'current': identical(_process, process),
         });
-        if (identical(_process, process)) onFailure?.call();
+        if (identical(_process, process)) {
+          sourceClock.invalidate();
+          onFailure?.call();
+        }
       }),
     );
     AppDiagnostics.instance.log('client_remux_started', {

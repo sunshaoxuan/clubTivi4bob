@@ -136,12 +136,14 @@ class HlsPlaybackSegment {
     required this.asset,
     required this.movieId,
     required this.ad,
+    this.sourceClock,
   });
   final int sequence;
   final double start, end;
   final String asset;
   final String? movieId;
   final bool ad;
+  final Map<String, Object?>? sourceClock;
 }
 
 class HlsBufferProxy {
@@ -152,6 +154,7 @@ class HlsBufferProxy {
   final _segmentUris = <String, Uri>{};
   final _sequenceStarts = <int, double>{};
   double? _playbackOrigin;
+  int _greatestSequence = -1;
   HlsPlaybackSegment? segmentAt(double position) {
     final origin = _playbackOrigin;
     if (origin == null) return null;
@@ -165,6 +168,9 @@ class HlsBufferProxy {
           asset: segment.asset,
           movieId: segment.movieId,
           ad: segment.ad,
+          sourceClock: linearClockReady
+              ? _linearized.sourceClock.at(position)
+              : null,
         );
       }
     }
@@ -205,6 +211,10 @@ class HlsBufferProxy {
         final key = '/segment/$sequence.ts';
         var start = _sequenceStarts[sequence];
         if (start == null) {
+          if (_greatestSequence >= 0 && sequence > _greatestSequence + 1) {
+            _linearized.sourceClock.invalidate();
+          }
+          if (sequence > _greatestSequence) _greatestSequence = sequence;
           final previous = _segments['/segment/${sequence - 1}.ts'];
           start =
               previous?.end ??
@@ -449,6 +459,7 @@ class HlsBufferProxy {
     _segments.clear();
     _segmentUris.clear();
     _sequenceStarts.clear();
+    _greatestSequence = -1;
     _playbackOrigin = null;
     await server?.close(force: true);
   }

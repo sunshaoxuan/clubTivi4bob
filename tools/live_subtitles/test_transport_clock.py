@@ -7,13 +7,19 @@ class TransportClockTests(unittest.TestCase):
     def model(self):
         return dict(asset='movie',programme='programme',epoch=1,rate=1.,intercept=100.,verifiedAt=time.time(),clock=dict(epoch=1,audioRemoved=0.,videoRemoved=0.,updatedAt=0.))
     def proposal(self,model=None,current=None,**changes):
-        args=dict(asset='movie',programme='programme',epoch=3,start=170.,position=169.3,ad_start=20.,now=time.time());args.update(changes)
+        args=dict(asset='movie',programme='programme',epoch=3,start=170.,position=169.3,ad_start=20.,ad_clock_start=20.,now=time.time());args.update(changes)
         return project(model or self.model(),current or dict(epoch=1,audioRemoved=-148.053333,videoRemoved=-147.925033,updatedAt=170.),**args)
     def test_captured_two_second_content_jump_is_not_ad_duration_subtraction(self):
         result=self.proposal()
         self.assertAlmostEqual(result['sourceMovieAdvanceSeconds'],2.010817,places=6)
         self.assertAlmostEqual(result['intercept'],-47.989183,places=6)
         self.assertGreaterEqual(result['start'],171.)
+    def test_actual_second_break_allows_accumulated_manifest_clock_drift(self):
+        result=self.proposal(start=1907.,position=1906.35,ad_start=1757.,ad_clock_start=1755.829033333,current=dict(epoch=1,audioRemoved=-149.056,videoRemoved=-148.925033333,updatedAt=1905.829033333))
+        self.assertIsNotNone(result)
+        self.assertAlmostEqual(result['sourceMovieAdvanceSeconds'],1.0094833335,places=6)
+        self.assertIsNone(self.proposal(ad_clock_start=18.))
+
     def test_captured_six_second_content_jump(self):
         result=self.proposal(current=dict(epoch=1,audioRemoved=-144.042666334,videoRemoved=-143.999999667,updatedAt=170.))
         self.assertAlmostEqual(result['sourceMovieAdvanceSeconds'],5.9786669995,places=6)
@@ -49,7 +55,7 @@ class TransportClockTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as root:
             helper,h,t=self.fixture(root)
             for serial,start,returned,removed in [(1,20.,170.,-148.),(3,300.,450.,-292.)]:
-                h.ingest(t,helper.observation(h,start=start,end=start+.1,epoch=serial+1,asset='ad',ad=True,serial=serial))
+                h.ingest(t,helper.observation(h,start=start,end=start+.1,epoch=serial+1,asset='ad',ad=True,serial=serial,sourceClock=dict(epoch=1,audioRemoved=9000,videoRemoved=9000,updatedAt=start)))
                 h.ingest(t,helper.observation(h,start=returned,end=returned+.1,position=returned-.7,epoch=serial+2,asset='movie',serial=serial+1,sourceClock=dict(epoch=1,audioRemoved=removed,videoRemoved=removed,updatedAt=returned)))
                 self.assertTrue(h.response(t)['transportClockVerified'])
             self.assertEqual(h.sessions[t]['intercept'],-192.)
@@ -57,7 +63,7 @@ class TransportClockTests(unittest.TestCase):
     def test_new_acoustic_contradiction_stops_transport_forecast(self):
         with tempfile.TemporaryDirectory() as root:
             helper,h,t=self.fixture(root)
-            h.ingest(t,helper.observation(h,start=20,end=20.1,epoch=2,asset='ad',ad=True))
+            h.ingest(t,helper.observation(h,start=20,end=20.1,epoch=2,asset='ad',ad=True,sourceClock=dict(epoch=1,audioRemoved=9000,videoRemoved=9000,updatedAt=20)))
             data=helper.observation(h,start=170,end=190,position=189,epoch=3,asset='movie',serial=2,sourceClock=dict(epoch=1,audioRemoved=-148,videoRemoved=-148,updatedAt=170),words=[dict(word='clear speech',start=1,end=2,probability=.9)])
             anchors=[dict(cue=i,asrStart=170+i*3,subtitleStart=124+i*3,offset=-46.,words=9) for i in (1,2,3)]
             with patch('client_clock.align',return_value=(-46.,anchors)):h.ingest(t,data)

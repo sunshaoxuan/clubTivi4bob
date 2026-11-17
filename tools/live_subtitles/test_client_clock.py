@@ -157,11 +157,21 @@ class ClientClockTests(unittest.TestCase):
                 h.ingest(t,self.observation(h,start=130.,end=150.,serial=4,epoch=2,asset='after-ad',words=words))
             self.assertIsNone(h.sessions[t]['reference'])
 
+    def test_ad_return_keeps_verified_rate_only_for_the_same_movie_asset(self):
+        for asset,expected in [('movie',True),('different-cut',False)]:
+            with tempfile.TemporaryDirectory() as d:
+                h=self.hub(d);t=h.create(h.source,None,'en',['clientClockV1']);s=h.sessions[t]
+                s.update(epoch=1,asset='movie',lastWindow=dict(start=0,end=20),reference=h.candidates[0],lastMatchedReference=h.candidates[0],rate=1.,rateVerified=True)
+                h.ingest(t,self.observation(h,start=20.,end=20.1,serial=1,epoch=2,asset='ad',ad=True))
+                self.assertTrue(s['priorRateVerified'])
+                h.ingest(t,self.observation(h,start=170.,end=170.1,serial=2,epoch=3,asset=asset))
+                self.assertEqual(s['priorRateVerified'],expected)
+
     def test_only_verified_movie_rate_can_resume_with_two_new_exact_cue_prefixes(self):
         for verified in (False,True):
             with tempfile.TemporaryDirectory() as d:
                 h=self.hub(d);t=h.create(h.source,None,'en',['clientClockV1'])
-                s=h.sessions[t];s.update(epoch=1,asset='ad',lastWindow=dict(start=0,end=20),priorReference=h.candidates[0],priorRate=1.,priorRateVerified=verified)
+                s=h.sessions[t];s.update(epoch=1,asset='ad',lastWindow=dict(start=0,end=20),priorReference=h.candidates[0],priorRate=1.,priorRateVerified=verified,priorAsset='movie-return')
                 words=[dict(word='clear speech',start=1,end=2,probability=.9)]
                 anchors=[dict(cue=i,asrStart=20+i*3,subtitleStart=120+i*3,offset=100.,words=4) for i in (1,2)]
                 with patch('client_clock.align',return_value=(None,anchors)):

@@ -13,7 +13,7 @@ def clock(value,end):
         result[key]=float(v)
     return result
 
-def project(model,current,*,asset,programme,epoch,start,position,ad_start,now):
+def project(model,current,*,asset,programme,epoch,start,position,ad_start,now,ad_clock_start=None):
     if not model or not current or model['asset']!=asset or model['programme']!=programme or now-model['verifiedAt']>1800:return None
     old=model['clock']
     if current['epoch']!=old['epoch']:return None
@@ -24,7 +24,8 @@ def project(model,current,*,asset,programme,epoch,start,position,ad_start,now):
     if resumed:
         # Both streams must have fresh return-to-movie clock evidence. Reject
         # PID/timebase rebasing, missing events and implausible content jumps.
-        if ad_start is None or start<=ad_start or current['updatedAt']<start-.25:return None
+        if ad_start is None or ad_clock_start is None or start<=ad_start:return None
+        if abs((current['updatedAt']-ad_clock_start)-(start-ad_start))>.5:return None
         advance=start-ad_start+removed
         if not -.5<=advance<=12:return None
         not_before=max(model.get('notBefore',0),current['updatedAt']+1)

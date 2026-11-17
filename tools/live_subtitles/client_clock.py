@@ -83,8 +83,11 @@ class TextHub:
 
     def project_transport(self,session,clock,*,start,end,position,epoch,asset,token):
         model=session.get('sourceModel')
-        evidence=project_clock(model,clock,asset=asset,programme=self.programme['key'],epoch=epoch,start=start,position=position,ad_start=session.get('adStart'),now=time.time())
+        evidence=project_clock(model,clock,asset=asset,programme=self.programme['key'],epoch=epoch,start=start,position=position,ad_start=session.get('adStart'),ad_clock_start=session.get('adClockStart'),now=time.time())
         if evidence is None:
+            if model and epoch!=model['epoch'] and session.get('adStart') is not None and session.get('transportRejectedEpoch')!=epoch:
+                session['transportRejectedEpoch']=epoch
+                self.event('client_transport_clock_rejected',session=token,epoch=epoch,clockAvailable=clock is not None,adClockStart=session.get('adClockStart'),clockReturn=clock.get('updatedAt') if clock else None,adStart=session.get('adStart'),returnStart=start,modelAgeSeconds=round(time.time()-model['verifiedAt'],3))
             if session.get('transportAt') is not None:
                 session.pop('transportAt',None)
                 session['windows']=[w for w in session['windows'] if w['end']<=position]
@@ -96,7 +99,7 @@ class TextHub:
         if evidence['resumed']:
             self.event('client_transport_clock_resume',session=token,epoch=epoch,referenceId=hashlib.sha256(candidate['page'].encode()).hexdigest(),start=start,end=end,rate=rate,intercept=intercept,sourceMovieAdvanceSeconds=evidence['sourceMovieAdvanceSeconds'],removedSeconds=evidence['removedSeconds'])
             session['sourceModel']={**model,'epoch':epoch,'clock':clock,'intercept':intercept,'notBefore':evidence['notBefore']}
-            session.pop('adStart',None)
+            session.pop('adStart',None);session.pop('adClockStart',None)
         return True
 
     def ingest(self,token,data):
@@ -126,14 +129,20 @@ class TextHub:
             if changed:
                 session.pop('clockJump',None);session.pop('acceptedClock',None);session.pop('editionSwitch',None)
                 if session['programmeKey']!=self.programme['key']:
-                    session.pop('priorReference',None);session.pop('priorRate',None);session.pop('lastMatchedReference',None)
-                    session.pop('sourceModel',None);session.pop('transportAt',None);session.pop('adStart',None)
-                elif session.get('reference') is not None or session.get('lastMatchedReference') is not None:
-                    session['priorReference']=session['reference'] or session['lastMatchedReference'];session['priorRate']=session['rate'];session['priorRateVerified']=session.get('rateVerified',False)
+                    session.pop('priorReference',None);session.pop('priorRate',None);session.pop('priorAsset',None);session.pop('lastMatchedReference',None)
+                    session.pop('sourceModel',None);session.pop('transportAt',None);session.pop('adStart',None);session.pop('adClockStart',None)
+                elif session.get('reference') is not None or (session.get('lastMatchedReference') is not None and (ad or session.get('rateVerified',False))):
+                    session['priorReference']=session['reference'] or session['lastMatchedReference'];session['priorRate']=session['rate'];session['priorRateVerified']=session.get('rateVerified',False);session['priorAsset']=session['asset']
+                if not ad and session.get('priorAsset')!=asset:session['priorRateVerified']=False
+                model=session.get('sourceModel')
+                if not ad and model and model['asset']==asset and model['programme']==self.programme['key']:
+                    session['priorReference']=model['reference'];session['priorRate']=model['rate'];session['priorRateVerified']=True
                 session.update(epoch=epoch,asset=asset,reference=None,intercept=None,rate=session.get('priorRate',1.),points={},rateVerified=False,programmeKey=self.programme['key'],unmatchedWindows=0,exhausted=False,pendingAnchors={})
             session.update(lastObservation=serial,lastAccess=time.time(),lastWindow=dict(start=start,end=end),ad=ad)
             if ad:
-                if changed or 'adStart' not in session:session['adStart']=start
+                if changed or 'adStart' not in session:
+                    session['adStart']=start
+                    session['adClockStart']=clock['updatedAt'] if clock and abs(clock['updatedAt']-start)<=12 else None
                 session.pop('transportAt',None)
                 session['windows']=[w for w in session['windows'] if w['end']<=start]
                 session['reference']=None;session['intercept']=None;session['points']={}

@@ -28,3 +28,9 @@ Build the diagnostic or normal Mac app from this branch, then run `tools/macos/p
 - Compare synchronization to distinct held-out cue anchors; label synthetic known-clock error separately from ASR residuals.
 - Record app JSON bytes, service outbound media requests and systemd IP accounting. A new-path media count of zero is not an actual before/after live-bandwidth comparison when the original stream cannot play.
 - Keep real live advert recovery, real HLS clock continuity and platform-specific native performance pending until measured. Windows/Android capability in upstream whisper.cpp does not establish BobTV support there.
+
+## Recorded offline result
+
+The final automatic native fixture lasted 66.605 seconds, with native mute `yes`, volume zero, no player errors and zero buffering samples after startup. The ten-second advert contained 100 display samples and zero movie-caption leaks. The first actual caption after return appeared after 13.739 seconds. Five distinct anchors excluded from initial recovery calibration had median absolute ASR residual 0.090 seconds and maximum 0.247 seconds. These are synthetic/offline measurements. See `outputs/BobTV-client-asr-20261117/offline-acceptance.json` outside the checkout for the original observations and exact limits.
+
+The fixture uploaded 20,239 JSON bytes and received 28,234 subtitle/control JSON bytes. It made zero outbound video requests on the subtitle server. Neither a real live advert measurement nor an actual live bandwidth before/after comparison is available. The original reviewed master remained HTTP 404. The remote test API is separate from the legacy endpoint; server stream prewarming is disabled for the legacy unit, while existing on-demand clients retain their original protocol.

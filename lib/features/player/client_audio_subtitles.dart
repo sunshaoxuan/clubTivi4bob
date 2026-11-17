@@ -27,7 +27,8 @@ class ClientAudioSubtitles {
   final Uri endpoint;
   final HlsPlaybackSegment? Function(double) segmentAt;
   final VoidCallback onChanged;
-  static const label = 'bobtv_pcm';
+  static int _nextLabel = 0;
+  final label = 'bobtv_pcm_${_nextLabel++}';
   static String get resources =>
       '${File(Platform.resolvedExecutable).parent.parent.path}/Resources/ClientASR';
   static bool get supported =>
@@ -50,7 +51,7 @@ class ClientAudioSubtitles {
       _sampling = false,
       _recognizing = false,
       _active = false;
-  bool _attached = false;
+  bool _attached = false, _workerFailed = false;
   int _epoch = 0, _nativeEpoch = -1, _sequence = -1, _serial = 0;
   String? _asset;
   bool? _ad;
@@ -73,6 +74,10 @@ class ClientAudioSubtitles {
     _session = body['session'] as String;
     _accept(body);
     _directory = await Directory.systemTemp.createTemp('bobtv-client-asr-');
+    if (_disposed) {
+      await _directory?.delete(recursive: true);
+      return;
+    }
     final ready = Completer<void>();
     final worker = await Process.start('$resources/bobtv-client-asr', [
       '$resources/ggml-base.en-q5_1.bin',
@@ -221,6 +226,8 @@ class ClientAudioSubtitles {
     text = '';
     if (!enabled) {
       phase = SubtitlePhase.idle;
+    } else if (_workerFailed) {
+      phase = SubtitlePhase.serviceUnavailable;
     } else if (segment?.ad == true) {
       phase = SubtitlePhase.suspended;
     } else if (fresh &&
@@ -273,7 +280,7 @@ class ClientAudioSubtitles {
         _attached = true;
       }
       render();
-      if (!SubtitlePreferences.instance.enabled) return;
+      if (!SubtitlePreferences.instance.enabled || _workerFailed) return;
       if (!player.state.playing || player.state.buffering) return;
       final raw = await native.getProperty('af-metadata/$label');
       if (_disposed || raw.isEmpty) return;
@@ -411,6 +418,10 @@ class ClientAudioSubtitles {
         );
       }
     } catch (error) {
+      _workerFailed = true;
+      _timeline = null;
+      _worker?.kill();
+      failed();
       AppDiagnostics.instance.log('client_asr_recognition_error', {
         'errorType': error.runtimeType.toString(),
       });

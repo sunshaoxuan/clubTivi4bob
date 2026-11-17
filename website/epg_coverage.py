@@ -20,9 +20,7 @@ def _expected_provenance(mapping):
 
 
 def _channel(mapping):
-    return {**json.loads(mapping['payload']), 'sourceId': mapping['source_id'],
-        'originalChannelId': mapping['original_id'],
-        'catalogIdentityHash': mapping['catalog_identity_hash'], 'confidence': mapping['confidence']}
+    return store.published_channel(mapping)
 
 
 def _published(conn, directory, mappings, now, outcome):
@@ -61,13 +59,15 @@ def _published(conn, directory, mappings, now, outcome):
         grouped[programme['channelId']].append(programme)
     count, future_count = 0, 0
     for identity, mapping in mappings.items():
-        if channels.get(identity) != _channel(mapping):
+        expected_channel = _channel(mapping)
+        published_id = expected_channel['id']
+        if channels.get(published_id) != expected_channel:
             continue
         credit = conn.execute('SELECT metadata FROM epg_data_attributions WHERE source_id=?',
             (mapping['source_id'],)).fetchone()
         if credits.get(mapping['source_id']) != (json.loads(credit[0]) if credit else None):
             continue
-        rows = grouped[identity]
+        rows = grouped[published_id]
         expected = _expected_provenance(mapping)
         if not rows or any(not isinstance(row.get('provenance'), dict)
                 or row.get('sourceId') != mapping['source_id']
@@ -113,7 +113,7 @@ def summarize(conn, now, public_directory=None):
             current = {row['channelId'] for row in eligible['programmes']
                 if row['startUtc'] <= now < row['stopUtc']}
             future = {row['channelId'] for row in eligible['programmes'] if row['startUtc'] > now}
-            approved = set(mappings)
+            approved = {_channel(m)['id'] for m in mappings.values()}
             outcome['currentAndFutureChannels'] = len(current & future & approved)
             outcome['channelsWithFutureProgrammes'] = len(future & approved)
         except EpgError as error:

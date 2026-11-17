@@ -98,12 +98,13 @@ class ServerEpgBinding {
       SELECT r.local_channel_id,r.catalog_channel_id,r.identity_hash,
         e.id AS local_epg_channel_id,
         r.name AS catalog_name,r.epg_id AS catalog_epg_id,r.group_name,
-        c.name,c.tvg_id,c.group_title,i.metadata,
+        c.name,c.tvg_id,c.group_title,c.stream_url,i.metadata,
         m.channel_id AS mapped_channel,m.epg_source_id AS mapped_source,
         m.source AS mapping_kind,m.locked AS mapping_locked
       FROM catalog_epg_routes r JOIN channels c ON c.id=r.local_channel_id
       JOIN server_epg_identities i ON i.channel_id=r.catalog_channel_id
-      JOIN epg_channels e ON e.channel_id=r.catalog_channel_id AND e.source_id=?
+        OR json_extract(i.metadata,'\$.routeBinding.catalogChannelId')=r.catalog_channel_id
+      JOIN epg_channels e ON e.channel_id=i.channel_id AND e.source_id=?
       LEFT JOIN epg_mappings m ON m.channel_id=c.id AND m.provider_id=c.provider_id
       WHERE c.provider_id=?
     ''',
@@ -136,9 +137,14 @@ class ServerEpgBinding {
       final id = row.read<String>('catalog_channel_id');
       final hash = row.read<String>('identity_hash');
       if (metadata is! Map ||
-          metadata['id'] != id ||
-          metadata['catalogIdentityHash'] != hash ||
-          catalogEpgIdentityHash(metadata) != hash ||
+          !serverEpgMatchesRoute(
+            metadata,
+            id,
+            hash,
+            row.read<String>('local_channel_id'),
+            row.read<String>('stream_url'),
+          ) ||
+          catalogEpgIdentityHash(metadata) != metadata['catalogIdentityHash'] ||
           metadata['confidence'] is! num ||
           !(metadata['confidence'] as num).isFinite ||
           (metadata['confidence'] as num) < .95 ||

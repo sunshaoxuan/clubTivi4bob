@@ -16,8 +16,23 @@ from epg_discovery import fingerprint
 from epg_ingest import EpgError, parse_xmltv, fetch
 from publish_channel_catalog import _atomic_write
 from source_registry import validate_public_url
+from epg_route_binding import validate_scope, public_identity
 
 NODES = ('https://bobtv.briconbric.com', 'https://cndrp.com/bobtv')
+
+
+def _reviewed_route_scope(channel_id, evidence):
+    if 'routeScope' not in evidence:
+        return None
+    if evidence.get('routeScopeExplicitlyReviewed') is not True:
+        raise EpgError('epg_route_review_required')
+    from catalog_inventory import DATA
+    from epg_discovery import load_catalog
+    _, channels = load_catalog(DATA)
+    channel = next((c for c in channels if c['id'] == channel_id), None)
+    if channel is None:
+        raise EpgError('epg_route_identity_drift')
+    return validate_scope(evidence['routeScope'], channel)
 
 
 def migrate(conn):
@@ -183,6 +198,9 @@ def approve_mapping(conn, channel_id, source_id, original_id, *, evidence,
     if type(confidence) not in (int, float) or not 0.95 <= confidence <= 1:
         raise EpgError('identity_confidence_required')
     previous = conn.execute('SELECT * FROM epg_mapping_approvals WHERE channel_id=?', (channel_id,)).fetchone()
+    scope = _reviewed_route_scope(channel_id, evidence)
+    if previous and previous['locked'] and json.loads(previous['evidence']).get('routeScope') != scope:
+        raise EpgError('mapping_locked')
     identity_hash = source_identity(source)
     if previous and previous['locked'] and (previous['source_id'], previous['original_id'], previous['catalog_identity_hash'], previous['source_identity_hash']) != (source_id, original_id, job['identity_hash'], identity_hash):
         raise EpgError('mapping_locked')
@@ -213,6 +231,7 @@ def _approved(conn, channel_id):
     # any raw cache handoff, programme ingestion or new public snapshot.
     if reviewed_data_use(conn, row['source_id']) is None:
         raise EpgError('current_data_use_review_required')
+    _reviewed_route_scope(channel_id, json.loads(row['evidence']))
     context = _source_context(row)
     if context.get('provider') == 'rakuten-tv':
         from epg_rakuten import verify_current_catalogue_route
@@ -336,6 +355,18 @@ def cache_validated_payload(conn, directory, source_id, payload, now):
     return True
 
 
+def published_channel(mapping):
+    channel = json.loads(mapping['payload'])
+    scope = json.loads(mapping['evidence']).get('routeScope')
+    if scope is not None:
+        # A legacy client cannot join this ID to the parent catalogue channel.
+        channel = public_identity(channel, mapping['catalog_identity_hash'], scope)
+    published_hash = fingerprint({key: channel.get(key) for key in
+        ('id', 'name', 'epgId', 'countryCode', 'regionCode')})
+    return {**channel, 'sourceId': mapping['source_id'], 'originalChannelId': mapping['original_id'],
+            'catalogIdentityHash': published_hash, 'confidence': mapping['confidence']}
+
+
 def build_payload(conn, now=None):
     now = int(time.time() if now is None else now)
     channels, programmes = [], []
@@ -375,11 +406,10 @@ def build_payload(conn, now=None):
         # current programme or drop the entire channel merely to fill a gap.
         if not any(p['starts'] > now for p in rows):
             continue
-        channel = json.loads(mapping['payload'])
-        channels.append({**channel, 'sourceId': mapping['source_id'], 'originalChannelId': mapping['original_id'],
-            'catalogIdentityHash': mapping['catalog_identity_hash'], 'confidence': mapping['confidence']})
+        channel = published_channel(mapping)
+        channels.append(channel)
         for row, provenance in checked_rows:
-            programmes.append({'channelId': identity, 'sourceId': row['source_id'], 'originalChannelId': row['original_id'],
+            programmes.append({'channelId': channel['id'], 'sourceId': row['source_id'], 'originalChannelId': row['original_id'],
                 'title': row['title'], 'startUtc': row['starts'], 'stopUtc': row['stops'],
                 'provenance': provenance})
     if not channels or not programmes:

@@ -11,6 +11,81 @@ const serverEpgSourceId = 'bobtv-server-epg';
 const serverEpgManifestUrl = 'https://bobtv.briconbric.com/api/v1/epg/manifest';
 final _digest = RegExp(r'^[a-f0-9]{64}$');
 
+/// Scoped guides use a different public ID so older clients cannot map them
+/// to every route of the parent channel. They remain valid v1 snapshots.
+Map<String, dynamic>? serverEpgRouteBinding(Map channel) {
+  if (!channel.containsKey('routeBinding')) return null;
+  final binding = channel['routeBinding'];
+  if (binding is! Map<String, dynamic> ||
+      binding.length != 4 ||
+      binding['schemaVersion'] != 1 ||
+      !_text(binding['catalogChannelId'], 256) ||
+      binding['catalogIdentityHash'] is! String ||
+      !_digest.hasMatch(binding['catalogIdentityHash'] as String) ||
+      binding['routes'] is! List ||
+      (binding['routes'] as List).isEmpty ||
+      (binding['routes'] as List).length > 100) {
+    throw const FormatException('Invalid EPG route binding');
+  }
+  final material = <String>[
+    binding['catalogChannelId'] as String,
+    binding['catalogIdentityHash'] as String,
+  ];
+  String? previous;
+  for (final route in binding['routes'] as List) {
+    if (route is! Map ||
+        route.length != 2 ||
+        route['routeId'] is! String ||
+        !RegExp(
+          r'^[A-Za-z0-9_-]{1,128}$',
+        ).hasMatch(route['routeId'] as String) ||
+        route['urlSha256'] is! String ||
+        !_digest.hasMatch(route['urlSha256'] as String) ||
+        (previous != null &&
+            previous.compareTo(route['routeId'] as String) >= 0)) {
+      throw const FormatException('Invalid EPG route scope');
+    }
+    previous = route['routeId'] as String;
+    material.add('$previous:${route['urlSha256']}');
+  }
+  if (channel['id'] !=
+          'route-epg-${sha256.convert(utf8.encode(material.join('\n')))}' ||
+      catalogEpgIdentityHash({...channel, 'id': binding['catalogChannelId']}) !=
+          binding['catalogIdentityHash']) {
+    throw const FormatException('EPG parent route identity mismatch');
+  }
+  return binding;
+}
+
+bool serverEpgMatchesRoute(
+  Map metadata,
+  String catalogId,
+  String identityHash,
+  String localRouteId,
+  String streamUrl,
+) {
+  try {
+    final binding = serverEpgRouteBinding(metadata);
+    if (binding == null) {
+      return metadata['id'] == catalogId &&
+          metadata['catalogIdentityHash'] == identityHash;
+    }
+    if (binding['catalogChannelId'] != catalogId ||
+        binding['catalogIdentityHash'] != identityHash) {
+      return false;
+    }
+    final prefix = '$publicCatalogProviderId:';
+    if (!localRouteId.startsWith(prefix)) return false;
+    final routeId = localRouteId.substring(prefix.length);
+    final hash = sha256.convert(utf8.encode(streamUrl)).toString();
+    return (binding['routes'] as List).any(
+      (r) => r['routeId'] == routeId && r['urlSha256'] == hash,
+    );
+  } on FormatException {
+    return false;
+  }
+}
+
 class ServerEpgManifest {
   ServerEpgManifest._(this.json);
   final Map<String, dynamic> json;
@@ -179,6 +254,7 @@ Future<ServerEpgSnapshot> decodeServerEpg(Map<String, Object> message) async {
     if (catalogEpgIdentityHash(channel) != channel['catalogIdentityHash']) {
       throw const FormatException('EPG catalog identity fingerprint mismatch');
     }
+    serverEpgRouteBinding(channel);
     identities[id] = Map.unmodifiable(channel);
     channels.add(
       EpgChannel(

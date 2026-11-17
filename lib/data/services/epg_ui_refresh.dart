@@ -1,4 +1,6 @@
 import 'dart:async';
+import 'dart:convert';
+import 'package:drift/drift.dart';
 
 import '../datasources/local/database.dart' as db;
 import '../models/server_epg_snapshot.dart';
@@ -72,6 +74,7 @@ Future<String?> resolveLiveEpgId(
   required String channelId,
   String? providerId,
   String? fallbackId,
+  String? actualStreamUrl,
 }) async {
   if (channelId.isNotEmpty) {
     final mappings = await database.getMappingsForChannelIds({channelId});
@@ -83,6 +86,37 @@ Future<String?> resolveLiveEpgId(
           .where((s) => s.id == mapping.epgSourceId && s.enabled)
           .firstOrNull;
       if (source == null) return null;
+      if (mapping.epgSourceId == serverEpgSourceId &&
+          !mapping.locked &&
+          mapping.source == 'server') {
+        final rows = await database
+            .customSelect(
+              '''
+          SELECT i.metadata,r.catalog_channel_id,r.identity_hash,c.stream_url
+          FROM channels c JOIN catalog_epg_routes r ON r.local_channel_id=c.id
+          JOIN server_epg_identities i ON ?=? || '_' || i.channel_id
+          WHERE c.id=?
+        ''',
+              variables: [
+                Variable(mapping.epgChannelId),
+                Variable(serverEpgSourceId),
+                Variable(channelId),
+              ],
+            )
+            .get();
+        if (rows.length != 1) return null;
+        final row = rows.single;
+        final metadata = jsonDecode(row.read<String>('metadata')) as Map;
+        if (!serverEpgMatchesRoute(
+          metadata,
+          row.read<String>('catalog_channel_id'),
+          row.read<String>('identity_hash'),
+          channelId,
+          actualStreamUrl ?? row.read<String>('stream_url'),
+        )) {
+          return null;
+        }
+      }
       return mapping.epgChannelId.startsWith('${mapping.epgSourceId}_')
           ? mapping.epgChannelId
           : '${mapping.epgSourceId}_${mapping.epgChannelId}';

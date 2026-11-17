@@ -98,6 +98,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   StreamSubscription<bool>? _bufferingSubscription;
   StreamSubscription<Player>? _activePlayerSubscription;
   StreamSubscription<String?>? _castStatusSubscription;
+  StreamSubscription<String?>? _epgRouteSubscription;
   bool _castBusy = false;
 
   // Channel switching state
@@ -219,6 +220,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     _autoHideOverlay();
     _scheduleCursorHide();
     _loadEpgInfo();
+    _epgRouteSubscription = ref.read(playerServiceProvider).currentUrlStream.listen((_) {
+      if (mounted) unawaited(_loadEpgInfo(clear: true, force: true));
+    });
     _epgUiRefresh = EpgUiRefresh(
       ref.read(databaseProvider).watchEpgChanges(),
       () async {
@@ -286,6 +290,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
         channelId: ch['id'] as String? ?? '',
         providerId: ch['providerId'] as String?,
         fallbackId: (ch['epgId'] ?? ch['epgChannelId']) as String?,
+        actualStreamUrl: ref.read(playerServiceProvider).currentUrl,
       );
     } catch (error, stack) {
       AppDiagnostics.instance.recordError(
@@ -1178,6 +1183,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
 
   @override
   void dispose() {
+    unawaited(_epgRouteSubscription?.cancel());
     _epgUiRefresh?.dispose();
     if (Platform.isAndroid) {
       AndroidPipService.instance.active.removeListener(_onAndroidPipChanged);

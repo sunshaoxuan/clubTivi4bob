@@ -187,6 +187,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
   bool _showVolumeOverlay = false;
   Timer? _volumeOverlayTimer;
   StreamSubscription<double>? _volumeSubscription;
+  StreamSubscription<String?>? _epgRouteSubscription;
   StreamSubscription<Player>? _activePlayerSubscription;
 
   // Last channel for back/forth toggle (not a full history stack)
@@ -268,6 +269,8 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
         final index = ChannelListIdentity.indexOf(_filteredChannels, id, (c) => c.id);
         return resolveLiveEpgId(ref.read(databaseProvider), channelId: id,
           providerId: index < 0 ? null : _filteredChannels[index].providerId,
+          actualStreamUrl: ref.read(playerServiceProvider).currentChannelId == id
+            ? ref.read(playerServiceProvider).currentUrl : null,
           fallbackId: null);
       },
       onError: (error, stack) => AppDiagnostics.instance.recordError(
@@ -276,6 +279,9 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
         stack,
       ),
     )..addListener(_onInlineProgrammeChanged);
+    _epgRouteSubscription = ref.read(playerServiceProvider).currentUrlStream.listen((_) {
+      if (mounted) _refreshInlineProgrammeStrip(forceRefresh: true);
+    });
     _guideScrollController = ScrollController();
     _loadChannels();
     unawaited(ref.read(bobTvCommunityProvider).start());
@@ -536,6 +542,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
 
   @override
   void dispose() {
+    unawaited(_epgRouteSubscription?.cancel());
     _routeRecovery.dispose();
     _epgUiRefresh?.dispose();
     _inlineProgrammePreview.removeListener(_onInlineProgrammeChanged);

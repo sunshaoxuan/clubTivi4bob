@@ -13,6 +13,15 @@ from subtitle_catalog import discover, parse_srt, title_norm, matches_movie_titl
 
 
 class LiveServiceTests(unittest.TestCase):
+    def test_unchanged_verified_snapshot_is_not_downloaded_again(self):
+        import gzip,hashlib,service
+        raw=gzip.compress(json.dumps(dict(channels=[])).encode());digest=hashlib.sha256(raw).hexdigest()
+        manifest=json.dumps(dict(snapshotUrl='/api/v1/channel-catalog/snapshots/'+digest+'.json.gz',sha256=digest)).encode()
+        with patch.dict(service._SNAPSHOT_CACHE,{},clear=True),patch('service.public_read',side_effect=[manifest,raw,manifest]) as read:
+            self.assertEqual(service.snapshot('channel-catalog'),dict(channels=[]))
+            self.assertEqual(service.snapshot('channel-catalog'),dict(channels=[]))
+            self.assertEqual(read.call_count,3)
+
     def test_prewarm_starts_without_a_client_and_survives_last_viewer_expiry(self):
         from unittest.mock import Mock
         from types import SimpleNamespace

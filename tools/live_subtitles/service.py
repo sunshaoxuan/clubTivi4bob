@@ -38,18 +38,26 @@ def public_read(url):
     return raw
 
 
+_SNAPSHOT_CACHE = {}
+_SNAPSHOT_LOCK = threading.RLock()
+
 def snapshot(kind):
     manifest = json.loads(public_read(NODE + '/api/v1/' + kind + '/manifest'))
     path = manifest['snapshotUrl']
     if not path.startswith('/api/v1/' + kind + '/snapshots/'):
         raise ValueError('unreviewed_snapshot_url')
+    with _SNAPSHOT_LOCK:
+        cached=_SNAPSHOT_CACHE.get(kind)
+        if cached and cached[0]==manifest['sha256']:return cached[1]
     raw = public_read(NODE + path)
     if hashlib.sha256(raw).hexdigest() != manifest['sha256']:
         raise ValueError('public_snapshot_checksum')
     decoded = gzip.decompress(raw)
     if len(decoded) > 32 * 1024 * 1024:
         raise ValueError('public_snapshot_decoded_limit')
-    return json.loads(decoded)
+    value=json.loads(decoded)
+    with _SNAPSHOT_LOCK:_SNAPSHOT_CACHE[kind]=(manifest['sha256'],value)
+    return value
 
 
 def official_imdb_id(metadata):

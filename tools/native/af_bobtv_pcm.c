@@ -13,7 +13,12 @@
 #include "libswresample/swresample.h"
 #include "audio.h"
 #include "avfilter.h"
+#include "libavfilter/version.h"
+#if LIBAVFILTER_VERSION_MAJOR >= 10
+#include "filters.h"
+#else
 #include "internal.h"
+#endif
 #define RATE 16000
 #define CAPACITY 32000
 

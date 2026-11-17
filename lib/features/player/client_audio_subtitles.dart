@@ -53,6 +53,7 @@ class ClientAudioSubtitles {
       _active = false;
   bool _attached = false, _workerFailed = false, _clockAvailable = true;
   bool _transportLocked = false;
+  bool _coldRecognition = true, _waitingForPlaybackBuffer = false;
   double _lastClockObservation = -1;
   String? _clockSignature;
   int _epoch = 0, _nativeEpoch = -1, _sequence = -1, _serial = 0;
@@ -132,6 +133,7 @@ class ClientAudioSubtitles {
   }
 
   Future<void> _launchWorker() async {
+    _coldRecognition = true;
     _directory = await Directory.systemTemp.createTemp('bobtv-client-asr-');
     if (_disposed) {
       await _directory?.delete(recursive: true);
@@ -527,6 +529,25 @@ class ClientAudioSubtitles {
       if (!_recognizing &&
           duration >= 12 &&
           end - _lastAnalysisEnd >= (_transportLocked ? 30 : 6)) {
+        if (Platform.isAndroid) {
+          final buffered = double.tryParse(
+            await native.getProperty('demuxer-cache-duration'),
+          );
+          // A cold first inference took 31 s while a 4 s cache drained.
+          // Reserve decoded media before competing for mobile CPU time.
+          final minimum = _coldRecognition ? 16.0 : 8.0;
+          final ready =
+              buffered != null && buffered.isFinite && buffered >= minimum;
+          if (_waitingForPlaybackBuffer == ready) {
+            AppDiagnostics.instance.log('client_asr_playback_budget', {
+              'deferred': !ready,
+              'bufferSeconds': buffered,
+              'minimumSeconds': minimum,
+            });
+          }
+          _waitingForPlaybackBuffer = !ready;
+          if (!ready) return;
+        }
         _lastAnalysisEnd = end;
         unawaited(_recognize(_epoch, segment.asset));
       }
@@ -597,6 +618,7 @@ class ClientAudioSubtitles {
       final response = await future.future.timeout(const Duration(seconds: 40));
       final words = response['words'] as List? ?? [];
       _workerFailures = 0;
+      if (words.isNotEmpty) _coldRecognition = false;
       AppDiagnostics.instance.log('client_asr_window', {
         'epoch': epoch,
         'start': start,

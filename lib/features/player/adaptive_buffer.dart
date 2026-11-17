@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:media_kit/src/player/native/player/real.dart' as native_player;
 import 'package:shared_preferences/shared_preferences.dart';
@@ -190,6 +191,8 @@ class AdaptiveBufferManager {
     final config = <String, String>{
       ...(_tierConfig[tier] ?? _tierConfig['normal']!),
       if (isActionMoviesUk(_currentUrl ?? '')) 'cache-pause-initial': 'yes',
+      if (Platform.isAndroid && isActionMoviesUk(_currentUrl ?? ''))
+        'cache-pause-wait': '8',
     };
     for (final entry in config.entries) {
       if (_currentUrl != expectedUrl || !identical(ps.player, expectedPlayer))

@@ -424,6 +424,16 @@ class ClientAudioSubtitles {
       final nativeEpoch = int.parse('${metadata['lavfi.bobtv_pcm.epoch']}');
       final segment = segmentAt(math.max(0, end - .01));
       if (segment == null) return;
+      // The same packet boundary that clears the renderer must also stop
+      // movie observations before a lagging manifest labels the advert.
+      if (!segment.ad &&
+          sourceBoundaryBeforeAdvert(
+            segment.sourceClock,
+            end - .01,
+            advertWithinLookahead: segmentAt(end + 30)?.ad == true,
+          )) {
+        return;
+      }
       final ad = segment.ad || segment.movieId != _programme?['movieId'];
       final clock = segment.sourceClock;
       final signature = clock == null

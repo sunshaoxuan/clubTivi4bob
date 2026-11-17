@@ -1,34 +1,42 @@
 {
   "schema": 1,
-  "version": "1.1.14+109",
+  "version": "client-audio-20261118",
   "fftSourceSha256": "c26c03f60954a7a21296c828633a3e6368448ae4159035c133a0defdcb9bb3a4",
   "android": {
     "armeabi-v7a": {
       "filename": "bobtv-audio-android-armeabi-v7a.jar",
-      "sha256": "775f4805f7583dacb72b40b37cc44138b1f9e68d3506c4a35be7b29075e892d5",
-      "url": "https://github.com/sunshaoxuan/clubTivi4bob/releases/download/v1.1.14/bobtv-audio-android-armeabi-v7a.jar"
+      "sha256": "cba59316c33fafbe272322e419d90f22cfc30700116f44b6c33b2e2ac3553428",
+      "url": "https://github.com/sunshaoxuan/clubTivi4bob/releases/download/bobtv-client-audio-20261118/bobtv-audio-android-armeabi-v7a.jar"
     },
     "arm64-v8a": {
       "filename": "bobtv-audio-android-arm64-v8a.jar",
-      "sha256": "ad083a5f969e450af50b8dba4b2d0ddbd777c975d6dbbfc5380e612e6e6a8582",
-      "url": "https://github.com/sunshaoxuan/clubTivi4bob/releases/download/v1.1.14/bobtv-audio-android-arm64-v8a.jar"
+      "sha256": "f738f67b8d899ac452c8e63ff75f951d6e0f7b5d31d581eb590bc41f83c5bdf4",
+      "url": "https://github.com/sunshaoxuan/clubTivi4bob/releases/download/bobtv-client-audio-20261118/bobtv-audio-android-arm64-v8a.jar"
     },
     "x86_64": {
       "filename": "bobtv-audio-android-x86_64.jar",
-      "sha256": "3f86259b0d55ac1b1813fcb77ac57f63cc52693244d00f1932c46bba6e03bfe9",
-      "url": "https://github.com/sunshaoxuan/clubTivi4bob/releases/download/v1.1.14/bobtv-audio-android-x86_64.jar"
+      "sha256": "377445a91d8d358a10c5c276542d7e1b35f6a0e2192d450df5a9f5b7ab37ac36",
+      "url": "https://github.com/sunshaoxuan/clubTivi4bob/releases/download/bobtv-client-audio-20261118/bobtv-audio-android-x86_64.jar"
     }
   },
   "windows": {
     "x64": {
-      "filename": "bobtv-audio-windows-x64.zip",
-      "sha256": "392b35940f6557a9fad760ef7ee486c9afd326948de47006e6b2786f3efcf9dd",
-      "url": "https://github.com/sunshaoxuan/clubTivi4bob/releases/download/v1.1.14/bobtv-audio-windows-x64.zip"
+      "filename": "bobtv-client-audio-windows-x64.zip",
+      "sha256": "f6b1134db2a89f8ea50a6ff1abe8817027abda3ca06e9cb829b6338847493a6f",
+      "url": "https://github.com/sunshaoxuan/clubTivi4bob/releases/download/bobtv-client-audio-20261118/bobtv-client-audio-windows-x64.zip"
     },
     "arm64": {
-      "filename": "bobtv-audio-windows-arm64.zip",
-      "sha256": "5713cd893feeb17415e8037511c8f47b65d8ec142f1da5f292c2b200239bd1b3",
-      "url": "https://github.com/sunshaoxuan/clubTivi4bob/releases/download/v1.1.14/bobtv-audio-windows-arm64.zip"
+      "filename": "bobtv-client-audio-windows-arm64.zip",
+      "sha256": "1c8afe468c2307c0d4ba35e5ffa3522ff152f3efbc63fc246962b8772ce1b7ec",
+      "url": "https://github.com/sunshaoxuan/clubTivi4bob/releases/download/bobtv-client-audio-20261118/bobtv-client-audio-windows-arm64.zip"
     }
-  }
+  },
+  "pcmSourceSha256": "fe495a98bda5d388ed193005b87dae20323e5241aabe433be033a6b3be129d1a",
+  "clientSubtitleModels": {
+    "filename": "bobtv-client-subtitle-models.jar",
+    "sha256": "b19e318f15a8c5445558d0bfe7ea90ab16e06898af688ad59f7ec5ede079cbc9",
+    "url": "https://github.com/sunshaoxuan/clubTivi4bob/releases/download/bobtv-client-audio-20261118/bobtv-client-subtitle-models.jar"
+  },
+  "clientWorkerSourceCommit": "511f1e7",
+  "androidBuildRun": "https://github.com/sunshaoxuan/clubTivi4bob/actions/runs/44151345043"
 }

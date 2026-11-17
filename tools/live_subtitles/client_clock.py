@@ -104,10 +104,12 @@ class TextHub:
                 return
             if not words:return
             prior=session.get('priorReference')
-            trial=([session['reference']] if session['reference'] else ([prior] if prior else [])+[c for c in self.candidates or [] if c is not prior])
+            known=session['reference'] or session.get('lastMatchedReference') or prior
+            trial=([known] if known else [])+[c for c in self.candidates or [] if c is not known]
             selected=None
             for candidate in trial:
-                offset,anchors=align(words,candidate['tracks']['en'],start)
+                candidate_rate=session['rate'] if session.get('candidateKey')==candidate['page'] else session.get('priorRate',1.) if candidate is prior else 1.
+                offset,anchors=align(words,candidate['tracks']['en'],start,rate=candidate_rate)
                 # Accumulate distinct, exact cue-onset matches across overlapping
                 # windows. Epoch/asset changes clear this evidence completely.
                 pending=session.setdefault('pendingAnchors',{}).setdefault(candidate['page'],{})

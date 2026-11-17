@@ -29,4 +29,12 @@ class StremioTests(unittest.TestCase):
         words=[dict(word=w,start=i*5+j*.2,end=i*5+j*.2+.1,probability=.9) for i in range(3) for j,w in enumerate(f"There's nothing we can do {i}".split())]
         offset,anchors=align(words,cues,0)
         self.assertEqual(offset,0);self.assertEqual([a['asrStart'] for a in anchors],[0,5,10])
+    def test_confirmed_fps_rate_is_used_for_fresh_acoustic_clustering(self):
+        rate=25/24
+        cues=[dict(index=i,start=100+rate*(i*15),end=103+rate*(i*15),text=f'{name} signal check now') for i,name in enumerate(['alpha','beta','gamma'])]
+        words=[dict(word=word,start=i*15+shift+j*.2,end=i*15+shift+j*.2+.1,probability=.95) for i,(cue,shift) in enumerate(zip(cues,[.3,0,-.3])) for j,word in enumerate(cue['text'].split())]
+        self.assertIsNone(align(words,cues,0)[0])
+        offset,anchors=align(words,cues,0,rate=rate)
+        self.assertAlmostEqual(offset,100);self.assertEqual(len(anchors),3)
+
 if __name__=='__main__':unittest.main()

@@ -30,7 +30,7 @@ def acoustic_norm(text):
             for part in expansions.get(token, token).split()]
 
 
-def align(words, cues, timeline):
+def align(words, cues, timeline, *, rate=1.):
     tokens, firsts, asr, owners = [], {}, [], []
     for cue in cues:
         values = acoustic_norm(cue['text']) if '♪' not in cue['text'] else []
@@ -63,7 +63,7 @@ def align(words, cues, timeline):
                 continue
             onset = timeline + word['start']
             anchors.append(dict(cue=cue['index'], subtitleStart=cue['start'], asrStart=onset,
-                                offset=cue['start'] - onset, words=min(remaining,len(values))))
+                                offset=cue['start'] - rate*onset, words=min(remaining,len(values))))
     if not anchors:
         return None, []
     cluster = max(([a for a in anchors if abs(a['offset'] - c['offset']) < .9] for c in anchors), key=len)

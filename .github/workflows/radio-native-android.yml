@@ -37,7 +37,8 @@ jobs:
       - uses: actions/cache@v4
         with:
           path: ${{ runner.temp }}/bobtv-client-subtitles
-          key: client-asr-v1.8.2-ndk28-${{ matrix.arch }}-v1
+          key: client-asr-v1.8.2-ndk28-${{ matrix.arch }}-${{ hashFiles('tools/native/build_client_subtitles.py','tools/native/build_android_blas.py') }}
+          restore-keys: client-asr-v1.8.2-ndk28-${{ matrix.arch }}-
       - name: Build offline subtitle workers
         run: python tools/native/build_client_subtitles.py --platform android --arch '${{ matrix.arch }}' --cache "$RUNNER_TEMP/bobtv-client-subtitles" --output client-subtitles
       - name: Build guarded x64 optimized worker

@@ -62,7 +62,7 @@ def stage(artifacts,output,arches):
             # Keep the pinned JNI/JavaVM bridge. Only mpv and its C++ runtime
             # are replaced by the freshly compiled audio-tap build.
             for member in original.namelist():
-                if member != 'META-INF/bobtv-native-runtime.json' and member not in {f'lib/{abi}/{name}' for name in record['files']} and not member.startswith(f'lib/{abi}/libbobtv_client_'):
+                if member != 'META-INF/bobtv-native-runtime.json' and not member.startswith('META-INF/sources-and-licenses/') and member not in {f'lib/{abi}/{name}' for name in record['files']} and not member.startswith(f'lib/{abi}/libbobtv_client_'):
                     archive.writestr(member,original.read(member))
             for name in record['files']:archive.write(native/name,f'lib/{abi}/{name}')
             for name in receipt['files']:archive.write(worker/name,f'lib/{abi}/{name}')

@@ -53,6 +53,7 @@ class ClientAudioSubtitles {
       _active = false;
   bool _attached = false, _workerFailed = false, _clockAvailable = true;
   bool _transportLocked = false;
+  bool _verifiedProgrammeClock = false;
   bool _coldRecognition = true, _waitingForPlaybackBuffer = false;
   double _lastClockObservation = -1;
   String? _clockSignature;
@@ -310,9 +311,15 @@ class ClientAudioSubtitles {
   void _accept(Map<String, dynamic> body) {
     if (_disposed || body['session'] != _session && _session != null) return;
     final programme = body['programme'];
+    if (programme is Map &&
+        _programme != null &&
+        programme['key'] != _programme!['key']) {
+      _verifiedProgrammeClock = false;
+    }
     if (programme is Map) _programme = Map<String, dynamic>.from(programme);
     final status = body['subtitleStatus'] as Map?;
     _transportLocked = body['transportClockVerified'] == true;
+    if (_transportLocked) _verifiedProgrammeClock = true;
     _languages = (status?['availableLanguages'] as List? ?? [])
         .whereType<String>()
         .toList();
@@ -537,14 +544,18 @@ class ClientAudioSubtitles {
       }
       _lastEnd = end;
       // Bound decoder work on mobile while retaining overlapping dialogue.
-      final windowSeconds = Platform.isAndroid ? 16.0 : 32.0;
+      final reacquiring = _verifiedProgrammeClock && !_transportLocked;
+      final windowSeconds = reacquiring
+          ? (Platform.isAndroid ? 8.0 : 12.0)
+          : (Platform.isAndroid ? 16.0 : 32.0);
       _chunks.removeWhere(
         (c) => c.start + c.bytes.length / 32000 < end - windowSeconds,
       );
       final duration = _chunks.isEmpty ? 0 : end - _chunks.first.start;
       if (!_recognizing &&
-          duration >= 12 &&
-          end - _lastAnalysisEnd >= (_transportLocked ? 30 : 6)) {
+          duration >= (reacquiring ? 6 : 12) &&
+          end - _lastAnalysisEnd >=
+              (_transportLocked ? 30 : (reacquiring ? 2 : 6))) {
         if (Platform.isAndroid) {
           final buffered = double.tryParse(
             await native.getProperty('demuxer-cache-duration'),

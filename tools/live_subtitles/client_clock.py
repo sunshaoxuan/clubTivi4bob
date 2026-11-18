@@ -103,13 +103,20 @@ class TextHub:
                 session['windows']=[w for w in session['windows'] if w['end']<=position]
             return False
         candidate=model['reference'];rate=evidence['rate'];intercept=evidence['intercept']
+        if evidence['resumed']:
+            # SSAI can edit content while preserving plausible AV timestamps.
+            # A transport proposal is a search hint, never permission to show
+            # movie captions until fresh dialogue confirms the content clock.
+            if session.get('pendingTransport',{}).get('epoch')!=epoch:
+                self.event('client_transport_clock_pending',session=token,epoch=epoch,start=start,end=end,rate=rate,intercept=intercept,sourceMovieAdvanceSeconds=evidence['sourceMovieAdvanceSeconds'])
+            session['pendingTransport']=dict(epoch=epoch,**evidence)
+            session.update(priorReference=candidate,priorRate=rate,priorRateVerified=True,reference=None,intercept=None)
+            session.pop('transportAt',None)
+            session['windows']=[w for w in session['windows'] if w['end']<=start]
+            return False
         session.update(reference=candidate,lastMatchedReference=candidate,rate=rate,rateVerified=True,intercept=intercept,unmatchedWindows=0,exhausted=False,transportAt=time.time())
         session['acceptedClock']=dict(page=candidate['page'],rate=rate,intercept=intercept)
         self.clock_window(session,candidate,evidence['start'],max(end+12,position+12),rate,intercept)
-        if evidence['resumed']:
-            self.event('client_transport_clock_resume',session=token,epoch=epoch,referenceId=hashlib.sha256(candidate['page'].encode()).hexdigest(),start=start,end=end,rate=rate,intercept=intercept,sourceMovieAdvanceSeconds=evidence['sourceMovieAdvanceSeconds'],removedSeconds=evidence['removedSeconds'])
-            session['sourceModel']={**model,'epoch':epoch,'clock':clock,'intercept':intercept,'notBefore':evidence['notBefore']}
-            session.pop('adStart',None);session.pop('adClockStart',None)
         return True
 
     def ingest(self,token,data):
@@ -146,6 +153,7 @@ class TextHub:
             if delayed and not words:return
             changed=(session['epoch']!=epoch or session['asset']!=asset or session['programmeKey']!=self.programme['key'])
             if changed:
+                session.pop('pendingTransport',None)
                 session.pop('clockJump',None);session.pop('acceptedClock',None);session.pop('editionSwitch',None)
                 if session['programmeKey']!=self.programme['key']:
                     session.pop('priorReference',None);session.pop('priorRate',None);session.pop('priorAsset',None);session.pop('lastMatchedReference',None)
@@ -224,6 +232,11 @@ class TextHub:
                     self.event('unmatched_speech',session=token,start=start,end=end,words=len(words))
                 return
             candidate,anchors,selected_rate=selected
+            if session.get('adStart') is not None:
+                exact=[a for a in anchors if not a.get('fuzzyPrefix') and a['words']>=4]
+                if len({a['cue'] for a in exact})<2 or max(a['asrStart'] for a in exact)-min(a['asrStart'] for a in exact)<2:
+                    return
+                anchors=exact
             accepted=session.get('acceptedClock',{})
             if accepted and accepted.get('page')!=candidate['page']:
                 pending=session.setdefault('editionSwitch',{})
@@ -272,8 +285,11 @@ class TextHub:
                 self.event('acoustic_clock_jump_confirmed',session=token,epoch=epoch,start=start,end=end,innovationSeconds=innovation)
             session.pop('clockJump',None)
             session['acceptedClock']=dict(page=candidate['page'],rate=rate,intercept=intercept)
-            session.update(lastMatchedReference=candidate,reference=candidate,intercept=intercept,rate=rate,rateVerified=clock_rate_confident(points,rate,intercept),unmatchedWindows=0,exhausted=False)
+            warm_rate=bool(candidate is session.get('priorReference') and session.get('priorRateVerified',False) and abs(rate-session.get('priorRate',rate))<1e-8)
+            session.update(lastMatchedReference=candidate,reference=candidate,intercept=intercept,rate=rate,rateVerified=clock_rate_confident(points,rate,intercept) or warm_rate,unmatchedWindows=0,exhausted=False)
             prior_model=session.get('sourceModel')
+            resuming=bool(warm_rate and prior_model and prior_model['epoch']!=epoch and session.get('acousticResumeEpoch')!=epoch)
+            pending=session.get('pendingTransport')
             inherited=bool(prior_model and prior_model['reference']['page']==candidate['page'] and prior_model['rate']==rate and clock and prior_model['clock']['epoch']==clock['epoch'] and abs(prior_model['intercept']-intercept)/rate<=.75)
             if clock and (session.get('rateVerified',False) or inherited):
                 session['sourceModel']=dict(asset=asset,programme=self.programme['key'],epoch=epoch,clock=clock,reference=candidate,rate=rate,intercept=intercept,verifiedAt=time.time(),notBefore=prior_model.get('notBefore',0) if inherited else 0)
@@ -286,7 +302,12 @@ class TextHub:
                 if emitted:tracks.append(dict(language=language,verified=True,cues=emitted))
             session['windows']=[w for w in session['windows'] if w['end']<=start and w['end']>end-180]
             session['windows'].append(dict(start=start,end=movie_end,state='LOCKED',program=self.programme['movieId'],asset=asset,tracks=tracks))
-            self.event('client_acoustic_lock',referenceId=hashlib.sha256(candidate['page'].encode()).hexdigest(),session=token,epoch=epoch,start=start,end=end,rate=rate,intercept=intercept,anchors=anchors,residualSeconds=residuals,clockRateVerified=clock_rate_confident(points,rate,intercept))
+            self.event('client_acoustic_lock',referenceId=hashlib.sha256(candidate['page'].encode()).hexdigest(),session=token,epoch=epoch,start=start,end=end,rate=rate,intercept=intercept,anchors=anchors,residualSeconds=residuals,clockRateVerified=session['rateVerified'],clockRateReused=warm_rate)
+            if resuming:
+                session['acousticResumeEpoch']=epoch
+                if clock:session['transportAt']=time.time()
+                self.event('client_acoustic_clock_resume',session=token,epoch=epoch,referenceId=hashlib.sha256(candidate['page'].encode()).hexdigest(),start=start,end=end,rate=rate,intercept=intercept,confirmationCues=[a['cue'] for a in anchors],transportProposalErrorSeconds=(intercept-pending['intercept'])/rate if pending else None)
+                session.pop('pendingTransport',None);session.pop('adStart',None);session.pop('adClockStart',None)
     def set_language(self,token,language):
         if language not in LANGUAGES:raise ValueError('unsupported_language')
         with self.lock:

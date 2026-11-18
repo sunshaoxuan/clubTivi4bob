@@ -42,29 +42,49 @@ class TransportClockTests(unittest.TestCase):
         s.update(epoch=1,asset='movie',lastWindow=dict(start=0,end=20),rateVerified=True,reference=h.candidates[0],lastMatchedReference=h.candidates[0])
         m=self.model();m['reference']=h.candidates[0];s['sourceModel']=m
         return helper,h,t
-    def test_ad_suspends_then_fresh_clock_resumes_without_waiting_for_speech(self):
+    def enter_and_propose(self,helper,h,t):
+        h.ingest(t,helper.observation(h,start=20,end=20.1,epoch=2,asset='ad',ad=True,sourceClock=dict(epoch=1,audioRemoved=9000,videoRemoved=9000,updatedAt=20)))
+        h.ingest(t,helper.observation(h,start=170,end=170.1,position=169.3,epoch=3,asset='movie',serial=2,sourceClock=dict(epoch=1,audioRemoved=-148,videoRemoved=-148,updatedAt=170)))
+    def confirm(self,helper,h,t,offset=-48.,serial=3,epoch=3,start=170.,removed=-148.,fuzzy=False):
+        anchors=[dict(cue=20+i,asrStart=start+2+i*3,subtitleStart=start+2+i*3+offset,offset=offset,words=9,fuzzyPrefix=fuzzy) for i in range(2)]
+        data=helper.observation(h,start=start,end=start+20,position=start+19,epoch=epoch,asset='movie',serial=serial,sourceClock=dict(epoch=1,audioRemoved=removed,videoRemoved=removed,updatedAt=start),words=[dict(word='clear speech',start=1,end=2,probability=.9)])
+        with patch('client_clock.align',return_value=(offset,anchors)):h.ingest(t,data)
+    def test_ad_clock_is_only_a_proposal_until_two_fresh_cues_confirm(self):
+        with tempfile.TemporaryDirectory() as root:
+            helper,h,t=self.fixture(root);self.enter_and_propose(helper,h,t)
+            result=h.response(t)
+            self.assertFalse(result['transportClockVerified'])
+            self.assertIsNone(h.sessions[t]['reference'])
+            self.assertFalse(any(w['state']=='LOCKED' for w in result['windows']))
+            self.confirm(helper,h,t)
+            self.assertTrue(h.response(t)['transportClockVerified'])
+            self.assertAlmostEqual(h.sessions[t]['intercept'],-48.)
+    def test_each_successive_ad_requires_its_own_acoustic_confirmation(self):
         with tempfile.TemporaryDirectory() as root:
             helper,h,t=self.fixture(root)
-            h.ingest(t,helper.observation(h,start=20,end=20.1,epoch=2,asset='ad',ad=True,sourceClock=dict(epoch=1,audioRemoved=9000,videoRemoved=9000,updatedAt=20)))
-            self.assertFalse(h.response(t)['transportClockVerified'])
-            h.ingest(t,helper.observation(h,start=170,end=170.1,position=169.3,epoch=3,asset='movie',serial=2,sourceClock=dict(epoch=1,audioRemoved=-148,videoRemoved=-148,updatedAt=170)))
-            result=h.response(t);self.assertTrue(result['transportClockVerified'])
-            self.assertEqual(result['windows'][-1]['start'],171)
-            self.assertEqual(h.sessions[t]['intercept'],-48)
-    def test_successive_ads_use_each_new_boundary_and_measured_content_jump(self):
-        with tempfile.TemporaryDirectory() as root:
-            helper,h,t=self.fixture(root)
-            for serial,start,returned,removed in [(1,20.,170.,-148.),(3,300.,450.,-292.)]:
-                h.ingest(t,helper.observation(h,start=start,end=start+.1,epoch=serial+1,asset='ad',ad=True,serial=serial,sourceClock=dict(epoch=1,audioRemoved=9000,videoRemoved=9000,updatedAt=start)))
-                h.ingest(t,helper.observation(h,start=returned,end=returned+.1,position=returned-.7,epoch=serial+2,asset='movie',serial=serial+1,sourceClock=dict(epoch=1,audioRemoved=removed,videoRemoved=removed,updatedAt=returned)))
+            for serial,epoch,start,returned,removed,offset in [(1,2,20.,170.,-148.,-48.),(4,4,300.,450.,-292.,-192.)]:
+                h.ingest(t,helper.observation(h,start=start,end=start+.1,epoch=epoch,asset='ad',ad=True,serial=serial,sourceClock=dict(epoch=1,audioRemoved=9000,videoRemoved=9000,updatedAt=start)))
+                h.ingest(t,helper.observation(h,start=returned,end=returned+.1,position=returned-.7,epoch=epoch+1,asset='movie',serial=serial+1,sourceClock=dict(epoch=1,audioRemoved=removed,videoRemoved=removed,updatedAt=returned)))
+                self.assertFalse(h.response(t)['transportClockVerified'])
+                self.confirm(helper,h,t,offset=offset,serial=serial+2,epoch=epoch+1,start=returned,removed=removed)
                 self.assertTrue(h.response(t)['transportClockVerified'])
             self.assertEqual(h.sessions[t]['intercept'],-192.)
-
-    def test_new_acoustic_contradiction_stops_transport_forecast(self):
+    def test_real_33_second_edit_cannot_show_plausible_but_wrong_clock(self):
         with tempfile.TemporaryDirectory() as root:
             helper,h,t=self.fixture(root)
-            h.ingest(t,helper.observation(h,start=20,end=20.1,epoch=2,asset='ad',ad=True,sourceClock=dict(epoch=1,audioRemoved=9000,videoRemoved=9000,updatedAt=20)))
-            data=helper.observation(h,start=170,end=190,position=189,epoch=3,asset='movie',serial=2,sourceClock=dict(epoch=1,audioRemoved=-148,videoRemoved=-148,updatedAt=170),words=[dict(word='clear speech',start=1,end=2,probability=.9)])
-            anchors=[dict(cue=i,asrStart=170+i*3,subtitleStart=124+i*3,offset=-46.,words=9) for i in (1,2,3)]
-            with patch('client_clock.align',return_value=(-46.,anchors)):h.ingest(t,data)
-            self.assertFalse(h.response(t)['transportClockVerified']);self.assertIsNone(h.sessions[t].get('sourceModel'))
+            h.candidates[0]['tracks']['en'] += [dict(index=20+i,start=157.15+i*3,end=159.15+i*3,text='fresh content after cut '+str(i)) for i in range(2)]
+            self.enter_and_propose(helper,h,t)
+            self.assertAlmostEqual(h.sessions[t]['pendingTransport']['intercept'],-48.)
+            self.assertIsNone(h.sessions[t]['reference'])
+            self.confirm(helper,h,t,offset=-14.85)
+            self.assertAlmostEqual(h.sessions[t]['intercept'],-14.85)
+            self.assertTrue(h.response(t)['transportClockVerified'])
+            cues=h.response(t)['windows'][-1]['tracks'][0]['cues']
+            self.assertAlmostEqual(cues[0]['start'],172.)
+            self.assertIn('fresh content',cues[0]['text'])
+    def test_fuzzy_cue_prefixes_cannot_confirm_post_ad_clock(self):
+        with tempfile.TemporaryDirectory() as root:
+            helper,h,t=self.fixture(root);self.enter_and_propose(helper,h,t)
+            self.confirm(helper,h,t,fuzzy=True)
+            self.assertFalse(h.response(t)['transportClockVerified'])
+            self.assertIsNone(h.sessions[t]['reference'])

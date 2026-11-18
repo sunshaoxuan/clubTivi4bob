@@ -25,23 +25,15 @@ class SubtitleMenuButton extends StatelessWidget {
     final preferences = SubtitlePreferences.instance;
     return ListenableBuilder(
       listenable: preferences,
-      builder: (context, _) => IconButton(
-        key: const ValueKey('subtitle-menu'),
-        tooltip: AppMessages.text(context, '字幕'),
-        icon: Icon(
+      builder: (context, _) {
+        final label = AppMessages.text(context, '字幕');
+        final icon = Icon(
           preferences.enabled
               ? Icons.closed_caption
               : Icons.closed_caption_disabled,
-        ),
-        iconSize: 20,
-        style: IconButton.styleFrom(
-          foregroundColor: preferences.enabled ? Colors.white : Colors.white54,
-          backgroundColor: compact ? Colors.black54 : null,
-          minimumSize: const Size.square(36),
-          padding: const EdgeInsets.all(7),
-          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-        ),
-        onPressed: () {
+          size: 20,
+        );
+        void open() {
           final current = session();
           showModalBottomSheet<void>(
             context: context,
@@ -55,8 +47,37 @@ class SubtitleMenuButton extends StatelessWidget {
               onVariant: current?.selectVariant,
             ),
           );
-        },
-      ),
+        }
+
+        final color = preferences.enabled ? Colors.white : Colors.white54;
+        if (compact) {
+          return TextButton.icon(
+            key: const ValueKey('subtitle-menu'),
+            onPressed: open,
+            icon: icon,
+            label: Text(label),
+            style: TextButton.styleFrom(
+              foregroundColor: color,
+              backgroundColor: Colors.black87,
+              minimumSize: const Size(36, 36),
+              padding: const EdgeInsets.symmetric(horizontal: 9),
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            ),
+          );
+        }
+        return IconButton(
+          key: const ValueKey('subtitle-menu'),
+          tooltip: label,
+          icon: icon,
+          style: IconButton.styleFrom(
+            foregroundColor: color,
+            minimumSize: const Size.square(36),
+            padding: const EdgeInsets.all(7),
+            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          ),
+          onPressed: open,
+        );
+      },
     );
   }
 }
@@ -88,8 +109,16 @@ class SubtitlePicker extends StatelessWidget {
           builder: (context, _) {
             final current = options?.value ?? const SubtitleVariantOptions();
             final language = preferences.language;
-            final candidates = current.forLanguage(language.tag);
-            final effective = candidates.firstOrNull?.language;
+            final preferredGroup = current
+                .forLanguage(language.tag)
+                .firstOrNull
+                ?.language;
+            final versions = <String, List<SubtitleVariantCandidate>>{
+              if (preferredGroup != null) preferredGroup: [],
+            };
+            for (final candidate in current.candidates) {
+              versions.putIfAbsent(candidate.language, () => []).add(candidate);
+            }
             final phase = status?.value;
             return Column(
               mainAxisSize: MainAxisSize.min,
@@ -111,6 +140,44 @@ class SubtitlePicker extends StatelessWidget {
                       mainAxisSize: MainAxisSize.min,
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
+                        if (preferences.enabled && options != null) ...[
+                          if (phase?.message case final message?)
+                            Text(AppMessages.text(context, message)),
+                          if (versions.isEmpty)
+                            Text(AppMessages.text(context, '字幕版本'))
+                          else ...[
+                            _versionTile(
+                              title: AppMessages.text(context, '自动选择版本'),
+                              selected: current.selectedId == null,
+                              onTap: () => onVariant?.call(null, current.scope),
+                            ),
+                            for (final group in versions.entries) ...[
+                              Text(
+                                AppMessages.text(context, '{0}字幕版本', [
+                                  AppLanguage.fromTag(group.key)?.label ??
+                                      group.key,
+                                ]),
+                                style: Theme.of(context).textTheme.titleMedium,
+                              ),
+                              for (final candidate in group.value)
+                                _versionTile(
+                                  title: candidate.label,
+                                  provider: candidate.provider,
+                                  selected: current.selectedId == candidate.id,
+                                  active:
+                                      current.activeId == candidate.id &&
+                                      (phase == SubtitlePhase.ready ||
+                                          phase ==
+                                              SubtitlePhase.englishFallback),
+                                  onTap: () => onVariant?.call(
+                                    candidate.id,
+                                    current.scope,
+                                  ),
+                                ),
+                            ],
+                          ],
+                          const Divider(),
+                        ],
                         Text(AppMessages.text(context, '字幕语言及回退')),
                         const SizedBox(height: 8),
                         Wrap(
@@ -140,45 +207,6 @@ class SubtitlePicker extends StatelessWidget {
                               ),
                           ],
                         ),
-                        if (preferences.enabled && options != null) ...[
-                          const SizedBox(height: 12),
-                          const Divider(),
-                          Text(
-                            effective == null
-                                ? AppMessages.text(context, '字幕版本')
-                                : AppMessages.text(context, '{0}字幕版本', [
-                                    AppLanguage.fromTag(effective)?.label ??
-                                        effective,
-                                  ]),
-                            style: Theme.of(context).textTheme.titleMedium,
-                          ),
-                          if (phase?.message case final message?)
-                            Padding(
-                              padding: const EdgeInsets.only(top: 6),
-                              child: Text(AppMessages.text(context, message)),
-                            ),
-                          if (candidates.isNotEmpty) ...[
-                            _versionTile(
-                              title: AppMessages.text(context, '自动选择版本'),
-                              selected: current.selectedId == null,
-                              onTap: () => onVariant?.call(null, current.scope),
-                            ),
-                            for (final candidate in candidates)
-                              _versionTile(
-                                title: candidate.label,
-                                provider: candidate.provider,
-                                selected: current.selectedId == candidate.id,
-                                active:
-                                    current.activeId == candidate.id &&
-                                    (phase == SubtitlePhase.ready ||
-                                        phase == SubtitlePhase.englishFallback),
-                                onTap: () => onVariant?.call(
-                                  candidate.id,
-                                  current.scope,
-                                ),
-                              ),
-                          ],
-                        ],
                       ],
                     ),
                   ),

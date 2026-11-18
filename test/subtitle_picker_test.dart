@@ -31,15 +31,18 @@ class _EnglishMessages extends LocalizationsDelegate<AppMessages> {
 }
 
 void main() {
-  testWidgets('CC opens the language menu with one click', (tester) async {
+  testWidgets('labelled subtitle button opens the menu', (tester) async {
     final preferences = SubtitlePreferences.instance;
     preferences.initialize(null);
     await tester.pumpWidget(
       MaterialApp(
         localizationsDelegates: const [_EnglishMessages()],
-        home: Scaffold(body: SubtitleMenuButton(session: () => null)),
+        home: Scaffold(
+          body: SubtitleMenuButton(session: () => null, compact: true),
+        ),
       ),
     );
+    expect(find.text('subtitles'), findsOneWidget);
     await tester.tap(find.byKey(const ValueKey('subtitle-menu')));
     await tester.pumpAndSettle();
     expect(find.byType(SubtitlePicker), findsOneWidget);
@@ -53,7 +56,7 @@ void main() {
     preferences.initialize(null);
   });
 
-  testWidgets('picker exposes English fallback, pin, active and auto', (
+  testWidgets('picker lists versions across available languages', (
     tester,
   ) async {
     tester.view.devicePixelRatio = 1;
@@ -66,6 +69,8 @@ void main() {
         'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
     const second =
         'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb';
+    const french =
+        'cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc';
     final options = ValueNotifier(
       const SubtitleVariantOptions(
         scope: 4,
@@ -81,6 +86,12 @@ void main() {
             language: 'en',
             provider: 'Subtitle Cat',
             label: 'Second release',
+          ),
+          SubtitleVariantCandidate(
+            id: french,
+            language: 'fr',
+            provider: 'SubDL',
+            label: 'French release',
           ),
         ],
         activeId: first,
@@ -107,6 +118,10 @@ void main() {
     await tester.ensureVisible(find.text('Second release'));
     await tester.tap(find.text('Second release'));
     expect(chosen.single, (second, 4));
+    await tester.ensureVisible(find.text('French release'));
+    await tester.tap(find.text('French release'));
+    expect(chosen.last, (french, 4));
+    expect(preferences.language, AppLanguage.simplifiedChinese);
     phase.value = SubtitlePhase.synchronizing;
     await tester.pump();
     expect(find.text('Synchronizing subtitles…'), findsOneWidget);

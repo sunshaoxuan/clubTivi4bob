@@ -143,9 +143,7 @@ class SubtitleVariantSelection {
   bool select(String? id, int scope) {
     if (scope != options.value.scope || id == _pin) return false;
     if (id != null &&
-        !options.value
-            .forLanguage(_language)
-            .any((candidate) => candidate.id == id)) {
+        !options.value.candidates.any((candidate) => candidate.id == id)) {
       return false;
     }
     _change(id);

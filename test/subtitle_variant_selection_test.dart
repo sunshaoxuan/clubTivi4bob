@@ -44,6 +44,31 @@ void main() {
     );
   });
 
+  test('an offered language can be pinned without changing the preference', () {
+    final options = ValueNotifier(const SubtitleVariantOptions());
+    addTearDown(options.dispose);
+    final selection = SubtitleVariantSelection(options, 'zh-CN');
+    final variants = [candidate('a', 'en'), candidate('b', 'fr')];
+    selection.accept(
+      'film',
+      status(variants: variants),
+      acknowledgesRequest: true,
+    );
+    expect(selection.select(id('c'), options.value.scope), isFalse);
+    expect(selection.select(id('b'), options.value.scope), isTrue);
+    expect(selection.request.query, {'language': 'zh-CN', 'variant': id('b')});
+    expect(
+      selection
+          .accept(
+            'film',
+            status(variants: variants, selected: id('b'), active: id('b')),
+            acknowledgesRequest: true,
+          )
+          .render,
+      isTrue,
+    );
+  });
+
   test('pinned English fallback retains the requested language', () {
     final options = ValueNotifier(const SubtitleVariantOptions());
     addTearDown(options.dispose);

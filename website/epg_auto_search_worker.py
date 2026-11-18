@@ -160,6 +160,21 @@ def research_priority(channel, path=None):
     return (0 if regional else 10) + int(not playable)
 
 
+FOLLOWUP = 'channel_search_followup_v1'
+
+
+def due_followup(conn, protected, now, handled):
+    """Consume no budget or lease unless the original queue also says due."""
+    task = read_checkpoint(conn, FOLLOWUP)
+    cid = task.get('channelId')
+    if (not cid or cid in protected or cid in handled or task.get('completedAtUtc')
+            or not task.get('notBeforeUtc', now + 1) <= now < task.get('expiresAtUtc', 0)):
+        return None
+    return conn.execute('''SELECT * FROM epg_channel_research_jobs WHERE channel_id=?
+        AND identity_hash=? AND active=1 AND next_retry<=? AND lease_until<=?''',
+        (cid, task.get('identityHash'), now, now)).fetchone()
+
+
 def choose(conn, manifest, channels, paths, protected, now, handled, *, regional_rotation=False):
     # Previously due cases rotate first. An exhausted/incomplete channel has a
     # persisted future retry and cannot monopolize this batch or the next one.
@@ -363,6 +378,14 @@ def finish(conn, claim, request, evidence, now, *, error=None, retry_at=None, ma
             'identityReviewed': bool(row['identity_evidence']),
             'identityAutomaticallyApproved': newly_reviewed, 'programmeSearchPerformed': request['stage'] != 'identity',
             'newMappings': 0, 'newGrants': 0, 'newProgrammeRows': 0, 'published': False})
+        task = read_checkpoint(conn, FOLLOWUP)
+        if (evidence is not None and not error and task.get('channelId') == row['channel_id']
+                and task.get('identityHash') == row['identity_hash']
+                and not task.get('completedAtUtc')
+                and task.get('notBeforeUtc', now + 1) <= now < task.get('expiresAtUtc', 0)
+                and (evidence.get('crossSearch') or {}).get('state') == 'checked'):
+            conn.execute('UPDATE epg_checkpoints SET value=? WHERE name=?',
+                         (queue.encoded({**task, 'completedAtUtc': now}), FOLLOWUP))
         if evidence is not None and request['stage'] != 'identity':
             index = phase(conn, row) + 1
             conn.execute('INSERT OR REPLACE INTO epg_research_search_progress VALUES(?,?,?)', (row['channel_id'], row['identity_hash'], index))
@@ -453,7 +476,14 @@ def run(conn, manifest, channels, paths, settings_factory, shared_database, *, m
         # Pending checked evidence is reviewed before spending more quota on
         # web search. This local stage preserves each channel's network floor.
         recovering = recovery.eligible_ids(conn, now)
+        followup = due_followup(conn, protected_ids(conn, now), now, handled)
+        if followup is not None and followup['channel_id'] not in by_id:
+            followup = None
         task = review.pending(conn, now, preferred_ids=recovering)
+        if followup is not None:
+            # The explicit one-shot target uses at most one normal claim per
+            # batch. Leave the other slots to the ordinary rotation.
+            task = None
         due_recovery = any(r[0] in recovering and r[0] not in handled for r in conn.execute(
             'SELECT channel_id FROM epg_channel_research_jobs WHERE active=1 AND next_retry<=? AND lease_until<=?', (now, now)))
         if due_recovery and task is not None and task['channel_id'] not in recovering:
@@ -507,8 +537,9 @@ def run(conn, manifest, channels, paths, settings_factory, shared_database, *, m
             if error:
                 break
             continue
-        row = choose(conn, manifest, channels, paths, protected_ids(conn, now), now, handled,
-                     regional_rotation=regional_rotation)
+        row = followup if followup is not None else choose(
+            conn, manifest, channels, paths, protected_ids(conn, now), now, handled,
+            regional_rotation=regional_rotation)
         if row is None:
             break
         cid = row['channel_id']

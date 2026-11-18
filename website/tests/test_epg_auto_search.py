@@ -58,6 +58,27 @@ def rows(c):
     return {r['channel_id']: dict(r) for r in c.execute('SELECT * FROM epg_channel_research_jobs')}
 
 
+def test_server_followup_obeys_retry_and_preserves_normal_rotation(conn):
+    channels = targets()
+    target = channels[1]
+    cid = target['id']
+    q.enqueue(conn, target, 'fixture-v1', PATH, NOW)
+    data = {'channelId': cid, 'identityHash': rows(conn)[cid]['identity_hash'],
+            'notBeforeUtc': NOW + 1, 'expiresAtUtc': NOW + 86400}
+    with conn:
+        conn.execute('UPDATE epg_channel_research_jobs SET next_retry=? WHERE channel_id=?', (NOW + 60, cid))
+        conn.execute('INSERT INTO epg_checkpoints VALUES(?,?)', (w.FOLLOWUP, json.dumps(data)))
+    assert w.due_followup(conn, set(), NOW + 59, set()) is None
+    assert w.due_followup(conn, {cid}, NOW + 60, set()) is None
+    assert w.due_followup(conn, set(), NOW + 60, {cid}) is None
+    result = run(conn, channels, clock=lambda: NOW + 60,
+                 cross_index=lambda _: ('checked', []))
+    assert [x['channelId'] for x in result['processedChannels']][:2] == [cid, channels[0]['id']]
+    assert w.read_checkpoint(conn, w.FOLLOWUP)['completedAtUtc'] == NOW + 60
+    assert w.due_followup(conn, set(), NOW + 61, set()) is None
+    assert not result['newMappings']
+
+
 def test_brave_budget_is_durable_and_reserves_failed_calls(conn, monkeypatch, tmp_path):
     import epg_cross_search as x
     (tmp_path / 'bobtv-brave-search').write_text('fixture-key\n')

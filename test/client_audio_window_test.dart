@@ -6,6 +6,37 @@ Uint8List samples(int count, int value) =>
     Int16List.fromList(List.filled(count, value)).buffer.asUint8List();
 
 void main() {
+  test('early recovery attempts retain the first cue for a longer phrase', () {
+    final chunks = <PcmChunk>[];
+    for (var second = 0; second < 32; second++) {
+      chunks.add((start: 100.0 + second, bytes: samples(16000, second + 1)));
+      retainPcmContext(chunks, 101.0 + second, mobile: false);
+      if (second == 5) {
+        expect(buildPcmWindow(chunks)!.duration, 6);
+      }
+    }
+    final window = buildPcmWindow(chunks)!;
+    expect(window.start, 100);
+    expect(window.end, 132);
+    final pcm = window.bytes.buffer.asInt16List();
+    expect(pcm.first, 1);
+    expect(pcm[18 * 16000], 19);
+    expect(pcm.last, 32);
+  });
+
+  test('mobile recovery retains a sentence with bounded PCM history', () {
+    final chunks = <PcmChunk>[];
+    for (var second = 0; second < 120; second++) {
+      chunks.add((start: second.toDouble(), bytes: samples(16000, second)));
+      retainPcmContext(chunks, second + 1.0, mobile: true);
+    }
+    final window = buildPcmWindow(chunks)!;
+    expect(window.duration, lessThanOrEqualTo(17));
+    expect(window.duration, greaterThanOrEqualTo(16));
+    expect(window.end, 120);
+    expect(window.bytes.buffer.asInt16List().last, 119);
+  });
+
   test('missed capture time stays silent without shifting later dialogue', () {
     final window = buildPcmWindow([
       (start: 10.0, bytes: samples(160, 123)),

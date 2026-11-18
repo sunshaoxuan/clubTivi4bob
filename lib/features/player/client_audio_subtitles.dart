@@ -564,12 +564,9 @@ class ClientAudioSubtitles {
       _lastEnd = end;
       // Bound decoder work on mobile while retaining overlapping dialogue.
       final reacquiring = _verifiedProgrammeClock && !_transportLocked;
-      final windowSeconds = reacquiring
-          ? (Platform.isAndroid ? 8.0 : 12.0)
-          : (Platform.isAndroid ? 16.0 : 32.0);
-      _chunks.removeWhere(
-        (c) => c.start + c.bytes.length / 32000 < end - windowSeconds,
-      );
+      // Try after six seconds, then grow the same PCM history naturally.
+      // Fixed short recovery windows lose complete sentences and cue onsets.
+      retainPcmContext(_chunks, end, mobile: Platform.isAndroid);
       final duration = _chunks.isEmpty ? 0.0 : end - _chunks.first.start;
       if (!_recognizing &&
           duration >= (reacquiring ? 6 : 12) &&

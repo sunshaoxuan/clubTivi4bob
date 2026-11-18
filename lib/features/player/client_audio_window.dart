@@ -11,6 +11,19 @@ class PcmWindow {
   double get end => start + duration;
 }
 
+/// Keep full recognition context while allowing early recovery attempts.
+/// An early short attempt must not discard the start of the next sentence.
+void retainPcmContext(
+  List<PcmChunk> chunks,
+  double end, {
+  required bool mobile,
+}) {
+  final seconds = mobile ? 16.0 : 32.0;
+  chunks.removeWhere(
+    (chunk) => chunk.start + chunk.bytes.length / 32000 < end - seconds,
+  );
+}
+
 /// Preserve the decoder's real sample timeline when a busy client misses a tap.
 /// Missing PCM is silent padding; subsequent dialogue never moves earlier.
 PcmWindow? buildPcmWindow(List<PcmChunk> chunks) {

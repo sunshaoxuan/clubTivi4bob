@@ -67,4 +67,15 @@ void main() {
       expect(budget.minimumSeconds(8, cold: false), 8);
     },
   );
+
+  test(
+    'a music stall cannot monopolize a fast recovery worker for 40 seconds',
+    () {
+      final budget = SpeechPlaybackBudget()..record(32, 14);
+      expect(budget.recoveryTimeoutSeconds(12), 15);
+      budget.record(16, 24);
+      expect(budget.recoveryTimeoutSeconds(8), 23);
+      expect(budget.recoveryTimeoutSeconds(32), 40);
+    },
+  );
 }

@@ -61,4 +61,9 @@ class SpeechPlaybackBudget {
     final cost = _recentCosts.reduce(math.max);
     return math.max(floor, audioSeconds * cost * 1.25 + 2).clamp(8, 30);
   }
+
+  double recoveryTimeoutSeconds(double audioSeconds) {
+    final cost = _recentCosts.isEmpty ? 1.0 : _recentCosts.reduce(math.max);
+    return (audioSeconds * cost * 1.5 + 5).clamp(15, 40);
+  }
 }

@@ -53,6 +53,7 @@ class ClientAudioSubtitles {
       _active = false;
   bool _attached = false, _workerFailed = false, _clockAvailable = true;
   bool _transportLocked = false;
+  bool _recoveryTimedOut = false;
   bool _referenceResourcesAvailable = false;
   bool _verifiedProgrammeClock = false;
   bool _coldRecognition = true, _waitingForPlaybackBuffer = false;
@@ -234,6 +235,7 @@ class ClientAudioSubtitles {
           return;
         }
         _workerFailed = false;
+        _recoveryTimedOut = false;
         AppDiagnostics.instance.log('client_asr_restarted', {
           'epoch': _epoch,
           'playbackRestarted': false,
@@ -371,7 +373,9 @@ class ClientAudioSubtitles {
         )) {
       phase = SubtitlePhase.suspended;
     } else if (_workerFailed && !_transportLocked) {
-      phase = SubtitlePhase.serviceUnavailable;
+      phase = _recoveryTimedOut
+          ? SubtitlePhase.synchronizing
+          : SubtitlePhase.serviceUnavailable;
     } else if (fresh &&
         segment != null &&
         (segment.movieId == null ||
@@ -584,7 +588,7 @@ class ClientAudioSubtitles {
           if (!ready) return;
         }
         _lastAnalysisEnd = end;
-        unawaited(_recognize(_epoch, segment.asset));
+        unawaited(_recognize(_epoch, segment.asset, reacquiring: reacquiring));
       }
     } catch (error) {
       AppDiagnostics.instance.log('client_asr_sample_error', {
@@ -631,7 +635,11 @@ class ClientAudioSubtitles {
     }
   }
 
-  Future<void> _recognize(int epoch, String asset) async {
+  Future<void> _recognize(
+    int epoch,
+    String asset, {
+    required bool reacquiring,
+  }) async {
     _recognizing = true;
     File? file;
     try {
@@ -648,7 +656,12 @@ class ClientAudioSubtitles {
       await file.writeAsBytes(bytes, flush: true);
       final future = _recognition = Completer<Map<String, dynamic>>();
       _worker!.stdin.writeln(jsonEncode({'path': file.path, 'id': epoch}));
-      final response = await future.future.timeout(const Duration(seconds: 40));
+      final timeout = reacquiring
+          ? _playbackBudget.recoveryTimeoutSeconds(window.duration)
+          : 40.0;
+      final response = await future.future.timeout(
+        Duration(milliseconds: (timeout * 1000).ceil()),
+      );
       final words = response['words'] as List? ?? [];
       final seconds = response['processSeconds'];
       if (seconds is num) {
@@ -677,9 +690,10 @@ class ClientAudioSubtitles {
       }
     } catch (error) {
       _workerFailed = true;
+      _recoveryTimedOut = reacquiring && error is TimeoutException;
       if (!_transportLocked) _timeline = null;
       _worker?.kill();
-      failed();
+      render();
       _scheduleWorkerRetry();
       AppDiagnostics.instance.log('client_asr_recognition_error', {
         'errorType': error.runtimeType.toString(),

@@ -621,6 +621,8 @@
   "字幕": "sous-titres",
   "字幕服务准备中…": "Préparation du service de sous-titres…",
   "字幕服务暂不可用": "Service de sous-titres temporairement indisponible",
+  "重新查找{0}字幕": "Relancer la recherche de sous-titres en {0}",
+  "已请求重新查找字幕": "Nouvelle recherche de sous-titres demandée",
   "字幕版本": "Versions des sous-titres",
   "{0}字幕版本": "Versions en {0}",
   "关闭字幕": "Désactiver les sous-titres",

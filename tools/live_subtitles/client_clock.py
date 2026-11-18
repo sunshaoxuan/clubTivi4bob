@@ -45,6 +45,8 @@ class TextHub:
         self.cache,self.guide=cache,guide
         self.source_validator=source_validator;self.stop_event=threading.Event()
         self.requested_languages=set()
+        self.manual_searches=set()
+        self.searching_language=None
         self.lock=threading.RLock();self.sessions={};self.candidates=None;self.discovery_error=False
         self.source,self.programme=self.guide();self.last_guide_success=time.time();self.gap=False
         self.discovery_generation=0;self.last_discovery=0;self.discovery_busy=False
@@ -54,8 +56,21 @@ class TextHub:
     def event(self,kind,**facts):
         with (self.root/'client-clock-events.jsonl').open('a') as f:
             f.write(json.dumps(dict(event=kind,wall=time.time(),**facts))+'\n')
-    def fetch_subtitles(self,language='en'):
+    def retry_search(self, token, data):
         with self.lock:
+            session = self.sessions[token]
+            language = data.get('language')
+            if (language not in LANGUAGES or session['source'] != data.get('source')
+                    or data.get('programmeKey') != self.programme['key']
+                    or not self.valid_context(session['source'], data.get('programme'))
+                    or not self.programme.get('searchable', True)):
+                raise ValueError('current_programme_required')
+            self.fetch_subtitles(language, refresh=True)
+
+    def fetch_subtitles(self,language='en',*,refresh=False):
+        with self.lock:
+            if refresh:
+                self.manual_searches.add(language)
             self.requested_languages.add(language)
             if self.discovery_busy:return
             self.discovery_busy=True
@@ -63,17 +78,30 @@ class TextHub:
             while True:
                 with self.lock:
                     if not self.requested_languages:
+                        self.searching_language=None
                         self.discovery_busy=False;self.last_discovery=time.monotonic();return
-                    language=self.requested_languages.pop();generation=self.discovery_generation;programme=dict(self.programme)
+                    manual = getattr(self, 'manual_searches', set())
+                    language = next(iter(manual), None) or next(iter(self.requested_languages))
+                    self.requested_languages.remove(language)
+                    refresh = language in manual
+                    manual.discard(language)
+                    self.searching_language = language
+                    generation = self.discovery_generation
+                    programme = dict(self.programme)
                 try:
-                    candidates=self.cache.get_or_discover(programme,self.root/'discovery'/uuid.uuid4().hex,discover,requested_language=language) if programme.get('searchable',True) else []
+                    options = dict(requested_language=language)
+                    if refresh:
+                        options['refresh'] = True
+                    candidates = self.cache.get_or_discover(
+                        programme, self.root/'discovery'/uuid.uuid4().hex, discover, **options
+                    ) if programme.get('searchable', True) else []
                     variants=SubtitleVariants(candidates)
                     with self.lock:
                         if generation==self.discovery_generation:
                             self.candidates=candidates
                             self.variants=variants
                             self.discovery_error=False
-                    self.event('subtitle_resources_ready',programmeKey=programme['key'],language=language,candidates=len(candidates))
+                    self.event('subtitle_resources_ready',programmeKey=programme['key'],language=language,candidates=len(candidates),manual=refresh)
                 except Exception as e:
                     with self.lock:
                         if generation==self.discovery_generation:self.discovery_error=not bool(self.candidates)
@@ -454,7 +482,11 @@ class TextHub:
             else:
                 preferred = catalog.track(reference, session['language']) or catalog.track(reference, 'en')
                 active = preferred['id'] if preferred and not session.get('ad') else None
+            searching = set(getattr(self, 'requested_languages', ()))
+            if getattr(self, 'searching_language', None):
+                searching.add(self.searching_language)
             status = dict(phase=phase, candidateCount=len(self.candidates or []),
+                          searchingLanguages=sorted(searching) if valid else [],
                           resourceLanguages=sorted({choice['language'] for choice in choices}),
                           availableLanguages=sorted(reference['tracks']) if reference else [],
                           cacheHit=bool(self.candidates and all(candidate.get('cacheHit') for candidate in self.candidates)),
@@ -487,6 +519,8 @@ class TextHub:
                 self.last_guide_success=time.time();self.gap=False
                 if changed:
                     self.discovery_generation+=1
+                    self.manual_searches.clear()
+                    self.requested_languages.clear()
                     self.candidates=None
                     self.variants=SubtitleVariants(None)
                     for session in self.sessions.values():

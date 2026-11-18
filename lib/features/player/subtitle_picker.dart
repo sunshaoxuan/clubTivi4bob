@@ -45,6 +45,7 @@ class SubtitleMenuButton extends StatelessWidget {
               options: current?.variantOptions,
               status: current?.status,
               onVariant: current?.selectVariant,
+              onRetry: current?.retrySearch,
             ),
           );
         }
@@ -89,12 +90,14 @@ class SubtitlePicker extends StatelessWidget {
     this.options,
     this.status,
     this.onVariant,
+    this.onRetry,
   });
 
   final SubtitlePreferences preferences;
   final ValueListenable<SubtitleVariantOptions>? options;
   final ValueListenable<SubtitlePhase>? status;
   final void Function(String?, int)? onVariant;
+  final Future<bool> Function(String)? onRetry;
 
   @override
   Widget build(BuildContext context) {
@@ -143,6 +146,48 @@ class SubtitlePicker extends StatelessWidget {
                         if (preferences.enabled && options != null) ...[
                           if (phase?.message case final message?)
                             Text(AppMessages.text(context, message)),
+                          if (onRetry != null && current.scope > 0)
+                            Align(
+                              alignment: Alignment.centerLeft,
+                              child: TextButton.icon(
+                                icon: const Icon(Icons.refresh, size: 18),
+                                label: Text(
+                                  AppMessages.text(context, '重新查找{0}字幕', [
+                                    language.label,
+                                  ]),
+                                ),
+                                onPressed:
+                                    current.searchingLanguages.contains(
+                                      language.tag,
+                                    )
+                                    ? null
+                                    : () async {
+                                        final accepted = await onRetry!(
+                                          language.tag,
+                                        );
+                                        if (!context.mounted) return;
+                                        ScaffoldMessenger.maybeOf(
+                                          context,
+                                        )?.showSnackBar(
+                                          SnackBar(
+                                            content: Text(
+                                              AppMessages.text(
+                                                context,
+                                                accepted
+                                                    ? '已请求重新查找字幕'
+                                                    : '字幕服务暂不可用',
+                                              ),
+                                            ),
+                                          ),
+                                        );
+                                      },
+                              ),
+                            ),
+                          if (current.searchingLanguages.contains(
+                                language.tag,
+                              ) &&
+                              phase != SubtitlePhase.searching)
+                            Text(AppMessages.text(context, '正在查找字幕…')),
                           if (versions.isEmpty)
                             Text(AppMessages.text(context, '字幕版本'))
                           else ...[

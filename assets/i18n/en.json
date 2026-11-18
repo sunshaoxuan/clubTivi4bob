@@ -621,6 +621,8 @@
   "字幕": "subtitles",
   "字幕服务准备中…": "Preparing subtitle service…",
   "字幕服务暂不可用": "Subtitle service temporarily unavailable",
+  "重新查找{0}字幕": "Search again for {0} subtitles",
+  "已请求重新查找字幕": "Subtitle search requested",
   "字幕版本": "Subtitle versions",
   "{0}字幕版本": "{0} subtitle versions",
   "关闭字幕": "Off",

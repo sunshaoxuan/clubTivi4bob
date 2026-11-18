@@ -73,6 +73,7 @@ class SubtitleVariantOptions {
   const SubtitleVariantOptions({
     this.scope = 0,
     this.candidates = const [],
+    this.searchingLanguages = const [],
     this.selectedId,
     this.activeId,
   });
@@ -80,6 +81,7 @@ class SubtitleVariantOptions {
   final int scope;
   final List<SubtitleVariantCandidate> candidates;
   final String? selectedId, activeId;
+  final List<String> searchingLanguages;
 
   List<SubtitleVariantCandidate> forLanguage(String requested) {
     final pinned = candidates
@@ -103,11 +105,17 @@ class SubtitleVariantOptions {
       other.scope == scope &&
       other.selectedId == selectedId &&
       other.activeId == activeId &&
-      listEquals(other.candidates, candidates);
+      listEquals(other.candidates, candidates) &&
+      listEquals(other.searchingLanguages, searchingLanguages);
 
   @override
-  int get hashCode =>
-      Object.hash(scope, selectedId, activeId, Object.hashAll(candidates));
+  int get hashCode => Object.hash(
+    scope,
+    selectedId,
+    activeId,
+    Object.hashAll(candidates),
+    Object.hashAll(searchingLanguages),
+  );
 }
 
 typedef SubtitleVariantRequest = ({int revision, Map<String, String> query});
@@ -157,6 +165,7 @@ class SubtitleVariantSelection {
     options.value = SubtitleVariantOptions(
       scope: options.value.scope,
       candidates: options.value.candidates,
+      searchingLanguages: options.value.searchingLanguages,
       selectedId: id,
     );
   }
@@ -190,6 +199,7 @@ class SubtitleVariantSelection {
     final candidates = key == null
         ? const <SubtitleVariantCandidate>[]
         : SubtitleVariantCandidate.parse(status?['variantCandidates']);
+    final searches = status?['searchingLanguages'];
     final acknowledged = _validId(status?['selectedVariantId']);
     final active = _validId(status?['activeVariantId']);
     if (acknowledgesRequest && acknowledged == _pin) {
@@ -213,6 +223,9 @@ class SubtitleVariantSelection {
     options.value = SubtitleVariantOptions(
       scope: scope,
       candidates: candidates,
+      searchingLanguages: searches is List
+          ? List.unmodifiable(searches.whereType<String>())
+          : const [],
       selectedId: _pin,
       activeId: canRender ? active : null,
     );

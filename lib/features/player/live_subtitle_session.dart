@@ -51,6 +51,9 @@ class LiveSubtitleSession {
   void selectVariant(String? id, int scope) =>
       _localAudio?.selectVariant(id, scope);
 
+  Future<bool> retrySearch(String language) async =>
+      await _localAudio?.retrySearch(language) ?? false;
+
   void _preferencesChanged() {
     final local = _localAudio;
     if (local == null) {

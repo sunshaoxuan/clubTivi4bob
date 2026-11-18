@@ -246,7 +246,7 @@ class SubtitleCache:
                 except (OSError, ValueError, KeyError, TypeError): continue
         return False
 
-    def get_or_discover(self, programme, download_root, discover, *, requested_language='en'):
+    def get_or_discover(self, programme, download_root, discover, *, requested_language='en', refresh=False):
         if requested_language not in LANGUAGES: raise ValueError('unsupported_language')
         programme=resolve_identity(programme,self.root)
         with self.locked(self.identity(programme)) as folder:
@@ -263,7 +263,7 @@ class SubtitleCache:
                 cached, searches = self.load(folder)
                 # An observed legacy edition is immediately usable once. The
                 # next request upgrades its old, non-exhaustive search record.
-                if any(requested_language in row['tracks'] for row in cached):
+                if not refresh and any(requested_language in row['tracks'] for row in cached):
                     return cached
             lookup_year=programme['year']
             if not cached or manifest.get('subtitleYear',programme['year'])!=programme['year']:
@@ -293,10 +293,12 @@ class SubtitleCache:
             if recent_error:
                 if cached: return cached
                 raise RuntimeError('subtitle_provider_temporarily_unavailable')
-            if cached and resource_schema >= RESOURCE_SCHEMA and (
+            if refresh and resource_schema >= RESOURCE_SCHEMA and outcome and age < RETRY_TTL:
+                return cached
+            if not refresh and cached and resource_schema >= RESOURCE_SCHEMA and (
                     (requested_language in languages and outcome != 'temporarily_unavailable') or fresh_miss):
                 return cached
-            if not cached and fresh_miss: return []
+            if not refresh and not cached and fresh_miss: return []
             self.hydrate_resources(folder,download_root)
             try:
                 found = discover(programme['title'], lookup_year, download_root, requested_language=requested_language, imdb_id=programme.get('imdbId'))

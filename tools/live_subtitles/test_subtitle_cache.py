@@ -234,6 +234,24 @@ class SubtitleCacheTests(unittest.TestCase):
             cache.get_or_discover(self.film,directory,unavailable,requested_language='ja')
             self.assertEqual(len(calls),2)
 
+    def test_manual_search_rechecks_a_cached_miss_after_shared_cooldown(self):
+        with tempfile.TemporaryDirectory() as directory:
+            timestamp = [1000.]
+            cache = SubtitleCache(directory, clock=lambda: timestamp[0])
+            calls = []
+            def find(*args, **kwargs):
+                calls.append(kwargs['requested_language'])
+                return [candidate(['en'])] if len(calls) == 1 else [candidate(['en', 'ja'])]
+            def lookup(*, refresh=False):
+                return cache.get_or_discover(self.film, directory, find,
+                                             requested_language='ja', refresh=refresh)
+            self.assertNotIn('ja', lookup()[0]['tracks'])
+            self.assertNotIn('ja', lookup(refresh=True)[0]['tracks'])
+            timestamp[0] += 61
+            self.assertNotIn('ja', lookup()[0]['tracks'])
+            self.assertTrue(any('ja' in row['tracks'] for row in lookup(refresh=True)))
+            self.assertEqual(calls, ['ja', 'ja'])
+
     def test_skipped_identity_source_is_not_recorded_as_no_subtitle(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

@@ -369,7 +369,7 @@ def serve(hub, host, port, legacy_port=None):
                         raise ValueError('unsupported_language')
                     token = hub.create(body.get('source'), body.get('programme'), language, body.get('features', ()))
                 else:
-                    match = re.fullmatch(r'/sessions/([a-f0-9]{32})/(programme|connect|observations)', path)
+                    match = re.fullmatch(r'/sessions/([a-f0-9]{32})/(programme|connect|observations|search)', path)
                     if not match or not hub.valid_context(body.get('source'), body.get('programme')):
                         raise ValueError('current_programme_required')
                     token = match[1]
@@ -377,6 +377,9 @@ def serve(hub, host, port, legacy_port=None):
                         if getattr(hub,'client_only',False):raise ValueError('text_only_session')
                         hub.connect_media(token, body.get('source'), body.get('programme'))
                     if match[2] == 'observations': hub.ingest(token,body)
+                    if match[2] == 'search':
+                        if not getattr(hub,'client_only',False):raise ValueError('client_clock_required')
+                        hub.retry_search(token,body)
                 self.send(json.dumps(hub.response(token), ensure_ascii=False).encode())
             except RuntimeError:
                 self.send(b'{"error":"pilot_capacity"}', status=503)

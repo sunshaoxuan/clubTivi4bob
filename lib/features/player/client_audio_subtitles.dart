@@ -73,6 +73,16 @@ class ClientAudioSubtitles {
   String? _asset;
   bool? _ad;
   double _lastEnd = -1, _lastAnalysisEnd = -1;
+  ({
+    double start,
+    double end,
+    List<dynamic> words,
+    int epoch,
+    String asset,
+    String? audioLanguage,
+    Object? programmeKey,
+  })?
+  _lastSpeech;
   final _chunks = <PcmChunk>[];
   final _playbackBudget = SpeechPlaybackBudget();
   List<String> _languages = [];
@@ -294,9 +304,29 @@ class ClientAudioSubtitles {
     if (!_disposed && _variants.select(id, scope)) _selectionChanged();
   }
 
+  Future<bool> retrySearch(String language) async {
+    final session = _session;
+    final programme = _programme;
+    if (_disposed || session == null || programme == null) return false;
+    try {
+      await _post('sessions/$session/search', {
+        'source': _source,
+        'programme': programme,
+        'programmeKey': programme['key'],
+        'language': language,
+      });
+      if (_disposed || session != _session) return false;
+      unawaited(_refresh());
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
   void _selectionChanged() {
     _timeline = null;
     _transportLocked = false;
+    _lastAnalysisEnd = double.negativeInfinity;
     phase = SubtitlePhase.synchronizing;
     render();
     unawaited(_refresh());
@@ -378,11 +408,36 @@ class ClientAudioSubtitles {
     }
     if (programme is Map) _programme = Map<String, dynamic>.from(programme);
     final status = body['subtitleStatus'] as Map?;
+    final awaitingSelection = _variants.awaitingRefresh;
     final variants = _variants.accept(
       body['programmeKey'] ?? _programme?['key'],
       status,
       acknowledgesRequest: acknowledgesRequest,
     );
+    if (awaitingSelection && !_variants.awaitingRefresh) {
+      _lastAnalysisEnd = double.negativeInfinity;
+      final sample = _lastSpeech;
+      if (_variants.pending &&
+          sample != null &&
+          !_disposed &&
+          _ad == false &&
+          sample.epoch == _epoch &&
+          sample.asset == _asset &&
+          sample.programmeKey == _programme?['key'] &&
+          (_lastEnd - sample.end).abs() < 16) {
+        unawaited(
+          _observe(
+            sample.start,
+            sample.end,
+            sample.words,
+            sample.epoch,
+            sample.asset,
+            false,
+            audioLanguage: sample.audioLanguage,
+          ),
+        );
+      }
+    }
     _referenceResourcesAvailable = (status?['candidateCount'] as num? ?? 0) > 0;
     _transportLocked =
         variants.render && body['transportClockVerified'] == true;
@@ -472,7 +527,8 @@ class ClientAudioSubtitles {
             ? pinned == null
                   ? SubtitlePhase.unavailable
                   : SubtitlePhase.synchronizing
-            : subtitleLanguage(selected) == 'en' &&
+            : pinned == null &&
+                  subtitleLanguage(selected) == 'en' &&
                   subtitleLanguage(SubtitlePreferences.instance.language.tag) !=
                       'en'
             ? SubtitlePhase.englishFallback
@@ -635,12 +691,14 @@ class ClientAudioSubtitles {
       }
       _lastEnd = end;
       // Bound decoder work on mobile while retaining overlapping dialogue.
-      final reacquiring = _verifiedProgrammeClock && !_transportLocked;
+      final reacquiring =
+          (_verifiedProgrammeClock || _variants.pending) && !_transportLocked;
       // Try after six seconds, then grow the same PCM history naturally.
       // Fixed short recovery windows lose complete sentences and cue onsets.
       retainPcmContext(_chunks, end, mobile: Platform.isAndroid);
       final duration = _chunks.isEmpty ? 0.0 : end - _chunks.first.start;
       if (!_recognizing &&
+          !_variants.awaitingRefresh &&
           duration >= (reacquiring ? 6 : 12) &&
           end - _lastAnalysisEnd >=
               (_transportLocked || phase == SubtitlePhase.unavailable
@@ -840,9 +898,21 @@ class ClientAudioSubtitles {
           (words.isEmpty ||
               audioLanguage == 'en' ||
               (_audioLanguageSupported && audioLanguage != null))) {
+        final end = start + bytes.length / 32000;
+        if (words.isNotEmpty && _ad == false && asset == _asset) {
+          _lastSpeech = (
+            start: start,
+            end: end,
+            words: words,
+            epoch: epoch,
+            asset: asset,
+            audioLanguage: audioLanguage,
+            programmeKey: _programme?['key'],
+          );
+        }
         await _observe(
           start,
-          start + bytes.length / 32000,
+          end,
           words,
           epoch,
           asset,

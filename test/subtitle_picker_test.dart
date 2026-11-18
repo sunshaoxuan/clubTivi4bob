@@ -99,6 +99,7 @@ void main() {
     );
     final phase = ValueNotifier(SubtitlePhase.englishFallback);
     final chosen = <(String?, int)>[];
+    final searches = <String>[];
     await tester.pumpWidget(
       MaterialApp(
         localizationsDelegates: const [_EnglishMessages()],
@@ -108,12 +109,19 @@ void main() {
             options: options,
             status: phase,
             onVariant: (id, scope) => chosen.add((id, scope)),
+            onRetry: (language) async {
+              searches.add(language);
+              return true;
+            },
           ),
         ),
       ),
     );
     expect(find.text('English subtitle versions'), findsOneWidget);
     expect(find.text('Using English subtitles'), findsOneWidget);
+    await tester.tap(find.text('Search again for 简体中文 subtitles'));
+    await tester.pump();
+    expect(searches, ['zh-CN']);
     expect(find.byTooltip('Currently in use'), findsOneWidget);
     await tester.ensureVisible(find.text('Second release'));
     await tester.tap(find.text('Second release'));

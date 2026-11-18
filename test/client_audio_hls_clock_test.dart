@@ -1,7 +1,29 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'dart:io';
 import 'package:clubtivi/features/player/hls_buffer_proxy.dart';
 
 void main() {
+  test(
+    'missing clock helper returns untouched provider HLS for playback',
+    () async {
+      final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+      server.listen((request) async {
+        request.response.write(
+          '#EXTM3U\n#EXT-X-MEDIA-SEQUENCE:1\n#EXTINF:6,\nmedia.ts\n',
+        );
+        await request.response.close();
+      });
+      final proxy = HlsBufferProxy(captureClock: true);
+      final source = 'http://127.0.0.1:${server.port}/live.m3u8';
+      try {
+        expect(await proxy.start(source, null), source);
+        expect(proxy.linearClockReady, isFalse);
+      } finally {
+        await proxy.stop();
+        await server.close(force: true);
+      }
+    },
+  );
   test('old sessions bootstrap the verified current UK AES configuration', () {
     const old =
         'https://action-rakuten-tv-uk.fast.rakuten.tv/v1/manifest/0547f18649bd788bec7b67b746e47670f558b6b2/production-LiveChannel-6065/expired/4.m3u8';

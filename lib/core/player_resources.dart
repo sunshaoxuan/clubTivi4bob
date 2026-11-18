@@ -253,7 +253,8 @@ class ManagedPlayer extends Player {
       final native = platform;
       if (native is native_player.NativePlayer) {
         if (isReviewedRakutenUkMovieSource(playable.uri) ||
-            liveSubtitles.usesClientAudio) {
+            liveSubtitles.usesClientAudio &&
+                Uri.parse(playable.uri).path.endsWith('.m3u8')) {
           _previousLiveNetworkTimeout ??= await native.getProperty(
             'network-timeout',
           );
@@ -313,9 +314,24 @@ class ManagedPlayer extends Player {
           _liveStartOptionApplied = false;
         }
         _hlsBuffer.captureClock = liveSubtitles.usesClientAudio;
-        uri = await _hlsBuffer.start(uri, playable.httpHeaders);
+        try {
+          uri = await _hlsBuffer.start(uri, playable.httpHeaders);
+        } catch (error) {
+          await _hlsBuffer.stop();
+          uri = playable.uri;
+          AppDiagnostics.instance.log('subtitle_clock_setup_failed', {
+            'errorType': error.runtimeType.toString(),
+            'providerPlaybackContinues': true,
+          });
+        }
         if (liveSubtitles.usesClientAudio && !_hlsBuffer.linearClockReady) {
           liveSubtitles.mediaClockUnavailable();
+          if (_liveStartOptionApplied) {
+            await native.setProperty(
+              'demuxer-lavf-linearize-timestamps',
+              _previousLiveTimestampPolicy ?? 'yes',
+            );
+          }
         }
       }
       if (generation != _openGeneration) return;

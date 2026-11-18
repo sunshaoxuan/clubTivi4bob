@@ -30,7 +30,7 @@ class TextHub:
     client_only=True
     prewarm=False
     engine=None
-    def __init__(self,root,cache,guide,*,traffic=None,source_validator=None):
+    def __init__(self,root,cache,guide,*,traffic=None,source_validator=None,auto_maintain=True):
         self.root=Path(root);self.root.mkdir(parents=True,exist_ok=True)
         self.traffic=traffic if traffic is not None else dict(receivedJsonBytes=0,sentJsonBytes=0,outboundRequests=0,outboundMediaRequests=0,outboundHosts={})
         def audit(event,args):
@@ -47,7 +47,8 @@ class TextHub:
         self.source,self.programme=self.guide();self.last_guide_success=time.time();self.gap=False
         self.discovery_generation=0;self.last_discovery=0;self.discovery_busy=False
         self.fetch_subtitles()
-        threading.Thread(target=self.maintain,daemon=True).start()
+        self.next_guide=time.monotonic()+25
+        if auto_maintain:threading.Thread(target=self.maintain,daemon=True).start()
     def event(self,kind,**facts):
         with (self.root/'client-clock-events.jsonl').open('a') as f:
             f.write(json.dumps(dict(event=kind,wall=time.time(),**facts))+'\n')
@@ -317,19 +318,21 @@ class TextHub:
             self.gap=age>120 or time.time()>=self.programme['stopUtc']
             self.event('programme_poll_failed',errorType=type(error).__name__,
                        lastGoodAgeSeconds=round(age,3),retainedCurrentProgramme=not self.gap)
-    def maintain(self):
-        next_guide=time.monotonic()+25
-        while not self.stop_event.wait(1):
+    def maintain_once(self):
+        if self.stop_event.is_set():return
+        with self.lock:
+            self.sessions={t:s for t,s in self.sessions.items() if time.time()-s['lastAccess']<=180}
+        if time.monotonic()<self.next_guide:return
+        self.next_guide=time.monotonic()+25
+        try:
+            source,programme=self.guide()
             with self.lock:
-                self.sessions={t:s for t,s in self.sessions.items() if time.time()-s['lastAccess']<=180}
-            if time.monotonic()<next_guide:continue
-            next_guide=time.monotonic()+25
-            try:
-                source,programme=self.guide()
-                with self.lock:
-                    changed=programme['key']!=self.programme['key'];self.source,self.programme=source,programme
-                    self.last_guide_success=time.time();self.gap=False
-                    if changed:self.discovery_generation+=1;self.candidates=None
-                    if changed or self.discovery_error and time.monotonic()-self.last_discovery>60:
-                        for language in {'en',*(s['language'] for s in self.sessions.values())}:self.fetch_subtitles(language)
-            except Exception as error:self.guide_failed(error)
+                changed=programme['key']!=self.programme['key'];self.source,self.programme=source,programme
+                self.last_guide_success=time.time();self.gap=False
+                if changed:self.discovery_generation+=1;self.candidates=None
+                if changed or self.discovery_error and time.monotonic()-self.last_discovery>60:
+                    for language in {'en',*(s['language'] for s in self.sessions.values())}:self.fetch_subtitles(language)
+        except Exception as error:self.guide_failed(error)
+
+    def maintain(self):
+        while not self.stop_event.wait(1):self.maintain_once()

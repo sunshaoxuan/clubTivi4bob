@@ -1,5 +1,6 @@
 """One independently verified EPG/alignment state per channel, shared file cache."""
 import json
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 import sys
 import threading
@@ -15,7 +16,7 @@ class MultiTextHub:
     engine=None
     gap=False
     programme={}
-    def __init__(self,root,cache,guide=None,hub_factory=TextHub):
+    def __init__(self,root,cache,guide=None,hub_factory=TextHub,maintenance=True):
         self.root=Path(root);self.root.mkdir(parents=True,exist_ok=True)
         self.cache=cache;self.guide=guide or ProgrammeGuide();self.hub_factory=hub_factory
         self.lock=threading.RLock();self.channels={};self.created={};self.last_guide_success=time.time()
@@ -26,6 +27,33 @@ class MultiTextHub:
                 self.traffic['outboundHosts'][h]=self.traffic['outboundHosts'].get(h,0)+1
                 if u.path.endswith(('.m3u8','.ts','.mp4','.m4s')):self.traffic['outboundMediaRequests']+=1
         sys.addaudithook(audit)
+        self.stop_event=threading.Event();self.pending={}
+        self.pool=ThreadPoolExecutor(max_workers=4,thread_name_prefix='epg-refresh')
+        self.maintenance_thread=threading.Thread(target=self.maintain,daemon=True) if maintenance else None
+        if self.maintenance_thread:self.maintenance_thread.start()
+
+    def close(self):
+        self.stop_event.set()
+        if self.maintenance_thread:self.maintenance_thread.join(timeout=5)
+        self.pool.shutdown(wait=True,cancel_futures=True)
+
+    def maintain(self):
+        while not self.stop_event.wait(1):
+            for child,future in list(self.pending.items()):
+                if future.done():
+                    del self.pending[child]
+                    try:future.result()
+                    except Exception as error:self.event('channel_maintenance_failed',errorType=type(error).__name__)
+            with self.lock:
+                for cid,child in list(self.channels.items()):
+                    with child.lock:idle=not child.sessions
+                    if idle and time.time()-self.created[cid]>180 and child not in self.pending:
+                        child.stop_event.set();del self.channels[cid];del self.created[cid]
+                children=list(self.channels.values())
+            for child in children:
+                if child not in self.pending and not child.stop_event.is_set():
+                    self.pending[child]=self.pool.submit(child.maintain_once)
+
     def event(self,kind,**facts):
         with (self.root/'client-clock-events.jsonl').open('a') as f:f.write(json.dumps(dict(event=kind,wall=time.time(),**facts))+'\n')
     @property
@@ -60,7 +88,7 @@ class MultiTextHub:
                 def validates(candidate):
                     try:return self.guide.channel(candidate)['id']==cid
                     except (ValueError,KeyError,OSError):return False
-                child=self.hub_factory(self.root/cid,self.cache,current,traffic=self.traffic,source_validator=validates)
+                child=self.hub_factory(self.root/cid,self.cache,current,traffic=self.traffic,source_validator=validates,auto_maintain=False)
                 self.channels[cid]=child;self.created[cid]=time.time()
             child=self.channels[cid]
         return child.create(source,context,language,features)

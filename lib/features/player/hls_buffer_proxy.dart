@@ -495,6 +495,10 @@ class HlsBufferProxy {
           'errorType': error.runtimeType.toString(),
           'providerPlaybackContinues': true,
         });
+        // A generic HLS stream may require formats absent from the small
+        // timestamp helper. Let the full player open the untouched provider URL.
+        await stop();
+        return origin.toString();
       }
     }
     return playlist;

@@ -15,10 +15,10 @@ import urllib.request
 
 ROOT = Path(__file__).resolve().parents[2]
 WHISPER = '4979e04f5dcaccb36057e059bbaed8a2f5288315'
-MODEL = 'ggml-base.en-q5_1.bin'
-MODEL_SHA = '4baf70dd0d7c4247ba2b81fafd9c01005ac77c2f9ef064e00dcf195d0e2fdd2f'
-TINY = 'ggml-tiny.en-q5_1.bin'
-TINY_SHA = 'c77c5766f1cef09b6b7d47f21b546cbddd4157886b3b5d6d4f709e91e66c7c2b'
+MODEL = 'ggml-base-q5_1.bin'
+MODEL_SHA = '422f1ae452ade6f30a004d7e5c6a43195e4433bc370bf23fac9cc591f01a8898'
+TINY = 'ggml-tiny-q5_1.bin'
+TINY_SHA = '818710568da3ca15689e31a743197b520007872ff9576237bda97bd1b469c3d7'
 MODEL_REVISION = '5359861c739e955e79d9a303bcbc70fb988958b1'
 FLAGS = ['--disable-everything', '--disable-autodetect', '--disable-programs', '--disable-doc',
          '--disable-avdevice', '--disable-avfilter', '--disable-swscale', '--disable-swresample',
@@ -47,7 +47,7 @@ def build(args):
     model = cache / MODEL
     if not model.exists():
         temp = model.with_suffix('.download')
-        urllib.request.urlretrieve('https://huggingface.co/ggerganov/whisper.cpp/resolve/main/' + MODEL, temp)
+        urllib.request.urlretrieve(f'https://huggingface.co/ggerganov/whisper.cpp/resolve/{MODEL_REVISION}/{MODEL}', temp)
         temp.replace(model)
     assert hashlib.sha256(model.read_bytes()).hexdigest() == MODEL_SHA
     models={MODEL:MODEL_SHA}
@@ -132,15 +132,24 @@ def build(args):
             '-pthread', *extra_link, '-o', output / names[1])
     for name in models: shutil.copy2(cache/name,output/name)
     notices = output / 'sources-and-licenses'; notices.mkdir(exist_ok=True)
+    sources = ['client_asr.cpp', 'client_remux.cpp']
+    if args.platform == 'windows' and args.cpu == 'baseline':
+        system_source = 'client_asr_windows.cpp'
+        system_worker = 'bobtv-system-asr.exe'
+        run(cxx, '-std=c++17', '-O2', '-municode', '-static',
+            ROOT / 'tools/native' / system_source, '-lole32', '-o', output / system_worker)
+        names.append(system_worker)
+        sources.append(system_source)
     for file in [source / 'LICENSE', ffmpeg / 'COPYING.LGPLv2.1', ROOT / 'tools/native/client_asr.cpp',
-                 ROOT / 'tools/native/client_remux.cpp', Path(__file__)]: shutil.copy2(file, notices)
+                 *(ROOT / 'tools/native' / name for name in sources[1:]), Path(__file__)]:
+        shutil.copy2(file, notices)
     if blas:
         shutil.copy2(blas[3],notices/'OpenBLAS-LICENSE')
         shutil.copy2(blas[4],notices/'OpenBLAS-build.json')
     receipt = dict(platform=args.platform, architecture=args.arch, whisperCommit=WHISPER, ffmpegCommit=ffcommit,
                    modelSha256=MODEL_SHA, models=models, alignment='dtw', decodersEnabled=False, encodersEnabled=False,
                    files={name: hashlib.sha256((output / name).read_bytes()).hexdigest() for name in (names if args.cpu == 'baseline' else names[:1])},
-                   sourceSha256={name: hashlib.sha256((ROOT / 'tools/native' / name).read_bytes()).hexdigest() for name in ['client_asr.cpp','client_remux.cpp']},
+                   sourceSha256={name: hashlib.sha256((ROOT / 'tools/native' / name).read_bytes()).hexdigest() for name in sources},
                    whisperCmakeFlags=cmake_flags,ffmpegFlags=flags)
     (output / ('receipt-avx2.json' if args.cpu == 'avx2' else 'receipt.json')).write_text(json.dumps(receipt, indent=2))
 

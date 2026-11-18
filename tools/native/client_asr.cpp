@@ -25,6 +25,46 @@ static bool fast_cpu(){
 }
 #endif
 using json=nlohmann::json;
+
+// CJK speech does not contain reliable whitespace boundaries. Use real DTW
+// token onsets and join partial UTF-8 byte sequences before sending text.
+static bool cjk_tokens(whisper_context* ctx, int segment, double shift,
+                       double duration, json& words) {
+ json tokens=json::array();
+ std::string text;
+ double begin=-1;
+ float probability=1;
+ for(int i=0;i<whisper_full_n_tokens(ctx,segment);i++){
+  const auto token=whisper_full_get_token_data(ctx,segment,i);
+  if(token.id>=whisper_token_eot(ctx))continue;
+  const auto* bytes=whisper_full_get_token_text(ctx,segment,i);
+  if(!bytes||!*bytes)continue;
+  if(text.empty()){
+   const auto onset=token.t_dtw>=0?token.t_dtw:token.t0;
+   if(onset<0)return false;
+   begin=onset/100.0+shift;
+   if(begin>duration+.05)return false;
+   begin=std::min(duration,begin);
+  }
+  text+=bytes;probability=std::min(probability,token.p);
+  if(text.size()>128)return false;
+  try{(void)json(text).dump();}catch(const json::type_error&){continue;}
+  if(!tokens.empty()){
+   const double prior=tokens.back()["start"];
+   if(begin+.05<prior)return false;
+   begin=std::max(begin,prior);
+   tokens.back()["end"]=begin;
+  }
+  tokens.push_back({{"word",text},{"start",begin},{"end",begin},{"probability",probability}});
+  text.clear();probability=1;
+ }
+ if(!text.empty()||tokens.empty()||tokens.size()+words.size()>512)return false;
+ const double end=whisper_full_get_segment_t1(ctx,segment)/100.0+shift;
+ tokens.back()["end"]=std::max(double(tokens.back()["start"]),std::min(duration,end));
+ for(auto& token:tokens)words.push_back(std::move(token));
+ return true;
+}
+
 int main(int argc,char **argv) {
  if(argc!=2)return 2;
  if(std::string(argv[1])=="--capabilities"){
@@ -35,23 +75,33 @@ int main(int argc,char **argv) {
 #endif
   return 0;
  }
- const bool tiny=std::filesystem::u8path(argv[1]).filename()=="ggml-tiny.en-q5_1.bin";
+ const auto filename=std::filesystem::u8path(argv[1]).filename().string();
+ const bool tiny=filename=="ggml-tiny.en-q5_1.bin"||filename=="ggml-tiny-q5_1.bin";
+ const bool multilingual=filename=="ggml-tiny-q5_1.bin"||filename=="ggml-base-q5_1.bin";
 #ifdef __ANDROID__
  nice(5);
 #endif
  whisper_log_set([](ggml_log_level,const char*,void*){},nullptr);
- auto cp=whisper_context_default_params();cp.use_gpu=false;cp.flash_attn=false;cp.dtw_token_timestamps=true;cp.dtw_aheads_preset=tiny?WHISPER_AHEADS_TINY_EN:WHISPER_AHEADS_BASE_EN;
+ auto cp=whisper_context_default_params();cp.use_gpu=false;cp.flash_attn=false;cp.dtw_token_timestamps=true;
+ cp.dtw_aheads_preset=tiny?(multilingual?WHISPER_AHEADS_TINY:WHISPER_AHEADS_TINY_EN):(multilingual?WHISPER_AHEADS_BASE:WHISPER_AHEADS_BASE_EN);
  std::ifstream model(std::filesystem::u8path(argv[1]),std::ios::binary);if(!model)return 3;
  whisper_model_loader loader{};loader.context=&model;
  loader.read=[](void* p,void* out,size_t count)->size_t{auto* in=static_cast<std::ifstream*>(p);in->read(static_cast<char*>(out),count);return size_t(in->gcount());};
  loader.eof=[](void* p)->bool{return static_cast<std::ifstream*>(p)->eof();};
  loader.close=[](void*){};
  auto *ctx=whisper_init_with_params(&loader,cp);model.close();if(!ctx)return 3;
- std::cout<<json({{"ready",true},{"engine","whisper.cpp-v1.8.2"},{"model",tiny?"tiny.en":"base.en"}}).dump()<<std::endl;
+ if(bool(whisper_is_multilingual(ctx))!=multilingual){whisper_free(ctx);return 3;}
+ std::string model_name=tiny?"tiny":"base";if(!multilingual)model_name+=".en";
+ std::cout<<json({{"ready",true},{"engine","whisper.cpp-v1.8.2"},{"model",model_name}}).dump()<<std::endl;
  std::string line;
  while(std::getline(std::cin,line)) {
   try {
    auto request=json::parse(line);std::string path=request.at("path");
+   const auto language=request.value("audioLanguage",std::string(multilingual?"auto":"en"));
+   if((!multilingual&&language!="en")||
+      (language!="auto"&&(language.size()<2||language.size()>3||
+         language.find_first_not_of("abcdefghijklmnopqrstuvwxyz")!=std::string::npos||
+         whisper_lang_id(language.c_str())<0)))throw std::runtime_error("unsupported_audio_language");
    std::ifstream input(std::filesystem::u8path(path),std::ios::binary|std::ios::ate);auto size=input.tellg();
    if(size<3200||size>16000*2*40||size%2)throw std::runtime_error("pcm_limit");
    input.seekg(0);std::vector<int16_t> raw(size_t(size)/2);input.read((char*)raw.data(),size);
@@ -66,9 +116,9 @@ int main(int argc,char **argv) {
    }
    double shift=lead/16000.;
    if(lead)pcm.erase(pcm.begin(),pcm.begin()+lead);
-   json words=json::array();auto start=std::chrono::steady_clock::now();
+   json words=json::array(), detected_language=nullptr;auto start=std::chrono::steady_clock::now();
    if(energy/pcm.size()>1e-7) {
-    auto p=whisper_full_default_params(WHISPER_SAMPLING_GREEDY);p.n_threads=tiny?2:3;p.language="en";
+    auto p=whisper_full_default_params(WHISPER_SAMPLING_GREEDY);p.n_threads=tiny?2:3;p.language=language.c_str();
     p.translate=false;p.no_context=true;p.print_progress=false;p.print_realtime=false;p.print_timestamps=false;
 #if defined(__ANDROID__)
     // Live playback cannot wait for repeated temperature fallback on music.
@@ -77,7 +127,11 @@ int main(int argc,char **argv) {
 #endif
     p.token_timestamps=true;p.split_on_word=true;p.max_len=1;p.suppress_blank=true;p.suppress_nst=true;
     if(whisper_full(ctx,p,pcm.data(),int(pcm.size()))!=0)throw std::runtime_error("recognition_failed");
+    if(const auto* code=whisper_lang_str(whisper_full_lang_id(ctx)))detected_language=code;
+    const bool cjk=detected_language=="ja"||detected_language=="zh"||detected_language=="ko";
     for(int s=0;s<whisper_full_n_segments(ctx);s++) {
+     if(words.size()>=512)break;
+     if(cjk&&cjk_tokens(ctx,s,shift,duration,words))continue;
      std::string text=whisper_full_get_segment_text(ctx,s);float probability=1;double dtw_start=1e30;
      for(int t=0;t<whisper_full_n_tokens(ctx,s);t++) {
       auto data=whisper_full_get_token_data(ctx,s,t);
@@ -97,7 +151,7 @@ int main(int argc,char **argv) {
     }
    }
    double seconds=std::chrono::duration<double>(std::chrono::steady_clock::now()-start).count();
-   std::cout<<json({{"id",request.at("id")},{"words",words},{"processSeconds",seconds}}).dump()<<std::endl;
+   std::cout<<json({{"id",request.at("id")},{"words",words},{"audioLanguage",detected_language},{"processSeconds",seconds}}).dump()<<std::endl;
   } catch(const std::exception &e){std::cout<<json({{"error",e.what()}}).dump()<<std::endl;}
  }
  whisper_free(ctx);return 0;

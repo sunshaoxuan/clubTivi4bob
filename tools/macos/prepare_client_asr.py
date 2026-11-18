@@ -10,8 +10,8 @@ import urllib.request
 
 ROOT = Path(__file__).resolve().parents[2]
 COMMIT = '4979e04f5dcaccb36057e059bbaed8a2f5288315'
-MODEL = 'ggml-base.en-q5_1.bin'
-MODEL_SHA = '4baf70dd0d7c4247ba2b81fafd9c01005ac77c2f9ef064e00dcf195d0e2fdd2f'
+MODEL = 'ggml-base-q5_1.bin'
+MODEL_SHA = '422f1ae452ade6f30a004d7e5c6a43195e4433bc370bf23fac9cc591f01a8898'
 
 
 def run(*args):
@@ -63,6 +63,19 @@ def prepare(app, cmake):
         alignment='dtw', architectures=architectures,
         sourceSha256=hashlib.sha256((ROOT / 'tools/native/client_asr.cpp').read_bytes()).hexdigest()), indent=2))
     run('codesign', '--force', '--sign', '-', target / 'bobtv-client-asr')
+    sdk_major = int(subprocess.check_output(['xcrun', '--show-sdk-version'], text=True).split('.')[0])
+    if sdk_major >= 26:
+        native_source = ROOT / 'tools/native/client_asr_macos.swift'
+        native_bins = []
+        for cpu in architectures:
+            binary = cache / ('bobtv-system-asr-' + cpu)
+            deployment = '11.0' if cpu == 'arm64' else '10.15'
+            run('xcrun', 'swiftc', '-parse-as-library', '-O', '-target',
+                cpu+'-apple-macosx'+deployment, native_source, '-o', binary)
+            native_bins.append(binary)
+        system_worker = target / 'bobtv-system-asr'
+        run('lipo', '-create', *native_bins, '-output', system_worker)
+        run('codesign', '--force', '--sign', '-', system_worker)
     from prepare_client_remux import prepare as prepare_remux
     prepare_remux(app)
 

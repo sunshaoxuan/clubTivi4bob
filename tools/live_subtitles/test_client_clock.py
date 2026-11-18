@@ -8,6 +8,48 @@ from unittest.mock import patch
 from client_clock import TextHub
 
 class ClientClockTests(unittest.TestCase):
+    def test_japanese_audio_locks_japanese_cues_even_when_display_is_english(self):
+        with tempfile.TemporaryDirectory() as d:
+            h=self.hub(d)
+            token=h.create(h.source,None,'en',['clientClockV1'])
+            candidate=h.candidates[0]
+            lines=['東京駅まで歩いて行きましょう','今夜は雪になるかもしれません','窓の外には星が見えています']
+            candidate['tracks']['ja']=[{**cue,'text':line} for cue,line in zip(candidate['tracks']['en'],lines)]
+            words=[dict(word=line,start=i*3,end=i*3+1,probability=.99) for i,line in enumerate(lines,1)]
+            h.ingest(token,self.observation(h,audioLanguage='ja',words=words))
+            state=h.sessions[token]
+            self.assertIs(state['reference'],candidate)
+            self.assertAlmostEqual(state['intercept'],100.)
+            self.assertEqual({track['language'] for track in state['windows'][-1]['tracks']},{'en','ja'})
+            self.assertTrue(h.response(token)['audioLanguageV1'])
+
+    def test_missing_spoken_reference_does_not_align_against_display_language(self):
+        with tempfile.TemporaryDirectory() as d:
+            h=self.hub(d)
+            token=h.create(h.source,None,'en',['clientClockV1'])
+            words=[dict(word=cue['text'],start=i*3,end=i*3+1,probability=.99)
+                   for i,cue in enumerate(h.candidates[0]['tracks']['en'][:3],1)]
+            h.ingest(token,self.observation(h,audioLanguage='ja',words=words))
+            self.assertIsNone(h.sessions[token]['reference'])
+            self.assertEqual(h.sessions[token]['windows'],[])
+
+    def test_heartbeat_before_new_audio_language_does_not_block_reacquisition(self):
+        with tempfile.TemporaryDirectory() as d:
+            h=self.hub(d)
+            token=h.create(h.source,None,'en',['clientClockV1'])
+            candidate=h.candidates[0]
+            lines=['東京駅まで歩いて行きましょう','今夜は雪になるかもしれません','窓の外には星が見えています']
+            candidate['tracks']['ja']=[{**cue,'text':line} for cue,line in zip(candidate['tracks']['en'],lines)]
+            def words(lines):
+                return [dict(word=line,start=i*3,end=i*3+1,probability=.99) for i,line in enumerate(lines,1)]
+            h.ingest(token,self.observation(h,words=words([c['text'] for c in candidate['tracks']['en'][:3]])))
+            h.ingest(token,self.observation(h,epoch=2,serial=2))
+            h.ingest(token,self.observation(h,epoch=2,serial=3,audioLanguage='ja',words=words(lines)))
+            state=h.sessions[token]
+            self.assertEqual(state['audioLanguage'],'ja')
+            self.assertEqual(state['audioLanguageEpoch'],2)
+            self.assertIs(state['reference'],candidate)
+
     def test_added_language_reuses_only_identical_english_edition_and_clock(self):
         with tempfile.TemporaryDirectory() as d:
             h=self.hub(d);token=h.create(h.source,None,'en',['clientClockV1']);s=h.sessions[token]

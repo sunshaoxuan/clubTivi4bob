@@ -16,6 +16,7 @@ import 'prepared_channel_commit_gate.dart';
 import 'playback_stall_detector.dart';
 import 'stream_proxy.dart';
 import 'hls_buffer_proxy.dart';
+import 'subtitle_preferences.dart';
 import '../../data/services/channel_name_normalizer.dart';
 import '../../data/services/stream_alternatives_service.dart';
 import '../../data/services/stream_health_tracker.dart';
@@ -100,7 +101,7 @@ class PlayerService {
     }
     if (target is ManagedPlayer) {
       if (identical(target, _player)) {
-        target.liveSubtitles.onMediaReady = () => _warmSubtitleMedia(target, endpoint);
+        _bindSubtitleMediaRecovery(target, endpoint);
       }
       target.fallbackOpenGate = (operation) async {
         if (_disposed) throw const RetiredRouteException();
@@ -118,19 +119,39 @@ class PlayerService {
     }
   }
 
-  /// Keep the current decoder visible until the caption media has decoded
-  /// frames and enough buffered media to survive the handoff.
-  Future<void> _warmSubtitleMedia(ManagedPlayer original, String url) async {
+  void _bindSubtitleMediaRecovery(ManagedPlayer target, String url) {
+    target.liveSubtitles.onMediaReady = () async {
+      await _warmSubtitleMedia(target, url);
+    };
+    target.liveSubtitles.onRecoveryMediaReady = () =>
+        _warmSubtitleMedia(target, url, afterOutage: true);
+  }
+
+  /// Keep the current decoder visible until the candidate can play. After an
+  /// outage, also require a fresh verified subtitle window before handing off.
+  Future<bool> _warmSubtitleMedia(
+    ManagedPlayer original,
+    String url, {
+    bool afterOutage = false,
+  }) async {
     if (_subtitleWarmPlayer != null ||
         !identical(_player, original) ||
-        !_routeAllowed(url))
-      return;
+        !_routeAllowed(url)) {
+      return false;
+    }
     final request = _channelSwitchGeneration;
     bool valid() =>
         !_disposed &&
         identical(_player, original) &&
         request == _channelSwitchGeneration &&
-        _routeAllowed(url);
+        _routeAllowed(url) &&
+        (!afterOutage ||
+            (_currentUrl == url && SubtitlePreferences.instance.enabled));
+    bool handoffReady() => !afterOutage ||
+        (original.state.playing &&
+            !original.state.buffering &&
+            SubtitlePreferences.instance.enabled);
+    if (!valid()) return false;
     final candidate = ManagedPlayer(
       role: 'subtitle_warm',
       configuration: PlayerConfiguration(
@@ -141,6 +162,7 @@ class PlayerService {
     _subtitleWarmPlayer = candidate;
     candidate.subtitleStartupGrace = const Duration(seconds: 45);
     candidate.liveSubtitles.onMediaReady = null;
+    candidate.liveSubtitles.onRecoveryMediaReady = null;
     var promoted = false;
     final started = Stopwatch()..start();
     try {
@@ -151,22 +173,29 @@ class PlayerService {
         await native.setProperty('mute', 'yes');
         await native.setProperty('cache-pause-wait', '4');
       }
-      if (!valid()) return;
+      if (!valid()) return false;
       await _openAllowedMedia(candidate, url);
       final ready = await _waitForPreparedChannel(
         candidate,
         null,
         allowAudioOnly: _allowsAudioOnly,
         requireUltraHd: false,
-        timeout: const Duration(seconds: 45),
+        timeout: afterOutage
+            ? const Duration(seconds: 150)
+            : const Duration(seconds: 45),
         minimumCacheSeconds: 8,
-        stillValid: valid,
+        stillValid: () => valid() && candidate.liveSubtitles.hasAttachedMedia,
+        extraReady: afterOutage
+            ? () => handoffReady() &&
+                (!candidate.liveSubtitles.usesClientAudio ||
+                    candidate.liveSubtitles.hasVerifiedLocalCaptions)
+            : null,
       );
       if (!ready || !valid() || !candidate.liveSubtitles.hasAttachedMedia) {
         throw StateError('subtitle_media_not_ready');
       }
       await candidate.setVolume(original.state.volume);
-      if (!valid()) return;
+      if (!valid() || !handoffReady()) return false;
       await _promotePreparedChannel(
         candidate,
         controller,
@@ -180,21 +209,26 @@ class PlayerService {
         failoverGroupUrls: _failoverGroupUrls,
         allowAudioOnly: _allowsAudioOnly,
         selectionRequest: request,
+        stillValid: afterOutage
+            ? () => valid() && handoffReady() &&
+                candidate.state.playing && !candidate.state.buffering &&
+                (!candidate.liveSubtitles.usesClientAudio ||
+                    candidate.liveSubtitles.hasVerifiedLocalCaptions)
+            : null,
       );
       promoted = identical(_player, candidate);
       if (promoted) {
         candidate.subtitleStartupGrace = const Duration(seconds: 10);
-        candidate.liveSubtitles.onMediaReady = () =>
-            _warmSubtitleMedia(candidate, url);
+        _bindSubtitleMediaRecovery(candidate, url);
         subtitleMediaPromotions++;
         AppDiagnostics.instance.log('subtitle_media_prebuffered', {
           'elapsedMs': started.elapsedMilliseconds,
+          'afterOutage': afterOutage,
         });
       }
     } catch (error, stack) {
-      if (valid()) {
+      if (valid() && !afterOutage) {
         original.liveSubtitles.mediaUnavailable(url);
-        original.liveSubtitles.deferMediaRetry();
       }
       AppDiagnostics.instance.recordError(
         'subtitle_media_prebuffer',
@@ -206,6 +240,7 @@ class PlayerService {
       if (!promoted && !identical(_player, candidate))
         await candidate.dispose();
     }
+    return promoted;
   }
 
   Future<void> _removeRetiredPlayback() async {
@@ -1172,6 +1207,7 @@ class PlayerService {
     required bool allowAudioOnly,
     required bool requireUltraHd,
     bool Function()? stillValid,
+    bool Function()? extraReady,
     Duration timeout = const Duration(seconds: 15),
     double minimumCacheSeconds = 0,
   }) async {
@@ -1199,7 +1235,7 @@ class PlayerService {
       );
       final width = state.width ?? 0;
       final height = state.height ?? 0;
-      final ready = preparedMediaReady(
+      final ready = (extraReady?.call() ?? true) && preparedMediaReady(
         playing: state.playing,
         buffering: state.buffering,
         hasVideoTrack: hasVideo,
@@ -1344,15 +1380,18 @@ class PlayerService {
     List<String>? failoverGroupUrls,
     required bool allowAudioOnly,
     int? selectionRequest,
+    bool Function()? stillValid,
   }) async {
     await _retirementGuard?.requireAllowed(url);
-    if (selectionRequest != null && selectionRequest != _channelSwitchGeneration) {
+    if (stillValid?.call() == false ||
+        (selectionRequest != null && selectionRequest != _channelSwitchGeneration)) {
       throw StateError('Preview promotion was superseded');
     }
     if (!identical(candidate, _alternativePreviewPlayer)) {
       await discardAlternativePreview();
     }
-    if (selectionRequest != null && selectionRequest != _channelSwitchGeneration) {
+    if (stillValid?.call() == false ||
+        (selectionRequest != null && selectionRequest != _channelSwitchGeneration)) {
       throw StateError('Preview promotion was superseded');
     }
     final previous = player;
@@ -1377,7 +1416,7 @@ class PlayerService {
         'error': error.toString(),
       });
     }
-    if (!_routeAllowed(url) || generation != _playGeneration ||
+    if (stillValid?.call() == false || !_routeAllowed(url) || generation != _playGeneration ||
         (selectionRequest != null && selectionRequest != _channelSwitchGeneration)) {
       if (identical(_player, previous)) {
         await previous.setVolume(previousVolume).timeout(const Duration(seconds: 2));

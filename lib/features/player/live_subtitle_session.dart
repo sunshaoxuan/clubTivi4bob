@@ -10,6 +10,7 @@ import 'native_subtitle_selection.dart';
 import 'subtitle_preferences.dart';
 import 'subtitle_programme_context.dart';
 import 'subtitle_status.dart';
+import 'subtitle_media_recovery.dart';
 import 'subtitle_policy.dart';
 import 'hls_buffer_proxy.dart';
 import 'client_audio_subtitles.dart';
@@ -49,12 +50,19 @@ class LiveSubtitleSession {
   List<String> _availableLanguages = const [];
   bool _mediaAttached = false;
   bool get hasAttachedMedia => _mediaAttached || usesClientAudio;
+  bool get hasVerifiedLocalCaptions {
+    final phase = _localAudio?.phase;
+    return phase == SubtitlePhase.ready ||
+        phase == SubtitlePhase.englishFallback;
+  }
+
   bool _playbackReady = false;
   Future<void> Function()? onMediaReady;
+  Future<bool> Function()? onRecoveryMediaReady;
+  SubtitleMediaRecovery? _mediaRecovery;
   Timer? _retry;
   bool _autoConnecting = false;
   DateTime? _nextConnectAttempt;
-  DateTime? _mediaRetryAfter;
   final http.Client _client;
   StreamSubscription<Duration>? _position;
   StreamSubscription<bool>? _buffering, _playing;
@@ -73,23 +81,12 @@ class LiveSubtitleSession {
 
   Future<String> prepare(String source, {bool monitorOnly = false}) async {
     final wasActive = _active;
-    final retryAfter = _mediaRetryAfter;
     clear();
     if (monitorOnly) {
       _active = wasActive;
-      _mediaRetryAfter = retryAfter;
     }
     _source = source;
     final generation = _generation;
-    if (monitorOnly &&
-        wasActive &&
-        retryAfter != null &&
-        DateTime.now().isBefore(retryAfter)) {
-      _phase = SubtitlePhase.clockUnavailable;
-      _render();
-      _retryDiscovery(source, generation);
-      return source;
-    }
     _phase = SubtitlePhase.searching;
     _render();
     Map<String, Object?>? context;
@@ -380,16 +377,30 @@ class LiveSubtitleSession {
     _localAudio?.clockUnavailable();
     _phase = SubtitlePhase.clockUnavailable;
     _render();
-    // Retry through the owner's warm decoder so captions get a new clock
-    // while working provider playback remains visible during the cooldown.
-    _retryDiscovery(source, _generation);
-  }
-
-  void deferMediaRetry() {
-    // A failed native media route must not interrupt working provider playback
-    // repeatedly. Discovery/status polling continues during the cooldown.
-    _mediaRetryAfter = DateTime.now().add(const Duration(minutes: 5));
-    _render();
+    if (onRecoveryMediaReady == null) {
+      _retryDiscovery(source, _generation);
+      return;
+    }
+    _retry?.cancel();
+    final recovery = _mediaRecovery ??= SubtitleMediaRecovery(
+      sample: () {
+        final state = player.state;
+        return (
+          playing: state.playing,
+          buffering: state.buffering,
+          position: state.position,
+        );
+      },
+      enabled: () =>
+          _active && !_disposed && SubtitlePreferences.instance.enabled,
+      warm: () async {
+        final attempt = onRecoveryMediaReady;
+        if (attempt == null) return false;
+        AppDiagnostics.instance.log('subtitle_media_recovery_started');
+        return attempt();
+      },
+    );
+    recovery.start();
   }
 
   void _maybeConnect() {
@@ -403,7 +414,6 @@ class LiveSubtitleSession {
         !SubtitlePreferences.instance.enabled ||
         _autoConnecting ||
         onMediaReady == null ||
-        (_mediaRetryAfter?.isAfter(DateTime.now()) ?? false) ||
         (_nextConnectAttempt?.isAfter(DateTime.now()) ?? false)) {
       return;
     }
@@ -608,10 +618,6 @@ class LiveSubtitleSession {
           ? SubtitlePhase.connecting
           : SubtitlePhase.unavailable;
     }
-    if (!_mediaAttached &&
-        (_mediaRetryAfter?.isAfter(DateTime.now()) ?? false)) {
-      phase = SubtitlePhase.serviceUnavailable;
-    }
     status.value = phase;
     _maybeConnect();
   }
@@ -625,7 +631,8 @@ class LiveSubtitleSession {
     _expiry?.cancel();
     _retry?.cancel();
     _nextConnectAttempt = null;
-    _mediaRetryAfter = null;
+    _mediaRecovery?.cancel();
+    _mediaRecovery = null;
     _timeline = null;
     _programme = null;
     _requiresProgramme = false;

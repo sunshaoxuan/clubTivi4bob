@@ -14,6 +14,7 @@ import shutil
 import subprocess
 import threading
 import time
+import unicodedata
 
 from live_media import Collector, playlist
 from subtitle_catalog import discover, norm
@@ -36,28 +37,38 @@ def acoustic_norm(text):
             for part in expansions.get(token, token).split()]
 
 
-def align(words, cues, timeline, *, rate=1.):
+def align(words, cues, timeline, *, rate=1., language='en'):
+    def tokenize(text):
+        if language == 'en':
+            return acoustic_norm(text)
+        text=unicodedata.normalize('NFKC',text).casefold()
+        text=re.sub(r'\{\\[^}]+\}|\[[^\]]{0,160}\]', '', text)
+        if language in ('ja','ko','zh-CN','zh-TW'):
+            return [ch for ch in text if ch.isalnum()]
+        return re.findall(r'[^\W_]+',text)
+
+    minimum=8 if language in ('ja','ko','zh-CN','zh-TW') else 4
     tokens, firsts, asr, owners = [], {}, [], []
+    cue_words={c['index']:tokenize(c['text']) for c in cues}
     for cue in cues:
-        values = acoustic_norm(cue['text']) if '♪' not in cue['text'] else []
+        values = cue_words[cue['index']] if '♪' not in cue['text'] else []
         if values:
             firsts[len(tokens)] = cue
             tokens.extend(values)
     for word in words:
-        for token in acoustic_norm(word['word']):
+        for token in tokenize(word['word']):
             asr.append(token); owners.append(word)
-    cue_words={c['index']:acoustic_norm(c['text']) for c in cues}
     prefixes={n:Counter(tuple(values[:n]) for values in cue_words.values() if len(values)>=n) for n in range(4,9)}
     anchors = []
     for match in difflib.SequenceMatcher(None, tokens, asr, autojunk=False).get_matching_blocks():
-        if match.size < 4:
+        if match.size < minimum:
             continue
         for index in range(match.a, match.a + match.size - 2):
             cue = firsts.get(index)
             if cue is None:
                 continue
             values=cue_words[cue['index']]
-            required=next((n for n in dict.fromkeys((4,6,8,min(len(values),8))) if n>=4 and len(values)>=n and prefixes[n][tuple(values[:n])]==1),None)
+            required=next((n for n in dict.fromkeys((4,6,8,min(len(values),8))) if n>=minimum and len(values)>=n and prefixes[n][tuple(values[:n])]==1),None)
             remaining=match.a+match.size-index
             if required is None or remaining<required:
                 continue
@@ -75,7 +86,7 @@ def align(words, cues, timeline, *, rate=1.):
     # Recover a single ASR word substitution only in a unique six-token
     # prefix. The first two words and five of six words must agree, and a
     # second reference within one substitution makes the match ambiguous.
-    references=[(cue,cue_words[cue['index']]) for cue in cues if len(cue_words[cue['index']])>=6]
+    references=[(cue,cue_words[cue['index']]) for cue in cues if language=='en' and len(cue_words[cue['index']])>=6]
     # Both fuzzy checks require identical first two tokens. Index this exact
     # prerequisite once instead of comparing every subtitle with every other
     # subtitle on each viewer observation.

@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'package:fake_async/fake_async.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
@@ -71,6 +72,40 @@ void main() {
   setUp(() {
     SubtitlePreferences.instance.initialize(null);
     SubtitlePreferences.instance.choose(AppLanguage.english);
+  });
+  test('recovered playback arms only the background caption callback', () {
+    fakeAsync((clock) {
+      final player = _Player();
+      final selection = NativeSubtitleSelection(player);
+      final session = LiveSubtitleSession(
+        player,
+        selection,
+        client: MockClient((_) async => fail('no separate network probe')),
+      );
+      var attempts = 0;
+      session.onMediaReady = () async => fail('do not reopen active media');
+      session.onRecoveryMediaReady = () async {
+        attempts++;
+        return true;
+      };
+      session.mediaUnavailable('channel');
+      clock.elapse(const Duration(seconds: 3));
+      expect(attempts, 0);
+      session.activate();
+      for (var i = 2; i <= 4; i++) {
+        player.state = PlayerState(
+          playing: true,
+          position: Duration(seconds: i),
+        );
+        clock.elapse(const Duration(seconds: 1));
+      }
+      expect(attempts, 1);
+      expect(player.state.position, const Duration(seconds: 4));
+      expect(session.text.value, isEmpty);
+      unawaited(session.dispose());
+      unawaited(selection.dispose());
+      clock.flushMicrotasks();
+    });
   });
   for (final endpoint in [
     'https://bobtv.briconbric.com/api/v1/subtitles/',

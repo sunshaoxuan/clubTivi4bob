@@ -15,6 +15,7 @@ import 'live_subtitle_timeline.dart';
 import 'subtitle_policy.dart';
 import 'subtitle_preferences.dart';
 import 'subtitle_status.dart';
+import 'offline_asr_policy.dart';
 
 /// One local decoder tap and offline ASR worker per viewing session. Only text
 /// observations cross the service boundary; video and PCM stay on the device.
@@ -53,12 +54,14 @@ class ClientAudioSubtitles {
       _active = false;
   bool _attached = false, _workerFailed = false, _clockAvailable = true;
   bool _transportLocked = false;
+  bool _audioLanguageSupported = false;
+  final _systemAsrRetry = <String, DateTime>{};
   bool _recoveryTimedOut = false;
   bool _referenceResourcesAvailable = false;
   bool _verifiedProgrammeClock = false;
   bool _coldRecognition = true, _waitingForPlaybackBuffer = false;
   double _lastClockObservation = -1;
-  String? _clockSignature;
+  String? _clockSignature, _audioTrackId;
   int _epoch = 0, _nativeEpoch = -1, _sequence = -1, _serial = 0;
   String? _asset;
   bool? _ad;
@@ -314,6 +317,7 @@ class ClientAudioSubtitles {
 
   void _accept(Map<String, dynamic> body) {
     if (_disposed || body['session'] != _session && _session != null) return;
+    _audioLanguageSupported = body['audioLanguageV1'] == true;
     final programme = body['programme'];
     if (programme is Map &&
         _programme != null &&
@@ -487,17 +491,23 @@ class ClientAudioSubtitles {
         text = '';
       }
       _clockSignature = signature;
-      if (_asset != segment.asset || _ad != ad || _nativeEpoch != nativeEpoch) {
+      final audioTrackId = player.state.track.audio.id;
+      if (_asset != segment.asset ||
+          _ad != ad ||
+          _nativeEpoch != nativeEpoch ||
+          _audioTrackId != audioTrackId) {
         _epoch++;
         _asset = segment.asset;
         _ad = ad;
         _nativeEpoch = nativeEpoch;
+        _audioTrackId = audioTrackId;
         _chunks.clear();
         _lastEnd = end;
         _lastAnalysisEnd = -1;
         _lastClockObservation = -1;
         _transportLocked = false;
         _timeline = null;
+        text = '';
         AppDiagnostics.instance.log('client_subtitle_boundary', {
           'epoch': _epoch,
           'asset': segment.asset,
@@ -607,8 +617,9 @@ class ClientAudioSubtitles {
     List<dynamic> words,
     int epoch,
     String asset,
-    bool ad,
-  ) async {
+    bool ad, {
+    String? audioLanguage,
+  }) async {
     if (_disposed || epoch != _epoch || _session == null) return;
     try {
       final serial = ++_serial;
@@ -625,6 +636,8 @@ class ClientAudioSubtitles {
         'end': end,
         'position': player.state.position.inMicroseconds / 1e6,
         'words': words,
+        if (audioLanguage != null && _audioLanguageSupported)
+          'audioLanguage': audioLanguage,
         'serial': serial,
       });
       if (!_disposed && epoch == _epoch) _accept(response);
@@ -633,6 +646,39 @@ class ClientAudioSubtitles {
         'errorType': error.runtimeType.toString(),
       });
     }
+  }
+
+  Future<Map<String, dynamic>?> _recognizeWithSystem(
+    OfflineAsrRequest request,
+    int epoch,
+  ) async {
+    final executable = ClientSubtitleRuntime.systemAsr;
+    final locale = request.audioLocale;
+    if (executable == null || locale == null) return null;
+    if (_systemAsrRetry[locale]?.isAfter(DateTime.now()) ?? false) return null;
+    Process? process;
+    try {
+      process = await Process.start(executable, [request.pcmPath, locale]);
+      final stdout = process.stdout.transform(utf8.decoder).join();
+      final stderr = process.stderr.drain<void>();
+      final code = await process.exitCode.timeout(const Duration(seconds: 3));
+      await stderr;
+      final output = await stdout;
+      if (code == 0 && output.isNotEmpty) {
+        final result = jsonDecode(output) as Map<String, dynamic>;
+        final words = result['words'] as List;
+        if (words.any((word) => (word['probability'] as num) >= .65)) {
+          return {'id': epoch, 'words': words, 'audioLanguage': locale};
+        }
+      }
+    } catch (_) {
+      if (process != null) {
+        process.kill(ProcessSignal.sigkill);
+        await process.exitCode;
+      }
+    }
+    _systemAsrRetry[locale] = DateTime.now().add(const Duration(seconds: 30));
+    return null;
   }
 
   Future<void> _recognize(
@@ -654,14 +700,38 @@ class ClientAudioSubtitles {
       if (_disposed) return;
       file = File('${directory.path}/window.pcm');
       await file.writeAsBytes(bytes, flush: true);
-      final future = _recognition = Completer<Map<String, dynamic>>();
-      _worker!.stdin.writeln(jsonEncode({'path': file.path, 'id': epoch}));
+      final hint = subtitleLanguage(player.state.track.audio.language);
+      final trackId = player.state.track.audio.id;
       final timeout = reacquiring
           ? _playbackBudget.recoveryTimeoutSeconds(window.duration)
           : 40.0;
-      final response = await future.future.timeout(
-        Duration(milliseconds: (timeout * 1000).ceil()),
+      final response = await recognizeOffline<Map<String, dynamic>>(
+        (pcmPath: file.path, audioLocale: hint),
+        isCurrent: () =>
+            !_disposed &&
+            epoch == _epoch &&
+            player.state.track.audio.id == trackId,
+        system: (request) => _recognizeWithSystem(request, epoch),
+        whisper: (request) {
+          final future = _recognition = Completer<Map<String, dynamic>>();
+          final legacy =
+              ClientSubtitleRuntime.model?.endsWith('.en-q5_1.bin') == true;
+          final workerLanguage = legacy
+              ? null
+              : request.audioLocale?.split('-').first;
+          _worker!.stdin.writeln(
+            jsonEncode({
+              'path': request.pcmPath,
+              'id': epoch,
+              'audioLanguage': ?workerLanguage,
+            }),
+          );
+          return future.future.timeout(
+            Duration(milliseconds: (timeout * 1000).ceil()),
+          );
+        },
       );
+      if (response == null) return;
       final words = response['words'] as List? ?? [];
       final seconds = response['processSeconds'];
       if (seconds is num) {
@@ -678,7 +748,21 @@ class ClientAudioSubtitles {
         'captureGapSeconds': window.gapSeconds,
         'error': response['error'],
       });
-      if (!_disposed && epoch == _epoch && response['id'] == epoch) {
+      final detected =
+          response['audioLanguage'] ??
+          (ClientSubtitleRuntime.model?.endsWith('.en-q5_1.bin') == true &&
+                  (hint == null || hint == 'en')
+              ? 'en'
+              : null);
+      final audioLanguage = detected == 'zh'
+          ? (hint == 'zh-TW' ? 'zh-TW' : 'zh-CN')
+          : subtitleLanguage(detected is String ? detected : null);
+      if (!_disposed &&
+          epoch == _epoch &&
+          response['id'] == epoch &&
+          (words.isEmpty ||
+              audioLanguage == 'en' ||
+              (_audioLanguageSupported && audioLanguage != null))) {
         await _observe(
           start,
           start + bytes.length / 32000,
@@ -686,6 +770,7 @@ class ClientAudioSubtitles {
           epoch,
           asset,
           false,
+          audioLanguage: audioLanguage,
         );
       }
     } catch (error) {

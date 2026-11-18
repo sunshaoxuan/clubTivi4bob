@@ -1,6 +1,6 @@
 """Retrieve existing subtitle files. Never invoke translation/generation actions."""
 import hashlib
-import concurrent.futures
+from subtitle_io import pool as download_pool
 import html
 from html.parser import HTMLParser
 import json
@@ -127,7 +127,7 @@ def _discover_subtitlecat(title, year, root, *, max_candidates=3, requested_lang
     # Inspect multiple editions before choosing files. A missing requested
     # language on the first result does not establish provider-wide absence.
     pages = []
-    with concurrent.futures.ThreadPoolExecutor(max_workers=4) as pool:
+    with download_pool() as pool:
         futures = [(candidate, pool.submit(read, urljoin(ORIGIN, candidate['url']))) for candidate in matches]
         for candidate, future in futures:
             try:

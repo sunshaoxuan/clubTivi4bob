@@ -57,6 +57,11 @@ class MultiTextHub:
     def event(self,kind,**facts):
         with (self.root/'client-clock-events.jsonl').open('a') as f:f.write(json.dumps(dict(event=kind,wall=time.time(),**facts))+'\n')
     @property
+    def active_session_count(self):
+        # Health must remain readable while an individual viewer is aligning.
+        return sum(len(child.sessions) for child in self.channels.copy().values())
+
+    @property
     def sessions(self):
         with self.lock:children=list(self.channels.values())
         result={}

@@ -1,6 +1,6 @@
 # Subtitle discovery and film-edition timing
 
-Each connected provider inspects every identity-matching release returned by its catalogue. Downloads use at most four workers per provider, checksum-verified movie/language caches, and bounded file/archive sizes. The providers currently integrated automatically are OpenSubtitles via its public Stremio addon, Subtitle Cat, and SubDL. Other sites in third-party directories are not implicitly integrated.
+Each connected provider inspects every identity-matching release returned by its catalogue. Downloads use a shared pool of at most eight workers across channels and providers, checksum-verified movie/language caches, and bounded file/archive sizes. The providers currently integrated automatically are OpenSubtitles via its public Stremio addon, Subtitle Cat, and SubDL. Other sites in third-party directories are not implicitly integrated.
 
 An existing English file must not stop searches for the requested language. Original title, year and a verified IMDb lookup constrain results. When a provider supplies a generic Chinese tag, distinct simplified and traditional characters are inspected after the real file is read; ambiguous generic tags stay unclassified.
 
@@ -9,3 +9,5 @@ Languages retain their original cue boundaries. Identical timestamp grids remain
 The cache recomputes this evidence when reading and writing a paired edition, verifies subtitle bytes and hashes, and never reuses a viewer's live offset as a film cache entry. Resource schema 3 refreshes previous negative searches made under the identical-grid-only policy. Failed providers remain temporarily unavailable; downloaded files without timing evidence remain pending rather than being reported as absent.
 
 Live display still requires fresh acoustic alignment, and ad intervals suspend captions. A different edition cannot replace a previously verified fallback until fresh speech confirms it.
+
+HTTP handlers are bounded to 32 concurrent requests and slow socket reads time out. Excess requests receive a retryable 503 before a thread is created, preserving capacity for subtitle retrieval and guide maintenance. Health session counts do not wait for an individual alignment lock.

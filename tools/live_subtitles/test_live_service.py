@@ -144,7 +144,7 @@ class LiveServiceTests(unittest.TestCase):
         ready=threading.Event();servers=[]
         def create(*args,**kwargs):
             server=http.server.ThreadingHTTPServer(*args,**kwargs);servers.append(server);ready.set();return server
-        with patch('service.ThreadingHTTPServer',create):
+        with patch('service.BoundedHTTPServer',create):
             thread=threading.Thread(target=serve,args=(NewHub(),'127.0.0.1',0,old.server_port),daemon=True);thread.start();self.assertTrue(ready.wait(3))
             server=servers[0];token='a'*32
             try:

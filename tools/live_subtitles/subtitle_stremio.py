@@ -1,5 +1,5 @@
 """IMDb-bound existing OpenSubtitles resources from its public Stremio addon."""
-import concurrent.futures
+from subtitle_io import pool as download_pool
 import json
 from pathlib import Path
 import re
@@ -57,7 +57,7 @@ def discover(title, year, root, *, imdb_id, max_candidates=3):
         except (OSError, ValueError, UnicodeError) as error:
             failures.append(dict(url=row.get('url'),language=row['language'],errorType=type(error).__name__,httpStatus=getattr(error,'code',None)))
             return None
-    with concurrent.futures.ThreadPoolExecutor(max_workers=4) as pool:
+    with download_pool() as pool:
         tracks = [row for row in pool.map(download, selected) if row]
     results = []
     for english in [row for row in tracks if row['language'] == 'en']:

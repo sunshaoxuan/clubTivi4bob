@@ -202,11 +202,14 @@ class AdaptiveBufferManager {
     final expectedPlayer = ps.player;
     final config = <String, String>{
       ...(_tierConfig[tier] ?? _tierConfig['normal']!),
-      if (isReviewedRakutenUkMovieSource(_currentUrl ?? ''))
+      if (_speechBufferRequired ||
+          isReviewedRakutenUkMovieSource(_currentUrl ?? ''))
         'cache-pause-initial': 'yes',
       if (Platform.isAndroid &&
-          isReviewedRakutenUkMovieSource(_currentUrl ?? ''))
-        'cache-pause-wait': '8',
+          (_speechBufferRequired ||
+              isReviewedRakutenUkMovieSource(_currentUrl ?? '')))
+        // Match the first-inference reserve before playback consumes it.
+        'cache-pause-wait': '16',
     };
     for (final entry in config.entries) {
       if (_currentUrl != expectedUrl || !identical(ps.player, expectedPlayer))

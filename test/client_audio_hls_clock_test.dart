@@ -64,6 +64,34 @@ void main() {
   final origin = Uri.parse(
     'https://action-rakuten-tv-uk.fast.rakuten.tv/live/playlist.m3u8',
   );
+  test('mobile speech playback leaves headroom below the 720p rendition', () {
+    final master = Uri.parse(
+      'https://comedy-rakuten-tv-uk.fast.rakuten.tv/v1/master/key/master.m3u8',
+    );
+    const body = '''#EXTM3U
+#EXT-X-STREAM-INF:BANDWIDTH=588261,RESOLUTION=448x252
+low.m3u8
+#EXT-X-STREAM-INF:BANDWIDTH=1014403,RESOLUTION=768x432
+medium.m3u8
+#EXT-X-STREAM-INF:BANDWIDTH=1613850,RESOLUTION=768x432
+balanced.m3u8
+#EXT-X-STREAM-INF:BANDWIDTH=2912258,RESOLUTION=1280x720
+high.m3u8
+''';
+    expect(
+      selectActionMoviesMedia(
+        body,
+        master,
+        maxBandwidth: 1800000,
+        allowBoundEpgSource: true,
+      ).path,
+      endsWith('/balanced.m3u8'),
+    );
+    expect(
+      selectActionMoviesMedia(body, master, allowBoundEpgSource: true).path,
+      endsWith('/high.m3u8'),
+    );
+  });
   test(
     'clock follows requested media, short adverts and sliding manifests',
     () {

@@ -2,7 +2,6 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:math' as math;
-import 'dart:typed_data';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:media_kit/media_kit.dart';
@@ -11,6 +10,7 @@ import '../../core/server_egress.dart';
 import 'hls_buffer_proxy.dart';
 import 'source_clock.dart';
 import 'client_subtitle_runtime.dart';
+import 'client_audio_window.dart';
 import 'live_subtitle_timeline.dart';
 import 'subtitle_policy.dart';
 import 'subtitle_preferences.dart';
@@ -62,7 +62,8 @@ class ClientAudioSubtitles {
   String? _asset;
   bool? _ad;
   double _lastEnd = -1, _lastAnalysisEnd = -1;
-  final _chunks = <({double start, Uint8List bytes})>[];
+  final _chunks = <PcmChunk>[];
+  final _playbackBudget = SpeechPlaybackBudget();
   List<String> _languages = [];
   DateTime _lastResponse = DateTime(1970);
   int uploadedBytes = 0, downloadedBytes = 0;
@@ -555,7 +556,7 @@ class ClientAudioSubtitles {
       _chunks.removeWhere(
         (c) => c.start + c.bytes.length / 32000 < end - windowSeconds,
       );
-      final duration = _chunks.isEmpty ? 0 : end - _chunks.first.start;
+      final duration = _chunks.isEmpty ? 0.0 : end - _chunks.first.start;
       if (!_recognizing &&
           duration >= (reacquiring ? 6 : 12) &&
           end - _lastAnalysisEnd >=
@@ -566,9 +567,10 @@ class ClientAudioSubtitles {
           final buffered = double.tryParse(
             await native.getProperty('demuxer-cache-duration'),
           );
-          // A cold first inference took 31 s while a 4 s cache drained.
-          // Reserve decoded media before competing for mobile CPU time.
-          final minimum = _coldRecognition ? 16.0 : 8.0;
+          final minimum = _playbackBudget.minimumSeconds(
+            duration,
+            cold: _coldRecognition,
+          );
           final ready =
               buffered != null && buffered.isFinite && buffered >= minimum;
           if (_waitingForPlaybackBuffer == ready) {
@@ -635,12 +637,10 @@ class ClientAudioSubtitles {
     try {
       final chunks = _chunks.toList();
       if (chunks.isEmpty || _directory == null || _disposed) return;
-      final start = chunks.first.start;
-      final data = BytesBuilder(copy: false);
-      for (final c in chunks) {
-        data.add(c.bytes);
-      }
-      final bytes = data.takeBytes();
+      final window = buildPcmWindow(chunks);
+      if (window == null || window.bytes.isEmpty) return;
+      final start = window.start;
+      final bytes = window.bytes;
       final directory = _directory!;
       await directory.create(recursive: true);
       if (_disposed) return;
@@ -650,6 +650,10 @@ class ClientAudioSubtitles {
       _worker!.stdin.writeln(jsonEncode({'path': file.path, 'id': epoch}));
       final response = await future.future.timeout(const Duration(seconds: 40));
       final words = response['words'] as List? ?? [];
+      final seconds = response['processSeconds'];
+      if (seconds is num) {
+        _playbackBudget.record(window.duration, seconds.toDouble());
+      }
       _workerFailures = 0;
       if (words.isNotEmpty) _coldRecognition = false;
       AppDiagnostics.instance.log('client_asr_window', {
@@ -658,6 +662,7 @@ class ClientAudioSubtitles {
         'end': start + bytes.length / 32000,
         'words': words.length,
         'processSeconds': response['processSeconds'],
+        'captureGapSeconds': window.gapSeconds,
         'error': response['error'],
       });
       if (!_disposed && epoch == _epoch && response['id'] == epoch) {

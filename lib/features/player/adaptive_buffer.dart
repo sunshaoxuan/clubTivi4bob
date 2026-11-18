@@ -209,7 +209,7 @@ class AdaptiveBufferManager {
           (_speechBufferRequired ||
               isReviewedRakutenUkMovieSource(_currentUrl ?? '')))
         // Match the first-inference reserve before playback consumes it.
-        'cache-pause-wait': '16',
+        'cache-pause-wait': '24',
     };
     for (final entry in config.entries) {
       if (_currentUrl != expectedUrl || !identical(ps.player, expectedPlayer))

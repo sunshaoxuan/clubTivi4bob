@@ -446,11 +446,20 @@ class HlsBufferProxy {
         }
         final body = utf8.decode(bytes);
         if (body.contains('#EXT-X-STREAM-INF:')) {
+          final maxBandwidth = Platform.isAndroid && captureClock
+              ? 1800000
+              : 3000000;
           origin = selectActionMoviesMedia(
             body,
             origin,
+            // Leave mobile decode/network headroom for offline speech.
+            maxBandwidth: maxBandwidth,
             allowBoundEpgSource: true,
           );
+          AppDiagnostics.instance.log('client_hls_rendition_policy', {
+            'maxBandwidth': maxBandwidth,
+            'mobileSpeech': Platform.isAndroid && captureClock,
+          });
         }
       } catch (_) {
         client.close(force: true);

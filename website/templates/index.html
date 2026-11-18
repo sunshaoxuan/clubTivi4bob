@@ -37,7 +37,6 @@
       <p>{{ s.catalog_stats[0] }} · <time datetime="{{ catalog.date }}">{{ catalog.date }}</time></p>
     </div>{% endif %}
   </div>
-  {% include "subtitles-feature.html" %}
   <section id="discover" data-scroll-scene class="showcase-section" aria-labelledby="discover-title">
     <div class="container">
       <div class="section-heading">
@@ -90,6 +89,9 @@
       </div>
     </div>
   </section>
+  {% if image == "signals" %}
+  {% include "subtitles-feature.html" %}
+  {% endif %}
   {% endfor %}
   <section data-scroll-scene class="showcase-section player-section" aria-labelledby="player-title">
     <div class="container feature-layout">

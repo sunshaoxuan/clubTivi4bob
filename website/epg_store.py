@@ -5,6 +5,7 @@ remain unapproved. Fixture publication tests never write to production data.
 """
 from datetime import datetime, timezone
 import gzip
+from contextlib import nullcontext
 import hashlib
 import json
 import os
@@ -134,7 +135,7 @@ def reviewed_data_use(conn, source_id):
 
 
 def approve_data_use(conn, source_id, *, source_url, evidence_url, data_license,
-                     programme_data_permission=False, attribution=None, now=None):
+                     programme_data_permission=False, attribution=None, now=None, in_transaction=False):
     """Trusted administrator entry point; a code license alone is insufficient."""
     if programme_data_permission is not True or not isinstance(data_license, str) or not data_license.strip():
         raise EpgError('programme_data_permission_required')
@@ -145,7 +146,7 @@ def approve_data_use(conn, source_id, *, source_url, evidence_url, data_license,
         raise EpgError('source_url_mismatch')
     _validate_data_attribution(json.loads(row['configuration']), data_license, attribution)
     approved_at = int(time.time() if now is None else now)
-    with conn:
+    with (nullcontext() if in_transaction else conn):
         conn.execute('INSERT OR REPLACE INTO epg_data_grants VALUES(?,?,?,?,?,0)',
             (source_id, source_url, evidence_url, data_license, approved_at))
         conn.execute('DELETE FROM epg_data_attributions WHERE source_id=?', (source_id,))
@@ -173,7 +174,7 @@ def source_identity(row):
 
 
 def approve_mapping(conn, channel_id, source_id, original_id, *, evidence,
-                    confidence=1.0, locked=True, now=None):
+                    confidence=1.0, locked=True, now=None, in_transaction=False):
     """Explicit context review, with immutable identity fingerprints and locks."""
     job = conn.execute('SELECT * FROM discovery_jobs WHERE channel_id=? AND active=1', (channel_id,)).fetchone()
     source = conn.execute('''SELECT i.*,c.context_json FROM source_identities i
@@ -204,7 +205,7 @@ def approve_mapping(conn, channel_id, source_id, original_id, *, evidence,
     identity_hash = source_identity(source)
     if previous and previous['locked'] and (previous['source_id'], previous['original_id'], previous['catalog_identity_hash'], previous['source_identity_hash']) != (source_id, original_id, job['identity_hash'], identity_hash):
         raise EpgError('mapping_locked')
-    with conn:
+    with (nullcontext() if in_transaction else conn):
         conn.execute('INSERT OR REPLACE INTO epg_mapping_approvals VALUES(?,?,?,?,?,?,?,?,?,0)',
             (channel_id, job['identity_hash'], source_id, original_id, identity_hash, confidence,
              json.dumps(evidence, sort_keys=True), int(time.time() if now is None else now), int(locked)))
@@ -220,6 +221,12 @@ def _approved(conn, channel_id):
       WHERE a.channel_id=? AND a.revoked=0''', (channel_id,)).fetchone()
     if not row:
         raise EpgError('approved_mapping_and_data_grant_required')
+    if json.loads(row['evidence']).get('automaticAdmission') == 'first_party_xmltv_cc0_v1':
+        last_proof = conn.execute("""SELECT error_code FROM probe_audit WHERE source_id=?
+            AND (state='healthy' OR error_code='automatic_source_proof_changed')
+            ORDER BY id DESC LIMIT 1""", (row['source_id'],)).fetchone()
+        if not last_proof or last_proof[0]:
+            raise EpgError('current_data_use_review_required')
     if row['catalog_identity_hash'] != row['identity_hash'] or row['source_identity_hash'] != source_identity(row):
         raise EpgError('mapping_identity_drift')
     if row['data_license'] in ('CC BY-SA 4.0', 'Open Government Data License 1.0') and not conn.execute(

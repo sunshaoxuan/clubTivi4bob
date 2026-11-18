@@ -22,16 +22,18 @@ def capture(conn, directory, now):
     if hashlib.sha256(raw).hexdigest() != manifest['sha256']:
         return result
     payload = json.loads(gzip.decompress(raw))
-    approved = set()
+    approved = {}
     for item in payload['channels']:
         try:
-            store._approved(conn, item['id'])
-            approved.add(item['id'])
+            parent = (item.get('routeBinding') or {}).get('catalogChannelId', item['id'])
+            mapping = store._approved(conn, parent)
+            if store.published_channel(mapping) == item:
+                approved[item['id']] = parent
         except (ValueError, TypeError, KeyError):
             continue
     current = {p['channelId'] for p in payload['programmes'] if p['startUtc'] <= now < p['stopUtc']}
     future = {p['channelId'] for p in payload['programmes'] if p['startUtc'] > now}
-    ids = sorted(current & future & approved)
+    ids = sorted({approved[key] for key in current & future & approved.keys()})
     if len(ids) == coverage['publishedCurrentAndFutureChannels']:
         result['publishedIds'] = ids
     return result

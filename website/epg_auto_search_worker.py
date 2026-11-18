@@ -438,6 +438,8 @@ def run(conn, manifest, channels, paths, settings_factory, shared_database, *, m
     if source_directory is not None:
         result['sourceValidation'] = review.validate_one_source(conn, source_directory, now,
             preferred_ids=recovery.eligible_ids(conn, now))
+        for key in ('newMappings', 'newGrants'):
+            result[key] += result['sourceValidation'].get(key, 0)
     # Opt-in exact-route metadata is separate from model admission. It only
     # observes the selected target and cannot grant identity or EPG rights.
     pause = read_checkpoint(conn, CONTROL)

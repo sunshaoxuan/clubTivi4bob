@@ -645,7 +645,8 @@ def validate_one_source(conn, directory, now, *, fetcher=None, preferred_ids=())
                     fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
                 except BlockingIOError:
                     return {'state': 'validator_busy', 'attemptedSources': 0}
-                outcome = probe_batch(directory, [source], now=now, fetcher=fetcher, batch_size=1)
+                outcome = probe_batch(directory, [source], now=now, fetcher=fetcher, batch_size=1,
+                    admission_target=(candidate['channel_id'], candidate['identity_hash']))
         health = conn.execute('SELECT * FROM source_health WHERE id=?', (source['id'],)).fetchone()
         from epg_store import reviewed_data_use
         rights = reviewed_data_use(conn, source['id'])
@@ -656,13 +657,19 @@ def validate_one_source(conn, directory, now, *, fetcher=None, preferred_ids=())
         state = ('waiting_access' if health['state'] == 'manual_review' else
                  'source_quality_retry' if health['last_error'] or not health['last_success'] else
                  'programme_data_permission_required' if not rights else 'exact_feed_mapping_review_required')
+        approved = conn.execute('SELECT evidence FROM epg_mapping_approvals WHERE channel_id=? AND source_id=? AND revoked=0',
+                                (candidate['channel_id'], source['id'])).fetchone()
+        automatic = bool(approved and json.loads(approved['evidence']).get('automaticAdmission') == 'first_party_xmltv_cc0_v1')
+        if automatic:
+            state = 'automatic_admission_approved'
         receipt = {'url': url, 'sourceId': source['id'], 'state': state,
             'healthState': health['state'], 'sourceNextRetryAtUtc': health['next_retry'],
             'sourceLastSuccessAtUtc': health['last_success'], 'safeError': health['last_error'],
             'quality': json.loads(health['last_good_quality'] or 'null'),
             'exactFullNameSourceCandidates': selected[:5], 'programmeDataRightsVerified': bool(rights),
             'sourceValidatorRequests': outcome['attemptedSources'], 'rawProgrammeCacheGranted': False,
-            'newMappings': 0, 'newGrants': 0, 'published': False}
+            'newMappings': outcome.get('automaticAdmissions', 0),
+            'newGrants': outcome.get('automaticAdmissions', 0), 'published': False}
         with conn:
             conn.execute('''UPDATE epg_research_source_candidates SET state=?,checked_at=?,evidence=?
               WHERE channel_id=? AND identity_hash=? AND url=?''',

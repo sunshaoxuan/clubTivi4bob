@@ -243,6 +243,11 @@ def fetch(source, opener=None, clock=time.monotonic):
                 'sourceUrl': source['url'], 'finalUrl': url,
                 'lastModified': response.headers.get('Last-Modified'),
                 'cacheControl': response.headers.get('Cache-Control'),
+                **({'explicitProgrammeLicense': 'CC0-1.0'}
+                   if source.get('id', '').startswith('channel-xmltv-') and url == source['url']
+                   and re.fullmatch(r'<https://creativecommons\.org/publicdomain/zero/1\.0/>\s*;\s*rel=(?:"license"|license)',
+                       response.headers.get('Link', '').strip(), re.I)
+                   and len(response.headers.get_all('Link', [])) == 1 else {}),
             }
     raise EpgError('redirect_limit')
 
@@ -312,11 +317,12 @@ def timestamp(value):
         raise EpgError('invalid_timestamp') from None
 
 
-def parse_xmltv(payload, now=None):
+def parse_xmltv(payload, now=None, *, include_route_proof=False):
     now = int(time.time() if now is None else now)
     raw, doctype_removed = _strip_standard_xmltv_doctype(_decode_payload(payload))
     channels, ambiguous, candidates = {}, set(), defaultdict(list)
     rejected, count = Counter(), 0
+    route_proofs = {}
     try:
         events = ET.iterparse(io.BytesIO(raw), events=('start', 'end'))
         event, root = next(events)
@@ -334,6 +340,16 @@ def parse_xmltv(payload, now=None):
                     ambiguous.add(identity)
                 else:
                     channels[identity] = names
+                    if include_route_proof:
+                        links = item.findall('url')
+                        proof = None
+                        if len(links) == 1 and links[0].text and len(links[0].text) <= 4096:
+                            url = links[0].text.strip()
+                            parts = urlsplit(url)
+                            if parts.scheme == 'https' and parts.hostname and not (
+                                    parts.query or parts.fragment or parts.username or parts.password):
+                                proof = (parts.netloc.lower(), hashlib.sha256(url.encode()).hexdigest())
+                        route_proofs[identity] = None if identity in route_proofs else proof
                 if len(channels) > MAX_CHANNELS:
                     raise EpgError('channel_limit')
                 item.clear()
@@ -392,7 +408,8 @@ def parse_xmltv(payload, now=None):
             programmes.append(row)
     current = {p['originalChannelId'] for p in programmes if p['startUtc'] <= now < p['endUtc']}
     future = {p['originalChannelId'] for p in programmes if p['startUtc'] > now}
-    return {'channels': channels, 'programmes': programmes, 'quality': {
+    return {'channels': channels, 'programmes': programmes,
+        **({'routeProofs': route_proofs} if include_route_proof else {}), 'quality': {
         **({'standardXmltvDoctypeRemoved': True, 'externalDtdResolved': False} if doctype_removed else {}),
         'declaredChannels': len(channels) + len(ambiguous),
         'usableChannels': len(channels), 'ambiguousChannelIds': sorted(ambiguous),
@@ -488,7 +505,7 @@ def seed_cached_identities(directory, sources, cache_directory, now=None):
         conn.close()
 
 
-def probe_batch(directory, sources, now=None, fetcher=None, batch_size=1):
+def probe_batch(directory, sources, now=None, fetcher=None, batch_size=1, admission_target=None):
     """One serial fetch per run by default, checkpointed and idempotent when idle."""
     if type(batch_size) is not int or not 1 <= batch_size <= 5:
         raise EpgError('batch_size_limit')
@@ -519,6 +536,7 @@ def probe_batch(directory, sources, now=None, fetcher=None, batch_size=1):
                         conn.execute('INSERT INTO probe_audit(source_id,checked_at,state,error_code) VALUES(?,?,?,?)',
                             (old_id, now, 'superseded', 'reviewed_configuration_replacement'))
         attempted = 0
+        automatic_admissions = 0
         for source in sources:
             row = conn.execute('SELECT * FROM source_health WHERE id=?', (source['id'],)).fetchone()
             if row['state'] == 'manual_review':
@@ -559,7 +577,12 @@ def probe_batch(directory, sources, now=None, fetcher=None, batch_size=1):
             try:
                 payload, metadata = fetcher(source) if fetcher is not None else fetch_source(source, now)
                 digest = hashlib.sha256(payload).hexdigest()
-                parsed = parse_source(source, payload, now)
+                if source['id'].startswith('channel-xmltv-') and source.get('format') == 'xmltv':
+                    from epg_auto_admit import check_refresh
+                    parsed = parse_xmltv(payload, now, include_route_proof=True)
+                    check_refresh(conn, source, metadata, parsed)
+                else:
+                    parsed = parse_source(source, payload, now)
                 quality = parsed['quality']
                 if not quality['acceptedProgrammes']:
                     raise EpgError('empty_or_expired_data')
@@ -617,6 +640,9 @@ def probe_batch(directory, sources, now=None, fetcher=None, batch_size=1):
                 # Unapproved sources remain metadata-only diagnostics.
                 from epg_store import cache_validated_payload
                 try:
+                    if admission_target and source['id'].startswith('channel-xmltv-'):
+                        from epg_auto_admit import admit
+                        automatic_admissions += int(admit(conn, admission_target, source, metadata, parsed, now))
                     if source.get('format') == 'taipei-monthly-csv':
                         from epg_taipei import refresh_existing_credit
                         refresh_existing_credit(conn, quality['resourceTitle'])
@@ -627,6 +653,7 @@ def probe_batch(directory, sources, now=None, fetcher=None, batch_size=1):
                             (source['id'], now, 'cache_failed', 'programme_cache_handoff_failed'))
         return {'schemaVersion': 1, 'stage': 'source_validation', 'checkedAtUtc': now,
             'attemptedSources': attempted, 'published': False,
+            **({'automaticAdmissions': automatic_admissions} if admission_target else {}),
             'sources': [dict(row) for row in conn.execute('SELECT * FROM source_health ORDER BY id')]}
     finally:
         conn.close()
@@ -644,7 +671,16 @@ def main():
         except BlockingIOError:
             print(json.dumps({'state': 'already_running'}))
             return
+        from epg_auto_admit import due_source
+        conn = database(args.data_dir)
+        try:
+            auto = due_source(conn, int(time.time()))
+        finally:
+            conn.close()
         result = probe_batch(args.data_dir, registry(args.registry))
+        if auto:
+            auto_result = probe_batch(args.data_dir, auto)
+            result['automaticSourceRefreshAttempts'] = auto_result['attemptedSources']
         print(json.dumps(result, ensure_ascii=False))
 
 

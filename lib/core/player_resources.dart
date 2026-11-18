@@ -196,7 +196,6 @@ class ManagedPlayer extends Player {
         'reason': force ? 'media_pipe_ended' : 'media_buffer_timeout',
       });
       await _openPlayable(media, play: true, discoverSubtitles: false);
-      liveSubtitles.deferMediaRetry();
     }
 
     try {

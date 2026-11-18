@@ -72,6 +72,43 @@ void main() {
     SubtitlePreferences.instance.initialize(null);
     SubtitlePreferences.instance.choose(AppLanguage.english);
   });
+  for (final endpoint in [
+    'https://bobtv.briconbric.com/api/v1/subtitles/',
+    'https://cndrp.com/bobtv/api/v1/subtitles/',
+  ]) {
+    test(
+      'non-pilot with EPG reports pending integration at $endpoint',
+      () async {
+        var requests = 0;
+        var programmeLookups = 0;
+        final player = _Player();
+        final selection = NativeSubtitleSelection(player);
+        final session = LiveSubtitleSession(
+          player,
+          selection,
+          serviceEndpoint: endpoint,
+          programmeLookup: (_) async {
+            programmeLookups++;
+            return {'key': 'sunshine-cleaning', 'title': 'Sunshine Cleaning'};
+          },
+          client: MockClient((_) async {
+            requests++;
+            return http.Response('', 502);
+          }),
+        );
+        const source = 'https://comedy-rakuten-tv-uk.fast.rakuten.tv/live.m3u8';
+        expect(await session.prepare(source), source);
+        session.activate();
+        expect(session.status.value, SubtitlePhase.channelUnsupported);
+        expect(session.text.value, isEmpty);
+        expect(requests, 0);
+        expect(programmeLookups, 0);
+        expect(player.state.position, const Duration(seconds: 1));
+        await session.dispose();
+        await selection.dispose();
+      },
+    );
+  }
   test(
     'pending search and confirmed absence are distinct and do not move playback',
     () async {
@@ -87,7 +124,10 @@ void main() {
       final preparing = session.prepare('channel');
       expect(session.status.value, SubtitlePhase.searching);
       response.complete(
-        http.Response(jsonEncode({...reply(phase: 'unavailable'), 'windows': []}), 200),
+        http.Response(
+          jsonEncode({...reply(phase: 'unavailable'), 'windows': []}),
+          200,
+        ),
       );
       await preparing;
       session.activate();

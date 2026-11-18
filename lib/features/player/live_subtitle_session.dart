@@ -83,6 +83,15 @@ class LiveSubtitleSession {
     final generation = _generation;
     _phase = SubtitlePhase.searching;
     _render();
+    // Production external subtitles currently cover only the reviewed pilot.
+    // Other channels retain native tracks without querying the retired service.
+    final serviceHost = Uri.tryParse(serviceEndpoint)?.host;
+    if (const {'bobtv.briconbric.com', 'cndrp.com'}.contains(serviceHost) &&
+        !isActionMoviesUk(source)) {
+      _phase = SubtitlePhase.channelUnsupported;
+      _render();
+      return source;
+    }
     await ClientSubtitleRuntime.initialize();
     if (_disposed || generation != _generation) return source;
     if (ClientAudioSubtitles.supported &&

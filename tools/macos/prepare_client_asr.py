@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Build offline speech workers for every architecture of the application."""
 import argparse
+import os
 import hashlib
 import json
 from pathlib import Path
@@ -10,8 +11,12 @@ import urllib.request
 
 ROOT = Path(__file__).resolve().parents[2]
 COMMIT = '4979e04f5dcaccb36057e059bbaed8a2f5288315'
-MODEL = 'ggml-base-q5_1.bin'
-MODEL_SHA = '422f1ae452ade6f30a004d7e5c6a43195e4433bc370bf23fac9cc591f01a8898'
+MODEL = 'ggml-base.en-q5_1.bin'
+MODEL_SHA = '4baf70dd0d7c4247ba2b81fafd9c01005ac77c2f9ef064e00dcf195d0e2fdd2f'
+
+if os.environ.get('BOBTV_ASR_MULTILINGUAL') == '1':
+    MODEL = 'ggml-base-q5_1.bin'
+    MODEL_SHA = '422f1ae452ade6f30a004d7e5c6a43195e4433bc370bf23fac9cc591f01a8898'
 
 
 def run(*args):
@@ -56,6 +61,10 @@ def prepare(app, cmake):
         outputs.append(binary)
     target = app / 'Contents/Resources/ClientASR'
     target.mkdir(parents=True, exist_ok=True)
+    # A reused build directory must not select the previous QA model.
+    for stale in ('ggml-base-q5_1.bin', 'ggml-base.en-q5_1.bin'):
+        if stale != MODEL:
+            (target / stale).unlink(missing_ok=True)
     run('lipo', '-create', *outputs, '-output', target / 'bobtv-client-asr')
     for file in (model, source / 'LICENSE', ROOT / 'tools/native/client_asr.cpp'):
         shutil.copy2(file, target / file.name)

@@ -5,6 +5,7 @@ No release assets or installed apps are changed. The emitted runtime lock is
 passed explicitly with BOBTV_AUDIO_RUNTIME_LOCK to the development build.
 """
 import argparse
+import os
 import hashlib
 import json
 from pathlib import Path
@@ -13,10 +14,16 @@ import zipfile
 import urllib.request
 ROOT=Path(__file__).resolve().parents[2]
 ABIS={'arm':'armeabi-v7a','arm64':'arm64-v8a','x64':'x86_64'}
-MODEL='ggml-base-q5_1.bin'
-SHA='422f1ae452ade6f30a004d7e5c6a43195e4433bc370bf23fac9cc591f01a8898'
-TINY='ggml-tiny-q5_1.bin'
-TINY_SHA='818710568da3ca15689e31a743197b520007872ff9576237bda97bd1b469c3d7'
+MODEL='ggml-base.en-q5_1.bin'
+SHA='4baf70dd0d7c4247ba2b81fafd9c01005ac77c2f9ef064e00dcf195d0e2fdd2f'
+TINY='ggml-tiny.en-q5_1.bin'
+TINY_SHA='c77c5766f1cef09b6b7d47f21b546cbddd4157886b3b5d6d4f709e91e66c7c2b'
+if os.environ.get('BOBTV_ASR_MULTILINGUAL') == '1':
+    MODEL = 'ggml-base-q5_1.bin'
+    SHA = '422f1ae452ade6f30a004d7e5c6a43195e4433bc370bf23fac9cc591f01a8898'
+    TINY = 'ggml-tiny-q5_1.bin'
+    TINY_SHA = '818710568da3ca15689e31a743197b520007872ff9576237bda97bd1b469c3d7'
+
 def digest(p):return hashlib.sha256(p.read_bytes()).hexdigest()
 def stage(artifacts,output,arches):
     output.mkdir(parents=True,exist_ok=True)
@@ -89,7 +96,9 @@ def stage(artifacts,output,arches):
             assert digest(source)==expected
             archive.write(source,'bobtv-client-subtitles/'+name)
     lock['clientSubtitleModels']=dict(filename=models.name,sha256=digest(models),url=models.as_uri())
-    for name in [MODEL,TINY]:(assets/name).unlink(missing_ok=True)
+    for name in ['ggml-base-q5_1.bin','ggml-tiny-q5_1.bin',
+                 'ggml-base.en-q5_1.bin','ggml-tiny.en-q5_1.bin']:
+        (assets/name).unlink(missing_ok=True)
     (output/'runtime-lock.json').write_text(json.dumps(lock,indent=2))
     print(output/'runtime-lock.json')
 if __name__=='__main__':

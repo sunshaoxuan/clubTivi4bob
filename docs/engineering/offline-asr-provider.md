@@ -1,9 +1,11 @@
 # Offline ASR provider integration
 
-Build scripts select pinned multilingual weights, optional macOS and Windows
-helpers use installed system models, and the server advertises language-aware
-alignment. Android uses local Whisper only. This code does not change installed
-apps, released packages, or deployed subtitle services.
+Release builds select pinned English tiny/base weights. Set
+`BOBTV_ASR_MULTILINGUAL=1` for experimental multilingual model builds only.
+The multilingual profile has not passed live advert recovery latency gates.
+All seven subtitle display languages remain supported independently of the
+English audio recognition profile. Optional macOS and Windows helpers use
+installed system models. Android uses local Whisper only.
 
 The shared policy accepts the decoded PCM window and its audio-track locale.
 It treats a confirmed silent window as valid and discards late results after
@@ -29,8 +31,8 @@ Provider and compatibility notes:
   microphone. Whisper reads only the bounded player PCM file.
 - The client sends non-English observations only when the server advertises
   audioLanguageV1. The server uses a same-language reference from the existing
-  validated subtitle edition. Sources without an English-backed cue grid
-  remain unsupported by the existing cache contract. Verify real speech and
+  validated subtitle edition. Resources require a verified English-backed edition; independently segmented
+  language cues are accepted after distributed timing evidence validation. Verify real speech and
   advert/reconnect behavior across locales before rollout.
 
 QA artifacts include Android ARM, ARM64 and x64 debug APKs with verified

@@ -54,6 +54,13 @@ def prepare(platform, arch, output):
                 for member in archive.namelist():
                     if '\\' in member or Path(member).is_absolute() or '..' in Path(member).parts:
                         raise RuntimeError('Unsafe runtime archive member')
+                # Remove only obsolete model data from the owned runtime output.
+                names = set(archive.namelist())
+                for model in ('ggml-base-q5_1.bin', 'ggml-tiny-q5_1.bin',
+                              'ggml-base.en-q5_1.bin', 'ggml-tiny.en-q5_1.bin'):
+                    member = 'data/ClientASR/' + model
+                    if member not in names:
+                        (output / member).unlink(missing_ok=True)
                 archive.extractall(output)
     print(output.resolve())
 

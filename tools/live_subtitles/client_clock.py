@@ -156,13 +156,11 @@ class TextHub:
                 if not isinstance(speech,str) or speech not in LANGUAGES:raise ValueError('unsupported_language')
                 prior_speech=session.get('audioLanguage')
                 if prior_speech is not None and speech!=prior_speech:
-                    if delayed or epoch<=session['audioLanguageEpoch']:return
-                    for key in ('priorReference','lastMatchedReference','sourceModel','transportAt','pendingTransport','candidateKey','priorRate','priorRateVerified','priorAsset','adStart','adClockStart','acceptedClock','editionSwitch','clockJump'):
-                        session.pop(key,None)
-                    session.update(reference=None,windows=[],intercept=None,rate=1.,rateVerified=False,
-                                   points={},pendingAnchors={},unmatchedWindows=0,exhausted=False)
-                session['audioLanguage']=speech
-                session['audioLanguageEpoch']=epoch
+                    if delayed or epoch<session['audioLanguageEpoch']:return
+                    # A noisy auto-detected window cannot replace a verified
+                    # language in the same audio epoch. Before a lock, a later
+                    # usable window may correct the initial language guess.
+                    if epoch==session['audioLanguageEpoch'] and session.get('rateVerified',False):return
                 if prior_speech!=speech and hasattr(self,'requested_languages'):
                     self.fetch_subtitles(speech)
             changed=(session['epoch']!=epoch or session['asset']!=asset or session['programmeKey']!=self.programme['key'])
@@ -204,7 +202,6 @@ class TextHub:
                 trial += [c for c in self.candidates or [] if c not in trial]
             selected=None
             for candidate in trial:
-                speech=session.get('audioLanguage','en')
                 cues=candidate['tracks'].get(speech)
                 if cues is None:continue
                 candidate_rate=session['rate'] if session.get('candidateKey')==candidate['page'] else session.get('priorRate',1.) if candidate is prior else 1.
@@ -212,11 +209,12 @@ class TextHub:
                 # Accumulate distinct, exact cue-onset matches across overlapping
                 # windows. Epoch/asset changes clear this evidence completely.
                 fresh_ids={a['cue'] for a in anchors}
-                pending=session.setdefault('pendingAnchors',{}).setdefault(candidate['page'],{})
+                pending_key=speech+':'+candidate['page']
+                pending=session.setdefault('pendingAnchors',{}).setdefault(pending_key,{})
                 for anchor in anchors:
                     pending[anchor['cue']]=anchor
                 pending={key:a for key,a in pending.items() if end-120 <= a['asrStart'] <= end}
-                session['pendingAnchors'][candidate['page']]=pending
+                session['pendingAnchors'][pending_key]=pending
                 accumulated=list(pending.values())
                 known_rate=(session.get('candidateKey')==candidate['page'] and session.get('rateVerified',False) or candidate is prior and session.get('priorRateVerified',False))
                 rates=[candidate_rate] if known_rate else [1.,24/25,(24000/1001)/25,25/24,25/(24000/1001)]
@@ -242,6 +240,9 @@ class TextHub:
                     _,_,candidate_rate,offset,anchors=max(hypotheses,key=lambda h:(h[0],h[1]))
                 if offset is not None:selected=(candidate,anchors,candidate_rate);break
             if selected is None:
+                if prior_speech is not None and speech!=prior_speech:
+                    self.event('unmatched_speech_language',session=token,epoch=epoch,language=speech)
+                    return
                 if len(words)>=10:
                     session['unmatchedWindows']+=1;session['exhausted']=not projected and session['unmatchedWindows']>=3
                     if not projected:
@@ -249,6 +250,12 @@ class TextHub:
                     self.event('unmatched_speech',session=token,start=start,end=end,words=len(words))
                 return
             candidate,anchors,selected_rate=selected
+            if prior_speech is not None and speech!=prior_speech:
+                for key in ('priorReference','lastMatchedReference','sourceModel','transportAt','pendingTransport','candidateKey','priorRate','priorRateVerified','priorAsset','adStart','adClockStart','acceptedClock','editionSwitch','clockJump'):
+                    session.pop(key,None)
+                session.update(reference=None,windows=[],intercept=None,rate=1.,rateVerified=False,points={},unmatchedWindows=0,exhausted=False)
+            session['audioLanguage']=speech
+            session['audioLanguageEpoch']=epoch
             if session.get('adStart') is not None:
                 exact=[a for a in anchors if not a.get('fuzzyPrefix') and a['words']>=4]
                 if len({a['cue'] for a in exact})<2 or max(a['asrStart'] for a in exact)-min(a['asrStart'] for a in exact)<2:

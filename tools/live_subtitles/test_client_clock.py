@@ -8,6 +8,26 @@ from unittest.mock import patch
 from client_clock import TextHub
 
 class ClientClockTests(unittest.TestCase):
+    def test_unmatched_initial_language_does_not_poison_later_same_epoch_speech(self):
+        with tempfile.TemporaryDirectory() as d:
+            h=self.hub(d);token=h.create(h.source,None,'en',['clientClockV1'])
+            h.ingest(token,self.observation(h,audioLanguage='ja',words=[dict(word='これは一致しない文章です',start=1,end=2,probability=.99)]))
+            self.assertNotIn('audioLanguage',h.sessions[token])
+            candidate=h.candidates[0]
+            words=[dict(word=cue['text'],start=i*3,end=i*3+1,probability=.99) for i,cue in enumerate(candidate['tracks']['en'][:3],1)]
+            h.ingest(token,self.observation(h,serial=2,audioLanguage='en',words=words))
+            self.assertIs(h.sessions[token]['reference'],candidate)
+            self.assertEqual(h.sessions[token]['audioLanguage'],'en')
+
+    def test_unmatched_auto_language_preserves_existing_acoustic_evidence(self):
+        with tempfile.TemporaryDirectory() as d:
+            h=self.hub(d);token=h.create(h.source,None,'en',['clientClockV1']);candidate=h.candidates[0]
+            words=[dict(word=cue['text'],start=i*3,end=i*3+1,probability=.99) for i,cue in enumerate(candidate['tracks']['en'][:3],1)]
+            h.ingest(token,self.observation(h,words=words))
+            h.ingest(token,self.observation(h,serial=2,audioLanguage='ja',words=[dict(word='これは一致しない文章です',start=1,end=2,probability=.99)]))
+            self.assertIs(h.sessions[token]['reference'],candidate)
+            self.assertEqual(h.sessions[token]['audioLanguage'],'en')
+
     def test_japanese_audio_locks_japanese_cues_even_when_display_is_english(self):
         with tempfile.TemporaryDirectory() as d:
             h=self.hub(d)

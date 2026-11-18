@@ -92,14 +92,19 @@ def test_index_rechecks_phase_and_target_and_deduplicates():
     from epg_cross_search import augment
     request = s.plan(channel(), PATH, None, 0)
     title = request['fullName']
-    evidence = {'candidates': []}
     good = 'https://fixture.example.org/live'
+    other = 'https://fixture.example.org/channel'
+    brave_only = 'https://fixture.example.org/live/other-url'
+    evidence = {'candidates': [{'url': other}, {'url': good}]}
     augment(request, evidence, NOW, index=lambda _: ('checked', [
         {'url': good, 'title': title}, {'url': good, 'title': title},
+        {'url': brave_only, 'title': title},
         {'url': 'https://fixture.example.org/schedule', 'title': title},
         {'url': 'https://other.example.org/live', 'title': 'Unrelated'}]))
-    assert [r['url'] for r in evidence['candidates']] == [good]
-    assert evidence['candidates'][0]['engines'] == ['brave_web']
+    assert [r['url'] for r in evidence['candidates']] == [good, other]
+    assert evidence['crossSearch']['corroboratedLeads'] == 1
+    assert evidence['crossSearch']['indexTargetMatches'] == 2
+    assert brave_only not in json.dumps(evidence)
 
 
 def test_route_focus_rotates_without_changing_identity_scope():

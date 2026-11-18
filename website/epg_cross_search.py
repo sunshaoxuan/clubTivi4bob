@@ -49,11 +49,19 @@ def augment(request, evidence, now, *, index=brave):
     candidates = list(evidence['candidates'])
     by_url = {r['url']: {**r, 'engines': ['ai_web_search']} for r in candidates}
     extra = []
+    corroborated = []
+    index_leads = set()
     for hit in hits:
         url = hit.get('url')
         if (search.candidate_allowed(url, request['domains'], request['stage'], request=request)
                 and search.candidate_has_target_context(hit, request)):
-            extra.append((url, 'brave_web'))
+            index_leads.add(url)
+            # Search plans without storage rights permit transient use only.
+            # This worker persists its candidates and URLs, so a Brave-only
+            # result must never enter that path. Rank independently found
+            # candidates with the transient index, then discard its results.
+            if url in by_url and url not in corroborated:
+                corroborated.append(url)
     context = request['catalogueContext']
     channel = {**context, 'id': request['channelId'],
                'routes': [{'url': u} for u in request['catalogRoutes']]}
@@ -72,9 +80,11 @@ def augment(request, evidence, now, *, index=brave):
         if url not in independent:
             independent.append(url)
     # Reserve one of the two existing body checks for independent discovery.
-    ordering = list(dict.fromkeys(independent[:1] + [r['url'] for r in candidates] + independent))
+    ordering = list(dict.fromkeys(independent[:1] + corroborated
+        + [r['url'] for r in candidates] + independent))
     evidence['candidates'] = [by_url[u] for u in ordering[:20]]
     evidence['crossSearch'] = {'searchEngine': 'brave_web', 'state': state,
         'query': request['independentQuery'], 'indexHits': len(hits),
+        'indexTargetMatches': len(index_leads), 'corroboratedLeads': len(corroborated),
         'independentLeads': len(independent), 'focusedRouteSha256': request['focusedRouteSha256']}
     return state

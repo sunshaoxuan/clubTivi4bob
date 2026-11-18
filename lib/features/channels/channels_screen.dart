@@ -3595,6 +3595,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
             key: ValueKey(controller ?? initialController),
             controller: controller ?? initialController,
             controls: NoVideoControls,
+            showSubtitleMenu: true,
             fit: TabletPresentation.videoFit,
           ),
         );

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:media_kit_video/media_kit_video.dart';
 import '../../core/player_resources.dart';
+import 'subtitle_picker.dart';
 import 'subtitle_status_badge.dart';
 import 'subtitle_status.dart';
 
@@ -11,11 +12,13 @@ class BobtvVideo extends StatelessWidget {
     this.controls = AdaptiveVideoControls,
     this.fit = BoxFit.contain,
     this.fill = Colors.black,
+    this.showSubtitleMenu = false,
   });
   final VideoController controller;
   final VideoControlsBuilder? controls;
   final BoxFit fit;
   final Color fill;
+  final bool showSubtitleMenu;
 
   @override
   Widget build(BuildContext context) {
@@ -63,6 +66,15 @@ class BobtvVideo extends StatelessWidget {
             child: ValueListenableBuilder<SubtitlePhase>(
               valueListenable: player.liveSubtitles.status,
               builder: (context, phase, _) => SubtitleStatusBadge(phase: phase),
+            ),
+          ),
+        if (player is ManagedPlayer && showSubtitleMenu)
+          Positioned(
+            left: 8,
+            bottom: 52,
+            child: SubtitleMenuButton(
+              session: () => player.liveSubtitles,
+              compact: true,
             ),
           ),
       ],

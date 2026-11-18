@@ -10,6 +10,7 @@ import 'package:clubtivi/core/i18n/app_language.dart';
 import 'package:clubtivi/features/player/client_audio_subtitles.dart';
 import 'package:clubtivi/features/player/hls_buffer_proxy.dart';
 import 'package:clubtivi/features/player/subtitle_preferences.dart';
+import 'package:clubtivi/features/player/subtitle_variants.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -29,6 +30,7 @@ Future<void> main() async {
   SubtitlePreferences.instance.choose(AppLanguage.simplifiedChinese);
   final text = ValueNotifier<String>('');
   final status = ValueNotifier<String>('');
+  final variants = ValueNotifier(const SubtitleVariantOptions());
   late ClientAudioSubtitles subtitles;
   final rows = (fixture['segments'] as List).map((raw) {
     final r = raw as Map;
@@ -46,6 +48,7 @@ Future<void> main() async {
     Uri.parse('http://127.0.0.1:18923/'),
     (position) =>
         rows.where((s) => s.start <= position && s.end > position).firstOrNull,
+    variantOptions: variants,
     onChanged: () {
       text.value = subtitles.text;
       status.value = subtitles.phase.name;
@@ -124,6 +127,7 @@ Future<void> main() async {
         }),
       );
       await subtitles.dispose();
+      variants.dispose();
       await player.dispose();
       exit(0);
     }

@@ -1,5 +1,4 @@
 import '../player/bobtv_video.dart';
-import 'subtitle_preferences.dart';
 import 'radio_playback_surface.dart';
 import '../../core/server_image.dart';
 import 'dart:async';
@@ -138,7 +137,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       );
 
   // Track selection state
-  bool _subtitlesEnabled = false;
   List<AudioTrack> _audioTracks = [];
 
   @override
@@ -489,51 +487,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       _audioTracks = tracks.audio
           .where((t) => t.id != 'auto' && t.id != 'no')
           .toList();
-      _subtitlesEnabled = SubtitlePreferences.instance.enabled;
     });
-  }
-
-  void _toggleSubtitles() {
-    final preferences = SubtitlePreferences.instance;
-    preferences.setEnabled(!preferences.enabled);
-    setState(() => _subtitlesEnabled = preferences.enabled);
-  }
-
-  void _showSubtitlePicker() {
-    final preferences = SubtitlePreferences.instance;
-    showModalBottomSheet<void>(
-      context: context,
-      backgroundColor: BobTvPalette.panel,
-      builder: (ctx) => SafeArea(child: SingleChildScrollView(child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          ListTile(title: Text(AppMessages.text(context, '字幕语言及回退'),
-            style: const TextStyle(color: Colors.white))),
-          ListTile(title: Text(AppMessages.text(context, '关闭')),
-            selected: !preferences.enabled,
-            onTap: () {
-              preferences.setEnabled(false);
-              setState(() => _subtitlesEnabled = false);
-              Navigator.of(ctx).pop();
-            }),
-          for (final language in AppLanguage.values)
-            ListTile(title: Text(language.label),
-              selected: preferences.enabled && preferences.language == language,
-              onTap: () {
-                preferences.choose(language);
-                setState(() => _subtitlesEnabled = true);
-                Navigator.of(ctx).pop();
-              }),
-          ListTile(title: Text(AppMessages.text(context, '跟随界面语言')),
-            selected: preferences.enabled && preferences.followsApplication,
-            onTap: () {
-              preferences.choose(null);
-              setState(() => _subtitlesEnabled = true);
-              Navigator.of(ctx).pop();
-            }),
-        ],
-      ))),
-    );
   }
 
   void _showAudioPicker() {
@@ -1351,10 +1305,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                     PlayerControlBar(
                       isCasting: ref.read(castServiceProvider).isCasting,
                       isFavorite: _isFavorite,
-                      hasSubtitles: true,
-                      subtitlesEnabled: _subtitlesEnabled,
-                      onSubtitleToggle: _toggleSubtitles,
-                      onSubtitleSelect: _showSubtitlePicker,
                       audioTrackCount: _audioTracks.length,
                       onAudioSelect: _showAudioPicker,
                       onCastTap: () => _showCastPicker(),

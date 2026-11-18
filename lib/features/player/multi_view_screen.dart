@@ -133,7 +133,10 @@ class _MultiViewScreenState extends ConsumerState<MultiViewScreen> {
                           ),
                           child: Stack(
                             children: [
-                              BobtvVideo(controller: cell.controller),
+                              BobtvVideo(
+                                controller: cell.controller,
+                                showSubtitleMenu: true,
+                              ),
                               // Channel label
                               Positioned(
                                 left: 4,

@@ -10,6 +10,7 @@ import 'native_subtitle_selection.dart';
 import 'subtitle_preferences.dart';
 import 'subtitle_programme_context.dart';
 import 'subtitle_status.dart';
+import 'subtitle_variants.dart';
 import 'subtitle_media_recovery.dart';
 import 'subtitle_policy.dart';
 import 'hls_buffer_proxy.dart';
@@ -29,7 +30,7 @@ class LiveSubtitleSession {
     _position = player.stream.position.listen((position) => _render());
     _buffering = player.stream.buffering.listen((_) => _render());
     _playing = player.stream.playing.listen((_) => _render());
-    SubtitlePreferences.instance.addListener(_render);
+    SubtitlePreferences.instance.addListener(_preferencesChanged);
     selection.selected.addListener(_render);
   }
   HlsPlaybackSegment? Function(double)? segmentAt;
@@ -45,6 +46,20 @@ class LiveSubtitleSession {
   final SubtitleProgrammeLookup? programmeLookup;
   final text = ValueNotifier<String>('');
   final status = ValueNotifier<SubtitlePhase>(SubtitlePhase.idle);
+  final variantOptions = ValueNotifier(const SubtitleVariantOptions());
+
+  void selectVariant(String? id, int scope) =>
+      _localAudio?.selectVariant(id, scope);
+
+  void _preferencesChanged() {
+    final local = _localAudio;
+    if (local == null) {
+      _render();
+    } else {
+      local.preferencesChanged();
+    }
+  }
+
   SubtitlePhase _phase = SubtitlePhase.idle;
   String? _remotePhase;
   List<String> _availableLanguages = const [];
@@ -116,6 +131,7 @@ class LiveSubtitleSession {
         player,
         Uri.parse(serviceEndpoint).resolve('client/'),
         segmentAt!,
+        variantOptions: variantOptions,
         onChanged: () {
           final current = _localAudio;
           if (current != null && !_disposed) {
@@ -129,14 +145,18 @@ class LiveSubtitleSession {
                   !(track.title?.toLowerCase().contains('forced') ?? false) &&
                   subtitleLanguage(track.language) == requested,
             );
+            final pinned =
+                current.hasPinnedVariant &&
+                SubtitlePreferences.instance.enabled;
             final external =
-                const {
-                  SubtitlePhase.ready,
-                  SubtitlePhase.englishFallback,
-                  SubtitlePhase.suspended,
-                }.contains(current.phase) &&
-                !(nativePreferred &&
-                    current.phase == SubtitlePhase.englishFallback);
+                pinned ||
+                (const {
+                      SubtitlePhase.ready,
+                      SubtitlePhase.englishFallback,
+                      SubtitlePhase.suspended,
+                    }.contains(current.phase) &&
+                    !(nativePreferred &&
+                        current.phase == SubtitlePhase.englishFallback));
             text.value = external ? current.text : '';
             final native = selection.selected.value;
             status.value =
@@ -646,6 +666,9 @@ class LiveSubtitleSession {
     _phase = SubtitlePhase.idle;
     _remotePhase = null;
     _availableLanguages = const [];
+    variantOptions.value = SubtitleVariantOptions(
+      scope: variantOptions.value.scope + 1,
+    );
     status.value = SubtitlePhase.idle;
     text.value = '';
     selection.external = false;
@@ -662,12 +685,13 @@ class LiveSubtitleSession {
     clear();
     _disposed = true;
     _client.close();
-    SubtitlePreferences.instance.removeListener(_render);
+    SubtitlePreferences.instance.removeListener(_preferencesChanged);
     selection.selected.removeListener(_render);
     await _position?.cancel();
     await _buffering?.cancel();
     await _playing?.cancel();
     text.dispose();
     status.dispose();
+    variantOptions.dispose();
   }
 }

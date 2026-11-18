@@ -71,9 +71,21 @@ class LiveSubtitleTimeline {
         .firstOrNull;
   }
 
+  String? variantLanguageAt(double position, String id) {
+    final window = windowAt(position);
+    if (window?['state'] != 'LOCKED') return null;
+    for (final track
+        in (window?['tracks'] as List? ?? const []).whereType<Map>()) {
+      if (track['variantId'] == id && track['verified'] == true) {
+        return track['language'] as String?;
+      }
+    }
+    return null;
+  }
+
   /// Evaluated against decoded playback time, never against the network edge.
   /// Each interval must carry its own confirmed programme and source asset.
-  String textAt(double position, String language) {
+  String textAt(double position, String language, {String? variantId}) {
     if (!position.isFinite) return '';
     for (final window in windows) {
       if (position < (window['start'] as num) ||
@@ -94,6 +106,7 @@ class LiveSubtitleTimeline {
         language: (t) => t['language'] as String?,
         usable: (t) =>
             t['verified'] == true &&
+            (variantId == null || t['variantId'] == variantId) &&
             (t['cues'] as List? ?? const []).isNotEmpty,
       );
       if (track == null) return '';

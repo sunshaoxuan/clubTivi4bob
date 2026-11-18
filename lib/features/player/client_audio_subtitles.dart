@@ -15,6 +15,7 @@ import 'live_subtitle_timeline.dart';
 import 'subtitle_policy.dart';
 import 'subtitle_preferences.dart';
 import 'subtitle_status.dart';
+import 'subtitle_variants.dart';
 import 'offline_asr_policy.dart';
 
 /// One local decoder tap and offline ASR worker per viewing session. Only text
@@ -25,11 +26,17 @@ class ClientAudioSubtitles {
     this.endpoint,
     this.segmentAt, {
     required this.onChanged,
-  });
+    required ValueNotifier<SubtitleVariantOptions> variantOptions,
+  }) : _variants = SubtitleVariantSelection(
+         variantOptions,
+         SubtitlePreferences.instance.language.tag,
+       );
   final Player player;
   final Uri endpoint;
   final HlsPlaybackSegment? Function(double) segmentAt;
   final VoidCallback onChanged;
+  final SubtitleVariantSelection _variants;
+  bool get hasPinnedVariant => _variants.hasPin;
   static int _nextLabel = 0;
   final label = 'bobtv_pcm_${_nextLabel++}';
   static bool get supported => ClientSubtitleRuntime.available;
@@ -46,7 +53,7 @@ class ClientAudioSubtitles {
   int _workerFailures = 0;
   int _startupFailures = 0;
   final _client = http.Client();
-  bool _polling = false;
+  bool _polling = false, _queuedRefresh = false;
   Completer<Map<String, dynamic>>? _recognition;
   bool _disposed = false,
       _sampling = false,
@@ -111,15 +118,17 @@ class ClientAudioSubtitles {
 
   Future<void> _start(String source, Map<String, Object?>? programme) async {
     _source = source;
+    final request = _variants.request;
     final body = await _post('sessions', {
       'source': source,
       'programme': programme,
-      'language': SubtitlePreferences.instance.language.tag,
+      'language': request.query['language'],
       'features': ['clientClockV1'],
     });
     if (_disposed) return;
     _session = body['session'] as String;
-    _accept(body);
+    _accept(body, request, acknowledgesRequest: !_variants.hasPin);
+    if (_variants.pending) unawaited(_refresh());
     if (_clockAvailable) await _launchWorker();
     _poll = Timer.periodic(
       const Duration(seconds: 5),
@@ -273,33 +282,63 @@ class ClientAudioSubtitles {
     return jsonDecode(response.body) as Map<String, dynamic>;
   }
 
+  void preferencesChanged() {
+    if (_variants.setLanguage(SubtitlePreferences.instance.language.tag)) {
+      _selectionChanged();
+    } else {
+      render();
+    }
+  }
+
+  void selectVariant(String? id, int scope) {
+    if (!_disposed && _variants.select(id, scope)) _selectionChanged();
+  }
+
+  void _selectionChanged() {
+    _timeline = null;
+    _transportLocked = false;
+    phase = SubtitlePhase.synchronizing;
+    render();
+    unawaited(_refresh());
+  }
+
   Future<void> _refresh() async {
-    if (_disposed || _polling || _session == null) return;
+    final session = _session;
+    if (_disposed || session == null) return;
+    if (_polling) {
+      _queuedRefresh = true;
+      return;
+    }
     _polling = true;
+    final request = _variants.request;
     try {
       final response = await _client
           .get(
             endpoint
-                .resolve('sessions/$_session')
-                .replace(
-                  queryParameters: {
-                    'language': SubtitlePreferences.instance.language.tag,
-                  },
-                ),
+                .resolve('sessions/$session')
+                .replace(queryParameters: request.query),
           )
           .timeout(const Duration(seconds: 5));
       downloadedBytes += response.bodyBytes.length;
-      if (_disposed) return;
+      if (_disposed || session != _session || !_variants.isCurrent(request)) {
+        return;
+      }
       if (response.statusCode == 200) {
-        _accept(jsonDecode(response.body) as Map<String, dynamic>);
+        _accept(
+          jsonDecode(response.body) as Map<String, dynamic>,
+          request,
+          acknowledgesRequest: true,
+        );
       } else if (response.statusCode == 404) {
+        _variants.renewSession();
+        final replacement = _variants.request;
         final body = await _post('sessions', {
           'source': _source,
           'programme': null,
-          'language': SubtitlePreferences.instance.language.tag,
+          'language': replacement.query['language'],
           'features': ['clientClockV1'],
         });
-        if (_disposed) return;
+        if (_disposed || session != _session) return;
         _session = body['session'] as String;
         _epoch++;
         _chunks.clear();
@@ -307,16 +346,29 @@ class ClientAudioSubtitles {
         _asset = null;
         _lastEnd = -1;
         _lastAnalysisEnd = -1;
-        _accept(body);
+        _accept(body, replacement, acknowledgesRequest: !_variants.hasPin);
+        _queuedRefresh = _queuedRefresh || _variants.pending;
       }
     } catch (_) {
     } finally {
       _polling = false;
+      if (_queuedRefresh && !_disposed) {
+        _queuedRefresh = false;
+        unawaited(_refresh());
+      }
     }
   }
 
-  void _accept(Map<String, dynamic> body) {
-    if (_disposed || body['session'] != _session && _session != null) return;
+  void _accept(
+    Map<String, dynamic> body,
+    SubtitleVariantRequest request, {
+    required bool acknowledgesRequest,
+  }) {
+    if (_disposed ||
+        (body['session'] != _session && _session != null) ||
+        !_variants.isCurrent(request)) {
+      return;
+    }
     _audioLanguageSupported = body['audioLanguageV1'] == true;
     final programme = body['programme'];
     if (programme is Map &&
@@ -326,8 +378,14 @@ class ClientAudioSubtitles {
     }
     if (programme is Map) _programme = Map<String, dynamic>.from(programme);
     final status = body['subtitleStatus'] as Map?;
+    final variants = _variants.accept(
+      body['programmeKey'] ?? _programme?['key'],
+      status,
+      acknowledgesRequest: acknowledgesRequest,
+    );
     _referenceResourcesAvailable = (status?['candidateCount'] as num? ?? 0) > 0;
-    _transportLocked = body['transportClockVerified'] == true;
+    _transportLocked =
+        variants.render && body['transportClockVerified'] == true;
     if (_transportLocked) _verifiedProgrammeClock = true;
     _languages = (status?['availableLanguages'] as List? ?? [])
         .whereType<String>()
@@ -339,13 +397,16 @@ class ClientAudioSubtitles {
       'service_unavailable' => SubtitlePhase.serviceUnavailable,
       _ => SubtitlePhase.synchronizing,
     };
-    _timeline = LiveSubtitleTimeline.decode(
-      body,
-      session: _session!,
-      source: _source!,
-    );
+    _timeline = variants.render
+        ? LiveSubtitleTimeline.decode(
+            body,
+            session: _session!,
+            source: _source!,
+          )
+        : null;
     _lastResponse = DateTime.now();
     render();
+    if (variants.refresh) unawaited(_refresh());
   }
 
   void failed() {
@@ -380,6 +441,11 @@ class ClientAudioSubtitles {
       phase = _recoveryTimedOut
           ? SubtitlePhase.synchronizing
           : SubtitlePhase.serviceUnavailable;
+    } else if (_variants.pending &&
+        fresh &&
+        phase != SubtitlePhase.serviceUnavailable &&
+        phase != SubtitlePhase.programmeUnavailable) {
+      phase = SubtitlePhase.synchronizing;
     } else if (fresh &&
         segment != null &&
         (segment.movieId == null ||
@@ -389,17 +455,23 @@ class ClientAudioSubtitles {
             _timeline?.textAt(
               position,
               SubtitlePreferences.instance.language.tag,
+              variantId: _variants.pinnedId,
             ) ??
             '';
       }
       if (_timeline?.windowAt(position)?['state'] == 'LOCKED') {
-        final selected = selectSubtitle(
-          _languages,
-          SubtitlePreferences.instance.language.tag,
-          language: (v) => v,
-        );
+        final pinned = _variants.pinnedId;
+        final selected = pinned == null
+            ? selectSubtitle(
+                _languages,
+                SubtitlePreferences.instance.language.tag,
+                language: (v) => v,
+              )
+            : _timeline!.variantLanguageAt(position, pinned);
         phase = selected == null
-            ? SubtitlePhase.unavailable
+            ? pinned == null
+                  ? SubtitlePhase.unavailable
+                  : SubtitlePhase.synchronizing
             : subtitleLanguage(selected) == 'en' &&
                   subtitleLanguage(SubtitlePreferences.instance.language.tag) !=
                       'en'
@@ -617,14 +689,20 @@ class ClientAudioSubtitles {
     bool ad, {
     String? audioLanguage,
   }) async {
-    if (_disposed || epoch != _epoch || _session == null) return;
+    if (_disposed ||
+        epoch != _epoch ||
+        _session == null ||
+        _variants.awaitingRefresh) {
+      return;
+    }
     try {
       final serial = ++_serial;
+      final request = _variants.request;
       final response = await _post('sessions/$_session/observations', {
         'source': _source,
         'programme': _programme,
         'programmeKey': _programme?['key'],
-        'language': SubtitlePreferences.instance.language.tag,
+        'language': request.query['language'],
         'sourceClock': segmentAt(math.max(0, end - .01))?.sourceClock,
         'epoch': epoch,
         'asset': asset,
@@ -637,7 +715,9 @@ class ClientAudioSubtitles {
           'audioLanguage': audioLanguage,
         'serial': serial,
       });
-      if (!_disposed && epoch == _epoch) _accept(response);
+      if (!_disposed && epoch == _epoch) {
+        _accept(response, request, acknowledgesRequest: false);
+      }
     } catch (error) {
       AppDiagnostics.instance.log('client_subtitle_observation_error', {
         'errorType': error.runtimeType.toString(),

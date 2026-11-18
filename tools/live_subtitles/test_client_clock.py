@@ -60,6 +60,35 @@ class ClientClockTests(unittest.TestCase):
         d.update(changes);return d
     def anchors(self):
         return [dict(cue=i,subtitleStart=100+i*3,asrStart=i*3,offset=100.,words=9) for i in range(1,5)]
+    def test_delayed_unique_speech_survives_newer_heartbeat_without_rewinding(self):
+        with tempfile.TemporaryDirectory() as d:
+            h=self.hub(d);t=h.create(h.source,None,'en',['clientClockV1'])
+            h.ingest(t,self.observation(h,serial=2,start=20,end=26))
+            words=[dict(word='spoken',start=0,end=1,probability=1.)]*10
+            speech=self.observation(h,serial=1,words=words)
+            with patch('client_clock.align',return_value=(100.,self.anchors())):
+                h.ingest(t,speech)
+            state=h.sessions[t]
+            self.assertIsNotNone(state['reference'])
+            self.assertEqual(state['lastObservation'],2)
+            self.assertEqual(state['lastWindow']['end'],26)
+            with self.assertRaisesRegex(ValueError,'replayed_observation'):h.ingest(t,speech)
+    def test_delayed_prior_epoch_speech_cannot_restore_advert_captions(self):
+        with tempfile.TemporaryDirectory() as d:
+            h=self.hub(d);t=h.create(h.source,None,'en',['clientClockV1'])
+            h.ingest(t,self.observation(h,serial=2,epoch=2,asset='advert',ad=True,start=20,end=26))
+            words=[dict(word='spoken',start=0,end=1,probability=1.)]*10
+            with self.assertRaisesRegex(ValueError,'stale_epoch'):
+                h.ingest(t,self.observation(h,serial=1,words=words))
+            self.assertTrue(h.sessions[t]['ad'])
+            self.assertIsNone(h.sessions[t]['reference'])
+    def test_duplicate_heartbeat_and_bounded_replay_history(self):
+        with tempfile.TemporaryDirectory() as d:
+            h=self.hub(d);t=h.create(h.source,None,'en',['clientClockV1'])
+            for serial in range(2,160):h.ingest(t,self.observation(h,serial=serial))
+            self.assertLessEqual(len(h.sessions[t]['seenObservations']),128)
+            with self.assertRaisesRegex(ValueError,'replayed_observation'):h.ingest(t,self.observation(h,serial=159))
+            with self.assertRaisesRegex(ValueError,'replayed_observation'):h.ingest(t,self.observation(h,serial=1))
     def test_text_session_never_constructs_a_video_collector(self):
         with tempfile.TemporaryDirectory() as d:
             h=self.hub(d)

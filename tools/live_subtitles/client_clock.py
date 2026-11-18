@@ -122,7 +122,8 @@ class TextHub:
             position=finite(data.get('position',end),0,end+120)
             clock=source_clock(data.get('sourceClock'),end)
             serial=data.get('serial')
-            if not isinstance(serial,int) or isinstance(serial,bool) or serial<=session['lastObservation']:raise ValueError('replayed_observation')
+            seen=session.setdefault('seenObservations',set())
+            if not isinstance(serial,int) or isinstance(serial,bool) or serial<1 or serial in seen or serial<=session['lastObservation']-128:raise ValueError('replayed_observation')
             raw=data.get('words',[])
             if not isinstance(raw,list) or len(raw)>512:raise ValueError('word_limit')
             words=[]
@@ -135,6 +136,14 @@ class TextHub:
             self.set_language(token,language)
             previous=session['lastWindow']
             if previous and epoch<session['epoch']:raise ValueError('stale_epoch')
+            delayed=serial<session['lastObservation']
+            if delayed and (epoch!=session['epoch'] or asset!=session['asset'] or ad!=session['ad']):raise ValueError('stale_epoch')
+            highest=max(serial,session['lastObservation'])
+            seen.add(serial);seen.intersection_update(s for s in seen if s>highest-128)
+            # Heartbeats can overtake a larger speech request on another HTTP
+            # connection. Keep unique speech in this asset epoch, without
+            # rewinding the viewer's latest transport observation.
+            if delayed and not words:return
             changed=(session['epoch']!=epoch or session['asset']!=asset or session['programmeKey']!=self.programme['key'])
             if changed:
                 session.pop('clockJump',None);session.pop('acceptedClock',None);session.pop('editionSwitch',None)
@@ -148,7 +157,8 @@ class TextHub:
                 if not ad and model and model['asset']==asset and model['programme']==self.programme['key']:
                     session['priorReference']=model['reference'];session['priorRate']=model['rate'];session['priorRateVerified']=True
                 session.update(epoch=epoch,asset=asset,reference=None,intercept=None,rate=session.get('priorRate',1.),points={},rateVerified=False,programmeKey=self.programme['key'],unmatchedWindows=0,exhausted=False,pendingAnchors={})
-            session.update(lastObservation=serial,lastAccess=time.time(),lastWindow=dict(start=start,end=end),ad=ad)
+            window=previous if delayed and previous and previous['end']>end else dict(start=start,end=end)
+            session.update(lastObservation=highest,lastAccess=time.time(),lastWindow=window,ad=ad)
             if ad:
                 if changed or 'adStart' not in session:
                     session['adStart']=start

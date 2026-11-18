@@ -11,13 +11,240 @@ import 'package:clubtivi/core/player_resources.dart';
 import 'package:clubtivi/core/i18n/app_language.dart';
 import 'package:clubtivi/core/app_diagnostics.dart';
 import 'package:clubtivi/features/player/bobtv_video.dart';
+import 'package:clubtivi/features/player/live_subtitle_session.dart';
 import 'package:clubtivi/features/player/subtitle_preferences.dart';
 import 'package:clubtivi/features/player/subtitle_programme_context.dart';
+import 'package:clubtivi/features/player/subtitle_variants.dart';
 import 'package:clubtivi/features/player/player_service.dart';
 import 'package:clubtivi/data/datasources/local/database.dart' as db;
 import 'package:clubtivi/data/services/channel_route_sync_service.dart';
 import 'package:clubtivi/data/services/retired_route_guard.dart';
 import 'package:media_kit/src/player/native/player/real.dart' as native;
+
+enum _VariantStage {
+  waitingForPreferredCaption,
+  waitingForEnglishCaption,
+  waitingForManualCaption,
+  waitingForRestoredCaption,
+  passed,
+  failed,
+}
+
+/// Optional end-to-end exercise of the same session API used by the picker.
+class _VariantProbe {
+  _VariantProbe(Directory directory, this.preferred)
+    : _trace = File('${directory.path}/variant-observations.jsonl') {
+    _trace.writeAsStringSync('');
+  }
+
+  final AppLanguage preferred;
+  final File _trace;
+  final _preferences = SubtitlePreferences.instance;
+  var _stage = _VariantStage.waitingForPreferredCaption;
+  LiveSubtitleSession? _session;
+  int? _scope;
+  String? _originalId, _englishAutomaticId, _manualId, _restoredId;
+  String? _originalLanguage, _manualCaption, _failure;
+  double? _selectionPosition, _manualCaptionPosition, _restoredPosition;
+
+  bool get passed => _stage == _VariantStage.passed;
+
+  bool get _finished => passed || _stage == _VariantStage.failed;
+
+  void _record(
+    String event,
+    ManagedPlayer player,
+    double elapsed,
+    double position, {
+    String? reason,
+  }) {
+    final session = player.liveSubtitles;
+    final options = session.variantOptions.value;
+    final active = options.candidates
+        .where((candidate) => candidate.id == options.activeId)
+        .firstOrNull;
+    final row = <String, Object?>{
+      'at': DateTime.now().toUtc().toIso8601String(),
+      'event': event,
+      'stage': _stage.name,
+      'elapsed': elapsed,
+      'position': position,
+      'playing': player.state.playing,
+      'buffering': player.state.buffering,
+      'preferredLanguage': preferred.tag,
+      'currentPreference': _preferences.language.tag,
+      'subtitleStatus': session.status.value.name,
+      'scope': options.scope,
+      'candidateCount': options.candidates.length,
+      'candidateIds': options.candidates
+          .map((candidate) => candidate.id)
+          .toList(),
+      'englishCandidateIds': options.candidates
+          .where((candidate) => candidate.language == 'en')
+          .map((candidate) => candidate.id)
+          .toList(),
+      'selectedId': options.selectedId,
+      'activeId': options.activeId,
+      'activeLanguage': active?.language,
+      'targetId': _manualId,
+      'captionLength': session.text.value.trim().length,
+      'reason': ?reason,
+    };
+    // Keep each transition visible to the external test runner during playback.
+    _trace.writeAsStringSync(
+      '${jsonEncode(row)}\n',
+      mode: FileMode.append,
+      flush: true,
+    );
+  }
+
+  void _restore(ManagedPlayer player) {
+    final current = player.liveSubtitles;
+    if (_preferences.language != preferred) {
+      // Changing the session's language also clears its temporary pin.
+      _preferences.choose(preferred);
+    } else if (identical(current, _session) &&
+        current.variantOptions.value.scope == _scope &&
+        current.variantOptions.value.selectedId == _manualId &&
+        _manualId != null) {
+      current.selectVariant(null, _scope!);
+    }
+  }
+
+  void step(ManagedPlayer player, double elapsed, double position) {
+    if (_finished) return;
+    final session = player.liveSubtitles;
+    final options = session.variantOptions.value;
+    if (_scope != null &&
+        (!identical(session, _session) || options.scope != _scope)) {
+      _fail('programme_scope_changed', player, elapsed, position);
+      return;
+    }
+    final caption = session.text.value.trim();
+    final active = options.candidates
+        .where((candidate) => candidate.id == options.activeId)
+        .firstOrNull;
+    if (!player.state.playing ||
+        player.state.buffering ||
+        !session.hasVerifiedLocalCaptions ||
+        caption.isEmpty ||
+        active == null) {
+      return;
+    }
+    final english = options.candidates.where(
+      (candidate) => candidate.language == 'en',
+    );
+    final alternate = english
+        .where((candidate) => candidate.id != active.id)
+        .firstOrNull;
+    switch (_stage) {
+      case _VariantStage.waitingForPreferredCaption:
+        if (english.length < 2 || options.selectedId != null) return;
+        _session = session;
+        _scope = options.scope;
+        _originalId = active.id;
+        _originalLanguage = active.language;
+        _record('preferred_caption', player, elapsed, position);
+        final offered = options.forLanguage(preferred.tag);
+        if (active.language == 'en' &&
+            alternate != null &&
+            offered.any((candidate) => candidate.id == alternate.id)) {
+          _select(alternate, player, elapsed, position);
+        } else {
+          _stage = _VariantStage.waitingForEnglishCaption;
+          _preferences.choose(AppLanguage.english);
+          _record('temporary_english', player, elapsed, position);
+        }
+      case _VariantStage.waitingForEnglishCaption:
+        if (active.language == 'en' &&
+            options.selectedId == null &&
+            alternate != null) {
+          _select(alternate, player, elapsed, position);
+        }
+      case _VariantStage.waitingForManualCaption:
+        if (options.selectedId != _manualId ||
+            active.id != _manualId ||
+            position <= _selectionPosition!) {
+          return;
+        }
+        _manualCaption = caption;
+        _manualCaptionPosition = position;
+        _record('manual_caption', player, elapsed, position);
+        _stage = _VariantStage.waitingForRestoredCaption;
+        _restore(player);
+        _record('restore_automatic', player, elapsed, position);
+      case _VariantStage.waitingForRestoredCaption:
+        if (options.selectedId != null ||
+            _preferences.language != preferred ||
+            caption == _manualCaption ||
+            position <= _manualCaptionPosition! ||
+            (active.language != preferred.tag &&
+                active.language != _originalLanguage)) {
+          return;
+        }
+        _restoredId = active.id;
+        _restoredPosition = position;
+        _stage = _VariantStage.passed;
+        _record('restored_caption', player, elapsed, position);
+      case _VariantStage.passed:
+      case _VariantStage.failed:
+        break;
+    }
+  }
+
+  void _select(
+    SubtitleVariantCandidate alternate,
+    ManagedPlayer player,
+    double elapsed,
+    double position,
+  ) {
+    final session = player.liveSubtitles;
+    _englishAutomaticId = session.variantOptions.value.activeId;
+    _manualId = alternate.id;
+    _selectionPosition = position;
+    _stage = _VariantStage.waitingForManualCaption;
+    session.selectVariant(alternate.id, _scope!);
+    _record('select_alternate', player, elapsed, position);
+    if (session.variantOptions.value.selectedId != _manualId) {
+      _fail('alternate_selection_rejected', player, elapsed, position);
+    }
+  }
+
+  void _fail(
+    String reason,
+    ManagedPlayer player,
+    double elapsed,
+    double position,
+  ) {
+    _failure = reason;
+    _stage = _VariantStage.failed;
+    _record('failed', player, elapsed, position, reason: reason);
+    _restore(player);
+  }
+
+  Map<String, Object?> finish(
+    ManagedPlayer player,
+    double elapsed,
+    double position,
+  ) {
+    if (!_finished) {
+      _fail('probe_ended_at_${_stage.name}', player, elapsed, position);
+    }
+    return {
+      'passed': passed,
+      'preferredLanguage': preferred.tag,
+      'originalActiveId': _originalId,
+      'originalActiveLanguage': _originalLanguage,
+      'englishAutomaticId': _englishAutomaticId,
+      'manualId': _manualId,
+      'restoredActiveId': _restoredId,
+      'selectionPosition': _selectionPosition,
+      'manualCaptionPosition': _manualCaptionPosition,
+      'restoredCaptionPosition': _restoredPosition,
+      'failure': ?_failure,
+    };
+  }
+}
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -61,14 +288,27 @@ Future<void> main() async {
   player.stream.buffering.listen(service.onBufferingChanged);
   final layout = ValueNotifier<int>(0);
   final output = File('${directory.path}/observations.jsonl').openWrite();
+  final switchVariants =
+      const bool.fromEnvironment('BOBTV_SUBTITLE_PROBE_SWITCH_VARIANTS') ||
+      const {
+        '1',
+        'true',
+      }.contains(Platform.environment['BOBTV_SUBTITLE_PROBE_SWITCH_VARIANTS']);
   final requestedLanguage =
-      Platform.environment['BOBTV_SUBTITLE_PROBE_LANGUAGE'];
-  SubtitlePreferences.instance.choose(
-    AppLanguage.values
-            .where((value) => value.tag == requestedLanguage)
-            .firstOrNull ??
-        AppLanguage.simplifiedChinese,
-  );
+      Platform.environment['BOBTV_SUBTITLE_PROBE_LANGUAGE'] ??
+      (switchVariants
+          ? const String.fromEnvironment('BOBTV_SUBTITLE_PROBE_LANGUAGE')
+          : null);
+  final preferred =
+      AppLanguage.values
+          .where((value) => value.tag == requestedLanguage)
+          .firstOrNull ??
+      AppLanguage.simplifiedChinese;
+  if (switchVariants) SubtitlePreferences.instance.initialize(null);
+  SubtitlePreferences.instance.choose(preferred);
+  final variantProbe = switchVariants
+      ? _VariantProbe(directory, preferred)
+      : null;
   final mpvLog = File('${directory.path}/mpv.jsonl').openWrite();
   var logSubscription = player.stream.log.listen(
     (entry) => mpvLog.writeln(
@@ -202,6 +442,7 @@ Future<void> main() async {
       }
       await nativeClock.close();
       await output.close();
+      final variantResult = variantProbe?.finish(player, elapsed, position);
       await File('${directory.path}/result.json').writeAsString(
         jsonEncode({
           'source': source,
@@ -234,6 +475,7 @@ Future<void> main() async {
           'videoHeight': await service.getMpvProperty('video-params/h'),
           'nativeMute': await service.getMpvProperty('mute'),
           'nativeVolume': await service.getMpvProperty('volume'),
+          'subtitleVariantProbe': ?variantResult,
         }),
       );
       await service.dispose();
@@ -242,7 +484,9 @@ Future<void> main() async {
       await isolatedDatabase?.close();
       await logSubscription.cancel();
       await mpvLog.close();
-      exit(errors.isEmpty ? 0 : 1);
+      exit(errors.isEmpty && (variantProbe?.passed ?? true) ? 0 : 1);
+    } else {
+      variantProbe?.step(player, elapsed, position);
     }
   });
 }

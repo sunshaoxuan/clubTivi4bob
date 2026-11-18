@@ -1,5 +1,22 @@
-param([string]$ExecutablePath=$env:BOBTV_PROGRESS_FIXTURE_EXE)
+﻿param([string]$ExecutablePath=$env:BOBTV_PROGRESS_FIXTURE_EXE)
 $ErrorActionPreference='Stop'
+function Read-CaptureJson([string]$Path) {
+  for($attempt=0;$attempt -lt 100;$attempt++) {
+    try {
+      $stream=[IO.File]::Open($Path,[IO.FileMode]::Open,[IO.FileAccess]::Read,[IO.FileShare]::ReadWrite)
+      $reader=New-Object IO.StreamReader($stream)
+      try {$text=$reader.ReadToEnd()} finally {$reader.Dispose();$stream.Dispose()}
+      if([string]::IsNullOrWhiteSpace($text)){throw [IO.IOException]::new('Diagnostic capture incomplete')}
+      return ($text|ConvertFrom-Json -ErrorAction Stop)
+    } catch {
+      if($attempt -eq 99){throw}
+      $script:CaptureReadRetries++
+      Start-Sleep -Milliseconds 25
+    }
+  }
+}
+$script:CaptureReadRetries=0
+
 if($env:CI -ne 'true'){throw 'UI fixture is restricted to CI'}
 $root=Join-Path $env:TEMP ('BobTVUpdaterTests\progress-'+[guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory -Path $root -Force|Out-Null
@@ -46,23 +63,23 @@ try{
       Start-Sleep -Milliseconds 500
     }
     if(!(Test-Path "$root\screenshots\$phase.png")){throw "Progress UI did not draw $phase"}
-    $snapshot=Get-Content "$root\screenshots\$phase.json" -Raw|ConvertFrom-Json
+    $snapshot=Read-CaptureJson "$root\screenshots\$phase.json"
     if($snapshot.launchEnabled -ne ($phase -eq 'installed')){throw "Launch button unsafe in phase $phase"}
   }
   Copy-Item "$root\screenshots\installed.json" "$root\screenshots\installed-success.json"
   Copy-Item "$root\screenshots\installed.png" "$root\screenshots\installed-success.png"
-  $snapshot=Get-Content "$root\screenshots\downloading.json" -Raw|ConvertFrom-Json
+  $snapshot=Read-CaptureJson "$root\screenshots\downloading.json"
   if($snapshot.launchEnabled){throw 'Launch enabled while downloading'}
   if($snapshot.launchForeColor -ne 'White' -or !$snapshot.closeEnabled){throw 'White text or close control missing'}
   Set-State ready 100 $true
   for($n=0;$n -lt 30 -and !(Test-Path "$root\screenshots\ready.json");$n++){Start-Sleep -Milliseconds 500}
-  $snapshot=Get-Content "$root\screenshots\ready.json" -Raw|ConvertFrom-Json
+  $snapshot=Read-CaptureJson "$root\screenshots\ready.json"
   if(!$snapshot.launchEnabled -or $snapshot.launchText -ne '继续使用当前版本'){throw 'Cancellation does not offer the unchanged old version'}
   Move-Item "$root\BobTV.exe" "$root\hidden-BobTV.exe"
   Remove-Item "$root\screenshots\installed.json","$root\screenshots\installed.png"
   Set-State installed 100
   Start-Sleep -Seconds 2
-  $snapshot=Get-Content "$root\screenshots\installed.json" -Raw|ConvertFrom-Json
+  $snapshot=Read-CaptureJson "$root\screenshots\installed.json"
   if($snapshot.launchEnabled){throw 'Launch enabled with missing application'}
   Add-Type -TypeDefinition @'
 using System;
@@ -114,9 +131,10 @@ public static class BobTVCloseFixture {
     '-CurrentPid','99999999','-WorkerPid',"$PID",'-Version',('"'+$fixtureVersion+'"'),'-RunId','preview',
     '-AppDir',('"'+$root+'"')) -RedirectStandardError "$root\auto-close-stderr.log" -RedirectStandardOutput "$root\auto-close-stdout.log"
   if(!$child.WaitForExit(35000)){throw 'Successful installation window did not close after its 20-second countdown'}
-  $snapshot=Get-Content "$root\screenshots\installed.json" -Raw|ConvertFrom-Json
+  $snapshot=Read-CaptureJson "$root\screenshots\installed.json"
   if(!$snapshot.launchEnabled -or $child.ExitCode -ne 0){throw 'Auto-close did not retain verified installation and normal exit'}
   Write-Output 'PASS: successful installation enables verified launch and closes automatically.'
+  Write-Output ('Bounded diagnostic capture read retries: '+$script:CaptureReadRetries)
   Write-Output 'PASS: download/consent/exit/install stages drawn, launch disabled until verified install, safe cancellation offers old version, missing executable cannot launch.'
 }finally{
   $child.Refresh()

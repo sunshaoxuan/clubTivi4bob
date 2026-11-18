@@ -203,6 +203,11 @@
     "history": [
       [
         "2026-11-18",
+        "v1.3.0 · Le guide TV et les sous-titres automatiques réunis",
+        "Un même parcours de sous-titrage automatique pour les chaînes dont le programme EPG est confirmé. Sept langues de préférence, puis repli vers l’anglais et enfin aucun sous-titre. Le son est reconnu sur l’appareil ; le serveur recherche et met en cache les ressources. Les nouveaux dialogues recalent les sous-titres après la publicité, dans la zone vidéo."
+      ],
+      [
+        "2026-11-18",
         "v1.1.25 · Recherche de sous-titres selon le programme",
         "Recherche et mise en cache automatiques des sous-titres du programme EPG associé, y compris Comedy Movies UK. Le son décodé sur l’appareil sert à synchroniser les sous-titres. La langue choisie est prioritaire, puis l’anglais, puis aucun sous-titre. La synchronisation reprend automatiquement après les publicités."
       ],
@@ -371,7 +376,7 @@
     "closing_text": "Une colonne chacune pour Windows, macOS et Android, avec les choix de processeur à l'intérieur. Des packages natifs Windows ARM64 sont disponibles ; Les tests du matériel Surface sont en attente."
   },
   "downloads": {
-    "intro": "Windows, macOS et Android utilisent la version 1.1.25+120. Changez de langue en haut de l’application. Votre choix est mémorisé. En mode automatique, l’application utilise la langue du système, le fuseau horaire, puis l’anglais. Chaque programme d’installation contient les ressources linguistiques. L’accès au mode avancé a été fermé. La synchronisation des diagnostics est désactivée par défaut. Avec votre accord, elle transmet jusqu’à 30 jours de données expurgées. Vous pouvez la désactiver à tout moment. L’application macOS utilise une signature ad-hoc.",
+    "intro": "Windows, macOS et Android utilisent la version 1.3.0+0. Changez de langue en haut de l’application. Votre choix est mémorisé. En mode automatique, l’application utilise la langue du système, le fuseau horaire, puis l’anglais. Chaque programme d’installation contient les ressources linguistiques. L’accès au mode avancé a été fermé. La synchronisation des diagnostics est désactivée par défaut. Avec votre accord, elle transmet jusqu’à 30 jours de données expurgées. Vous pouvez la désactiver à tout moment. L’application macOS utilise une signature ad-hoc.",
     "latest": "Derniers installateurs",
     "local": "Téléchargements hébergés sur ce site",
     "sections": [
@@ -706,8 +711,8 @@
   },
   "showcase": {
     "title": "BobTV | Télévision en direct, radio et guide TV",
-    "meta": "Explorez les chaînes de télévision, radios et flux en direct de plus de 100 pays sur Windows, macOS et Android. Site disponible en sept langues.",
-    "eyebrow": "TV en direct et radio",
+    "meta": "Le guide identifie le programme en cours, puis BobTV recherche ses sous-titres. Les chaînes dont le programme EPG est confirmé partagent ce parcours automatique, sans recherche manuelle à chaque changement.",
+    "eyebrow": "1.3.0 · Guide TV et sous-titres",
     "countries": "pays et territoires",
     "languages": "langues sur ce site",
     "support": "Assistance et politiques",
@@ -715,9 +720,9 @@
     "top": "Retour en haut",
     "footer": "Lecteur TV et radio libre",
     "hero": [
-      "Le monde est en direct.",
-      "Il prend vie sous vos yeux.",
-      "Des clameurs du stade aux radios de nuit, explorez les chaînes, les radios et les flux en direct de plus de 100 pays."
+      "La TV en direct.",
+      "Avec ses dialogues.",
+      "Chaînes, guide des programmes et sous-titres réunis pour regarder le direct."
     ],
     "discover": [
       "Découvrir",
@@ -810,5 +815,52 @@
       "Sport",
       "Documentaires"
     ]
+  },
+  "subtitles": {
+    "nav": "Sous-titres auto",
+    "badge": "1.3.0 · Guide TV et sous-titres",
+    "title": "Suivez le programme, et ses dialogues.",
+    "intro": "Le guide identifie le programme en cours, puis BobTV recherche ses sous-titres. Les chaînes dont le programme EPG est confirmé partagent ce parcours automatique, sans recherche manuelle à chaque changement.",
+    "steps": [
+      [
+        "Savoir ce qui passe",
+        "Identifier la chaîne et son programme EPG actuel, avec les émissions suivantes à portée de vue."
+      ],
+      [
+        "Votre langue en priorité",
+        "Choisir la langue demandée, puis l’anglais. Si aucune ressource ne convient, BobTV affiche un état clair."
+      ],
+      [
+        "Rester au rythme du direct",
+        "Vérifier les dialogues et le temps avec le son lu sur l’appareil. Suspendre les sous-titres pendant la publicité, puis confirmer la nouvelle position avant de les reprendre."
+      ]
+    ],
+    "privacy": "Le son reste sur votre appareil. Le serveur recherche, met en cache et synchronise les sous-titres sans récupérer le flux vidéo en continu. Les ressources peuvent être réutilisées quand le même film est rediffusé. Seuls des fragments de dialogue et leurs temps sont envoyés pour le recalage.",
+    "condition": "Nécessite un programme EPG confirmé et des sous-titres adaptés. Le recalage vocal prend actuellement en charge le son anglais. Les informations manquantes ou une édition incompatible sont signalées.",
+    "demo": "Découvrez le comportement pendant une publicité",
+    "demoNote": "Illustration du fonctionnement. La disponibilité dépend du programme, de la langue et de l’édition des sous-titres.",
+    "current": "En cours",
+    "next": "À suivre",
+    "later": "Ensuite",
+    "programme": "Film en cours",
+    "caption": "Les sous-titres suivent le programme que vous regardez.",
+    "modes": [
+      "Programme",
+      "Publicité",
+      "Retour au programme"
+    ],
+    "statuses": [
+      "Sous-titres synchronisés",
+      "Sous-titres suspendus pendant la publicité",
+      "Reprise après vérification de nouveaux dialogues"
+    ],
+    "descriptions": [
+      "Identifier le programme et ses sous-titres à partir de l’EPG.",
+      "Les sous-titres du film restent suspendus pendant la publicité.",
+      "Confirmer la nouvelle position avant de reprendre les sous-titres."
+    ],
+    "cta": "Essayez les sous-titres avec la version 1.3.0",
+    "historyTitle": "Le guide TV et les sous-titres automatiques réunis",
+    "historyText": "Un même parcours de sous-titrage automatique pour les chaînes dont le programme EPG est confirmé. Sept langues de préférence, puis repli vers l’anglais et enfin aucun sous-titre. Le son est reconnu sur l’appareil ; le serveur recherche et met en cache les ressources. Les nouveaux dialogues recalent les sous-titres après la publicité, dans la zone vidéo."
   }
 }

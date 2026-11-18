@@ -30,6 +30,19 @@ def test_matching_seven_platform_release():
     assert len(module.validate_matrix(metadata(),'1.1.11+106'))==7
 
 
+def test_visible_counter_reset_keeps_android_installations_upgradeable():
+    from android.version_code import split_install_code
+    platforms = ['android-arm', 'android-arm64', 'android-x64']
+    previous = [split_install_code('1.1.25+120', p) for p in platforms]
+    current = [split_install_code('1.3.0+0', p) for p in platforms]
+    assert current == [103001000, 103002000, 103004000]
+    assert min(current) > max(previous)
+    assert min(split_install_code('1.3.1+0', p) for p in platforms) > max(
+        split_install_code('1.3.0+999', p) for p in platforms)
+    with pytest.raises(ValueError):
+        split_install_code('1.3.0+1000', 'android-arm64')
+
+
 def test_finalizer_rejects_partial_official_release(tmp_path,monkeypatch):
     import finalize_desktop_update_metadata as finalizer
     monkeypatch.setattr(sys,'argv',['finalize',str(tmp_path),'1.1.11+106','--platforms','windows-x64'])

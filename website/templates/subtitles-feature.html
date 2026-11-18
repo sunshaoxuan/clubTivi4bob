@@ -1,0 +1,38 @@
+{% set f = t.subtitles %}
+<section id="subtitles" class="showcase-section subtitles-section" aria-labelledby="subtitles-title">
+  <div class="container">
+    <div class="section-heading subtitles-heading">
+      <p class="eyebrow"><span class="live-dot"></span>{{ f.badge }}</p>
+      <h2 id="subtitles-title">{{ f.title }}</h2>
+      <p>{{ f.intro }}</p>
+    </div>
+    <div class="subtitles-layout">
+      <div class="subtitle-demo" data-subtitle-demo>
+        <p class="subtitle-demo-heading">{{ f.demo }}</p>
+        <div class="subtitle-demo-screen" data-state="programme">
+          <div class="subtitle-demo-art" aria-hidden="true"></div>
+          <span class="subtitle-demo-programme">EPG · {{ f.programme }}</span>
+          <span class="subtitle-demo-caption">{{ f.caption }}</span>
+        </div>
+        <div class="subtitle-demo-guide" aria-hidden="true">
+          {% for label in [f.current, f.next, f.later] %}<span{% if loop.first %} class="active"{% endif %}><i></i>{{ label }}</span>{% endfor %}
+        </div>
+        <div class="subtitle-demo-controls" role="group" aria-label="{{ f.demo }}">
+          {% for label in f.modes %}<button type="button" data-subtitle-mode="{{ loop.index0 }}" aria-pressed="{{ 'true' if loop.first else 'false' }}">{{ label }}</button>{% endfor %}
+        </div>
+        <div class="subtitle-demo-feedback" aria-live="polite" aria-atomic="true">
+          <strong data-subtitle-status>{{ f.statuses[0] }}</strong>
+          <p data-subtitle-description>{{ f.descriptions[0] }}</p>
+        </div>
+        <p class="subtitle-demo-note">{{ f.demoNote }}</p>
+      </div>
+      <div class="subtitle-story">
+        <ol>{% for step in f.steps %}<li><span class="subtitle-step-number" aria-hidden="true">0{{ loop.index }}</span><div><h3>{{ step[0] }}</h3><p>{{ step[1] }}</p></div></li>{% endfor %}</ol>
+        <p class="subtitle-privacy">{{ f.privacy }}</p>
+        <a class="button primary" href="{{ site_root }}/downloads">{{ f.cta }} <span aria-hidden="true">↓</span></a>
+      </div>
+    </div>
+    <p class="subtitle-conditions">{{ f.condition }}</p>
+  </div>
+</section>
+<script id="subtitle-demo-copy" type="application/json">{{ {'statuses': f.statuses, 'descriptions': f.descriptions} | tojson }}</script>

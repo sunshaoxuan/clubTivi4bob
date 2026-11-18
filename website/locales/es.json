@@ -203,6 +203,11 @@
     "history": [
       [
         "2026-11-18",
+        "v1.3.0 · La guía y los subtítulos automáticos, juntos",
+        "Un mismo proceso automático para los canales con programas EPG confirmados. Siete idiomas de preferencia, con alternativa en inglés y finalmente sin subtítulos. El dispositivo reconoce el audio y el servidor busca y almacena los recursos. Los nuevos diálogos resincronizan los subtítulos después de los anuncios, dentro de la ventana de vídeo."
+      ],
+      [
+        "2026-11-18",
         "v1.1.25 · Subtítulos según el programa actual",
         "Busca y almacena automáticamente subtítulos del programa EPG vinculado, incluido Comedy Movies UK. Usa el audio reproducido en el dispositivo para sincronizarlos. Prioriza el idioma elegido, después el inglés y después ningún subtítulo, con resincronización automática tras los anuncios."
       ],
@@ -371,7 +376,7 @@
     "closing_text": "Una columna para Windows, macOS y Android, con opciones de CPU en su interior. Hay disponibles paquetes nativos de Windows ARM64; Las pruebas de hardware de superficie están pendientes."
   },
   "downloads": {
-    "intro": "Windows, macOS y Android comparten la versión 1.1.25+120. Cambia de idioma en la parte superior de la aplicación. La selección manual se guarda. El modo automático usa el idioma del sistema, la zona horaria y, como último recurso, el inglés. Todos los instaladores incluyen los recursos de idioma. Se ha cerrado el acceso al modo avanzado. La sincronización de diagnósticos está desactivada de forma predeterminada. Con tu consentimiento, puede enviar hasta 30 días de registros depurados y puedes desactivarla en cualquier momento. La aplicación de macOS utiliza una firma ad-hoc.",
+    "intro": "Windows, macOS y Android comparten la versión 1.3.0+0. Cambia de idioma en la parte superior de la aplicación. La selección manual se guarda. El modo automático usa el idioma del sistema, la zona horaria y, como último recurso, el inglés. Todos los instaladores incluyen los recursos de idioma. Se ha cerrado el acceso al modo avanzado. La sincronización de diagnósticos está desactivada de forma predeterminada. Con tu consentimiento, puede enviar hasta 30 días de registros depurados y puedes desactivarla en cualquier momento. La aplicación de macOS utiliza una firma ad-hoc.",
     "latest": "Últimos instaladores",
     "local": "Descargas alojadas en este sitio",
     "sections": [
@@ -706,8 +711,8 @@
   },
   "showcase": {
     "title": "BobTV | Televisión en directo, radio y guía de programación",
-    "meta": "Explora canales, emisoras y señales en directo de más de 100 países en Windows, macOS y Android. Sitio disponible en siete idiomas.",
-    "eyebrow": "Televisión y radio en directo",
+    "meta": "La guía identifica el programa actual y BobTV busca sus subtítulos. Los canales con un programa EPG confirmado comparten el mismo proceso automático, sin búsquedas manuales cada vez que cambias.",
+    "eyebrow": "1.3.0 · Guía y subtítulos",
     "countries": "países y territorios",
     "languages": "idiomas en la web",
     "support": "Asistencia y políticas",
@@ -715,9 +720,9 @@
     "top": "Volver arriba",
     "footer": "Reproductor de TV y radio de código abierto",
     "hero": [
-      "El mundo está en directo.",
-      "Cobra vida ante tus ojos.",
-      "Desde el rugido del estadio hasta la radio de madrugada, explora canales, emisoras y señales en directo de más de 100 países."
+      "Televisión en directo.",
+      "Con sus diálogos.",
+      "Canales, guía y subtítulos, juntos para disfrutar del directo."
     ],
     "discover": [
       "Explora",
@@ -810,5 +815,52 @@
       "Deportes",
       "Documentales"
     ]
+  },
+  "subtitles": {
+    "nav": "Subtítulos auto",
+    "badge": "1.3.0 · Guía y subtítulos",
+    "title": "Sigue el programa y sus diálogos.",
+    "intro": "La guía identifica el programa actual y BobTV busca sus subtítulos. Los canales con un programa EPG confirmado comparten el mismo proceso automático, sin búsquedas manuales cada vez que cambias.",
+    "steps": [
+      [
+        "Saber qué se emite",
+        "Relaciona el canal con su programa EPG actual y consulta lo que viene después."
+      ],
+      [
+        "Tu idioma primero",
+        "Prioriza el idioma elegido y después el inglés. Si no hay recursos adecuados, BobTV muestra el estado."
+      ],
+      [
+        "Seguir el ritmo del directo",
+        "Comprueba diálogos y tiempos con el audio reproducido en tu dispositivo. Pausa los subtítulos durante los anuncios y confirma la nueva posición antes de reanudarlos."
+      ]
+    ],
+    "privacy": "El audio permanece en tu dispositivo. El servidor busca, almacena y sincroniza subtítulos sin descargar el vídeo de forma continua. Los recursos se reutilizan cuando vuelve a emitirse la misma película. Solo se envían fragmentos de diálogo e información temporal para sincronizar.",
+    "condition": "Requiere un programa EPG confirmado y subtítulos adecuados. La resincronización por voz admite actualmente audio en inglés. La falta de información o una edición incompatible se indican en pantalla.",
+    "demo": "Explora qué ocurre durante un anuncio",
+    "demoNote": "Ejemplo del funcionamiento. La disponibilidad depende del programa, el idioma y la edición de los subtítulos.",
+    "current": "Ahora",
+    "next": "A continuación",
+    "later": "Después",
+    "programme": "Película actual",
+    "caption": "Los subtítulos siguen el programa que estás viendo.",
+    "modes": [
+      "Programa",
+      "Anuncios",
+      "Vuelve el programa"
+    ],
+    "statuses": [
+      "Subtítulos sincronizados",
+      "Subtítulos pausados durante los anuncios",
+      "Reanudar tras comprobar nuevos diálogos"
+    ],
+    "descriptions": [
+      "Identifica el programa y busca subtítulos a partir del EPG actual.",
+      "Los subtítulos de la película se pausan durante los anuncios.",
+      "Confirma la nueva posición antes de reanudar los subtítulos."
+    ],
+    "cta": "Prueba los subtítulos automáticos de 1.3.0",
+    "historyTitle": "La guía y los subtítulos automáticos, juntos",
+    "historyText": "Un mismo proceso automático para los canales con programas EPG confirmados. Siete idiomas de preferencia, con alternativa en inglés y finalmente sin subtítulos. El dispositivo reconoce el audio y el servidor busca y almacena los recursos. Los nuevos diálogos resincronizan los subtítulos después de los anuncios, dentro de la ventana de vídeo."
   }
 }

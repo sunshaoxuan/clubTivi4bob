@@ -78,13 +78,15 @@ def test_product_pages_reflect_published_releases():
     history = client.get("/release-notes?lang=zh-CN").text
     header, _, footer = home.partition("<footer>")
     assert 'class="history-band"' not in home
-    assert 'href="/release-notes"' not in header and 'href="/diagnostics"' not in header
+    assert 'class="nav-menu"' in header and 'href="/release-notes"' in header
+    assert 'href="/diagnostics"' not in header
     assert '<a href="/release-notes">版本记录</a>' in footer
     assert '<a href="/diagnostics">上传日志</a>' in footer
     assert '<a href="/release-notes" aria-current="page">版本记录</a>' in history
     assert "v1.0.3" in history and "v1.0.5 · 服务器链路、频道合并与全屏修复" in history
     assert "桌面画中画与全屏节目单" in history
-    assert "100 多个国家" in home and "七种界面语言" in home
+    assert "自动节目单与字幕" in home and "七种界面语言" in home
+    assert "个国家和地区" in home
     assert "iPhone、iPad 和嵌入式网页播放器正在开发" in home
     assert "部分频道" in home and "质量差的线路可以淘汰" in home
     assert '/assets/product.png?v=3' in home

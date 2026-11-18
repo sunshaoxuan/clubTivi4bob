@@ -13,6 +13,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'website'))
 from mirror_releases import _inspect_update_archive, _verify_publisher_signature, version_parts
 from android.verify_apk import verify as verify_apk
+from android.version_code import split_install_code
 from finalize_desktop_update_metadata import PLATFORMS
 
 
@@ -53,10 +54,10 @@ def verify(directory, version, build_tools):
         if package['platform'].startswith('android-'):
             details = verify_apk(path, Path(build_tools))
             manifest = subprocess.check_output([str(Path(build_tools)/'aapt'), 'dump', 'badging', str(path)], text=True)
-            offset = {'android-arm':1000, 'android-arm64':2000, 'android-x64':4000}[package['platform']]
-            if f"versionName='{base}'" not in manifest or f"versionCode='{offset+int(build)}'" not in manifest:
+            install_code = split_install_code(version, package['platform'])
+            if f"versionName='{base}'" not in manifest or f"versionCode='{install_code}'" not in manifest:
                 raise ValueError('Embedded Android version/build differs: ' + path.name)
-            details.update(versionName=base, versionCode=offset+int(build), baseBuildNumber=int(build))
+            details.update(versionName=base, versionCode=install_code, baseBuildNumber=int(build))
             android.append(details)
         elif package['platform'].startswith('macos-'):
             _verify_publisher_signature(path, package['signature'])

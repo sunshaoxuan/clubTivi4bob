@@ -202,6 +202,11 @@
     "history_title": "Recent changes",
     "history": [
       [
+        "2026-11-19",
+        "v1.3.1 · All available versions in the subtitle menu",
+        "Open Subtitles during playback to see versions by language. Select a version or return to Automatic. Manual selection applies to the current programme only."
+      ],
+      [
         "2026-11-18",
         "v1.3.0 · Programme guides and automatic subtitles, together",
         "BobTV automatically searches multiple subtitle sources when the guide confirms the current programme. Switch between seven language preferences and choose from up to three distinct subtitle versions per language during playback. Automatic selection tries your preferred language, then English. Subtitles pause for adverts and realign when the programme returns."
@@ -376,7 +381,7 @@
     "closing_text": "One column each for Windows, macOS and Android, with CPU choices inside. Native Windows ARM64 packages are available; Surface hardware tests are pending."
   },
   "downloads": {
-    "intro": "Windows, macOS and Android share version 1.3.0+0. Switch languages at the top of the app. Manual choices persist. Automatic mode uses the system language, then the time zone, then English. The language resources are included with each installer. The advanced mode entry has been closed. Diagnostic sync is off by default. Explicit consent enables up to 30 days of redacted records and can be withdrawn at any time.",
+    "intro": "Windows, macOS and Android share version 1.3.1+1. Switch languages at the top of the app. Manual choices persist. Automatic mode uses the system language, then the time zone, then English. The language resources are included with each installer. The advanced mode entry has been closed. Diagnostic sync is off by default. Explicit consent enables up to 30 days of redacted records and can be withdrawn at any time.",
     "latest": "Latest installers",
     "local": "Downloads hosted on this site",
     "sections": [
@@ -859,7 +864,7 @@
       "Film subtitles stay paused while the advert plays.",
       "Confirm the new playback position before subtitles resume."
     ],
-    "cta": "Get 1.3.0 and try auto subtitles",
+    "cta": "Get 1.3.1 and try auto subtitles",
     "historyTitle": "Programme guides and automatic subtitles, together",
     "historyText": "BobTV automatically searches multiple subtitle sources when the guide confirms the current programme. Switch between seven language preferences and choose from up to three distinct subtitle versions per language during playback. Automatic selection tries your preferred language, then English. Subtitles pause for adverts and realign when the programme returns."
   }

@@ -362,6 +362,22 @@ class ClientClockTests(unittest.TestCase):
                 h.ingest(t,self.observation(h,words=words,serial=2,language='zh-CN'))
             self.assertEqual(h.sessions[t]['language'],'zh-CN')
 
+    def test_sparse_proposal_requires_later_window_with_a_fresh_cue(self):
+        with tempfile.TemporaryDirectory() as directory:
+            hub = self.hub(directory)
+            token = hub.create(hub.source, None, 'en', ['clientClockV1'])
+            words = [dict(word='clear speech', start=1, end=2, probability=.95)]
+            anchors = [{**anchor, 'sparseWords': True, 'words': 3} for anchor in self.anchors()]
+            state = hub.sessions[token]
+            with patch('client_clock.align', return_value=(100., anchors[:3])):
+                hub.ingest(token, self.observation(hub, words=words))
+                hub.ingest(token, self.observation(hub, serial=2, end=23., words=words))
+            self.assertIsNone(state['reference'])
+            with patch('client_clock.align', return_value=(100., anchors[1:])):
+                hub.ingest(token, self.observation(hub, serial=3, end=27., words=words))
+            self.assertIsNotNone(state['reference'])
+            self.assertAlmostEqual(state['intercept'], 100.)
+
     def test_unmatched_requested_edition_falls_back_to_proven_english(self):
         with tempfile.TemporaryDirectory() as d:
             h=self.hub(d);english=h.candidates[0]

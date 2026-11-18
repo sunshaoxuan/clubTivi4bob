@@ -223,6 +223,7 @@ class TextHub:
             if changed:
                 session.pop('pendingTransport',None)
                 session.pop('clockJump',None);session.pop('acceptedClock',None);session.pop('editionSwitch',None)
+                session.pop('sparseClockProposal',None)
                 if session['programmeKey']!=self.programme['key']:
                     session.pop('variantId',None)
                     session.pop('priorReference',None);session.pop('priorRate',None);session.pop('priorAsset',None);session.pop('lastMatchedReference',None)
@@ -321,6 +322,25 @@ class TextHub:
                     return
                 anchors=exact
             accepted=session.get('acceptedClock',{})
+            if any(anchor.get('sparseWords') for anchor in anchors):
+                offset = statistics.median(a['subtitleStart'] - selected_rate * a['asrStart'] for a in anchors)
+                trusted = (accepted.get('page') == candidate['page']
+                           and abs(accepted['intercept'] - offset) < .6)
+                if not trusted:
+                    proposal = session.get('sparseClockProposal')
+                    cue_ids = {a['cue'] for a in anchors}
+                    agrees = (proposal and proposal['page'] == candidate['page']
+                              and 3 <= end - proposal['end'] <= 40
+                              and abs(proposal['intercept'] - offset) < .55
+                              and bool(cue_ids - proposal['cueIds']))
+                    if not agrees:
+                        if (not proposal or proposal['page'] != candidate['page']
+                                or end - proposal['end'] > 40
+                                or abs(proposal['intercept'] - offset) >= .55):
+                            session['sparseClockProposal'] = dict(page=candidate['page'], end=end,
+                                                                   intercept=offset, cueIds=cue_ids)
+                        return
+            session.pop('sparseClockProposal',None)
             if accepted and accepted.get('page')!=candidate['page']:
                 pending=session.setdefault('editionSwitch',{})
                 if pending.get('page')!=candidate['page']:
@@ -424,7 +444,7 @@ class TextHub:
             for key in ('lastMatchedReference', 'priorReference', 'priorRate',
                         'priorRateVerified', 'priorAsset', 'sourceModel', 'transportAt',
                         'pendingTransport', 'candidateKey', 'acceptedClock',
-                        'editionSwitch', 'clockJump'):
+                        'editionSwitch', 'clockJump', 'sparseClockProposal'):
                 session.pop(key, None)
             session.update(reference=None, intercept=None, rate=1., rateVerified=False,
                            points={}, pendingAnchors={}, unmatchedWindows=0, exhausted=False,

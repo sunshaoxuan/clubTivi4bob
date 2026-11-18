@@ -76,14 +76,23 @@ def align(words, cues, timeline, *, rate=1.):
     # prefix. The first two words and five of six words must agree, and a
     # second reference within one substitution makes the match ambiguous.
     references=[(cue,cue_words[cue['index']]) for cue in cues if len(cue_words[cue['index']])>=6]
+    # Both fuzzy checks require identical first two tokens. Index this exact
+    # prerequisite once instead of comparing every subtitle with every other
+    # subtitle on each viewer observation.
+    reference_prefixes={}
+    for cue,values in references:
+        reference_prefixes.setdefault(tuple(values[:2]),[]).append((cue,values))
+    observed_prefixes={}
+    for i in range(len(asr)-5):
+        observed_prefixes.setdefault(tuple(asr[i:i+2]),[]).append(i)
     anchored={a['cue'] for a in anchors}
     for cue,values in references:
         if cue['index'] in anchored:continue
         prefix=values[:6]
-        neighbors=[other for other,v in references if v[:2]==prefix[:2] and sum(a!=b for a,b in zip(prefix,v[:6]))<=1]
+        neighbors=[other for other,v in reference_prefixes[tuple(prefix[:2])] if sum(a!=b for a,b in zip(prefix,v[:6]))<=1]
         if len(neighbors)!=1:continue
-        for i in range(len(asr)-5):
-            if asr[i:i+2]!=prefix[:2] or sum(a!=b for a,b in zip(prefix,asr[i:i+6]))>1:continue
+        for i in observed_prefixes.get(tuple(prefix[:2]),()):
+            if sum(a!=b for a,b in zip(prefix,asr[i:i+6]))>1:continue
             if owners[i]['probability']<.6 or statistics.mean(w['probability'] for w in owners[i:i+6])<.8:continue
             onset=timeline+owners[i]['start']
             anchors.append(dict(cue=cue['index'],subtitleStart=cue['start'],asrStart=onset,

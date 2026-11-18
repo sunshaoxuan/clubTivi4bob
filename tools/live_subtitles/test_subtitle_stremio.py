@@ -57,4 +57,23 @@ class StremioTests(unittest.TestCase):
         cues,words=self.fuzzy_case(ambiguous=True)
         self.assertIsNone(align(words,cues,0)[0])
 
+    def test_movie_sized_reference_retains_exact_and_unique_fuzzy_onsets(self):
+        cues,words=self.fuzzy_case()
+        cues += [dict(index=100+i,start=1000+i*3,end=1002+i*3,
+                      text=f'padding{i} sequence{i} has a different spoken phrase')
+                 for i in range(2000)]
+        offset,anchors=align(words,cues,0)
+        self.assertAlmostEqual(offset,100)
+        self.assertEqual({a['cue'] for a in anchors},{0,1,2})
+        self.assertEqual(next(a for a in anchors if a.get('fuzzyPrefix'))['asrStart'],20)
+
+    def test_distant_ambiguous_prefix_still_blocks_a_fuzzy_onset(self):
+        cues,words=self.fuzzy_case()
+        cues += [dict(index=100+i,start=1000+i*3,end=1002+i*3,
+                      text=f'padding{i} sequence{i} has a different spoken phrase')
+                 for i in range(2000)]
+        cues.append(dict(index=3000,start=9000,end=9003,
+                         text='That is not a pond that is a puddle'))
+        self.assertIsNone(align(words,cues,0)[0])
+
 if __name__=='__main__':unittest.main()

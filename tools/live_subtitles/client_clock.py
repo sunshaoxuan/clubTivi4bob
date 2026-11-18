@@ -16,6 +16,7 @@ import time
 import uuid
 from live_engine import align, fit_clock_rate, clock_rate_confident
 from subtitle_catalog import discover, LANGUAGES
+from subtitle_variants import SubtitleVariants, UNCHANGED
 from service import reviewed_pilot_source
 from transport_clock import clock as source_clock, project as project_clock
 
@@ -65,8 +66,12 @@ class TextHub:
                     language=self.requested_languages.pop();generation=self.discovery_generation;programme=dict(self.programme)
                 try:
                     candidates=self.cache.get_or_discover(programme,self.root/'discovery'/uuid.uuid4().hex,discover,requested_language=language) if programme.get('searchable',True) else []
+                    variants=SubtitleVariants(candidates)
                     with self.lock:
-                        if generation==self.discovery_generation:self.candidates=candidates;self.discovery_error=False
+                        if generation==self.discovery_generation:
+                            self.candidates=candidates
+                            self.variants=variants
+                            self.discovery_error=False
                     self.event('subtitle_resources_ready',programmeKey=programme['key'],language=language,candidates=len(candidates))
                 except Exception as e:
                     with self.lock:
@@ -83,13 +88,35 @@ class TextHub:
             self.sessions[token]=dict(source=source,lastAccess=time.time(),language=language,epoch=None,asset=None,reference=None,rate=1.,intercept=None,points={},windows=[],lastObservation=-1,programmeKey=self.programme['key'],ad=False,lastWindow=None,unmatchedWindows=0,exhausted=False,pendingAnchors={})
             if hasattr(self,'requested_languages'):self.fetch_subtitles(language)
             return token
-    def clock_window(self,session,candidate,start,end,rate,intercept):
-        tracks=[]
-        for language,cues in candidate['tracks'].items():
-            emitted=[dict(index=c['index'],start=(c['start']-intercept)/rate,end=(c['end']-intercept)/rate,text=c['text']) for c in cues if c['end']>=rate*start+intercept and c['start']<=rate*end+intercept]
-            if emitted:tracks.append(dict(language=language,verified=True,cues=emitted))
-        session['windows']=[w for w in session['windows'] if w['end']<=start and w['end']>end-180]
-        session['windows'].append(dict(start=start,end=end,state='LOCKED',program=self.programme['movieId'],asset=session['asset'],tracks=tracks))
+    def variant_catalog(self):
+        catalog = getattr(self, 'variants', None)
+        if catalog is None or catalog.candidates is not self.candidates:
+            catalog = self.variants = SubtitleVariants(self.candidates)
+        return catalog
+
+    def caption_tracks(self, candidate, start, end, rate, intercept):
+        catalog = self.variant_catalog()
+        tracks = []
+        for language, cues in candidate['tracks'].items():
+            emitted = [dict(index=cue['index'], start=(cue['start']-intercept)/rate,
+                            end=(cue['end']-intercept)/rate, text=cue['text'])
+                       for cue in cues if cue['end'] >= rate*start+intercept
+                       and cue['start'] <= rate*end+intercept]
+            if emitted:
+                track = dict(language=language, verified=True, cues=emitted)
+                choice = catalog.track(candidate, language)
+                if choice:
+                    track['variantId'] = choice['id']
+                tracks.append(track)
+        return tracks
+
+    def clock_window(self, session, candidate, start, end, rate, intercept):
+        tracks = self.caption_tracks(candidate, start, end, rate, intercept)
+        session['windows'] = [window for window in session['windows']
+                              if window['end'] <= start and window['end'] > end-180]
+        session['windows'].append(dict(start=start, end=end, state='LOCKED',
+            program=self.programme['movieId'], asset=session['asset'],
+            tracks=tracks, subtitleClock=dict(rate=rate, intercept=intercept)))
 
     def project_transport(self,session,clock,*,start,end,position,epoch,asset,token):
         model=session.get('sourceModel')
@@ -168,6 +195,7 @@ class TextHub:
                 session.pop('pendingTransport',None)
                 session.pop('clockJump',None);session.pop('acceptedClock',None);session.pop('editionSwitch',None)
                 if session['programmeKey']!=self.programme['key']:
+                    session.pop('variantId',None)
                     session.pop('priorReference',None);session.pop('priorRate',None);session.pop('priorAsset',None);session.pop('lastMatchedReference',None)
                     session.pop('sourceModel',None);session.pop('transportAt',None);session.pop('adStart',None);session.pop('adClockStart',None)
                 elif session.get('reference') is not None or (session.get('lastMatchedReference') is not None and (ad or session.get('rateVerified',False))):
@@ -200,6 +228,8 @@ class TextHub:
             if known is not None and known not in trial:trial.append(known)
             if known is None or session['unmatchedWindows']>=3:
                 trial += [c for c in self.candidates or [] if c not in trial]
+            if pinned := session.get('variantId'):
+                trial = self.variant_catalog().matching(pinned)
             selected=None
             for candidate in trial:
                 cues=candidate['tracks'].get(speech)
@@ -320,52 +350,118 @@ class TextHub:
             # Refresh only observed movie windows; ad intervals remain excluded.
             trusted_rate=session.get('rateVerified',False) or candidate is session.get('priorReference') and session.get('priorRateVerified',False) and abs(rate-session.get('priorRate',rate))<1e-8
             movie_end=max(end+12,position+12) if trusted_rate else end+12
-            tracks=[]
-            for language,cues in candidate['tracks'].items():
-                emitted=[dict(index=c['index'],start=(c['start']-intercept)/rate,end=(c['end']-intercept)/rate,text=c['text']) for c in cues if c['end']>=rate*start+intercept and c['start']<=rate*movie_end+intercept]
-                if emitted:tracks.append(dict(language=language,verified=True,cues=emitted))
-            session['windows']=[w for w in session['windows'] if w['end']<=start and w['end']>end-180]
-            session['windows'].append(dict(start=start,end=movie_end,state='LOCKED',program=self.programme['movieId'],asset=asset,tracks=tracks))
+            self.clock_window(session,candidate,start,movie_end,rate,intercept)
             self.event('client_acoustic_lock',referenceId=hashlib.sha256(candidate['page'].encode()).hexdigest(),session=token,epoch=epoch,start=start,end=end,rate=rate,intercept=intercept,anchors=anchors,residualSeconds=residuals,clockRateVerified=session['rateVerified'],clockRateReused=warm_rate)
             if resuming:
                 session['acousticResumeEpoch']=epoch
                 if clock:session['transportAt']=time.time()
                 self.event('client_acoustic_clock_resume',session=token,epoch=epoch,referenceId=hashlib.sha256(candidate['page'].encode()).hexdigest(),start=start,end=end,rate=rate,intercept=intercept,confirmationCues=[a['cue'] for a in anchors],transportProposalErrorSeconds=(intercept-pending['intercept'])/rate if pending else None)
                 session.pop('pendingTransport',None);session.pop('adStart',None);session.pop('adClockStart',None)
-    def set_language(self,token,language):
-        if language not in LANGUAGES:raise ValueError('unsupported_language')
+    def set_language(self, token, language, variant=UNCHANGED):
+        if language not in LANGUAGES:
+            raise ValueError('unsupported_language')
         with self.lock:
-            session=self.sessions[token]
-            if language!=session['language']:
-                session['language']=language
-                if hasattr(self,'requested_languages'):self.fetch_subtitles(language)
+            session = self.sessions[token]
+            if variant is UNCHANGED and session.get('variantId'):
+                # A delayed audio request cannot undo the picker selection.
+                return
+            if language != session['language']:
+                session['language'] = language
+                if hasattr(self, 'requested_languages'):
+                    self.fetch_subtitles(language)
+            if variant is UNCHANGED:
+                return
+            if variant is not None and (not isinstance(variant, str) or not re.fullmatch(r'[a-f0-9]{64}', variant)):
+                raise ValueError('invalid_subtitle_variant')
+            catalog = self.variant_catalog()
+            reference = session.get('reference')
+            if variant and not catalog.matching(variant) and not catalog.supports(reference, variant):
+                variant = None
+            if variant == session.get('variantId'):
+                return
+            session['variantId'] = variant
+            if not variant:
+                return
+            if catalog.supports(reference, variant):
+                return
+            speech = session.get('audioLanguage', 'en')
+            acoustic_key = catalog.key(reference, speech)
+            equivalent = next((candidate for candidate in catalog.matching(variant)
+                               if acoustic_key and catalog.key(candidate, speech) == acoustic_key), None)
+            if equivalent is not None and not session.get('ad'):
+                self.replace_reference(session, equivalent)
+                return
+            # Another cut requires fresh acoustic evidence. Ads stay suspended.
+            for key in ('lastMatchedReference', 'priorReference', 'priorRate',
+                        'priorRateVerified', 'priorAsset', 'sourceModel', 'transportAt',
+                        'pendingTransport', 'candidateKey', 'acceptedClock',
+                        'editionSwitch', 'clockJump'):
+                session.pop(key, None)
+            session.update(reference=None, intercept=None, rate=1., rateVerified=False,
+                           points={}, pendingAnchors={}, unmatchedWindows=0, exhausted=False,
+                           windows=[window for window in session['windows'] if window['state'] == 'SUSPENDED'])
 
-    def refresh_reference_languages(self,session):
-        previous=session.get('reference')
-        if not previous:return
-        speech=session.get('audioLanguage','en')
-        current=next((c for c in self.candidates or [] if c is not previous and c['page']==previous['page'] and c['tracks']['en']==previous['tracks']['en'] and c['tracks'].get(speech)==previous['tracks'].get(speech)),None)
-        if current is None:return
-        # Only an identical English edition may reuse a verified clock. Added
-        # languages have already passed the persistent cache's exact cue grid.
+    def replace_reference(self, session, candidate):
         for window in session['windows']:
-            if window.get('state')!='LOCKED':continue
-            english=next((t['cues'] for t in window['tracks'] if t['language']=='en'),None)
-            if english is None:continue
-            tracks=[]
-            for language,cues in current['tracks'].items():
-                by_index={c['index']:c for c in cues}
-                translated=[{**c,'text':by_index[c['index']]['text']} for c in english if c['index'] in by_index]
-                if len(translated)==len(english):tracks.append(dict(language=language,verified=True,cues=translated))
-            window['tracks']=tracks
-        session['reference']=current
-        if session.get('sourceModel'):session['sourceModel']['reference']=current
+            if window.get('state') != 'LOCKED' or 'subtitleClock' not in window:
+                continue
+            window['tracks'] = self.caption_tracks(candidate, window['start'], window['end'],
+                                                   **window['subtitleClock'])
+        session['reference'] = session['lastMatchedReference'] = candidate
+        session['candidateKey'] = candidate['page']
+        if session.get('acceptedClock'):
+            session['acceptedClock']['page'] = candidate['page']
+        if session.get('sourceModel'):
+            session['sourceModel']['reference'] = candidate
 
-    def response(self,token,position=None):
+    def refresh_reference_languages(self, session):
+        previous = session.get('reference')
+        if not previous or session.get('variantId'):
+            return
+        speech = session.get('audioLanguage', 'en')
+        current = next((candidate for candidate in self.candidates or []
+                        if candidate is not previous and candidate['page'] == previous['page']
+                        and candidate['tracks']['en'] == previous['tracks']['en']
+                        and candidate['tracks'].get(speech) == previous['tracks'].get(speech)
+                        and all(candidate['tracks'].get(language) == cues
+                                for language, cues in previous['tracks'].items())), None)
+        if current is not None:
+            self.replace_reference(session, current)
+
+    def response(self, token, position=None):
         with self.lock:
-            s=self.sessions[token];self.refresh_reference_languages(s);s['lastAccess']=time.time();valid=self.valid_context(s['source'],None)
-            phase='programme_unavailable' if not valid else 'service_unavailable' if self.discovery_error else 'searching' if self.candidates is None else 'unavailable' if not self.candidates or s['exhausted'] else 'matched' if s['reference'] else 'synchronizing'
-            return dict(audioLanguageV1=True,transportClockVerified=bool(s.get('transportAt') and time.time()-s['transportAt']<=15 and s['reference'] and not s.get('ad')),session=token,source=s['source'],clientClock=True,playbackReady=False,playbackUrl=s['source'],programmeKey=self.programme['key'],programme=self.programme,mediaClockOrigin=0,subtitleStatus=dict(phase=phase,candidateCount=len(self.candidates or []),resourceLanguages=sorted({language for candidate in self.candidates or [] for language in candidate['tracks']}),availableLanguages=sorted(s['reference']['tracks']) if s['reference'] else [],cacheHit=bool(self.candidates and all(c.get('cacheHit') for c in self.candidates))),windows=s['windows'] if valid and s['programmeKey']==self.programme['key'] else [])
+            session = self.sessions[token]
+            session['lastAccess'] = time.time()
+            valid = self.valid_context(session['source'], None)
+            current = valid and session['programmeKey'] == self.programme['key']
+            if current:
+                self.refresh_reference_languages(session)
+            catalog = self.variant_catalog()
+            reference = session.get('reference') if current else None
+            pinned = session.get('variantId') if current else None
+            phase = ('programme_unavailable' if not valid else
+                     'service_unavailable' if self.discovery_error else
+                     'searching' if self.candidates is None else
+                     'unavailable' if not self.candidates or session['exhausted'] else
+                     'matched' if reference else 'synchronizing')
+            choices = catalog.choices(reference, pinned) if valid else []
+            if pinned:
+                active = pinned if catalog.supports(reference, pinned) and not session.get('ad') else None
+            else:
+                preferred = catalog.track(reference, session['language']) or catalog.track(reference, 'en')
+                active = preferred['id'] if preferred and not session.get('ad') else None
+            status = dict(phase=phase, candidateCount=len(self.candidates or []),
+                          resourceLanguages=sorted({choice['language'] for choice in choices}),
+                          availableLanguages=sorted(reference['tracks']) if reference else [],
+                          cacheHit=bool(self.candidates and all(candidate.get('cacheHit') for candidate in self.candidates)),
+                          variantCandidates=choices, selectedVariantId=pinned, activeVariantId=active)
+            return dict(audioLanguageV1=True,
+                        transportClockVerified=bool(session.get('transportAt') and time.time()-session['transportAt']<=15
+                                                    and reference and not session.get('ad')),
+                        session=token, source=session['source'], clientClock=True, playbackReady=False,
+                        playbackUrl=session['source'], programmeKey=self.programme['key'], programme=self.programme,
+                        mediaClockOrigin=0, subtitleStatus=status, windows=session['windows'] if current else [])
+
     def guide_failed(self,error):
         with self.lock:
             age=time.time()-self.last_guide_success
@@ -385,7 +481,12 @@ class TextHub:
             with self.lock:
                 changed=programme['key']!=self.programme['key'];self.source,self.programme=source,programme
                 self.last_guide_success=time.time();self.gap=False
-                if changed:self.discovery_generation+=1;self.candidates=None
+                if changed:
+                    self.discovery_generation+=1
+                    self.candidates=None
+                    self.variants=SubtitleVariants(None)
+                    for session in self.sessions.values():
+                        session.pop('variantId', None)
                 if changed or self.discovery_error and time.monotonic()-self.last_discovery>60:
                     for language in {'en',*(s['language'] for s in self.sessions.values())}:self.fetch_subtitles(language)
         except Exception as error:self.guide_failed(error)

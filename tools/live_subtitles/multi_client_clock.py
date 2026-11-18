@@ -97,6 +97,6 @@ class MultiTextHub:
                 self.channels[cid]=child;self.created[cid]=time.time()
             child=self.channels[cid]
         return child.create(source,context,language,features)
-    def set_language(self,token,language):return self.owner(token).set_language(token,language)
+    def set_language(self,token,language,**settings):return self.owner(token).set_language(token,language,**settings)
     def ingest(self,token,data):return self.owner(token).ingest(token,data)
     def response(self,token,position=None):return self.owner(token).response(token,position)

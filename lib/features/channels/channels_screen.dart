@@ -24,6 +24,7 @@ import '../../core/countdown_snackbar.dart';
 import '../../core/app_diagnostics.dart';
 import '../../core/app_version.dart';
 import '../../core/platform_info.dart';
+import '../../core/player_resources.dart';
 import '../../core/tablet_presentation.dart';
 import '../../core/weather_clock_widget.dart';
 import '../../data/datasources/local/database.dart' as db;
@@ -64,6 +65,7 @@ import '../player/player_presentation_buttons.dart';
 import '../player/radio_playback_surface.dart';
 import '../player/alternative_preview_overlay.dart';
 import '../player/stream_info_badges.dart';
+import '../player/subtitle_picker.dart';
 import '../providers/provider_manager.dart';
 import '../providers/source_maintenance_coordinator.dart';
 import '../shows/shows_providers.dart';
@@ -3393,7 +3395,17 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
     )],
   );
 
-  Widget _buildSimplePreview() {
+  Widget _buildSimplePreview() => LayoutBuilder(
+    builder: (context, bounds) => _buildSimplePreviewContent(
+      subtitleInFooter: bounds.maxWidth <= 760 || bounds.maxHeight <= 300,
+      labelSubtitleButton: bounds.maxWidth >= 440,
+    ),
+  );
+
+  Widget _buildSimplePreviewContent({
+    required bool subtitleInFooter,
+    required bool labelSubtitleButton,
+  }) {
     final channel = _previewChannel;
     final nowPlaying = channel == null ? null : _getChannelNowPlaying(channel);
     return Container(
@@ -3423,7 +3435,9 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                                 _showCurrentRouteMenu(details.globalPosition),
                             onLongPressStart: (details) =>
                                 _showCurrentRouteMenu(details.globalPosition),
-                            child: _buildActiveVideo(),
+                            child: _buildActiveVideo(
+                              showSubtitleMenu: !subtitleInFooter,
+                            ),
                           ),
                   ),
                   if (channel != null)
@@ -3549,6 +3563,16 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                 ),
               ),
               if (channel != null) ...[
+                if (subtitleInFooter && !_allowsAudioOnly(channel))
+                  SubtitleMenuButton(
+                    compact: labelSubtitleButton,
+                    session: () {
+                      final service = ref.read(playerServiceProvider);
+                      final player = service.activeVideoController.value?.player ??
+                          service.player;
+                      return player is ManagedPlayer ? player.liveSubtitles : null;
+                    },
+                  ),
                 IconButton(
                   tooltip: _favoritedChannelIds.contains(channel.id) ? AppMessages.text(context, "取消收藏") : AppMessages.text(context, "加入收藏"),
                   onPressed: _favoriteActionsPending.contains(channel.id) ? null : () => _handleRouteMenuFavorite(channel),
@@ -3574,7 +3598,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
     );
   }
 
-  Widget _buildActiveVideo() {
+  Widget _buildActiveVideo({bool showSubtitleMenu = true}) {
     final service = ref.read(playerServiceProvider);
     final initialController = service.videoController;
     return ValueListenableBuilder<VideoController?>(
@@ -3595,7 +3619,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
             key: ValueKey(controller ?? initialController),
             controller: controller ?? initialController,
             controls: NoVideoControls,
-            showSubtitleMenu: true,
+            showSubtitleMenu: showSubtitleMenu,
             fit: TabletPresentation.videoFit,
           ),
         );

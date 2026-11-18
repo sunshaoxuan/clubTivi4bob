@@ -834,7 +834,8 @@ class ClientAudioSubtitles {
       await directory.create(recursive: true);
       if (_disposed) return;
       file = File('${directory.path}/window.pcm');
-      await file.writeAsBytes(bytes, flush: true);
+      final input = prepareRecognitionPcm(bytes);
+      await file.writeAsBytes(input.bytes, flush: true);
       final hint = subtitleLanguage(player.state.track.audio.language);
       final trackId = player.state.track.audio.id;
       final timeout = reacquiring
@@ -881,6 +882,7 @@ class ClientAudioSubtitles {
         'words': words.length,
         'processSeconds': response['processSeconds'],
         'captureGapSeconds': window.gapSeconds,
+        'inputGain': input.gain,
         'error': response['error'],
       });
       final detected =
@@ -899,7 +901,11 @@ class ClientAudioSubtitles {
               audioLanguage == 'en' ||
               (_audioLanguageSupported && audioLanguage != null))) {
         final end = start + bytes.length / 32000;
-        if (words.isNotEmpty && _ad == false && asset == _asset) {
+        final reliableWords = words.where((word) {
+          final confidence = (word as Map)['probability'];
+          return confidence is num && confidence >= .65;
+        });
+        if (reliableWords.length >= 4 && _ad == false && asset == _asset) {
           _lastSpeech = (
             start: start,
             end: end,

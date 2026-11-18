@@ -53,6 +53,37 @@ PcmWindow? buildPcmWindow(List<PcmChunk> chunks) {
   return PcmWindow(start, output.takeBytes(), gapBytes / 32000);
 }
 
+/// Raise low-level dialogue only in the recognition copy. Keep the native
+/// sample count, clock, digital silence and peak headroom unchanged.
+({Uint8List bytes, double gain}) prepareRecognitionPcm(Uint8List bytes) {
+  final input = ByteData.sublistView(bytes);
+  var sumSquares = 0.0;
+  var peak = 0;
+  var nonzero = 0;
+  for (var offset = 0; offset < input.lengthInBytes; offset += 2) {
+    final sample = input.getInt16(offset, Endian.little).abs();
+    if (sample == 0) continue;
+    nonzero++;
+    peak = math.max(peak, sample);
+    sumSquares += sample * sample;
+  }
+  if (nonzero < bytes.length ~/ 20) return (bytes: bytes, gain: 1);
+  final rms = math.sqrt(sumSquares / math.max(1, nonzero));
+  if (rms < 64 || rms >= 700) return (bytes: bytes, gain: 1);
+  final gain = math.min(3.0, math.min(900 / rms, 32000 / peak));
+  if (gain <= 1.05) return (bytes: bytes, gain: 1);
+  final adjusted = Uint8List(bytes.length);
+  final output = ByteData.sublistView(adjusted);
+  for (var offset = 0; offset < input.lengthInBytes; offset += 2) {
+    output.setInt16(
+      offset,
+      (input.getInt16(offset, Endian.little) * gain).round(),
+      Endian.little,
+    );
+  }
+  return (bytes: adjusted, gain: gain);
+}
+
 /// Reserve playback for measured recognition cost, including slower devices.
 class SpeechPlaybackBudget {
   final _recentCosts = <double>[];

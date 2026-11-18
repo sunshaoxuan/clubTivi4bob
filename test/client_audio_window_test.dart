@@ -6,6 +6,27 @@ Uint8List samples(int count, int value) =>
     Int16List.fromList(List.filled(count, value)).buffer.asUint8List();
 
 void main() {
+  test(
+    'recognition input safely amplifies quiet PCM without moving samples',
+    () {
+      final quiet = Uint8List(16);
+      final data = ByteData.sublistView(quiet);
+      data.setInt16(0, 200, Endian.little);
+      data.setInt16(4, -200, Endian.little);
+      final adjusted = prepareRecognitionPcm(quiet);
+      expect(adjusted.gain, 3);
+      expect(adjusted.bytes.length, quiet.length);
+      expect(data.getInt16(0, Endian.little), 200);
+      final result = ByteData.sublistView(adjusted.bytes);
+      expect(result.getInt16(0, Endian.little), 600);
+      expect(result.getInt16(2, Endian.little), 0);
+      expect(result.getInt16(4, Endian.little), -600);
+      expect(prepareRecognitionPcm(Uint8List(16)).gain, 1);
+      data.setInt16(6, 25000, Endian.little);
+      expect(prepareRecognitionPcm(quiet).gain, 1);
+    },
+  );
+
   test('early recovery attempts retain the first cue for a longer phrase', () {
     final chunks = <PcmChunk>[];
     for (var second = 0; second < 32; second++) {

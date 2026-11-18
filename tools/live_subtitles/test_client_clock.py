@@ -8,6 +8,45 @@ from unittest.mock import patch
 from client_clock import TextHub
 
 class ClientClockTests(unittest.TestCase):
+    def test_added_language_reuses_only_identical_english_edition_and_clock(self):
+        with tempfile.TemporaryDirectory() as d:
+            h=self.hub(d);token=h.create(h.source,None,'en',['clientClockV1']);s=h.sessions[token]
+            old=h.candidates[0];s.update(reference=old,asset='movie',rate=1.,intercept=100.)
+            h.clock_window(s,old,0,50,1.,100.)
+            before=json.loads(json.dumps(s['windows'][0]['tracks'][0]['cues']))
+            japanese=[{**c,'text':'Japanese cue '+str(c['index'])} for c in old['tracks']['en']]
+            h.candidates=[{**old,'tracks':{**old['tracks'],'ja':japanese}}]
+            v=h.response(token);self.assertIn('ja',v['subtitleStatus']['availableLanguages'])
+            self.assertEqual(s['windows'][0]['tracks'][0]['cues'],before)
+            translated=s['windows'][0]['tracks'][1]['cues'];self.assertEqual([c['start'] for c in translated],[c['start'] for c in before])
+            self.assertTrue(all(c['text'].startswith('Japanese cue') for c in translated))
+            incompatible=[{**c,'start':c['start']+2} for c in old['tracks']['en']]
+            h.candidates=[{**old,'tracks':dict(en=incompatible,fr=japanese)}]
+            self.assertNotIn('fr',h.response(token)['subtitleStatus']['availableLanguages'])
+
+    def test_language_change_from_audio_observation_requests_resource_lookup(self):
+        with tempfile.TemporaryDirectory() as d:
+            h=self.hub(d);token=h.create(h.source,None,'en',['clientClockV1']);h.requested_languages=set()
+            with patch.object(h,'fetch_subtitles') as fetch:
+                h.ingest(token,self.observation(h,language='ja'))
+                fetch.assert_called_once_with('ja')
+    def test_all_requested_languages_queue_behind_inflight_cache_lookup(self):
+        with tempfile.TemporaryDirectory() as d:
+            h=self.hub(d);h.requested_languages=set();h.discovery_busy=False
+            h.discovery_generation=0;h.last_discovery=0
+            entered=threading.Event();release=threading.Event();seen=set()
+            class Cache:
+                def get_or_discover(self,p,r,discover,requested_language):
+                    if requested_language=='en':entered.set();release.wait(2)
+                    seen.add(requested_language)
+                    return [dict(page='same-film',tracks={language:[] for language in seen})]
+            h.cache=Cache();h.fetch_subtitles('en');self.assertTrue(entered.wait(2))
+            for language in ['zh-CN','zh-TW','ja','fr','es','ko']:h.fetch_subtitles(language)
+            release.set();deadline=time.monotonic()+2
+            while h.discovery_busy and time.monotonic()<deadline:time.sleep(.005)
+            self.assertFalse(h.discovery_busy)
+            self.assertEqual(seen,{'en','zh-CN','zh-TW','ja','fr','es','ko'})
+            self.assertEqual(set(h.candidates[0]['tracks']),seen)
     def hub(self,root):
         h=TextHub.__new__(TextHub);h.root=Path(root);h.lock=threading.RLock();h.sessions={}
         h.source='https://action-rakuten-tv-uk.fast.rakuten.tv/v1/master/key/production-LiveChannel-6065/master.m3u8'

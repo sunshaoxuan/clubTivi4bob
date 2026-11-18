@@ -279,6 +279,9 @@ class PlayerService {
   static const minimumUltraHdVideoBitrate = 8000000.0;
 
   Player? _player;
+  bool get usesLocalSubtitleAudio =>
+      _player is ManagedPlayer &&
+      (_player as ManagedPlayer).liveSubtitles.usesClientAudio;
   VideoController? _videoController;
   final ValueNotifier<VideoController?> activeVideoController = ValueNotifier(null);
   final ValueNotifier<VideoController?> previewVideoController = ValueNotifier(null);

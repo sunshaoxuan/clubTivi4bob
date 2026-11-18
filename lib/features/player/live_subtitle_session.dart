@@ -111,13 +111,34 @@ class LiveSubtitleSession {
         onChanged: () {
           final current = _localAudio;
           if (current != null && !_disposed) {
-            text.value = current.text;
-            status.value = current.phase;
-            final external = const {
-              SubtitlePhase.ready,
-              SubtitlePhase.englishFallback,
-              SubtitlePhase.suspended,
-            }.contains(current.phase);
+            final requested = subtitleLanguage(
+              SubtitlePreferences.instance.language.tag,
+            );
+            final nativePreferred = player.state.tracks.subtitle.any(
+              (track) =>
+                  track.id != 'no' &&
+                  track.id != 'auto' &&
+                  !(track.title?.toLowerCase().contains('forced') ?? false) &&
+                  subtitleLanguage(track.language) == requested,
+            );
+            final external =
+                const {
+                  SubtitlePhase.ready,
+                  SubtitlePhase.englishFallback,
+                  SubtitlePhase.suspended,
+                }.contains(current.phase) &&
+                !(nativePreferred &&
+                    current.phase == SubtitlePhase.englishFallback);
+            text.value = external ? current.text : '';
+            final native = selection.selected.value;
+            status.value =
+                !external &&
+                    native != null &&
+                    SubtitlePreferences.instance.enabled
+                ? subtitleLanguage(native.language) == 'en' && requested != 'en'
+                      ? SubtitlePhase.englishFallback
+                      : SubtitlePhase.ready
+                : current.phase;
             if (selection.external != external) {
               selection.external = external;
               selection.refresh();

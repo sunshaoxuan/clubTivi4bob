@@ -270,7 +270,15 @@ class ClientAudioSubtitles {
     _polling = true;
     try {
       final response = await _client
-          .get(endpoint.resolve('sessions/$_session'))
+          .get(
+            endpoint
+                .resolve('sessions/$_session')
+                .replace(
+                  queryParameters: {
+                    'language': SubtitlePreferences.instance.language.tag,
+                  },
+                ),
+          )
           .timeout(const Duration(seconds: 5));
       downloadedBytes += response.bodyBytes.length;
       if (_disposed) return;

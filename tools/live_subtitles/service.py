@@ -382,6 +382,8 @@ def serve(hub, host, port, legacy_port=None):
                                                      clockRateVerified=bool(getattr(getattr(hub,'engine',None),'rate_verified',False)))).encode())
                 match = re.fullmatch(r'/sessions/([a-f0-9]{32})', path)
                 if match:
+                    language=parse_qs(urlsplit(self.path).query).get('language',[None])[0]
+                    if language is not None and getattr(hub,'client_only',False):hub.set_language(match[1],language)
                     position=parse_qs(urlsplit(self.path).query).get('position',[None])[0]
                     position=float(position) if position is not None else None
                     return self.send(json.dumps(hub.response(match[1], position), ensure_ascii=False).encode())

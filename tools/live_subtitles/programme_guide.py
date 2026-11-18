@@ -17,9 +17,9 @@ def route_key(source):
     if not isinstance(source,str):return None
     try:u=urlsplit(source)
     except ValueError:return None
-    if u.scheme not in ('https','http') or not u.hostname:return None
+    if not u.scheme or not u.hostname:return None
     # Delivery sessions change while the provider service identity stays fixed.
-    if u.scheme=='https' and u.hostname.endswith('-rakuten-tv-uk.fast.rakuten.tv') and not u.username:
+    if u.scheme=='https' and u.hostname.endswith('-rakuten-tv-uk.fast.rakuten.tv') and not u.username and u.port in (None,443):
         m=re.search(r'/production-(?:LiveChannel-(\d+)|hls-aes128-rtv-(\d+)-playout)/',u.path)
         if m:return (u.hostname,next(x for x in m.groups() if x))
     return source.split('#',1)[0]
@@ -35,6 +35,10 @@ class ProgrammeGuide:
             with self.lock:self.catalog=catalog;self.catalog_at=time.monotonic()
         key=route_key(source)
         matches=[c for c in catalog['channels'] if key is not None and any(route_key(r['url'])==key for r in c['routes'])]
+        if not matches and time.monotonic()-self.catalog_at>25:
+            catalog=snapshot('channel-catalog')
+            with self.lock:self.catalog=catalog;self.catalog_at=time.monotonic()
+            matches=[c for c in catalog['channels'] if key is not None and any(route_key(r['url'])==key for r in c['routes'])]
         if len(matches)!=1:raise ValueError('unbound_public_route')
         return matches[0]
     def current(self,channel_id,source):

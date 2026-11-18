@@ -76,6 +76,7 @@ class AdaptiveBufferManager {
   Timer? _monitorTimer;
   String _currentTier = 'normal';
   String? _currentUrl;
+  bool _speechBufferRequired = false;
 
   // Health tracking — reset per stream
   int _stableSeconds = 0;
@@ -92,6 +93,7 @@ class AdaptiveBufferManager {
   }) async {
     _monitorTimer?.cancel();
     _currentUrl = url;
+    _speechBufferRequired = false;
     _stableSeconds = 0;
     _stallCount = 0;
 
@@ -124,6 +126,12 @@ class AdaptiveBufferManager {
   void _startMonitoring(String url, PlayerService ps) {
     _monitorTimer = Timer.periodic(const Duration(seconds: 2), (_) async {
       if (_currentUrl != url) return; // stream changed
+      _speechBufferRequired = ps.usesLocalSubtitleAudio;
+      if (_speechBufferRequired && _currentTier == 'fast') {
+        _currentTier = 'normal';
+        await _applyTier(_currentTier, ps);
+        if (_currentUrl != url) return;
+      }
 
       final raw = await ps.getMpvProperty('demuxer-cache-duration');
       if (_currentUrl != url) return;
@@ -177,7 +185,11 @@ class AdaptiveBufferManager {
   /// Move to a lower buffer tier. Returns true if tier changed.
   bool _downgradeTier() {
     final idx = _tierOrder.indexOf(_currentTier);
-    final floor = isReviewedRakutenUkMovieSource(_currentUrl ?? '') ? 1 : 0;
+    final floor =
+        _speechBufferRequired ||
+            isReviewedRakutenUkMovieSource(_currentUrl ?? '')
+        ? 1
+        : 0;
     if (idx > floor) {
       _currentTier = _tierOrder[idx - 1];
       return true;

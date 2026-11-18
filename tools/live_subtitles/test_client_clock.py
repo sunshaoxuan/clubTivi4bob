@@ -86,6 +86,23 @@ class ClientClockTests(unittest.TestCase):
             h.candidates=[{**old,'tracks':dict(en=incompatible,fr=japanese)}]
             self.assertNotIn('fr',h.response(token)['subtitleStatus']['availableLanguages'])
 
+    def test_preferred_translation_replaces_fallback_with_identical_clock(self):
+        with tempfile.TemporaryDirectory() as directory:
+            hub = self.hub(directory)
+            token = hub.create(hub.source, None, 'ja', ['clientClockV1'])
+            session = hub.sessions[token]
+            english = hub.candidates[0]
+            session.update(reference=english, asset='movie', rate=1., intercept=100.)
+            hub.clock_window(session, english, 0, 50, 1., 100.)
+            translated = [{**cue, 'text': '日本語の字幕'} for cue in english['tracks']['en']]
+            preferred = dict(page='second-provider', tracks={**english['tracks'], 'ja': translated})
+            hub.candidates = [{**english}, preferred]
+            result = hub.response(token)
+            self.assertIs(session['reference'], preferred)
+            selected = next(item for item in result['subtitleStatus']['variantCandidates'] if item['language'] == 'ja')
+            self.assertEqual(result['subtitleStatus']['activeVariantId'], selected['id'])
+            self.assertEqual({track['language'] for track in result['windows'][0]['tracks']}, {'en', 'ja'})
+
     def test_language_change_from_audio_observation_requests_resource_lookup(self):
         with tempfile.TemporaryDirectory() as d:
             h=self.hub(d);token=h.create(h.source,None,'en',['clientClockV1']);h.requested_languages=set()
@@ -109,6 +126,27 @@ class ClientClockTests(unittest.TestCase):
             self.assertFalse(h.discovery_busy)
             self.assertEqual(seen,{'en','zh-CN','zh-TW','ja','fr','es','ko'})
             self.assertEqual(set(h.candidates[0]['tracks']),seen)
+    def test_english_fallback_does_not_stop_preferred_language_retry(self):
+        with tempfile.TemporaryDirectory() as directory:
+            hub = self.hub(directory)
+            hub.stop_event = threading.Event()
+            hub.guide = lambda: (hub.source, hub.programme)
+            hub.discovery_busy = False
+            hub.last_discovery = 0
+            hub.next_guide = 0
+            english = hub.create(hub.source, None, 'en', ['clientClockV1'])
+            japanese = hub.create(hub.source, None, 'ja', ['clientClockV1'])
+            for token in (english, japanese):
+                hub.sessions[token]['reference'] = hub.candidates[0]
+            with patch.object(hub, 'fetch_subtitles') as fetch, patch('client_clock.time.monotonic', return_value=61):
+                hub.maintain_once()
+                fetch.assert_called_once_with('ja')
+                self.assertIsNotNone(hub.response(japanese)['subtitleStatus']['activeVariantId'])
+                hub.next_guide = 0
+                hub.last_discovery = 30
+                hub.maintain_once()
+                fetch.assert_called_once_with('ja')
+
     def hub(self,root):
         h=TextHub.__new__(TextHub);h.root=Path(root);h.lock=threading.RLock();h.sessions={}
         h.source='https://action-rakuten-tv-uk.fast.rakuten.tv/v1/master/key/production-LiveChannel-6065/master.m3u8'

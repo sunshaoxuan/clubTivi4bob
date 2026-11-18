@@ -201,7 +201,9 @@ class SubtitleCache:
                    for resource in resources if not resource['pairedWithEnglish']}
         if None in pending or 'zh' in pending:
             pending.update(('zh-CN', 'zh-TW'))
-        identity_pending = any(row.get('outcome') == 'identity_pending' for row in outcomes)
+        identity_pending = any(row.get('outcome') == 'identity_pending'
+                               or row.get('reason') == 'verified_imdb_required'
+                               for row in outcomes)
         searches = {}
         for language in LANGUAGES:
             variants = available.get(language, 0)

@@ -15,6 +15,7 @@ import threading
 import time
 import uuid
 from live_engine import align, fit_clock_rate, clock_rate_confident
+from subtitle_cache import RETRY_TTL
 from subtitle_catalog import discover, LANGUAGES
 from subtitle_variants import SubtitleVariants, UNCHANGED
 from service import reviewed_pilot_source
@@ -419,12 +420,15 @@ class TextHub:
         if not previous or session.get('variantId'):
             return
         speech = session.get('audioLanguage', 'en')
-        current = next((candidate for candidate in self.candidates or []
-                        if candidate is not previous and candidate['page'] == previous['page']
-                        and candidate['tracks']['en'] == previous['tracks']['en']
-                        and candidate['tracks'].get(speech) == previous['tracks'].get(speech)
-                        and all(candidate['tracks'].get(language) == cues
-                                for language, cues in previous['tracks'].items())), None)
+        preferred = session['language']
+        compatible = (candidate for candidate in self.candidates or []
+                      if candidate is not previous
+                      and (candidate['page'] == previous['page']
+                           or preferred not in previous['tracks'] and preferred in candidate['tracks'])
+                      and candidate['tracks'].get(speech) == previous['tracks'].get(speech)
+                      and all(candidate['tracks'].get(language) == cues
+                              for language, cues in previous['tracks'].items()))
+        current = max(compatible, key=lambda candidate: preferred in candidate['tracks'], default=None)
         if current is not None:
             self.replace_reference(session, current)
 
@@ -487,8 +491,16 @@ class TextHub:
                     self.variants=SubtitleVariants(None)
                     for session in self.sessions.values():
                         session.pop('variantId', None)
-                if changed or self.discovery_error and time.monotonic()-self.last_discovery>60:
-                    for language in {'en',*(s['language'] for s in self.sessions.values())}:self.fetch_subtitles(language)
+                languages = {s['language'] for s in self.sessions.values()}
+                if changed:
+                    for language in languages or {'en'}:
+                        self.fetch_subtitles(language)
+                elif not self.discovery_busy and time.monotonic() - self.last_discovery >= RETRY_TTL:
+                    available = {language for candidate in self.candidates or [] for language in candidate['tracks']}
+                    # An aligned fallback must not stop discovery for an active
+                    # viewer. The shared cache controls each provider retry.
+                    for language in languages - available:
+                        self.fetch_subtitles(language)
         except Exception as error:self.guide_failed(error)
 
     def maintain(self):

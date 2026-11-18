@@ -234,6 +234,22 @@ class SubtitleCacheTests(unittest.TestCase):
             cache.get_or_discover(self.film,directory,unavailable,requested_language='ja')
             self.assertEqual(len(calls),2)
 
+    def test_skipped_identity_source_is_not_recorded_as_no_subtitle(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            cache = SubtitleCache(root / 'cache')
+            downloads = root / 'downloads'
+            downloads.mkdir()
+            def search(*args, **kwargs):
+                (downloads / 'provider-search-audit.json').write_text(json.dumps({
+                    'providerOutcomes': [{'outcome': 'skipped', 'reason': 'verified_imdb_required'}]
+                }))
+                return [candidate(['en'])]
+            cache.get_or_discover(self.film, downloads, search, requested_language='ja')
+            _, searches = cache.load(cache.root / cache.identity(self.film))
+            self.assertEqual(searches['ja']['outcome'], 'identity_pending')
+            self.assertEqual(searches['en']['outcome'], 'cached')
+
     def test_live_offsets_and_session_state_are_never_reused_from_cache(self):
         with tempfile.TemporaryDirectory() as directory:
             cache=SubtitleCache(directory)

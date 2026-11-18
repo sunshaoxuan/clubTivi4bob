@@ -169,6 +169,32 @@ void main() {
     },
   );
 
+  test('manually pinned French renders despite a Chinese preference', () {
+    final timeline = LiveSubtitleTimeline('session', 'route', [
+      {
+        'start': 0,
+        'end': 10,
+        'state': 'LOCKED',
+        'program': 'film',
+        'asset': 'cut',
+        'tracks': [
+          {
+            'language': 'fr',
+            'variantId': id('a'),
+            'verified': true,
+            'cues': [
+              {'start': 1, 'end': 5, 'text': 'Bonjour'},
+            ],
+          },
+        ],
+      },
+    ]);
+    expect(timeline.textAt(2, 'zh-CN'), isEmpty);
+    expect(timeline.textAt(2, 'zh-CN', variantId: id('a')), 'Bonjour');
+    expect(timeline.textAt(2, 'zh-CN', variantId: id('b')), isEmpty);
+    expect(timeline.textAt(6, 'zh-CN', variantId: id('a')), isEmpty);
+  });
+
   test('same-language stale tracks cannot replace the requested version', () {
     final timeline = LiveSubtitleTimeline('session', 'route', [
       {

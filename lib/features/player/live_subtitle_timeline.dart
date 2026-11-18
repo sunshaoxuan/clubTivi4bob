@@ -100,15 +100,21 @@ class LiveSubtitleTimeline {
       final tracks = (window['tracks'] as List? ?? const []).map(
         (t) => Map<String, dynamic>.from(t as Map),
       );
-      final track = selectSubtitle(
-        tracks,
-        language,
-        language: (t) => t['language'] as String?,
-        usable: (t) =>
-            t['verified'] == true &&
-            (variantId == null || t['variantId'] == variantId) &&
-            (t['cues'] as List? ?? const []).isNotEmpty,
-      );
+      bool usable(Map<String, dynamic> track) =>
+          track['verified'] == true &&
+          (track['cues'] as List? ?? const []).isNotEmpty;
+      final track = variantId == null
+          ? selectSubtitle(
+              tracks,
+              language,
+              language: (track) => track['language'] as String?,
+              usable: usable,
+            )
+          : tracks
+                .where(
+                  (track) => track['variantId'] == variantId && usable(track),
+                )
+                .firstOrNull;
       if (track == null) return '';
       final text = <String>[];
       for (final raw in track['cues'] as List) {

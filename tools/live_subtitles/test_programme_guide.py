@@ -1,9 +1,21 @@
 import time
+import tempfile
 import unittest
 from unittest.mock import patch
 from programme_guide import ProgrammeGuide,route_key
+from subtitle_cache import SubtitleCache
 
 class GuideTests(unittest.TestCase):
+    def test_generic_epg_movie_can_enter_idempotent_resource_cache(self):
+        self.rows();self.epg['programmes'][0].update(sourceId='xmltv-reviewed',provenance={});g=ProgrammeGuide()
+        with patch('programme_guide.snapshot',side_effect=self.snap),patch('programme_guide.public_read',return_value=b'{"d":[{"id":"tt0000001","qid":"movie","l":"Sunshine Cleaning","y":2008}]}'):
+            _,(_,p)=g.resolve(self.source)
+        with tempfile.TemporaryDirectory() as d,patch('subtitle_cache.release_year',return_value=2008):
+            cache=SubtitleCache(d)
+            discover=lambda title,year,root,**kw:[]
+            self.assertEqual(cache.get_or_discover(p,d,discover,requested_language='ja'),[])
+            self.assertIsNone(p['movieId']);self.assertEqual(p['imdbId'],'tt0000001')
+
     def rows(self):
         self.source='https://comedy-rakuten-tv-uk.fast.rakuten.tv/v1/manifest/key/production-LiveChannel-6181/old/4.m3u8'
         self.catalog=dict(channels=[dict(id='comedy',routes=[dict(url=self.source)])])

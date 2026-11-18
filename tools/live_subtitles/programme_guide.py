@@ -8,9 +8,14 @@ import json
 import re
 import threading
 import time
+import unicodedata
 from urllib.parse import urlsplit, urlencode, quote
 from service import snapshot, public_read, official_imdb_id
 from subtitle_catalog import title_norm
+
+
+def identity_title(value):
+    return re.findall(r'[^\W_]+',unicodedata.normalize('NFKC',value).casefold())
 
 
 def route_key(source):
@@ -49,7 +54,7 @@ class ProgrammeGuide:
         if len(rows)!=1:raise ValueError('unambiguous_current_programme_required')
         p=rows[0];facts=p.get('provenance',{});movie=facts.get('movieId');episode=facts.get('episodeId');event=facts.get('sourceEventId')
         key=f"{p['sourceId']}:{p['originalChannelId']}:{event or p['startUtc']}:{p['stopUtc']}:{movie or episode or '-'}"
-        result=dict(key=key,catalogChannelId=channel_id,programmeSourceId=p['sourceId'],originalChannelId=p['originalChannelId'],sourceEventId=event,movieId=movie or key,title=p['title'],year=None,imdbId=None,startUtc=p['startUtc'],stopUtc=p['stopUtc'],clockIsSubtitleOffset=False,searchable=False)
+        result=dict(key=key,catalogChannelId=channel_id,programmeSourceId=p['sourceId'],originalChannelId=p['originalChannelId'],sourceEventId=event,movieId=movie if re.fullmatch(r'[a-z0-9-]{1,200}',movie or '') else None,title=p['title'],year=None,imdbId=None,startUtc=p['startUtc'],stopUtc=p['stopUtc'],clockIsSubtitleOffset=False,searchable=False)
         if p['sourceId'].startswith('rakuten-') and movie and re.fullmatch(r'[a-z0-9-]{1,200}',movie):
             market=facts.get('marketCode');assert re.fullmatch(r'[a-z]{2}',market or '')
             cache_key=(market,movie)
@@ -68,7 +73,7 @@ class ProgrammeGuide:
             with self.lock:cached=self.identities.get(identity_key)
             if cached is None or now-cached[0]>3600:
                 rows=json.loads(public_read('https://v3.sg.media-imdb.com/suggestion/x/'+quote(title.lower(),safe='')+'.json')).get('d',[])
-                exact=[r for r in rows if r.get('qid')=='movie' and title_norm(r.get('l',''))==title_norm(title) and re.fullmatch(r'tt[0-9]{7,10}',r.get('id','')) and isinstance(r.get('y'),int) and (not hint or hint==r['id']) and (not isinstance(year,int) or year==r['y'])]
+                exact=[r for r in rows if r.get('qid')=='movie' and identity_title(title) and identity_title(r.get('l',''))==identity_title(title) and re.fullmatch(r'tt[0-9]{7,10}',r.get('id','')) and isinstance(r.get('y'),int) and (not hint or hint==r['id']) and (not isinstance(year,int) or year==r['y'])]
                 found=exact[0] if len({r['id'] for r in exact})==1 else None
                 with self.lock:
                     if len(self.identities)>=1024:self.identities.pop(next(iter(self.identities)))

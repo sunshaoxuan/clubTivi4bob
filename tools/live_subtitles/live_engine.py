@@ -5,6 +5,7 @@ Verified media PTS may resume the same asset after an insertion. Clock resets,
 asset changes and failed acoustic checks invalidate that calibration.
 """
 import difflib
+from bisect import bisect_left, bisect_right
 from collections import Counter
 import json
 from pathlib import Path
@@ -35,6 +36,78 @@ def acoustic_norm(text):
         "won't": "will not", "i'll": "i will", "we'll": "we will"}
     return [part for token in norm(text.replace('’', "'"))
             for part in expansions.get(token, token).split()]
+
+
+def sparse_word_anchors(cues, cue_words, asr, owners, timeline, rate, existing):
+    """Require unique cue placements from ordered words with gaps and matching times."""
+    starts = {}
+    for index, token in enumerate(asr):
+        if owners[index]['probability'] >= .75:
+            starts.setdefault(token, []).append(index)
+    possible = list(existing)
+    anchored = {anchor['cue'] for anchor in existing}
+    for cue in cues:
+        values = cue_words[cue['index']]
+        if cue['index'] in anchored or len(values) < 4 or '♪' in cue['text']:
+            continue
+        distinctive = set(token for token in values[1:10] if len(token) >= 4)
+        if len(distinctive) < 2:
+            continue
+        for index in starts.get(values[0], ()):
+            onset = owners[index]['start']
+            matched = set()
+            reference = 1
+            for following in range(index + 1, min(len(asr), index + 13)):
+                word = owners[following]
+                if word['start'] - onset > min(4., cue['end'] - cue['start'] + .45):
+                    break
+                token = asr[following]
+                if word['probability'] < .75 or token not in distinctive or token in matched:
+                    continue
+                found = next((i for i in range(reference, min(10, len(values))) if values[i] == token), None)
+                if found is None:
+                    continue
+                reference = found + 1
+                matched.add(token)
+            if len(matched) < 2:
+                continue
+            observed = timeline + onset
+            possible.append(dict(cue=cue['index'], subtitleStart=cue['start'],
+                                 asrStart=observed, offset=cue['start'] - rate * observed,
+                                 words=len(matched) + 1, sparseWords=True))
+    cue_candidates = {}
+    for anchor in possible:
+        if anchor.get('sparseWords'):
+            cue_candidates.setdefault(anchor['asrStart'], set()).add(anchor['cue'])
+    groups = {}
+    ordered = sorted(
+        (a for a in possible if not a.get('sparseWords') or len(cue_candidates[a['asrStart']]) == 1),
+        key=lambda anchor: anchor['offset'],
+    )
+    offsets = [anchor['offset'] for anchor in ordered]
+    for center in offsets:
+        first = bisect_right(offsets, center - .55)
+        last = bisect_left(offsets, center + .55)
+        if last - first < 3:
+            continue
+        consistent = []
+        for anchor in sorted(ordered[first:last], key=lambda item: item['asrStart']):
+            if consistent and (anchor['asrStart'] - consistent[-1]['asrStart'] < .45 or
+                               anchor['subtitleStart'] - consistent[-1]['subtitleStart'] < .45):
+                continue
+            consistent.append(anchor)
+        if len(consistent) >= 3 and consistent[-1]['asrStart'] - consistent[0]['asrStart'] >= 4:
+            groups[tuple((a['cue'], a['asrStart']) for a in consistent)] = consistent
+    ranked = sorted(groups.values(), key=len, reverse=True)
+    if not ranked:
+        return []
+    best = ranked[0]
+    offset = statistics.median(anchor['offset'] for anchor in best)
+    if any(len(other) >= len(best) - 1 and
+           abs(statistics.median(a['offset'] for a in other) - offset) >= .9
+           for other in ranked[1:]):
+        return []
+    return best
 
 
 def align(words, cues, timeline, *, rate=1., language='en'):
@@ -109,13 +182,15 @@ def align(words, cues, timeline, *, rate=1., language='en'):
             anchors.append(dict(cue=cue['index'],subtitleStart=cue['start'],asrStart=onset,
                 offset=cue['start']-rate*onset,words=5,fuzzyPrefix=True))
             anchored.add(cue['index']);break
-    if not anchors:
-        return None, []
-    cluster = max(([a for a in anchors if abs(a['offset'] - c['offset']) < .9] for c in anchors), key=len)
-    if len({a['cue'] for a in cluster}) < 3 or max(a['asrStart'] for a in cluster) - min(a['asrStart'] for a in cluster) < 4:
-        return None, anchors
-    offset = statistics.median(a['offset'] for a in cluster)
-    return offset, cluster
+    cluster = max(([a for a in anchors if abs(a['offset'] - c['offset']) < .9] for c in anchors),
+                  key=len, default=[])
+    if len({a['cue'] for a in cluster}) >= 3 and max(a['asrStart'] for a in cluster) - min(a['asrStart'] for a in cluster) >= 4:
+        return statistics.median(a['offset'] for a in cluster), cluster
+    if language == 'en':
+        sparse = sparse_word_anchors(cues, cue_words, asr, owners, timeline, rate, anchors)
+        if sparse:
+            return statistics.median(a['offset'] for a in sparse), sparse
+    return None, anchors
 
 
 

@@ -346,6 +346,33 @@ class LiveServiceTests(unittest.TestCase):
         self.assertEqual(len({x['cue'] for x in anchors}),3)
         self.assertIsNone(align(words[:6],cues,0)[0])
 
+    def test_sparse_words_use_relative_onsets_and_reject_ambiguous_placements(self):
+        lines = [
+            'bring the heavy wooden chair inside',
+            'we must leave before the morning comes',
+            'another weary traveler waits beneath the bridge',
+        ]
+        partials = [
+            ('bring', 'wooden', 'inside'),
+            ('we', 'leave', 'morning'),
+            ('another', 'traveler', 'bridge'),
+        ]
+        cues = [dict(index=i + 1, start=100 + i * 5, end=104 + i * 5, text=line)
+                for i, line in enumerate(lines)]
+        def speech(starts):
+            return [dict(word=word, start=start + j * .55,
+                         end=start + j * .55 + .2, probability=.96)
+                    for start, tokens in zip(starts, partials)
+                    for j, word in enumerate(tokens)]
+        offset, anchors = align(speech([0, 5, 10]), cues, 0)
+        self.assertEqual(offset, 100)
+        self.assertTrue(all(anchor['sparseWords'] for anchor in anchors))
+        self.assertIsNone(align(speech([0, 7, 14]), cues, 0)[0])
+        repeats = cues + [{**cue, 'index': cue['index'] + 3,
+                           'start': cue['start'] + 60, 'end': cue['end'] + 60}
+                          for cue in cues]
+        self.assertIsNone(align(speech([0, 5, 10]), repeats, 0)[0])
+
     def test_published_english_original_requires_matching_same_page_grid(self):
         search = '<tr><td><a href="/subs/2/film.html">In Hell 2003</a> (translated from English)</td></tr>'
         detail = '<a id="download_es" href="/subs/2/es.srt">Download</a><h3>Original subtitles</h3>' + ''.join('<p dir="auto">'+s+'</p>' for s in ['One','Two','Three']) + '</div>'

@@ -316,7 +316,7 @@ class TextHub:
             session['audioLanguage']=speech
             session['audioLanguageEpoch']=epoch
             if session.get('adStart') is not None:
-                exact=[a for a in anchors if not a.get('fuzzyPrefix') and a['words']>=4]
+                exact=[a for a in anchors if not (a.get('fuzzyPrefix') or a.get('sparseWords')) and a['words']>=4]
                 if len({a['cue'] for a in exact})<2 or max(a['asrStart'] for a in exact)-min(a['asrStart'] for a in exact)<2:
                     return
                 anchors=exact

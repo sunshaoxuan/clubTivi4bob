@@ -45,6 +45,14 @@ PROFILES = {
 # fact. Bind this hint to the complete current catalogue context and exact
 # route set. A changed name/country/edition/route must not inherit the hint.
 SCOPED_PROFILES = {
+    'channel-ad73b92d25edfd0a31174431': {
+        'catalogue': {'name': '民視', 'countryCode': 'TW', 'regionCode': None, 'epgId': '民视'},
+        'categoryPath': ['国际', '台湾', '电视', '综合'],
+        'routeSha256': ['077b020e67391add63cc904d8f6d8aee25807ce48f846db192e3b854c3d8ebd8'],
+        'alias': '民視無線台 FTV', 'domains': ['ftv.com.tw'],
+        'identityTechnicalPages': ['https://m.ftv.com.tw/index.aspx'],
+        'identityApproved': False,
+    },
     'channel-c30099894d43d43966e2b684': {
         'catalogue': {'name': '公視', 'countryCode': None,
                       'regionCode': None, 'epgId': None},
@@ -210,6 +218,17 @@ def plan(channel, category_path, identity_facts, attempts, phase_index=0, review
                      'language': '播出语言 broadcast language', 'feedVariant': '地区版本 延时 regional delayed feed'}
             suffix = ' '.join(terms[key] for key in review_hint['unresolvedFields'] if key in terms)
     query = ' '.join(dict.fromkeys(v for v in (full, context.strip(), suffix) if v))[:650]
+    route_focus = None
+    if stage == 'identity':
+        preferred = list(dict.fromkeys(r['url'] for r in channel.get('routes', [])))
+        preferred.sort(key=lambda url: (not any(urlsplit(url).hostname == host or
+            (urlsplit(url).hostname or '').endswith('.' + host) for host in primary), url))
+        if preferred:
+            focus = preferred[attempts % len(preferred)]
+            route_focus = hashlib.sha256(focus.encode()).hexdigest()
+            host = urlsplit(focus).hostname
+            if host and len(preferred) > 1:
+                query = (' '.join((full, (alias or '').strip(), host, 'official live feed identity')))[:650]
     discovery_goal = ('Find the selected broadcaster official technical profile or station directory. '
         if stage == 'identity' else {
             'xmltv': 'Find ready-to-use XMLTV or XMLTV.gz programme data for this exact reviewed channel. ',
@@ -252,7 +271,10 @@ def plan(channel, category_path, identity_facts, attempts, phase_index=0, review
             'targetLabels': labels,
             'catalogRoutes': [r['url'] for r in channel.get('routes', [])],
             'primaryDomains': primary,
-            'domains': domains, 'query': query,
+            'domains': domains, 'query': query, 'focusedRouteSha256': route_focus,
+            'independentQuery': ' '.join(v for v in (full, alias,
+                ('官方 直播 頻道' if any('\u3400' <= c <= '\u9fff' for c in full)
+                 else 'official live channel') if stage == 'identity' else suffix) if v)[:300],
             'body': {'model': None, 'store': False, 'stream': True, 'instructions': instruction,
                      'input': [{'role': 'user', 'content': query}],
                      'tools': [{'type': 'web_search', 'search_context_size': 'low',

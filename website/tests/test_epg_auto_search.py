@@ -58,6 +58,73 @@ def rows(c):
     return {r['channel_id']: dict(r) for r in c.execute('SELECT * FROM epg_channel_research_jobs')}
 
 
+def test_ftv_official_entry_survives_empty_ai_and_unconfigured_index(conn):
+    ftv = {'id': 'channel-ad73b92d25edfd0a31174431', 'name': '民視',
+           'countryCode': 'TW', 'regionCode': None, 'epgId': '民视',
+           'routes': [{'url': 'http://211.72.174.95:8115/0.ts'}]}
+    path = ['国际', '台湾', '电视', '综合']
+    hits = []
+    result = w.run(conn, {'version': 'fixture-v1'}, [ftv], {ftv['id']: path},
+        settings, None, clock=lambda: NOW, monotonic=lambda: 0,
+        transport=lambda settings, body: response(body, []), reserve=lambda *_: None,
+        cross_index=lambda _: ('not_configured', []),
+        checker=lambda url, request: hits.append(url) or {'url': url, 'bodyBytes': 0})
+    assert hits == ['https://m.ftv.com.tw/index.aspx']
+    assert result['processedChannels'][0]['crossSearch']['state'] == 'not_configured'
+    assert not rows(conn)[ftv['id']]['identity_evidence']
+    assert rows(conn)[ftv['id']]['next_retry'] > NOW
+    assert result['newGrants'] == result['newMappings'] == 0
+
+
+def test_independent_lead_after_empty_ai_and_index_backoff_moves_to_next(conn):
+    calls = []
+    def index(query):
+        calls.append(query)
+        return 'rate_limited', []
+    result = run(conn, transport=lambda settings, body: response(body, []), cross_index=index)
+    assert len(calls) == 1
+    assert [v['crossSearch']['state'] for v in result['processedChannels']] == ['rate_limited', 'backoff']
+    assert len({v['channelId'] for v in result['processedChannels']}) == 2
+    assert not result['programmeResponsesRead']
+
+
+def test_index_rechecks_phase_and_target_and_deduplicates():
+    from epg_cross_search import augment
+    request = s.plan(channel(), PATH, None, 0)
+    title = request['fullName']
+    evidence = {'candidates': []}
+    good = 'https://fixture.example.org/live'
+    augment(request, evidence, NOW, index=lambda _: ('checked', [
+        {'url': good, 'title': title}, {'url': good, 'title': title},
+        {'url': 'https://fixture.example.org/schedule', 'title': title},
+        {'url': 'https://other.example.org/live', 'title': 'Unrelated'}]))
+    assert [r['url'] for r in evidence['candidates']] == [good]
+    assert evidence['candidates'][0]['engines'] == ['brave_web']
+
+
+def test_route_focus_rotates_without_changing_identity_scope():
+    c = channel()
+    c['routes'] = [{'url': 'https://fixture.example.org/one.m3u8'},
+                   {'url': 'https://relay.example.org/two.m3u8'}]
+    a, b = [s.plan(c, PATH, None, n) for n in (0, 1)]
+    assert a['focusedRouteSha256'] != b['focusedRouteSha256']
+    assert a['catalogRoutes'] == b['catalogRoutes']
+    assert a['stage'] == b['stage'] == 'identity'
+
+
+def test_region_blocks_prioritize_japan_taiwan_hong_kong_then_world(conn):
+    catalog = [{**channel(identity='fixture-' + country), 'countryCode': country}
+               for country in ('JP', 'TW', 'HK', 'DE')]
+    paths = {c['id']: PATH for c in catalog}
+    for claims, country in ((0, 'JP'), (3, 'TW'), (6, 'HK'), (9, 'DE')):
+        with conn:
+            conn.execute('INSERT OR REPLACE INTO epg_checkpoints VALUES(?,?)',
+                ('channel_search_fairness', json.dumps({'claims': claims})))
+        chosen = w.choose(conn, {'version': 'fixture-v1'}, catalog, paths,
+            set(), NOW, set(), regional_rotation=True)
+        assert chosen['channel_id'] == 'fixture-' + country
+
+
 def test_actual_queue_rotates_two_unknown_channels_and_persists_backoff(conn):
     result = run(conn)
     assert result['aiRequestsAttempted'] == 2 and len(result['processedChannels']) == 2

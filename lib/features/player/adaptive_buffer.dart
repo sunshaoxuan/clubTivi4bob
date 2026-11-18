@@ -98,7 +98,7 @@ class AdaptiveBufferManager {
     // Load saved tier or default to 'normal'
     _currentTier = await _loadTier(url);
     if (_currentUrl != url) return;
-    if (isActionMoviesUk(url) && _currentTier == 'fast') {
+    if (isReviewedRakutenUkMovieSource(url) && _currentTier == 'fast') {
       _currentTier = 'normal';
     }
     await _applyTier(_currentTier, ps);
@@ -177,7 +177,7 @@ class AdaptiveBufferManager {
   /// Move to a lower buffer tier. Returns true if tier changed.
   bool _downgradeTier() {
     final idx = _tierOrder.indexOf(_currentTier);
-    final floor = isActionMoviesUk(_currentUrl ?? '') ? 1 : 0;
+    final floor = isReviewedRakutenUkMovieSource(_currentUrl ?? '') ? 1 : 0;
     if (idx > floor) {
       _currentTier = _tierOrder[idx - 1];
       return true;
@@ -190,8 +190,10 @@ class AdaptiveBufferManager {
     final expectedPlayer = ps.player;
     final config = <String, String>{
       ...(_tierConfig[tier] ?? _tierConfig['normal']!),
-      if (isActionMoviesUk(_currentUrl ?? '')) 'cache-pause-initial': 'yes',
-      if (Platform.isAndroid && isActionMoviesUk(_currentUrl ?? ''))
+      if (isReviewedRakutenUkMovieSource(_currentUrl ?? ''))
+        'cache-pause-initial': 'yes',
+      if (Platform.isAndroid &&
+          isReviewedRakutenUkMovieSource(_currentUrl ?? ''))
         'cache-pause-wait': '8',
     };
     for (final entry in config.entries) {

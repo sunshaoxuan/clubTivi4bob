@@ -81,15 +81,15 @@ Future<void> main() async {
       Platform.environment['BOBTV_SUBTITLE_PROBE_SOURCE'] ??
       const String.fromEnvironment('BOBTV_SUBTITLE_PROBE_SOURCE');
   final contextPath = Platform.environment['BOBTV_SUBTITLE_PROBE_CONTEXT'];
-  if (offline) {
-    SubtitleProgrammeContext.lookup = (_) async => null;
-  } else if (contextPath != null) {
+  if (contextPath != null) {
     SubtitleProgrammeContext.lookup = (requested) async {
       final data = jsonDecode(await File(contextPath).readAsString()) as Map;
       return requested == data['source']
           ? Map<String, Object?>.from(data['programme'] as Map)
           : null;
     };
+  } else if (offline) {
+    SubtitleProgrammeContext.lookup = (_) async => null;
   }
   if (desktop) {
     await windowManager.setTitle('BobTV subtitle development probe');

@@ -697,6 +697,7 @@
   "当前版本没有需要署名的来源。": "La versión actual no requiere atribución de fuentes.",
   "当前版本的启动检查未完成，请稍后重试": "La verificación de inicio para la versión actual no se completó; inténtelo nuevamente más tarde.",
   "当前线路只有声音，正在切换有画面的线路": "La línea actual sólo tiene sonido y se está cambiando la línea con imagen.",
+  "当前线路暂不支持字幕自动对齐": "Este flujo aún no admite la sincronización automática de subtítulos",
   "当前节目：暂无节目单": "Programa actual: Aún no hay lista de programas",
   "当前音频线路无法播放，正在切换其他线路": "La línea de audio actual no se puede reproducir y se están cambiando otras líneas.",
   "当前频道": "Canal actual",

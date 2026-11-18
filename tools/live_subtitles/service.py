@@ -367,7 +367,7 @@ def serve(hub, host, port, legacy_port=None):
                 path = urlsplit(self.path).path
                 if self.legacy(path): return
                 if path == '/health':
-                    return self.send(json.dumps(dict(status='ready', pilot='rakuten-uk-6065',
+                    return self.send(json.dumps(dict(status='ready', pilot='epg-bound-channels', activeChannels=len(getattr(hub,'channels',{})), programmeDiscovery='public-epg',
                                                      activeSessions=len(hub.sessions), prewarmEnabled=getattr(hub,'prewarm',False),
                                                      engineRunning=getattr(hub,'engine',None) is not None,
                                                      clientOnly=bool(getattr(hub,'client_only',False)),
@@ -417,8 +417,8 @@ def main():
     parser.add_argument('--subtitle-cache-root', default='/var/lib/bobtv/resource-cache/subtitles'); parser.add_argument('--base', required=True); parser.add_argument('--port', type=int, default=8922); parser.add_argument('--legacy-port', type=int); parser.add_argument('--prewarm', action='store_true'); parser.add_argument('--client-only', action='store_true')
     args = parser.parse_args()
     if args.client_only:
-        from client_clock import TextHub
-        hub=TextHub(args.root,SubtitleCache(args.subtitle_cache_root,legacy_roots=['/var/lib/bobtv/live-subtitles']),current_guide)
+        from multi_client_clock import MultiTextHub
+        hub=MultiTextHub(args.root,SubtitleCache(args.subtitle_cache_root,legacy_roots=['/var/lib/bobtv/live-subtitles']))
         return serve(hub,'127.0.0.1',args.port)
     import imageio_ffmpeg
     from faster_whisper import WhisperModel

@@ -203,6 +203,11 @@
     "history": [
       [
         "2026-11-18",
+        "v1.1.25 · Recherche de sous-titres selon le programme",
+        "Recherche et mise en cache automatiques des sous-titres du programme EPG associé, y compris Comedy Movies UK. Le son décodé sur l’appareil sert à synchroniser les sous-titres. La langue choisie est prioritaire, puis l’anglais, puis aucun sous-titre. La synchronisation reprend automatiquement après les publicités."
+      ],
+      [
+        "2026-11-18",
         "v1.1.24 · Reconnaissance locale et reprise des sous-titres",
         "La reconnaissance utilise le son déjà décodé sur l’appareil ; le serveur recherche et conserve les fichiers de sous-titres. Mise à jour du flux britannique Action Movies et amélioration de la pause pendant les publicités et du recalage au retour du film. Priorité à la langue choisie, puis à l’anglais. Android diffère la reconnaissance si le tampon de lecture est faible."
       ],
@@ -366,7 +371,7 @@
     "closing_text": "Une colonne chacune pour Windows, macOS et Android, avec les choix de processeur à l'intérieur. Des packages natifs Windows ARM64 sont disponibles ; Les tests du matériel Surface sont en attente."
   },
   "downloads": {
-    "intro": "Windows, macOS et Android utilisent la version 1.1.24+119. Changez de langue en haut de l’application. Votre choix est mémorisé. En mode automatique, l’application utilise la langue du système, le fuseau horaire, puis l’anglais. Chaque programme d’installation contient les ressources linguistiques. L’accès au mode avancé a été fermé. La synchronisation des diagnostics est désactivée par défaut. Avec votre accord, elle transmet jusqu’à 30 jours de données expurgées. Vous pouvez la désactiver à tout moment. L’application macOS utilise une signature ad-hoc.",
+    "intro": "Windows, macOS et Android utilisent la version 1.1.25+120. Changez de langue en haut de l’application. Votre choix est mémorisé. En mode automatique, l’application utilise la langue du système, le fuseau horaire, puis l’anglais. Chaque programme d’installation contient les ressources linguistiques. L’accès au mode avancé a été fermé. La synchronisation des diagnostics est désactivée par défaut. Avec votre accord, elle transmet jusqu’à 30 jours de données expurgées. Vous pouvez la désactiver à tout moment. L’application macOS utilise une signature ad-hoc.",
     "latest": "Derniers installateurs",
     "local": "Téléchargements hébergés sur ce site",
     "sections": [

@@ -697,6 +697,7 @@
   "当前版本没有需要署名的来源。": "The current version does not require attribution of sources.",
   "当前版本的启动检查未完成，请稍后重试": "The startup check for the current version is not completed, please try again later",
   "当前线路只有声音，正在切换有画面的线路": "The current line only has sound, and the line with picture is being switched.",
+  "当前线路暂不支持字幕自动对齐": "Automatic subtitle alignment is not yet supported on this stream",
   "当前节目：暂无节目单": "Current program: No program list yet",
   "当前音频线路无法播放，正在切换其他线路": "The current audio line cannot be played, and other lines are being switched.",
   "当前频道": "Current channel",

@@ -113,7 +113,7 @@ class ClientAudioSubtitles {
     if (_disposed) return;
     _session = body['session'] as String;
     _accept(body);
-    await _launchWorker();
+    if (_clockAvailable) await _launchWorker();
     _poll = Timer.periodic(
       const Duration(seconds: 5),
       (_) => unawaited(_refresh()),
@@ -343,6 +343,8 @@ class ClientAudioSubtitles {
     text = '';
     if (!enabled) {
       phase = SubtitlePhase.idle;
+    } else if (!_clockAvailable) {
+      phase = SubtitlePhase.clockUnavailable;
     } else if (segment?.ad == true ||
         sourceBoundaryBeforeAdvert(
           segmentAt(position + .25)?.sourceClock,
@@ -354,7 +356,8 @@ class ClientAudioSubtitles {
       phase = SubtitlePhase.serviceUnavailable;
     } else if (fresh &&
         segment != null &&
-        segment.movieId == _programme?['movieId']) {
+        (segment.movieId == null ||
+            segment.movieId == _programme?['movieId'])) {
       if (_active && player.state.playing && !player.state.buffering) {
         text =
             _timeline?.textAt(
@@ -390,7 +393,7 @@ class ClientAudioSubtitles {
     _workerFailed = true;
     _timeline = null;
     text = '';
-    phase = SubtitlePhase.serviceUnavailable;
+    phase = SubtitlePhase.clockUnavailable;
     onChanged();
   }
 
@@ -436,7 +439,9 @@ class ClientAudioSubtitles {
           )) {
         return;
       }
-      final ad = segment.ad || segment.movieId != _programme?['movieId'];
+      final ad =
+          segment.ad ||
+          segment.movieId != null && segment.movieId != _programme?['movieId'];
       final clock = segment.sourceClock;
       final signature = clock == null
           ? null

@@ -17,6 +17,36 @@ bool isActionMoviesUk(String source) {
           uri.path.contains('/$actionMoviesCurrentConfig/'));
 }
 
+bool isReviewedRakutenUkMovieSource(String source) {
+  final uri = Uri.tryParse(source);
+  return uri?.scheme == 'https' &&
+      uri!.userInfo.isEmpty &&
+      uri.host.endsWith('-rakuten-tv-uk.fast.rakuten.tv') &&
+      RegExp(
+        r'/production-(?:LiveChannel-\d+|hls-aes128-rtv-\d+-playout)/',
+      ).hasMatch(uri.path);
+}
+
+Uri currentSubtitleMaster(String source) {
+  if (isActionMoviesUk(source)) return currentActionMoviesMaster(source);
+  final uri = Uri.parse(source);
+  if (isReviewedRakutenUkMovieSource(source)) {
+    final match = RegExp(
+      r'/v1/(?:manifest|master)/([^/]+)/([^/]+)/',
+    ).firstMatch(uri.path);
+    if (match != null) {
+      final config = uri.host == 'comedy-rakuten-tv-uk.fast.rakuten.tv'
+          ? 'production-hls-aes128-rtv-6181-playout'
+          : match[2]!;
+      return uri.replace(
+        path: '/v1/master/${match[1]}/$config/master.m3u8',
+        query: null,
+      );
+    }
+  }
+  return uri;
+}
+
 /// A fixed MediaTailor session expires, and the old playback configuration
 /// returns 404. Bootstrap a fresh session from the verified AES-128 master.
 Uri currentActionMoviesMaster(String source) {
@@ -38,6 +68,7 @@ Uri selectActionMoviesMedia(
   String body,
   Uri master, {
   int maxBandwidth = 3000000,
+  bool allowBoundEpgSource = false,
 }) {
   final lines = const LineSplitter().convert(body);
   Uri? selected;
@@ -54,11 +85,14 @@ Uri selectActionMoviesMedia(
     } else if (line.isNotEmpty && !line.startsWith('#')) {
       final candidate = master.resolve(line);
       if (bandwidth != null &&
-          isActionMoviesUk(candidate.toString()) &&
-          candidate.path.contains('/v1/manifest/') &&
+          (allowBoundEpgSource
+              ? candidate.scheme == master.scheme &&
+                    candidate.host == master.host
+              : isActionMoviesUk(candidate.toString()) &&
+                    candidate.path.contains('/v1/manifest/')) &&
           candidate.path.endsWith('.m3u8') &&
           candidate.userInfo.isEmpty &&
-          candidate.port == 443) {
+          candidate.port == master.port) {
         if (bandwidth < smallestBandwidth) {
           smallestBandwidth = bandwidth;
           smallest = candidate;
@@ -196,9 +230,14 @@ class HlsBufferProxy {
     double? duration;
     String? movie;
     var ad = false;
+    var discontinuity = false;
+    final providerHasMovieMarkers =
+        origin.host.endsWith('-rakuten-tv-uk.fast.rakuten.tv') ||
+        RegExp(r'#EXTINF:[^\n]*epid=').hasMatch(body);
     final lines = <String>[];
     for (final raw in const LineSplitter().convert(body)) {
       var line = raw;
+      if (raw == '#EXT-X-DISCONTINUITY') discontinuity = true;
       if (raw.startsWith('#EXT-X-CUE-OUT')) ad = true;
       if (raw.startsWith('#EXT-X-CUE-IN')) ad = false;
       if (raw.startsWith('#EXTINF:')) {
@@ -225,10 +264,17 @@ class HlsBufferProxy {
           sequence: sequence,
           start: start,
           end: start + duration,
-          asset: remote.path.split('/media-').first,
+          asset: providerHasMovieMarkers
+              ? remote.path.split('/media-').first
+              : _segments[key]?.asset ??
+                    (discontinuity
+                        ? '${origin.path}:$sequence'
+                        : _segments['/segment/${sequence - 1}.ts']?.asset ??
+                              origin.path),
           movieId: movie,
-          ad: ad || movie == null,
+          ad: ad || providerHasMovieMarkers && movie == null,
         );
+        discontinuity = false;
         _segmentUris[key] = remote;
         line = localUrl(key);
         sequence++;
@@ -287,14 +333,15 @@ class HlsBufferProxy {
 
   Future<String> start(String source, Map<String, String>? headers) async {
     await stop();
-    if (!isActionMoviesUk(source)) return source;
+    if (!isActionMoviesUk(source) && !captureClock) return source;
+    if (!Uri.parse(source).path.endsWith('.m3u8')) return source;
     final generation = ++_generation;
     _headers = headers ?? const {};
     final client = ServerEgress.createMediaClient();
     client.connectionTimeout = const Duration(seconds: 5);
     _client = client;
-    var origin = currentActionMoviesMaster(source);
-    if (origin.path.contains('/v1/master/')) {
+    var origin = currentSubtitleMaster(source);
+    if (origin.path.contains('/v1/master/') || captureClock) {
       try {
         final request = await client.getUrl(origin);
         (headers ?? const <String, String>{}).forEach(request.headers.set);
@@ -316,7 +363,14 @@ class HlsBufferProxy {
             throw const FormatException('Action UK master exceeds size limit');
           }
         }
-        origin = selectActionMoviesMedia(utf8.decode(bytes), origin);
+        final body = utf8.decode(bytes);
+        if (body.contains('#EXT-X-STREAM-INF:')) {
+          origin = selectActionMoviesMedia(
+            body,
+            origin,
+            allowBoundEpgSource: true,
+          );
+        }
       } catch (_) {
         client.close(force: true);
         rethrow;

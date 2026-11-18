@@ -30,17 +30,19 @@ class TextHub:
     client_only=True
     prewarm=False
     engine=None
-    def __init__(self,root,cache,guide):
+    def __init__(self,root,cache,guide,*,traffic=None,source_validator=None):
         self.root=Path(root);self.root.mkdir(parents=True,exist_ok=True)
-        self.traffic=dict(receivedJsonBytes=0,sentJsonBytes=0,outboundRequests=0,outboundMediaRequests=0,outboundHosts={})
+        self.traffic=traffic if traffic is not None else dict(receivedJsonBytes=0,sentJsonBytes=0,outboundRequests=0,outboundMediaRequests=0,outboundHosts={})
         def audit(event,args):
             if event=='urllib.Request':
                 uri=urlsplit(args[0]);host=uri.hostname or ''
                 self.traffic['outboundRequests']+=1
                 self.traffic['outboundHosts'][host]=self.traffic['outboundHosts'].get(host,0)+1
                 if uri.path.endswith(('.m3u8','.ts','.mp4','.m4s')):self.traffic['outboundMediaRequests']+=1
-        sys.addaudithook(audit)
+        if traffic is None:sys.addaudithook(audit)
         self.cache,self.guide=cache,guide
+        self.source_validator=source_validator;self.stop_event=threading.Event()
+        self.requested_languages=set()
         self.lock=threading.RLock();self.sessions={};self.candidates=None;self.discovery_error=False
         self.source,self.programme=self.guide();self.last_guide_success=time.time();self.gap=False
         self.discovery_generation=0;self.last_discovery=0;self.discovery_busy=False
@@ -49,29 +51,36 @@ class TextHub:
     def event(self,kind,**facts):
         with (self.root/'client-clock-events.jsonl').open('a') as f:
             f.write(json.dumps(dict(event=kind,wall=time.time(),**facts))+'\n')
-    def fetch_subtitles(self):
-        if self.discovery_busy:return
-        self.discovery_busy=True;generation=self.discovery_generation;programme=dict(self.programme)
+    def fetch_subtitles(self,language='en'):
+        with self.lock:
+            self.requested_languages.add(language)
+            if self.discovery_busy:return
+            self.discovery_busy=True
         def work():
-            try:
-                candidates=self.cache.get_or_discover(programme,self.root/'discovery'/uuid.uuid4().hex,discover,requested_language='en')
+            while True:
                 with self.lock:
-                    if generation==self.discovery_generation:self.candidates=candidates;self.discovery_error=False
-                self.event('subtitle_resources_ready',programmeKey=programme['key'],candidates=len(candidates))
-            except Exception as e:
-                with self.lock:
-                    if generation==self.discovery_generation:self.discovery_error=True
-                self.event('subtitle_discovery_error',errorType=type(e).__name__)
-            finally:self.discovery_busy=False;self.last_discovery=time.monotonic()
+                    if not self.requested_languages:
+                        self.discovery_busy=False;self.last_discovery=time.monotonic();return
+                    language=self.requested_languages.pop();generation=self.discovery_generation;programme=dict(self.programme)
+                try:
+                    candidates=self.cache.get_or_discover(programme,self.root/'discovery'/uuid.uuid4().hex,discover,requested_language=language) if programme.get('searchable',True) else []
+                    with self.lock:
+                        if generation==self.discovery_generation:self.candidates=candidates;self.discovery_error=False
+                    self.event('subtitle_resources_ready',programmeKey=programme['key'],language=language,candidates=len(candidates))
+                except Exception as e:
+                    with self.lock:
+                        if generation==self.discovery_generation:self.discovery_error=not bool(self.candidates)
+                    self.event('subtitle_discovery_error',language=language,errorType=type(e).__name__)
         threading.Thread(target=work,daemon=True).start()
     def valid_context(self,source,programme):
-        return (source==self.source or reviewed_pilot_source(source) and reviewed_pilot_source(self.source)) and not self.gap and time.time()<self.programme['stopUtc'] and time.time()-self.last_guide_success<=120 and (programme is None or isinstance(programme,dict) and programme.get('key')==self.programme['key'])
+        return (self.source_validator(source) if getattr(self,'source_validator',None) else source==self.source or reviewed_pilot_source(source) and reviewed_pilot_source(self.source)) and not self.gap and time.time()<self.programme['stopUtc'] and time.time()-self.last_guide_success<=120 and (programme is None or isinstance(programme,dict) and programme.get('key')==self.programme['key'])
     def create(self,source,context,language,features=()):
         with self.lock:
             if 'clientClockV1' not in features or not self.valid_context(source,context) or language not in LANGUAGES:raise ValueError('client_clock_required')
             if len(self.sessions)>=32:raise RuntimeError('pilot_capacity')
             token=uuid.uuid4().hex
             self.sessions[token]=dict(source=source,lastAccess=time.time(),language=language,epoch=None,asset=None,reference=None,rate=1.,intercept=None,points={},windows=[],lastObservation=-1,programmeKey=self.programme['key'],ad=False,lastWindow=None,unmatchedWindows=0,exhausted=False,pendingAnchors={})
+            if hasattr(self,'requested_languages'):self.fetch_subtitles(language)
             return token
     def clock_window(self,session,candidate,start,end,rate,intercept):
         tracks=[]
@@ -282,8 +291,7 @@ class TextHub:
                        lastGoodAgeSeconds=round(age,3),retainedCurrentProgramme=not self.gap)
     def maintain(self):
         next_guide=time.monotonic()+25
-        while True:
-            time.sleep(1)
+        while not self.stop_event.wait(1):
             with self.lock:
                 self.sessions={t:s for t,s in self.sessions.items() if time.time()-s['lastAccess']<=180}
             if time.monotonic()<next_guide:continue
@@ -294,5 +302,6 @@ class TextHub:
                     changed=programme['key']!=self.programme['key'];self.source,self.programme=source,programme
                     self.last_guide_success=time.time();self.gap=False
                     if changed:self.discovery_generation+=1;self.candidates=None
-                    if changed or self.discovery_error and time.monotonic()-self.last_discovery>60:self.fetch_subtitles()
+                    if changed or self.discovery_error and time.monotonic()-self.last_discovery>60:
+                        for language in {'en',*(s['language'] for s in self.sessions.values())}:self.fetch_subtitles(language)
             except Exception as error:self.guide_failed(error)

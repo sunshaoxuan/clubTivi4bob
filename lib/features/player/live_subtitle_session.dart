@@ -83,19 +83,26 @@ class LiveSubtitleSession {
     final generation = _generation;
     _phase = SubtitlePhase.searching;
     _render();
-    // Production external subtitles currently cover only the reviewed pilot.
-    // Other channels retain native tracks without querying the retired service.
-    final serviceHost = Uri.tryParse(serviceEndpoint)?.host;
-    if (const {'bobtv.briconbric.com', 'cndrp.com'}.contains(serviceHost) &&
-        !isActionMoviesUk(source)) {
-      _phase = SubtitlePhase.channelUnsupported;
+    Map<String, Object?>? context;
+    try {
+      context = await (programmeLookup ?? SubtitleProgrammeContext.lookup)
+          ?.call(source)
+          .timeout(const Duration(milliseconds: 500));
+    } catch (_) {}
+    final production = const {
+      'bobtv.briconbric.com',
+      'cndrp.com',
+    }.contains(Uri.tryParse(serviceEndpoint)?.host);
+    if (production && context == null && !isActionMoviesUk(source)) {
+      _phase = SubtitlePhase.programmeUnavailable;
       _render();
+      _retryDiscovery(source, generation);
       return source;
     }
     await ClientSubtitleRuntime.initialize();
     if (_disposed || generation != _generation) return source;
     if (ClientAudioSubtitles.supported &&
-        isActionMoviesUk(source) &&
+        (production || isActionMoviesUk(source)) &&
         segmentAt != null) {
       final local = ClientAudioSubtitles(
         player,
@@ -119,13 +126,6 @@ class LiveSubtitleSession {
         },
       );
       _localAudio = local;
-      Map<String, Object?>? context;
-      try {
-        final lookup = programmeLookup ?? SubtitleProgrammeContext.lookup;
-        context = await lookup
-            ?.call(source)
-            .timeout(const Duration(milliseconds: 500));
-      } catch (_) {}
       unawaited(
         local.start(source, context).catchError((Object error) {
           local.failed();
@@ -136,7 +136,7 @@ class LiveSubtitleSession {
       );
       return source;
     }
-    if (isActionMoviesUk(source)) {
+    if (production || isActionMoviesUk(source)) {
       // Missing local tools must not reactivate the legacy server video reader.
       _phase = SubtitlePhase.serviceUnavailable;
       _render();

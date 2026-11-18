@@ -77,7 +77,7 @@ void main() {
     'https://cndrp.com/bobtv/api/v1/subtitles/',
   ]) {
     test(
-      'non-pilot with EPG reports pending integration at $endpoint',
+      'EPG-bound channel enters discovery without calling retired API at $endpoint',
       () async {
         var requests = 0;
         var programmeLookups = 0;
@@ -99,10 +99,10 @@ void main() {
         const source = 'https://comedy-rakuten-tv-uk.fast.rakuten.tv/live.m3u8';
         expect(await session.prepare(source), source);
         session.activate();
-        expect(session.status.value, SubtitlePhase.channelUnsupported);
+        expect(session.status.value, SubtitlePhase.serviceUnavailable);
         expect(session.text.value, isEmpty);
         expect(requests, 0);
-        expect(programmeLookups, 0);
+        expect(programmeLookups, 1);
         expect(player.state.position, const Duration(seconds: 1));
         await session.dispose();
         await selection.dispose();

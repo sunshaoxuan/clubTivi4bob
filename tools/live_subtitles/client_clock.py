@@ -151,6 +151,20 @@ class TextHub:
             # connection. Keep unique speech in this asset epoch, without
             # rewinding the viewer's latest transport observation.
             if delayed and not words:return
+            if words and not ad:
+                speech=data.get('audioLanguage','en')
+                if not isinstance(speech,str) or speech not in LANGUAGES:raise ValueError('unsupported_language')
+                prior_speech=session.get('audioLanguage')
+                if prior_speech is not None and speech!=prior_speech:
+                    if delayed or epoch<=session['audioLanguageEpoch']:return
+                    for key in ('priorReference','lastMatchedReference','sourceModel','transportAt','pendingTransport','candidateKey','priorRate','priorRateVerified','priorAsset','adStart','adClockStart','acceptedClock','editionSwitch','clockJump'):
+                        session.pop(key,None)
+                    session.update(reference=None,windows=[],intercept=None,rate=1.,rateVerified=False,
+                                   points={},pendingAnchors={},unmatchedWindows=0,exhausted=False)
+                session['audioLanguage']=speech
+                session['audioLanguageEpoch']=epoch
+                if prior_speech!=speech and hasattr(self,'requested_languages'):
+                    self.fetch_subtitles(speech)
             changed=(session['epoch']!=epoch or session['asset']!=asset or session['programmeKey']!=self.programme['key'])
             if changed:
                 session.pop('pendingTransport',None)
@@ -190,8 +204,11 @@ class TextHub:
                 trial += [c for c in self.candidates or [] if c not in trial]
             selected=None
             for candidate in trial:
+                speech=session.get('audioLanguage','en')
+                cues=candidate['tracks'].get(speech)
+                if cues is None:continue
                 candidate_rate=session['rate'] if session.get('candidateKey')==candidate['page'] else session.get('priorRate',1.) if candidate is prior else 1.
-                offset,anchors=align(words,candidate['tracks']['en'],start,rate=candidate_rate)
+                offset,anchors=align(words,cues,start,rate=candidate_rate,language=speech)
                 # Accumulate distinct, exact cue-onset matches across overlapping
                 # windows. Epoch/asset changes clear this evidence completely.
                 fresh_ids={a['cue'] for a in anchors}
@@ -319,7 +336,8 @@ class TextHub:
     def refresh_reference_languages(self,session):
         previous=session.get('reference')
         if not previous:return
-        current=next((c for c in self.candidates or [] if c is not previous and c['page']==previous['page'] and c['tracks']['en']==previous['tracks']['en']),None)
+        speech=session.get('audioLanguage','en')
+        current=next((c for c in self.candidates or [] if c is not previous and c['page']==previous['page'] and c['tracks']['en']==previous['tracks']['en'] and c['tracks'].get(speech)==previous['tracks'].get(speech)),None)
         if current is None:return
         # Only an identical English edition may reuse a verified clock. Added
         # languages have already passed the persistent cache's exact cue grid.
@@ -340,7 +358,7 @@ class TextHub:
         with self.lock:
             s=self.sessions[token];self.refresh_reference_languages(s);s['lastAccess']=time.time();valid=self.valid_context(s['source'],None)
             phase='programme_unavailable' if not valid else 'service_unavailable' if self.discovery_error else 'searching' if self.candidates is None else 'unavailable' if not self.candidates or s['exhausted'] else 'matched' if s['reference'] else 'synchronizing'
-            return dict(transportClockVerified=bool(s.get('transportAt') and time.time()-s['transportAt']<=15 and s['reference'] and not s.get('ad')),session=token,source=s['source'],clientClock=True,playbackReady=False,playbackUrl=s['source'],programmeKey=self.programme['key'],programme=self.programme,mediaClockOrigin=0,subtitleStatus=dict(phase=phase,candidateCount=len(self.candidates or []),resourceLanguages=sorted({language for candidate in self.candidates or [] for language in candidate['tracks']}),availableLanguages=sorted(s['reference']['tracks']) if s['reference'] else [],cacheHit=bool(self.candidates and all(c.get('cacheHit') for c in self.candidates))),windows=s['windows'] if valid and s['programmeKey']==self.programme['key'] else [])
+            return dict(audioLanguageV1=True,transportClockVerified=bool(s.get('transportAt') and time.time()-s['transportAt']<=15 and s['reference'] and not s.get('ad')),session=token,source=s['source'],clientClock=True,playbackReady=False,playbackUrl=s['source'],programmeKey=self.programme['key'],programme=self.programme,mediaClockOrigin=0,subtitleStatus=dict(phase=phase,candidateCount=len(self.candidates or []),resourceLanguages=sorted({language for candidate in self.candidates or [] for language in candidate['tracks']}),availableLanguages=sorted(s['reference']['tracks']) if s['reference'] else [],cacheHit=bool(self.candidates and all(c.get('cacheHit') for c in self.candidates))),windows=s['windows'] if valid and s['programmeKey']==self.programme['key'] else [])
     def guide_failed(self,error):
         with self.lock:
             age=time.time()-self.last_guide_success

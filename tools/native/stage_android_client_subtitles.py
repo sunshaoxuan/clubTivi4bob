@@ -13,10 +13,10 @@ import zipfile
 import urllib.request
 ROOT=Path(__file__).resolve().parents[2]
 ABIS={'arm':'armeabi-v7a','arm64':'arm64-v8a','x64':'x86_64'}
-MODEL='ggml-base.en-q5_1.bin'
-SHA='4baf70dd0d7c4247ba2b81fafd9c01005ac77c2f9ef064e00dcf195d0e2fdd2f'
-TINY='ggml-tiny.en-q5_1.bin'
-TINY_SHA='c77c5766f1cef09b6b7d47f21b546cbddd4157886b3b5d6d4f709e91e66c7c2b'
+MODEL='ggml-base-q5_1.bin'
+SHA='422f1ae452ade6f30a004d7e5c6a43195e4433bc370bf23fac9cc591f01a8898'
+TINY='ggml-tiny-q5_1.bin'
+TINY_SHA='818710568da3ca15689e31a743197b520007872ff9576237bda97bd1b469c3d7'
 def digest(p):return hashlib.sha256(p.read_bytes()).hexdigest()
 def stage(artifacts,output,arches):
     output.mkdir(parents=True,exist_ok=True)

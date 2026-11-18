@@ -333,7 +333,7 @@ class HlsBufferProxy {
 
   Future<String> start(String source, Map<String, String>? headers) async {
     await stop();
-    if (!isActionMoviesUk(source) && !captureClock) return source;
+    if (!isReviewedRakutenUkMovieSource(source) && !captureClock) return source;
     if (!Uri.parse(source).path.endsWith('.m3u8')) return source;
     final generation = ++_generation;
     _headers = headers ?? const {};

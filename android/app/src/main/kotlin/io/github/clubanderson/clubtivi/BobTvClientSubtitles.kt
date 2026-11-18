@@ -56,7 +56,10 @@ object BobTvClientSubtitles {
                 } finally { temporary.delete() }
             }
             paths["tinyModel"] = tiny.absolutePath
-            if (!android.os.Process.is64Bit()) paths["preferTiny"] = "true"
+            if (!android.os.Process.is64Bit() ||
+                (android.os.Build.SUPPORTED_ABIS.firstOrNull() == "x86_64" && !optimized.canExecute())) {
+                paths["preferTiny"] = "true"
+            }
         }
         return paths
     }

@@ -28,6 +28,8 @@ class ClientSubtitleRuntime {
           if (capability.exitCode == 0 &&
               jsonDecode(capability.stdout as String)['avx2'] == true) {
             asr = fast;
+          } else if (paths?['tinyModel'] != null) {
+            model = paths!['tinyModel'];
           }
         }
         if (paths?['preferTiny'] == 'true' && paths?['tinyModel'] != null) {

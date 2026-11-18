@@ -252,9 +252,8 @@ class ManagedPlayer extends Player {
       if (generation != _openGeneration) return;
       final native = platform;
       if (native is native_player.NativePlayer) {
-        if (isReviewedRakutenUkMovieSource(playable.uri) ||
-            liveSubtitles.usesClientAudio &&
-                Uri.parse(playable.uri).path.endsWith('.m3u8')) {
+        if (liveSubtitles.usesClientAudio &&
+            Uri.parse(playable.uri).path.endsWith('.m3u8')) {
           _previousLiveNetworkTimeout ??= await native.getProperty(
             'network-timeout',
           );

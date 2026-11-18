@@ -81,6 +81,15 @@ class LiveSubtitleSession {
     }
     _source = source;
     final generation = _generation;
+    if (monitorOnly &&
+        wasActive &&
+        retryAfter != null &&
+        DateTime.now().isBefore(retryAfter)) {
+      _phase = SubtitlePhase.clockUnavailable;
+      _render();
+      _retryDiscovery(source, generation);
+      return source;
+    }
     _phase = SubtitlePhase.searching;
     _render();
     Map<String, Object?>? context;
@@ -368,10 +377,12 @@ class LiveSubtitleSession {
 
   void mediaUnavailable(String source) {
     _source = source;
-    _phase = SubtitlePhase.serviceUnavailable;
+    _localAudio?.clockUnavailable();
+    _phase = SubtitlePhase.clockUnavailable;
     _render();
-    // Clock normalization has failed for this playback. A new channel open
-    // can retry, but restarting ASR alone would have no trustworthy timeline.
+    // Retry through the owner's warm decoder so captions get a new clock
+    // while working provider playback remains visible during the cooldown.
+    _retryDiscovery(source, _generation);
   }
 
   void deferMediaRetry() {

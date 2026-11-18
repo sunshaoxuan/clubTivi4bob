@@ -34,6 +34,19 @@ class SubdlTests(unittest.TestCase):
             self.assertFalse(any('translate' in u for u in urls))
             self.assertEqual(rows[0]['provenance']['en']['imdbId'],'tt1085492')
             self.assertTrue(list(Path(root).glob('*.srt')))
+    def test_same_edition_english_beyond_first_three_is_actually_downloaded(self):
+        downloads=[]
+        def read(url):
+            if '/auto?' in url:return json.dumps(dict(results=[self.movie])).encode()
+            if url.startswith('https://subdl.com/'):
+                return (''.join(page(label='The.Prince.2014.Edition'+str(i),number=str(i)+'-2') for i in range(1,4)) + page(label='The.Prince.2014.DSNP',number='4-2') + page('french',label='The.Prince.2014.DSNP',number='5-2')).encode()
+            downloads.append(url)
+            return archive(SRT.replace(b'00:00:01,000',b'00:00:01,500')) if any('/'+str(i)+'-2.zip' in url for i in range(1,4)) else archive()
+        with tempfile.TemporaryDirectory() as root,patch.object(adapter,'read',read):
+            rows=adapter.discover('The Prince',2014,root,imdb_id='tt1085492',max_candidates=3)
+            self.assertTrue(any('fr' in row['tracks'] for row in rows))
+            self.assertTrue(any('/4-2.zip' in url for url in downloads))
+
     def test_ambiguous_lookup_and_wrong_year_are_not_admitted(self):
         for movies in [[self.movie,self.movie],[{**self.movie,'year':2019}],[{**self.movie,'original_name':'The Prince and the 108 Demons'}]]:
             with tempfile.TemporaryDirectory() as root,patch.object(adapter,'read',return_value=json.dumps(dict(results=movies)).encode()):

@@ -29,7 +29,8 @@ android {
         // Visible build counters may restart at a new release. Android install
         // codes must still increase, including upgrades from the legacy scheme.
         val parts = flutter.versionName.split('.').map { it.toInt() }
-        val counter = flutter.versionCode
+        val counter = rootProject.file("../pubspec.yaml").readLines()
+            .single { it.startsWith("version:") }.substringAfter('+').trim().toInt()
         versionCode = if (parts[0] > 1 || parts[0] == 1 && parts[1] >= 3) {
             require(parts[0] in 0..20 && parts[1] in 0..99 && parts[2] in 0..99 && counter in 0..999)
             ((parts[0] * 100 + parts[1]) * 100 + parts[2]) * 10000 + counter

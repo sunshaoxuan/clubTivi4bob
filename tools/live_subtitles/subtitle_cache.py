@@ -12,6 +12,7 @@ import time
 import unicodedata
 from urllib.parse import urlsplit
 
+from subtitle_edition import timing_evidence
 from subtitle_identity import resolve as resolve_identity, release_year
 from subtitle_catalog import LANGUAGES, parse_srt, matches_movie_title, resource_path
 
@@ -102,7 +103,7 @@ class SubtitleCache:
                 except (OSError, ValueError, UnicodeError): continue
             if 'en' not in tracks: continue
             grid = [(c['start'], c['end']) for c in tracks['en']]
-            tracks = {lang: cues for lang, cues in tracks.items() if [(c['start'], c['end']) for c in cues] == grid}
+            tracks = {lang: cues for lang, cues in tracks.items() if timing_evidence(tracks['en'],cues,provenance.get('en'),provenance.get(lang))}
             candidates.append({**edition['metadata'], 'tracks': tracks,
                                'provenance': {lang:provenance[lang] for lang in tracks}, 'cacheHit': True})
         return candidates, manifest.get('searches', {})
@@ -152,8 +153,10 @@ class SubtitleCache:
             grid = [(c['start'], c['end']) for c in candidate['tracks']['en']]
             records = {}
             for language, cues in candidate['tracks'].items():
-                if language not in LANGUAGES or [(c['start'], c['end']) for c in cues] != grid: continue
                 facts = candidate.get('provenance', {}).get(language, {})
+                evidence=timing_evidence(candidate['tracks']['en'],cues,candidate.get('provenance',{}).get('en'),facts)
+                if language not in LANGUAGES or not evidence: continue
+                facts={**facts,'timingEvidence':evidence}
                 raw = srt_bytes(cues)
                 original = facts.get('sha256', '')
                 if re.fullmatch(r'[0-9a-f]{64}', original):
@@ -173,8 +176,12 @@ class SubtitleCache:
         paired={record['sha256'] for e in editions for record in e['tracks'].values()}
         for resource in resources:resource['pairedWithEnglish']=resource['sha256'] in paired
         available = {lang for e in editions for lang in e['tracks']}
-        searches = {lang:dict(checkedAt=self.clock(), outcome='cached' if lang in available else 'not_found_this_search') for lang in LANGUAGES}
-        atomic(folder/'index.json', json.dumps(dict(schemaVersion=1, resourceSchemaVersion=2, identity=movie_aliases(programme),
+        errors_path=Path(download_root)/'provider-errors.json'
+        try:provider_errors=json.loads(errors_path.read_text())
+        except (OSError,ValueError):provider_errors=[]
+        pending={resource['language'] for resource in resources if not resource['pairedWithEnglish']} - available
+        searches = {lang:dict(checkedAt=self.clock(), outcome='cached' if lang in available else 'temporarily_unavailable' if provider_errors else 'timing_pending' if lang in pending else 'not_found_this_search') for lang in LANGUAGES}
+        atomic(folder/'index.json', json.dumps(dict(schemaVersion=1, resourceSchemaVersion=3, identity=movie_aliases(programme),
             title=programme['title'], year=programme['year'], subtitleYear=programme.get('subtitleYear',programme['year']), editions=editions, resources=resources, searches=searches), ensure_ascii=False).encode())
 
     def import_existing(self, programme, folder):
@@ -209,7 +216,7 @@ class SubtitleCache:
                 resource_schema=manifest.get('resourceSchemaVersion',0)
                 if programme.get('imdbId') and 'imdb:'+programme['imdbId'] not in manifest.get('identity',[]):resource_schema=0
             except (OSError,ValueError):resource_schema=0;manifest={}
-            if resource_schema < 2:searches={k:v for k,v in searches.items() if v.get('outcome')=='temporarily_unavailable'}
+            if resource_schema < 3:searches={k:v for k,v in searches.items() if v.get('outcome')=='temporarily_unavailable'}
             if not cached and not searches and self.import_existing(programme, folder):
                 cached, searches = self.load(folder)
             lookup_year=programme['year']
@@ -226,12 +233,12 @@ class SubtitleCache:
             languages = {lang for candidate in cached for lang in candidate['tracks']}
             attempted = searches.get(requested_language, {})
             age = self.clock()-attempted.get('checkedAt', 0)
-            fresh_miss = attempted.get('outcome') == 'not_found_this_search' and age < NEGATIVE_TTL
+            fresh_miss = attempted.get('outcome') in ('not_found_this_search','timing_pending') and age < NEGATIVE_TTL
             recent_error = attempted.get('outcome') == 'temporarily_unavailable' and age < 60
             if recent_error:
                 if cached: return cached
                 raise RuntimeError('subtitle_provider_temporarily_unavailable')
-            if cached and resource_schema >= 2 and (requested_language in languages or fresh_miss): return cached
+            if cached and resource_schema >= 3 and (requested_language in languages or fresh_miss): return cached
             if not cached and fresh_miss: return []
             self.hydrate_resources(folder,download_root)
             try:

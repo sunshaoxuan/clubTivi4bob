@@ -10,6 +10,7 @@ from urllib.parse import urlencode, urlsplit
 from urllib.request import Request, urlopen
 import zipfile
 
+from subtitle_edition import chinese_script, timing_evidence
 from subtitle_catalog import LANGUAGES, matches_movie_title, parse_srt, title_norm, save_resource, load_resource
 
 LANGUAGE_CODES = {'english':'en', 'chinese_bg_code':'zh-CN', 'big_5_code':'zh-TW',
@@ -88,28 +89,34 @@ def discover(title,year,root,*,imdb_id,max_candidates=3):
     parser=Releases();parser.feed(read(page).decode('utf-8'))
     selected=[]
     for language in LANGUAGES:
-        releases=[r for r in parser.rows if r['language']==language and matches_movie_title(r['label'],title,year)]
-        selected.extend(releases[:max_candidates if language=='en' else 2])
+        releases=[r for r in parser.rows if r['language']==language and (matches_movie_title(r['label'],title,year) or title_norm(r['label'])==title_norm(title))]
+        selected.extend(releases)
     tracks=[]
+    failures=[]
     def download(row):
         try:
             cached=load_resource(root,row['url'],row['language'])
-            if cached:return {**row,**cached[0],'cues':cached[1]}
+            if cached:
+                actual=chinese_script(cached[1],row['language'])
+                return {**row,**cached[0],'language':actual,'cues':cached[1],'declaredLanguage':row['language']} if actual else None
             archive=read(row['url']);data,cues=unpack(archive)
             record=save_resource(root,row['url'],row['language'],row['label'],data,'SubDL',archiveSha256=hashlib.sha256(archive).hexdigest())
-            return {**row,**record,'cues':cues}
-        except (OSError,ValueError,UnicodeError,zipfile.BadZipFile):return None
+            actual=chinese_script(cues,row['language'])
+            return {**row,**record,'language':actual,'cues':cues,'declaredLanguage':row['language']} if actual else None
+        except (OSError,ValueError,UnicodeError,zipfile.BadZipFile) as error:
+            failures.append(dict(url=row.get('url'),language=row['language'],errorType=type(error).__name__,httpStatus=getattr(error,'code',None)))
+            return None
     with concurrent.futures.ThreadPoolExecutor(max_workers=4) as pool:
         tracks=[r for r in pool.map(download,selected) if r]
     results=[]
     for en in [r for r in tracks if r['language']=='en']:
-        grid=[(c['start'],c['end']) for c in en['cues']]
+        facts=lambda r:dict(provider='SubDL',imdbId=imdb_id,release=r['label'])
         chosen={'en':en}
         for r in tracks:
-            if r['language'] not in chosen and [(c['start'],c['end']) for c in r['cues']]==grid:
+            if r['language'] not in chosen and timing_evidence(en['cues'],r['cues'],facts(en),facts(r)):
                 chosen[r['language']]=r
-        provenance={lang:dict(provider='SubDL',url=r['url'],sha256=r['sha256'],archiveSha256=r['archiveSha256'],cueCount=len(r['cues']),identityLookup=lookup,imdbId=imdb_id,release=r['label']) for lang,r in chosen.items()}
+        provenance={lang:dict(provider='SubDL',url=r['url'],sha256=r['sha256'],archiveSha256=r['archiveSha256'],cueCount=len(r['cues']),identityLookup=lookup,imdbId=imdb_id,release=r['label'],declaredLanguage=r.get('declaredLanguage',r['language']),timingEvidence=timing_evidence(en['cues'],r['cues'],facts(en),facts(r))) for lang,r in chosen.items()}
         results.append(dict(page=en['url'],label=en['label'],searchUrl=lookup,
             tracks={lang:r['cues'] for lang,r in chosen.items()},provenance=provenance))
-    (root/'subdl-discovery.json').write_text(json.dumps(dict(identityLookup=lookup,movie=movie,offeredLanguages=sorted({r['language'] for r in parser.rows}),downloadedLanguages=sorted({r['language'] for r in tracks}),candidates=results),ensure_ascii=False))
+    (root/'subdl-discovery.json').write_text(json.dumps(dict(identityLookup=lookup,movie=movie,offeredLanguages=sorted({r['language'] for r in parser.rows}),offeredRows=len(parser.rows),selectedRows=len(selected),downloadedRows=len(tracks),allMatchingRowsAttempted=True,failures=failures,downloadedLanguages=sorted({r['language'] for r in tracks}),candidates=results),ensure_ascii=False))
     return results

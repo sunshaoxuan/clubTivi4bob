@@ -117,6 +117,7 @@ def _discover_subtitlecat(title, year, root, *, max_candidates=3, requested_lang
     search_html = read(search).decode()
     parser = Links(); parser.feed(search_html)
     english_originals = set()
+    failures = []
     for row in re.findall(r'<tr[^>]*>(.*?)</tr>', search_html, re.S):
         row_parser = Links(); row_parser.feed(row)
         if '(translated from English)' in html.unescape(re.sub(r'<[^>]*>', '', row)):
@@ -127,11 +128,12 @@ def _discover_subtitlecat(title, year, root, *, max_candidates=3, requested_lang
     # language on the first result does not establish provider-wide absence.
     pages = []
     with concurrent.futures.ThreadPoolExecutor(max_workers=4) as pool:
-        futures = [(candidate, pool.submit(read, urljoin(ORIGIN, candidate['url']))) for candidate in matches[:12]]
+        futures = [(candidate, pool.submit(read, urljoin(ORIGIN, candidate['url']))) for candidate in matches]
         for candidate, future in futures:
             try:
                 detail = future.result().decode(); links = Links(); links.feed(detail)
-            except (OSError, ValueError, UnicodeError):
+            except (OSError, ValueError, UnicodeError) as error:
+                failures.append(dict(url=urljoin(ORIGIN,candidate['url']),errorType=type(error).__name__,httpStatus=getattr(error,'code',None)))
                 continue
             offered = {x['id'].removeprefix('download_') for x in links.links if x['text'].strip() == 'Download'}
             priority = (requested_language not in offered,
@@ -139,7 +141,7 @@ def _discover_subtitlecat(title, year, root, *, max_candidates=3, requested_lang
                         -len(offered & set(LANGUAGES)))
             pages.append((priority, candidate, detail, links))
     results = []
-    for _, candidate, detail, links in sorted(pages, key=lambda x:x[0])[:max_candidates]:
+    for _, candidate, detail, links in sorted(pages, key=lambda x:x[0]):
         page = urljoin(ORIGIN, candidate['url'])
         tracks, facts = {}, {}
         for language in LANGUAGES:
@@ -152,7 +154,8 @@ def _discover_subtitlecat(title, year, root, *, max_candidates=3, requested_lang
                 cached = load_resource(root,url,language)
                 raw = (root/(cached[0]['sha256']+'.srt')).read_bytes() if cached else read(url)
                 cues = parse_srt(raw)
-            except (ValueError, OSError, UnicodeError):
+            except (ValueError, OSError, UnicodeError) as error:
+                failures.append(dict(url=url,language=language,errorType=type(error).__name__,httpStatus=getattr(error,'code',None)))
                 continue
             tracks[language] = cues
             digest = hashlib.sha256(raw).hexdigest()
@@ -187,6 +190,7 @@ def _discover_subtitlecat(title, year, root, *, max_candidates=3, requested_lang
                       rejectedClockGridLanguages=rejected, searchUrl=search)
         results.append(result)
         # Keep a bounded candidate set; a failed acoustic match tries the next file.
+    (root/'subtitlecat-search-audit.json').write_text(json.dumps(dict(matchedEditions=len(matches),detailsRead=len(pages),allMatchingRowsAttempted=True,failures=failures)))
     (root / 'discovery.json').write_text(json.dumps(results, ensure_ascii=False))
     return results
 
@@ -214,6 +218,10 @@ def discover(title, year, root, *, max_candidates=3, requested_language='en', im
         except Exception as error:
             errors.append(dict(provider='SubDL',error=type(error).__name__,httpStatus=getattr(error,'code',None)))
             last_error=error
+    for name,provider in [('subtitlecat-search-audit.json','Subtitle Cat'),('opensubtitles-search-audit.json','OpenSubtitles via Stremio'),('subdl-discovery.json','SubDL')]:
+        if (root/name).exists():
+            report=json.loads((root/name).read_text())
+            errors.extend(dict(provider=provider,**failure) for failure in report.get('failures',[]))
     (root/'provider-errors.json').write_text(json.dumps(errors))
     (root/'discovery.json').write_text(json.dumps(results,ensure_ascii=False))
     if not results and last_error is not None:raise last_error

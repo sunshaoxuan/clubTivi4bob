@@ -39,6 +39,18 @@ class GuideTests(unittest.TestCase):
                 self.epg['programmes']=rows
                 with self.assertRaises(ValueError):g.resolve(self.source)
             read.assert_not_called()
+    def test_repeated_observations_do_not_rescan_all_catalogue_routes(self):
+        import programme_guide
+        self.rows();self.catalog['channels'] += [dict(id='channel'+str(i),routes=[dict(url='https://example.invalid/'+str(i)+'.m3u8')]) for i in range(9000)]
+        g=ProgrammeGuide()
+        with patch('programme_guide.snapshot',side_effect=self.snap),patch('programme_guide.route_key',wraps=programme_guide.route_key) as lookup:
+            self.assertEqual(g.channel(self.source)['id'],'comedy');initial=lookup.call_count
+            for _ in range(30):self.assertEqual(g.channel(self.source)['id'],'comedy')
+            self.assertLessEqual(lookup.call_count-initial,30)
+            replacement=dict(channels=[dict(id='other',routes=[dict(url=self.source)]),dict(id='duplicate',routes=[dict(url=self.source)])])
+            g.catalog=replacement
+            with self.assertRaisesRegex(ValueError,'unbound_public_route'):g.channel(self.source)
+
     def test_title_ambiguity_does_not_guess_release_year(self):
         self.rows();p=self.epg['programmes'][0];p.update(sourceId='xmltv-reviewed');p['provenance']={};g=ProgrammeGuide()
         with patch('programme_guide.snapshot',side_effect=self.snap),patch('programme_guide.public_read',return_value=b'{"d":[{"id":"tt0000001","qid":"movie","l":"Sunshine Cleaning","y":2008},{"id":"tt0000002","qid":"movie","l":"Sunshine Cleaning","y":2020}]}'):

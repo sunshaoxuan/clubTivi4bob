@@ -32,18 +32,29 @@ def route_key(source):
 
 class ProgrammeGuide:
     def __init__(self):
-        self.lock=threading.RLock();self.metadata={};self.identities={};self.catalog=None;self.catalog_at=0
+        self.lock=threading.RLock();self.metadata={};self.identities={};self.catalog=None;self.catalog_at=0;self.indexed_catalog=None;self.route_index={}
+    def indexed_channels(self,catalog,key):
+        with self.lock:
+            if self.indexed_catalog is not catalog:
+                index={}
+                for channel in catalog['channels']:
+                    keys={route_key(route['url']) for route in channel['routes']}
+                    for route in keys:
+                        if route is not None:index.setdefault(route,[]).append(channel)
+                self.route_index=index;self.indexed_catalog=catalog
+            return self.route_index.get(key,[]) if key is not None else []
+
     def channel(self,source):
         with self.lock:catalog=self.catalog
         if catalog is None:
             catalog=snapshot('channel-catalog')
             with self.lock:self.catalog=catalog;self.catalog_at=time.monotonic()
         key=route_key(source)
-        matches=[c for c in catalog['channels'] if key is not None and any(route_key(r['url'])==key for r in c['routes'])]
+        matches=self.indexed_channels(catalog,key)
         if not matches and time.monotonic()-self.catalog_at>25:
             catalog=snapshot('channel-catalog')
             with self.lock:self.catalog=catalog;self.catalog_at=time.monotonic()
-            matches=[c for c in catalog['channels'] if key is not None and any(route_key(r['url'])==key for r in c['routes'])]
+            matches=self.indexed_channels(catalog,key)
         if len(matches)!=1:raise ValueError('unbound_public_route')
         return matches[0]
     def current(self,channel_id,source):

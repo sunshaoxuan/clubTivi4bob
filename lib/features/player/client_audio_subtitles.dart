@@ -53,6 +53,7 @@ class ClientAudioSubtitles {
       _active = false;
   bool _attached = false, _workerFailed = false, _clockAvailable = true;
   bool _transportLocked = false;
+  bool _referenceResourcesAvailable = false;
   bool _verifiedProgrammeClock = false;
   bool _coldRecognition = true, _waitingForPlaybackBuffer = false;
   double _lastClockObservation = -1;
@@ -318,6 +319,7 @@ class ClientAudioSubtitles {
     }
     if (programme is Map) _programme = Map<String, dynamic>.from(programme);
     final status = body['subtitleStatus'] as Map?;
+    _referenceResourcesAvailable = (status?['candidateCount'] as num? ?? 0) > 0;
     _transportLocked = body['transportClockVerified'] == true;
     if (_transportLocked) _verifiedProgrammeClock = true;
     _languages = (status?['availableLanguages'] as List? ?? [])
@@ -434,7 +436,9 @@ class ClientAudioSubtitles {
       if (!_clockAvailable || !SubtitlePreferences.instance.enabled) return;
       // Keep polling for programme/resource changes without spending CPU on
       // alignment when discovery has confirmed no usable reference subtitle.
-      if (phase == SubtitlePhase.unavailable) return;
+      if (phase == SubtitlePhase.unavailable && !_referenceResourcesAvailable) {
+        return;
+      }
       if (!player.state.playing || player.state.buffering) return;
       final raw = await native.getProperty('af-metadata/$label');
       if (_disposed || raw.isEmpty) return;
@@ -555,7 +559,9 @@ class ClientAudioSubtitles {
       if (!_recognizing &&
           duration >= (reacquiring ? 6 : 12) &&
           end - _lastAnalysisEnd >=
-              (_transportLocked ? 30 : (reacquiring ? 2 : 6))) {
+              (_transportLocked || phase == SubtitlePhase.unavailable
+                  ? 30
+                  : (reacquiring ? 2 : 6))) {
         if (Platform.isAndroid) {
           final buffered = double.tryParse(
             await native.getProperty('demuxer-cache-duration'),

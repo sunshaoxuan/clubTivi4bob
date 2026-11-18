@@ -4,6 +4,7 @@ import 'dart:io';
 import '../../core/server_egress.dart';
 import '../../core/app_diagnostics.dart';
 import 'hls_linearized_pipe.dart';
+import 'hls_playlist_history.dart';
 
 const actionMoviesLegacyConfig = 'production-LiveChannel-6065';
 const actionMoviesCurrentConfig = 'production-hls-aes128-rtv-6065-playout';
@@ -302,6 +303,86 @@ class HlsBufferProxy {
   HttpClient? _client;
   final _sources = <String, Uri>{};
   final _keys = <String, Uri>{};
+  final _histories = <Uri, HlsPlaylistHistory>{};
+  final _playlistBodies = <Uri, String>{};
+  final _playlistTimes = <Uri, DateTime>{};
+  final _playlistRequests = <Uri, Future<String>>{};
+  Timer? _manifestPoll;
+  String? _lastManifestFacts;
+
+  Future<String> _readPlaylist(Uri uri, {bool refresh = false}) async {
+    final pending = _playlistRequests[uri];
+    if (pending != null) return pending;
+    if (!refresh &&
+        _playlistBodies.containsKey(uri) &&
+        DateTime.now().difference(_playlistTimes[uri]!).inMilliseconds < 500) {
+      return _playlistBodies[uri]!;
+    }
+    final future = _fetchPlaylist(uri);
+    _playlistRequests[uri] = future;
+    try {
+      return await future;
+    } finally {
+      if (identical(_playlistRequests[uri], future)) {
+        _playlistRequests.remove(uri);
+      }
+    }
+  }
+
+  Future<String> _fetchPlaylist(Uri uri) async {
+    final generation = _generation;
+    final request = await _client!.getUrl(uri);
+    _headers.forEach(request.headers.set);
+    final response = await request.close().timeout(const Duration(seconds: 8));
+    if (response.statusCode != 200) {
+      await response.drain<void>();
+      throw HttpException('HLS manifest ${response.statusCode}');
+    }
+    final raw = await utf8.decoder
+        .bind(response)
+        .join()
+        .timeout(const Duration(seconds: 8));
+    if (generation != _generation || _server == null) {
+      throw const HttpException('HLS session closed');
+    }
+    final body = _histories
+        .putIfAbsent(uri, HlsPlaylistHistory.new)
+        .update(raw, uri);
+    final durations = RegExp(
+      r'#EXTINF:([0-9.]+)',
+    ).allMatches(raw).map((match) => double.parse(match[1]!)).toList();
+    final seconds = durations.fold<double>(0, (a, b) => a + b);
+    final facts = '${durations.length}:${seconds.toStringAsFixed(2)}';
+    if (facts != _lastManifestFacts) {
+      _lastManifestFacts = facts;
+      AppDiagnostics.instance.log('client_hls_manifest_window', {
+        'providerSegments': durations.length,
+        'providerSeconds': seconds,
+        'retainedSeconds': RegExp(r'#EXTINF:([0-9.]+)')
+            .allMatches(body)
+            .fold<double>(0, (sum, m) => sum + double.parse(m[1]!)),
+      });
+    }
+    final result = captureClock
+        ? indexSegments(
+            body,
+            uri,
+            (key) => 'http://127.0.0.1:${_server!.port}$key',
+          )
+        : body;
+    _playlistBodies[uri] = result;
+    _playlistTimes[uri] = DateTime.now();
+    return result;
+  }
+
+  Future<void> _refreshManifest(Uri uri) async {
+    try {
+      await _readPlaylist(uri, refresh: true);
+    } on Object {
+      // The decoder can retry its own request. Keep the last observed history.
+    }
+  }
+
   String _registerKey(Uri uri) {
     final key =
         _keys.entries
@@ -434,42 +515,25 @@ class HlsBufferProxy {
         if (uri == null) {
           request.response.statusCode = 404;
         } else {
-          final remote = await client.getUrl(uri);
-          _headers.forEach(remote.headers.set);
-          final response = await remote.close().timeout(
-            const Duration(seconds: 8),
-          );
-          request.response.statusCode = response.statusCode;
           request.response.headers.contentType = ContentType(
             'application',
             'vnd.apple.mpegurl',
             charset: 'utf-8',
           );
           request.response.headers.set('Cache-Control', 'no-store');
-          if (response.statusCode == 200 && generation == _generation) {
-            final body = await utf8.decoder
-                .bind(response)
-                .join()
-                .timeout(const Duration(seconds: 8));
+          if (generation == _generation) {
+            final body = await _readPlaylist(uri);
             if (generation != _generation) {
               throw const HttpException('HLS session closed');
             }
             request.response.write(
               rewriteBufferedHls(
-                captureClock
-                    ? indexSegments(
-                        body,
-                        uri,
-                        (key) => 'http://127.0.0.1:${_server!.port}$key',
-                      )
-                    : body,
+                body,
                 uri,
                 _register,
                 keyUrl: captureClock && !Platform.isMacOS ? _registerKey : null,
               ),
             );
-          } else {
-            await response.drain<void>();
           }
         }
       } catch (_) {
@@ -483,6 +547,15 @@ class HlsBufferProxy {
       }
     });
     final playlist = _register(origin);
+    try {
+      await _readPlaylist(origin);
+    } on Object {
+      await stop();
+      rethrow;
+    }
+    _manifestPoll = Timer.periodic(const Duration(seconds: 1), (_) {
+      unawaited(_refreshManifest(origin));
+    });
     if (captureClock) {
       try {
         final media = await _linearized.start(playlist);
@@ -506,6 +579,8 @@ class HlsBufferProxy {
 
   Future<void> stop() async {
     ++_generation;
+    _manifestPoll?.cancel();
+    _manifestPoll = null;
     await _linearized.stop();
     linearClockReady = false;
     final server = _server;
@@ -514,6 +589,11 @@ class HlsBufferProxy {
     _client = null;
     _sources.clear();
     _keys.clear();
+    _histories.clear();
+    _playlistBodies.clear();
+    _playlistTimes.clear();
+    _playlistRequests.clear();
+    _lastManifestFacts = null;
     _segments.clear();
     _segmentUris.clear();
     _sequenceStarts.clear();

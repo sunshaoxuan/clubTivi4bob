@@ -122,7 +122,6 @@ class ManagedPlayer extends Player {
   Media? _fallbackMedia;
   Media? _requestedMedia;
   int subtitleMediaAutoOpens = 0;
-  DateTime? _normalizedOpenedAt;
   Duration subtitleStartupGrace = const Duration(seconds: 10);
   Timer? _fallbackTimer;
   late final StreamSubscription<bool> _fallbackBuffering,
@@ -173,8 +172,6 @@ class ManagedPlayer extends Player {
     final grace =
         Platform.isAndroid &&
             _hlsBuffer.linearClockReady &&
-            _normalizedOpenedAt != null &&
-            DateTime.now().difference(_normalizedOpenedAt!).inSeconds < 60 &&
             subtitleStartupGrace < const Duration(seconds: 30)
         ? const Duration(seconds: 30)
         : subtitleStartupGrace;
@@ -229,7 +226,6 @@ class ManagedPlayer extends Player {
   }) async {
     _clearFallback();
     final generation = ++_openGeneration;
-    _normalizedOpenedAt = DateTime.now();
     // Explicit native acceptance runs must never emit audio, including warm
     // and preview decoders. This diagnostic flag does not change preferences.
     if (Platform.environment['BOBTV_TEST_MUTE'] == '1') {
@@ -252,14 +248,20 @@ class ManagedPlayer extends Player {
       if (generation != _openGeneration) return;
       final native = platform;
       if (native is native_player.NativePlayer) {
+        if (liveSubtitles.usesClientAudio ||
+            isReviewedRakutenUkMovieSource(playable.uri)) {
+          _previousLiveDiskCache ??= await native.getProperty('cache-on-disk');
+          await native.setProperty('cache-on-disk', 'no');
+        } else if (_previousLiveDiskCache != null) {
+          await native.setProperty('cache-on-disk', _previousLiveDiskCache!);
+          _previousLiveDiskCache = null;
+        }
         if (liveSubtitles.usesClientAudio &&
             Uri.parse(playable.uri).path.endsWith('.m3u8')) {
           _previousLiveNetworkTimeout ??= await native.getProperty(
             'network-timeout',
           );
           await native.setProperty('network-timeout', '30');
-          _previousLiveDiskCache ??= await native.getProperty('cache-on-disk');
-          await native.setProperty('cache-on-disk', 'no');
           _previousLiveTimestampPolicy ??= await native.getProperty(
             'demuxer-lavf-linearize-timestamps',
           );
@@ -300,10 +302,6 @@ class ManagedPlayer extends Player {
             'remove',
             'seg_format_options',
           ]);
-          if (_previousLiveDiskCache != null) {
-            await native.setProperty('cache-on-disk', _previousLiveDiskCache!);
-            _previousLiveDiskCache = null;
-          }
           await native.command([
             'change-list',
             'demuxer-lavf-o',

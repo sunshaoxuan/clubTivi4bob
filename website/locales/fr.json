@@ -204,7 +204,7 @@
       [
         "2026-11-18",
         "v1.3.0 · Le guide TV et les sous-titres automatiques réunis",
-        "Un même parcours de sous-titrage automatique pour les chaînes dont le programme EPG est confirmé. Sept langues de préférence, puis repli vers l’anglais et enfin aucun sous-titre. Le son est reconnu sur l’appareil ; le serveur recherche et met en cache les ressources. Les nouveaux dialogues recalent les sous-titres après la publicité, dans la zone vidéo."
+        "BobTV recherche automatiquement des sous-titres dans plusieurs sources lorsque le guide TV confirme le programme en cours. Changez de langue pendant la lecture parmi sept langues proposées et choisissez jusqu’à trois versions distinctes par langue. La sélection automatique essaie d’abord votre langue, puis l’anglais. Les sous-titres se mettent en pause pendant la publicité et se recalent au retour du programme."
       ],
       [
         "2026-11-18",
@@ -711,7 +711,7 @@
   },
   "showcase": {
     "title": "BobTV | Télévision en direct, radio et guide TV",
-    "meta": "Le guide identifie le programme en cours, puis BobTV recherche ses sous-titres. Les chaînes dont le programme EPG est confirmé partagent ce parcours automatique, sans recherche manuelle à chaque changement.",
+    "meta": "BobTV identifie le programme en cours grâce au guide TV et recherche automatiquement des sous-titres dans plusieurs sources prises en charge. Les sous-titres se mettent à jour quand vous changez de chaîne ou de programme.",
     "eyebrow": "1.3.0 · Guide TV et sous-titres",
     "countries": "pays et territoires",
     "languages": "langues sur ce site",
@@ -820,15 +820,15 @@
     "nav": "Sous-titres auto",
     "badge": "1.3.0 · Guide TV et sous-titres",
     "title": "Suivez le programme, et ses dialogues.",
-    "intro": "Le guide identifie le programme en cours, puis BobTV recherche ses sous-titres. Les chaînes dont le programme EPG est confirmé partagent ce parcours automatique, sans recherche manuelle à chaque changement.",
+    "intro": "BobTV identifie le programme en cours grâce au guide TV et recherche automatiquement des sous-titres dans plusieurs sources prises en charge. Les sous-titres se mettent à jour quand vous changez de chaîne ou de programme.",
     "steps": [
       [
         "Savoir ce qui passe",
         "Identifier la chaîne et son programme EPG actuel, avec les émissions suivantes à portée de vue."
       ],
       [
-        "Votre langue en priorité",
-        "Choisir la langue demandée, puis l’anglais. Si aucune ressource ne convient, BobTV affiche un état clair."
+        "Changez de langue ou de version en cours de lecture",
+        "Ouvrez à tout moment le menu des sous-titres pour changer de langue ou choisir parmi trois versions distinctes au maximum par langue. La sélection automatique essaie d’abord votre langue, puis l’anglais."
       ],
       [
         "Rester au rythme du direct",
@@ -836,7 +836,7 @@
       ]
     ],
     "privacy": "Le son reste sur votre appareil. Le serveur recherche, met en cache et synchronise les sous-titres sans récupérer le flux vidéo en continu. Les ressources peuvent être réutilisées quand le même film est rediffusé. Seuls des fragments de dialogue et leurs temps sont envoyés pour le recalage.",
-    "condition": "Nécessite un programme EPG confirmé et des sous-titres adaptés. Le recalage vocal prend actuellement en charge le son anglais. Les informations manquantes ou une édition incompatible sont signalées.",
+    "condition": "Le guide TV doit identifier le programme en cours et une version des sous-titres doit correspondre à la diffusion. Le lecteur indique si les sous-titres sont indisponibles ou en cours de synchronisation. Le recalage vocal prend actuellement en charge les pistes audio en anglais.",
     "demo": "Découvrez le comportement pendant une publicité",
     "demoNote": "Illustration du fonctionnement. La disponibilité dépend du programme, de la langue et de l’édition des sous-titres.",
     "current": "En cours",
@@ -861,6 +861,6 @@
     ],
     "cta": "Essayez les sous-titres avec la version 1.3.0",
     "historyTitle": "Le guide TV et les sous-titres automatiques réunis",
-    "historyText": "Un même parcours de sous-titrage automatique pour les chaînes dont le programme EPG est confirmé. Sept langues de préférence, puis repli vers l’anglais et enfin aucun sous-titre. Le son est reconnu sur l’appareil ; le serveur recherche et met en cache les ressources. Les nouveaux dialogues recalent les sous-titres après la publicité, dans la zone vidéo."
+    "historyText": "BobTV recherche automatiquement des sous-titres dans plusieurs sources lorsque le guide TV confirme le programme en cours. Changez de langue pendant la lecture parmi sept langues proposées et choisissez jusqu’à trois versions distinctes par langue. La sélection automatique essaie d’abord votre langue, puis l’anglais. Les sous-titres se mettent en pause pendant la publicité et se recalent au retour du programme."
   }
 }

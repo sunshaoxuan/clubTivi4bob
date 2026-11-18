@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="从节目单找到正在播出的内容，让字幕跟上你的观看。为有可确认 EPG 的频道自动查找字幕，换台、换节目，无需每次手动搜索。">
+  <meta name="description" content="BobTV 根据当前节目单确认正在播出的内容，再从多个已接入的来源自动查找字幕。换台或换节目后，字幕会随节目更新。">
   <title>BobTV | 电视直播、电台与节目单</title>
   <meta name="theme-color" content="#0d101e">
   <link rel="icon" type="image/png" href="/assets/favicon.png?v=2">
@@ -64,7 +64,7 @@
     <div class="section-heading subtitles-heading">
       <p class="eyebrow"><span class="live-dot"></span>1.3.0 · 自动节目单与字幕</p>
       <h2 id="subtitles-title">看直播，也看懂节目。</h2>
-      <p>从节目单找到正在播出的内容，让字幕跟上你的观看。为有可确认 EPG 的频道自动查找字幕，换台、换节目，无需每次手动搜索。</p>
+      <p>BobTV 根据当前节目单确认正在播出的内容，再从多个已接入的来源自动查找字幕。换台或换节目后，字幕会随节目更新。</p>
     </div>
     <div class="subtitles-layout">
       <div class="subtitle-demo" data-subtitle-demo>
@@ -87,12 +87,12 @@
         <p class="subtitle-demo-note">流程示意。实际可用性取决于节目资料、字幕语言和版本。</p>
       </div>
       <div class="subtitle-story">
-        <ol><li><span class="subtitle-step-number" aria-hidden="true">01</span><div><h3>知道现在播什么</h3><p>结合频道线路与当前 EPG 确认节目，区分当前节目和接下来安排。</p></div></li><li><span class="subtitle-step-number" aria-hidden="true">02</span><div><h3>找到适合的字幕</h3><p>优先使用指定语种，找不到则使用英文；仍无可用资源时明确提示。</p></div></li><li><span class="subtitle-step-number" aria-hidden="true">03</span><div><h3>跟着直播重新对齐</h3><p>利用本机播放音频核对台词和时间。广告期间暂停字幕，正片回来后重新校准再显示。</p></div></li></ol>
+        <ol><li><span class="subtitle-step-number" aria-hidden="true">01</span><div><h3>知道现在播什么</h3><p>结合频道线路与当前 EPG 确认节目，区分当前节目和接下来安排。</p></div></li><li><span class="subtitle-step-number" aria-hidden="true">02</span><div><h3>播放中选择语言和版本</h3><p>点开播放器的字幕菜单，随时切换语言或版本。每种语言最多显示三个不同候选。自动选择会优先使用指定语种，再尝试英文。</p></div></li><li><span class="subtitle-step-number" aria-hidden="true">03</span><div><h3>跟着直播重新对齐</h3><p>利用本机播放音频核对台词和时间。广告期间暂停字幕，正片回来后重新校准再显示。</p></div></li></ol>
         <p class="subtitle-privacy">音频留在你的设备上。服务器负责字幕检索、缓存和时间对齐，不持续拉取视频流；字幕资源可在同一影片再次播出时复用。 仅发送台词片段与时间信息用于对齐。</p>
         <a class="button primary" href="/downloads">下载 1.3.0，体验自动字幕 <span aria-hidden="true">↓</span></a>
       </div>
     </div>
-    <p class="subtitle-conditions">适用于已有可确认 EPG 的频道，并需要可用的字幕资源。当前语音重对齐支持英文音轨；资料不足或无法匹配时会显示状态提示。</p>
+    <p class="subtitle-conditions">字幕功能需要节目单能确认正在播出的节目，并找到与正片匹配的字幕版本。找不到可用字幕或正在同步时，播放器会显示状态。当前语音重新对齐支持英文音轨。</p>
   </div>
 </section>
 <script id="subtitle-demo-copy" type="application/json">{"descriptions": ["\u6839\u636e\u5f53\u524d EPG \u5339\u914d\u8282\u76ee\u4e0e\u5b57\u5e55\u3002", "\u5e7f\u544a\u4e2d\u7684\u753b\u9762\u4e0d\u6cbf\u7528\u6b63\u7247\u5b57\u5e55\u3002", "\u786e\u8ba4\u65b0\u7684\u64ad\u653e\u4f4d\u7f6e\uff0c\u8ba9\u5b57\u5e55\u7ee7\u7eed\u8ddf\u968f\u6b63\u7247\u3002"], "statuses": ["\u5b57\u5e55\u5df2\u5bf9\u9f50", "\u63d2\u64ad\u671f\u95f4\u6682\u505c\u5b57\u5e55", "\u7528\u65b0\u53f0\u8bcd\u91cd\u65b0\u6821\u51c6\u540e\u6062\u590d"]}</script>

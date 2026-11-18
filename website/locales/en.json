@@ -204,7 +204,7 @@
       [
         "2026-11-18",
         "v1.3.0 · Programme guides and automatic subtitles, together",
-        "One automatic subtitle workflow for channels with confirmed EPG programmes. Choose from seven language preferences, falling back to English and then no subtitles. Playback audio is recognised on the device; the server retrieves and caches resources. Fresh dialogue realigns subtitles after adverts, and captions stay inside the video window."
+        "BobTV automatically searches multiple subtitle sources when the guide confirms the current programme. Switch between seven language preferences and choose from up to three distinct subtitle versions per language during playback. Automatic selection tries your preferred language, then English. Subtitles pause for adverts and realign when the programme returns."
       ],
       [
         "2026-11-18",
@@ -711,7 +711,7 @@
   },
   "showcase": {
     "title": "BobTV | Live TV, radio and program guides",
-    "meta": "Let the programme guide identify what is playing, then let BobTV find the subtitles. Channels with a confirmed EPG use the same automatic workflow, so each channel change does not mean another manual search.",
+    "meta": "BobTV uses the programme guide to confirm what is playing, then automatically searches several supported subtitle sources. Subtitles update when the channel or programme changes.",
     "eyebrow": "1.3.0 · Programme guides & subtitles",
     "countries": "countries & regions",
     "languages": "website languages",
@@ -820,15 +820,15 @@
     "nav": "Auto subtitles",
     "badge": "1.3.0 · Programme guides & subtitles",
     "title": "Follow the programme. Follow the words.",
-    "intro": "Let the programme guide identify what is playing, then let BobTV find the subtitles. Channels with a confirmed EPG use the same automatic workflow, so each channel change does not mean another manual search.",
+    "intro": "BobTV uses the programme guide to confirm what is playing, then automatically searches several supported subtitle sources. Subtitles update when the channel or programme changes.",
     "steps": [
       [
         "Know what is on",
         "Match the channel and its current EPG programme, with the next programmes in view."
       ],
       [
-        "Find your subtitle language",
-        "Use your chosen language first, then English. If neither is available, BobTV tells you."
+        "Change language and version while watching",
+        "Open the subtitle menu at any time to change language or choose from up to three distinct versions per language. Automatic selection tries your preferred language first, then English."
       ],
       [
         "Stay in step with live TV",
@@ -836,7 +836,7 @@
       ]
     ],
     "privacy": "Playback audio stays on your device. The server searches, caches and aligns subtitles without continuously fetching the video stream. Cached resources can be reused when the same film returns. Only dialogue fragments and timing information are sent for alignment.",
-    "condition": "Requires a channel with a confirmed EPG programme and suitable subtitle resources. Speech realignment currently supports English audio. Missing information or an unmatched edition is shown as a status.",
+    "condition": "The guide must identify the current programme and a subtitle version must match the broadcast. The player shows when subtitles are unavailable or still synchronising. Speech realignment currently supports English audio.",
     "demo": "Explore what happens during an advert",
     "demoNote": "Workflow illustration. Availability depends on programme information, subtitle language and edition.",
     "current": "Now playing",
@@ -861,6 +861,6 @@
     ],
     "cta": "Get 1.3.0 and try auto subtitles",
     "historyTitle": "Programme guides and automatic subtitles, together",
-    "historyText": "One automatic subtitle workflow for channels with confirmed EPG programmes. Choose from seven language preferences, falling back to English and then no subtitles. Playback audio is recognised on the device; the server retrieves and caches resources. Fresh dialogue realigns subtitles after adverts, and captions stay inside the video window."
+    "historyText": "BobTV automatically searches multiple subtitle sources when the guide confirms the current programme. Switch between seven language preferences and choose from up to three distinct subtitle versions per language during playback. Automatic selection tries your preferred language, then English. Subtitles pause for adverts and realign when the programme returns."
   }
 }

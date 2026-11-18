@@ -92,6 +92,76 @@ class SubdlTests(unittest.TestCase):
             self.assertEqual(subtitle_catalog.discover('The Prince',2014,root,imdb_id='tt1085492',requested_language='en'),[row])
             fallback.assert_called_once()
 
+    def test_all_sources_are_searched_even_after_seven_languages_are_found(self):
+        from subtitle_catalog import LANGUAGES, PROVIDER_AUDIT, discover, parse_srt
+        cues = parse_srt(SRT)
+        a = dict(page='stremio', tracks={language: cues for language in LANGUAGES})
+        b = dict(page='subdl', tracks={'en': cues, 'fr': parse_srt(SRT.replace(b'One', b'Un'))})
+        with tempfile.TemporaryDirectory() as directory, \
+                patch('subtitle_stremio.discover', return_value=[a]) as stremio, \
+                patch('subtitle_catalog._discover_subtitlecat', side_effect=OSError) as subtitlecat, \
+                patch.object(adapter, 'discover', return_value=[b]) as subdl:
+            rows = discover('The Prince', 2014, directory, imdb_id='tt1085492', requested_language='fr')
+            self.assertEqual(rows, [a, b])
+            stremio.assert_called_once()
+            subtitlecat.assert_called_once()
+            subdl.assert_called_once()
+            ledger = json.loads((Path(directory)/PROVIDER_AUDIT).read_text())
+            states = {row['provider']: row['outcome'] for row in ledger['providerOutcomes']}
+            self.assertEqual(states, {'OpenSubtitles via Stremio': 'found', 'Subtitle Cat': 'unavailable', 'SubDL': 'found'})
+            self.assertEqual(ledger['acceptedVariantCounts']['en'], 1)
+            self.assertEqual(ledger['acceptedVariantCounts']['fr'], 2)
+
+    def test_unverified_imdb_has_explicit_source_skips(self):
+        from subtitle_catalog import PROVIDER_AUDIT, discover
+        with tempfile.TemporaryDirectory() as directory, \
+                patch('subtitle_stremio.discover') as stremio, \
+                patch('subtitle_catalog._discover_subtitlecat', return_value=[]), \
+                patch.object(adapter, 'discover') as subdl:
+            self.assertEqual(discover('The Prince', 2014, directory), [])
+            stremio.assert_not_called()
+            subdl.assert_not_called()
+            results = json.loads((Path(directory)/PROVIDER_AUDIT).read_text())['providerOutcomes']
+            skipped = [row for row in results if row['outcome'] == 'skipped']
+            self.assertEqual(len(skipped), 2)
+            self.assertTrue(all(row['reason'] == 'verified_imdb_required' for row in skipped))
+
+    def test_same_reference_retains_distinct_translations_without_duplicate_variants(self):
+        def read(url):
+            if '/auto?' in url:
+                return json.dumps(dict(results=[self.movie])).encode()
+            if url.startswith('https://subdl.com/'):
+                return (page() + ''.join(page('french', number=f'{i}-2') for i in (2, 3, 4))).encode()
+            return archive(SRT.replace(b'One', b'Une' if '/3-2.zip' in url else b'Un'))
+        with tempfile.TemporaryDirectory() as directory, patch.object(adapter, 'read', read):
+            rows = adapter.discover('The Prince', 2014, directory, imdb_id='tt1085492')
+            self.assertEqual(len(rows), 2)
+            self.assertEqual(len({row['page'] for row in rows}), 1)
+            self.assertEqual({row['tracks']['fr'][0]['text'] for row in rows}, {'Un', 'Une'})
+            self.assertEqual(len({row['provenance']['fr']['url'] for row in rows}), 2)
+            report = json.loads((Path(directory)/'subdl-discovery.json').read_text())
+            self.assertEqual(report['parsedRows'], 4)
+
+    def test_subtitlecat_reads_multiple_links_for_the_same_language(self):
+        from subtitle_catalog import _discover_subtitlecat
+        def read(url):
+            if '/index.php?' in url:
+                return b'<a href="/subs/4/prince.html">The Prince 2014 BluRay</a>'
+            if url.endswith('.html'):
+                return (b'<a id="download_en" href="/files/en.srt">Download</a>'
+                        b'<a id="download_fr" href="/files/fr-a.srt">Download</a>'
+                        b'<a id="download_fr" href="/files/fr-b.srt">Download</a>')
+            if url.endswith('/en.srt'):
+                return SRT
+            return SRT.replace(b'One', b'Un' if url.endswith('/fr-a.srt') else b'Une')
+        with tempfile.TemporaryDirectory() as directory, patch('subtitle_catalog.read', side_effect=read):
+            rows = _discover_subtitlecat('The Prince', 2014, directory)
+            self.assertEqual(len(rows), 2)
+            self.assertEqual(len({row['page'] for row in rows}), 1)
+            self.assertEqual({row['tracks']['fr'][0]['text'] for row in rows}, {'Un', 'Une'})
+            report = json.loads((Path(directory)/'subtitlecat-search-audit.json').read_text())
+            self.assertEqual(report['parsedRows'], 3)
+
     def test_primary_provider_failure_still_tries_imdb_fallback(self):
         import subtitle_catalog
         row=dict(page='existing',label='The.Prince.2014.BluRay',tracks={'en':[]})

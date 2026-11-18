@@ -10,11 +10,12 @@ from urllib.parse import urlencode, urlsplit
 from urllib.request import Request, urlopen
 import zipfile
 
-from subtitle_edition import chinese_script, timing_evidence
+from subtitle_edition import chinese_script, pair_reference
 from subtitle_catalog import LANGUAGES, matches_movie_title, parse_srt, title_norm, save_resource, load_resource
 
 LANGUAGE_CODES = {'english':'en', 'chinese_bg_code':'zh-CN', 'big_5_code':'zh-TW',
                   'chinesebgcode':'zh-CN', 'big5code':'zh-TW', 'japanese':'ja', 'french':'fr', 'spanish':'es', 'korean':'ko'}
+PROVIDER = 'SubDL'
 
 
 def read(url):
@@ -77,46 +78,65 @@ def discover(title,year,root,*,imdb_id,max_candidates=3):
     root=Path(root);root.mkdir(parents=True,exist_ok=True)
     lookup='https://api3.subdl.com/auto?'+urlencode({'query':imdb_id})
     response=json.loads(read(lookup));rows=response.get('results',[])
+    audit_path = root/'subdl-discovery.json'
+
+    def record_identity_failure(reason):
+        audit_path.write_text(json.dumps(dict(identityLookup=lookup, identityRows=len(rows),
+            reason=reason, offeredRows=0, selectedRows=0, parsedRows=0, failures=[])))
+        return []
+
     # IMDb lookup must be unambiguous, including the original title and year.
-    if len(rows)!=1:return []
+    if not rows:return record_identity_failure('imdb_not_listed')
+    if len(rows)!=1:return record_identity_failure('ambiguous_imdb_result')
     movie=rows[0]
     if (movie.get('type')!='movie' or movie.get('year')!=year
         or title_norm(movie.get('original_name') or movie.get('name',''))!=title_norm(title)):
-        return []
+        return record_identity_failure('title_year_or_type_mismatch')
     path=movie.get('link','')
-    if not re.fullmatch(r'/subtitle/sd[0-9]+/[a-z0-9-]+',path):return []
+    if not re.fullmatch(r'/subtitle/sd[0-9]+/[a-z0-9-]+',path):
+        return record_identity_failure('unsupported_provider_detail_url')
     page='https://subdl.com'+path
     parser=Releases();parser.feed(read(page).decode('utf-8'))
-    selected=[]
+    selected={}
     for language in LANGUAGES:
         releases=[r for r in parser.rows if r['language']==language and (matches_movie_title(r['label'],title,year) or title_norm(r['label'])==title_norm(title))]
-        selected.extend(releases)
+        for row in releases:
+            selected.setdefault((language,row['url']),row)
     tracks=[]
     failures=[]
     def download(row):
         try:
             cached=load_resource(root,row['url'],row['language'])
             if cached:
-                actual=chinese_script(cached[1],row['language'])
-                return {**row,**cached[0],'language':actual,'cues':cached[1],'declaredLanguage':row['language']} if actual else None
-            archive=read(row['url']);data,cues=unpack(archive)
-            record=save_resource(root,row['url'],row['language'],row['label'],data,'SubDL',archiveSha256=hashlib.sha256(archive).hexdigest())
-            actual=chinese_script(cues,row['language'])
-            return {**row,**record,'language':actual,'cues':cues,'declaredLanguage':row['language']} if actual else None
+                record, cues = cached
+            else:
+                archive=read(row['url']);data,cues=unpack(archive)
+                record=save_resource(root,row['url'],row['language'],row['label'],data,PROVIDER,
+                    archiveSha256=hashlib.sha256(archive).hexdigest(),imdbId=imdb_id,identityLookup=lookup)
+            return {**row, **record, 'language': chinese_script(cues, row['language']),
+                    'declaredLanguage': row['language'], 'cues': cues, 'cached': cached is not None}
         except (OSError,ValueError,UnicodeError,zipfile.BadZipFile) as error:
             failures.append(dict(url=row.get('url'),language=row['language'],errorType=type(error).__name__,httpStatus=getattr(error,'code',None)))
             return None
     with download_pool() as pool:
-        tracks=[r for r in pool.map(download,selected) if r]
+        tracks=[r for r in pool.map(download,selected.values()) if r]
+    def facts(row):
+        return dict(provider=PROVIDER, url=row['url'], sha256=row['sha256'],
+            archiveSha256=row.get('archiveSha256'), cueCount=len(row['cues']),
+            identityLookup=lookup, imdbId=imdb_id, release=row['label'],
+            declaredLanguage=row['declaredLanguage'])
+
+    translations = [(row['language'], row['cues'], facts(row)) for row in tracks
+                    if row['language'] not in (None, 'en')]
     results=[]
-    for en in [r for r in tracks if r['language']=='en']:
-        facts=lambda r:dict(provider='SubDL',imdbId=imdb_id,release=r['label'])
-        chosen={'en':en}
-        for r in tracks:
-            if r['language'] not in chosen and timing_evidence(en['cues'],r['cues'],facts(en),facts(r)):
-                chosen[r['language']]=r
-        provenance={lang:dict(provider='SubDL',url=r['url'],sha256=r['sha256'],archiveSha256=r['archiveSha256'],cueCount=len(r['cues']),identityLookup=lookup,imdbId=imdb_id,release=r['label'],declaredLanguage=r.get('declaredLanguage',r['language']),timingEvidence=timing_evidence(en['cues'],r['cues'],facts(en),facts(r))) for lang,r in chosen.items()}
-        results.append(dict(page=en['url'],label=en['label'],searchUrl=lookup,
-            tracks={lang:r['cues'] for lang,r in chosen.items()},provenance=provenance))
-    (root/'subdl-discovery.json').write_text(json.dumps(dict(identityLookup=lookup,movie=movie,offeredLanguages=sorted({r['language'] for r in parser.rows}),offeredRows=len(parser.rows),selectedRows=len(selected),downloadedRows=len(tracks),allMatchingRowsAttempted=True,failures=failures,downloadedLanguages=sorted({r['language'] for r in tracks}),candidates=results),ensure_ascii=False))
+    for english in [row for row in tracks if row['language'] == 'en']:
+        results.extend(pair_reference(dict(page=english['url'], label=english['label'], searchUrl=lookup),
+                                     english['cues'], facts(english), translations))
+    audit_path.write_text(json.dumps(dict(
+        identityLookup=lookup, movie=movie, offeredLanguages=sorted({r['language'] for r in parser.rows}),
+        offeredRows=len(parser.rows), selectedRows=len(selected), parsedRows=len(tracks),
+        downloadedRows=sum(not row['cached'] for row in tracks),
+        cacheHits=sum(row['cached'] for row in tracks), allMatchingRowsAttempted=True, failures=failures,
+        downloadedLanguages=sorted({row['language'] for row in tracks if row['language']}), candidates=results),
+        ensure_ascii=False))
     return results

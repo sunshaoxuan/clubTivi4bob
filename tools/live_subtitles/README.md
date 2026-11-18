@@ -25,6 +25,38 @@ runs local tiny.en speech recognition for synchronization. It never invokes a
 Translate action or generates subtitle text. Provider translation quality is
 unreviewed. English audio is the currently supported acoustic pilot.
 
+## Resource discovery and subtitle variants
+
+Each search checks all three configured providers that can verify the film.
+OpenSubtitles via Stremio and SubDL require a verified IMDb ID. Subtitle Cat
+uses title and year and leaves the final edition check to acoustic alignment.
+An English hit or full language coverage does not skip another provider.
+Only existing downloads are read. Each provider records its result, attempted
+and parsed counts, cache reuse, and any lookup or file failures in
+`provider-search-audit.json` and the resource cache index.
+
+A track must pass timing checks against its English reference before becoming
+eligible for playback. Distinct translations can share one English reference.
+Each alternative retains its own cue times and source attribution. Acoustic
+matching can inspect every eligible reference. A transcript fingerprint ignores
+formatting and cue timing so duplicate copies do not inflate the display limit
+of three options per language. The separate track fingerprint retains cue times
+for verifying clock compatibility.
+
+Cache schema 4 repeats earlier incomplete searches while retaining verified
+editions and reusable downloads. A provider failure keeps usable results
+available and permits a retry after backoff. Failed lookups, unverified film
+identity, missing files, and unpaired timings have separate audit outcomes.
+
+Additional providers require a supported retrieval route and permission for
+the intended cache and playback use. The direct OpenSubtitles API uses an
+application API key. ASSRT requires a token, and SubHD file access was blocked
+in the Bee Season test. YIFY limits contributions to personal use and requires
+written permission for indexing. These stay outside the automatic provider set.
+[OpenSubtitles API documentation](https://opensubtitles.stoplight.io/docs/opensubtitles-api/)
+[ASSRT API documentation](https://assrt.net/api/doc)
+[YIFY terms](https://yts-subs.com/legal-information)
+
 ## Session API
 
 POST `sessions`: `{source, language}`. Unsupported sources return 404, and the

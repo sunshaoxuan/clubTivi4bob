@@ -63,6 +63,70 @@ class SubtitleCacheTests(unittest.TestCase):
             self.assertTrue(cache.get_or_discover(self.film,root,refresh))
             self.assertEqual(calls,[1])
 
+    def test_old_cache_refresh_adds_distinct_siblings_and_deduplicates_wrappers(self):
+        from subtitle_catalog import variant_counts
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)/'downloads'
+            cache = SubtitleCache(Path(directory)/'cache')
+            original = candidate(['en', 'fr', 'ja'])
+            cache.get_or_discover(self.film, root, lambda *a, **k: [original])
+            index = next(cache.root.glob('*/index.json'))
+            old = json.loads(index.read_text())
+            old['resourceSchemaVersion'] = 3
+            index.write_text(json.dumps(old))
+            sibling = candidate(['en', 'fr'])
+            sibling['tracks']['fr'][0]['text'] = 'Nouvelle version'
+            sibling['provenance']['fr']['url'] = 'https://www.subtitlecat.com/second.fr.srt'
+            wrapped = candidate(['en', 'fr'])
+            wrapped['tracks']['fr'][0]['text'] = 'fr\nline 0'
+            foreign_cut = candidate(['en', 'fr'])
+            foreign_cut['page'] = 'https://www.subtitlecat.com/subs/2/film.html'
+            for track in foreign_cut['tracks'].values():
+                for cue in track:
+                    cue['start'] += 10
+                    cue['end'] += 10
+            calls = []
+            def search(*args, **kwargs):
+                calls.append(1)
+                return [sibling, wrapped, foreign_cut]
+            cache.get_or_discover(self.film, root, search, requested_language='fr')
+            loaded = cache.get_or_discover(self.film, root, search, requested_language='fr')
+            self.assertEqual(calls, [1])
+            self.assertTrue(all(row['cacheHit'] for row in loaded))
+            self.assertEqual(len(loaded), 3)
+            self.assertEqual(variant_counts(loaded), {'en': 1, 'fr': 2, 'ja': 1})
+            self.assertEqual(len({row['id'] for row in json.loads(index.read_text())['editions']}), 3)
+            self.assertEqual(loaded[0]['tracks']['ja'], original['tracks']['ja'])
+
+    def test_partial_discovery_does_not_freeze_one_existing_variant(self):
+        from subtitle_catalog import PROVIDER_AUDIT
+        with tempfile.TemporaryDirectory() as directory:
+            now = [1000.]
+            base = Path(directory)
+            cache = SubtitleCache(base/'cache', clock=lambda: now[0])
+            root = base/'downloads'
+            root.mkdir()
+            calls = []
+            def search(*args, **kwargs):
+                calls.append(1)
+                errors = [{'provider': 'SubDL', 'httpStatus': 503}] if len(calls) == 1 else []
+                (root/'provider-errors.json').write_text(json.dumps(errors))
+                (root/PROVIDER_AUDIT).write_text(json.dumps(dict(providerOutcomes=[
+                    dict(provider='SubDL', outcome='unavailable' if errors else 'found')])))
+                return [candidate(['en', 'fr'])]
+            self.assertTrue(cache.get_or_discover(self.film, root, search, requested_language='fr'))
+            self.assertTrue(cache.get_or_discover(self.film, root, search, requested_language='fr'))
+            self.assertEqual(len(calls), 1)
+            index = next(cache.root.glob('*/index.json'))
+            stored = json.loads(index.read_text())
+            self.assertEqual(stored['providerOutcomes'][0]['outcome'], 'unavailable')
+            self.assertEqual(stored['searches']['fr']['outcome'], 'temporarily_unavailable')
+            self.assertEqual(stored['searches']['fr']['variantCount'], 1)
+            now[0] += 61
+            self.assertTrue(cache.get_or_discover(self.film, root, search, requested_language='fr'))
+            self.assertEqual(len(calls), 2)
+            self.assertEqual(json.loads(index.read_text())['searches']['fr']['outcome'], 'cached')
+
     def test_promoting_verified_imdb_preserves_official_identity_and_rejects_conflicts(self):
         with tempfile.TemporaryDirectory() as directory:
             cache=SubtitleCache(directory)

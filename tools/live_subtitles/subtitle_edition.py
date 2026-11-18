@@ -1,6 +1,80 @@
 """Verify one film edition while preserving each language's own cue boundaries."""
 import bisect
+import hashlib
+import json
 import re
+import unicodedata
+
+
+def _caption_text(text):
+    return ' '.join(unicodedata.normalize('NFC', text).split())
+
+
+def track_fingerprint(cues):
+    """Identify parsed cues independently of SRT numbering, wrapping and BOM."""
+    canonical = [(round(cue['start'] * 1000), round(cue['end'] * 1000),
+                  _caption_text(cue['text'])) for cue in cues]
+    return hashlib.sha256(json.dumps(canonical, ensure_ascii=False).encode()).hexdigest()
+
+
+def transcript_fingerprint(cues):
+    """Count one translation even when multiple files repeat it at new times."""
+    transcript = ' '.join(_caption_text(cue['text']) for cue in cues)
+    return hashlib.sha256(transcript.encode()).hexdigest()
+
+
+def _edition_rows(metadata, english, alternatives):
+    """Keep one canonical row and one sparse sibling for each distinct alternative."""
+    primary = {language: next(iter(versions.values())) for language, versions in alternatives.items()}
+    yield _edition(metadata, english, primary)
+    for language, versions in alternatives.items():
+        for translated in list(versions.values())[1:]:
+            yield _edition(metadata, english, {language: translated})
+
+
+def _edition(metadata, english, translations):
+    tracks = {'en': english, **translations}
+    return {
+        **metadata,
+        'tracks': {language: value[0] for language, value in tracks.items()},
+        'provenance': {language: value[1] for language, value in tracks.items()},
+    }
+
+
+def pair_reference(metadata, english, english_facts, translations):
+    """Pair each independently verified translation with its real English clock."""
+    alternatives = {}
+    for language, cues, facts in translations:
+        evidence = timing_evidence(english, cues, english_facts, facts)
+        if evidence:
+            versions = alternatives.setdefault(language, {})
+            versions.setdefault(track_fingerprint(cues), (cues, {**facts, 'timingEvidence': evidence}))
+    reference = (english, {**english_facts, 'timingEvidence': {'method': 'identical_cue_grid'}})
+    return list(_edition_rows(metadata, reference, alternatives))
+
+
+def merge_editions(candidates):
+    """Merge discovery rounds without replacing working tracks or acoustic references."""
+    references = {}
+    for candidate in candidates:
+        english = candidate['tracks'].get('en')
+        if not english:
+            continue
+        metadata = {name: value for name, value in candidate.items() if name not in ('tracks', 'provenance')}
+        facts = candidate.get('provenance', {})
+        key = (candidate['page'], track_fingerprint(english))
+        metadata, reference, alternatives = references.setdefault(key, (metadata, (english, facts.get('en', {})), {}))
+        if not candidate.get('cacheHit'):
+            metadata.pop('cacheHit', None)
+        for language, cues in candidate['tracks'].items():
+            if language == 'en':
+                continue
+            translated = facts.get(language, {})
+            if not timing_evidence(reference[0], cues, reference[1], translated):
+                continue
+            versions = alternatives.setdefault(language, {})
+            versions.setdefault(track_fingerprint(cues), (cues, translated))
+    return [edition for group in references.values() for edition in _edition_rows(*group)]
 
 
 def chinese_script(cues, declared):

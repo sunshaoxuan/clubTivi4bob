@@ -1,6 +1,7 @@
 """Retrieve existing subtitle files. Never invoke translation/generation actions."""
 import hashlib
 from subtitle_io import pool as download_pool
+from subtitle_edition import chinese_script, pair_reference, transcript_fingerprint
 import html
 from html.parser import HTMLParser
 import json
@@ -11,6 +12,8 @@ from urllib.request import Request, urlopen
 
 LANGUAGES = ('en', 'zh-CN', 'zh-TW', 'ja', 'fr', 'es', 'ko')
 ORIGIN = 'https://www.subtitlecat.com'
+SUBTITLECAT = 'Subtitle Cat'
+PROVIDER_AUDIT = 'provider-search-audit.json'
 
 
 def read(url):
@@ -122,107 +125,171 @@ def _discover_subtitlecat(title, year, root, *, max_candidates=3, requested_lang
         row_parser = Links(); row_parser.feed(row)
         if '(translated from English)' in html.unescape(re.sub(r'<[^>]*>', '', row)):
             english_originals.update(link['url'] for link in row_parser.links)
-    matches = [x for x in parser.links if urlsplit(urljoin(ORIGIN, x['url'])).path.startswith('/subs/')
-               and x['url'].endswith('.html') and matches_movie_title(x['text'], title, year)]
-    # Inspect multiple editions before choosing files. A missing requested
-    # language on the first result does not establish provider-wide absence.
+    matched_pages = {}
+    offered_pages = set()
+    for link in parser.links:
+        page = urljoin(ORIGIN, link['url'])
+        if not (urlsplit(page).path.startswith('/subs/') and link['url'].endswith('.html')):
+            continue
+        offered_pages.add(page)
+        if matches_movie_title(link['text'], title, year):
+            matched_pages.setdefault(page, link)
     pages = []
     with download_pool() as pool:
-        futures = [(candidate, pool.submit(read, urljoin(ORIGIN, candidate['url']))) for candidate in matches]
-        for candidate, future in futures:
+        futures = [(page, candidate, pool.submit(read, page)) for page, candidate in matched_pages.items()]
+        for page, candidate, future in futures:
             try:
-                detail = future.result().decode(); links = Links(); links.feed(detail)
+                detail = future.result().decode()
+                links = Links()
+                links.feed(detail)
             except (OSError, ValueError, UnicodeError) as error:
-                failures.append(dict(url=urljoin(ORIGIN,candidate['url']),errorType=type(error).__name__,httpStatus=getattr(error,'code',None)))
+                failures.append(_failure(error, url=page))
                 continue
-            offered = {x['id'].removeprefix('download_') for x in links.links if x['text'].strip() == 'Download'}
+            links = dict.fromkeys(
+                (link['id'].removeprefix('download_'), urljoin(ORIGIN, link['url']))
+                for link in links.links if link['id'].startswith('download_')
+                and link['text'].strip() == 'Download' and link['url'].endswith('.srt')
+                and link['id'].removeprefix('download_') in LANGUAGES)
+            offered = {language for language, _ in links}
             priority = (requested_language not in offered,
-                        not ('en' in offered or candidate['url'] in english_originals),
-                        -len(offered & set(LANGUAGES)))
-            pages.append((priority, candidate, detail, links))
+                        not ('en' in offered or candidate['url'] in english_originals), -len(offered))
+            pages.append((priority, page, candidate, detail, links))
+
+    resources = {}
     results = []
-    for _, candidate, detail, links in sorted(pages, key=lambda x:x[0]):
-        page = urljoin(ORIGIN, candidate['url'])
-        tracks, facts = {}, {}
-        for language in LANGUAGES:
-            link = next((x for x in links.links if x['id'] == 'download_' + language
-                         and x['text'].strip() == 'Download' and x['url'].endswith('.srt')), None)
-            if link is None:
-                continue
-            url = urljoin(ORIGIN, link['url'])
-            try:
-                cached = load_resource(root,url,language)
-                raw = (root/(cached[0]['sha256']+'.srt')).read_bytes() if cached else read(url)
-                cues = parse_srt(raw)
-            except (ValueError, OSError, UnicodeError) as error:
-                failures.append(dict(url=url,language=language,errorType=type(error).__name__,httpStatus=getattr(error,'code',None)))
-                continue
-            tracks[language] = cues
-            digest = hashlib.sha256(raw).hexdigest()
-            save_resource(root,url,language,candidate['text'],raw,'Subtitle Cat')
-            facts[language] = dict(url=url, sha256=digest, cueCount=len(cues), provider='Subtitle Cat',
-                                   quality='existing provider file; translation quality unreviewed')
-        if 'en' not in tracks and tracks and candidate['url'] in english_originals:
-            # The site publishes the existing English cue text separately from
-            # its downloadable language files. Reuse only the exact same cue
-            # grid/count from this page; no generated English or translation.
+    unidentified_language_rows = 0
+    for _, page, candidate, detail, links in sorted(pages, key=lambda x: x[0]):
+        subtitles = []
+        for language, url in links:
+            key = (language, url)
+            if key not in resources:
+                try:
+                    cached = load_resource(root, url, language)
+                    if cached:
+                        record, cues = cached
+                    else:
+                        raw = read(url)
+                        record = save_resource(root, url, language, candidate['text'], raw, SUBTITLECAT)
+                        cues = parse_srt(raw)
+                    actual = chinese_script(cues, language)
+                    unidentified_language_rows += actual is None
+                    facts = dict(record, declaredLanguage=language,
+                        quality='existing provider file; translation quality unreviewed')
+                    resources[key] = (actual, cues, facts, cached is not None)
+                except (ValueError, OSError, UnicodeError) as error:
+                    failures.append(_failure(error, url=url, language=language))
+                    resources[key] = None
+            source = resources[key]
+            if source and source[0]:
+                subtitles.append(source[:3])
+
+        english = [(cues, facts) for language, cues, facts in subtitles if language == 'en']
+        translations = [(lang, cues, facts) for lang, cues, facts in subtitles if lang != 'en']
+        if not english and translations and candidate['url'] in english_originals:
+            # The existing English text is tied to this page. Rebuild its times
+            # only when the translation files with the same cue count agree on the grid.
             marker = '<h3>Original subtitles</h3>'
             section = detail.split(marker, 1)[1].split('</div>', 1)[0] if marker in detail else ''
             original = [html.unescape(re.sub(r'<[^>]+>', '', line)).strip()
                         for line in re.findall(r'<p dir="auto">(.*?)</p>', section, re.S)]
-            grid_language = next(iter(tracks))
-            grid = tracks[grid_language]
-            if len(original) == len(grid) and all(0 < len(text) <= 8192 for text in original):
-                tracks['en'] = [{**cue, 'text': text} for cue, text in zip(grid, original)]
-                facts['en'] = dict(url=page, cueCount=len(original), provider='Subtitle Cat',
-                    source='published English original with exact same-source cue grid',
-                    clockGridLanguage=grid_language, clockGridSha256=facts[grid_language]['sha256'],
-                    sha256=hashlib.sha256(json.dumps(original).encode()).hexdigest())
-        if 'en' not in tracks:
-            continue
-        reference_grid = [(x['start'], x['end']) for x in tracks['en']]
-        rejected = []
-        for language in list(tracks):
-            # Matching cue times are required before transferring English calibration.
-            if [(x['start'], x['end']) for x in tracks[language]] != reference_grid:
-                del tracks[language]; rejected.append(language)
-        result = dict(page=page, label=candidate['text'], tracks=tracks, provenance=facts,
-                      rejectedClockGridLanguages=rejected, searchUrl=search)
-        results.append(result)
-        # Keep a bounded candidate set; a failed acoustic match tries the next file.
-    (root/'subtitlecat-search-audit.json').write_text(json.dumps(dict(matchedEditions=len(matches),detailsRead=len(pages),allMatchingRowsAttempted=True,failures=failures)))
-    (root / 'discovery.json').write_text(json.dumps(results, ensure_ascii=False))
+            grids = {tuple((cue['start'], cue['end']) for cue in cues): (lang, cues, facts)
+                     for lang, cues, facts in translations if len(cues) == len(original)}
+            if len(grids) == 1 and all(0 < len(text) <= 8192 for text in original):
+                lang, cues, facts = next(iter(grids.values()))
+                english.append(([{**cue, 'text': text} for cue, text in zip(cues, original)],
+                    dict(url=page, cueCount=len(original), provider=SUBTITLECAT,
+                         source='published English original with exact same-source cue grid',
+                         clockGridLanguage=lang, clockGridSha256=facts['sha256'],
+                         sha256=hashlib.sha256(json.dumps(original).encode()).hexdigest())))
+        for cues, facts in english:
+            # The detail page stays the reference for the HTML original. A real
+            # English file has its own URL and can carry a different timeline.
+            results.extend(pair_reference(dict(page=facts['url'], label=candidate['text'], searchUrl=search),
+                                         cues, facts, translations))
+
+    parsed = [value for value in resources.values() if value is not None]
+    (root/'subtitlecat-search-audit.json').write_text(json.dumps(dict(
+        offeredRows=len(offered_pages), matchedEditions=len(matched_pages), detailsRead=len(pages),
+        selectedRows=len(resources), parsedRows=len(parsed),
+        downloadedRows=sum(not result[3] for result in parsed),
+        cacheHits=sum(result[3] for result in parsed), unidentifiedLanguageRows=unidentified_language_rows,
+        downloadedLanguages=sorted({value[0] for value in parsed if value[0]}),
+        allMatchingRowsAttempted=True, failures=failures)))
     return results
 
 
+def _failure(error, **context):
+    return {**context, 'errorType': type(error).__name__, 'httpStatus': getattr(error, 'code', None)}
+
+
+def variant_counts(candidates):
+    transcripts = {language: set() for language in LANGUAGES}
+    for candidate in candidates:
+        for language, cues in candidate['tracks'].items():
+            if language in transcripts and cues:
+                transcripts[language].add(transcript_fingerprint(cues))
+    return {language: len(values) for language, values in transcripts.items() if values}
+
+
+def _provider_outcome(rows, audit, failures):
+    if failures:
+        return 'partial' if rows or audit.get('parsedRows') else 'unavailable'
+    if rows:
+        return 'found'
+    if audit.get('parsedRows'):
+        return 'timing_pending'
+    if audit.get('reason') in ('ambiguous_imdb_result', 'title_year_or_type_mismatch', 'unsupported_provider_detail_url'):
+        return 'identity_pending'
+    return 'no_matching_release'
+
+
 def discover(title, year, root, *, max_candidates=3, requested_language='en', imdb_id=None):
-    """Independent provider failures must not prevent the next verified source."""
-    root=Path(root);root.mkdir(parents=True,exist_ok=True)
-    results=[];errors=[];last_error=None
-    if imdb_id:
+    """Search every applicable source and retain all proven acoustic editions."""
+    from subtitle_stremio import discover as stremio_discover, PROVIDER as STREMIO
+    from subtitle_subdl import discover as subdl_discover, PROVIDER as SUBDL
+
+    root = Path(root)
+    root.mkdir(parents=True, exist_ok=True)
+    imdb_verified = isinstance(imdb_id, str) and bool(re.fullmatch(r'tt[0-9]{7,10}', imdb_id))
+    adapters = (
+        (STREMIO, 'opensubtitles-search-audit.json', stremio_discover, True),
+        (SUBTITLECAT, 'subtitlecat-search-audit.json', _discover_subtitlecat, False),
+        (SUBDL, 'subdl-discovery.json', subdl_discover, True),
+    )
+    results, errors, reports = [], [], []
+    last_error = None
+    for provider, filename, adapter, needs_imdb in adapters:
+        audit_file = root/filename
+        audit_file.unlink(missing_ok=True)
+        report = dict(provider=provider, acceptedEditions=0, acceptedVariantCounts={})
+        if needs_imdb and not imdb_verified:
+            reports.append(dict(report, outcome='skipped', reason='verified_imdb_required'))
+            continue
+        options = {'imdb_id': imdb_id} if needs_imdb else {'requested_language': requested_language}
         try:
-            from subtitle_stremio import discover as stremio_discover
-            results.extend(stremio_discover(title, year, root, imdb_id=imdb_id, max_candidates=max_candidates))
+            rows = adapter(title, year, root, max_candidates=max_candidates, **options)
+            audit = json.loads(audit_file.read_text()) if audit_file.exists() else {}
+            # The provider-specific file can include full cue lists. The ledger
+            # records only counts and reasons, so it stays small in the cache.
+            counters = {key: audit[key] for key in (
+                'offeredRows', 'selectedRows', 'parsedRows', 'downloadedRows', 'cacheHits',
+                'matchedEditions', 'detailsRead', 'identityRows', 'unidentifiedLanguageRows',
+                'downloadedLanguages', 'allMatchingRowsAttempted', 'reason') if key in audit}
+            failures = audit.get('failures', [])
+            reports.append(dict(report, **counters, acceptedEditions=len(rows),
+                acceptedVariantCounts=variant_counts(rows), outcome=_provider_outcome(rows, audit, failures),
+                failureCount=len(failures)))
+            errors.extend(dict(provider=provider, **failure) for failure in failures)
+            results.extend(rows)
         except Exception as error:
-            errors.append(dict(provider='OpenSubtitles via Stremio',error=type(error).__name__,httpStatus=getattr(error,'code',None)))
-            last_error=error
-    try:
-        results.extend(_discover_subtitlecat(title,year,root,max_candidates=max_candidates,requested_language=requested_language))
-    except Exception as error:
-        errors.append(dict(provider='Subtitle Cat',error=type(error).__name__,httpStatus=getattr(error,'code',None)))
-        last_error=error
-    if imdb_id and not set(LANGUAGES) <= {language for c in results for language in c['tracks']}:
-        try:
-            from subtitle_subdl import discover as subdl_discover
-            results.extend(subdl_discover(title,year,root,imdb_id=imdb_id,max_candidates=max_candidates))
-        except Exception as error:
-            errors.append(dict(provider='SubDL',error=type(error).__name__,httpStatus=getattr(error,'code',None)))
-            last_error=error
-    for name,provider in [('subtitlecat-search-audit.json','Subtitle Cat'),('opensubtitles-search-audit.json','OpenSubtitles via Stremio'),('subdl-discovery.json','SubDL')]:
-        if (root/name).exists():
-            report=json.loads((root/name).read_text())
-            errors.extend(dict(provider=provider,**failure) for failure in report.get('failures',[]))
+            failure = _failure(error)
+            reports.append(dict(report, **failure, outcome='unavailable', failureCount=1))
+            errors.append(dict(provider=provider, **failure))
+            last_error = error
+    (root/PROVIDER_AUDIT).write_text(json.dumps(dict(requestedLanguage=requested_language,
+        providerOutcomes=reports, acceptedVariantCounts=variant_counts(results)), ensure_ascii=False))
     (root/'provider-errors.json').write_text(json.dumps(errors))
-    (root/'discovery.json').write_text(json.dumps(results,ensure_ascii=False))
-    if not results and last_error is not None:raise last_error
+    (root/'discovery.json').write_text(json.dumps(results, ensure_ascii=False))
+    if not results and errors:
+        raise last_error or RuntimeError('subtitle_provider_incomplete')
     return results

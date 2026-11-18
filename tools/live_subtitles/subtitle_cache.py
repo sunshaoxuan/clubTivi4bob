@@ -12,11 +12,14 @@ import time
 import unicodedata
 from urllib.parse import urlsplit
 
-from subtitle_edition import timing_evidence
+from subtitle_edition import chinese_script, merge_editions, timing_evidence, track_fingerprint
 from subtitle_identity import resolve as resolve_identity, release_year
-from subtitle_catalog import LANGUAGES, parse_srt, matches_movie_title, resource_path
+from subtitle_catalog import (LANGUAGES, PROVIDER_AUDIT, matches_movie_title, parse_srt,
+                              resource_path, title_norm, variant_counts)
 
 NEGATIVE_TTL = 900
+RETRY_TTL = 60
+RESOURCE_SCHEMA = 4
 
 
 def movie_aliases(programme):
@@ -102,7 +105,6 @@ class SubtitleCache:
                     provenance[language] = record['provenance']
                 except (OSError, ValueError, UnicodeError): continue
             if 'en' not in tracks: continue
-            grid = [(c['start'], c['end']) for c in tracks['en']]
             tracks = {lang: cues for lang, cues in tracks.items() if timing_evidence(tracks['en'],cues,provenance.get('en'),provenance.get(lang))}
             candidates.append({**edition['metadata'], 'tracks': tracks,
                                'provenance': {lang:provenance[lang] for lang in tracks}, 'cacheHit': True})
@@ -115,7 +117,7 @@ class SubtitleCache:
     def resource_bytes(self, record, root):
         try:
             url=urlsplit(record['url']);language=record['language'];sha=record['sha256']
-            if (language not in LANGUAGES or url.scheme!='https' or url.username
+            if (language not in (*LANGUAGES, 'zh') or url.scheme!='https' or url.username
                     or url.port not in (None,443) or url.hostname not in ('www.subtitlecat.com','dl.subdl.com','subs5.strem.io')
                     or not re.fullmatch(r'[0-9a-f]{64}',sha)):
                 return None
@@ -141,17 +143,29 @@ class SubtitleCache:
             except (OSError,ValueError):continue
             raw=self.resource_bytes(source,download_root)
             if raw is None:continue
-            record={key:source[key] for key in ('provider','url','language','label','sha256','bytes','cueCount','archiveSha256') if key in source}
+            record = {key: source[key] for key in (
+                'provider', 'url', 'language', 'label', 'sha256', 'bytes', 'cueCount',
+                'archiveSha256', 'imdbId', 'identityLookup') if key in source}
+            record['actualLanguage'] = chinese_script(parse_srt(raw), source['language'])
             atomic(self.root/'blobs'/(record['sha256']+'.srt'),raw)
             records[(record['url'],record['language'])]=record
         return list(records.values())
 
-    def store(self, folder, programme, candidates, download_root):
+    @staticmethod
+    def provider_outcomes(download_root):
+        try:
+            audit = json.loads((Path(download_root)/PROVIDER_AUDIT).read_text())
+            return audit.get('providerOutcomes', [])
+        except (OSError, ValueError):
+            return []
+
+    def store(self, folder, programme, candidates, download_root, *, searched=False):
         editions = []
+        admitted = []
         for candidate in candidates:
             if 'en' not in candidate['tracks']: continue
-            grid = [(c['start'], c['end']) for c in candidate['tracks']['en']]
             records = {}
+            verified_tracks = {}
             for language, cues in candidate['tracks'].items():
                 facts = candidate.get('provenance', {}).get(language, {})
                 evidence=timing_evidence(candidate['tracks']['en'],cues,candidate.get('provenance',{}).get('en'),facts)
@@ -169,20 +183,44 @@ class SubtitleCache:
                 digest = hashlib.sha256(raw).hexdigest()
                 atomic(self.root/'blobs'/(digest+'.srt'), raw)
                 records[language] = dict(sha256=digest, bytes=len(raw), provenance=facts)
+                verified_tracks[language] = cues
             metadata = {k:candidate[k] for k in ('page','label','searchUrl','rejectedClockGridLanguages') if k in candidate}
-            edition = hashlib.sha256(json.dumps([candidate['page'], records['en']['sha256']], sort_keys=True).encode()).hexdigest()
+            signature = {language: track_fingerprint(cues) for language, cues in verified_tracks.items()}
+            edition = hashlib.sha256(json.dumps([candidate['page'], signature], sort_keys=True).encode()).hexdigest()
             editions.append(dict(id=edition, metadata=metadata, tracks=records))
+            admitted.append({'tracks': verified_tracks})
         resources=self.preserve_resources(folder,download_root)
         paired={record['sha256'] for e in editions for record in e['tracks'].values()}
         for resource in resources:resource['pairedWithEnglish']=resource['sha256'] in paired
-        available = {lang for e in editions for lang in e['tracks']}
+        available = variant_counts(admitted)
+        outcomes = self.provider_outcomes(download_root)
         errors_path=Path(download_root)/'provider-errors.json'
         try:provider_errors=json.loads(errors_path.read_text())
         except (OSError,ValueError):provider_errors=[]
-        pending={resource['language'] for resource in resources if not resource['pairedWithEnglish']} - available
-        searches = {lang:dict(checkedAt=self.clock(), outcome='cached' if lang in available else 'temporarily_unavailable' if provider_errors else 'timing_pending' if lang in pending else 'not_found_this_search') for lang in LANGUAGES}
-        atomic(folder/'index.json', json.dumps(dict(schemaVersion=1, resourceSchemaVersion=3, identity=movie_aliases(programme),
-            title=programme['title'], year=programme['year'], subtitleYear=programme.get('subtitleYear',programme['year']), editions=editions, resources=resources, searches=searches), ensure_ascii=False).encode())
+        pending = {resource.get('actualLanguage', resource['language'])
+                   for resource in resources if not resource['pairedWithEnglish']}
+        if None in pending or 'zh' in pending:
+            pending.update(('zh-CN', 'zh-TW'))
+        identity_pending = any(row.get('outcome') == 'identity_pending' for row in outcomes)
+        searches = {}
+        for language in LANGUAGES:
+            variants = available.get(language, 0)
+            if provider_errors:
+                outcome = 'temporarily_unavailable'
+            elif variants:
+                outcome = 'cached'
+            elif language in pending:
+                outcome = 'timing_pending'
+            elif identity_pending:
+                outcome = 'identity_pending'
+            else:
+                outcome = 'not_found_this_search'
+            searches[language] = dict(checkedAt=self.clock(), outcome=outcome, variantCount=variants)
+        atomic(folder/'index.json', json.dumps(dict(schemaVersion=1,
+            resourceSchemaVersion=RESOURCE_SCHEMA if searched else 3, identity=movie_aliases(programme),
+            title=programme['title'], year=programme['year'], subtitleYear=programme.get('subtitleYear',programme['year']),
+            editions=editions, resources=resources, searches=searches, providerOutcomes=outcomes),
+            ensure_ascii=False).encode())
 
     def import_existing(self, programme, folder):
         for root in self.legacy_roots:
@@ -216,16 +254,30 @@ class SubtitleCache:
                 resource_schema=manifest.get('resourceSchemaVersion',0)
                 if programme.get('imdbId') and 'imdb:'+programme['imdbId'] not in manifest.get('identity',[]):resource_schema=0
             except (OSError,ValueError):resource_schema=0;manifest={}
-            if resource_schema < 3:searches={k:v for k,v in searches.items() if v.get('outcome')=='temporarily_unavailable'}
+            if resource_schema < RESOURCE_SCHEMA:
+                searches = {key: result for key, result in searches.items()
+                            if result.get('outcome') == 'temporarily_unavailable'}
             if not cached and not searches and self.import_existing(programme, folder):
                 cached, searches = self.load(folder)
+                # An observed legacy edition is immediately usable once. The
+                # next request upgrades its old, non-exhaustive search record.
+                if any(requested_language in row['tracks'] for row in cached):
+                    return cached
             lookup_year=programme['year']
             if not cached or manifest.get('subtitleYear',programme['year'])!=programme['year']:
                 verified_year=release_year(programme,self.root)
                 if verified_year is not None:lookup_year=verified_year
                 if lookup_year!=manifest.get('subtitleYear',programme['year']):searches={}
             programme={**programme,'subtitleYear':lookup_year}
-            admitted = [c for c in cached if matches_movie_title(c.get('label',''), programme['title'], lookup_year)]
+            def same_film(candidate):
+                label = candidate.get('label', '')
+                source_imdb = candidate.get('provenance', {}).get('en', {}).get('imdbId')
+                if source_imdb is not None and programme.get('imdbId') not in (None, source_imdb):
+                    return False
+                return (matches_movie_title(label, programme['title'], lookup_year) or
+                        bool(source_imdb and source_imdb == programme.get('imdbId')
+                             and title_norm(label) == title_norm(programme['title'])))
+            admitted = [candidate for candidate in cached if same_film(candidate)]
             if len(admitted) != len(cached):
                 # Old prefix matches must neither poison this IMDb identity nor
                 # retain their negative language-search TTL after rejection.
@@ -233,12 +285,15 @@ class SubtitleCache:
             languages = {lang for candidate in cached for lang in candidate['tracks']}
             attempted = searches.get(requested_language, {})
             age = self.clock()-attempted.get('checkedAt', 0)
-            fresh_miss = attempted.get('outcome') in ('not_found_this_search','timing_pending') and age < NEGATIVE_TTL
-            recent_error = attempted.get('outcome') == 'temporarily_unavailable' and age < 60
+            outcome = attempted.get('outcome')
+            fresh_miss = outcome in ('not_found_this_search', 'timing_pending', 'identity_pending') and age < NEGATIVE_TTL
+            recent_error = outcome == 'temporarily_unavailable' and age < RETRY_TTL
             if recent_error:
                 if cached: return cached
                 raise RuntimeError('subtitle_provider_temporarily_unavailable')
-            if cached and resource_schema >= 3 and (requested_language in languages or fresh_miss): return cached
+            if cached and resource_schema >= RESOURCE_SCHEMA and (
+                    (requested_language in languages and outcome != 'temporarily_unavailable') or fresh_miss):
+                return cached
             if not cached and fresh_miss: return []
             self.hydrate_resources(folder,download_root)
             try:
@@ -249,18 +304,15 @@ class SubtitleCache:
                 manifest['resources']=self.preserve_resources(folder,download_root)
                 for resource in manifest['resources']:resource.setdefault('pairedWithEnglish',False)
                 manifest.setdefault('searches', {})[requested_language] = dict(checkedAt=self.clock(), outcome='temporarily_unavailable')
+                outcomes = self.provider_outcomes(download_root)
+                if outcomes:
+                    manifest['providerOutcomes'] = outcomes
                 atomic(folder/'index.json', json.dumps(manifest, ensure_ascii=False).encode())
                 if cached: return cached
                 raise
             # Retain previously valid languages/editions if a later provider
             # search temporarily omits them. Different English grids stay separate.
-            merged = {hashlib.sha256(json.dumps([c['page'],c['tracks']['en']],sort_keys=True).encode()).hexdigest():c for c in cached}
-            for candidate in found:
-                key = hashlib.sha256(json.dumps([candidate['page'],candidate['tracks']['en']],sort_keys=True).encode()).hexdigest()
-                previous = merged.get(key)
-                if previous:
-                    candidate = {**candidate,'tracks':{**previous['tracks'],**candidate['tracks']},'provenance':{**previous.get('provenance',{}),**candidate.get('provenance',{})}}
-                merged[key] = candidate
-            values = sorted(merged.values(),key=lambda c: 0 if c.get('provenance',{}).get('en',{}).get('provider')=='OpenSubtitles via Stremio' else 1)
-            self.store(folder, programme, values, download_root)
+            values = sorted(merge_editions([*cached, *found]),
+                key=lambda c: 0 if c.get('provenance',{}).get('en',{}).get('provider')=='OpenSubtitles via Stremio' else 1)
+            self.store(folder, programme, values, download_root, searched=True)
             return values

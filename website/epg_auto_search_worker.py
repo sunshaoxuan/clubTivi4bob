@@ -667,11 +667,11 @@ def main():
                         return target_hash(current, current_paths[current['id']]) if current else None
                     return epg_route_directory.check_selected(conn, row, channel, path, now,
                         reload_selected=current_identity)
-            from epg_cross_search import brave
+            from epg_cross_search import metered_index
             result = run(conn, manifest, channels, paths, config, shared_database,
                 max_channels=args.max_channels, reload_targets=lambda: load_targets(args.data_dir), source_directory=directory,
                 route_directory_checker=directory_checker, route_directory_due=directory_due,
-                cross_index=brave, regional_rotation=True)
+                cross_index=metered_index(conn, time.time), regional_rotation=True)
             result['executionHealth'] = execution_receipt(conn, int(time.time()), result=result)
             print(json.dumps(result, ensure_ascii=False))
         except (OSError, ValueError, KeyError, TypeError, sqlite3.Error) as exc:

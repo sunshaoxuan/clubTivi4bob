@@ -5,6 +5,8 @@ validators remain authoritative. No search snippets are stored.
 """
 import json
 import os
+from pathlib import Path
+import sqlite3
 import urllib.error
 import urllib.request
 from urllib.parse import urlencode
@@ -13,8 +15,50 @@ import epg_auto_search as search
 from epg_ingest import NoRedirect
 
 
+def credential():
+    directory = os.environ.get('CREDENTIALS_DIRECTORY')
+    if directory:
+        try:
+            with (Path(directory) / 'bobtv-brave-search').open() as f:
+                key = f.read(257).strip()
+            if 1 <= len(key) <= 256 and key.isascii() and all(c.isalnum() or c in '_-' for c in key):
+                return key
+        except (OSError, UnicodeError):
+            pass
+        return None
+    return os.environ.get('BOBTV_EPG_BRAVE_SEARCH_KEY')
+
+
+def reserve_request(conn, now):
+    """Reserve before HTTP, including failed calls, in durable rolling windows."""
+    with conn:
+        conn.execute('BEGIN IMMEDIATE')
+        conn.execute('CREATE TABLE IF NOT EXISTS epg_brave_usage (id INTEGER PRIMARY KEY, attempted INTEGER NOT NULL)')
+        conn.execute('DELETE FROM epg_brave_usage WHERE attempted<=?', (now - 30 * 86400,))
+        newest, daily, monthly = conn.execute('''
+            SELECT max(attempted),count(CASE WHEN attempted>? THEN 1 END),count(*)
+            FROM epg_brave_usage''', (now - 86400,)).fetchone()
+        if (newest is not None and newest > now - 1200) or daily >= 12 or monthly >= 350:
+            return False
+        conn.execute('INSERT INTO epg_brave_usage(attempted) VALUES(?)', (now,))
+        return True
+
+
+def metered_index(conn, clock):
+    def run(query):
+        if not credential():
+            return 'not_configured', []
+        try:
+            if not reserve_request(conn, int(clock())):
+                return 'budget_deferred', []
+        except sqlite3.Error:
+            return 'budget_unavailable', []
+        return brave(query)
+    return run
+
+
 def brave(query, *, opener=None):
-    key = os.environ.get('BOBTV_EPG_BRAVE_SEARCH_KEY')
+    key = credential()
     if not key:
         return 'not_configured', []
     if opener is None:

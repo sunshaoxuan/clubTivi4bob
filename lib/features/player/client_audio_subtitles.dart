@@ -417,6 +417,9 @@ class ClientAudioSubtitles {
       }
       render();
       if (!_clockAvailable || !SubtitlePreferences.instance.enabled) return;
+      // Keep polling for programme/resource changes without spending CPU on
+      // alignment when discovery has confirmed no usable reference subtitle.
+      if (phase == SubtitlePhase.unavailable) return;
       if (!player.state.playing || player.state.buffering) return;
       final raw = await native.getProperty('af-metadata/$label');
       if (_disposed || raw.isEmpty) return;

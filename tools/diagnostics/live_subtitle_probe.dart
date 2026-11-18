@@ -61,7 +61,14 @@ Future<void> main() async {
   player.stream.buffering.listen(service.onBufferingChanged);
   final layout = ValueNotifier<int>(0);
   final output = File('${directory.path}/observations.jsonl').openWrite();
-  SubtitlePreferences.instance.choose(AppLanguage.simplifiedChinese);
+  final requestedLanguage =
+      Platform.environment['BOBTV_SUBTITLE_PROBE_LANGUAGE'];
+  SubtitlePreferences.instance.choose(
+    AppLanguage.values
+            .where((value) => value.tag == requestedLanguage)
+            .firstOrNull ??
+        AppLanguage.simplifiedChinese,
+  );
   final mpvLog = File('${directory.path}/mpv.jsonl').openWrite();
   var logSubscription = player.stream.log.listen(
     (entry) => mpvLog.writeln(

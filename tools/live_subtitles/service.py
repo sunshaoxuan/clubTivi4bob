@@ -355,6 +355,10 @@ def serve(hub, host, port, legacy_port=None):
                 self.send(json.dumps(hub.response(token), ensure_ascii=False).encode())
             except RuntimeError:
                 self.send(b'{"error":"pilot_capacity"}', status=503)
+            except OSError as error:
+                if getattr(hub,'client_only',False):
+                    hub.event('programme_lookup_unavailable',errorType=type(error).__name__)
+                self.send(b'{"error":"programme_lookup_unavailable"}', status=503)
             except (ValueError, KeyError, TypeError) as error:
                 if getattr(hub,'client_only',False):
                     reason=str(error)

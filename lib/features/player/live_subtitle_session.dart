@@ -48,7 +48,7 @@ class LiveSubtitleSession {
   String? _remotePhase;
   List<String> _availableLanguages = const [];
   bool _mediaAttached = false;
-  bool get hasAttachedMedia => _mediaAttached;
+  bool get hasAttachedMedia => _mediaAttached || usesClientAudio;
   bool _playbackReady = false;
   Future<void> Function()? onMediaReady;
   Timer? _retry;
@@ -93,7 +93,9 @@ class LiveSubtitleSession {
       'bobtv.briconbric.com',
       'cndrp.com',
     }.contains(Uri.tryParse(serviceEndpoint)?.host);
-    if (production && context == null && !isActionMoviesUk(source)) {
+    if (production &&
+        context == null &&
+        !isReviewedRakutenUkMovieSource(source)) {
       _phase = SubtitlePhase.programmeUnavailable;
       _render();
       _retryDiscovery(source, generation);
@@ -155,6 +157,11 @@ class LiveSubtitleSession {
           });
         }),
       );
+      // A late EPG result needs a newly prepared local media clock. The owner
+      // keeps the original decoder visible while the candidate buffers.
+      if (monitorOnly && wasActive && onMediaReady != null) {
+        unawaited(onMediaReady!());
+      }
       return source;
     }
     if (production || isActionMoviesUk(source)) {

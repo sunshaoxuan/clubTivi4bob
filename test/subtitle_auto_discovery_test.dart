@@ -110,6 +110,32 @@ void main() {
     );
   }
   test(
+    'reviewed Comedy route can resolve EPG on server after local lookup misses',
+    () async {
+      final player = _Player();
+      final selection = NativeSubtitleSelection(player);
+      var legacyRequests = 0;
+      final session = LiveSubtitleSession(
+        player,
+        selection,
+        programmeLookup: (_) async => null,
+        client: MockClient((_) async {
+          legacyRequests++;
+          return http.Response('', 502);
+        }),
+      );
+      const source =
+          'https://comedy-rakuten-tv-uk.fast.rakuten.tv/v1/master/session/production-hls-aes128-rtv-6181-playout/master.m3u8';
+      expect(await session.prepare(source), source);
+      // Tests have no native ASR bundle. Reaching this state demonstrates that
+      // missing local EPG did not reject this public route before local setup.
+      expect(session.status.value, SubtitlePhase.serviceUnavailable);
+      expect(legacyRequests, 0);
+      await session.dispose();
+      await selection.dispose();
+    },
+  );
+  test(
     'pending search and confirmed absence are distinct and do not move playback',
     () async {
       final response = Completer<http.Response>();

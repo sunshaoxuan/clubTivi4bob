@@ -14,11 +14,9 @@ class SubtitleMenuButton extends StatelessWidget {
   const SubtitleMenuButton({
     super.key,
     required this.session,
-    this.compact = false,
   });
 
   final LiveSubtitleSession? Function() session;
-  final bool compact;
 
   @override
   Widget build(BuildContext context) {
@@ -51,21 +49,6 @@ class SubtitleMenuButton extends StatelessWidget {
         }
 
         final color = preferences.enabled ? Colors.white : Colors.white54;
-        if (compact) {
-          return TextButton.icon(
-            key: const ValueKey('subtitle-menu'),
-            onPressed: open,
-            icon: icon,
-            label: Text(label),
-            style: TextButton.styleFrom(
-              foregroundColor: color,
-              backgroundColor: Colors.black87,
-              minimumSize: const Size(36, 36),
-              padding: const EdgeInsets.symmetric(horizontal: 9),
-              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-            ),
-          );
-        }
         return IconButton(
           key: const ValueKey('subtitle-menu'),
           tooltip: label,

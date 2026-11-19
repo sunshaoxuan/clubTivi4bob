@@ -31,18 +31,19 @@ class _EnglishMessages extends LocalizationsDelegate<AppMessages> {
 }
 
 void main() {
-  testWidgets('labelled subtitle button opens the menu', (tester) async {
+  testWidgets('icon-only subtitle button opens the menu', (tester) async {
     final preferences = SubtitlePreferences.instance;
     preferences.initialize(null);
     await tester.pumpWidget(
       MaterialApp(
         localizationsDelegates: const [_EnglishMessages()],
         home: Scaffold(
-          body: SubtitleMenuButton(session: () => null, compact: true),
+          body: SubtitleMenuButton(session: () => null),
         ),
       ),
     );
-    expect(find.text('subtitles'), findsOneWidget);
+    expect(find.text('subtitles'), findsNothing);
+    expect(find.byTooltip('subtitles'), findsOneWidget);
     await tester.tap(find.byKey(const ValueKey('subtitle-menu')));
     await tester.pumpAndSettle();
     expect(find.byType(SubtitlePicker), findsOneWidget);

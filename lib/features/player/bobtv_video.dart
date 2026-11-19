@@ -74,7 +74,6 @@ class BobtvVideo extends StatelessWidget {
             bottom: 52,
             child: SubtitleMenuButton(
               session: () => player.liveSubtitles,
-              compact: true,
             ),
           ),
       ],

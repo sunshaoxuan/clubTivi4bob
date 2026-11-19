@@ -3395,17 +3395,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
     )],
   );
 
-  Widget _buildSimplePreview() => LayoutBuilder(
-    builder: (context, bounds) => _buildSimplePreviewContent(
-      subtitleInFooter: bounds.maxWidth <= 760 || bounds.maxHeight <= 300,
-      labelSubtitleButton: bounds.maxWidth >= 440,
-    ),
-  );
-
-  Widget _buildSimplePreviewContent({
-    required bool subtitleInFooter,
-    required bool labelSubtitleButton,
-  }) {
+  Widget _buildSimplePreview() {
     final channel = _previewChannel;
     final nowPlaying = channel == null ? null : _getChannelNowPlaying(channel);
     return Container(
@@ -3435,9 +3425,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                                 _showCurrentRouteMenu(details.globalPosition),
                             onLongPressStart: (details) =>
                                 _showCurrentRouteMenu(details.globalPosition),
-                            child: _buildActiveVideo(
-                              showSubtitleMenu: !subtitleInFooter,
-                            ),
+                            child: _buildActiveVideo(),
                           ),
                   ),
                   if (channel != null)
@@ -3563,16 +3551,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                 ),
               ),
               if (channel != null) ...[
-                if (subtitleInFooter && !_allowsAudioOnly(channel))
-                  SubtitleMenuButton(
-                    compact: labelSubtitleButton,
-                    session: () {
-                      final service = ref.read(playerServiceProvider);
-                      final player = service.activeVideoController.value?.player ??
-                          service.player;
-                      return player is ManagedPlayer ? player.liveSubtitles : null;
-                    },
-                  ),
+                if (!_allowsAudioOnly(channel)) _buildPreviewSubtitleButton(),
                 IconButton(
                   tooltip: _favoritedChannelIds.contains(channel.id) ? AppMessages.text(context, "取消收藏") : AppMessages.text(context, "加入收藏"),
                   onPressed: _favoriteActionsPending.contains(channel.id) ? null : () => _handleRouteMenuFavorite(channel),
@@ -3598,7 +3577,16 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
     );
   }
 
-  Widget _buildActiveVideo({bool showSubtitleMenu = true}) {
+  Widget _buildPreviewSubtitleButton() => SubtitleMenuButton(
+    session: () {
+      final service = ref.read(playerServiceProvider);
+      final player =
+          service.activeVideoController.value?.player ?? service.player;
+      return player is ManagedPlayer ? player.liveSubtitles : null;
+    },
+  );
+
+  Widget _buildActiveVideo() {
     final service = ref.read(playerServiceProvider);
     final initialController = service.videoController;
     return ValueListenableBuilder<VideoController?>(
@@ -3619,7 +3607,6 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
             key: ValueKey(controller ?? initialController),
             controller: controller ?? initialController,
             controls: NoVideoControls,
-            showSubtitleMenu: showSubtitleMenu,
             fit: TabletPresentation.videoFit,
           ),
         );
@@ -4965,6 +4952,8 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                                   ),
                                 ),
                               ),
+                              if (!_allowsAudioOnly(_previewChannel!))
+                                _buildPreviewSubtitleButton(),
                               ExcludeFocus(
                                 excluding: Platform.isAndroid,
                                 child: PlayerPresentationButtons(

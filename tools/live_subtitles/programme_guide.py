@@ -10,8 +10,75 @@ import threading
 import time
 import unicodedata
 from urllib.parse import urlsplit, urlencode, quote
+from urllib.request import Request, urlopen
 from service import snapshot, public_read, official_imdb_id
 from subtitle_catalog import title_norm
+
+
+def wikidata_read(**query):
+    url = 'https://www.wikidata.org/w/api.php?' + urlencode(dict(format='json', **query))
+    with urlopen(Request(url, headers={'User-Agent': 'BobTV-Subtitle/1.0'}), timeout=5) as response:
+        if urlsplit(response.url).hostname != 'www.wikidata.org':
+            raise ValueError('unreviewed_film_identity_redirect')
+        raw = response.read(1024 * 1024 + 1)
+    if len(raw) > 1024 * 1024:
+        raise ValueError('film_identity_response_limit')
+    return json.loads(raw)
+
+
+def film_alias(title, year=None, imdb_id=None):
+    """Require a unique film with the exact localized label or alias."""
+    language = 'zh' if re.search(r'[\u3400-\u9fff]', title) else 'en'
+    results = wikidata_read(action='wbsearchentities', language=language, search=title, limit=6)
+    ids = [r['id'] for r in results.get('search', []) if re.fullmatch(r'Q[0-9]+', r.get('id', ''))][:6]
+    if not ids:
+        return None
+    entities = wikidata_read(action='wbgetentities', ids='|'.join(ids),
+                             props='labels|aliases|claims', languages='zh|zh-hans|zh-hant|en')
+    matches = {}
+    for item in entities.get('entities', {}).values():
+        claims = item.get('claims', {})
+        def values(prop):
+            return [r.get('mainsnak', {}).get('datavalue', {}).get('value')
+                    for r in claims.get(prop, []) if r.get('rank') != 'deprecated']
+        if not any(isinstance(v, dict) and v.get('id') == 'Q11424' for v in values('P31')):
+            continue
+        labels = item.get('labels', {})
+        names = list(labels.values()) + [a for entries in item.get('aliases', {}).values() for a in entries]
+        if not any(identity_title(n.get('value', '')) == identity_title(title) for n in names):
+            continue
+        imdb_ids = {v for v in values('P345') if isinstance(v, str) and re.fullmatch(r'tt[0-9]{7,10}', v)}
+        years = {int(v['time'][1:5]) for v in values('P577') if isinstance(v, dict)
+                 and re.match(r'^\+[0-9]{4}-', v.get('time', ''))}
+        if len(imdb_ids) != 1 or len(years) != 1:
+            continue
+        imdb, released = next(iter(imdb_ids)), next(iter(years))
+        if (year is not None and released != year) or (imdb_id and imdb_id != imdb):
+            continue
+        matches[imdb] = dict(title=labels.get('en', {}).get('value') or title,
+                             imdbId=imdb, year=released)
+    return next(iter(matches.values())) if len(matches) == 1 else None
+
+
+def is_player_epg(context):
+    return isinstance(context, dict) and context.get('contextKind') == 'player-epg-v1'
+
+
+def player_programme(context, channel_id, now):
+    title, start, stop = (context.get(k) for k in ('title', 'startUtc', 'stopUtc'))
+    if (context.get('catalogChannelId') != channel_id or not isinstance(title, str)
+            or not 0 < len(title) <= 200 or title != title.strip()
+            or not identity_title(title) or any(ord(c) < 32 for c in title)
+            or type(start) is not int or type(stop) is not int
+            or not start <= now < stop or stop - start > 8 * 3600):
+        raise ValueError('invalid_player_programme')
+    material = json.dumps([channel_id, title, start, stop], ensure_ascii=False, separators=(',', ':'))
+    key = 'player-epg:' + hashlib.sha256(material.encode()).hexdigest()
+    if context.get('key') != key:
+        raise ValueError('invalid_player_programme_key')
+    return dict(key=key, catalogChannelId=channel_id, title=title, startUtc=start, stopUtc=stop,
+                contextKind='player-epg-v1', year=None, imdbId=None, movieId=None,
+                clockIsSubtitleOffset=False)
 
 
 def identity_title(value):
@@ -33,6 +100,8 @@ def route_key(source):
 class ProgrammeGuide:
     def __init__(self):
         self.lock=threading.RLock();self.metadata={};self.identities={};self.catalog=None;self.catalog_at=0;self.indexed_catalog=None;self.route_index={}
+        self.player_lookup_attempts = []
+        self.player_lookup_slots = threading.BoundedSemaphore(2)
     def indexed_channels(self,catalog,key):
         with self.lock:
             if self.indexed_catalog is not catalog:
@@ -43,6 +112,31 @@ class ProgrammeGuide:
                         if route is not None:index.setdefault(route,[]).append(channel)
                 self.route_index=index;self.indexed_catalog=catalog
             return self.route_index.get(key,[]) if key is not None else []
+
+    def player_search_identity(self, programme):
+        title = programme['title']
+        key = ('player-alias', title)
+        now = time.time()
+        with self.lock:
+            cached = self.identities.get(key)
+        if cached and now - cached[0] <= 3600:
+            result = cached[1]
+        else:
+            if not self.player_lookup_slots.acquire(blocking=False):
+                raise RuntimeError('player_film_lookup_busy')
+            try:
+                with self.lock:
+                    self.player_lookup_attempts = [t for t in self.player_lookup_attempts if now-t < 60]
+                    if len(self.player_lookup_attempts) >= 24:
+                        raise RuntimeError('player_film_lookup_budget')
+                    self.player_lookup_attempts.append(now)
+                result = film_alias(title)
+                with self.lock:
+                    if len(self.identities) >= 1024:self.identities.pop(next(iter(self.identities)))
+                    self.identities[key] = (now, result)
+            finally:
+                self.player_lookup_slots.release()
+        return {**programme, **result, 'searchable': True} if result else None
 
     def channel(self,source):
         with self.lock:catalog=self.catalog
@@ -91,8 +185,20 @@ class ProgrammeGuide:
                     self.identities[identity_key]=(now,found)
             else:found=cached[1]
             if found:result.update(year=found['y'],imdbId=found['id'],searchable=True,identityEvidence='exact_unique_title_metadata_pending_audio_verification')
+            elif re.search(r'[\u3400-\u9fff]', title) and (not cached or now-cached[0]>3600) and not exact:
+                try:
+                    alias=film_alias(title,year if type(year) is int else None,hint)
+                except (OSError, ValueError, TypeError, KeyError):
+                    alias=None
+                if alias:
+                    with self.lock:self.identities[identity_key]=(now,dict(y=alias['year'],id=alias['imdbId'],l=alias['title']))
+                    result.update(**alias,searchable=True,identityEvidence='localized_film_alias_pending_audio_verification')
+            if found and found.get('l') and identity_title(found['l']) != identity_title(title):
+                result.update(title=found['l'],identityEvidence='localized_film_alias_pending_audio_verification')
         return source,result
     def resolve(self,source,context=None):
         c=self.channel(source)
         if isinstance(context,dict) and context.get('catalogChannelId') not in (None,c['id']):raise ValueError('route_programme_mismatch')
+        if is_player_epg(context):
+            return c,(source,player_programme(context,c['id'],time.time()))
         return c,self.current(c['id'],source)

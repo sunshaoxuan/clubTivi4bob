@@ -32,7 +32,8 @@ class TextHub:
     client_only=True
     prewarm=False
     engine=None
-    def __init__(self,root,cache,guide,*,traffic=None,source_validator=None,auto_maintain=True):
+    def __init__(self,root,cache,guide,*,traffic=None,source_validator=None,auto_maintain=True,
+                 discovery_identity=None):
         self.root=Path(root);self.root.mkdir(parents=True,exist_ok=True)
         self.traffic=traffic if traffic is not None else dict(receivedJsonBytes=0,sentJsonBytes=0,outboundRequests=0,outboundMediaRequests=0,outboundHosts={})
         def audit(event,args):
@@ -43,6 +44,7 @@ class TextHub:
                 if uri.path.endswith(('.m3u8','.ts','.mp4','.m4s')):self.traffic['outboundMediaRequests']+=1
         if traffic is None:sys.addaudithook(audit)
         self.cache,self.guide=cache,guide
+        self.discovery_identity=discovery_identity
         self.source_validator=source_validator;self.stop_event=threading.Event()
         self.requested_languages=set()
         self.manual_searches=set()
@@ -92,9 +94,11 @@ class TextHub:
                     options = dict(requested_language=language)
                     if refresh:
                         options['refresh'] = True
+                    identity = getattr(self, 'discovery_identity', None)
+                    lookup = identity(programme) if identity is not None else programme
                     candidates = self.cache.get_or_discover(
-                        programme, self.root/'discovery'/uuid.uuid4().hex, discover, **options
-                    ) if programme.get('searchable', True) else []
+                        lookup, self.root/'discovery'/uuid.uuid4().hex, discover, **options
+                    ) if lookup and lookup.get('searchable', True) else []
                     variants=SubtitleVariants(candidates)
                     with self.lock:
                         if generation==self.discovery_generation:

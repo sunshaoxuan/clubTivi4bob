@@ -134,6 +134,7 @@ class LiveSubtitleSession {
         player,
         Uri.parse(serviceEndpoint).resolve('client/'),
         segmentAt!,
+        programmeLookup: programmeLookup ?? SubtitleProgrammeContext.lookup,
         variantOptions: variantOptions,
         onChanged: () {
           final current = _localAudio;

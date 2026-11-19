@@ -14,6 +14,7 @@ import 'client_audio_window.dart';
 import 'live_subtitle_timeline.dart';
 import 'subtitle_policy.dart';
 import 'subtitle_preferences.dart';
+import 'subtitle_programme_context.dart';
 import 'subtitle_status.dart';
 import 'subtitle_variants.dart';
 import 'offline_asr_policy.dart';
@@ -26,6 +27,7 @@ class ClientAudioSubtitles {
     this.endpoint,
     this.segmentAt, {
     required this.onChanged,
+    this.programmeLookup,
     required ValueNotifier<SubtitleVariantOptions> variantOptions,
   }) : _variants = SubtitleVariantSelection(
          variantOptions,
@@ -35,6 +37,7 @@ class ClientAudioSubtitles {
   final Uri endpoint;
   final HlsPlaybackSegment? Function(double) segmentAt;
   final VoidCallback onChanged;
+  final SubtitleProgrammeLookup? programmeLookup;
   final SubtitleVariantSelection _variants;
   bool get hasPinnedVariant => _variants.hasPin;
   static int _nextLabel = 0;
@@ -45,6 +48,8 @@ class ClientAudioSubtitles {
   SubtitlePhase phase = SubtitlePhase.searching;
   String? _source, _session;
   Map<String, dynamic>? _programme;
+  bool _usesPlayerGuide = false;
+  bool _playerProgrammeStale = false;
   LiveSubtitleTimeline? _timeline;
   Process? _worker;
   Directory? _directory;
@@ -93,6 +98,8 @@ class ClientAudioSubtitles {
   Future<void> start(String source, Map<String, Object?>? programme) async {
     if (_disposed) return;
     _startupRetry?.cancel();
+    _usesPlayerGuide =
+        _usesPlayerGuide || programme?['contextKind'] == 'player-epg-v1';
     try {
       await _start(source, programme);
       _startupFailures = 0;
@@ -119,10 +126,31 @@ class ClientAudioSubtitles {
         'delaySeconds': seconds,
       });
       _startupRetry = Timer(Duration(seconds: seconds), () {
-        // The server resolves the current programme again on every retry.
-        unawaited(start(source, null).catchError((Object _) {}));
+        unawaited(_retryStart(source));
       });
       rethrow;
+    }
+  }
+
+  Future<Map<String, Object?>?> _currentPlayerProgramme(String source) async {
+    try {
+      return await programmeLookup
+          ?.call(source)
+          .timeout(const Duration(milliseconds: 500));
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<void> _retryStart(String source) async {
+    final programme = _usesPlayerGuide
+        ? await _currentPlayerProgramme(source)
+        : null;
+    if (_disposed) return;
+    try {
+      await start(source, programme);
+    } catch (_) {
+      // The next retry retains the same playback and obtains a fresh mapping.
     }
   }
 
@@ -342,6 +370,20 @@ class ClientAudioSubtitles {
     _polling = true;
     final request = _variants.request;
     try {
+      if (_usesPlayerGuide && _source != null) {
+        final next = await _currentPlayerProgramme(_source!);
+        if (_disposed || session != _session) return;
+        if (next?['key'] != _programme?['key']) {
+          _playerProgrammeStale = true;
+          _timeline = null;
+          _transportLocked = false;
+          phase = SubtitlePhase.programmeUnavailable;
+          render();
+          if (next != null) await _renewProgramme(session, next);
+          return;
+        }
+        _playerProgrammeStale = false;
+      }
       final response = await _client
           .get(
             endpoint
@@ -360,24 +402,12 @@ class ClientAudioSubtitles {
           acknowledgesRequest: true,
         );
       } else if (response.statusCode == 404) {
-        _variants.renewSession();
-        final replacement = _variants.request;
-        final body = await _post('sessions', {
-          'source': _source,
-          'programme': null,
-          'language': replacement.query['language'],
-          'features': ['clientClockV1'],
-        });
-        if (_disposed || session != _session) return;
-        _session = body['session'] as String;
-        _epoch++;
-        _chunks.clear();
-        _timeline = null;
-        _asset = null;
-        _lastEnd = -1;
-        _lastAnalysisEnd = -1;
-        _accept(body, replacement, acknowledgesRequest: !_variants.hasPin);
-        _queuedRefresh = _queuedRefresh || _variants.pending;
+        final next = _usesPlayerGuide && _source != null
+            ? await _currentPlayerProgramme(_source!)
+            : null;
+        if (!_usesPlayerGuide || next != null) {
+          await _renewProgramme(session, next);
+        }
       }
     } catch (_) {
     } finally {
@@ -389,12 +419,39 @@ class ClientAudioSubtitles {
     }
   }
 
+  Future<void> _renewProgramme(
+    String session,
+    Map<String, Object?>? next,
+  ) async {
+    if (_disposed || session != _session) return;
+    _variants.renewSession();
+    final replacement = _variants.request;
+    final body = await _post('sessions', {
+      'source': _source,
+      'programme': next,
+      'language': replacement.query['language'],
+      'features': ['clientClockV1'],
+    });
+    if (_disposed || session != _session) return;
+    _session = body['session'] as String;
+    _playerProgrammeStale = false;
+    _epoch++;
+    _chunks.clear();
+    _timeline = null;
+    _asset = null;
+    _lastEnd = -1;
+    _lastAnalysisEnd = -1;
+    _accept(body, replacement, acknowledgesRequest: !_variants.hasPin);
+    _queuedRefresh = _queuedRefresh || _variants.pending;
+  }
+
   void _accept(
     Map<String, dynamic> body,
     SubtitleVariantRequest request, {
     required bool acknowledgesRequest,
   }) {
     if (_disposed ||
+        _playerProgrammeStale ||
         (body['session'] != _session && _session != null) ||
         !_variants.isCurrent(request)) {
       return;
@@ -483,6 +540,12 @@ class ClientAudioSubtitles {
     text = '';
     if (!enabled) {
       phase = SubtitlePhase.idle;
+    } else if (_playerProgrammeStale ||
+        (_usesPlayerGuide &&
+            _programme?['stopUtc'] is int &&
+            (_programme!['stopUtc'] as int) <=
+                DateTime.now().millisecondsSinceEpoch ~/ 1000)) {
+      phase = SubtitlePhase.programmeUnavailable;
     } else if (!_clockAvailable) {
       phase = SubtitlePhase.clockUnavailable;
     } else if (segment?.ad == true ||
@@ -571,6 +634,9 @@ class ClientAudioSubtitles {
       }
       render();
       if (!_clockAvailable || !SubtitlePreferences.instance.enabled) return;
+      if (_usesPlayerGuide && phase == SubtitlePhase.programmeUnavailable) {
+        return;
+      }
       // Keep polling for programme/resource changes without spending CPU on
       // alignment when discovery has confirmed no usable reference subtitle.
       if (phase == SubtitlePhase.unavailable && !_referenceResourcesAvailable) {

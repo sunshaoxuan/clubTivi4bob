@@ -1,5 +1,6 @@
 """One independently verified EPG/alignment state per channel, shared file cache."""
 import json
+import hashlib
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 import sys
@@ -7,7 +8,7 @@ import threading
 import time
 from urllib.parse import urlsplit
 from client_clock import TextHub
-from programme_guide import ProgrammeGuide
+from programme_guide import ProgrammeGuide, is_player_epg, route_key
 
 
 class MultiTextHub:
@@ -74,28 +75,44 @@ class MultiTextHub:
             with child.lock:
                 if token in child.sessions:return child
         raise KeyError('expired_session')
-    def valid_context(self,source,programme):
+    def valid_context(self,source,programme,token=None):
         try:
+            if token is not None:
+                return self.owner(token).valid_context(source,programme)
             c=self.guide.channel(source)
             with self.lock:child=self.channels.get(c['id'])
             return bool(child and child.valid_context(source,programme))
         except (ValueError,KeyError,OSError):return False
     def create(self,source,context,language,features=()):
         channel,initial=self.guide.resolve(source,context);cid=channel['id']
+        local = is_player_epg(initial[1])
+        key = cid
+        if local:
+            # Different clients may legitimately choose different mappings for
+            # the same route. Never replace the shared authoritative hub.
+            digest = hashlib.sha256(repr((route_key(source), initial[1]['key'])).encode()).hexdigest()
+            key = f'{cid}-player-{digest}'
         with self.lock:
-            for key,child in list(self.channels.items()):
-                if not child.sessions and time.time()-self.created[key]>180:
-                    child.stop_event.set();del self.channels[key];del self.created[key]
-            if cid not in self.channels:
+            for old_key,child in list(self.channels.items()):
+                if not child.sessions and time.time()-self.created[old_key]>180:
+                    child.stop_event.set();del self.channels[old_key];del self.created[old_key]
+            if key not in self.channels:
                 if len(self.channels)>=32:raise RuntimeError('active_channel_capacity')
                 initial_once=[initial]
-                def current():return initial_once.pop() if initial_once else self.guide.current(cid,source)
+                def current():
+                    if initial_once:return initial_once.pop()
+                    if local:
+                        if time.time()>=initial[1]['stopUtc'] or not validates(source):
+                            raise ValueError('stale_player_programme')
+                        return initial
+                    return self.guide.current(cid,source)
                 def validates(candidate):
-                    try:return self.guide.channel(candidate)['id']==cid
+                    try:return (not local or route_key(candidate)==route_key(source)) and self.guide.channel(candidate)['id']==cid
                     except (ValueError,KeyError,OSError):return False
-                child=self.hub_factory(self.root/cid,self.cache,current,traffic=self.traffic,source_validator=validates,auto_maintain=False)
-                self.channels[cid]=child;self.created[cid]=time.time()
-            child=self.channels[cid]
+                extra = {'discovery_identity': self.guide.player_search_identity} if local else {}
+                child=self.hub_factory(self.root/key,self.cache,current,traffic=self.traffic,source_validator=validates,auto_maintain=False,**extra)
+                self.channels[key]=child;self.created[key]=time.time()
+            child=self.channels[key]
         return child.create(source,context,language,features)
     def set_language(self,token,language,**settings):return self.owner(token).set_language(token,language,**settings)
     def retry_search(self,token,data):return self.owner(token).retry_search(token,data)

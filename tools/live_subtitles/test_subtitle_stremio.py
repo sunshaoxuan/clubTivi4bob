@@ -23,6 +23,20 @@ class StremioTests(unittest.TestCase):
     def test_unreviewed_urls_rejected_without_request(self):
         for url in ['http://subs5.strem.io/en/download/subencoding-stremio-utf8/src-api/file/12','https://subs5.strem.io:8443/en/download/subencoding-stremio-utf8/src-api/file/12','https://other.example/subtitles/movie/tt1085492.json']:
             with self.assertRaises(ValueError):adapter.read(url)
+
+    def test_chinese_provider_tag_does_not_override_actual_script(self):
+        english = dict(lang='eng',movieReleaseName='Buddy.Cops.WEBRip.Netflix.en',
+                       url='https://subs5.strem.io/en/download/subencoding-stremio-utf8/src-api/file/12')
+        chinese = dict(english,lang='zht',movieReleaseName='Buddy.Cops.WEBRip.Netflix.zh-Hans.Simplified Chinese',
+                       url='https://subs5.strem.io/en/download/subencoding-stremio-utf8/src-api/file/13')
+        raw = SRT.decode().replace('One','我们这个时候说我们这个时候说').replace('Two','这样我们会听见这样我们会听见').replace('Three','我发现这是我们的问题我发现这是我们的问题').encode()
+        with tempfile.TemporaryDirectory() as root,patch.object(adapter,'read',side_effect=lambda url:
+                json.dumps(dict(subtitles=[english,chinese])).encode() if url.endswith('.json')
+                else raw if url.endswith('/13') else SRT):
+            result=adapter.discover('Buddy Cops',2016,root,imdb_id='tt5617254')
+            self.assertEqual(len(result),1)
+            self.assertEqual(set(result[0]['tracks']),{'en','zh-CN'})
+        self.assertFalse(adapter.matches_bound_release('Buddy Cops 2 WEBRip','Buddy Cops',2016))
     def test_contractions_preserve_actual_first_word_timestamp(self):
         self.assertEqual(acoustic_norm("There's nothing we can't do"),acoustic_norm('There is nothing we can not do'))
         cues=[dict(index=i,start=i*5,end=i*5+3,text=f"There is nothing we can do {i}") for i in range(3)]

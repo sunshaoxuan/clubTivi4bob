@@ -370,9 +370,15 @@ def serve(hub, host, port, legacy_port=None):
                     token = hub.create(body.get('source'), body.get('programme'), language, body.get('features', ()))
                 else:
                     match = re.fullmatch(r'/sessions/([a-f0-9]{32})/(programme|connect|observations|search)', path)
-                    if not match or not hub.valid_context(body.get('source'), body.get('programme')):
+                    if not match:
                         raise ValueError('current_programme_required')
                     token = match[1]
+                    if hasattr(hub, 'owner'):
+                        valid = hub.valid_context(body.get('source'), body.get('programme'), token=token)
+                    else:
+                        valid = hub.valid_context(body.get('source'), body.get('programme'))
+                    if not valid:
+                        raise ValueError('current_programme_required')
                     if match[2] == 'connect':
                         if getattr(hub,'client_only',False):raise ValueError('text_only_session')
                         hub.connect_media(token, body.get('source'), body.get('programme'))

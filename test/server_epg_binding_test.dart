@@ -171,6 +171,73 @@ void main() {
     };
   }
 
+  test('CCTV-6 reuses the active local or manual mapped programme', () async {
+    const route = 'https://media.example.org/live.m3u8';
+    const localGuide = 'local-cn';
+    api.extraRoute = true;
+    await catalog.sync();
+    await database
+        .into(database.epgSources)
+        .insert(
+          db.EpgSourcesCompanion.insert(
+            id: localGuide,
+            name: 'Local Chinese XMLTV',
+            url: 'file:///local.xml',
+          ),
+        );
+    final fixture = db.EpgProgrammesCompanion.insert(
+      epgChannelId: '${localGuide}_CCTV6',
+      sourceId: localGuide,
+      title: '刑警兄弟',
+      start: _at.subtract(const Duration(minutes: 20)),
+      stop: _at.add(const Duration(minutes: 90)),
+    );
+    await database.into(database.epgProgrammes).insert(fixture);
+    for (final manual in [false, true]) {
+      await database.upsertMapping(
+        db.EpgMappingsCompanion.insert(
+          channelId: _localId,
+          providerId: publicCatalogProviderId,
+          epgChannelId: manual ? '${localGuide}_CCTV6' : 'CCTV6',
+          epgSourceId: localGuide,
+          locked: Value(manual),
+          source: Value(manual ? 'manual' : 'auto'),
+        ),
+      );
+      final lookup = ServerEpgProgrammeLookup(
+        database,
+        now: () => _at,
+        timeshift: (_) async => 0,
+      );
+      final playerEpgId = await resolveLiveEpgId(
+        database,
+        channelId: _localId,
+        actualStreamUrl: route,
+      );
+      final current = (await database.getUpcomingProgrammes(
+        epgChannelId: playerEpgId!,
+        at: _at,
+      )).first;
+      final hint = (await lookup.forSource(route))!;
+      expect(hint['title'], current.title);
+      expect(hint['contextKind'], 'player-epg-v1');
+      expect(hint['stopUtc'], _epoch + 5400);
+      expect(hint['key'], matches(r'^player-epg:[a-f0-9]{64}$'));
+      expect(hint, isNot(contains('sourceUrl')));
+      expect(
+        await lookup.forSource('https://relay.example.org/live.m3u8'),
+        isNull,
+      );
+    }
+    final lookup = ServerEpgProgrammeLookup(
+      database,
+      now: () => _at,
+      timeshift: (_) async => 0,
+    );
+    await database.into(database.epgProgrammes).insert(fixture);
+    expect(await lookup.forSource(route), isNull);
+  });
+
   test(
     'scoped guide binds official route only and guards live failover',
     () async {
@@ -181,9 +248,15 @@ void main() {
       final mappings = await database.getAllMappings();
       expect(mappings, hasLength(1));
       expect(mappings.single.channelId, _localId);
-    final lookup = ServerEpgProgrammeLookup(database, now: () => _at);
-    expect(await lookup.forSource('https://media.example.org/live.m3u8'), isNotNull);
-    expect(await lookup.forSource('https://relay.example.org/live.m3u8'), isNull);
+      final lookup = ServerEpgProgrammeLookup(database, now: () => _at);
+      expect(
+        await lookup.forSource('https://media.example.org/live.m3u8'),
+        isNotNull,
+      );
+      expect(
+        await lookup.forSource('https://relay.example.org/live.m3u8'),
+        isNull,
+      );
       expect(
         await resolveLiveEpgId(database, channelId: _localId),
         mappings.single.epgChannelId,

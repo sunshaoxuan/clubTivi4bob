@@ -9,8 +9,23 @@ from subtitle_edition import chinese_script, pair_reference
 from subtitle_catalog import title_norm, matches_movie_title, parse_srt, save_resource, load_resource
 
 # Generic Chinese tags require inspecting actual characters after download.
-CODES = {'eng':'en', 'jpn':'ja', 'fre':'fr', 'spa':'es', 'kor':'ko', 'chi':'zh', 'zho':'zh'}
+CODES = {'eng':'en', 'jpn':'ja', 'fre':'fr', 'spa':'es', 'kor':'ko',
+         'chi':'zh', 'zho':'zh', 'zhs':'zh', 'zht':'zh'}
 PROVIDER = 'OpenSubtitles via Stremio'
+
+def matches_bound_release(label, title, year):
+    if matches_movie_title(label, title, year):
+        return True
+    expected, words = title_norm(title), title_norm(label)
+    if not expected or words[:len(expected)] != expected:
+        return False
+    suffix = words[len(expected):]
+    # The provider lookup is already scoped to the verified IMDb ID. Accept
+    # yearless labels only when the next token denotes an edition, not a sequel.
+    if any(re.fullmatch(r'(?:18|19|20)[0-9]{2}', word) and word != str(year) for word in suffix):
+        return False
+    return (not suffix or suffix[0] in {'webrip', 'webdl', 'bluray', 'bdrip', 'dvdrip', 'hdtv'}
+            or suffix[:2] in (['blu', 'ray'], ['web', 'rip'], ['web', 'dl']))
 
 
 def read(url):
@@ -41,7 +56,7 @@ def discover(title, year, root, *, imdb_id, max_candidates=3):
         admitted = [dict(row, language=language, label=row.get('movieReleaseName','').replace('.', ' '))
                     for row in rows if row.get('lang') == code and
                     row.get('season', 0) == 0 and row.get('episode', 0) == 0 and
-                    (matches_movie_title(row.get('movieReleaseName','').replace('.', ' '), title, year) or title_norm(row.get('movieReleaseName',''))==title_norm(title))]
+                    matches_bound_release(row.get('movieReleaseName','').replace('.', ' '), title, year)]
         for row in admitted:
             url = row.get('url')
             selected.setdefault((language, url if isinstance(url, str) else None), row)

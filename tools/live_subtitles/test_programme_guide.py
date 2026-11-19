@@ -1,11 +1,78 @@
 import time
+import hashlib
+import json
+import threading
 import tempfile
 import unittest
 from unittest.mock import patch
-from programme_guide import ProgrammeGuide,route_key
+from programme_guide import ProgrammeGuide,route_key,film_alias
+from multi_client_clock import MultiTextHub
 from subtitle_cache import SubtitleCache
 
 class GuideTests(unittest.TestCase):
+    def test_current_player_epg_reaches_subtitle_discovery_without_mutating_public_guide(self):
+        self.rows()
+        source = 'https://example.org/cctv6.m3u8'
+        channel = 'cctv6'
+        self.catalog['channels'].append(dict(id=channel, routes=[dict(url=source)]))
+        title = '刑警兄弟'
+        start = int(time.time()) - 120
+        stop = start + 3600
+        material = json.dumps([channel,title,start,stop], ensure_ascii=False, separators=(',', ':'))
+        context = dict(contextKind='player-epg-v1', catalogChannelId=channel,
+                       title=title, startUtc=start, stopUtc=stop,
+                       key='player-epg:' + hashlib.sha256(material.encode()).hexdigest())
+        calls = []
+        found = threading.Event()
+        class Cache:
+            def get_or_discover(self, programme, *args, **kw):
+                calls.append(programme)
+                if programme.get('imdbId') == 'tt5617254':
+                    found.set()
+                return []
+        movie = dict(title='Buddy Cops',year=2016,imdbId='tt5617254')
+        with tempfile.TemporaryDirectory() as root, \
+                patch('programme_guide.snapshot',side_effect=self.snap), \
+                patch('programme_guide.film_alias',return_value=movie) as identity, \
+                patch('programme_guide.public_read',return_value=b'{"data":{"id":"sunshine-cleaning","year":2008,"title":"Sunshine Cleaning","imdb_id":"tt0862846"}}'):
+            hub = MultiTextHub(root, Cache(), maintenance=False)
+            try:
+                existing = hub.create(self.source,None,'en',['clientClockV1'])
+                token = hub.create(source,{**context,'imdbId':'tt0000000'},'zh-CN',['clientClockV1'])
+                self.assertTrue(found.wait(2))
+                identity.assert_called_with(title)
+                candidate = next(p for p in calls if p['imdbId'] == 'tt5617254')
+                self.assertEqual(candidate['title'],'Buddy Cops')
+                self.assertEqual(candidate['year'],2016)
+                self.assertTrue(hub.valid_context(source, context, token=token))
+                self.assertFalse(hub.valid_context(self.source, context, token=token))
+                self.assertFalse(hub.valid_context(source,{**context,'key':'other'},token=token))
+                self.assertEqual(hub.owner(existing).programme['imdbId'],'tt0862846')
+                self.assertIsNone(hub.owner(token).programme['imdbId'])
+                self.assertFalse(hub.owner(token).programme['clockIsSubtitleOffset'])
+                for route, hint in [('https://private.invalid/live', context),
+                                    (source, {**context, 'title': 'Changed'}),
+                                    (source, {**context, 'stopUtc': start + 1})]:
+                    with self.assertRaises(ValueError):
+                        hub.create(route,hint,'en',['clientClockV1'])
+            finally:
+                hub.close()
+
+    def test_localized_title_and_english_title_resolve_same_film_but_ambiguity_fails(self):
+        def film(imdb):
+            def claim(value):return {'mainsnak':{'datavalue':{'value':value}}}
+            return {'labels':{'zh':{'value':'刑警兄弟'},'en':{'value':'Buddy Cops'}},
+                    'claims':{'P31':[claim({'id':'Q11424'})], 'P345':[claim(imdb)],
+                              'P577':[claim({'time':'+2016-01-01T00:00:00Z'})]}}
+        for title in ('刑警兄弟','Buddy Cops'):
+            with patch('programme_guide.wikidata_read',side_effect=[
+                    {'search':[{'id':'Q1'}]},{'entities':{'Q1':film('tt5617254')}}]):
+                self.assertEqual(film_alias(title),dict(title='Buddy Cops',year=2016,imdbId='tt5617254'))
+        with patch('programme_guide.wikidata_read',side_effect=[
+                {'search':[{'id':'Q1'},{'id':'Q2'}]},
+                {'entities':{'Q1':film('tt5617254'),'Q2':film('tt5617255')}}]):
+            self.assertIsNone(film_alias('刑警兄弟'))
+
     def test_generic_epg_movie_can_enter_idempotent_resource_cache(self):
         self.rows();self.epg['programmes'][0].update(sourceId='xmltv-reviewed',provenance={});g=ProgrammeGuide()
         with patch('programme_guide.snapshot',side_effect=self.snap),patch('programme_guide.public_read',return_value=b'{"d":[{"id":"tt0000001","qid":"movie","l":"Sunshine Cleaning","y":2008}]}'):

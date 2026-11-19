@@ -87,16 +87,19 @@ def test_brave_budget_is_durable_and_reserves_failed_calls(conn, monkeypatch, tm
     calls = []
     monkeypatch.setattr(x, 'brave', lambda q: calls.append(q) or ('unavailable', []))
     index = x.metered_index(conn, lambda: now[0])
-    for _ in range(12):
+    for _ in range(30):
         assert index('fixture')[0] == 'unavailable'
         assert x.metered_index(conn, lambda: now[0])('fixture')[0] == 'budget_deferred'
         now[0] += 1200
     assert index('fixture')[0] == 'budget_deferred'
-    assert len(calls) == 12
+    assert len(calls) == 30
     now[0] += 86400
     assert index('fixture')[0] == 'unavailable'
     with conn:
-        conn.executemany('INSERT INTO epg_brave_usage(attempted) VALUES(?)', [(NOW-86400,)] * 350)
+        conn.execute('DELETE FROM epg_brave_usage')
+        conn.executemany('INSERT INTO epg_brave_usage(attempted) VALUES(?)', [(NOW-86400,)] * 899)
+    now[0] += 1200
+    assert index('fixture')[0] == 'unavailable'
     now[0] += 1200
     assert index('fixture')[0] == 'budget_deferred'
     now[0] += 30 * 86400

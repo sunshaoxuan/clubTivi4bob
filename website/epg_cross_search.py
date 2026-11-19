@@ -14,6 +14,11 @@ from urllib.parse import urlencode
 import epg_auto_search as search
 from epg_ingest import NoRedirect
 
+BRAVE_MIN_INTERVAL_SECONDS = 20 * 60
+BRAVE_ROLLING_DAY_LIMIT = 30
+# A 31-day window permits at most 900 + 30 requests, leaving credit headroom.
+BRAVE_ROLLING_MONTH_LIMIT = 900
+
 
 def credential():
     directory = os.environ.get('CREDENTIALS_DIRECTORY')
@@ -38,7 +43,8 @@ def reserve_request(conn, now):
         newest, daily, monthly = conn.execute('''
             SELECT max(attempted),count(CASE WHEN attempted>? THEN 1 END),count(*)
             FROM epg_brave_usage''', (now - 86400,)).fetchone()
-        if (newest is not None and newest > now - 1200) or daily >= 12 or monthly >= 350:
+        if ((newest is not None and newest > now - BRAVE_MIN_INTERVAL_SECONDS)
+                or daily >= BRAVE_ROLLING_DAY_LIMIT or monthly >= BRAVE_ROLLING_MONTH_LIMIT):
             return False
         conn.execute('INSERT INTO epg_brave_usage(attempted) VALUES(?)', (now,))
         return True

@@ -1,0 +1,91 @@
+{
+  "sources": [
+    {
+      "id": "iptv-org",
+      "name": "iptv-org/iptv",
+      "repositoryUrl": "https://github.com/iptv-org/iptv",
+      "playlistUrl": "https://iptv-org.github.io/iptv/index.m3u",
+      "resourceType": "live-playlist",
+      "rightsStatus": "unverified",
+      "network": "public",
+      "notes": "逐条保留 Geo-blocked 标签，具体允许观看地区未知。"
+    },
+    {
+      "id": "free-tv",
+      "name": "Free-TV/IPTV",
+      "repositoryUrl": "https://github.com/Free-TV/IPTV",
+      "playlistUrl": "https://raw.githubusercontent.com/Free-TV/IPTV/master/playlist.m3u8",
+      "resourceType": "live-playlist",
+      "rightsStatus": "unverified",
+      "network": "public",
+      "notes": "部分线路有地域限制，逐条记录明确标签；具体允许观看地区未知。"
+    },
+    {
+      "id": "vbskycn",
+      "name": "vbskycn/iptv",
+      "repositoryUrl": "https://github.com/vbskycn/iptv",
+      "playlistUrl": "https://raw.githubusercontent.com/vbskycn/iptv/master/tv/iptv4.m3u",
+      "resourceType": "live-playlist",
+      "rightsStatus": "unverified",
+      "network": "public",
+      "notes": "接入 IPv4 清单，观看地区及运营商条件按线路记录，未知部分保持未知。"
+    },
+    {
+      "id": "ccsh",
+      "name": "CCSH/IPTV",
+      "repositoryUrl": "https://github.com/CCSH/IPTV",
+      "playlistUrl": "https://raw.githubusercontent.com/CCSH/IPTV/main/live_lite.m3u",
+      "resourceType": "live-playlist",
+      "rightsStatus": "unverified",
+      "network": "public",
+      "notes": "接入精简直播清单，跳过凭据、网页、无效地址及当前播放器不支持的协议。"
+    },
+    {
+      "id": "yuechan",
+      "name": "YueChan/Live",
+      "repositoryUrl": "https://github.com/YueChan/Live",
+      "playlistUrl": "https://raw.githubusercontent.com/YueChan/Live/main/IPTV.m3u",
+      "resourceType": "live-playlist",
+      "rightsStatus": "unverified",
+      "network": "operator-multicast",
+      "notes": "组播地址需要匹配的运营商 IPTV 接入网络和组播路由；公网服务器不探测、不转发。"
+    },
+    {
+      "id": "fanmingming",
+      "name": "fanmingming/live",
+      "repositoryUrl": "https://github.com/fanmingming/live",
+      "playlistUrl": "https://raw.githubusercontent.com/fanmingming/live/main/tv/m3u/ipv6.m3u",
+      "resourceType": "live-playlist",
+      "rightsStatus": "unverified",
+      "network": "ipv6",
+      "notes": "IPv6 清单需要可达的 IPv6 网络，部分线路还可能依赖运营商；凭据地址不公开。"
+    },
+    {
+      "id": "yang-verified",
+      "name": "YanG-1989 实测 IPv4",
+      "repositoryUrl": "https://github.com/YanG-1989/m3u",
+      "playlistUrl": "https://bobtv.briconbric.com/assets/playlists/yang-verified-ipv4.m3u",
+      "resourceType": "live-playlist",
+      "rightsStatus": "unverified",
+      "network": "public",
+      "notes": "作者公开清单经本地严格解码、CNDRP 境内及目录服务器 IPv4 媒体样本验证后筛选；仅保存稳定入口，直播状态可能变化。"
+    }
+  ],
+  "resources": [
+    {
+      "name": "iptv-org/database",
+      "resourceType": "channel-metadata",
+      "repositoryUrl": "https://github.com/iptv-org/database"
+    },
+    {
+      "name": "iptv-org/epg",
+      "resourceType": "epg-tools",
+      "repositoryUrl": "https://github.com/iptv-org/epg"
+    },
+    {
+      "name": "FongMi/TV",
+      "resourceType": "player",
+      "repositoryUrl": "https://github.com/FongMi/TV"
+    }
+  ]
+}

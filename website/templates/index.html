@@ -16,7 +16,7 @@
           <p class="hero-description">{{ s.hero[2] }}</p>
           <div class="actions">
             <a class="button primary" href="{{ site_root }}/downloads">{{ t.download }} <span aria-hidden="true">↓</span></a>
-            <a class="button secondary" href="#discover">{{ t.features }} <span aria-hidden="true">↘</span></a>
+            <a class="button secondary" href="#subtitles">{{ t.subtitles.nav }} <span aria-hidden="true">↘</span></a>
           </div>
           <p class="platform-line"><span class="platform-dots" aria-hidden="true"><i></i><i></i><i></i></span>Windows <span>·</span> macOS <span>·</span> Android</p>
         </div>
@@ -89,6 +89,9 @@
       </div>
     </div>
   </section>
+  {% if image == "signals" %}
+  {% include "subtitles-feature.html" %}
+  {% endif %}
   {% endfor %}
   <section data-scroll-scene class="showcase-section player-section" aria-labelledby="player-title">
     <div class="container feature-layout">
@@ -113,3 +116,4 @@
   </section>
 </main>
 {% endblock %}
+{% block scripts %}<script src="{{ site_root }}/assets/subtitles.js?v=1" defer></script>{% endblock %}

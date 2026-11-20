@@ -1,3 +1,4 @@
+import '../player/bobtv_video.dart';
 import 'package:flutter/material.dart';
 import 'package:media_kit_video/media_kit_video.dart';
 
@@ -57,7 +58,7 @@ class AlternativePreviewOverlay extends StatelessWidget {
                                         color: Colors.white54, fontSize: 11)),
                             ],
                           ))
-                        : IgnorePointer(child: RepaintBoundary(child: Video(
+                        : IgnorePointer(child: RepaintBoundary(child: BobtvVideo(
                             key: ValueKey(state.controller),
                             controller: state.controller!,
                             controls: NoVideoControls,

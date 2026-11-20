@@ -166,7 +166,7 @@ void main() {
   );
 
   test(
-    'offline foreground sync reports failure and preserves local exclusions',
+    'offline sync opens cached routes and preserves local exclusions',
     () async {
       await database.withoutSharedReporting(
         () => database.blockAndDeleteStreamUrl(
@@ -174,14 +174,39 @@ void main() {
           reason: 'shared_catalog_retired',
         ),
       );
+      var fetches = 0;
       final sync = ChannelRouteSyncService(
         database: database,
         fetch: (_) async {
+          fetches++;
           throw StateError('offline');
         },
       );
       addTearDown(sync.dispose);
-      await expectLater(sync.priority([second]), throwsStateError);
+      await sync.priority([second]);
+      final guard = RetiredRouteGuard(
+        read: database.getBlockedStreamUrls,
+        updates: const Stream<Set<String>>.empty(),
+        beforeOpen: sync.beforeOpen,
+      );
+      addTearDown(guard.dispose);
+      var opened = 0;
+      await guard.open(second, () async {
+        opened++;
+      }, stop: () async {});
+      expect(opened, 1);
+      await expectLater(
+        guard.open(first, () async {
+          opened++;
+        }, stop: () async {}),
+        throwsA(isA<RetiredRouteException>()),
+      );
+      expect(opened, 1);
+      expect(
+        fetches,
+        1,
+        reason: 'outage backoff avoids a second foreground stall',
+      );
       expect(await database.isStreamUrlBlocked(first), isTrue);
     },
   );

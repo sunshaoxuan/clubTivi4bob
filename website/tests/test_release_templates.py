@@ -24,6 +24,10 @@ def test_release_templates_preserve_languages_and_settings(locale):
         assert f'lang="{locale}"' in rendered
         assert 'installed-devices' in rendered
         if page == 'index':
+            assert 'id="subtitles"' in rendered
+            assert copy['subtitles']['condition'] in rendered
+            assert 'data-subtitle-mode="1"' in rendered
+            assert copy['subtitles']['privacy'] in rendered
             assert copy['showcase']['hero'][0] in rendered
             assert 'class="back-top"' in rendered
             assert 'class="history-band"' not in rendered

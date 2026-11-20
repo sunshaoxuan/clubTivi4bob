@@ -1,0 +1,113 @@
+import 'dart:math' as math;
+import 'dart:typed_data';
+
+typedef PcmChunk = ({double start, Uint8List bytes});
+
+class PcmWindow {
+  const PcmWindow(this.start, this.bytes, this.gapSeconds);
+  final double start, gapSeconds;
+  final Uint8List bytes;
+  double get duration => bytes.length / 32000;
+  double get end => start + duration;
+}
+
+/// Keep full recognition context while allowing early recovery attempts.
+/// An early short attempt must not discard the start of the next sentence.
+void retainPcmContext(
+  List<PcmChunk> chunks,
+  double end, {
+  required bool mobile,
+}) {
+  final seconds = mobile ? 16.0 : 32.0;
+  chunks.removeWhere(
+    (chunk) => chunk.start + chunk.bytes.length / 32000 < end - seconds,
+  );
+}
+
+/// Preserve the decoder's real sample timeline when a busy client misses a tap.
+/// Missing PCM is silent padding; subsequent dialogue never moves earlier.
+PcmWindow? buildPcmWindow(List<PcmChunk> chunks) {
+  if (chunks.isEmpty) return null;
+  final start = chunks.first.start;
+  if (!start.isFinite) throw const FormatException('Invalid audio clock');
+  final output = BytesBuilder(copy: false);
+  var gapBytes = 0;
+  for (final chunk in chunks) {
+    if (!chunk.start.isFinite || chunk.bytes.length.isOdd) {
+      throw const FormatException('Invalid PCM chunk');
+    }
+    final offset = ((chunk.start - start) * 16000).round() * 2;
+    if (offset < 0 || offset + chunk.bytes.length > 40 * 32000) {
+      throw const FormatException('Audio window exceeds its clock bounds');
+    }
+    if (offset > output.length) {
+      final gap = offset - output.length;
+      output.add(Uint8List(gap));
+      gapBytes += gap;
+    }
+    final skip = math.max(0, output.length - offset);
+    if (skip < chunk.bytes.length) {
+      output.add(Uint8List.sublistView(chunk.bytes, skip));
+    }
+  }
+  return PcmWindow(start, output.takeBytes(), gapBytes / 32000);
+}
+
+/// Raise low-level dialogue only in the recognition copy. Keep the native
+/// sample count, clock, digital silence and peak headroom unchanged.
+({Uint8List bytes, double gain}) prepareRecognitionPcm(Uint8List bytes) {
+  final input = ByteData.sublistView(bytes);
+  var sumSquares = 0.0;
+  var peak = 0;
+  var nonzero = 0;
+  for (var offset = 0; offset < input.lengthInBytes; offset += 2) {
+    final sample = input.getInt16(offset, Endian.little).abs();
+    if (sample == 0) continue;
+    nonzero++;
+    peak = math.max(peak, sample);
+    sumSquares += sample * sample;
+  }
+  if (nonzero < bytes.length ~/ 20) return (bytes: bytes, gain: 1);
+  final rms = math.sqrt(sumSquares / math.max(1, nonzero));
+  if (rms < 64 || rms >= 700) return (bytes: bytes, gain: 1);
+  final gain = math.min(3.0, math.min(900 / rms, 32000 / peak));
+  if (gain <= 1.05) return (bytes: bytes, gain: 1);
+  final adjusted = Uint8List(bytes.length);
+  final output = ByteData.sublistView(adjusted);
+  for (var offset = 0; offset < input.lengthInBytes; offset += 2) {
+    output.setInt16(
+      offset,
+      (input.getInt16(offset, Endian.little) * gain).round(),
+      Endian.little,
+    );
+  }
+  return (bytes: adjusted, gain: gain);
+}
+
+/// Reserve playback for measured recognition cost, including slower devices.
+class SpeechPlaybackBudget {
+  final _recentCosts = <double>[];
+
+  void record(double audioSeconds, double processSeconds) {
+    if (!audioSeconds.isFinite ||
+        !processSeconds.isFinite ||
+        audioSeconds <= 0 ||
+        processSeconds <= 0) {
+      return;
+    }
+    _recentCosts.add(processSeconds / audioSeconds);
+    if (_recentCosts.length > 3) _recentCosts.removeAt(0);
+  }
+
+  double minimumSeconds(double audioSeconds, {required bool cold}) {
+    final floor = cold ? 24.0 : 8.0;
+    if (_recentCosts.isEmpty) return floor;
+    final cost = _recentCosts.reduce(math.max);
+    return math.max(floor, audioSeconds * cost * 1.25 + 2).clamp(8, 30);
+  }
+
+  double recoveryTimeoutSeconds(double audioSeconds) {
+    final cost = _recentCosts.isEmpty ? 1.0 : _recentCosts.reduce(math.max);
+    return (audioSeconds * cost * 1.5 + 5).clamp(15, 40);
+  }
+}

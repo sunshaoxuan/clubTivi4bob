@@ -52,3 +52,7 @@ app.*.map.json
 flutter_02.png
 __pycache__/
 *.pyc
+
+# Generated offline subtitle workers and model, staged with verified receipts.
+/android/app/src/main/jniLibs/
+/android/app/src/main/assets/ClientASR/

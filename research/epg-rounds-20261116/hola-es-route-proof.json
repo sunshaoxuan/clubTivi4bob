@@ -1,0 +1,47 @@
+{
+  "channelId": "channel-5fa4c5b9814b3e1342bd61ca",
+  "countryCode": "ES",
+  "marketCode": "es",
+  "serviceId": 6433,
+  "officialSlug": "hola-play-2108fd06-86d4-44e8-9867-c35b4895a1c1",
+  "routeUrl": "https://hola-play-2108fd06-86d4-44e8-9867-c35b4895a1c1-es.fast.rakuten.tv/v1/master/0547f18649bd788bec7b67b746e47670f558b6b2/production-LiveChannel-6433/master.m3u8",
+  "routeSha256": "83491c3267e2c71aeaf81caf8f085adc3ac0b70a5e11f3761cacf22a44e2277c",
+  "checkedAtUtc": "2026-11-15T16:37:42.098108+00:00",
+  "masterSha256": "e6b23ae524c3bfa9960ae7cabf8d04b034a918519bcf9bee980994615032efa8",
+  "mediaSha256": "078ca53bab4b1ab7555ebbd4e90fe5bc1c3aa0873a1a12e91297bb8e4272815a",
+  "hasMediaSegments": true,
+  "programmeDateTimes": [],
+  "currentAndNextEvents": [
+    {
+      "id": "990993164",
+      "title": "Especiales de ¡HOLA!",
+      "starts_at": "2026-11-15T17:17:17.000+01:00",
+      "ends_at": "2026-11-15T18:19:53.000+01:00",
+      "is_live": false
+    },
+    {
+      "id": "990993207",
+      "title": "Especiales de ¡HOLA!",
+      "starts_at": "2026-11-15T18:19:54.000+01:00",
+      "ends_at": "2026-11-15T18:33:59.000+01:00",
+      "is_live": false
+    },
+    {
+      "id": "990993224",
+      "title": "Especiales de ¡HOLA!",
+      "starts_at": "2026-11-15T18:34:00.000+01:00",
+      "ends_at": "2026-11-15T18:50:08.000+01:00",
+      "is_live": false
+    },
+    {
+      "id": "990993237",
+      "title": "20 Preguntas a...",
+      "starts_at": "2026-11-15T18:50:09.000+01:00",
+      "ends_at": "2026-11-15T19:13:55.000+01:00",
+      "is_live": false
+    }
+  ],
+  "observedSeriesId": "especiales-de-hola-2",
+  "observedEpisodeId": "especiales-de-hola-2-9",
+  "officialServiceName": "¡HOLA! Play"
+}

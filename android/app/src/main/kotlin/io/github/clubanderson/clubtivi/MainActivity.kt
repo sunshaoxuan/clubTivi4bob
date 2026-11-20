@@ -27,6 +27,22 @@ class MainActivity : FlutterActivity() {
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "bobtv/client_subtitles").setMethodCallHandler { call, result ->
+            if (call.method != "resources") {
+                result.notImplemented()
+            } else {
+                // Model copying/hashing stays off Flutter's platform thread.
+                Thread {
+                    try {
+                        val paths = BobTvClientSubtitles.resources(applicationContext)
+                        runOnUiThread { result.success(paths) }
+                    } catch (e: Exception) {
+                        runOnUiThread { result.error("SUBTITLE_RESOURCES", e.javaClass.simpleName, null) }
+                    }
+                }.start()
+            }
+        }
+
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "bobtv/cast_network").setMethodCallHandler { call, result ->
             when (call.method) {
                 "startDiscovery" -> try {

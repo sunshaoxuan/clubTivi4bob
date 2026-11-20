@@ -5,6 +5,7 @@ remain unapproved. Fixture publication tests never write to production data.
 """
 from datetime import datetime, timezone
 import gzip
+from contextlib import nullcontext
 import hashlib
 import json
 import os
@@ -16,8 +17,23 @@ from epg_discovery import fingerprint
 from epg_ingest import EpgError, parse_xmltv, fetch
 from publish_channel_catalog import _atomic_write
 from source_registry import validate_public_url
+from epg_route_binding import validate_scope, public_identity
 
 NODES = ('https://bobtv.briconbric.com', 'https://cndrp.com/bobtv')
+
+
+def _reviewed_route_scope(channel_id, evidence):
+    if 'routeScope' not in evidence:
+        return None
+    if evidence.get('routeScopeExplicitlyReviewed') is not True:
+        raise EpgError('epg_route_review_required')
+    from catalog_inventory import DATA
+    from epg_discovery import load_catalog
+    _, channels = load_catalog(DATA)
+    channel = next((c for c in channels if c['id'] == channel_id), None)
+    if channel is None:
+        raise EpgError('epg_route_identity_drift')
+    return validate_scope(evidence['routeScope'], channel)
 
 
 def migrate(conn):
@@ -119,7 +135,7 @@ def reviewed_data_use(conn, source_id):
 
 
 def approve_data_use(conn, source_id, *, source_url, evidence_url, data_license,
-                     programme_data_permission=False, attribution=None, now=None):
+                     programme_data_permission=False, attribution=None, now=None, in_transaction=False):
     """Trusted administrator entry point; a code license alone is insufficient."""
     if programme_data_permission is not True or not isinstance(data_license, str) or not data_license.strip():
         raise EpgError('programme_data_permission_required')
@@ -130,7 +146,7 @@ def approve_data_use(conn, source_id, *, source_url, evidence_url, data_license,
         raise EpgError('source_url_mismatch')
     _validate_data_attribution(json.loads(row['configuration']), data_license, attribution)
     approved_at = int(time.time() if now is None else now)
-    with conn:
+    with (nullcontext() if in_transaction else conn):
         conn.execute('INSERT OR REPLACE INTO epg_data_grants VALUES(?,?,?,?,?,0)',
             (source_id, source_url, evidence_url, data_license, approved_at))
         conn.execute('DELETE FROM epg_data_attributions WHERE source_id=?', (source_id,))
@@ -158,7 +174,7 @@ def source_identity(row):
 
 
 def approve_mapping(conn, channel_id, source_id, original_id, *, evidence,
-                    confidence=1.0, locked=True, now=None):
+                    confidence=1.0, locked=True, now=None, in_transaction=False):
     """Explicit context review, with immutable identity fingerprints and locks."""
     job = conn.execute('SELECT * FROM discovery_jobs WHERE channel_id=? AND active=1', (channel_id,)).fetchone()
     source = conn.execute('''SELECT i.*,c.context_json FROM source_identities i
@@ -183,10 +199,13 @@ def approve_mapping(conn, channel_id, source_id, original_id, *, evidence,
     if type(confidence) not in (int, float) or not 0.95 <= confidence <= 1:
         raise EpgError('identity_confidence_required')
     previous = conn.execute('SELECT * FROM epg_mapping_approvals WHERE channel_id=?', (channel_id,)).fetchone()
+    scope = _reviewed_route_scope(channel_id, evidence)
+    if previous and previous['locked'] and json.loads(previous['evidence']).get('routeScope') != scope:
+        raise EpgError('mapping_locked')
     identity_hash = source_identity(source)
     if previous and previous['locked'] and (previous['source_id'], previous['original_id'], previous['catalog_identity_hash'], previous['source_identity_hash']) != (source_id, original_id, job['identity_hash'], identity_hash):
         raise EpgError('mapping_locked')
-    with conn:
+    with (nullcontext() if in_transaction else conn):
         conn.execute('INSERT OR REPLACE INTO epg_mapping_approvals VALUES(?,?,?,?,?,?,?,?,?,0)',
             (channel_id, job['identity_hash'], source_id, original_id, identity_hash, confidence,
              json.dumps(evidence, sort_keys=True), int(time.time() if now is None else now), int(locked)))
@@ -202,6 +221,12 @@ def _approved(conn, channel_id):
       WHERE a.channel_id=? AND a.revoked=0''', (channel_id,)).fetchone()
     if not row:
         raise EpgError('approved_mapping_and_data_grant_required')
+    if json.loads(row['evidence']).get('automaticAdmission') == 'first_party_xmltv_cc0_v1':
+        last_proof = conn.execute("""SELECT error_code FROM probe_audit WHERE source_id=?
+            AND (state='healthy' OR error_code='automatic_source_proof_changed')
+            ORDER BY id DESC LIMIT 1""", (row['source_id'],)).fetchone()
+        if not last_proof or last_proof[0]:
+            raise EpgError('current_data_use_review_required')
     if row['catalog_identity_hash'] != row['identity_hash'] or row['source_identity_hash'] != source_identity(row):
         raise EpgError('mapping_identity_drift')
     if row['data_license'] in ('CC BY-SA 4.0', 'Open Government Data License 1.0') and not conn.execute(
@@ -213,6 +238,14 @@ def _approved(conn, channel_id):
     # any raw cache handoff, programme ingestion or new public snapshot.
     if reviewed_data_use(conn, row['source_id']) is None:
         raise EpgError('current_data_use_review_required')
+    _reviewed_route_scope(channel_id, json.loads(row['evidence']))
+    context = _source_context(row)
+    if context.get('provider') == 'rakuten-tv':
+        from epg_rakuten import verify_current_catalogue_route
+        verify_current_catalogue_route(channel_id, context, json.loads(row['evidence']))
+    if context.get('provider') == 'pluto-tv':
+        from epg_pluto import verify_current_catalogue_route
+        verify_current_catalogue_route(channel_id, context, json.loads(row['evidence']))
     return row
 
 
@@ -329,6 +362,18 @@ def cache_validated_payload(conn, directory, source_id, payload, now):
     return True
 
 
+def published_channel(mapping):
+    channel = json.loads(mapping['payload'])
+    scope = json.loads(mapping['evidence']).get('routeScope')
+    if scope is not None:
+        # A legacy client cannot join this ID to the parent catalogue channel.
+        channel = public_identity(channel, mapping['catalog_identity_hash'], scope)
+    published_hash = fingerprint({key: channel.get(key) for key in
+        ('id', 'name', 'epgId', 'countryCode', 'regionCode')})
+    return {**channel, 'sourceId': mapping['source_id'], 'originalChannelId': mapping['original_id'],
+            'catalogIdentityHash': published_hash, 'confidence': mapping['confidence']}
+
+
 def build_payload(conn, now=None):
     now = int(time.time() if now is None else now)
     channels, programmes = [], []
@@ -368,11 +413,10 @@ def build_payload(conn, now=None):
         # current programme or drop the entire channel merely to fill a gap.
         if not any(p['starts'] > now for p in rows):
             continue
-        channel = json.loads(mapping['payload'])
-        channels.append({**channel, 'sourceId': mapping['source_id'], 'originalChannelId': mapping['original_id'],
-            'catalogIdentityHash': mapping['catalog_identity_hash'], 'confidence': mapping['confidence']})
+        channel = published_channel(mapping)
+        channels.append(channel)
         for row, provenance in checked_rows:
-            programmes.append({'channelId': identity, 'sourceId': row['source_id'], 'originalChannelId': row['original_id'],
+            programmes.append({'channelId': channel['id'], 'sourceId': row['source_id'], 'originalChannelId': row['original_id'],
                 'title': row['title'], 'startUtc': row['starts'], 'stopUtc': row['stops'],
                 'provenance': provenance})
     if not channels or not programmes:

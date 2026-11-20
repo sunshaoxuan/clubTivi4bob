@@ -204,6 +204,7 @@ def test_cached_identity_recovery_is_single_channel_bounded(conn):
 def test_worker_recovers_prior_identity_checks_while_shared_admission_is_waiting(conn):
     pre_review_cache(conn, route=False)
     before = rows(conn)
+    conn.execute('INSERT OR REPLACE INTO epg_checkpoints VALUES(?,?)', ('search_admission_policy_v2', '{"installedAtUtc":1}'))
     worker.control(conn, NOW, 'search_budget_deferred', NOW + 100)
     outcome = run(conn, [channel()], clock=lambda: NOW + 1,
         transport=lambda *_: pytest.fail('Cache recovery made an AI request'))

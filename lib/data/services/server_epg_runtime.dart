@@ -9,6 +9,8 @@ import 'package:window_manager/window_manager.dart';
 import '../../core/app_diagnostics.dart';
 import '../../features/providers/provider_manager.dart';
 import 'server_epg_sync_service.dart';
+import 'server_epg_programme_lookup.dart';
+import '../../features/player/subtitle_programme_context.dart';
 
 class ServerEpgRuntime with WidgetsBindingObserver, WindowListener {
   ServerEpgRuntime(
@@ -88,9 +90,15 @@ class ServerEpgRuntime with WidgetsBindingObserver, WindowListener {
 }
 
 final serverEpgRuntimeProvider = Provider<ServerEpgRuntime>((ref) {
-  final runtime = ServerEpgRuntime(
-    ServerEpgSyncService(database: ref.watch(databaseProvider)),
-  );
+  final database = ref.watch(databaseProvider);
+  final lookup = ServerEpgProgrammeLookup(database).forSource;
+  SubtitleProgrammeContext.lookup = lookup;
+  ref.onDispose(() {
+    if (identical(SubtitleProgrammeContext.lookup, lookup)) {
+      SubtitleProgrammeContext.lookup = null;
+    }
+  });
+  final runtime = ServerEpgRuntime(ServerEpgSyncService(database: database));
   runtime.start();
   ref.onDispose(runtime.dispose);
   return runtime;

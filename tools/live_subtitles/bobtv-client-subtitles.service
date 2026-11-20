@@ -1,0 +1,26 @@
+[Unit]
+Description=BobTV client audio subtitle matching (text only)
+After=network-online.target
+[Service]
+Type=simple
+User=bobtv
+Group=bobtv
+WorkingDirectory=/opt/bobtv/live-subtitles/current-client
+Environment=PYTHONDONTWRITEBYTECODE=1
+ExecStart=/opt/bobtv/subtitles-venv/bin/python service.py --root /var/lib/bobtv/client-subtitles --subtitle-cache-root /var/lib/bobtv/resource-cache/subtitles --model-root /var/lib/bobtv/live-subtitle-models --base https://bobtv.briconbric.com/api/v1/subtitles/client/ --port 8923 --client-only
+Restart=on-failure
+RestartSec=10
+MemoryMax=512M
+CPUQuota=100%
+TasksMax=128
+IPAccounting=yes
+Nice=10
+UMask=0077
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ReadWritePaths=/var/lib/bobtv/client-subtitles /var/lib/bobtv/resource-cache/subtitles
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+[Install]
+WantedBy=multi-user.target

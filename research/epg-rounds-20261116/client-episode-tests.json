@@ -1,0 +1,15 @@
+{
+  "command": "flutter test test/server_epg_sync_service_test.dart test/live_subtitle_session_test.dart",
+  "passed": 44,
+  "exitCode": 0,
+  "analysis": "Three changed Dart files, no issues",
+  "scope": [
+    "episode factual identity import",
+    "EPG backfill and atomic updates",
+    "stale programme rejection",
+    "handover retry after 503",
+    "buffering clears captions",
+    "lease expiry",
+    "private source boundary"
+  ]
+}

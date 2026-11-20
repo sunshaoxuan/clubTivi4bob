@@ -1,0 +1,79 @@
+# Automatic subtitle delivery
+
+Clients request programme-bound subtitle sessions only from BobTV nodes and
+relays. Discovery adapters, persistent files and speech alignment run on the
+server. The present adapter retrieves existing subtitle files. It does not call
+GPT. Any future GPT-assisted discovery belongs behind a server-side provider;
+clients must not receive its credentials or require connectivity to GPT.
+
+The player reports searching, media warming, synchronization, temporary absence,
+service failure, programme identity gaps, insertion suspension and English
+fallback in all seven application languages. Silent dialogue gaps keep the
+matched file available. Insertion status follows decoded playback position.
+
+Cold sessions continue polling discovery while the original stream plays.
+Once a matched language and normalized media are ready, a guarded automatic
+connection first opens a separate muted decoder. Promotion requires decoded
+frames, advancing playback, and at least eight seconds of buffered media. Failed
+preparation leaves the original decoder playing. Old response generations and
+superseded channel selections are rejected. A media failure falls back to the provider and cools
+auto-connection for five minutes while discovery/status polling continues.
+Expired sessions and missing programme information retry automatically.
+
+Subtitle resources live in `/var/lib/bobtv/resource-cache/subtitles`, outside the
+two-hour private-media cleanup. A validated IMDb identifier is preferred;
+official market/movie IDs are retained as aliases. Title plus year is the
+fallback identity, normalized with Unicode. Identity conflicts remain errors
+rather than merging unrelated films. Every edition and language has its own
+record; raw SRT bytes are content addressed and hash checked. Matching English
+cue grids are required for translated tracks. Concurrent viewers share one
+lookup, cached languages survive restarts, corrupt resources are fetched again,
+and transient provider failures retain usable cached English. Negative results
+expire. Matching historical session downloads can be imported automatically.
+
+Movie identity, subtitle files and provenance are reusable. Programme-relative
+live offsets and ad calibration are not persisted as reusable cache entries.
+New sessions still establish their own verified media timeline.
+
+Deployment starts the v2 service on loopback port 8922, separately from the
+existing service on 8921. Unknown legacy session/media tokens are forwarded to
+the old process so active viewers can finish. `--stage-only` tests the v2 service
+without changing the public Nginx route. Rollout retains rollback files.
+
+IMDb-bound secondary lookup now uses SubDL's public search and existing ZIP
+resources. Each result must have an unambiguous IMDb query result, complete
+original title and exact year. All seven language containers are inspected;
+translated tracks still require a verified matching English clock grid. Normal
+provider Referer headers accompany downloads. Provider errors do not prevent
+trying another source. Complete title matching also rechecks older cache entries,
+so a longer film title sharing a prefix cannot poison another IMDb identity.
+After three speech windows fail every candidate, the API reports no usable file
+while continuing later acoustic attempts; it no longer promises indefinite
+synchronization. A later successful lock restores normal delivery automatically.
+
+All downloaded subtitle languages are retained as resource records, including
+files whose clock grid cannot yet be paired with English. Such files are cached
+for later validation and never emitted as verified captions. Subsequent provider
+searches hydrate these hash-checked resources before downloading anything.
+Older manifests receive one resource audit when a missing language is retried.
+
+The production Action Movies pilot now prewarms independently of viewers: it
+keeps its collector and acoustic calibration alive between sessions, discovers
+new EPG programmes automatically, and lets clients subscribe to an already
+prepared live timeline. This covers the single reviewed pilot feed, with the
+existing two-hour bounded private media retention. Programme handovers work
+without viewers and use sibling analysis folders rather than nested paths.
+Secondary discovery inspects missing languages even when English already exists.
+
+Clock calibration also handles standard 24/25 and 23.976/25 FPS differences.
+A rate change requires at least eight distinct speech cues across 45 seconds and
+three time ranges, with bounded robust residuals and a clear improvement over a
+constant offset. Cues are mapped through that affine clock inside each video
+segment. Subsequent ASR windows validate the previous model independently;
+calibration and insertion offsets remain session state, outside resource caches.
+
+Fast insertion recovery additionally requires a verified clock rate. A newly
+started worker with insufficient rate evidence waits for fresh speech instead
+of resuming an unproven one-to-one clock. Newly validated clocks backfill only
+observed buffered movie windows with the same asset, generation and continuous
+PTS origin; insertion windows and previous clock epochs remain excluded.

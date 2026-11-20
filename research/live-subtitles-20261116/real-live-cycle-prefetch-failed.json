@@ -1,0 +1,83 @@
+{
+  "realLive": true,
+  "scope": "server live ASR and native Flutter client; sampled caption state, not OCR",
+  "testStartedWall": 1794788190.317736,
+  "baseline": {
+    "wall": 1794788257.993192,
+    "position": 56.133933,
+    "serverTimeline": 90.0,
+    "mediaClockOrigin": 0
+  },
+  "pause": {
+    "start": 468.0,
+    "observedWall": 1794788639.5800893,
+    "sequence": 8323816
+  },
+  "returned": {
+    "start": 618.0,
+    "observedWall": 1794788783.517445,
+    "sequence": 8323966
+  },
+  "resume": {
+    "timeline": 618.0,
+    "wall": 1794788785.2749963,
+    "mode": "verified_pts_continuity"
+  },
+  "mediaClockOrigin": 0,
+  "adMediaSeconds": 150.0,
+  "advertSamples": 4125,
+  "advertSamplesWithFilmCaption": 0,
+  "serverObservedRecoverySeconds": 1.7575511932373047,
+  "serverMediaRecoverySeconds": 0.0,
+  "nativeFirstCaptionDelaySeconds": 0.9392659999999751,
+  "holdoutCueCount": 4,
+  "holdout": [
+    {
+      "cue": 1325,
+      "subtitleStart": 4857.759,
+      "asrStart": 894.76,
+      "offset": 3962.999,
+      "words": 12,
+      "errorSeconds": -0.42700000000058935
+    },
+    {
+      "cue": 1326,
+      "subtitleStart": 4862.496,
+      "asrStart": 899.6,
+      "offset": 3962.896,
+      "words": 12,
+      "errorSeconds": -0.5300000000002001
+    },
+    {
+      "cue": 1327,
+      "subtitleStart": 4865.533,
+      "asrStart": 902.18,
+      "offset": 3963.3530000000005,
+      "words": 12,
+      "errorSeconds": -0.0729999999998654
+    },
+    {
+      "cue": 1328,
+      "subtitleStart": 4866.801,
+      "asrStart": 903.52,
+      "offset": 3963.2810000000004,
+      "words": 12,
+      "errorSeconds": -0.1449999999999818
+    }
+  ],
+  "medianAbsoluteAsrReferenceErrorSeconds": 0.2860000000002856,
+  "maximumAbsoluteAsrReferenceErrorSeconds": 0.5300000000002001,
+  "layouts": [
+    0,
+    1,
+    2
+  ],
+  "bufferingSamplesAfterStartup": 1125,
+  "captionCyclePassed": true,
+  "playbackAccepted": false,
+  "overallAccepted": false,
+  "bufferingApproximateSeconds": 56.25,
+  "reason": "one-second advert transport depleted native buffer; independent mux corrupt warnings resolved, transport still failed",
+  "nativeHoldoutPlaybackReached": false,
+  "measurementLimitation": "server ASR holdouts were upstream of the client stop position; no native onset error accepted for this failed run"
+}

@@ -196,6 +196,7 @@ def test_response_redirect_type_compression_shape_and_size_rejected(body, header
 
 def test_directory_can_run_during_ai_admission_wait_without_spending_ai_or_advancing_job(conn):
     target, before = seed(conn)
+    conn.execute('INSERT OR REPLACE INTO epg_checkpoints VALUES(?,?)', ('search_admission_policy_v2', '{"installedAtUtc":1}'))
     worker.control(conn, NOW, 'search_budget_deferred', NOW + 3600)
     value = worker.run(conn, {'version': 'fixture-v1'}, [target], {target['id']: PATH},
         lambda: pytest.fail('AI config during pause'), None, clock=lambda: NOW, monotonic=lambda: 0,
@@ -220,6 +221,7 @@ def test_directory_rotates_checked_targets_while_ai_still_waits_and_preserves_mo
     first, before = seed(conn)
     second = channel(identity='fixture-second')
     second['routes'][0]['url'] = 'https://stream.example.org/second.m3u8'
+    conn.execute('INSERT OR REPLACE INTO epg_checkpoints VALUES(?,?)', ('search_admission_policy_v2', '{"installedAtUtc":1}'))
     worker.control(conn, NOW, 'search_budget_deferred', NOW + 3600)
     channels = [first, second]
     observed = []

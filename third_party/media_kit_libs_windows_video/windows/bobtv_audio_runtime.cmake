@@ -30,3 +30,9 @@ endforeach()
 set(media_kit_libs_windows_video_bundled_libraries ${BOBTV_AUDIO_BUNDLED} PARENT_SCOPE)
 install(DIRECTORY "${BOBTV_AUDIO_RUNTIME}/ThirdPartyNotices" DESTINATION "$<TARGET_FILE_DIR:${BINARY_NAME}>" COMPONENT Runtime)
 set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${BOBTV_SOURCE_ROOT}/tools/native/runtime-lock.json")
+
+# Workers and model must come from the same verified SDK as libmpv.
+if(EXISTS "${BOBTV_AUDIO_RUNTIME}/data/ClientASR/receipt.json")
+  install(DIRECTORY "${BOBTV_AUDIO_RUNTIME}/data/ClientASR/"
+    DESTINATION "$<TARGET_FILE_DIR:${BINARY_NAME}>/data/ClientASR" COMPONENT Runtime)
+endif()

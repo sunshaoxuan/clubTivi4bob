@@ -7,6 +7,8 @@ import 'package:media_kit/media_kit.dart';
 import '../../app/bobtv_palette.dart';
 import 'player_service.dart';
 import '../../core/platform_info.dart';
+import '../../core/player_resources.dart';
+import 'subtitle_picker.dart';
 import 'desktop_window_pin_button.dart';
 import '../../core/i18n/app_language.dart';
 
@@ -25,13 +27,9 @@ class PlayerControlBar extends ConsumerStatefulWidget {
   final VoidCallback? onChannelList;
   final VoidCallback? onFullscreenToggle;
   final VoidCallback? onRename;
-  final VoidCallback? onSubtitleToggle;
-  final VoidCallback? onSubtitleSelect;
   final VoidCallback? onAudioSelect;
   final bool isCasting;
   final bool isFavorite;
-  final bool hasSubtitles;
-  final bool subtitlesEnabled;
   final int audioTrackCount;
   final bool isFullscreen;
   final String fullscreenTooltip;
@@ -47,13 +45,9 @@ class PlayerControlBar extends ConsumerStatefulWidget {
     this.onChannelList,
     this.onFullscreenToggle,
     this.onRename,
-    this.onSubtitleToggle,
-    this.onSubtitleSelect,
     this.onAudioSelect,
     this.isCasting = false,
     this.isFavorite = false,
-    this.hasSubtitles = false,
-    this.subtitlesEnabled = false,
     this.audioTrackCount = 0,
     this.isFullscreen = false,
     this.fullscreenTooltip = '返回频道，保持窗口全屏',
@@ -390,22 +384,11 @@ class _PlayerControlBarState extends ConsumerState<PlayerControlBar> {
                       const Spacer(),
 
                       // ── Right side icons ──
-                      // CC (subtitle) toggle + long-press picker
-                      GestureDetector(
-                        onTap: widget.onSubtitleToggle,
-                        onLongPress: widget.onSubtitleSelect,
-                        child: Padding(
-                          padding: const EdgeInsets.all(6),
-                          child: Icon(
-                            widget.subtitlesEnabled
-                                ? Icons.closed_caption
-                                : Icons.closed_caption_disabled,
-                            color: widget.subtitlesEnabled
-                                ? Colors.white
-                                : Colors.white38,
-                            size: 20,
-                          ),
-                        ),
+                      SubtitleMenuButton(
+                        session: () {
+                          final player = ref.read(playerServiceProvider).player;
+                          return player is ManagedPlayer ? player.liveSubtitles : null;
+                        },
                       ),
                       // Audio track selector (only if > 1 track)
                       if (widget.audioTrackCount > 1)

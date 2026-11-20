@@ -23,6 +23,7 @@ void main() {
   });
 
   test('newer build is newer even within the same release', () {
+    expect(UpdateManifest.compareVersions('1.3.0+0', '1.1.25+120'), greaterThan(0));
     expect(
       UpdateManifest.compareVersions('0.9.1+54', '0.9.1+53'),
       greaterThan(0),

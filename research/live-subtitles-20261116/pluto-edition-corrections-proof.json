@@ -1,0 +1,44 @@
+[
+  {
+    "channelId": "channel-f161e64e591831aeaabad869",
+    "countryCode": "ES",
+    "expectedPreviousCountryCode": "US",
+    "sourceId": "pluto-es-official-v1",
+    "providerChannelId": "5f1aca8310a30e00074fab92",
+    "officialSlug": "los-asesinatos-de-midsomer-es",
+    "officialName": "Los Asesinatos de Midsomer",
+    "checkedAtUtc": 1794783980,
+    "sourceBodySha256": "5829dce8b5e0d2328b1ed8b2ae696fce6ebf9fb9ad34ec5af7a7fb7a444c2412",
+    "routeSha256": [
+      "6f370a309be9a03ec093daade5d5df9d343c6a3bb63a7f5377efe61975fd87d9"
+    ]
+  },
+  {
+    "channelId": "channel-4d8a60824b0727e6787f0440",
+    "countryCode": "DE",
+    "expectedPreviousCountryCode": "US",
+    "sourceId": "pluto-de-comedy-official-v1",
+    "providerChannelId": "5d4947590ba40f75dc29c26b",
+    "officialSlug": "comedy-central-pluto-tv-de",
+    "officialName": "Comedy Central Pluto TV",
+    "checkedAtUtc": 1794783980,
+    "sourceBodySha256": "1f6a890ae25ab4d27a90b7cfac76964301ae71524bd1d65c2251cfce01609b0c",
+    "routeSha256": [
+      "62b3b8a0bd7355e4edaabb4deccc1f5960ae12434df814840ee8621e29aec030"
+    ]
+  },
+  {
+    "channelId": "channel-f71c49e8fce59482c51d83af",
+    "countryCode": "GB",
+    "expectedPreviousCountryCode": "US",
+    "sourceId": "pluto-gb-official-v1",
+    "providerChannelId": "5cb6f6f9a461406ffe4022cf",
+    "officialSlug": "the-fbi-files-gb",
+    "officialName": "FBI Files",
+    "checkedAtUtc": 1794783980,
+    "sourceBodySha256": "da0d68b6d83f7d39ace69148ff66f8d69e3af1348f7f4bce9823beb057a8fbce",
+    "routeSha256": [
+      "829c6d012c3169c50586271c1bd17d35158bf027d6eab235abee1eff34a65f7d"
+    ]
+  }
+]

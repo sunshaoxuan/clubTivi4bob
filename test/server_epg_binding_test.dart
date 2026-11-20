@@ -15,6 +15,8 @@ import 'package:clubtivi/data/services/website_channel_catalog_service.dart';
 import 'package:clubtivi/data/services/server_epg_sync_service.dart';
 import 'package:clubtivi/data/services/server_epg_binding.dart';
 import 'package:clubtivi/data/services/epg_auto_mapper.dart';
+import 'package:clubtivi/data/services/epg_ui_refresh.dart';
+import 'package:clubtivi/data/services/server_epg_programme_lookup.dart';
 
 final _at = DateTime.utc(2026, 10, 16, 6);
 final _epoch = _at.millisecondsSinceEpoch ~/ 1000;
@@ -32,6 +34,7 @@ class _Api extends BobTvApiClient {
   Map<String, dynamic> epgIdentity = _identity();
   String catalogVersion = '2026-10-16T06:00:00Z';
   int catalogDownloads = 0;
+  bool extraRoute = false;
   Map<String, dynamic> get catalog => {
     'schemaVersion': 1,
     'version': catalogVersion,
@@ -45,6 +48,8 @@ class _Api extends BobTvApiClient {
         'categoryId': 'sports',
         'routes': [
           {'id': 'route-one', 'url': 'https://media.example.org/live.m3u8'},
+          if (extraRoute)
+            {'id': 'route-two', 'url': 'https://relay.example.org/live.m3u8'},
         ],
       },
     ],
@@ -84,7 +89,7 @@ class _Api extends BobTvApiClient {
     return BobTvChannelCatalogManifest(
       version: catalogVersion,
       channelCount: 1,
-      routeCount: 1,
+      routeCount: extraRoute ? 2 : 1,
       snapshotPath: '/api/v1/channel-catalog/snapshots/$hash.json.gz',
       compressedBytes: catalogBytes.length,
       sha256: hash,
@@ -145,6 +150,195 @@ void main() {
     api.close();
     await database.close();
   });
+  Map<String, dynamic> scopedIdentity() {
+    final parent = _identity();
+    final parentHash = catalogEpgIdentityHash(parent);
+    final urlHash = sha256
+        .convert(utf8.encode('https://media.example.org/live.m3u8'))
+        .toString();
+    final material = '${parent['id']}\n$parentHash\nroute-one:$urlHash';
+    return {
+      ...parent,
+      'id': 'route-epg-${sha256.convert(utf8.encode(material))}',
+      'routeBinding': {
+        'schemaVersion': 1,
+        'catalogChannelId': parent['id'],
+        'catalogIdentityHash': parentHash,
+        'routes': [
+          {'routeId': 'route-one', 'urlSha256': urlHash},
+        ],
+      },
+    };
+  }
+
+  test('CCTV-6 reuses the active local or manual mapped programme', () async {
+    const route = 'https://media.example.org/live.m3u8';
+    const localGuide = 'local-cn';
+    api.extraRoute = true;
+    await catalog.sync();
+    await database
+        .into(database.epgSources)
+        .insert(
+          db.EpgSourcesCompanion.insert(
+            id: localGuide,
+            name: 'Local Chinese XMLTV',
+            url: 'file:///local.xml',
+          ),
+        );
+    final fixture = db.EpgProgrammesCompanion.insert(
+      epgChannelId: '${localGuide}_CCTV6',
+      sourceId: localGuide,
+      title: '刑警兄弟',
+      start: _at.subtract(const Duration(minutes: 20)),
+      stop: _at.add(const Duration(minutes: 90)),
+    );
+    await database.into(database.epgProgrammes).insert(fixture);
+    for (final manual in [false, true]) {
+      await database.upsertMapping(
+        db.EpgMappingsCompanion.insert(
+          channelId: _localId,
+          providerId: publicCatalogProviderId,
+          epgChannelId: manual ? '${localGuide}_CCTV6' : 'CCTV6',
+          epgSourceId: localGuide,
+          locked: Value(manual),
+          source: Value(manual ? 'manual' : 'auto'),
+        ),
+      );
+      final lookup = ServerEpgProgrammeLookup(
+        database,
+        now: () => _at,
+        timeshift: (_) async => 0,
+      );
+      final playerEpgId = await resolveLiveEpgId(
+        database,
+        channelId: _localId,
+        actualStreamUrl: route,
+      );
+      final current = (await database.getUpcomingProgrammes(
+        epgChannelId: playerEpgId!,
+        at: _at,
+      )).first;
+      final hint = (await lookup.forSource(route))!;
+      expect(hint['title'], current.title);
+      expect(hint['contextKind'], 'player-epg-v1');
+      expect(hint['stopUtc'], _epoch + 5400);
+      expect(hint['key'], matches(r'^player-epg:[a-f0-9]{64}$'));
+      expect(hint, isNot(contains('sourceUrl')));
+      expect(
+        await lookup.forSource('https://relay.example.org/live.m3u8'),
+        isNull,
+      );
+    }
+    final lookup = ServerEpgProgrammeLookup(
+      database,
+      now: () => _at,
+      timeshift: (_) async => 0,
+    );
+    await database.into(database.epgProgrammes).insert(fixture);
+    expect(await lookup.forSource(route), isNull);
+  });
+
+  test(
+    'scoped guide binds official route only and guards live failover',
+    () async {
+      api.extraRoute = true;
+      await catalog.sync();
+      api.epgIdentity = scopedIdentity();
+      expect(await receiver.check(), isTrue);
+      final mappings = await database.getAllMappings();
+      expect(mappings, hasLength(1));
+      expect(mappings.single.channelId, _localId);
+      final lookup = ServerEpgProgrammeLookup(database, now: () => _at);
+      expect(
+        await lookup.forSource('https://media.example.org/live.m3u8'),
+        isNotNull,
+      );
+      expect(
+        await lookup.forSource('https://relay.example.org/live.m3u8'),
+        isNull,
+      );
+      expect(
+        await resolveLiveEpgId(database, channelId: _localId),
+        mappings.single.epgChannelId,
+      );
+      expect(
+        await resolveLiveEpgId(
+          database,
+          channelId: _localId,
+          actualStreamUrl: 'https://relay.example.org/live.m3u8',
+        ),
+        isNull,
+      );
+      expect(
+        await resolveLiveEpgId(
+          database,
+          channelId: '$publicCatalogProviderId:route-two',
+          fallbackId: mappings.single.epgChannelId,
+        ),
+        isNull,
+      );
+      // An older receiver still accepts the v1 fingerprint but its exact parent
+      // channel join cannot select this synthetic guide ID.
+      expect(api.epgIdentity['id'], isNot(api.catalogIdentity['id']));
+      expect(
+        (await database.getUpcomingProgrammes(
+          epgChannelId: mappings.single.epgChannelId,
+          at: _at,
+          limit: 3,
+        )),
+        hasLength(3),
+      );
+      await database.customStatement(
+        "UPDATE channels SET stream_url='https://media.example.org/changed.m3u8' WHERE id=?",
+        [_localId],
+      );
+      expect(await resolveLiveEpgId(database, channelId: _localId), isNull);
+      expect(await ServerEpgBinding(database).reconcile(), 0);
+      expect(await database.getAllMappings(), isEmpty);
+      // Programme cache remains intact after scope invalidation.
+      expect(
+        await database.getUpcomingProgrammes(
+          epgChannelId: mappings.single.epgChannelId,
+          at: _at,
+          limit: 3,
+        ),
+        hasLength(3),
+      );
+    },
+  );
+  test(
+    'switching from channel-wide to scoped removes only owned relay mapping',
+    () async {
+      api.extraRoute = true;
+      await catalog.sync();
+      expect(await receiver.check(), isTrue);
+      expect(await database.getAllMappings(), hasLength(2));
+      api.epgIdentity = scopedIdentity();
+      expect(await receiver.check(forceVersionCheck: true), isTrue);
+      expect((await database.getAllMappings()).single.channelId, _localId);
+    },
+  );
+  test(
+    'tampered route scope is rejected transactionally with cache retained',
+    () async {
+      await catalog.sync();
+      expect(await receiver.check(), isTrue);
+      final before = (await database.getAllMappings()).single.epgChannelId;
+      api.epgIdentity = scopedIdentity();
+      (api.epgIdentity['routeBinding']['routes'] as List).first['urlSha256'] =
+          '0' * 64;
+      expect(await receiver.check(forceVersionCheck: true), isFalse);
+      expect((await database.getAllMappings()).single.epgChannelId, before);
+      expect(
+        await database.getUpcomingProgrammes(
+          epgChannelId: before,
+          at: _at,
+          limit: 3,
+        ),
+        hasLength(3),
+      );
+    },
+  );
   test(
     'fingerprint matches Python sorted UTF-8 JSON and preserves region and plus',
     () {

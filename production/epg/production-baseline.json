@@ -1,0 +1,45 @@
+{
+  "observedAtUtc": "2026-11-15T14:42:22.576304+00:00",
+  "files": {
+    "epg_ingest.py": {
+      "sha256": "e1b37df4397c000794b64e1063d52e2fbd900dc23d4a60a8b1713682c3fbd752",
+      "matchesMain": false
+    },
+    "epg_store.py": {
+      "sha256": "a30e6e73cb83d58b6fca6a5e07fd8f07a28bc4fffa117554765534bb3b7c4ba3",
+      "matchesMain": true
+    },
+    "epg_channel_search.py": {
+      "sha256": "4926700145f8e48e39b77829ae391c3e12f65f22d9a7348e9c5de5465eabd2ec",
+      "matchesMain": true
+    },
+    "epg_auto_search.py": {
+      "sha256": "d7e69088983c3a9780155010704763705b3d35faaabd199313141036263aca8a",
+      "matchesMain": true
+    },
+    "epg_auto_search_worker.py": {
+      "sha256": "b89e5430c78a21f6777189c67c6ba077e4c488d5ad5fd2c1f5f584652f69f386",
+      "matchesMain": true
+    },
+    "epg_schedule_worker.py": {
+      "sha256": "dc5bbb3d5a38770c921649feec45aa50efe3b81109d5cdd7a9d7d21afe13ca46",
+      "matchesMain": true
+    },
+    "epg_discovery.py": {
+      "sha256": "ec6c6eda5b08b80d8a3704c2f9900abe11f90fe5975f3da43b5df28ca347706b",
+      "matchesMain": true
+    },
+    "epg_api.py": {
+      "sha256": "eca60e7c89dfc512fc3fd3758831c53a0d71d5ebd0f5957c472d9923b6b7939d",
+      "matchesMain": true
+    },
+    "epg_sources.json": {
+      "sha256": "dc821a6e189542191883aacfd4fedb1849996cb2bba8134bb20b98b88e504c25",
+      "matchesMain": false
+    },
+    "server_jobs.py": {
+      "sha256": "ed372ae4a81991fbf83c9c3f24ee66a4330f56b33105a4580351bfde450a8675",
+      "matchesMain": true
+    }
+  }
+}

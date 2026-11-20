@@ -1,0 +1,72 @@
+{
+  "realLive": true,
+  "scope": "server live ASR and native Flutter client; sampled caption state, not OCR",
+  "testStartedWall": 1794785360.570857,
+  "baseline": {
+    "wall": 1794785586.218262,
+    "position": 216.594966,
+    "serverTimeline": 246.0,
+    "mediaClockOrigin": 0
+  },
+  "pause": {
+    "start": 1044.0,
+    "observedWall": 1794786384.867079,
+    "sequence": 8323189
+  },
+  "returned": {
+    "start": 1194.0,
+    "observedWall": 1794786528.0176454,
+    "sequence": 8323339
+  },
+  "resume": {
+    "timeline": 1194.0,
+    "wall": 1794786529.8365426,
+    "mode": "verified_pts_continuity"
+  },
+  "mediaClockOrigin": 0,
+  "adMediaSeconds": 150.0,
+  "advertSamples": 3138,
+  "advertSamplesWithFilmCaption": 0,
+  "serverObservedRecoverySeconds": 1.8188972473144531,
+  "serverMediaRecoverySeconds": 0.0,
+  "nativeFirstCaptionDelaySeconds": 0.22430000000008476,
+  "holdoutCueCount": 3,
+  "holdout": [
+    {
+      "cue": 840,
+      "subtitleStart": 3001.569,
+      "asrStart": 1570.02,
+      "offset": 1431.549,
+      "words": 12,
+      "errorSeconds": 0.4470000000001164
+    },
+    {
+      "cue": 841,
+      "subtitleStart": 3004.338,
+      "asrStart": 1572.94,
+      "offset": 1431.3980000000001,
+      "words": 12,
+      "errorSeconds": 0.2960000000002765
+    },
+    {
+      "cue": 843,
+      "subtitleStart": 3010.21,
+      "asrStart": 1578.98,
+      "offset": 1431.23,
+      "words": 6,
+      "errorSeconds": 0.12800000000015643
+    }
+  ],
+  "medianAbsoluteAsrReferenceErrorSeconds": 0.2960000000002765,
+  "maximumAbsoluteAsrReferenceErrorSeconds": 0.4470000000001164,
+  "layouts": [
+    0,
+    1,
+    2
+  ],
+  "bufferingSamplesAfterStartup": 137,
+  "captionCyclePassed": true,
+  "playbackAccepted": false,
+  "bufferingIntervalObservedSeconds": 6.80065,
+  "overallAccepted": false
+}

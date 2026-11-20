@@ -202,6 +202,36 @@
     "history_title": "Cambios recientes",
     "history": [
       [
+        "2026-11-19",
+        "v1.3.1 · Todas las versiones disponibles en el menú de subtítulos",
+        "Abre Subtítulos durante la reproducción para ver las versiones por idioma. Elige una versión o vuelve al modo automático. La selección manual solo se aplica al programa actual. En ventanas pequeñas, Subtítulos está a la izquierda de Favoritos. El menú permite buscar de nuevo en el idioma elegido."
+      ],
+      [
+        "2026-11-18",
+        "v1.3.0 · La guía y los subtítulos automáticos, juntos",
+        "BobTV busca automáticamente en varias fuentes de subtítulos cuando la guía confirma el programa actual. Durante la reproducción puedes cambiar entre siete idiomas de preferencia y elegir hasta tres versiones distintas por idioma. La selección automática prueba tu idioma primero y luego el inglés. Los subtítulos se pausan durante los anuncios y se vuelven a sincronizar al regresar el programa."
+      ],
+      [
+        "2026-11-18",
+        "v1.1.25 · Subtítulos según el programa actual",
+        "Busca y almacena automáticamente subtítulos del programa EPG vinculado, incluido Comedy Movies UK. Usa el audio reproducido en el dispositivo para sincronizarlos. Prioriza el idioma elegido, después el inglés y después ningún subtítulo, con resincronización automática tras los anuncios."
+      ],
+      [
+        "2026-11-18",
+        "v1.1.24 · Reconocimiento local y recuperación de subtítulos",
+        "El dispositivo reconoce el audio de reproducción ya decodificado; el servidor busca y guarda los subtítulos. Se actualiza la señal británica Action Movies y se mejora la pausa durante anuncios y la sincronización al volver la película. Se elige el idioma solicitado, después inglés y finalmente sin subtítulos. Android aplaza el reconocimiento cuando el búfer es bajo."
+      ],
+      [
+        "2026-11-17",
+        "v1.1.23 · Subtítulos automáticos y caché por película",
+        "Se añaden indicadores de subtítulos en siete idiomas. El piloto Action Movies UK busca y reintenta los subtítulos en el servidor y los conecta automáticamente cuando están listos. Los archivos se conservan por película, edición e idioma. Se prioriza el idioma solicitado y después el inglés. Al reutilizar la caché, se vuelve a verificar la sincronización con la emisión en directo."
+      ],
+      [
+        "2026-11-16",
+        "v1.1.22 · Programación y subtítulos en directo",
+        "Ampliamos la programación verificada. Prueba de subtítulos en Action Movies UK: idioma elegido, inglés y sin subtítulos. Se suspenden durante los anuncios y se verifica la sincronización al volver a la película. Mejoramos la reproducción de segmentos publicitarios cortos. La lista de países y su índice siguen el idioma de la interfaz. Los avisos de la guía siguen el idioma elegido. Los canales almacenados siguen reproduciéndose si falla la sincronización."
+      ],
+      [
         "2026-11-12",
         "v1.1.21 · Mejoras en la transmisión",
         "Mejora de la detección de dispositivos locales, el reenvío de direcciones y los metadatos, con errores de conexión más claros y una mejor liberación de recursos."
@@ -351,7 +381,7 @@
     "closing_text": "Una columna para Windows, macOS y Android, con opciones de CPU en su interior. Hay disponibles paquetes nativos de Windows ARM64; Las pruebas de hardware de superficie están pendientes."
   },
   "downloads": {
-    "intro": "Windows, macOS y Android comparten la versión 1.1.21+116. Cambia de idioma en la parte superior de la aplicación. La selección manual se guarda. El modo automático usa el idioma del sistema, la zona horaria y, como último recurso, el inglés. Todos los instaladores incluyen los recursos de idioma. Se ha cerrado el acceso al modo avanzado. La sincronización de diagnósticos está desactivada de forma predeterminada. Con tu consentimiento, puede enviar hasta 30 días de registros depurados y puedes desactivarla en cualquier momento. La aplicación de macOS utiliza una firma ad-hoc.",
+    "intro": "Windows, macOS y Android comparten la versión 1.3.1+1. Cambia de idioma en la parte superior de la aplicación. La selección manual se guarda. El modo automático usa el idioma del sistema, la zona horaria y, como último recurso, el inglés. Todos los instaladores incluyen los recursos de idioma. Se ha cerrado el acceso al modo avanzado. La sincronización de diagnósticos está desactivada de forma predeterminada. Con tu consentimiento, puede enviar hasta 30 días de registros depurados y puedes desactivarla en cualquier momento. La aplicación de macOS utiliza una firma ad-hoc.",
     "latest": "Últimos instaladores",
     "local": "Descargas alojadas en este sitio",
     "sections": [
@@ -686,8 +716,8 @@
   },
   "showcase": {
     "title": "BobTV | Televisión en directo, radio y guía de programación",
-    "meta": "Explora canales, emisoras y señales en directo de más de 100 países en Windows, macOS y Android. Sitio disponible en siete idiomas.",
-    "eyebrow": "Televisión y radio en directo",
+    "meta": "BobTV confirma el programa actual con la guía y busca automáticamente en varias fuentes de subtítulos compatibles. Los subtítulos se actualizan al cambiar de canal o de programa.",
+    "eyebrow": "1.3.0 · Guía y subtítulos",
     "countries": "países y territorios",
     "languages": "idiomas en la web",
     "support": "Asistencia y políticas",
@@ -695,9 +725,9 @@
     "top": "Volver arriba",
     "footer": "Reproductor de TV y radio de código abierto",
     "hero": [
-      "El mundo está en directo.",
-      "Cobra vida ante tus ojos.",
-      "Desde el rugido del estadio hasta la radio de madrugada, explora canales, emisoras y señales en directo de más de 100 países."
+      "Televisión en directo.",
+      "Con sus diálogos.",
+      "Canales, guía y subtítulos, juntos para disfrutar del directo."
     ],
     "discover": [
       "Explora",
@@ -790,5 +820,52 @@
       "Deportes",
       "Documentales"
     ]
+  },
+  "subtitles": {
+    "nav": "Subtítulos auto",
+    "badge": "1.3.0 · Guía y subtítulos",
+    "title": "Sigue el programa y sus diálogos.",
+    "intro": "BobTV confirma el programa actual con la guía y busca automáticamente en varias fuentes de subtítulos compatibles. Los subtítulos se actualizan al cambiar de canal o de programa.",
+    "steps": [
+      [
+        "Saber qué se emite",
+        "Relaciona el canal con su programa EPG actual y consulta lo que viene después."
+      ],
+      [
+        "Cambia de idioma y versión durante la reproducción",
+        "Abre el menú de subtítulos en cualquier momento para cambiar de idioma o elegir entre un máximo de tres versiones distintas por idioma. La selección automática da prioridad a tu idioma y después prueba con el inglés."
+      ],
+      [
+        "Seguir el ritmo del directo",
+        "Comprueba diálogos y tiempos con el audio reproducido en tu dispositivo. Pausa los subtítulos durante los anuncios y confirma la nueva posición antes de reanudarlos."
+      ]
+    ],
+    "privacy": "El audio permanece en tu dispositivo. El servidor busca, almacena y sincroniza subtítulos sin descargar el vídeo de forma continua. Los recursos se reutilizan cuando vuelve a emitirse la misma película. Solo se envían fragmentos de diálogo e información temporal para sincronizar.",
+    "condition": "La guía debe identificar el programa actual y la versión de los subtítulos debe corresponder a la emisión. El reproductor indica cuándo faltan subtítulos o se están sincronizando. La resincronización por voz admite actualmente audio en inglés.",
+    "demo": "Explora qué ocurre durante un anuncio",
+    "demoNote": "Ejemplo del funcionamiento. La disponibilidad depende del programa, el idioma y la edición de los subtítulos.",
+    "current": "Ahora",
+    "next": "A continuación",
+    "later": "Después",
+    "programme": "Película actual",
+    "caption": "Los subtítulos siguen el programa que estás viendo.",
+    "modes": [
+      "Programa",
+      "Anuncios",
+      "Vuelve el programa"
+    ],
+    "statuses": [
+      "Subtítulos sincronizados",
+      "Subtítulos pausados durante los anuncios",
+      "Reanudar tras comprobar nuevos diálogos"
+    ],
+    "descriptions": [
+      "Identifica el programa y busca subtítulos a partir del EPG actual.",
+      "Los subtítulos de la película se pausan durante los anuncios.",
+      "Confirma la nueva posición antes de reanudar los subtítulos."
+    ],
+    "cta": "Prueba los subtítulos automáticos de 1.3.1",
+    "historyTitle": "La guía y los subtítulos automáticos, juntos",
+    "historyText": "BobTV busca automáticamente en varias fuentes de subtítulos cuando la guía confirma el programa actual. Durante la reproducción puedes cambiar entre siete idiomas de preferencia y elegir hasta tres versiones distintas por idioma. La selección automática prueba tu idioma primero y luego el inglés. Los subtítulos se pausan durante los anuncios y se vuelven a sincronizar al regresar el programa."
   }
 }

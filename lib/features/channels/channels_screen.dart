@@ -1,3 +1,4 @@
+import '../player/bobtv_video.dart';
 import '../../core/server_image.dart';
 import '../../core/i18n/language_menu.dart';
 import 'dart:async';
@@ -23,6 +24,7 @@ import '../../core/countdown_snackbar.dart';
 import '../../core/app_diagnostics.dart';
 import '../../core/app_version.dart';
 import '../../core/platform_info.dart';
+import '../../core/player_resources.dart';
 import '../../core/tablet_presentation.dart';
 import '../../core/weather_clock_widget.dart';
 import '../../data/datasources/local/database.dart' as db;
@@ -64,6 +66,7 @@ import '../player/player_presentation_buttons.dart';
 import '../player/radio_playback_surface.dart';
 import '../player/alternative_preview_overlay.dart';
 import '../player/stream_info_badges.dart';
+import '../player/subtitle_picker.dart';
 import '../providers/provider_manager.dart';
 import '../providers/source_maintenance_coordinator.dart';
 import '../shows/shows_providers.dart';
@@ -188,6 +191,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
   Timer? _volumeOverlayTimer;
   StreamSubscription<double>? _volumeSubscription;
   StreamSubscription<bool>? _playingSubscription;
+  StreamSubscription<String?>? _epgRouteSubscription;
   StreamSubscription<Player>? _activePlayerSubscription;
 
   // Last channel for back/forth toggle (not a full history stack)
@@ -270,6 +274,8 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
         final index = ChannelListIdentity.indexOf(_filteredChannels, id, (c) => c.id);
         return resolveLiveEpgId(ref.read(databaseProvider), channelId: id,
           providerId: index < 0 ? null : _filteredChannels[index].providerId,
+          actualStreamUrl: ref.read(playerServiceProvider).currentChannelId == id
+            ? ref.read(playerServiceProvider).currentUrl : null,
           fallbackId: null);
       },
       onError: (error, stack) => AppDiagnostics.instance.recordError(
@@ -278,6 +284,9 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
         stack,
       ),
     )..addListener(_onInlineProgrammeChanged);
+    _epgRouteSubscription = ref.read(playerServiceProvider).currentUrlStream.listen((_) {
+      if (mounted) _refreshInlineProgrammeStrip(forceRefresh: true);
+    });
     _guideScrollController = ScrollController();
     _loadChannels();
     unawaited(ref.read(bobTvCommunityProvider).start());
@@ -538,6 +547,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
 
   @override
   void dispose() {
+    unawaited(_epgRouteSubscription?.cancel());
     _routeRecovery.dispose();
     _epgUiRefresh?.dispose();
     _inlineProgrammePreview.removeListener(_onInlineProgrammeChanged);
@@ -1840,7 +1850,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
       if (mounted && selectionGeneration == _channelSelectionGeneration) {
         setState(() => _pendingChannelId = null);
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text(AppMessages.text(context, "同步线路状态失败，原频道继续播放，请重试")),
+          content: Text(AppMessages.text(context, "无法读取本地线路状态，请重试")),
         ));
       }
       return;
@@ -3654,6 +3664,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                 ),
               ),
               if (channel != null) ...[
+                if (!_allowsAudioOnly(channel)) _buildPreviewSubtitleButton(),
                 IconButton(
                   tooltip: _favoritedChannelIds.contains(channel.id) ? AppMessages.text(context, "取消收藏") : AppMessages.text(context, "加入收藏"),
                   onPressed: _favoriteActionsPending.contains(channel.id) ? null : () => _handleRouteMenuFavorite(channel),
@@ -3679,6 +3690,15 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
     );
   }
 
+  Widget _buildPreviewSubtitleButton() => SubtitleMenuButton(
+    session: () {
+      final service = ref.read(playerServiceProvider);
+      final player =
+          service.activeVideoController.value?.player ?? service.player;
+      return player is ManagedPlayer ? player.liveSubtitles : null;
+    },
+  );
+
   Widget _buildActiveVideo() {
     final service = ref.read(playerServiceProvider);
     final initialController = service.videoController;
@@ -3696,7 +3716,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
           );
         }
         return RepaintBoundary(
-          child: Video(
+          child: BobtvVideo(
             key: ValueKey(controller ?? initialController),
             controller: controller ?? initialController,
             controls: NoVideoControls,
@@ -3766,7 +3786,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
         }
       }
     } else if (international) {
-      if (_internationalCountries.isNotEmpty) { levels.add(CompactCategoryRow(tiny: tiny, level: 2, title: AppMessages.text(context, "国家或地区"), countryIndex: true, options: [
+      if (_internationalCountries.isNotEmpty) { levels.add(CompactCategoryRow(tiny: tiny, level: 2, title: AppMessages.text(context, "国家或地区"), countryIndex: true, countryLocale: AppLanguage.resolve([Localizations.localeOf(context)], null).tag, options: [
         for (final country in _internationalCountries) CompactCategoryOption(id: country, label: AppMessages.category(context, country), selected: country == _selectedInternationalCountry, onTap: () => _selectInternationalCountry(country), onContextMenu: (p) => _showCountryPinMenu(country, p)),
       ])); }
       levels.add(CompactCategoryRow(tiny: tiny, level: 3, title: AppMessages.text(context, "广播或电视"), options: [
@@ -4063,7 +4083,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                         Positioned.fill(
                           child: IgnorePointer(
                             child: RepaintBoundary(
-                              child: Video(
+                              child: BobtvVideo(
                                 controller: previewController,
                                 controls: NoVideoControls,
                                 fill: Colors.black,
@@ -5062,6 +5082,8 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                                   ),
                                 ),
                               ),
+                              if (!_allowsAudioOnly(_previewChannel!))
+                                _buildPreviewSubtitleButton(),
                               ExcludeFocus(
                                 excluding: Platform.isAndroid,
                                 child: PlayerPresentationButtons(

@@ -8,7 +8,7 @@ import time
 import unicodedata
 import urllib.error
 import urllib.request
-from urllib.parse import unquote, urlsplit
+from urllib.parse import parse_qsl, unquote, urlsplit
 
 from epg_channel_search import _domains
 from epg_identity_search import transport, validate_settings, reserve_shared_budget, SearchDeferred
@@ -45,6 +45,14 @@ PROFILES = {
 # fact. Bind this hint to the complete current catalogue context and exact
 # route set. A changed name/country/edition/route must not inherit the hint.
 SCOPED_PROFILES = {
+    'channel-ad73b92d25edfd0a31174431': {
+        'catalogue': {'name': '民視', 'countryCode': 'TW', 'regionCode': None, 'epgId': '民视'},
+        'categoryPath': ['国际', '台湾', '电视', '综合'],
+        'routeSha256': ['077b020e67391add63cc904d8f6d8aee25807ce48f846db192e3b854c3d8ebd8'],
+        'alias': '民視無線台 FTV', 'domains': ['ftv.com.tw'],
+        'identityTechnicalPages': ['https://m.ftv.com.tw/index.aspx'],
+        'identityApproved': False,
+    },
     'channel-c30099894d43d43966e2b684': {
         'catalogue': {'name': '公視', 'countryCode': None,
                       'regionCode': None, 'epgId': None},
@@ -210,6 +218,17 @@ def plan(channel, category_path, identity_facts, attempts, phase_index=0, review
                      'language': '播出语言 broadcast language', 'feedVariant': '地区版本 延时 regional delayed feed'}
             suffix = ' '.join(terms[key] for key in review_hint['unresolvedFields'] if key in terms)
     query = ' '.join(dict.fromkeys(v for v in (full, context.strip(), suffix) if v))[:650]
+    route_focus = None
+    if stage == 'identity':
+        preferred = list(dict.fromkeys(r['url'] for r in channel.get('routes', [])))
+        preferred.sort(key=lambda url: (not any(urlsplit(url).hostname == host or
+            (urlsplit(url).hostname or '').endswith('.' + host) for host in primary), url))
+        if preferred:
+            focus = preferred[attempts % len(preferred)]
+            route_focus = hashlib.sha256(focus.encode()).hexdigest()
+            host = urlsplit(focus).hostname
+            if host and len(preferred) > 1:
+                query = (' '.join((full, (alias or '').strip(), host, 'official live feed identity')))[:650]
     discovery_goal = ('Find the selected broadcaster official technical profile or station directory. '
         if stage == 'identity' else {
             'xmltv': 'Find ready-to-use XMLTV or XMLTV.gz programme data for this exact reviewed channel. ',
@@ -238,14 +257,24 @@ def plan(channel, category_path, identity_facts, attempts, phase_index=0, review
             'Do not infer language, number, no-delay edition or country from names or hostnames. '
             'This proposal cannot approve identity or programme data.')
     else:
-        instruction += ' Return candidate technical URLs and unresolved validation questions only.'
+        instruction += (' Return candidate technical URLs and unresolved validation questions only. '
+            'HTTP 200 without actual dated programme rows is unresolved, not EPG coverage. '
+            'For structured APIs, investigate required start/end date encodings, market, timezone, '
+            'service identifiers, pagination and response programme fields. When an official '
+            'schedule page is JavaScript-only, trace its public client scripts or documented '
+            'public schedule API contract rather than stopping at its HTML shell. '
+            'Keep exact regional/delay edition evidence separate from programme availability. '
+            'Prefer concrete dated programme payloads over repeated station directory links.')
     return {'stage': stage, 'fullName': full, 'aliases': [alias] if alias else [],
             'channelId': channel['id'], 'categoryPath': list(category_path),
             'catalogueContext': {key: channel.get(key) for key in ('name','countryCode','regionCode','epgId')},
             'targetLabels': labels,
             'catalogRoutes': [r['url'] for r in channel.get('routes', [])],
             'primaryDomains': primary,
-            'domains': domains, 'query': query,
+            'domains': domains, 'query': query, 'focusedRouteSha256': route_focus,
+            'independentQuery': ' '.join(v for v in (full, alias,
+                ('官方 直播 頻道' if any('\u3400' <= c <= '\u9fff' for c in full)
+                 else 'official live channel') if stage == 'identity' else suffix) if v)[:300],
             'body': {'model': None, 'store': False, 'stream': True, 'instructions': instruction,
                      'input': [{'role': 'user', 'content': query}],
                      'tools': [{'type': 'web_search', 'search_context_size': 'low',
@@ -256,8 +285,25 @@ def plan(channel, category_path, identity_facts, attempts, phase_index=0, review
 
 def candidate_allowed(url, domains, stage, *, request=None):
     try:
-        validate_public_url(url)
         p = urlsplit(url)
+        if p.query and stage != 'identity':
+            # Public schedule parameters only. The generic identity/source URL
+            # policy remains query-free; no credentials or arbitrary queries.
+            keys = {'date','day','from','to','start','end','starts_at','ends_at',
+                'start_time','end_time','startTime','endTime','startDate','endDate',
+                'start_date','end_date','epg_starts_at','epg_ends_at','channel',
+                'channel_id','channelId','channelid','channelname','service',
+                'service_id','serviceId','market','market_code','country','locale',
+                'language','lang','timezone','tz','page','per_page','limit','offset',
+                'classification_id','device_identifier','type','format','days','duration'}
+            pairs = parse_qsl(p.query,keep_blank_values=True,strict_parsing=True,max_num_fields=16)
+            if (len(url)>4096 or not pairs or len({k for k,v in pairs})!=len(pairs)
+                    or any(k not in keys or not v or len(v)>256
+                           or any(ord(c)<32 or ord(c)==127 for c in v) for k,v in pairs)):
+                return False
+            validate_public_url(p._replace(query='').geturl())
+        else:
+            validate_public_url(url)
         if domains and not any(p.hostname == d or p.hostname.endswith('.' + d) for d in domains):
             return False
         path = unquote(p.path).lower()
@@ -281,7 +327,7 @@ def candidate_allowed(url, domains, stage, *, request=None):
             technical = path == '/' or bool(re.search(
                 r'/(?:live|radio|station|stations|channel|channels|frequency|frequencies|about|aboutus|about-us|profile|introduce|introduction|tv|pc-portal|feeds)(?:[/_\-.]|$)', path))
             if stage != 'identity':
-                technical |= bool(re.search(r'(?:epg|schedule|calendar|programme|program|\.xml|\.gz|\.ics|\.csv|\.json)', path))
+                technical |= bool(re.search(r'(?:epg|schedule|calendar|programme|program|\.xml|\.gz|\.ics|\.csv|\.json)', location))
             if not technical and not (stage == 'identity' and reviewed_identity_page(url, request)):
                 return False
         return True
@@ -435,7 +481,7 @@ def check_candidate(url, request, *, opener=None, clock=time.monotonic):
     """Pinned public DNS, no redirects, cookies, tokens, compression or media.
 
     Identity pages get a bounded visible-text inspection. Programme candidates
-    receive HEAD only until separate source/data-use review authorizes content.
+    are actually read and inspected; candidate evidence creates no mapping or grant.
     Neither HTTP200 nor a model answer implies a valid current/future schedule.
     """
     if not candidate_allowed(url, request['domains'], request['stage'], request=request):
@@ -444,7 +490,7 @@ def check_candidate(url, request, *, opener=None, clock=time.monotonic):
         from process_channel_inventory import _HTTPSHandler
         opener = urllib.request.build_opener(urllib.request.ProxyHandler({}), NoRedirect(), _HTTPSHandler())
     identity = request['stage'] == 'identity'
-    req = urllib.request.Request(url, method='GET' if identity else 'HEAD', headers={
+    req = urllib.request.Request(url, method='GET', headers={
         'User-Agent': 'BobTV-Channel-Research/1', 'Accept-Encoding': 'identity'})
     started = clock()
     try:
@@ -453,17 +499,18 @@ def check_candidate(url, request, *, opener=None, clock=time.monotonic):
             if response.geturl() != url or code != 200:
                 return {'url': url, 'result': 'access_requires_review', 'httpStatus': code,
                         'reason': 'Redirect or non200 not followed.', 'bodyBytes': 0}
-            if response.headers.get('Content-Encoding', 'identity').lower() != 'identity':
+            if (identity and response.headers.get('Content-Encoding', 'identity').lower() != 'identity'):
                 raise EpgError('auto_search_compression_not_allowed')
             content_type = response.headers.get('Content-Type', '').split(';')[0].lower()
-            if not identity:
-                return {'url': url, 'result': 'reachable_content_and_rights_unverified',
-                        'httpStatus': 200, 'contentType': content_type[:100], 'bodyBytes': 0,
-                        'reason': 'HEAD only. Programme freshness, exact mapping and rights require validation.'}
-            if content_type not in ('text/html', 'text/plain', 'application/xhtml+xml'):
-                raise EpgError('auto_search_identity_content_type_rejected')
+            allowed = (('text/html', 'text/plain', 'application/xhtml+xml') if identity else
+                ('text/html', 'text/plain', 'application/xhtml+xml', 'application/json',
+                 'application/xml', 'text/xml', 'application/xmltv+xml',
+                 'application/gzip', 'application/x-gzip', 'application/octet-stream'))
+            if content_type not in allowed:
+                raise EpgError('auto_search_content_type_rejected')
+            limit = 262144 if identity else 2 * 1024 * 1024
             size = response.headers.get('Content-Length', '')
-            if size.isdecimal() and int(size) > 262144:
+            if size.isdecimal() and int(size) > limit:
                 raise EpgError('auto_search_page_limit')
             chunks, size = [], 0
             while True:
@@ -473,10 +520,16 @@ def check_candidate(url, request, *, opener=None, clock=time.monotonic):
                 if not chunk:
                     break
                 size += len(chunk)
-                if size > 262144:
+                if size > limit:
                     raise EpgError('auto_search_page_limit')
                 chunks.append(chunk)
             raw = b''.join(chunks)
+            if not identity:
+                from epg_programme_probe import inspect_programme_content
+                return {'url': url, 'httpStatus': 200, 'contentType': content_type,
+                    'bodyBytes': len(raw), 'bodySha256': hashlib.sha256(raw).hexdigest(),
+                    **inspect_programme_content(raw, content_type, int(time.time())),
+                    'reason': 'Actual public response read. Exact identity and publication remain separate reviews.'}
             parser = VisibleText()
             parser.feed(raw.decode('utf-8', errors='replace'))
             text = re.sub(r'\s+', ' ', ' '.join(parser.parts))[:65536]

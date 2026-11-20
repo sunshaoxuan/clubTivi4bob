@@ -58,6 +58,126 @@ def rows(c):
     return {r['channel_id']: dict(r) for r in c.execute('SELECT * FROM epg_channel_research_jobs')}
 
 
+def test_server_followup_obeys_retry_and_preserves_normal_rotation(conn):
+    channels = targets()
+    target = channels[1]
+    cid = target['id']
+    q.enqueue(conn, target, 'fixture-v1', PATH, NOW)
+    data = {'channelId': cid, 'identityHash': rows(conn)[cid]['identity_hash'],
+            'notBeforeUtc': NOW + 1, 'expiresAtUtc': NOW + 86400}
+    with conn:
+        conn.execute('UPDATE epg_channel_research_jobs SET next_retry=? WHERE channel_id=?', (NOW + 60, cid))
+        conn.execute('INSERT INTO epg_checkpoints VALUES(?,?)', (w.FOLLOWUP, json.dumps(data)))
+    assert w.due_followup(conn, set(), NOW + 59, set()) is None
+    assert w.due_followup(conn, {cid}, NOW + 60, set()) is None
+    assert w.due_followup(conn, set(), NOW + 60, {cid}) is None
+    result = run(conn, channels, clock=lambda: NOW + 60,
+                 cross_index=lambda _: ('checked', []))
+    assert [x['channelId'] for x in result['processedChannels']][:2] == [cid, channels[0]['id']]
+    assert w.read_checkpoint(conn, w.FOLLOWUP)['completedAtUtc'] == NOW + 60
+    assert w.due_followup(conn, set(), NOW + 61, set()) is None
+    assert not result['newMappings']
+
+
+def test_brave_budget_is_durable_and_reserves_failed_calls(conn, monkeypatch, tmp_path):
+    import epg_cross_search as x
+    (tmp_path / 'bobtv-brave-search').write_text('fixture-key\n')
+    monkeypatch.setenv('CREDENTIALS_DIRECTORY', str(tmp_path))
+    now = [NOW]
+    calls = []
+    monkeypatch.setattr(x, 'brave', lambda q: calls.append(q) or ('unavailable', []))
+    index = x.metered_index(conn, lambda: now[0])
+    for _ in range(30):
+        assert index('fixture')[0] == 'unavailable'
+        assert x.metered_index(conn, lambda: now[0])('fixture')[0] == 'budget_deferred'
+        now[0] += 1200
+    assert index('fixture')[0] == 'budget_deferred'
+    assert len(calls) == 30
+    now[0] += 86400
+    assert index('fixture')[0] == 'unavailable'
+    with conn:
+        conn.execute('DELETE FROM epg_brave_usage')
+        conn.executemany('INSERT INTO epg_brave_usage(attempted) VALUES(?)', [(NOW-86400,)] * 899)
+    now[0] += 1200
+    assert index('fixture')[0] == 'unavailable'
+    now[0] += 1200
+    assert index('fixture')[0] == 'budget_deferred'
+    now[0] += 30 * 86400
+    assert index('fixture')[0] == 'unavailable'
+
+
+def test_ftv_official_entry_survives_empty_ai_and_unconfigured_index(conn):
+    ftv = {'id': 'channel-ad73b92d25edfd0a31174431', 'name': '民視',
+           'countryCode': 'TW', 'regionCode': None, 'epgId': '民视',
+           'routes': [{'url': 'http://211.72.174.95:8115/0.ts'}]}
+    path = ['国际', '台湾', '电视', '综合']
+    hits = []
+    result = w.run(conn, {'version': 'fixture-v1'}, [ftv], {ftv['id']: path},
+        settings, None, clock=lambda: NOW, monotonic=lambda: 0,
+        transport=lambda settings, body: response(body, []), reserve=lambda *_: None,
+        cross_index=lambda _: ('not_configured', []),
+        checker=lambda url, request: hits.append(url) or {'url': url, 'bodyBytes': 0})
+    assert hits == ['https://m.ftv.com.tw/index.aspx']
+    assert result['processedChannels'][0]['crossSearch']['state'] == 'not_configured'
+    assert not rows(conn)[ftv['id']]['identity_evidence']
+    assert rows(conn)[ftv['id']]['next_retry'] > NOW
+    assert result['newGrants'] == result['newMappings'] == 0
+
+
+def test_independent_lead_after_empty_ai_and_index_backoff_moves_to_next(conn):
+    calls = []
+    def index(query):
+        calls.append(query)
+        return 'rate_limited', []
+    result = run(conn, transport=lambda settings, body: response(body, []), cross_index=index)
+    assert len(calls) == 1
+    assert [v['crossSearch']['state'] for v in result['processedChannels']] == ['rate_limited', 'backoff']
+    assert len({v['channelId'] for v in result['processedChannels']}) == 2
+    assert not result['programmeResponsesRead']
+
+
+def test_index_rechecks_phase_and_target_and_deduplicates():
+    from epg_cross_search import augment
+    request = s.plan(channel(), PATH, None, 0)
+    title = request['fullName']
+    good = 'https://fixture.example.org/live'
+    other = 'https://fixture.example.org/channel'
+    brave_only = 'https://fixture.example.org/live/other-url'
+    evidence = {'candidates': [{'url': other}, {'url': good}]}
+    augment(request, evidence, NOW, index=lambda _: ('checked', [
+        {'url': good, 'title': title}, {'url': good, 'title': title},
+        {'url': brave_only, 'title': title},
+        {'url': 'https://fixture.example.org/schedule', 'title': title},
+        {'url': 'https://other.example.org/live', 'title': 'Unrelated'}]))
+    assert [r['url'] for r in evidence['candidates']] == [good, other]
+    assert evidence['crossSearch']['corroboratedLeads'] == 1
+    assert evidence['crossSearch']['indexTargetMatches'] == 2
+    assert brave_only not in json.dumps(evidence)
+
+
+def test_route_focus_rotates_without_changing_identity_scope():
+    c = channel()
+    c['routes'] = [{'url': 'https://fixture.example.org/one.m3u8'},
+                   {'url': 'https://relay.example.org/two.m3u8'}]
+    a, b = [s.plan(c, PATH, None, n) for n in (0, 1)]
+    assert a['focusedRouteSha256'] != b['focusedRouteSha256']
+    assert a['catalogRoutes'] == b['catalogRoutes']
+    assert a['stage'] == b['stage'] == 'identity'
+
+
+def test_region_blocks_prioritize_japan_taiwan_hong_kong_then_world(conn):
+    catalog = [{**channel(identity='fixture-' + country), 'countryCode': country}
+               for country in ('JP', 'TW', 'HK', 'DE')]
+    paths = {c['id']: PATH for c in catalog}
+    for claims, country in ((0, 'JP'), (3, 'TW'), (6, 'HK'), (9, 'DE')):
+        with conn:
+            conn.execute('INSERT OR REPLACE INTO epg_checkpoints VALUES(?,?)',
+                ('channel_search_fairness', json.dumps({'claims': claims})))
+        chosen = w.choose(conn, {'version': 'fixture-v1'}, catalog, paths,
+            set(), NOW, set(), regional_rotation=True)
+        assert chosen['channel_id'] == 'fixture-' + country
+
+
 def test_actual_queue_rotates_two_unknown_channels_and_persists_backoff(conn):
     result = run(conn)
     assert result['aiRequestsAttempted'] == 2 and len(result['processedChannels']) == 2
@@ -513,16 +633,24 @@ def test_bounded_identity_page_check_does_not_accept_scripts_or_approve_facts():
     assert 'approved' not in value
 
 
-def test_schedule_candidate_uses_head_only_and_never_claims_freshness():
-    request = s.plan(channel(), PATH, facts(), 0)
-    url = 'https://lyngsat.com/epg.xml.gz'
-    def opened(req, **_):
-        assert req.method == 'HEAD'
-        p = Page(url)
-        p.read1 = lambda *_: pytest.fail('Programme body fetched before separate rights review')
-        return p
+def test_programme_candidates_are_actually_read_and_inspected():
+    request = s.plan(channel(), PATH, facts(), 0, phase_index=1)
+    url = 'https://lyngsat.com/schedule.json'
+    payload = json.dumps({'data': [{'title': 'Fixture programme',
+        'starts_at': '2026-11-15T12:00:00Z', 'ends_at': '2026-11-15T13:00:00Z'}]}).encode()
+    class Response(io.BytesIO):
+        code = 200
+        headers = {'Content-Type': 'application/json'}
+        def geturl(self): return url
+        def read1(self, n): return self.read(n)
+    def opened(req, **kwargs):
+        assert req.method == 'GET'
+        return Response(payload)
     value = s.check_candidate(url, request, opener=types.SimpleNamespace(open=opened))
-    assert value['bodyBytes'] == 0 and value['result'] == 'reachable_content_and_rights_unverified'
+    assert value['bodyBytes'] == len(payload)
+    assert value['validIntervalRecords'] == 1
+    assert value['programmeIdentityApproved'] is False
+    assert value['published'] is False
 
 
 def test_page_size_compression_redirect_and_timeout_are_not_success():
@@ -640,7 +768,7 @@ def test_deployed_exec_override_cannot_keep_the_old_read_only_selector():
     root = Path(__file__).parents[1] / 'deploy'
     unit = (root / 'bobtv-epg-source-discovery.service').read_text()
     override = (root / 'bobtv-epg-source-discovery.service.d/20-channel-first.conf').read_text()
-    expected = 'ExecStart=/opt/bobtv/venv/bin/python /opt/bobtv/site/epg_auto_search_worker.py --max-channels 3'
+    expected = 'ExecStart=/opt/bobtv/venv/bin/python /opt/bobtv/site/epg_auto_search_worker.py --max-channels 5'
     assert expected in unit and expected in override and 'ExecStart=\n' in override
     assert 'epg_channel_research_worker.py' not in override
 
@@ -683,3 +811,56 @@ def test_execution_health_recovers_after_a_later_success_without_resetting_histo
     assert receipt['state'] == 'progressed' and receipt['safeError'] is None and receipt['durable']
     assert 'errorFamily' not in w.read_checkpoint(conn, w.EXECUTION)
     assert len(rows(conn)) == 2
+
+
+def test_all_catalogue_new_admission_alternates_with_due_queue(conn):
+    old = channel(identity='old', country='CN')
+    new = channel(identity='new', country='US')
+    paths = {c['id']: PATH for c in (old, new)}
+    q.enqueue(conn, old, 'fixture-v1', PATH, NOW)
+    assert w.choose(conn, {'version':'fixture-v1'}, [old,new], paths, set(), NOW, set())['channel_id']=='old'
+    conn.execute('INSERT OR REPLACE INTO epg_checkpoints VALUES(?,?)',
+                 ('channel_search_fairness', json.dumps({'claims':1,'countryLastClaim':{'CN':1}})))
+    chosen = w.choose(conn, {'version':'fixture-v1'}, [old,new], paths, set(), NOW, set())
+    assert chosen['channel_id']=='new' and chosen['identity_evidence'] is None
+    assert json.loads(chosen['payload'])['countryCode']=='US'
+
+
+def test_country_rotation_prevents_permanent_regional_starvation(conn):
+    targets=[channel(identity='cn',country='CN'),channel(identity='us',country='US')]
+    for c in targets:q.enqueue(conn,c,'fixture-v1',PATH,NOW)
+    conn.execute('INSERT OR REPLACE INTO epg_checkpoints VALUES(?,?)',
+        ('channel_search_fairness',json.dumps({'claims':2,'countryLastClaim':{'CN':2}})))
+    assert w.choose(conn,{'version':'fixture-v1'},targets,{c['id']:PATH for c in targets},set(),NOW,set())['channel_id']=='us'
+
+
+def test_daily_cap_migration_releases_only_old_budget_pause_once(conn):
+    w.control(conn,NOW,'search_budget_deferred',NOW+86400)
+    result=run(conn)
+    assert result['aiRequestsAttempted']>0
+    assert w.read_checkpoint(conn,'search_admission_policy_v2')['dailyLimit'] is None
+    w.control(conn,NOW,'search_budget_deferred',NOW+600)
+    assert run(conn)['state']=='waiting_shared_admission'
+
+
+def test_catalogue_scope_counts_are_disjoint(conn):
+    result=run(conn)
+    scope=result['catalogScope']
+    assert scope['catalogChannels']==scope['reviewedMappingsProtected']+scope['researchQueuedChannels']+scope['notYetAdmittedChannels']
+
+
+def test_dated_programme_api_accepts_public_contract_parameters_only():
+    url='https://gizmo.rakuten.tv/v3/live_channels?market_code=uk&classification_id=18&device_identifier=web&locale=en&per_page=25&page=1&epg_starts_at=2026-11-15T00%3A00%3A00Z&epg_ends_at=2026-11-17T00%3A00%3A00Z'
+    assert s.candidate_allowed(url,['rakuten.tv'],'structured_api')
+    assert not s.candidate_allowed(url,['rakuten.tv'],'identity')
+    for tail in ['&token=secret','&api_key=secret','&page=2','&unknown=anything','&channel=%0Aprivate']:
+        assert not s.candidate_allowed(url+tail,['rakuten.tv'],'structured_api')
+    assert not s.candidate_allowed(url.replace('gizmo.rakuten.tv','127.0.0.1'),[],'structured_api')
+    assert not s.candidate_allowed(url.replace('/v3/live_channels','/login'),[],'structured_api')
+
+
+def test_actual_body_read_counts_exclude_cached_references(conn):
+    result=run(conn,checker=lambda url,request:{'url':url,'result':'fixture_checked','bodyBytes':123,'httpStatus':200})
+    assert result['sourceBodiesRead']==1
+    assert result['programmeResponsesRead']==0
+    assert result['sourceCheckAttempts']==1

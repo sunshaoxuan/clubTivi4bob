@@ -94,6 +94,14 @@ def execution_receipt(conn, now, result=None, error=None):
 
 
 def save_checkpoint(conn, result):
+    directory = result.pop('_roundDirectory', None)
+    if directory is not None:
+        try:
+            from epg_research_rounds import record
+            result['coverageRound'] = record(conn, directory, result['checkedAtUtc'],
+                execution=result, now=result.get('finishedAtUtc', result['checkedAtUtc']))
+        except (OSError, ValueError, KeyError, TypeError, sqlite3.Error):
+            result['coverageRound'] = {'state':'measurement_unavailable','coverageNotAssumed':True}
     previous = read_checkpoint(conn, CHECKPOINT)
     accepted = [v['channelId'] for v in result.get('processedChannels', []) if v.get('searchEvidenceAccepted')]
     if accepted:
@@ -152,7 +160,22 @@ def research_priority(channel, path=None):
     return (0 if regional else 10) + int(not playable)
 
 
-def choose(conn, manifest, channels, paths, protected, now, handled):
+FOLLOWUP = 'channel_search_followup_v1'
+
+
+def due_followup(conn, protected, now, handled):
+    """Consume no budget or lease unless the original queue also says due."""
+    task = read_checkpoint(conn, FOLLOWUP)
+    cid = task.get('channelId')
+    if (not cid or cid in protected or cid in handled or task.get('completedAtUtc')
+            or not task.get('notBeforeUtc', now + 1) <= now < task.get('expiresAtUtc', 0)):
+        return None
+    return conn.execute('''SELECT * FROM epg_channel_research_jobs WHERE channel_id=?
+        AND identity_hash=? AND active=1 AND next_retry<=? AND lease_until<=?''',
+        (cid, task.get('identityHash'), now, now)).fetchone()
+
+
+def choose(conn, manifest, channels, paths, protected, now, handled, *, regional_rotation=False):
     # Previously due cases rotate first. An exhausted/incomplete channel has a
     # persisted future retry and cannot monopolize this batch or the next one.
     rows = conn.execute('''SELECT * FROM epg_channel_research_jobs WHERE active=1
@@ -174,18 +197,31 @@ def choose(conn, manifest, channels, paths, protected, now, handled):
     ranks = {r['channel_id']: 10 * (research_priority(by_id[r['channel_id']], paths[r['channel_id']]) // 10)
              + r['priority'] % 10
              for r in eligible}
-    eligible.sort(key=lambda r: (r['channel_id'] not in recovering, ranks[r['channel_id']] // 10,
+    fairness = read_checkpoint(conn, 'channel_search_fairness')
+    country_turns = fairness.get('countryLastClaim', {})
+    # Persisted claim count rotates three-country blocks, with an equally
+    # sized world block so the rest of the catalogue cannot starve.
+    region = ('JP', 'TW', 'HK', None)[(fairness.get('claims', 0) // 3) % 4]
+    def region_rank(channel):
+        country = channel.get('countryCode')
+        return int(regional_rotation and (
+            country != region if region else country in {'JP', 'TW', 'HK'}))
+    eligible.sort(key=lambda r: (r['channel_id'] not in recovering,
+        region_rank(by_id[r['channel_id']]),
+        country_turns.get(by_id[r['channel_id']].get('countryCode') or '__unknown__', -1), ranks[r['channel_id']] // 10,
         0 if r['identity_evidence'] is not None else 1, ranks[r['channel_id']],
         broadcast_rank(by_id[r['channel_id']], paths[r['channel_id']]),
         r['next_retry'], r['channel_id']))
     row = next(iter(eligible), None)
-    if row:
+    fair = read_checkpoint(conn, 'channel_search_fairness').get('claims', 0)
+    if row and (row['channel_id'] in recovering or
+                (fair % 2 == 0 and not region_rank(by_id[row['channel_id']]))):
         return row
     known = {r[0] for r in conn.execute('SELECT channel_id FROM epg_channel_research_jobs')}
-    channel = next((c for c in sorted(channels, key=lambda c: (research_priority(c, paths[c['id']]), broadcast_rank(c, paths[c['id']]), c['id']))
+    channel = next((c for c in sorted(channels, key=lambda c: (region_rank(c), country_turns.get(c.get('countryCode') or '__unknown__', -1), research_priority(c, paths[c['id']]), broadcast_rank(c, paths[c['id']]), c['id']))
                     if c['id'] not in known and c['id'] not in protected and c['id'] not in handled), None)
-    if channel is None:
-        return None
+    if channel is None or (row and region_rank(by_id[row['channel_id']]) < region_rank(channel)):
+        return row
     # Admit a single real public target, never a bulk provider/source scan.
     queue.enqueue(conn, channel, manifest['version'], paths[channel['id']], now)
     return conn.execute('SELECT * FROM epg_channel_research_jobs WHERE channel_id=?', (channel['id'],)).fetchone()
@@ -239,6 +275,12 @@ def claim_target(conn, expected, now, *, admit=None):
             return None
         row = conn.execute('SELECT * FROM epg_channel_research_jobs WHERE channel_id=?', (expected['channel_id'],)).fetchone()
         queue._audit(conn, row, now, 'channel_auto_search_claimed', {'networkRequests': 0, 'nextRetryAt': row['next_retry']})
+        fairness = read_checkpoint(conn, 'channel_search_fairness')
+        fairness['claims'] = int(fairness.get('claims', 0)) + 1
+        country = json.loads(row['payload']).get('countryCode') or '__unknown__'
+        fairness.setdefault('countryLastClaim', {})[country] = fairness['claims']
+        conn.execute('INSERT OR REPLACE INTO epg_checkpoints VALUES(?,?)',
+                     ('channel_search_fairness', queue.encoded(fairness)))
         conn.commit()
         return dict(row)
     except BaseException:
@@ -259,7 +301,11 @@ def checked_candidates(conn, evidence, request, now, checker):
                 'reason': 'candidate_phase_or_access_policy_rejected'})
             continue
         cached = conn.execute('SELECT checked_at,result FROM epg_research_http_cache WHERE url=?', (url,)).fetchone()
-        if cached and now - cached[0] < 21600:
+        cached_value = json.loads(cached[1]) if cached else {}
+        old_head = (request['stage'] != 'identity' and cached_value.get('httpStatus') == 200
+                    and cached_value.get('bodyBytes') == 0
+                    and cached_value.get('contentInspectionVersion', 0) < 2)
+        if cached and now - cached[0] < 21600 and not old_head:
             check = json.loads(cached[1])
             # A shared page is not downloaded again for a different target;
             # target-specific snippets from the first check are not reused.
@@ -332,6 +378,14 @@ def finish(conn, claim, request, evidence, now, *, error=None, retry_at=None, ma
             'identityReviewed': bool(row['identity_evidence']),
             'identityAutomaticallyApproved': newly_reviewed, 'programmeSearchPerformed': request['stage'] != 'identity',
             'newMappings': 0, 'newGrants': 0, 'newProgrammeRows': 0, 'published': False})
+        task = read_checkpoint(conn, FOLLOWUP)
+        if (evidence is not None and not error and task.get('channelId') == row['channel_id']
+                and task.get('identityHash') == row['identity_hash']
+                and not task.get('completedAtUtc')
+                and task.get('notBeforeUtc', now + 1) <= now < task.get('expiresAtUtc', 0)
+                and (evidence.get('crossSearch') or {}).get('state') == 'checked'):
+            conn.execute('UPDATE epg_checkpoints SET value=? WHERE name=?',
+                         (queue.encoded({**task, 'completedAtUtc': now}), FOLLOWUP))
         if evidence is not None and request['stage'] != 'identity':
             index = phase(conn, row) + 1
             conn.execute('INSERT OR REPLACE INTO epg_research_search_progress VALUES(?,?,?)', (row['channel_id'], row['identity_hash'], index))
@@ -348,7 +402,7 @@ def finish(conn, claim, request, evidence, now, *, error=None, retry_at=None, ma
 def run(conn, manifest, channels, paths, settings_factory, shared_database, *, max_channels=3,
         max_seconds=150, clock=time.time, monotonic=time.monotonic, transport=search.transport,
         reserve=search.reserve_shared_budget, checker=search.check_candidate, reload_targets=None, source_directory=None,
-        route_directory_checker=None, route_directory_due=None):
+        route_directory_checker=None, route_directory_due=None, cross_index=None, regional_rotation=False):
     if type(max_channels) is not int or not 1 <= max_channels <= 5 or not 60 <= max_seconds <= 180:
         raise EpgError('auto_search_invalid_batch_limit')
     if (not isinstance(channels, list) or len(channels) > 10000
@@ -360,13 +414,23 @@ def run(conn, manifest, channels, paths, settings_factory, shared_database, *, m
         'catalogVersion': manifest['version'], 'catalogChannels': len(channels), 'state': 'idle',
         'networkSearchExecutorImplemented': True, 'identityAutomaticallyApproved': False,
         'legacyCountryProviderDiscoveryEnabled': False, 'aiRequestsAttempted': 0,
-        'sourceCheckAttempts': 0,
+        'sourceCheckAttempts': 0, 'sourceBodiesRead': 0, 'programmeResponsesRead': 0,
         'claimedChannels': 0, 'processedChannels': [], 'newMappings': 0,
         'identityReviewExecutorImplemented': True, 'identitiesConfirmedThisRun': 0,
         'identityEvidencePacketsStaged': 0, 'sourceValidationHandoffs': 0,
         'newGrants': 0, 'newProgrammeRows': 0, 'published': False}
+    if source_directory is not None:
+        result['_roundDirectory'] = str(source_directory)
     result['lockedMappingRecovery'] = recovery.sync(conn, manifest, channels, paths, now)
     by_id, protected = sync_known(conn, manifest, channels, paths, now)
+    known_ids = {r[0] for r in conn.execute('SELECT channel_id FROM epg_channel_research_jobs')}
+    result['catalogScope'] = {'catalogChannels': len(channels),
+        'reviewedMappingsProtected': len(protected),
+        'researchQueuedChannels': len((set(by_id) & known_ids) - protected),
+        'notYetAdmittedChannels': len(set(by_id) - known_ids - protected),
+        'pendingStates': {r[0]: r[1] for r in conn.execute(
+            'SELECT state,count(*) FROM epg_channel_research_jobs WHERE active=1 GROUP BY state')},
+        'policy': 'all_public_catalog_channels; country_rotation; alternate_new_and_due; no_daily_request_cap'}
     result['cachedIdentityEvidenceRecovery'] = review.recover_one_cached_identity(conn, now, protected)
     result['identityEvidencePacketsStaged'] += result['cachedIdentityEvidenceRecovery']['recoveredChannels']
     # Public source checks need no AI request and must not stop just because
@@ -374,13 +438,25 @@ def run(conn, manifest, channels, paths, settings_factory, shared_database, *, m
     if source_directory is not None:
         result['sourceValidation'] = review.validate_one_source(conn, source_directory, now,
             preferred_ids=recovery.eligible_ids(conn, now))
+        for key in ('newMappings', 'newGrants'):
+            result[key] += result['sourceValidation'].get(key, 0)
     # Opt-in exact-route metadata is separate from model admission. It only
     # observes the selected target and cannot grant identity or EPG rights.
     pause = read_checkpoint(conn, CONTROL)
+    policy = read_checkpoint(conn, 'search_admission_policy_v2')
+    if not policy and pause.get('safeError') == 'search_budget_deferred' and not pause.get('requiresManualAction'):
+        pause = {**pause, 'retryAtUtc': 0, 'dailyCapRemoved': True}
+        with conn:
+            conn.execute('INSERT OR REPLACE INTO epg_checkpoints VALUES(?,?)', (CONTROL, queue.encoded(pause)))
+    if not policy:
+        with conn:
+            conn.execute('INSERT OR REPLACE INTO epg_checkpoints VALUES(?,?)',
+                ('search_admission_policy_v2', queue.encoded({'installedAtUtc': now, 'dailyLimit': None, 'hourlyLimit': 60})))
     metadata_requests = 0
     if route_directory_checker is not None and not pause.get('requiresManualAction'):
         checked_targets = route_directory_due(conn, now, channels, paths) if route_directory_due is not None else set()
-        selected = choose(conn, manifest, channels, paths, protected_ids(conn, now), now, checked_targets)
+        selected = choose(conn, manifest, channels, paths, protected_ids(conn, now), now, checked_targets,
+                          regional_rotation=regional_rotation)
         if selected is not None:
             cid = selected['channel_id']
             result['routeDirectoryIdentity'] = {'channelId': cid, 'name': by_id[cid]['name'],
@@ -402,7 +478,14 @@ def run(conn, manifest, channels, paths, settings_factory, shared_database, *, m
         # Pending checked evidence is reviewed before spending more quota on
         # web search. This local stage preserves each channel's network floor.
         recovering = recovery.eligible_ids(conn, now)
+        followup = due_followup(conn, protected_ids(conn, now), now, handled)
+        if followup is not None and followup['channel_id'] not in by_id:
+            followup = None
         task = review.pending(conn, now, preferred_ids=recovering)
+        if followup is not None:
+            # The explicit one-shot target uses at most one normal claim per
+            # batch. Leave the other slots to the ordinary rotation.
+            task = None
         due_recovery = any(r[0] in recovering and r[0] not in handled for r in conn.execute(
             'SELECT channel_id FROM epg_channel_research_jobs WHERE active=1 AND next_retry<=? AND lease_until<=?', (now, now)))
         if due_recovery and task is not None and task['channel_id'] not in recovering:
@@ -456,7 +539,9 @@ def run(conn, manifest, channels, paths, settings_factory, shared_database, *, m
             if error:
                 break
             continue
-        row = choose(conn, manifest, channels, paths, protected_ids(conn, now), now, handled)
+        row = followup if followup is not None else choose(
+            conn, manifest, channels, paths, protected_ids(conn, now), now, handled,
+            regional_rotation=regional_rotation)
         if row is None:
             break
         cid = row['channel_id']
@@ -498,8 +583,24 @@ def run(conn, manifest, channels, paths, settings_factory, shared_database, *, m
         global_wait = False
         try:
             evidence = search.decode(transport(settings, request['body']), request, int(clock()))
+            if cross_index is not None:
+                from epg_cross_search import augment
+                index_now = int(clock())
+                floor = read_checkpoint(conn, 'brave_index_backoff').get('retryAtUtc', 0)
+                state = augment(request, evidence, index_now,
+                    index=(lambda _: ('backoff', [])) if floor > index_now else cross_index)
+                if state in {'rate_limited', 'unavailable', 'invalid_response', 'authorization_required'}:
+                    delay = 86400 if state == 'authorization_required' else 3600
+                    with conn:
+                        conn.execute('INSERT OR REPLACE INTO epg_checkpoints VALUES(?,?)',
+                            ('brave_index_backoff', queue.encoded({'retryAtUtc': index_now + delay,
+                                                                  'state': state})))
             evidence['technicalChecks'] = checked_candidates(conn, evidence, request, int(clock()), checker)
             result['sourceCheckAttempts'] += sum(not check.get('cacheReused', False) for check in evidence['technicalChecks'])
+            bodies = sum(check.get('bodyBytes',0)>0 and not check.get('cacheReused',False)
+                         for check in evidence['technicalChecks'])
+            result['sourceBodiesRead'] += bodies
+            result['programmeResponsesRead'] += bodies if request['stage'] != 'identity' else 0
         except search.SearchDeferred as exc:
             error, retry, manual = exc.code, exc.retry_at, exc.requires_manual_action
             retry = now + 7 * 86400 if manual else retry
@@ -545,6 +646,7 @@ def run(conn, manifest, channels, paths, settings_factory, shared_database, *, m
                     'state': 'identity_pending_backoff' if not identity_reviewed else 'source_validation_pending_backoff',
                     'nextRetryAtUtc': next_retry, 'auditRecorded': True,
                     'searchEvidenceAccepted': evidence is not None,
+                    'crossSearch': evidence.get('crossSearch') if evidence else None,
                     'candidateCount': len(evidence['candidates']) if evidence else 0,
                     'technicalCheckCount': len(evidence.get('technicalChecks', [])) if evidence else 0}
         except EpgError:
@@ -598,9 +700,11 @@ def main():
                         return target_hash(current, current_paths[current['id']]) if current else None
                     return epg_route_directory.check_selected(conn, row, channel, path, now,
                         reload_selected=current_identity)
+            from epg_cross_search import metered_index
             result = run(conn, manifest, channels, paths, config, shared_database,
                 max_channels=args.max_channels, reload_targets=lambda: load_targets(args.data_dir), source_directory=directory,
-                route_directory_checker=directory_checker, route_directory_due=directory_due)
+                route_directory_checker=directory_checker, route_directory_due=directory_due,
+                cross_index=metered_index(conn, time.time), regional_rotation=True)
             result['executionHealth'] = execution_receipt(conn, int(time.time()), result=result)
             print(json.dumps(result, ensure_ascii=False))
         except (OSError, ValueError, KeyError, TypeError, sqlite3.Error) as exc:

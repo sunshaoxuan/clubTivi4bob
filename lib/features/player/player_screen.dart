@@ -1,3 +1,4 @@
+import '../player/bobtv_video.dart';
 import 'radio_playback_surface.dart';
 import '../../core/server_image.dart';
 import 'dart:async';
@@ -96,6 +97,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   StreamSubscription<bool>? _bufferingSubscription;
   StreamSubscription<Player>? _activePlayerSubscription;
   StreamSubscription<String?>? _castStatusSubscription;
+  StreamSubscription<String?>? _epgRouteSubscription;
   bool _castBusy = false;
 
   // Channel switching state
@@ -135,8 +137,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       );
 
   // Track selection state
-  bool _subtitlesEnabled = false;
-  List<SubtitleTrack> _subtitleTracks = [];
   List<AudioTrack> _audioTracks = [];
 
   @override
@@ -218,6 +218,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     _autoHideOverlay();
     _scheduleCursorHide();
     _loadEpgInfo();
+    _epgRouteSubscription = ref.read(playerServiceProvider).currentUrlStream.listen((_) {
+      if (mounted) unawaited(_loadEpgInfo(clear: true, force: true));
+    });
     _epgUiRefresh = EpgUiRefresh(
       ref.read(databaseProvider).watchEpgChanges(),
       () async {
@@ -285,6 +288,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
         channelId: ch['id'] as String? ?? '',
         providerId: ch['providerId'] as String?,
         fallbackId: (ch['epgId'] ?? ch['epgChannelId']) as String?,
+        actualStreamUrl: ref.read(playerServiceProvider).currentUrl,
       );
     } catch (error, stack) {
       AppDiagnostics.instance.recordError(
@@ -480,126 +484,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     final player = ref.read(playerServiceProvider).player;
     final tracks = player.state.tracks;
     setState(() {
-      _subtitleTracks = tracks.subtitle
-          .where((t) => t.id != 'auto' && t.id != 'no')
-          .toList();
       _audioTracks = tracks.audio
           .where((t) => t.id != 'auto' && t.id != 'no')
           .toList();
-      _subtitlesEnabled =
-          player.state.track.subtitle.id != 'no' &&
-          player.state.track.subtitle.id != 'auto';
     });
-  }
-
-  void _toggleSubtitles() {
-    final player = ref.read(playerServiceProvider).player;
-    if (_subtitlesEnabled) {
-      player.setSubtitleTrack(SubtitleTrack.no());
-      setState(() => _subtitlesEnabled = false);
-    } else if (_subtitleTracks.isNotEmpty) {
-      player.setSubtitleTrack(_subtitleTracks.first);
-      setState(() => _subtitlesEnabled = true);
-    }
-  }
-
-  void _showSubtitlePicker() {
-    _loadTrackInfo();
-    final player = ref.read(playerServiceProvider).player;
-    final currentId = player.state.track.subtitle.id;
-    showModalBottomSheet<void>(
-      context: context,
-      backgroundColor: BobTvPalette.panel,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-      ),
-      builder: (ctx) {
-        return Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Icon(Icons.closed_caption, color: Colors.white, size: 20),
-                  SizedBox(width: 8),
-                  Text(
-                    AppMessages.text(context, "字幕"),
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 15,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 8),
-              ListTile(
-                dense: true,
-                leading: Icon(
-                  Icons.block,
-                  color: currentId == 'no'
-                      ? Colors.greenAccent
-                      : Colors.white54,
-                  size: 20,
-                ),
-                title: Text(
-                  AppMessages.text(context, "关闭"),
-                  style: TextStyle(color: Colors.white70, fontSize: 13),
-                ),
-                trailing: currentId == 'no'
-                    ? const Icon(
-                        Icons.check,
-                        color: Colors.greenAccent,
-                        size: 18,
-                      )
-                    : null,
-                onTap: () {
-                  player.setSubtitleTrack(SubtitleTrack.no());
-                  setState(() => _subtitlesEnabled = false);
-                  Navigator.of(ctx).pop();
-                },
-              ),
-              ..._subtitleTracks.map((t) {
-                final isActive = t.id == currentId;
-                return ListTile(
-                  dense: true,
-                  title: Text(
-                    t.title ?? t.language ?? t.id,
-                    style: TextStyle(
-                      color: isActive ? Colors.white : Colors.white70,
-                      fontSize: 13,
-                    ),
-                  ),
-                  subtitle: t.language != null
-                      ? Text(
-                          t.language!,
-                          style: const TextStyle(
-                            color: Colors.white38,
-                            fontSize: 11,
-                          ),
-                        )
-                      : null,
-                  trailing: isActive
-                      ? const Icon(
-                          Icons.check,
-                          color: Colors.greenAccent,
-                          size: 18,
-                        )
-                      : null,
-                  onTap: () {
-                    player.setSubtitleTrack(t);
-                    setState(() => _subtitlesEnabled = true);
-                    Navigator.of(ctx).pop();
-                  },
-                );
-              }),
-            ],
-          ),
-        );
-      },
-    );
   }
 
   void _showAudioPicker() {
@@ -1249,6 +1137,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
 
   @override
   void dispose() {
+    unawaited(_epgRouteSubscription?.cancel());
     _epgUiRefresh?.dispose();
     if (Platform.isAndroid) {
       AndroidPipService.instance.active.removeListener(_onAndroidPipChanged);
@@ -1339,7 +1228,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                           logoUrl: _currentChannelLogo,
                         );
                       }
-                      return Video(
+                      return BobtvVideo(
                         key: ValueKey(active),
                         controller: active,
                         controls: NoVideoControls,
@@ -1416,10 +1305,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                     PlayerControlBar(
                       isCasting: ref.read(castServiceProvider).isCasting,
                       isFavorite: _isFavorite,
-                      hasSubtitles: _subtitleTracks.isNotEmpty,
-                      subtitlesEnabled: _subtitlesEnabled,
-                      onSubtitleToggle: _toggleSubtitles,
-                      onSubtitleSelect: _showSubtitlePicker,
                       audioTrackCount: _audioTracks.length,
                       onAudioSelect: _showAudioPicker,
                       onCastTap: () => _showCastPicker(),

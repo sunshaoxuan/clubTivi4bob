@@ -32,7 +32,23 @@ jobs:
       - uses: actions/cache@v4
         with:
           path: ${{ runner.temp }}/bobtv-android-native
-          key: radio-fft-ndk28-${{ matrix.arch }}-${{ hashFiles('tools/native/af_bobtv_spectrum.c','tools/native/build_android_spectrum.py') }}
+          key: radio-fft-ndk28-${{ matrix.arch }}-${{ hashFiles('tools/native/af_bobtv_spectrum.c','tools/native/build_android_spectrum.py','tools/native/af_bobtv_pcm.c') }}
+          restore-keys: radio-fft-ndk28-${{ matrix.arch }}-
+      - uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}/bobtv-client-subtitles
+          key: client-asr-v1.8.2-ndk28-${{ matrix.arch }}-${{ hashFiles('tools/native/build_client_subtitles.py','tools/native/build_android_blas.py') }}
+          restore-keys: client-asr-v1.8.2-ndk28-${{ matrix.arch }}-
+      - name: Build offline subtitle workers
+        run: python tools/native/build_client_subtitles.py --platform android --arch '${{ matrix.arch }}' --cache "$RUNNER_TEMP/bobtv-client-subtitles" --output client-subtitles
+      - name: Build guarded x64 optimized worker
+        if: matrix.arch == 'x64'
+        run: python tools/native/build_client_subtitles.py --platform android --arch x64 --cpu avx2 --cache "$RUNNER_TEMP/bobtv-client-subtitles" --output client-subtitles
+      - uses: actions/upload-artifact@v4
+        with:
+          name: client-subtitles-android-${{ matrix.arch }}
+          path: client-subtitles
+          retention-days: 30
       - name: Build the pinned native runtime with the production FFT analyzer
         run: python tools/native/build_android_spectrum.py --arch '${{ matrix.arch }}' --cache "$RUNNER_TEMP/bobtv-android-native" --output native-artifacts
       - uses: actions/upload-artifact@v4

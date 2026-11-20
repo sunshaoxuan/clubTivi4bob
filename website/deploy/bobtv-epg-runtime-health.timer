@@ -1,0 +1,12 @@
+[Unit]
+Description=Independently check continuous BobTV EPG operation
+
+[Timer]
+OnActiveSec=1min
+OnUnitInactiveSec=10min
+AccuracySec=10s
+RandomizedDelaySec=15s
+Persistent=true
+
+[Install]
+WantedBy=timers.target

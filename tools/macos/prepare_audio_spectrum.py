@@ -16,7 +16,7 @@ import urllib.request
 
 VERSION = '6.0'
 SHA256 = '57be87c22d9b49c112b6d24bc67d42508660e6b718b3db89c44e47e289137082'
-FILTERS = 'aformat,asplit,pan,bandpass,amerge,astats,aresample,equalizer,overlay,bobtv_spectrum'
+FILTERS = 'aformat,asplit,pan,bandpass,amerge,astats,aresample,equalizer,overlay,bobtv_spectrum,bobtv_pcm'
 ROOT = Path(__file__).resolve().parents[2]
 
 
@@ -48,6 +48,8 @@ def prepare(app, cache):
     if not patch.exists():
         patch = Path(__file__).with_name('af_bobtv_spectrum.c')
     shutil.copy2(patch, source / 'libavfilter/af_bobtv_spectrum.c')
+    pcm = ROOT / 'tools/native/af_bobtv_pcm.c'
+    shutil.copy2(pcm, source / 'libavfilter/af_bobtv_pcm.c')
     registry = source / 'libavfilter/allfilters.c'
     text = registry.read_text()
     if 'extern const AVFilter ff_af_bobtv_spectrum;' not in text:
@@ -57,12 +59,18 @@ def prepare(app, cache):
     text = makefile.read_text()
     if 'CONFIG_BOBTV_SPECTRUM_FILTER' not in text:
         makefile.write_text(text + '\nOBJS-$(CONFIG_BOBTV_SPECTRUM_FILTER) += af_bobtv_spectrum.o\n')
+    text = registry.read_text()
+    if 'extern const AVFilter ff_af_bobtv_pcm;' not in text:
+        registry.write_text(text.replace('extern const AVFilter ff_af_astats;', 'extern const AVFilter ff_af_astats;\nextern const AVFilter ff_af_bobtv_pcm;'))
+    text = makefile.read_text()
+    if 'CONFIG_BOBTV_PCM_FILTER' not in text:
+        makefile.write_text(text + '\nOBJS-$(CONFIG_BOBTV_PCM_FILTER) += af_bobtv_pcm.o\n')
     outputs = []
     for arch in architectures:
         directory = cache / ('fft-v1-' + arch)
         directory.mkdir(exist_ok=True)
         output = directory / 'Avfilter'
-        fingerprint = hashlib.sha256((SHA256 + FILTERS + arch + 'macos12-v2' + hashlib.sha256(patch.read_bytes()).hexdigest()).encode()).hexdigest()
+        fingerprint = hashlib.sha256((SHA256 + FILTERS + arch + 'macos12-v2' + hashlib.sha256(patch.read_bytes()+pcm.read_bytes()).hexdigest()).encode()).hexdigest()
         stamp = directory / 'fingerprint'
         if not output.exists() or not stamp.exists() or stamp.read_text() != fingerprint:
             # Copied build caches may contain a source snapshot or an absolute
@@ -115,6 +123,7 @@ def prepare(app, cache):
     shutil.copy2(source / 'COPYING.LGPLv2.1', sources)
     shutil.copy2(Path(__file__), sources)
     shutil.copy2(patch, sources)
+    shutil.copy2(pcm, sources)
     print(f'Embedded real audio spectrum filters: {", ".join(architectures)}', flush=True)
 
 
@@ -124,3 +133,8 @@ if __name__ == '__main__':
     parser.add_argument('--cache', type=Path, default=ROOT / 'build/native-audio-spectrum')
     args = parser.parse_args()
     prepare(args.app.resolve(), args.cache.resolve())
+    from prepare_client_asr import prepare as prepare_asr
+    cmake = shutil.which(os.environ.get('BOBTV_CMAKE', 'cmake'))
+    if not cmake:
+        raise RuntimeError('CMake is required to package offline subtitle workers')
+    prepare_asr(args.app.resolve(), cmake)

@@ -32,6 +32,7 @@ class CompactCategoryRow extends StatefulWidget {
     required this.options,
     this.tiny = false,
     this.countryIndex = false,
+    this.countryLocale = 'zh-CN',
   });
 
   final int level;
@@ -39,6 +40,7 @@ class CompactCategoryRow extends StatefulWidget {
   final List<CompactCategoryOption> options;
   final bool tiny;
   final bool countryIndex;
+  final String countryLocale;
 
   @override
   State<CompactCategoryRow> createState() => _CompactCategoryRowState();
@@ -50,6 +52,20 @@ class _CompactCategoryRowState extends State<CompactCategoryRow> {
   bool _opensUpwards = false;
   double _rowWidth = 480;
 
+  List<CompactCategoryOption> _orderedOptions() {
+    final options = List<CompactCategoryOption>.of(widget.options);
+    if (widget.countryIndex) {
+      options.sort(
+        (a, b) => CountryNameIndex.compare(
+          a.label,
+          b.label,
+          locale: widget.countryLocale,
+        ),
+      );
+    }
+    return options;
+  }
+
   Future<void> _showOptions() async {
     if (_menuOpen) return;
     if (widget.countryIndex) {
@@ -59,7 +75,8 @@ class _CompactCategoryRowState extends State<CompactCategoryRow> {
         builder: (context) => _CountryMenu(
           title: widget.title,
           level: widget.level,
-          options: List<CompactCategoryOption>.of(widget.options),
+          options: _orderedOptions(),
+          locale: widget.countryLocale,
         ),
       );
       if (!mounted) return;
@@ -214,9 +231,7 @@ class _CompactCategoryRowState extends State<CompactCategoryRow> {
           ? null
           : (d) => option.onContextMenu!(d.globalPosition),
       child: Material(
-        color: option.selected
-            ? BobTvPalette.accent
-            : BobTvPalette.selected,
+        color: option.selected ? BobTvPalette.accent : BobTvPalette.selected,
         borderRadius: BorderRadius.circular(menu ? 12 : 18),
         child: InkWell(
           key: ValueKey(
@@ -269,136 +284,139 @@ class _CompactCategoryRowState extends State<CompactCategoryRow> {
   }
 
   @override
-  Widget build(BuildContext context) => SizedBox(
-    key: ValueKey('category-level-${widget.level}'),
-    height: math.max(
-      widget.tiny ? 24 : 32,
-      MediaQuery.textScalerOf(context).scale(widget.tiny ? 10 : 12) * 1.2 +
-          (widget.tiny ? 12 : 16),
-    ),
-    child: LayoutBuilder(
-      builder: (context, constraints) {
-        _rowWidth = constraints.maxWidth;
-        double optionWidth(CompactCategoryOption option) {
-          final painter = TextPainter(
-            text: TextSpan(
-              text: option.label,
-              style: DefaultTextStyle.of(context).style.merge(
-                TextStyle(
-                  fontSize: widget.tiny ? 10 : 12,
-                  height: 1.2,
-                  fontWeight: option.selected
-                      ? FontWeight.w700
-                      : FontWeight.w500,
+  Widget build(BuildContext context) {
+    final options = _orderedOptions();
+    return SizedBox(
+      key: ValueKey('category-level-${widget.level}'),
+      height: math.max(
+        widget.tiny ? 24 : 32,
+        MediaQuery.textScalerOf(context).scale(widget.tiny ? 10 : 12) * 1.2 +
+            (widget.tiny ? 12 : 16),
+      ),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          _rowWidth = constraints.maxWidth;
+          double optionWidth(CompactCategoryOption option) {
+            final painter = TextPainter(
+              text: TextSpan(
+                text: option.label,
+                style: DefaultTextStyle.of(context).style.merge(
+                  TextStyle(
+                    fontSize: widget.tiny ? 10 : 12,
+                    height: 1.2,
+                    fontWeight: option.selected
+                        ? FontWeight.w700
+                        : FontWeight.w500,
+                  ),
                 ),
               ),
-            ),
-            textDirection: Directionality.of(context),
-            textScaler: MediaQuery.textScalerOf(context),
-          )..layout();
-          final width = (painter.width + 20).ceilToDouble();
-          painter.dispose();
-          return width;
-        }
+              textDirection: Directionality.of(context),
+              textScaler: MediaQuery.textScalerOf(context),
+            )..layout();
+            final width = (painter.width + 20).ceilToDouble();
+            painter.dispose();
+            return width;
+          }
 
-        final widths = widget.options.map(optionWidth).toList();
-        final total =
-            widths.fold(0.0, (a, b) => a + b) +
-            math.max(0, widths.length - 1) * 5;
-        if (total <= constraints.maxWidth) {
+          final widths = options.map(optionWidth).toList();
+          final total =
+              widths.fold(0.0, (a, b) => a + b) +
+              math.max(0, widths.length - 1) * 5;
+          if (total <= constraints.maxWidth) {
+            return Row(
+              children: [
+                for (var i = 0; i < options.length; i++) ...[
+                  if (i > 0) const SizedBox(width: 5),
+                  SizedBox(width: widths[i], child: _button(options[i])),
+                ],
+              ],
+            );
+          }
+          final moreWidth = math.min(80.0, constraints.maxWidth * .4);
+          final remaining = math.max(0.0, constraints.maxWidth - moreWidth - 5);
+          // Keep the selected category visible even when it is deep in the catalog.
+          final selected = options.indexWhere((o) => o.selected);
+          final visible = <int>[];
+          var used = 0.0;
+          if (selected >= 0 && remaining > 0) {
+            visible.add(selected);
+            used = math.min(widths[selected], remaining);
+          }
+          for (var i = 0; i < options.length; i++) {
+            if (i == selected) continue;
+            final extra = widths[i] + (visible.isEmpty ? 0 : 5);
+            if (used + extra <= remaining) {
+              visible.add(i);
+              used += extra;
+            }
+          }
+          visible.sort();
           return Row(
             children: [
-              for (var i = 0; i < widget.options.length; i++) ...[
+              for (var i = 0; i < visible.length; i++) ...[
                 if (i > 0) const SizedBox(width: 5),
-                SizedBox(width: widths[i], child: _button(widget.options[i])),
+                SizedBox(
+                  width: math.min(widths[visible[i]], remaining),
+                  child: _button(options[visible[i]]),
+                ),
               ],
+              const Spacer(),
+              SizedBox(
+                width: moreWidth,
+                child: Material(
+                  key: _moreKey,
+                  color: _menuOpen
+                      ? BobTvPalette.raised
+                      : BobTvPalette.selected,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.vertical(
+                      top: Radius.circular(
+                        _menuOpen && !widget.countryIndex && _opensUpwards
+                            ? 0
+                            : 16,
+                      ),
+                      bottom: Radius.circular(
+                        _menuOpen && !widget.countryIndex && !_opensUpwards
+                            ? 0
+                            : 16,
+                      ),
+                    ),
+                    side: BorderSide(
+                      color: _menuOpen ? BobTvPalette.outline : Colors.white12,
+                    ),
+                  ),
+                  child: InkWell(
+                    key: ValueKey('category-more-${widget.level}'),
+                    onTap: _showOptions,
+                    child: SizedBox(
+                      height: widget.tiny ? 24 : 32,
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Text(
+                            AppMessages.text(context, "更多"),
+                            style: TextStyle(
+                              color: Colors.white70,
+                              fontSize: widget.tiny ? 10 : 12,
+                            ),
+                          ),
+                          const Icon(
+                            Icons.expand_more,
+                            color: Colors.white70,
+                            size: 16,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
             ],
           );
-        }
-        final moreWidth = math.min(80.0, constraints.maxWidth * .4);
-        final remaining = math.max(0.0, constraints.maxWidth - moreWidth - 5);
-        // Keep the selected category visible even when it is deep in the catalog.
-        final selected = widget.options.indexWhere((o) => o.selected);
-        final visible = <int>[];
-        var used = 0.0;
-        if (selected >= 0 && remaining > 0) {
-          visible.add(selected);
-          used = math.min(widths[selected], remaining);
-        }
-        for (var i = 0; i < widget.options.length; i++) {
-          if (i == selected) continue;
-          final extra = widths[i] + (visible.isEmpty ? 0 : 5);
-          if (used + extra <= remaining) {
-            visible.add(i);
-            used += extra;
-          }
-        }
-        visible.sort();
-        return Row(
-          children: [
-            for (var i = 0; i < visible.length; i++) ...[
-              if (i > 0) const SizedBox(width: 5),
-              SizedBox(
-                width: math.min(widths[visible[i]], remaining),
-                child: _button(widget.options[visible[i]]),
-              ),
-            ],
-            const Spacer(),
-            SizedBox(
-              width: moreWidth,
-              child: Material(
-                key: _moreKey,
-                color: _menuOpen
-                    ? BobTvPalette.raised
-                    : BobTvPalette.selected,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.vertical(
-                    top: Radius.circular(
-                      _menuOpen && !widget.countryIndex && _opensUpwards
-                          ? 0
-                          : 16,
-                    ),
-                    bottom: Radius.circular(
-                      _menuOpen && !widget.countryIndex && !_opensUpwards
-                          ? 0
-                          : 16,
-                    ),
-                  ),
-                  side: BorderSide(
-                    color: _menuOpen ? BobTvPalette.outline : Colors.white12,
-                  ),
-                ),
-                child: InkWell(
-                  key: ValueKey('category-more-${widget.level}'),
-                  onTap: _showOptions,
-                  child: SizedBox(
-                    height: widget.tiny ? 24 : 32,
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Text(
-                          AppMessages.text(context, "更多"),
-                          style: TextStyle(
-                            color: Colors.white70,
-                            fontSize: widget.tiny ? 10 : 12,
-                          ),
-                        ),
-                        const Icon(
-                          Icons.expand_more,
-                          color: Colors.white70,
-                          size: 16,
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ],
-        );
-      },
-    ),
-  );
+        },
+      ),
+    );
+  }
 }
 
 class _CountryMenu extends StatefulWidget {
@@ -406,11 +424,13 @@ class _CountryMenu extends StatefulWidget {
     required this.title,
     required this.level,
     required this.options,
+    required this.locale,
   });
 
   final String title;
   final int level;
   final List<CompactCategoryOption> options;
+  final String locale;
 
   @override
   State<_CountryMenu> createState() => _CountryMenuState();
@@ -444,9 +464,7 @@ class _CountryMenuState extends State<_CountryMenu> {
       child: TextButton(
         key: ValueKey('country-initial-${initial ?? 'all'}'),
         style: TextButton.styleFrom(
-          foregroundColor: selected
-              ? BobTvPalette.onAccent
-              : BobTvPalette.ink,
+          foregroundColor: selected ? BobTvPalette.onAccent : BobTvPalette.ink,
           backgroundColor: selected
               ? BobTvPalette.accent
               : BobTvPalette.selected,
@@ -548,7 +566,9 @@ class _CountryMenuState extends State<_CountryMenu> {
   Widget build(BuildContext context) {
     final initials =
         widget.options
-            .map((o) => CountryNameIndex.initial(o.label))
+            .map(
+              (o) => CountryNameIndex.initial(o.label, locale: widget.locale),
+            )
             .toSet()
             .toList()
           ..sort(CountryNameIndex.compareInitials);
@@ -557,21 +577,32 @@ class _CountryMenuState extends State<_CountryMenu> {
             .where(
               (option) =>
                   (_initial == null ||
-                      CountryNameIndex.initial(option.label) == _initial) &&
-                  CountryNameIndex.matches(option.label, _search.text),
+                      CountryNameIndex.initial(
+                            option.label,
+                            locale: widget.locale,
+                          ) ==
+                          _initial) &&
+                  CountryNameIndex.matches(
+                    option.label,
+                    _search.text,
+                    locale: widget.locale,
+                  ),
             )
             .toList()
-          ..sort((a, b) {
-            final group = CountryNameIndex.compareInitials(
-              CountryNameIndex.initial(a.label),
-              CountryNameIndex.initial(b.label),
-            );
-            return group != 0 ? group : a.label.compareTo(b.label);
-          });
+          ..sort(
+            (a, b) => CountryNameIndex.compare(
+              a.label,
+              b.label,
+              locale: widget.locale,
+            ),
+          );
     final groups = <String, List<CompactCategoryOption>>{};
     for (final option in visible) {
       groups
-          .putIfAbsent(CountryNameIndex.initial(option.label), () => [])
+          .putIfAbsent(
+            CountryNameIndex.initial(option.label, locale: widget.locale),
+            () => [],
+          )
           .add(option);
     }
     return Dialog(
@@ -691,7 +722,10 @@ class _CountryMenuState extends State<_CountryMenu> {
                                         key: const ValueKey(
                                           'country-search-clear',
                                         ),
-                                        tooltip: AppMessages.text(context, "清空搜索"),
+                                        tooltip: AppMessages.text(
+                                          context,
+                                          "清空搜索",
+                                        ),
                                         visualDensity: VisualDensity.standard,
                                         onPressed: () {
                                           setState(() => _search.clear());
@@ -750,7 +784,10 @@ class _CountryMenuState extends State<_CountryMenu> {
                               ),
                             const SizedBox(height: 10),
                             Text(
-                              AppMessages.text(context, "{0} · {1} 个国家或地区", [_initial ?? '全部', visible.length]),
+                              AppMessages.text(context, "{0} · {1} 个国家或地区", [
+                                _initial ?? '全部',
+                                visible.length,
+                              ]),
                               style: const TextStyle(
                                 color: BobTvPalette.muted,
                                 fontSize: 12,

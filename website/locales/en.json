@@ -202,6 +202,36 @@
     "history_title": "Recent changes",
     "history": [
       [
+        "2026-11-19",
+        "v1.3.1 · All available versions in the subtitle menu",
+        "Open Subtitles during playback to see versions by language. Select a version or return to Automatic. Manual selection applies to the current programme only. In compact windows, Subtitles sits beside Favorites. The menu can search again for the preferred language."
+      ],
+      [
+        "2026-11-18",
+        "v1.3.0 · Programme guides and automatic subtitles, together",
+        "BobTV automatically searches multiple subtitle sources when the guide confirms the current programme. Switch between seven language preferences and choose from up to three distinct subtitle versions per language during playback. Automatic selection tries your preferred language, then English. Subtitles pause for adverts and realign when the programme returns."
+      ],
+      [
+        "2026-11-18",
+        "v1.1.25 · Subtitle lookup from the current programme",
+        "Automatically search and cache subtitles for the current bound EPG programme, including Comedy Movies UK. Match subtitle timing using decoded playback audio on the device. Selection follows the preferred language, English, then no subtitles, with automatic alignment after adverts."
+      ],
+      [
+        "2026-11-18",
+        "v1.1.24 · Local speech alignment and live subtitle recovery",
+        "Recognize decoded playback audio on the device while the server searches and caches subtitle files. Updated the Action Movies UK stream and improved subtitle suspension during adverts and automatic alignment after the film returns. Selection follows preferred language, English, then no subtitles. Android defers recognition when playback cache is low."
+      ],
+      [
+        "2026-11-17",
+        "v1.1.23 · Automatic subtitles and movie caching",
+        "Added subtitle status feedback in seven languages. The Action Movies UK pilot discovers and retries subtitles on the server and connects automatically when ready. Movie, edition and language identify persistent cached subtitle files. Selection prefers the requested language, then English. Live synchronization is verified again when cached files are reused."
+      ],
+      [
+        "2026-11-16",
+        "v1.1.22 · Programme guides and live subtitles",
+        "Expanded verified programme guides. Added a live subtitle pilot for Action Movies UK, with preferred-language, English and no-subtitle fallback, automatic advert suspension and verified recovery. Improved playback across short advert fragments. Country selection and its index now follow the interface language. EPG hints follow the interface language, and cached channels remain playable when route-state sync is unavailable."
+      ],
+      [
         "2026-11-12",
         "v1.1.21 · Improved casting",
         "Improved local device discovery, casting address forwarding and media metadata, with clearer connection failures and better discovery cleanup."
@@ -351,7 +381,7 @@
     "closing_text": "One column each for Windows, macOS and Android, with CPU choices inside. Native Windows ARM64 packages are available; Surface hardware tests are pending."
   },
   "downloads": {
-    "intro": "Windows, macOS and Android share version 1.1.21+116. Switch languages at the top of the app. Manual choices persist. Automatic mode uses the system language, then the time zone, then English. The language resources are included with each installer. The advanced mode entry has been closed. Diagnostic sync is off by default. Explicit consent enables up to 30 days of redacted records and can be withdrawn at any time.",
+    "intro": "Windows, macOS and Android share version 1.3.1+1. Switch languages at the top of the app. Manual choices persist. Automatic mode uses the system language, then the time zone, then English. The language resources are included with each installer. The advanced mode entry has been closed. Diagnostic sync is off by default. Explicit consent enables up to 30 days of redacted records and can be withdrawn at any time.",
     "latest": "Latest installers",
     "local": "Downloads hosted on this site",
     "sections": [
@@ -686,8 +716,8 @@
   },
   "showcase": {
     "title": "BobTV | Live TV, radio and program guides",
-    "meta": "Browse TV stations, radio and live sources from over 100 countries on Windows, macOS and Android. This website is available in seven languages.",
-    "eyebrow": "Live TV & radio",
+    "meta": "BobTV uses the programme guide to confirm what is playing, then automatically searches several supported subtitle sources. Subtitles update when the channel or programme changes.",
+    "eyebrow": "1.3.0 · Programme guides & subtitles",
     "countries": "countries & regions",
     "languages": "website languages",
     "support": "Support and policies",
@@ -695,9 +725,9 @@
     "top": "Back to top",
     "footer": "Open-source TV and radio player",
     "hero": [
-      "The world is live.",
-      "See it come alive.",
-      "From the roar of the stadium to late-night radio, explore TV stations, radio and live sources from over 100 countries."
+      "Live TV.",
+      "With words to follow.",
+      "Channels, programme guides and subtitles, together for the live TV you want to watch."
     ],
     "discover": [
       "Discover",
@@ -790,5 +820,52 @@
       "Sports channels",
       "Documentary channels"
     ]
+  },
+  "subtitles": {
+    "nav": "Auto subtitles",
+    "badge": "1.3.0 · Programme guides & subtitles",
+    "title": "Follow the programme. Follow the words.",
+    "intro": "BobTV uses the programme guide to confirm what is playing, then automatically searches several supported subtitle sources. Subtitles update when the channel or programme changes.",
+    "steps": [
+      [
+        "Know what is on",
+        "Match the channel and its current EPG programme, with the next programmes in view."
+      ],
+      [
+        "Change language and version while watching",
+        "Open the subtitle menu at any time to change language or choose from up to three distinct versions per language. Automatic selection tries your preferred language first, then English."
+      ],
+      [
+        "Stay in step with live TV",
+        "Check dialogue and timing using playback audio on your device. Pause subtitles during adverts, then confirm the new position before showing them again."
+      ]
+    ],
+    "privacy": "Playback audio stays on your device. The server searches, caches and aligns subtitles without continuously fetching the video stream. Cached resources can be reused when the same film returns. Only dialogue fragments and timing information are sent for alignment.",
+    "condition": "The guide must identify the current programme and a subtitle version must match the broadcast. The player shows when subtitles are unavailable or still synchronising. Speech realignment currently supports English audio.",
+    "demo": "Explore what happens during an advert",
+    "demoNote": "Workflow illustration. Availability depends on programme information, subtitle language and edition.",
+    "current": "Now playing",
+    "next": "Up next",
+    "later": "Later",
+    "programme": "Current film",
+    "caption": "Subtitles follow the programme you are watching.",
+    "modes": [
+      "Programme",
+      "Advert break",
+      "Programme returns"
+    ],
+    "statuses": [
+      "Subtitles aligned",
+      "Subtitles paused during adverts",
+      "Resume after checking fresh dialogue"
+    ],
+    "descriptions": [
+      "Identify the programme and retrieve subtitles from its current EPG.",
+      "Film subtitles stay paused while the advert plays.",
+      "Confirm the new playback position before subtitles resume."
+    ],
+    "cta": "Get 1.3.1 and try auto subtitles",
+    "historyTitle": "Programme guides and automatic subtitles, together",
+    "historyText": "BobTV automatically searches multiple subtitle sources when the guide confirms the current programme. Switch between seven language preferences and choose from up to three distinct subtitle versions per language during playback. Automatic selection tries your preferred language, then English. Subtitles pause for adverts and realign when the programme returns."
   }
 }

@@ -83,7 +83,7 @@ def test_shared_budget_reservation_is_single_and_preserves_old_history(budget):
     assert [r[0] for r in conn.execute('SELECT started FROM ai_requests ORDER BY started')] == [NOW-90000, NOW]
 
 
-@pytest.mark.parametrize('count,age,expected', [(60,100,3501),(500,7200,79201)])
+@pytest.mark.parametrize('count,age,expected', [(60,100,3501)])
 def test_shared_limits_apply_even_if_classification_settings_opt_out(budget,count,age,expected):
     conn, factory = budget
     with conn:conn.executemany('INSERT INTO ai_requests VALUES(?)', [(NOW-age,)]*count)
@@ -206,3 +206,11 @@ def test_source_limit_and_wrong_station_are_not_success():
         decode(response(sources=[{'url':'https://broadcaster.example.org/a'}]*101))
     with pytest.raises(EpgError,match='search_evidence_limit'):
         decode(response(sources=[{'url':'https://broadcaster.example.org/'+str(i)} for i in range(21)]))
+
+
+def test_daily_500_records_no_longer_block_research(budget):
+    conn, factory = budget
+    with conn:
+        conn.executemany('INSERT INTO ai_requests VALUES(?)', [(NOW-7200,)]*500)
+    search.reserve_shared_budget(factory, NOW)
+    assert conn.execute('SELECT count(*) FROM ai_requests').fetchone()[0] == 501

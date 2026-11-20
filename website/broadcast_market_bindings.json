@@ -1,0 +1,224 @@
+{
+  "schemaVersion": 1,
+  "policyVersion": "broadcast-edition-market-v1",
+  "reviewedAt": "2026-11-15T23:47:27.216723+00:00",
+  "bindings": [
+    {
+      "provider": "rakuten-tv",
+      "host": "action-rakuten-tv-uk.fast.rakuten.tv",
+      "serviceId": "6065",
+      "market": "GB",
+      "officialMarketParameter": "uk",
+      "officialSlug": "action-rakuten-tv",
+      "evidenceUrls": [
+        "https://gizmo.rakuten.tv/v3/live_channels/action-rakuten-tv?classification_id=18&device_identifier=web&locale=en&market_code=uk",
+        "https://action-rakuten-tv-uk.fast.rakuten.tv/v1/master/0547f18649bd788bec7b67b746e47670f558b6b2/production-LiveChannel-6065/master.m3u8"
+      ],
+      "matchingEnabled": true
+    },
+    {
+      "provider": "rakuten-tv",
+      "host": "drama-rakuten-tv-uk.fast.rakuten.tv",
+      "serviceId": "6093",
+      "market": "GB",
+      "officialMarketParameter": "uk",
+      "officialSlug": "drama-rakuten-tv",
+      "evidenceUrls": [
+        "https://gizmo.rakuten.tv/v3/live_channels/drama-rakuten-tv?classification_id=18&device_identifier=web&locale=en&market_code=uk",
+        "https://drama-rakuten-tv-uk.fast.rakuten.tv/v1/master/0547f18649bd788bec7b67b746e47670f558b6b2/production-LiveChannel-6093/master.m3u8"
+      ],
+      "matchingEnabled": true,
+      "programmeRouteProofSha256": "6cccfa2620dc858ed6391550e042f09edbe3de423b00bb44dec26d3911fa9eb6"
+    },
+    {
+      "provider": "rakuten-tv",
+      "host": "top-movies-rakuten-tv-uk.fast.rakuten.tv",
+      "serviceId": "5987",
+      "market": "GB",
+      "officialMarketParameter": "uk",
+      "officialSlug": "top-movies-rakuten-tv",
+      "evidenceUrls": [
+        "https://gizmo.rakuten.tv/v3/live_channels/top-movies-rakuten-tv?classification_id=18&device_identifier=web&locale=en&market_code=uk",
+        "https://top-movies-rakuten-tv-uk.fast.rakuten.tv/v1/master/0547f18649bd788bec7b67b746e47670f558b6b2/production-LiveChannel-5987/master.m3u8"
+      ],
+      "matchingEnabled": false
+    },
+    {
+      "provider": "rakuten-tv",
+      "host": "romance-rakuten-tv-uk.fast.rakuten.tv",
+      "serviceId": "6194",
+      "market": "GB",
+      "officialMarketParameter": "uk",
+      "officialSlug": "romance-rakuten-tv",
+      "evidenceUrls": [
+        "https://gizmo.rakuten.tv/v3/live_channels/romance-rakuten-tv?classification_id=18&device_identifier=web&locale=en&market_code=uk",
+        "https://romance-rakuten-tv-uk.fast.rakuten.tv/v1/master/0547f18649bd788bec7b67b746e47670f558b6b2/production-LiveChannel-6194/master.m3u8"
+      ],
+      "matchingEnabled": true
+    },
+    {
+      "provider": "rakuten-tv",
+      "host": "comedy-rakuten-tv-uk.fast.rakuten.tv",
+      "serviceId": "6181",
+      "market": "GB",
+      "officialMarketParameter": "uk",
+      "officialSlug": "comedy-rakuten-tv",
+      "evidenceUrls": [
+        "https://gizmo.rakuten.tv/v3/live_channels/comedy-rakuten-tv?classification_id=18&device_identifier=web&locale=en&market_code=uk",
+        "https://comedy-rakuten-tv-uk.fast.rakuten.tv/v1/master/0547f18649bd788bec7b67b746e47670f558b6b2/production-LiveChannel-6181/master.m3u8"
+      ],
+      "matchingEnabled": true,
+      "programmeRouteProofSha256": "384a8d5e7287e8fd1850997b132013a6acc2bad6ebd63a97f9fcc55fdfa3be38"
+    },
+    {
+      "provider": "rakuten-tv",
+      "host": "fee09fd665814f51b939b6d106cf5f66.mediatailor.eu-west-1.amazonaws.com",
+      "serviceId": "6093",
+      "market": "GB",
+      "officialMarketParameter": "uk",
+      "officialSlug": "drama-rakuten-tv",
+      "matchingEnabled": true,
+      "evidenceUrls": [
+        "https://gizmo.rakuten.tv/v3/live_channels/drama-rakuten-tv",
+        "https://drama-rakuten-tv-uk.fast.rakuten.tv/v1/manifest/0547f18649bd788bec7b67b746e47670f558b6b2/production-LiveChannel-6093/c4bcddc4-dfdf-4499-ae5d-7a68c79fcde9/4.m3u8",
+        "https://fee09fd665814f51b939b6d106cf5f66.mediatailor.eu-west-1.amazonaws.com/v1/master/0547f18649bd788bec7b67b746e47670f558b6b2/production-LiveChannel-6093/master.m3u8"
+      ],
+      "programmeRouteProofSha256": "6cccfa2620dc858ed6391550e042f09edbe3de423b00bb44dec26d3911fa9eb6"
+    },
+    {
+      "provider": "rakuten-tv",
+      "host": "9be783d652cd4b099cf63e1dc134c4a3.mediatailor.eu-west-1.amazonaws.com",
+      "serviceId": "6181",
+      "market": "GB",
+      "officialMarketParameter": "uk",
+      "officialSlug": "comedy-rakuten-tv",
+      "matchingEnabled": true,
+      "evidenceUrls": [
+        "https://gizmo.rakuten.tv/v3/live_channels/comedy-rakuten-tv",
+        "https://comedy-rakuten-tv-uk.fast.rakuten.tv/v1/manifest/0547f18649bd788bec7b67b746e47670f558b6b2/production-LiveChannel-6181/34b2bcf8-3a15-4ef7-bedb-04cae730c688/4.m3u8",
+        "https://9be783d652cd4b099cf63e1dc134c4a3.mediatailor.eu-west-1.amazonaws.com/v1/master/0547f18649bd788bec7b67b746e47670f558b6b2/production-LiveChannel-6181/master.m3u8"
+      ],
+      "programmeRouteProofSha256": "384a8d5e7287e8fd1850997b132013a6acc2bad6ebd63a97f9fcc55fdfa3be38"
+    },
+    {
+      "provider": "rakuten-tv",
+      "host": "family-rakuten-tv-uk.fast.rakuten.tv",
+      "serviceId": "6203",
+      "market": "GB",
+      "officialMarketParameter": "uk",
+      "officialSlug": "family-rakuten-tv",
+      "matchingEnabled": true,
+      "evidenceUrls": [
+        "https://gizmo.rakuten.tv/v3/live_channels/family-rakuten-tv",
+        "https://family-rakuten-tv-uk.fast.rakuten.tv/v1/manifest/0547f18649bd788bec7b67b746e47670f558b6b2/production-LiveChannel-6203/0426b7a3-6dd5-4a24-ac4c-22227a2b2f9d/4.m3u8"
+      ],
+      "programmeRouteProofSha256": "2d5b19c68eaef25cae3974d53892001b7cf3e394fa79d826357867c18a19399f"
+    },
+    {
+      "provider": "rakuten-tv",
+      "host": "reality-rakuten-tv-uk.fast.rakuten.tv",
+      "serviceId": "6233",
+      "market": "GB",
+      "officialMarketParameter": "uk",
+      "officialSlug": "reality-rakuten-tv",
+      "matchingEnabled": true,
+      "evidenceUrls": [
+        "https://gizmo.rakuten.tv/v3/live_channels/reality-rakuten-tv",
+        "https://reality-rakuten-tv-uk.fast.rakuten.tv/v1/manifest/0547f18649bd788bec7b67b746e47670f558b6b2/production-LiveChannel-6233/228208ef-d17f-4825-a278-eccf505de378/4.m3u8"
+      ],
+      "programmeRouteProofSha256": "2ce66e357b1e0f5fdb6c33c215036671a369d69233af4029ca82293810792649"
+    },
+    {
+      "provider": "pluto-tv",
+      "host": "service-stitcher.clusters.pluto.tv",
+      "serviceId": "5c5c3b948002db3c3e0b262e",
+      "market": "DE",
+      "officialSlug": "pluto-tv-movies-de",
+      "matchingEnabled": true,
+      "evidenceUrls": [
+        "https://api.pluto.tv/v2/channels/5c5c3b948002db3c3e0b262e"
+      ],
+      "identityProofSha256": "67c2eb1cba4443970d4e80c54d474bc97afbcf9999f84297f24cd0f67b5696ba"
+    },
+    {
+      "provider": "pluto-tv",
+      "host": "service-stitcher.clusters.pluto.tv",
+      "serviceId": "5d767b1c126c65d0a307355f",
+      "market": "DE",
+      "officialSlug": "pluto-tv-history-de-1",
+      "matchingEnabled": true,
+      "evidenceUrls": [
+        "https://api.pluto.tv/v2/channels/5d767b1c126c65d0a307355f"
+      ],
+      "identityProofSha256": "1e45aec42b132135802dd0874535655145a8b72c26b2566182fe656c371bbc94"
+    },
+    {
+      "provider": "pluto-tv",
+      "host": "service-stitcher.clusters.pluto.tv",
+      "serviceId": "5caf325764025859afdd6c4d",
+      "market": "DE",
+      "officialSlug": "mtv-pluto-tv-de",
+      "matchingEnabled": true,
+      "evidenceUrls": [
+        "https://api.pluto.tv/v2/channels/5caf325764025859afdd6c4d"
+      ],
+      "identityProofSha256": "a8ed68390462f7147eb85be1d03a030fbac2abedb483edf198bd6c59d518dec6"
+    },
+    {
+      "provider": "pluto-tv",
+      "host": "service-stitcher.clusters.pluto.tv",
+      "serviceId": "5db6a697d5f34a000934cd13",
+      "market": "DE",
+      "officialSlug": "mtv-catfish-tv-show-de",
+      "matchingEnabled": true,
+      "evidenceUrls": [
+        "https://api.pluto.tv/v2/channels/5db6a697d5f34a000934cd13"
+      ],
+      "identityProofSha256": "d9d84d6460af74303a896759babe4b31958be8f8e504726b8b36aa774ebc7ebb"
+    },
+    {
+      "provider": "pluto-tv",
+      "host": "service-stitcher.clusters.pluto.tv",
+      "serviceId": "5f1aca8310a30e00074fab92",
+      "market": "ES",
+      "officialSlug": "los-asesinatos-de-midsomer-es",
+      "matchingEnabled": true,
+      "evidenceUrls": [
+        "https://api.pluto.tv/v2/channels/5f1aca8310a30e00074fab92"
+      ],
+      "identityProofSha256": "1983eb754481c5c46142bff4b82d59828e2ae75c55fee67fb6e9619af6e00f1d"
+    },
+    {
+      "provider": "pluto-tv",
+      "host": "service-stitcher.clusters.pluto.tv",
+      "serviceId": "5d4947590ba40f75dc29c26b",
+      "market": "DE",
+      "officialSlug": "comedy-central-pluto-tv-de",
+      "matchingEnabled": true,
+      "evidenceUrls": [
+        "https://api.pluto.tv/v2/channels/5d4947590ba40f75dc29c26b"
+      ],
+      "identityProofSha256": "da504848f9df469a13cb9301237d705b9c5f818651f08a26c2dfe60239e47fad"
+    },
+    {
+      "provider": "pluto-tv",
+      "host": "service-stitcher.clusters.pluto.tv",
+      "serviceId": "5cb6f6f9a461406ffe4022cf",
+      "market": "GB",
+      "officialSlug": "the-fbi-files-gb",
+      "matchingEnabled": true,
+      "evidenceUrls": [
+        "https://api.pluto.tv/v2/channels/5cb6f6f9a461406ffe4022cf"
+      ],
+      "identityProofSha256": "4710225bcbc3e04aa4d2becc7b5d67fda8cd9b1a87aff5d5f797f3449dcc673c"
+    }
+  ],
+  "excludedEvidence": [
+    "operator registration country",
+    "film production country",
+    "spoken language",
+    "viewer location or CDN geolocation",
+    "playlist group or source directory country",
+    "EPG identifier country suffix without edition binding"
+  ]
+}

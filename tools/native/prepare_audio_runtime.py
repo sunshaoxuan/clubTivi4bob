@@ -16,7 +16,10 @@ def digest(path): return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
 def prepare(platform, arch, output):
-    lock = json.loads((ROOT / 'tools/native/runtime-lock.json').read_text())
+    lock_path = Path(os.environ.get('BOBTV_AUDIO_RUNTIME_LOCK', ROOT / 'tools/native/runtime-lock.json'))
+    lock = json.loads(lock_path.read_text())
+    if lock.get('pcmSourceSha256') and digest(ROOT / 'tools/native/af_bobtv_pcm.c') != lock['pcmSourceSha256']:
+        raise RuntimeError('The PCM source and native runtimes differ; rebuild the native artifacts')
     if digest(ROOT / 'tools/native/af_bobtv_spectrum.c') != lock['fftSourceSha256']:
         raise RuntimeError('The source and native FFT runtimes differ; rebuild the native artifacts')
     local = os.environ.get('BOBTV_AUDIO_RUNTIME_ARCHIVES')
@@ -25,9 +28,11 @@ def prepare(platform, arch, output):
     output.mkdir(parents=True, exist_ok=True)
     entries = lock[platform]
     if platform == 'windows': entries = {arch: entries[arch]}
+    if platform == 'android' and lock.get('clientSubtitleModels'):
+        entries = {**entries, 'subtitle-models': lock['clientSubtitleModels']}
     for architecture, item in entries.items():
         path = Path(local) / item['filename'] if local else cache / item['filename']
-        if not path.exists():
+        if not path.exists() or (not local and digest(path) != item['sha256']):
             if local: raise RuntimeError('Missing local runtime archive: ' + str(path))
             temporary = path.with_suffix(path.suffix + '.partial')
             urllib.request.urlretrieve(item['url'], temporary)
@@ -41,12 +46,21 @@ def prepare(platform, arch, output):
                     data = incoming.read(entry.filename)
                     if entry.filename == 'META-INF/bobtv-native-runtime.json':
                         entry.filename = f'META-INF/bobtv-native-runtime-{architecture}.json'
+                    elif entry.filename.startswith('META-INF/sources-and-licenses/'):
+                        entry.filename = entry.filename.replace('META-INF/sources-and-licenses/', f'META-INF/sources-and-licenses/{architecture}/', 1)
                     outgoing.writestr(entry, data)
         else:
             with zipfile.ZipFile(path) as archive:
                 for member in archive.namelist():
                     if '\\' in member or Path(member).is_absolute() or '..' in Path(member).parts:
                         raise RuntimeError('Unsafe runtime archive member')
+                # Remove only obsolete model data from the owned runtime output.
+                names = set(archive.namelist())
+                for model in ('ggml-base-q5_1.bin', 'ggml-tiny-q5_1.bin',
+                              'ggml-base.en-q5_1.bin', 'ggml-tiny.en-q5_1.bin'):
+                    member = 'data/ClientASR/' + model
+                    if member not in names:
+                        (output / member).unlink(missing_ok=True)
                 archive.extractall(output)
     print(output.resolve())
 

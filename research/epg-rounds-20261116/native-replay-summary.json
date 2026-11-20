@@ -1,0 +1,56 @@
+{
+  "scope": "Native client replay of previously captured real movie/ad/movie cycle; not a new live ad or ASR reacquisition test",
+  "duration": 270.0,
+  "adDuration": 150.0,
+  "adSamples": 2997,
+  "adSamplesWithFilmCaption": 0,
+  "nativeCaptionResumeSeconds": 0.021332999999998492,
+  "sampledLayouts": [
+    0,
+    1,
+    2
+  ],
+  "bufferingSamplesAfterStartup": 0,
+  "cueCount": 6,
+  "medianAbsoluteError": 0.3436659999999847,
+  "maximumAbsoluteError": 0.6386659999998301,
+  "errors": [
+    {
+      "cue": 1237,
+      "asrOnset": 1186.9099999999999,
+      "nativeCaptionOnset": 1187.338666,
+      "errorSeconds": 0.42866600000024846
+    },
+    {
+      "cue": 1236,
+      "asrOnset": 1186.38,
+      "nativeCaptionOnset": 1186.378666,
+      "errorSeconds": -0.001334000000042579
+    },
+    {
+      "cue": 1244,
+      "asrOnset": 1202.7,
+      "nativeCaptionOnset": 1202.938666,
+      "errorSeconds": 0.23866599999996652
+    },
+    {
+      "cue": 1247,
+      "asrOnset": 1208.28,
+      "nativeCaptionOnset": 1208.5786659999999,
+      "errorSeconds": 0.29866599999991195
+    },
+    {
+      "cue": 1243,
+      "asrOnset": 1200.66,
+      "nativeCaptionOnset": 1201.298666,
+      "errorSeconds": 0.6386659999998301
+    },
+    {
+      "cue": 1250,
+      "asrOnset": 1212.71,
+      "nativeCaptionOnset": 1213.098666,
+      "errorSeconds": 0.38866600000005747
+    }
+  ],
+  "errorReference": "Previously recorded local ASR word onsets, including any remux timestamp shift; sampled native caption state, not screen OCR"
+}

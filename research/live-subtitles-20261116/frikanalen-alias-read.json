@@ -1,0 +1,15 @@
+{
+  "checkedAtUtc": 1794790177,
+  "results": [
+    {
+      "url": "https://www.frikanalen.no/xmltv/upcoming/",
+      "errorType": "HTTPError",
+      "detail": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.frikanalen.no/api/tvanytime/upcoming?days=2",
+      "errorType": "HTTPError",
+      "detail": "HTTP Error 404: Not Found"
+    }
+  ]
+}

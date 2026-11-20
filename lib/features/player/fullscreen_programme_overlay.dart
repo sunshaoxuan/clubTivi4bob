@@ -47,7 +47,7 @@ class FullscreenProgrammeOverlay extends StatelessWidget {
     Widget future(db.EpgProgramme p, String label) => Padding(
       padding: const EdgeInsets.only(top: 3),
       child: Text(
-        '$label：${p.title}  ${range(p)}',
+        '${AppMessages.text(context, label)}：${p.title}  ${range(p)}',
         maxLines: 2,
         overflow: TextOverflow.ellipsis,
         style: const TextStyle(
@@ -117,7 +117,9 @@ class FullscreenProgrammeOverlay extends StatelessWidget {
             Padding(
               padding: const EdgeInsets.only(top: 3),
               child: Text(
-                AppMessages.text(context, "{0}：暂无节目单", [i == 0 ? '接下来' : '随后']),
+                AppMessages.text(context, "{0}：暂无节目单", [
+                  AppMessages.text(context, i == 0 ? '接下来' : '随后'),
+                ]),
                 style: const TextStyle(
                   color: Colors.white54,
                   fontSize: 11,
@@ -138,8 +140,10 @@ class FullscreenProgrammeOverlay extends StatelessWidget {
         shadows: shadow,
       ),
     );
-    final controls = Row(
-      mainAxisSize: MainAxisSize.min,
+    final controls = Wrap(
+      alignment: WrapAlignment.end,
+      crossAxisAlignment: WrapCrossAlignment.center,
+      runSpacing: 4,
       children: [
         TextButton.icon(
           onPressed: onReturn,
@@ -166,7 +170,7 @@ class FullscreenProgrammeOverlay extends StatelessWidget {
                 Row(
                   children: [
                     Expanded(child: name),
-                    controls,
+                    Flexible(child: controls),
                   ],
                 ),
                 if (rows.isNotEmpty)

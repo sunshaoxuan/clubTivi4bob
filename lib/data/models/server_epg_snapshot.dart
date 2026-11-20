@@ -11,6 +11,81 @@ const serverEpgSourceId = 'bobtv-server-epg';
 const serverEpgManifestUrl = 'https://bobtv.briconbric.com/api/v1/epg/manifest';
 final _digest = RegExp(r'^[a-f0-9]{64}$');
 
+/// Scoped guides use a different public ID so older clients cannot map them
+/// to every route of the parent channel. They remain valid v1 snapshots.
+Map<String, dynamic>? serverEpgRouteBinding(Map channel) {
+  if (!channel.containsKey('routeBinding')) return null;
+  final binding = channel['routeBinding'];
+  if (binding is! Map<String, dynamic> ||
+      binding.length != 4 ||
+      binding['schemaVersion'] != 1 ||
+      !_text(binding['catalogChannelId'], 256) ||
+      binding['catalogIdentityHash'] is! String ||
+      !_digest.hasMatch(binding['catalogIdentityHash'] as String) ||
+      binding['routes'] is! List ||
+      (binding['routes'] as List).isEmpty ||
+      (binding['routes'] as List).length > 100) {
+    throw const FormatException('Invalid EPG route binding');
+  }
+  final material = <String>[
+    binding['catalogChannelId'] as String,
+    binding['catalogIdentityHash'] as String,
+  ];
+  String? previous;
+  for (final route in binding['routes'] as List) {
+    if (route is! Map ||
+        route.length != 2 ||
+        route['routeId'] is! String ||
+        !RegExp(
+          r'^[A-Za-z0-9_-]{1,128}$',
+        ).hasMatch(route['routeId'] as String) ||
+        route['urlSha256'] is! String ||
+        !_digest.hasMatch(route['urlSha256'] as String) ||
+        (previous != null &&
+            previous.compareTo(route['routeId'] as String) >= 0)) {
+      throw const FormatException('Invalid EPG route scope');
+    }
+    previous = route['routeId'] as String;
+    material.add('$previous:${route['urlSha256']}');
+  }
+  if (channel['id'] !=
+          'route-epg-${sha256.convert(utf8.encode(material.join('\n')))}' ||
+      catalogEpgIdentityHash({...channel, 'id': binding['catalogChannelId']}) !=
+          binding['catalogIdentityHash']) {
+    throw const FormatException('EPG parent route identity mismatch');
+  }
+  return binding;
+}
+
+bool serverEpgMatchesRoute(
+  Map metadata,
+  String catalogId,
+  String identityHash,
+  String localRouteId,
+  String streamUrl,
+) {
+  try {
+    final binding = serverEpgRouteBinding(metadata);
+    if (binding == null) {
+      return metadata['id'] == catalogId &&
+          metadata['catalogIdentityHash'] == identityHash;
+    }
+    if (binding['catalogChannelId'] != catalogId ||
+        binding['catalogIdentityHash'] != identityHash) {
+      return false;
+    }
+    final prefix = '$publicCatalogProviderId:';
+    if (!localRouteId.startsWith(prefix)) return false;
+    final routeId = localRouteId.substring(prefix.length);
+    final hash = sha256.convert(utf8.encode(streamUrl)).toString();
+    return (binding['routes'] as List).any(
+      (r) => r['routeId'] == routeId && r['urlSha256'] == hash,
+    );
+  } on FormatException {
+    return false;
+  }
+}
+
 class ServerEpgManifest {
   ServerEpgManifest._(this.json);
   final Map<String, dynamic> json;
@@ -61,11 +136,13 @@ class ServerEpgSnapshot {
     this.guide,
     this.identities, {
     this.attributions = const [],
+    this.programmeIdentities = const [],
   });
   final XmltvResult guide;
   // Preserved for exact catalog-identity integration. Never fuzzy auto-mapped.
   final Map<String, Map<String, dynamic>> identities;
   final List<ServerEpgAttribution> attributions;
+  final List<Map<String, Object?>> programmeIdentities;
 }
 
 /// Display-only metadata. The receiver never fetches attribution URLs.
@@ -177,6 +254,7 @@ Future<ServerEpgSnapshot> decodeServerEpg(Map<String, Object> message) async {
     if (catalogEpgIdentityHash(channel) != channel['catalogIdentityHash']) {
       throw const FormatException('EPG catalog identity fingerprint mismatch');
     }
+    serverEpgRouteBinding(channel);
     identities[id] = Map.unmodifiable(channel);
     channels.add(
       EpgChannel(
@@ -203,6 +281,7 @@ Future<ServerEpgSnapshot> decodeServerEpg(Map<String, Object> message) async {
     attributions[credit.sourceId] = credit;
   }
   final programmes = <EpgProgramme>[];
+  final programmeIdentities = <Map<String, Object?>>[];
   final byChannel = <String, List<EpgProgramme>>{};
   var minStart = 4102444800, maxStop = 0;
   for (final item in payload['programmes'] as List) {
@@ -239,6 +318,41 @@ Future<ServerEpgSnapshot> decodeServerEpg(Map<String, Object> message) async {
         stop < now - 2 * 86400) {
       throw const FormatException('Invalid EPG UTC interval');
     }
+    final provenance = item['provenance'] as Map;
+    String? factualId(String key, RegExp pattern) {
+      final value = provenance[key];
+      return value is String && pattern.hasMatch(value) ? value : null;
+    }
+
+    final event = factualId(
+      'sourceEventId',
+      RegExp(r'^[A-Za-z0-9_.:-]{1,128}$'),
+    );
+    final movieId = factualId('movieId', RegExp(r'^[a-z0-9-]{1,200}$'));
+    final episodeId = factualId('episodeId', RegExp(r'^[a-z0-9-]{1,200}$'));
+    final episodeLabel = provenance['episodeLabel'];
+    programmeIdentities.add({
+      'key':
+          '${item['sourceId']}:${item['originalChannelId']}:${event ?? start}:$stop:${movieId ?? episodeId ?? '-'}',
+      'catalogChannelId': item['channelId'],
+      'programmeSourceId': item['sourceId'],
+      'originalChannelId': item['originalChannelId'],
+      'sourceEventId': event,
+      'movieId': movieId,
+      'episodeId': episodeId,
+      'seasonId': factualId('seasonId', RegExp(r'^[a-z0-9-]{1,200}$')),
+      'episodeLabel': episodeLabel is String && episodeLabel.length <= 512
+          ? episodeLabel
+          : null,
+      'marketCode': factualId('marketCode', RegExp(r'^[a-z]{2}$')),
+      'serviceId': provenance['serviceId'] is int
+          ? provenance['serviceId']
+          : null,
+      'title': item['title'],
+      'startUtc': start,
+      'stopUtc': stop,
+      'clockIsSubtitleOffset': false,
+    });
     final programme = EpgProgramme(
       channelId: item['channelId'] as String,
       sourceId: serverEpgSourceId,
@@ -278,6 +392,7 @@ Future<ServerEpgSnapshot> decodeServerEpg(Map<String, Object> message) async {
     XmltvResult(channels: channels, programmes: programmes),
     Map.unmodifiable(identities),
     attributions: List.unmodifiable(attributions.values),
+    programmeIdentities: List.unmodifiable(programmeIdentities),
   );
 }
 

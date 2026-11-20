@@ -1,0 +1,13 @@
+{
+  "declaredChannels": 127,
+  "usableChannels": 127,
+  "acceptedProgrammes": 7184,
+  "currentChannels": 127,
+  "futureChannels": 127,
+  "currentAndFutureChannels": 127,
+  "coverageStartUtc": 1794679399,
+  "coverageEndUtc": 1794880800,
+  "rejected": {
+    "conflicting_event_id": 0
+  }
+}

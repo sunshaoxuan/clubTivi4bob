@@ -6,6 +6,7 @@ import 'package:clubtivi/data/models/server_epg_snapshot.dart';
 import 'package:clubtivi/data/models/catalog_epg_identity.dart';
 import 'package:clubtivi/data/services/bobtv_api_client.dart';
 import 'package:clubtivi/data/services/server_epg_binding.dart';
+import 'package:clubtivi/data/services/server_epg_programme_lookup.dart';
 import 'package:clubtivi/data/services/server_epg_sync_service.dart';
 import 'package:drift/drift.dart' show Value;
 import 'package:drift/native.dart';
@@ -103,7 +104,14 @@ void main() {
         );
         if (targets != null) {
           final mappings = await database.getAllMappings();
-          expect(mappings.length, manifest.channelCount);
+          expect(
+            mappings.length,
+            targets.fold<int>(
+              0,
+              (count, target) =>
+                  count + ((target as Map)['channel']['routes'] as List).length,
+            ),
+          );
           for (final mapping in mappings) {
             expect(mapping.epgSourceId, serverEpgSourceId);
             final upcoming = await database.getUpcomingProgrammes(
@@ -126,6 +134,83 @@ void main() {
               isTrue,
             );
           }
+        }
+        final programmeRows = await database
+            .customSelect(
+              'SELECT metadata FROM server_epg_programme_identities',
+            )
+            .get();
+        expect(programmeRows.length, manifest.programmeCount);
+        if (targets != null) {
+          final lookup = ServerEpgProgrammeLookup(database, now: () => clock);
+          final action = targets
+              .cast<Map>()
+              .where(
+                (t) =>
+                    (t['channel'] as Map)['id'] ==
+                    'channel-b842f9cdd43743693f77fc81',
+              )
+              .firstOrNull;
+          if (action != null) {
+            final route =
+                ((action['channel'] as Map)['routes'] as List).first as Map;
+            final programme = await lookup.forSource(route['url'] as String);
+            expect(programme, isNotNull);
+            expect(programme!['serviceId'], 6065);
+            expect(programme['movieId'], isNotNull);
+            expect(programme['sourceEventId'], isNotNull);
+            expect(programme['clockIsSubtitleOffset'], isFalse);
+          }
+          const addedServices = {
+            'channel-a5b2b5ae71973b25108d979e': 6093,
+            'channel-26df487b6d80f30294ed3fba': 6181,
+            'channel-bed6cfd0cd28aa6973ad95dd': 6203,
+            'channel-5fa4c5b9814b3e1342bd61ca': 6433,
+            'channel-5653256b79094369378318ec': 6233,
+          };
+          for (final target in targets.cast<Map>()) {
+            final channel = target['channel'] as Map;
+            final serviceId = addedServices[channel['id']];
+            if (serviceId == null) continue;
+            final route = (channel['routes'] as List).first as Map;
+            final programme = await lookup.forSource(route['url'] as String);
+            expect(programme, isNotNull);
+            expect(programme!['serviceId'], serviceId);
+            expect(programme['catalogChannelId'], channel['id']);
+            expect(programme['sourceEventId'], isNotNull);
+            if (serviceId == 6233) {
+              expect(programme['movieId'], isNull);
+              expect(programme['episodeId'], isNotNull);
+              expect(programme['seasonId'], isNotNull);
+            }
+          }
+          const plutoFeeds = {
+            'channel-fb92a54fad1c2361b9f1c808': '5c5c3b948002db3c3e0b262e',
+            'channel-170189df6c2b381a9e5e81e0': '5d767b1c126c65d0a307355f',
+            'channel-ceff8c78c1c489157ff99d16': '5caf325764025859afdd6c4d',
+            'channel-3d53af390311be1dbd89cbb1': '5db6a697d5f34a000934cd13',
+            'channel-4d8a60824b0727e6787f0440': '5d4947590ba40f75dc29c26b',
+            'channel-f71c49e8fce59482c51d83af': '5cb6f6f9a461406ffe4022cf',
+            'channel-f161e64e591831aeaabad869': '5f1aca8310a30e00074fab92',
+          };
+          for (final target in targets.cast<Map>()) {
+            final channel = target['channel'] as Map;
+            final feed = plutoFeeds[channel['id']];
+            if (feed == null) continue;
+            final route = (channel['routes'] as List).first as Map;
+            final programme = await lookup.forSource(route['url'] as String);
+            expect(programme, isNotNull);
+            final country = (channel['countryCode'] as String).toLowerCase();
+            expect(programme!['programmeSourceId'], startsWith('pluto-'));
+            expect(programme['originalChannelId'], 'pluto:$country:$feed');
+            expect(programme['sourceEventId'], isNotNull);
+            expect(programme['episodeId'], isNotNull);
+            expect(programme['clockIsSubtitleOffset'], isFalse);
+          }
+          expect(
+            await lookup.forSource('https://private.example/secret'),
+            isNull,
+          );
         }
         expect(
           service.state.value.attributions.single.dataLicense,

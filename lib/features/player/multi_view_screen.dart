@@ -1,3 +1,4 @@
+import '../player/bobtv_video.dart';
 import 'dart:io' show Platform;
 
 import 'package:flutter/material.dart';
@@ -132,7 +133,10 @@ class _MultiViewScreenState extends ConsumerState<MultiViewScreen> {
                           ),
                           child: Stack(
                             children: [
-                              Video(controller: cell.controller),
+                              BobtvVideo(
+                                controller: cell.controller,
+                                showSubtitleMenu: true,
+                              ),
                               // Channel label
                               Positioned(
                                 left: 4,

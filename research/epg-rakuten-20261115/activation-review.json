@@ -1,0 +1,124 @@
+[
+  {
+    "id": "channel-b842f9cdd43743693f77fc81",
+    "name": "Action Movies",
+    "countryCode": "GB",
+    "services": [
+      6065
+    ],
+    "routes": 1,
+    "checkedAtUtc": "2026-11-15T15:24:07.400561+00:00",
+    "officialChannelSlug": "action-rakuten-tv",
+    "approved": true,
+    "scheduledEventId": "990991282",
+    "scheduledMovieId": "miracles-the-canton-godfather",
+    "latestSegment": {
+      "movieId": "miracles-the-canton-godfather",
+      "advertMarker": false
+    },
+    "state": "exact_route_and_programme_metadata_verified"
+  },
+  {
+    "id": "channel-a5b2b5ae71973b25108d979e",
+    "name": "Drama Movies",
+    "countryCode": "US",
+    "services": [
+      6093
+    ],
+    "routes": 2,
+    "checkedAtUtc": "2026-11-15T15:24:07.400561+00:00",
+    "officialChannelSlug": "drama-rakuten-tv",
+    "approved": false,
+    "state": "catalog_country_context_pending_review"
+  },
+  {
+    "id": "channel-7b2ece1b9fca7f2a50fa536e",
+    "name": "Top Movies",
+    "countryCode": "US",
+    "services": [
+      5987
+    ],
+    "routes": 2,
+    "checkedAtUtc": "2026-11-15T15:24:07.400561+00:00",
+    "officialChannelSlug": "top-movies-rakuten-tv",
+    "approved": false,
+    "state": "catalog_country_context_pending_review"
+  },
+  {
+    "id": "channel-9294d4892ed3478727d98e6d",
+    "name": "Romance Movies",
+    "countryCode": "GB",
+    "services": [
+      6194
+    ],
+    "routes": 1,
+    "checkedAtUtc": "2026-11-15T15:03:38.015752+00:00",
+    "officialChannelSlug": "romance-rakuten-tv",
+    "approved": true,
+    "scheduledEventId": "990991713",
+    "scheduledMovieId": "love-where-to-find-it",
+    "latestSegment": {
+      "movieId": "love-where-to-find-it",
+      "advertMarker": false
+    },
+    "state": "exact_route_and_programme_metadata_verified",
+    "subsequentObservation": {
+      "id": "channel-9294d4892ed3478727d98e6d",
+      "name": "Romance Movies",
+      "countryCode": "GB",
+      "services": [
+        6194
+      ],
+      "routes": 1,
+      "checkedAtUtc": "2026-11-15T15:24:07.400561+00:00",
+      "officialChannelSlug": "romance-rakuten-tv",
+      "approved": false,
+      "scheduledEventId": "990991713",
+      "scheduledMovieId": "love-where-to-find-it",
+      "latestSegment": {
+        "movieId": null,
+        "advertMarker": false
+      },
+      "state": "advert_or_unknown_segment_pending"
+    }
+  },
+  {
+    "id": "channel-26df487b6d80f30294ed3fba",
+    "name": "Comedy Movies",
+    "countryCode": "US",
+    "services": [
+      6181
+    ],
+    "routes": 2,
+    "checkedAtUtc": "2026-11-15T15:24:07.400561+00:00",
+    "officialChannelSlug": "comedy-rakuten-tv",
+    "approved": false,
+    "state": "catalog_country_context_pending_review"
+  },
+  {
+    "id": "channel-5653256b79094369378318ec",
+    "name": "Reality",
+    "countryCode": null,
+    "services": [
+      6233
+    ],
+    "routes": 1,
+    "checkedAtUtc": "2026-11-15T15:24:07.400561+00:00",
+    "officialChannelSlug": "reality-rakuten-tv",
+    "approved": false,
+    "state": "catalog_country_context_pending_review"
+  },
+  {
+    "id": "channel-bed6cfd0cd28aa6973ad95dd",
+    "name": "Family",
+    "countryCode": null,
+    "services": [
+      6203
+    ],
+    "routes": 1,
+    "checkedAtUtc": "2026-11-15T15:24:07.400561+00:00",
+    "officialChannelSlug": "family-rakuten-tv",
+    "approved": false,
+    "state": "catalog_country_context_pending_review"
+  }
+]

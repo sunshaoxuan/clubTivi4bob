@@ -1,10 +1,13 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:media_kit/src/player/native/player/real.dart' as native_player;
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'player_service.dart';
+import 'hls_buffer_proxy.dart';
+import '../../core/app_diagnostics.dart';
 
 /// Adaptive per-stream buffer manager.
 ///
@@ -73,6 +76,7 @@ class AdaptiveBufferManager {
   Timer? _monitorTimer;
   String _currentTier = 'normal';
   String? _currentUrl;
+  bool _speechBufferRequired = false;
 
   // Health tracking — reset per stream
   int _stableSeconds = 0;
@@ -82,15 +86,30 @@ class AdaptiveBufferManager {
   String get currentTier => _currentTier;
 
   /// Apply buffer settings for a stream URL and begin monitoring.
-  Future<void> applyForStream(String url, PlayerService ps) async {
+  Future<void> applyForStream(
+    String url,
+    PlayerService ps, {
+    bool monitor = true,
+  }) async {
     _monitorTimer?.cancel();
     _currentUrl = url;
+    _speechBufferRequired = false;
     _stableSeconds = 0;
     _stallCount = 0;
 
     // Load saved tier or default to 'normal'
     _currentTier = await _loadTier(url);
+    if (_currentUrl != url) return;
+    if (isReviewedRakutenUkMovieSource(url) && _currentTier == 'fast') {
+      _currentTier = 'normal';
+    }
     await _applyTier(_currentTier, ps);
+    if (monitor) monitorForStream(url, ps);
+  }
+
+  void monitorForStream(String url, PlayerService ps) {
+    if (_currentUrl != url) return;
+    _monitorTimer?.cancel();
     _startMonitoring(url, ps);
   }
 
@@ -107,8 +126,15 @@ class AdaptiveBufferManager {
   void _startMonitoring(String url, PlayerService ps) {
     _monitorTimer = Timer.periodic(const Duration(seconds: 2), (_) async {
       if (_currentUrl != url) return; // stream changed
+      _speechBufferRequired = ps.usesLocalSubtitleAudio;
+      if (_speechBufferRequired && _currentTier == 'fast') {
+        _currentTier = 'normal';
+        await _applyTier(_currentTier, ps);
+        if (_currentUrl != url) return;
+      }
 
       final raw = await ps.getMpvProperty('demuxer-cache-duration');
+      if (_currentUrl != url) return;
       final cacheSecs = double.tryParse(raw ?? '');
       if (cacheSecs == null) return; // not available yet
 
@@ -159,7 +185,12 @@ class AdaptiveBufferManager {
   /// Move to a lower buffer tier. Returns true if tier changed.
   bool _downgradeTier() {
     final idx = _tierOrder.indexOf(_currentTier);
-    if (idx > 0) {
+    final floor =
+        _speechBufferRequired ||
+            isReviewedRakutenUkMovieSource(_currentUrl ?? '')
+        ? 1
+        : 0;
+    if (idx > floor) {
       _currentTier = _tierOrder[idx - 1];
       return true;
     }
@@ -167,10 +198,29 @@ class AdaptiveBufferManager {
   }
 
   Future<void> _applyTier(String tier, PlayerService ps) async {
-    final config = _tierConfig[tier] ?? _tierConfig['normal']!;
+    final expectedUrl = _currentUrl;
+    final expectedPlayer = ps.player;
+    final config = <String, String>{
+      ...(_tierConfig[tier] ?? _tierConfig['normal']!),
+      if (_speechBufferRequired ||
+          isReviewedRakutenUkMovieSource(_currentUrl ?? ''))
+        'cache-pause-initial': 'yes',
+      if (Platform.isAndroid &&
+          (_speechBufferRequired ||
+              isReviewedRakutenUkMovieSource(_currentUrl ?? '')))
+        // Match the first-inference reserve before playback consumes it.
+        'cache-pause-wait': '24',
+    };
     for (final entry in config.entries) {
+      if (_currentUrl != expectedUrl || !identical(ps.player, expectedPlayer))
+        return;
       await _setMpvProperty(ps, entry.key, entry.value);
     }
+    AppDiagnostics.instance.log('buffer_profile_applied', {
+      'tier': tier,
+      'initialPriming': config['cache-pause-initial'],
+      'readaheadSeconds': config['demuxer-readahead-secs'],
+    });
   }
 
   Future<void> _setMpvProperty(

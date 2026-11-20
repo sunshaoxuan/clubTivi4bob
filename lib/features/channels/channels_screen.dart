@@ -60,6 +60,8 @@ import 'adaptive_home_toolbar.dart';
 import 'compact_category_row.dart';
 import 'simple_home_content.dart';
 import 'mobile_channel_home.dart';
+import 'touch_action_sheet.dart';
+import '../player/playback_capture.dart';
 import 'simple_channel_panel_frame.dart';
 import '../player/player_service.dart';
 import '../player/player_presentation_buttons.dart';
@@ -285,7 +287,9 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
       ),
     )..addListener(_onInlineProgrammeChanged);
     _epgRouteSubscription = ref.read(playerServiceProvider).currentUrlStream.listen((_) {
-      if (mounted) _refreshInlineProgrammeStrip(forceRefresh: true);
+      if (!mounted) return;
+      _syncActiveChannelAfterPlayerReturn();
+      _refreshInlineProgrammeStrip(forceRefresh: true);
     });
     _guideScrollController = ScrollController();
     _loadChannels();
@@ -518,9 +522,15 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
     });
   }
 
+  List<String> _mobileRecentIds = const [];
+
   Future<void> _loadSearchHistory() async {
     final prefs = await SharedPreferences.getInstance();
-    _searchHistory = prefs.getStringList(_kSearchHistory) ?? [];
+    if (!mounted) return;
+    setState(() {
+      _searchHistory = prefs.getStringList(_kSearchHistory) ?? [];
+      _mobileRecentIds = prefs.getStringList('mobile_recent_channel_ids') ?? [];
+    });
   }
 
   /// Add default EPG sources on first run and kick off a background refresh.
@@ -2125,8 +2135,10 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
         borderRadius: BorderRadius.circular(20),
         side: const BorderSide(color: BobTvPalette.outline),
       ),
-      constraints: const BoxConstraints(
-        minWidth: 340, maxWidth: 380, maxHeight: 620),
+      constraints: BoxConstraints(
+        minWidth: (MediaQuery.sizeOf(context).width - 32).clamp(0.0, 340.0),
+        maxWidth: (MediaQuery.sizeOf(context).width - 32).clamp(0.0, 380.0),
+        maxHeight: MediaQuery.sizeOf(context).height * .75),
       position: RelativeRect.fromLTRB(
         position.dx,
         position.dy,
@@ -2341,8 +2353,10 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
         borderRadius: BorderRadius.circular(20),
         side: const BorderSide(color: BobTvPalette.outline),
       ),
-      constraints: const BoxConstraints(
-        minWidth: 340, maxWidth: 380, maxHeight: 620),
+      constraints: BoxConstraints(
+        minWidth: (MediaQuery.sizeOf(context).width - 32).clamp(0.0, 340.0),
+        maxWidth: (MediaQuery.sizeOf(context).width - 32).clamp(0.0, 380.0),
+        maxHeight: MediaQuery.sizeOf(context).height * .75),
       position: RelativeRect.fromLTRB(
         position.dx, position.dy,
         overlay.size.width - position.dx,
@@ -2757,6 +2771,23 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
       _playerRouteOpen = false;
     }
     if (mounted) {
+      final activeId = ref.read(playerServiceProvider).currentChannelId;
+      final activeChannel = fullscreenChannels.where((c) => c.id == activeId).firstOrNull;
+      if (activeChannel != null) {
+        setState(() {
+          _previewChannel = activeChannel;
+          _selectedIndex = _filteredChannels.indexWhere((c) => c.id == activeId);
+        });
+        unawaited(_inlineProgrammePreview.select(channelId: activeChannel.id,
+          epgChannelId: _getEpgId(activeChannel), timeshiftHours: _epgTimeshifts[activeChannel.id] ?? 0));
+        if (PlatformInfo.isMobile) {
+          _mobileRecentIds = [activeChannel.id, ..._mobileRecentIds.where((id) => id != activeChannel.id)].take(50).toList();
+          final prefs = await SharedPreferences.getInstance();
+          await prefs.setStringList('mobile_recent_channel_ids', _mobileRecentIds);
+        }
+        await _saveSession();
+      }
+      if (!mounted) return;
       final database = ref.read(databaseProvider);
       final favIds = await database.getAllFavoritedChannelIds();
       final lists = await database.getAllFavoriteLists();
@@ -3097,6 +3128,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
   }
 
   void _bindVolumePlayer(Player player) {
+    _syncActiveChannelAfterPlayerReturn();
     _volumeSubscription?.cancel();
     _playingSubscription?.cancel();
     _playingSubscription = player.stream.playing.listen((_) {
@@ -3370,9 +3402,162 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
           if (mounted) setState(() {});
         },
         onMute: () => _setPreviewVolume(_volume == 0 ? _preMuteVolume : 0),
+        recentIds: _mobileRecentIds,
+        onRecentChanged: (ids) {
+          _mobileRecentIds = ids;
+          unawaited(SharedPreferences.getInstance().then((prefs) async {
+            await prefs.setStringList('mobile_recent_channel_ids', ids);
+          }));
+        },
+        onMore: () => unawaited(_showMobileTools()),
+        subtitleControl: _previewChannel == null || _allowsAudioOnly(_previewChannel!)
+            ? null : _buildPreviewSubtitleButton(),
+        details: _buildMobileDetails(),
+        onChannelFavorite: (id) async {
+          final channel = _filteredChannels.where((c) => c.id == id).firstOrNull;
+          if (channel != null) await _handleRouteMenuFavorite(channel);
+        },
+        onChannelActions: (id) async {
+          final channel = _filteredChannels.where((c) => c.id == id).firstOrNull;
+          if (channel != null) await _showMobileChannelActions(channel);
+        },
         onManageSources: () => context.push('/providers'),
       )),
     );
+  }
+
+  void _syncActiveChannelAfterPlayerReturn() {
+    if (!mounted || _playerRouteOpen) return;
+    final id = ref.read(playerServiceProvider).currentChannelId;
+    if (id == null || _previewChannel?.id == id) return;
+    final channel = _allChannels.where((c) => c.id == id).firstOrNull;
+    if (channel == null) return;
+    setState(() {
+      _previewChannel = channel;
+      _selectedIndex = _filteredChannels.indexWhere((c) => c.id == id);
+    });
+    unawaited(_inlineProgrammePreview.select(channelId: channel.id,
+      epgChannelId: _getEpgId(channel), timeshiftHours: _epgTimeshifts[channel.id] ?? 0));
+    if (PlatformInfo.isMobile) {
+      _mobileRecentIds = [id, ..._mobileRecentIds.where((item) => item != id)].take(50).toList();
+      unawaited(SharedPreferences.getInstance().then((prefs) =>
+          prefs.setStringList('mobile_recent_channel_ids', _mobileRecentIds)));
+    }
+    unawaited(_saveSession());
+  }
+
+  Widget _buildMobileDetails() {
+    final channel = _previewChannel;
+    if (channel == null) return const SizedBox.shrink();
+    Widget action(String key, String label, IconData icon, VoidCallback run) =>
+        OutlinedButton.icon(key: ValueKey(key), onPressed: run,
+          style: OutlinedButton.styleFrom(minimumSize: const Size(48, 48)),
+          icon: Icon(icon, size: 20), label: Text(AppMessages.text(context, label)));
+    final favorite = _favoritedChannelIds.contains(channel.id);
+    final guide = _inlineProgrammePreview.selectedChannelId == channel.id
+        ? _inlineProgrammePreview.programmes : const <db.EpgProgramme>[];
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Wrap(spacing: 8, runSpacing: 8, children: [
+        action('mobile-fullscreen', '全屏播放', Icons.fullscreen, () => _goFullscreen(channel)),
+        action('mobile-current-favorite', favorite ? '取消收藏' : '加入收藏',
+          favorite ? Icons.star : Icons.star_border, () => _handleRouteMenuFavorite(channel)),
+        action('mobile-programmes', '节目单', Icons.schedule, () => _showMobileProgrammes(channel)),
+        action('mobile-channel-actions', '频道操作', Icons.tune, () => _showMobileChannelActions(channel)),
+      ]),
+      if (guide.isNotEmpty) ...[
+        const SizedBox(height: 16),
+        for (final programme in guide.take(3))
+          ListTile(contentPadding: EdgeInsets.zero, dense: true,
+            title: Text(programme.title, maxLines: 2, overflow: TextOverflow.ellipsis),
+            subtitle: Text(_mobileProgrammeTime(programme, channel)),
+            onTap: () => _showMobileProgrammes(channel)),
+      ],
+    ]);
+  }
+
+  Future<void> _showMobileTools() => showTouchActionSheet(context,
+    title: AppMessages.text(context, '更多'), actions: [
+      if (_previewChannel case final channel?) ..._mobileChannelActions(channel),
+      TouchAction('favorite-lists', '管理收藏夹', Icons.folder_special, _showManageFavoritesDialog),
+      TouchAction('sources', '管理播放源', Icons.playlist_add, () async { await context.push('/providers'); }),
+      TouchAction('refresh-routes', '重新读取线路检查结果', Icons.refresh,
+        _routeAvailabilityLoading ? null : () async {
+          setState(() => _routeAvailabilityLoading = true);
+          await _refreshRouteAvailability(_allChannels, _categoryLoadGeneration);
+        }),
+      TouchAction('language', '语言', Icons.language, _showMobileLanguages),
+      TouchAction('settings', '设置', Icons.settings, () async { await context.push('/settings'); }),
+    ]);
+
+  List<TouchAction> _mobileChannelActions(db.Channel channel) {
+    final favorite = _favoritedChannelIds.contains(channel.id);
+    final size = MediaQuery.sizeOf(context);
+    return [
+      TouchAction('fullscreen', '全屏播放', Icons.fullscreen, () => _goFullscreen(channel)),
+      TouchAction('favorite', favorite ? '取消收藏' : '加入收藏',
+        favorite ? Icons.star : Icons.star_border,
+        _favoriteActionsPending.contains(channel.id) ? null : () => _handleRouteMenuFavorite(channel), selected: favorite),
+      TouchAction('channel-favorite-lists', '管理收藏夹', Icons.folder_open, () => _showFavoriteListSheet(channel)),
+      TouchAction('programmes', '节目单', Icons.schedule, () => _showMobileProgrammes(channel)),
+      if (ref.read(playerServiceProvider).currentChannelId == channel.id)
+        TouchAction('capture', '截图', Icons.camera_alt, () => capturePlaybackFrame(context, ref.read(playerServiceProvider))),
+      TouchAction('routes', '线路管理', Icons.route,
+        () => _showCardRouteMenu(channel, Offset(size.width / 2, size.height / 3))),
+      TouchAction('category', '变更分类', Icons.category, () => _changeChannelCategory(channel)),
+    ];
+  }
+
+  Future<void> _showMobileChannelActions(db.Channel channel) =>
+      showTouchActionSheet(context, title: _channelDisplayName(channel), actions: _mobileChannelActions(channel));
+
+  Future<void> _showMobileLanguages() {
+    final scope = LanguageScope.of(context);
+    return showTouchActionSheet(context, title: AppMessages.text(context, '语言'), actions: [
+      TouchAction('language-system', '跟随系统', Icons.language, () => scope?.onSelected('system'), selected: scope?.selected == null),
+      for (final language in AppLanguage.values)
+        TouchAction('language-${language.tag}', language.label, Icons.translate,
+          () => scope?.onSelected(language.tag), selected: scope?.selected == language),
+    ]);
+  }
+
+  String _mobileProgrammeTime(db.EpgProgramme programme, db.Channel channel) {
+    final shift = Duration(hours: _epgTimeshifts[channel.id] ?? 0);
+    final localizations = MaterialLocalizations.of(context);
+    String time(DateTime value) => localizations.formatTimeOfDay(TimeOfDay.fromDateTime(value.add(shift)));
+    return '${time(programme.start)}  ~  ${time(programme.stop)}';
+  }
+
+  Future<List<db.EpgProgramme>> _mobileProgrammes(db.Channel channel) async {
+    final database = ref.read(databaseProvider);
+    final service = ref.read(playerServiceProvider);
+    final epgId = await resolveLiveEpgId(database, channelId: channel.id,
+      providerId: channel.providerId, actualStreamUrl: service.currentChannelId == channel.id ? service.currentUrl : null,
+      fallbackId: _getEpgId(channel));
+    if (epgId == null) return [];
+    return database.getUpcomingProgrammes(epgChannelId: epgId,
+      at: DateTime.now().subtract(Duration(hours: _epgTimeshifts[channel.id] ?? 0)), limit: 20);
+  }
+
+  Future<void> _showMobileProgrammes(db.Channel channel) async {
+    var future = _mobileProgrammes(channel);
+    await showModalBottomSheet<void>(context: context, isScrollControlled: true, showDragHandle: true,
+      builder: (sheetContext) => SafeArea(child: SizedBox(
+        height: MediaQuery.sizeOf(context).height * .72,
+        child: StatefulBuilder(builder: (context, update) => Column(children: [
+          Padding(padding: const EdgeInsets.all(16), child: Text('${_channelDisplayName(channel)} · ${AppMessages.text(context, '节目单')}',
+            style: Theme.of(context).textTheme.titleLarge)),
+          Expanded(child: FutureBuilder<List<db.EpgProgramme>>(future: future, builder: (context, snapshot) {
+            if (snapshot.connectionState != ConnectionState.done) return const Center(child: CircularProgressIndicator());
+            if (snapshot.hasError) return Center(child: TextButton.icon(
+              onPressed: () => update(() => future = _mobileProgrammes(channel)), icon: const Icon(Icons.refresh),
+              label: Text(AppMessages.text(context, '加载失败，请重试'))));
+            final programmes = snapshot.data ?? [];
+            if (programmes.isEmpty) return Center(child: Text(AppMessages.text(context, '暂无节目单')));
+            return ListView(children: [for (final programme in programmes)
+              ListTile(title: Text(programme.title), subtitle: Text(_mobileProgrammeTime(programme, channel))) ]);
+          })),
+        ])),
+      )));
   }
 
   Widget _buildUpdateBadge() {
@@ -3457,9 +3642,14 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                       ],
                     ),
                     actions: [
+                      if (Platform.isIOS || Platform.isAndroid)
+                        IconButton(key: const ValueKey('tablet-more-actions'),
+                          tooltip: AppMessages.text(context, '更多'), icon: const Icon(Icons.more_horiz),
+                          onPressed: () => _showMobileTools()),
                       const LanguageMenu(),
                       _buildUpdateBadge(),
                       const DesktopExitButton(),
+                      if (!Platform.isIOS && !Platform.isAndroid)
                       PopupMenuButton<String>(
                         iconSize: tiny ? 20 : 24,
                         style: tiny ? IconButton.styleFrom(minimumSize: const Size(40, 40), maximumSize: const Size(40, 40), padding: const EdgeInsets.all(4), tapTargetSize: MaterialTapTargetSize.shrinkWrap) : null,

@@ -12,6 +12,11 @@ void main() {
     Future<void> Function(String, String)? category,
     double scale = 1,
     String? currentId,
+    Future<void> Function(String)? favorite,
+    Future<void> Function(String)? channelActions,
+    List<String> recent = const [],
+    ValueChanged<List<String>>? onRecent,
+    bool controls = false,
   }) async {
     tester.view.devicePixelRatio = 1;
     tester.view.physicalSize = size;
@@ -29,6 +34,14 @@ void main() {
             resizeToAvoidBottomInset: false,
             body: MobileChannelHome(
               currentId: currentId,
+              onChannelFavorite: favorite,
+              onChannelActions: channelActions,
+              recentIds: recent,
+              onRecentChanged: onRecent,
+              onMore: controls ? () {} : null,
+              subtitleControl: controls
+                  ? const SizedBox(width: 48, height: 48)
+                  : null,
               video: const ColoredBox(
                 key: ValueKey('video'),
                 color: Colors.black,
@@ -198,6 +211,57 @@ void main() {
     expect(attempts, 2);
     expect(find.byKey(const ValueKey('mobile-bottom-drawer')), findsNothing);
   });
+  testWidgets('favorite and long press actions preserve the playing channel', (
+    tester,
+  ) async {
+    var plays = 0;
+    var favorites = '';
+    var actions = '';
+    await mount(
+      tester,
+      size: const Size(320, 640),
+      controls: true,
+      select: (_) async {
+        plays++;
+        return true;
+      },
+      favorite: (id) async {
+        favorites = id;
+      },
+      channelActions: (id) async {
+        actions = id;
+      },
+    );
+    await open(tester);
+    await tester.tap(find.byKey(const ValueKey('mobile-favorite-1')));
+    await tester.pumpAndSettle();
+    await tester.longPress(find.byKey(const ValueKey('mobile-channel-1')));
+    await tester.pumpAndSettle();
+    expect(favorites, '1');
+    expect(actions, '1');
+    expect(plays, 0);
+    expect(find.byKey(const ValueKey('mobile-bottom-drawer')), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('successful recent selection can be restored after remount', (
+    tester,
+  ) async {
+    var saved = <String>[];
+    await mount(tester, onRecent: (ids) => saved = ids);
+    await open(tester);
+    await tester.tap(find.byKey(const ValueKey('mobile-channel-1')));
+    await tester.pumpAndSettle();
+    expect(saved, ['1']);
+    await tester.pumpWidget(const SizedBox());
+    await mount(tester, recent: saved);
+    await open(tester);
+    await tester.tap(find.text('最近'));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('mobile-channel-1')), findsOneWidget);
+    expect(find.byKey(const ValueKey('mobile-channel-0')), findsNothing);
+  });
+
   testWidgets('filter draft does not play or apply until confirmation', (
     tester,
   ) async {

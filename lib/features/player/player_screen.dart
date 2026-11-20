@@ -1,5 +1,7 @@
 import '../player/bobtv_video.dart';
 import 'radio_playback_surface.dart';
+import 'playback_capture.dart';
+import 'player_channel_drawer_frame.dart';
 import '../../core/server_image.dart';
 import 'dart:async';
 import 'dart:convert';
@@ -10,12 +12,12 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:media_kit/media_kit.dart';
 import 'package:media_kit_video/media_kit_video.dart';
-import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:window_manager/window_manager.dart';
 
 import '../../app/bobtv_palette.dart';
 import '../../core/app_diagnostics.dart';
+import '../../core/platform_info.dart';
 import '../../core/desktop_app_exit.dart';
 import '../../core/tablet_presentation.dart';
 import '../../data/services/android_pip_service.dart';
@@ -198,6 +200,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
         .activePlayerStream
         .listen((_) {
           _bindActivePlayerStreams();
+          _syncChannelFromService();
           if (mounted) {
             _loadTrackInfo();
             setState(() {});
@@ -219,7 +222,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     _scheduleCursorHide();
     _loadEpgInfo();
     _epgRouteSubscription = ref.read(playerServiceProvider).currentUrlStream.listen((_) {
-      if (mounted) unawaited(_loadEpgInfo(clear: true, force: true));
+      if (mounted) {
+        _syncChannelFromService();
+        unawaited(_loadEpgInfo(clear: true, force: true));
+      }
     });
     _epgUiRefresh = EpgUiRefresh(
       ref.read(databaseProvider).watchEpgChanges(),
@@ -238,6 +244,23 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       }
     });
     _loadFavoriteState();
+  }
+
+  void _syncChannelFromService() {
+    if (!mounted || widget.channels.isEmpty) return;
+    final id = ref.read(playerServiceProvider).currentChannelId;
+    final index = widget.channels.indexWhere((channel) => channel['id'] == id);
+    if (index < 0 || index == _channelIndex) return;
+    final channel = widget.channels[index];
+    setState(() {
+      _channelIndex = index;
+      _currentChannelName = channel['name']?.toString() ?? '';
+      _currentChannelLogo = channel['tvgLogo']?.toString();
+      _groupTitle = channel['groupTitle']?.toString();
+      _providerName = ref.read(streamAlternativesProvider).providerName(channel['providerId']?.toString() ?? '');
+      _currentUrlIndex = 0;
+    });
+    unawaited(_loadFavoriteState());
   }
 
   Future<void> _loadFavoriteState() async {
@@ -1183,7 +1206,12 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     return PopScope(
       canPop: _leavingPlayer,
       onPopInvokedWithResult: (didPop, result) {
-        if (!didPop) unawaited(_leavePlayer());
+        if (didPop) return;
+        if (_showChannelList) {
+          setState(() => _showChannelList = false);
+        } else {
+          unawaited(_leavePlayer());
+        }
       },
       child: Focus(
         autofocus: true,
@@ -1197,6 +1225,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
             onEnter: (_) => _onPointerActivity(),
             onHover: (_) => _onPointerActivity(),
             child: GestureDetector(
+              key: const ValueKey('player-interaction'),
               onTap: _pipMode ? null : _toggleOverlay,
               onPanStart: _pipMode
                   ? (_) => windowManager.startDragging()
@@ -1302,7 +1331,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
 
                   // TiviMate-style control bar overlay
                   if (!_pipMode)
-                    PlayerControlBar(
+                    SafeArea(top: false, child: PlayerControlBar(
                       isCasting: ref.read(castServiceProvider).isCasting,
                       isFavorite: _isFavorite,
                       audioTrackCount: _audioTracks.length,
@@ -1324,8 +1353,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                           ? _nativeFullscreen
                                 ? '退出全屏，返回全窗口'
                                 : '全屏播放'
-                          : '返回频道，保持窗口全屏',
-                    ),
+                          : PlatformInfo.isMobile ? '返回频道' : '返回频道，保持窗口全屏',
+                    )),
 
                   if (!_pipMode)
                     Positioned(
@@ -1337,22 +1366,22 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                   // Channel info overlay (top, shown alongside control bar)
                   if (_showOverlay &&
                       !_pipMode &&
-                      (Platform.isMacOS || Platform.isWindows))
+                      (Platform.isMacOS || Platform.isWindows || PlatformInfo.isMobile))
                     Positioned(
-                      top: Platform.isMacOS ? 52 : 44,
+                      top: PlatformInfo.isMobile ? 0 : Platform.isMacOS ? 52 : 44,
                       left: 24,
                       right: 24,
-                      child: FullscreenProgrammeOverlay(
+                      child: SafeArea(bottom: false, child: FullscreenProgrammeOverlay(
                         channelName: _currentChannelName,
                         programmes: _fullscreenProgrammes,
                         timeshiftHours: _epgTimeshiftHours,
                         onReturn: () => unawaited(_leavePlayer()),
-                      ),
+                      )),
                     ),
                   if (_showOverlay &&
                       !_pipMode &&
                       !Platform.isMacOS &&
-                      !Platform.isWindows) ...[
+                      !Platform.isWindows && !PlatformInfo.isMobile) ...[
                     Positioned(
                       top: 0,
                       left: 0,
@@ -1600,12 +1629,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                   if (_showChannelList &&
                       !_pipMode &&
                       widget.channels.isNotEmpty)
-                    Positioned(
-                      right: 0,
-                      top: 0,
-                      bottom: 0,
-                      width: 320,
-                      child: Container(
+                    PlayerChannelDrawerFrame(touch: PlatformInfo.isMobile,
+                      child: Material(
                         color: Colors.black.withValues(alpha: 0.85),
                         child: Column(
                           children: [
@@ -1724,28 +1749,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
 
   // ---- Action handlers ----
 
-  Future<void> _takeScreenshot() async {
-    final ps = ref.read(playerServiceProvider);
-    try {
-      final dir = Platform.isMacOS || Platform.isLinux || Platform.isWindows
-          ? (await getDownloadsDirectory()) ?? await getTemporaryDirectory()
-          : await getTemporaryDirectory();
-      final path =
-          '${dir.path}/clubtivi_screenshot_${DateTime.now().millisecondsSinceEpoch}.png';
-      final result = await ps.takeScreenshot(path);
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(result != null ? AppMessages.text(context, "截图已保存：{0}", [path]) : AppMessages.text(context, "当前无法截图"))),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(AppMessages.text(context, "截图失败：{0}", [e])), backgroundColor: Colors.red),
-        );
-      }
-    }
-  }
+  Future<void> _takeScreenshot() =>
+      capturePlaybackFrame(context, ref.read(playerServiceProvider));
 
   Future<void> _toggleFavorite() async {
     if (widget.channels.isEmpty || _favoriteActionPending) return;

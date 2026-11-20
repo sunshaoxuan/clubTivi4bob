@@ -11,10 +11,7 @@ import 'subtitle_status.dart';
 import 'subtitle_variants.dart';
 
 class SubtitleMenuButton extends StatelessWidget {
-  const SubtitleMenuButton({
-    super.key,
-    required this.session,
-  });
+  const SubtitleMenuButton({super.key, required this.session});
 
   final LiveSubtitleSession? Function() session;
 
@@ -55,7 +52,12 @@ class SubtitleMenuButton extends StatelessWidget {
           icon: icon,
           style: IconButton.styleFrom(
             foregroundColor: color,
-            minimumSize: const Size.square(36),
+            minimumSize: Size.square(
+              Theme.of(context).platform == TargetPlatform.iOS ||
+                      Theme.of(context).platform == TargetPlatform.android
+                  ? 48
+                  : 36,
+            ),
             padding: const EdgeInsets.all(7),
             tapTargetSize: MaterialTapTargetSize.shrinkWrap,
           ),

@@ -54,6 +54,13 @@ class MobileChannelHome extends StatefulWidget {
     required this.onPause,
     required this.onMute,
     required this.onManageSources,
+    this.recentIds = const [],
+    this.onRecentChanged,
+    this.onMore,
+    this.subtitleControl,
+    this.details,
+    this.onChannelFavorite,
+    this.onChannelActions,
     this.countries = const [],
     this.country = '',
     this.currentId,
@@ -63,6 +70,13 @@ class MobileChannelHome extends StatefulWidget {
     this.muted = false,
     this.playing = false,
   });
+  final List<String> recentIds;
+  final ValueChanged<List<String>>? onRecentChanged;
+  final VoidCallback? onMore;
+  final Widget? subtitleControl;
+  final Widget? details;
+  final Future<void> Function(String)? onChannelFavorite;
+  final Future<void> Function(String)? onChannelActions;
   final Widget video;
   final List<MobileChannelItem> channels;
   final Map<String, String> sources;
@@ -121,8 +135,19 @@ class _MobileChannelHomeState extends State<MobileChannelHome>
       vsync: this,
       duration: const Duration(milliseconds: 200),
     );
+    _recent.addAll(widget.recentIds.take(50));
     _draftCategory = widget.category;
     _draftCountry = widget.country;
+  }
+
+  @override
+  void didUpdateWidget(MobileChannelHome oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.recentIds != widget.recentIds) {
+      _recent
+        ..clear()
+        ..addAll(widget.recentIds.take(50));
+    }
   }
 
   @override
@@ -262,6 +287,7 @@ class _MobileChannelHomeState extends State<MobileChannelHome>
         if (_recent.length > 50) _recent.removeLast();
       }
     });
+    if (ready) widget.onRecentChanged?.call(List.unmodifiable(_recent));
     if (ready && _open && session == _drawerSession) _close();
   }
 
@@ -315,7 +341,15 @@ class _MobileChannelHomeState extends State<MobileChannelHome>
                 onPressed: widget.onMute,
                 icon: Icon(widget.muted ? Icons.volume_off : Icons.volume_up),
               ),
+              if (widget.subtitleControl != null) widget.subtitleControl!,
               const Spacer(),
+              if (widget.onMore != null)
+                IconButton(
+                  key: const ValueKey('mobile-more-actions'),
+                  tooltip: t('更多'),
+                  onPressed: widget.onMore,
+                  icon: const Icon(Icons.more_horiz),
+                ),
               TextButton.icon(
                 key: const ValueKey('mobile-open-channels'),
                 focusNode: _openFocus,
@@ -632,6 +666,9 @@ class _MobileChannelHomeState extends State<MobileChannelHome>
             child: InkWell(
               key: ValueKey('mobile-channel-${channel.id}'),
               onTap: () => unawaited(_select(channel)),
+              onLongPress: widget.onChannelActions == null
+                  ? null
+                  : () => unawaited(widget.onChannelActions!(channel.id)),
               child: Stack(
                 fit: StackFit.expand,
                 children: [
@@ -698,7 +735,33 @@ class _MobileChannelHomeState extends State<MobileChannelHome>
                                 color: Color(0xFFBCD1FF),
                                 size: 18,
                               ),
-                            if (channel.favorite) ...[
+                            if (widget.onChannelFavorite != null)
+                              SizedBox(
+                                width: 40,
+                                height: 40,
+                                child: IconButton(
+                                  key: ValueKey(
+                                    'mobile-favorite-${channel.id}',
+                                  ),
+                                  padding: EdgeInsets.zero,
+                                  tooltip: t(
+                                    channel.favorite ? '取消收藏' : '加入收藏',
+                                  ),
+                                  onPressed: () => unawaited(
+                                    widget.onChannelFavorite!(channel.id),
+                                  ),
+                                  icon: Icon(
+                                    channel.favorite
+                                        ? Icons.star_rounded
+                                        : Icons.star_outline_rounded,
+                                    size: 20,
+                                    color: channel.favorite
+                                        ? const Color(0xFFF3CE7B)
+                                        : Colors.white60,
+                                  ),
+                                ),
+                              )
+                            else if (channel.favorite) ...[
                               const SizedBox(width: 6),
                               const Icon(
                                 Icons.star_rounded,
@@ -886,6 +949,10 @@ class _MobileChannelHomeState extends State<MobileChannelHome>
                                 widget.programme ?? t('打开频道选择播放内容'),
                                 style: const TextStyle(color: Colors.white60),
                               ),
+                              if (widget.details != null) ...[
+                                const SizedBox(height: 16),
+                                widget.details!,
+                              ],
                               const SizedBox(height: 24),
                               _button(
                                 '管理播放源',

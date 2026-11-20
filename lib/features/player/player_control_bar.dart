@@ -1,5 +1,7 @@
 import 'dart:async';
 
+import '../channels/touch_action_sheet.dart';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:media_kit/media_kit.dart';
@@ -255,6 +257,7 @@ class _PlayerControlBarState extends ConsumerState<PlayerControlBar> {
       },
       onHover: (_) => _onInteraction(),
       child: GestureDetector(
+        key: const ValueKey('player-controls-interaction'),
         behavior: HitTestBehavior.translucent,
         onTap: _onInteraction,
         child: AnimatedOpacity(
@@ -272,246 +275,271 @@ class _PlayerControlBarState extends ConsumerState<PlayerControlBar> {
                     horizontal: 12,
                     vertical: 6,
                   ),
-                  child: Row(
-                    children: [
-                      // Back button
-                      _iconBtn(Icons.arrow_back, onTap: widget.onBackTap),
-                      const SizedBox(width: 4),
+                  child: PlatformInfo.isMobile
+                      ? _buildTouchControls()
+                      : Row(
+                          children: [
+                            // Back button
+                            _iconBtn(Icons.arrow_back, onTap: widget.onBackTap),
+                            const SizedBox(width: 4),
 
-                      // Volume icon (tap to toggle mute) + slider
-                      GestureDetector(
-                        onTap: () {
-                          if (_volume > 0) {
-                            _preMuteVolume = _volume;
-                            setState(() => _volume = 0);
-                            ref.read(playerServiceProvider).setVolume(0);
-                          } else {
-                            setState(
-                              () => _volume = _preMuteVolume > 0
-                                  ? _preMuteVolume
-                                  : 100,
-                            );
-                            ref.read(playerServiceProvider).setVolume(_volume);
-                          }
-                          _scheduleHide();
-                        },
-                        child: Icon(
-                          _volume == 0
-                              ? Icons.volume_off
-                              : _volume < 50
-                              ? Icons.volume_down
-                              : Icons.volume_up,
-                          color: Colors.white,
-                          size: 20,
-                        ),
-                      ),
-                      SizedBox(
-                        width: 100,
-                        child: SliderTheme(
-                          data: SliderTheme.of(context).copyWith(
-                            trackHeight: 3,
-                            thumbShape: const RoundSliderThumbShape(
-                              enabledThumbRadius: 6,
+                            // Volume icon (tap to toggle mute) + slider
+                            GestureDetector(
+                              onTap: () {
+                                if (_volume > 0) {
+                                  _preMuteVolume = _volume;
+                                  setState(() => _volume = 0);
+                                  ref.read(playerServiceProvider).setVolume(0);
+                                } else {
+                                  setState(
+                                    () => _volume = _preMuteVolume > 0
+                                        ? _preMuteVolume
+                                        : 100,
+                                  );
+                                  ref
+                                      .read(playerServiceProvider)
+                                      .setVolume(_volume);
+                                }
+                                _scheduleHide();
+                              },
+                              child: Icon(
+                                _volume == 0
+                                    ? Icons.volume_off
+                                    : _volume < 50
+                                    ? Icons.volume_down
+                                    : Icons.volume_up,
+                                color: Colors.white,
+                                size: 20,
+                              ),
                             ),
-                            overlayShape: const RoundSliderOverlayShape(
-                              overlayRadius: 12,
-                            ),
-                            activeTrackColor: Colors.white,
-                            inactiveTrackColor: Colors.white24,
-                            thumbColor: Colors.white,
-                          ),
-                          child: Slider(
-                            value: _volume,
-                            min: 0,
-                            max: 100,
-                            onChanged: (v) {
-                              setState(() => _volume = v);
-                              ref.read(playerServiceProvider).setVolume(v);
-                              _scheduleHide();
-                            },
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-
-                      // Record
-                      _iconBtn(
-                        Icons.fiber_manual_record,
-                        color: Colors.red.shade400,
-                        size: 16,
-                        onTap: () => _comingSoon('录像'),
-                      ),
-
-                      const Spacer(),
-
-                      // ── Transport controls (center) ──
-                      _iconBtn(
-                        Icons.fast_rewind,
-                        onTap: () {
-                          final ps = ref.read(playerServiceProvider);
-                          final target =
-                              _position - const Duration(seconds: 10);
-                          ps.player.seek(
-                            target < Duration.zero ? Duration.zero : target,
-                          );
-                          _scheduleHide();
-                        },
-                      ),
-                      const SizedBox(width: 12),
-                      _iconBtn(
-                        _playing ? Icons.pause : Icons.play_arrow,
-                        size: 32,
-                        onTap: () {
-                          final ps = ref.read(playerServiceProvider);
-                          _playing ? ps.pause() : ps.resume();
-                          _scheduleHide();
-                        },
-                      ),
-                      const SizedBox(width: 12),
-                      _iconBtn(
-                        Icons.fast_forward,
-                        onTap: () {
-                          final ps = ref.read(playerServiceProvider);
-                          final target =
-                              _position + const Duration(seconds: 10);
-                          ps.player.seek(
-                            target > _duration ? _duration : target,
-                          );
-                          _scheduleHide();
-                        },
-                      ),
-
-                      const Spacer(),
-
-                      // ── Right side icons ──
-                      SubtitleMenuButton(
-                        session: () {
-                          final player = ref.read(playerServiceProvider).player;
-                          return player is ManagedPlayer ? player.liveSubtitles : null;
-                        },
-                      ),
-                      // Audio track selector (only if > 1 track)
-                      if (widget.audioTrackCount > 1)
-                        InkWell(
-                          borderRadius: BorderRadius.circular(16),
-                          onTap: widget.onAudioSelect,
-                          child: Padding(
-                            padding: const EdgeInsets.all(6),
-                            child: Stack(
-                              clipBehavior: Clip.none,
-                              children: [
-                                const Icon(
-                                  Icons.audiotrack,
-                                  color: Colors.white,
-                                  size: 20,
+                            SizedBox(
+                              width: 100,
+                              child: SliderTheme(
+                                data: SliderTheme.of(context).copyWith(
+                                  trackHeight: 3,
+                                  thumbShape: const RoundSliderThumbShape(
+                                    enabledThumbRadius: 6,
+                                  ),
+                                  overlayShape: const RoundSliderOverlayShape(
+                                    overlayRadius: 12,
+                                  ),
+                                  activeTrackColor: Colors.white,
+                                  inactiveTrackColor: Colors.white24,
+                                  thumbColor: Colors.white,
                                 ),
-                                Positioned(
-                                  right: -6,
-                                  top: -4,
-                                  child: Container(
-                                    padding: const EdgeInsets.all(2),
-                                    decoration: const BoxDecoration(
-                                      color: BobTvPalette.accent,
-                                      shape: BoxShape.circle,
-                                    ),
-                                    constraints: const BoxConstraints(
-                                      minWidth: 14,
-                                      minHeight: 14,
-                                    ),
-                                    child: Text(
-                                      '${widget.audioTrackCount}',
-                                      style: const TextStyle(
+                                child: Slider(
+                                  value: _volume,
+                                  min: 0,
+                                  max: 100,
+                                  onChanged: (v) {
+                                    setState(() => _volume = v);
+                                    ref
+                                        .read(playerServiceProvider)
+                                        .setVolume(v);
+                                    _scheduleHide();
+                                  },
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+
+                            // Record
+                            _iconBtn(
+                              Icons.fiber_manual_record,
+                              color: Colors.red.shade400,
+                              size: 16,
+                              onTap: () => _comingSoon('录像'),
+                            ),
+
+                            const Spacer(),
+
+                            // ── Transport controls (center) ──
+                            _iconBtn(
+                              Icons.fast_rewind,
+                              onTap: () {
+                                final ps = ref.read(playerServiceProvider);
+                                final target =
+                                    _position - const Duration(seconds: 10);
+                                ps.player.seek(
+                                  target < Duration.zero
+                                      ? Duration.zero
+                                      : target,
+                                );
+                                _scheduleHide();
+                              },
+                            ),
+                            const SizedBox(width: 12),
+                            _iconBtn(
+                              _playing ? Icons.pause : Icons.play_arrow,
+                              size: 32,
+                              onTap: () {
+                                final ps = ref.read(playerServiceProvider);
+                                _playing ? ps.pause() : ps.resume();
+                                _scheduleHide();
+                              },
+                            ),
+                            const SizedBox(width: 12),
+                            _iconBtn(
+                              Icons.fast_forward,
+                              onTap: () {
+                                final ps = ref.read(playerServiceProvider);
+                                final target =
+                                    _position + const Duration(seconds: 10);
+                                ps.player.seek(
+                                  target > _duration ? _duration : target,
+                                );
+                                _scheduleHide();
+                              },
+                            ),
+
+                            const Spacer(),
+
+                            // ── Right side icons ──
+                            SubtitleMenuButton(
+                              session: () {
+                                final player = ref
+                                    .read(playerServiceProvider)
+                                    .player;
+                                return player is ManagedPlayer
+                                    ? player.liveSubtitles
+                                    : null;
+                              },
+                            ),
+                            // Audio track selector (only if > 1 track)
+                            if (widget.audioTrackCount > 1)
+                              InkWell(
+                                borderRadius: BorderRadius.circular(16),
+                                onTap: widget.onAudioSelect,
+                                child: Padding(
+                                  padding: const EdgeInsets.all(6),
+                                  child: Stack(
+                                    clipBehavior: Clip.none,
+                                    children: [
+                                      const Icon(
+                                        Icons.audiotrack,
                                         color: Colors.white,
-                                        fontSize: 8,
-                                        fontWeight: FontWeight.bold,
+                                        size: 20,
                                       ),
-                                      textAlign: TextAlign.center,
-                                    ),
+                                      Positioned(
+                                        right: -6,
+                                        top: -4,
+                                        child: Container(
+                                          padding: const EdgeInsets.all(2),
+                                          decoration: const BoxDecoration(
+                                            color: BobTvPalette.accent,
+                                            shape: BoxShape.circle,
+                                          ),
+                                          constraints: const BoxConstraints(
+                                            minWidth: 14,
+                                            minHeight: 14,
+                                          ),
+                                          child: Text(
+                                            '${widget.audioTrackCount}',
+                                            style: const TextStyle(
+                                              color: Colors.white,
+                                              fontSize: 8,
+                                              fontWeight: FontWeight.bold,
+                                            ),
+                                            textAlign: TextAlign.center,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
                                   ),
                                 ),
-                              ],
+                              ),
+                            Tooltip(
+                              message: widget.isFavorite
+                                  ? AppMessages.text(context, "取消收藏")
+                                  : AppMessages.text(context, "加入收藏"),
+                              child: _iconBtn(
+                                widget.isFavorite
+                                    ? Icons.star
+                                    : Icons.star_border,
+                                color: widget.isFavorite
+                                    ? Colors.amber
+                                    : Colors.white,
+                                onTap: widget.onFavorite,
+                              ),
                             ),
-                          ),
-                        ),
-                      Tooltip(
-                        message: widget.isFavorite ? AppMessages.text(context, "取消收藏") : AppMessages.text(context, "加入收藏"),
-                        child: _iconBtn(
-                          widget.isFavorite ? Icons.star : Icons.star_border,
-                          color: widget.isFavorite ? Colors.amber : Colors.white,
-                          onTap: widget.onFavorite,
-                        ),
-                      ),
-                      Tooltip(
-                        message: AppMessages.text(context, "画中画"),
-                        child: _iconBtn(
-                          Icons.picture_in_picture_alt,
-                          onTap: widget.onPip,
-                        ),
-                      ),
-                      _iconBtn(
-                        widget.isCasting ? Icons.cast_connected : Icons.cast,
-                        color: widget.isCasting ? Colors.amber : Colors.white,
-                        onTap: widget.onCastTap,
-                      ),
-                      Tooltip(
-                        message: widget.fullscreenTooltip,
-                        child: _iconBtn(
-                          widget.isFullscreen
-                              ? Icons.fullscreen_exit
-                              : Icons.fullscreen,
-                          onTap: widget.onFullscreenToggle,
-                        ),
-                      ),
-                      if (PlatformInfo.isDesktop && !widget.isFullscreen)
-                        const DesktopWindowPinButton(compact: true),
-                      _iconBtn(Icons.info_outline, onTap: widget.onInfo),
-                      _iconBtn(Icons.edit_outlined, onTap: widget.onRename),
-                      _iconBtn(Icons.list, onTap: widget.onChannelList),
-                      if ((_videoHeight ?? 0) > 0) ...[
-                        _badge(_resolutionLabel(), fontSize: 10),
-                        const SizedBox(width: 6),
-                      ],
-                      if (MediaQuery.sizeOf(context).width >= 1000) ...[
-                        _badge('EPG', fontSize: 10),
-                        const SizedBox(width: 6),
-                        Tooltip(
-                          richMessage: WidgetSpan(
-                            child: _FpsSparkline(history: _fpsHistory),
-                          ),
-                          waitDuration: const Duration(milliseconds: 300),
-                          preferBelow: false,
-                          decoration: BoxDecoration(
-                            color: BobTvPalette.panel,
-                            borderRadius: BorderRadius.circular(8),
-                            border: Border.all(color: Colors.white24),
-                          ),
-                          padding: const EdgeInsets.all(10),
-                          child: _badge('$_fpsLabel fps', fontSize: 10),
-                        ),
-                        const SizedBox(width: 4),
-                        Tooltip(
-                          richMessage: WidgetSpan(
-                            child: _BufferSparkline(
-                              history: _bufferHistory,
-                              tier: _bufferTier,
+                            Tooltip(
+                              message: AppMessages.text(context, "画中画"),
+                              child: _iconBtn(
+                                Icons.picture_in_picture_alt,
+                                onTap: widget.onPip,
+                              ),
                             ),
-                          ),
-                          waitDuration: const Duration(milliseconds: 300),
-                          preferBelow: false,
-                          decoration: BoxDecoration(
-                            color: BobTvPalette.panel,
-                            borderRadius: BorderRadius.circular(8),
-                            border: Border.all(color: Colors.white24),
-                          ),
-                          padding: const EdgeInsets.all(10),
-                          child: _badge(
-                            'buf: ${_bufferDuration}s',
-                            fontSize: 10,
-                          ),
+                            _iconBtn(
+                              widget.isCasting
+                                  ? Icons.cast_connected
+                                  : Icons.cast,
+                              color: widget.isCasting
+                                  ? Colors.amber
+                                  : Colors.white,
+                              onTap: widget.onCastTap,
+                            ),
+                            Tooltip(
+                              message: widget.fullscreenTooltip,
+                              child: _iconBtn(
+                                widget.isFullscreen
+                                    ? Icons.fullscreen_exit
+                                    : Icons.fullscreen,
+                                onTap: widget.onFullscreenToggle,
+                              ),
+                            ),
+                            if (PlatformInfo.isDesktop && !widget.isFullscreen)
+                              const DesktopWindowPinButton(compact: true),
+                            _iconBtn(Icons.info_outline, onTap: widget.onInfo),
+                            _iconBtn(
+                              Icons.edit_outlined,
+                              onTap: widget.onRename,
+                            ),
+                            _iconBtn(Icons.list, onTap: widget.onChannelList),
+                            if ((_videoHeight ?? 0) > 0) ...[
+                              _badge(_resolutionLabel(), fontSize: 10),
+                              const SizedBox(width: 6),
+                            ],
+                            if (MediaQuery.sizeOf(context).width >= 1000) ...[
+                              _badge('EPG', fontSize: 10),
+                              const SizedBox(width: 6),
+                              Tooltip(
+                                richMessage: WidgetSpan(
+                                  child: _FpsSparkline(history: _fpsHistory),
+                                ),
+                                waitDuration: const Duration(milliseconds: 300),
+                                preferBelow: false,
+                                decoration: BoxDecoration(
+                                  color: BobTvPalette.panel,
+                                  borderRadius: BorderRadius.circular(8),
+                                  border: Border.all(color: Colors.white24),
+                                ),
+                                padding: const EdgeInsets.all(10),
+                                child: _badge('$_fpsLabel fps', fontSize: 10),
+                              ),
+                              const SizedBox(width: 4),
+                              Tooltip(
+                                richMessage: WidgetSpan(
+                                  child: _BufferSparkline(
+                                    history: _bufferHistory,
+                                    tier: _bufferTier,
+                                  ),
+                                ),
+                                waitDuration: const Duration(milliseconds: 300),
+                                preferBelow: false,
+                                decoration: BoxDecoration(
+                                  color: BobTvPalette.panel,
+                                  borderRadius: BorderRadius.circular(8),
+                                  border: Border.all(color: Colors.white24),
+                                ),
+                                padding: const EdgeInsets.all(10),
+                                child: _badge(
+                                  'buf: ${_bufferDuration}s',
+                                  fontSize: 10,
+                                ),
+                              ),
+                            ],
+                          ],
                         ),
-                      ],
-                    ],
-                  ),
                 ),
 
                 // ── Bottom row: seek bar ──
@@ -601,6 +629,107 @@ class _PlayerControlBarState extends ConsumerState<PlayerControlBar> {
     );
   }
 
+  Widget _buildTouchControls() {
+    Widget button(
+      String id,
+      String label,
+      IconData icon,
+      VoidCallback? run, {
+      Color? color,
+    }) => IconButton(
+      key: ValueKey('touch-player-$id'),
+      tooltip: AppMessages.text(context, label),
+      style: IconButton.styleFrom(minimumSize: const Size.square(48)),
+      onPressed: run,
+      icon: Icon(icon, color: color ?? Colors.white, size: 24),
+    );
+    return Row(
+      children: [
+        button('back', '返回频道', Icons.arrow_back, widget.onBackTap),
+        button(
+          'play',
+          _playing ? '暂停' : '播放',
+          _playing ? Icons.pause : Icons.play_arrow,
+          () {
+            final service = ref.read(playerServiceProvider);
+            _playing ? service.pause() : service.resume();
+            _scheduleHide();
+          },
+        ),
+        button(
+          'mute',
+          _volume == 0 ? '取消静音' : '静音',
+          _volume == 0 ? Icons.volume_off : Icons.volume_up,
+          () {
+            if (_volume > 0) _preMuteVolume = _volume;
+            final volume = _volume == 0 ? _preMuteVolume : 0.0;
+            ref.read(playerServiceProvider).setVolume(volume);
+            setState(() => _volume = volume);
+            _scheduleHide();
+          },
+        ),
+        const Spacer(),
+        SubtitleMenuButton(
+          session: () {
+            final player = ref.read(playerServiceProvider).player;
+            return player is ManagedPlayer ? player.liveSubtitles : null;
+          },
+        ),
+        button(
+          'favorite',
+          widget.isFavorite ? '取消收藏' : '加入收藏',
+          widget.isFavorite ? Icons.star : Icons.star_border,
+          widget.onFavorite,
+          color: widget.isFavorite ? Colors.amber : null,
+        ),
+        button('more', '更多', Icons.more_horiz, () async {
+          _hideTimer?.cancel();
+          await showTouchActionSheet(
+            context,
+            title: AppMessages.text(context, '更多'),
+            actions: [
+              TouchAction(
+                'audio',
+                '音轨',
+                Icons.audiotrack,
+                widget.audioTrackCount > 1 ? widget.onAudioSelect : null,
+              ),
+              TouchAction(
+                'capture',
+                '截图',
+                Icons.camera_alt,
+                widget.onScreenshot,
+              ),
+              TouchAction('info', '播放信息', Icons.info_outline, widget.onInfo),
+              TouchAction(
+                'rename',
+                '设置显示名称',
+                Icons.edit_outlined,
+                widget.onRename,
+              ),
+              TouchAction('cast', '投屏', Icons.cast, widget.onCastTap),
+              if (Theme.of(context).platform == TargetPlatform.android)
+                TouchAction(
+                  'pip',
+                  '画中画',
+                  Icons.picture_in_picture_alt,
+                  widget.onPip,
+                ),
+              TouchAction('channels', '频道', Icons.list, widget.onChannelList),
+              TouchAction(
+                'fullscreen',
+                widget.fullscreenTooltip,
+                Icons.fullscreen,
+                widget.onFullscreenToggle,
+              ),
+            ],
+          );
+          if (mounted) _scheduleHide();
+        }),
+      ],
+    );
+  }
+
   // ── Small helpers ──
 
   Widget _iconBtn(
@@ -685,7 +814,11 @@ class _FpsSparkline extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            AppMessages.text(context, "帧率  最低：{0}  平均：{1}  最高：{2}", [min.toStringAsFixed(1), avg.toStringAsFixed(1), max.toStringAsFixed(1)]),
+            AppMessages.text(context, "帧率  最低：{0}  平均：{1}  最高：{2}", [
+              min.toStringAsFixed(1),
+              avg.toStringAsFixed(1),
+              max.toStringAsFixed(1),
+            ]),
             style: const TextStyle(
               color: Colors.white,
               fontSize: 10,
@@ -795,7 +928,12 @@ class _BufferSparkline extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            AppMessages.text(context, "缓冲  最低：{0}  平均：{1}  最高：{2}  档位：{3}", [min.toStringAsFixed(1), avg.toStringAsFixed(1), max.toStringAsFixed(1), tier]),
+            AppMessages.text(context, "缓冲  最低：{0}  平均：{1}  最高：{2}  档位：{3}", [
+              min.toStringAsFixed(1),
+              avg.toStringAsFixed(1),
+              max.toStringAsFixed(1),
+              tier,
+            ]),
             style: const TextStyle(
               color: Colors.white,
               fontSize: 10,

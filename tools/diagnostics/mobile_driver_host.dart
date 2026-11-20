@@ -7,6 +7,11 @@ Future<void> main(List<String> args) async {
   final driver = await FlutterDriver.connect(dartVmServiceUrl: args[0]);
   try {
     switch (args[1]) {
+      case 'type':
+        await driver.tap(
+          find.byType(args[2]),
+          timeout: const Duration(seconds: 15),
+        );
       case 'tooltip':
         await driver.tap(
           find.byTooltip(args[2]),

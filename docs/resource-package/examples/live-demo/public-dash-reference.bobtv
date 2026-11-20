@@ -1,0 +1,52 @@
+{
+  "format": "bobtv-resource",
+  "schemaVersion": 1,
+  "id": "bobtv-public-live-tests",
+  "name": "公开授权直播测试 · DASH-IF",
+  "revision": "2026-11-20.1",
+  "categories": [
+    {
+      "id": "low-latency",
+      "name": "公开直播测试"
+    },
+    {
+      "id": "adaptive",
+      "name": "自适应直播测试"
+    }
+  ],
+  "channels": [
+    {
+      "id": "testpic_2s",
+      "name": "DASH-IF 直播 · 2 秒分片",
+      "categoryId": "low-latency",
+      "routes": [
+        {
+          "id": "public-dash",
+          "url": "https://livesim2.dashif.org/livesim2/testpic_2s/Manifest.mpd"
+        }
+      ]
+    },
+    {
+      "id": "testpic_6s",
+      "name": "DASH-IF 直播 · 6 秒分片",
+      "categoryId": "low-latency",
+      "routes": [
+        {
+          "id": "public-dash",
+          "url": "https://livesim2.dashif.org/livesim2/testpic_6s/Manifest.mpd"
+        }
+      ]
+    },
+    {
+      "id": "testpic4_8s",
+      "name": "DASH-IF 自适应直播 · 8 秒分片",
+      "categoryId": "adaptive",
+      "routes": [
+        {
+          "id": "public-dash",
+          "url": "https://livesim2.dashif.org/livesim2/testpic4_8s/Manifest.mpd"
+        }
+      ]
+    }
+  ]
+}

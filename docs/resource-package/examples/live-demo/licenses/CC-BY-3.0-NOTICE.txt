@@ -1,0 +1,18 @@
+Creative Commons Attribution 3.0 Unported (CC BY 3.0)
+License URI: https://creativecommons.org/licenses/by/3.0/
+Legal code: https://creativecommons.org/licenses/by/3.0/legalcode
+
+This file is an attribution notice, not a replacement for the legal code.
+
+Big Buck Bunny trailer: (c) 2008 Blender Foundation | www.bigbuckbunny.org
+Rights statement: https://peach.blender.org/about/
+Sintel trailer: (c) Blender Foundation | durian.blender.org
+Rights statement: https://durian.blender.org/sharing/
+
+The reviewed trailer inputs are not trimmed. They are continuously looped,
+scaled and transcoded to HLS with an attribution and license URI overlaid.
+No endorsement is implied. Original clip credits are retained as served.
+
+Input URLs, exact byte lengths and SHA-256 digests are in provenance.json.
+Original test signal and geometric logos are dedicated under CC0:
+https://creativecommons.org/publicdomain/zero/1.0/

@@ -14,8 +14,54 @@ import 'package:clubtivi/features/player/client_subtitle_runtime.dart';
 import 'package:clubtivi/features/player/ios_native_media.dart';
 
 Future<String> handleMobileQaCommand(String? message) async {
-  if (message == 'source-manager') {
-    router.go('/providers');
+  if (message == 'silent-audio') {
+    final context = router.routerDelegate.navigatorKey.currentContext!;
+    final container = ProviderScope.containerOf(context, listen: false);
+    final service = container.read(playerServiceProvider);
+    final dynamic native = service.player.platform;
+    await native.setProperty('ao', 'null');
+    await native.setProperty('af', '');
+    await service.setVolume(0);
+    return jsonEncode({
+      'audioOutput': await native.getProperty('ao'),
+      'muted': await native.getProperty('mute') == 'yes',
+    });
+  }
+  if (message == 'player-probe') {
+    final context = router.routerDelegate.navigatorKey.currentContext!;
+    final container = ProviderScope.containerOf(context, listen: false);
+    final dynamic native = container
+        .read(playerServiceProvider)
+        .player
+        .platform;
+    final values = <String, String?>{};
+    for (final key in [
+      'vo',
+      'vid',
+      'ao',
+      'af',
+      'pause',
+      'video-params',
+      'audio-params',
+      'track-list',
+      'time-pos',
+      'demuxer-cache-state',
+      'paused-for-cache',
+      'video-codec',
+      'audio-codec',
+      'hwdec-current',
+      'eof-reached',
+    ]) {
+      try {
+        values[key] = await native.getProperty(key);
+      } catch (_) {
+        values[key] = null;
+      }
+    }
+    return jsonEncode(values);
+  }
+  if (message == 'source-manager' || message == 'source-home') {
+    router.go(message == 'source-home' ? '/' : '/providers');
     return 'ok';
   }
   if (message == 'source-state' || message == 'source-refresh') {

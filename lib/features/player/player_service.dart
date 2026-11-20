@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'ios_native_media.dart';
 import 'package:flutter/widgets.dart';
 import 'dart:async';
@@ -1901,6 +1902,23 @@ class PlayerService {
     if (np is! native_player.NativePlayer) return;
     await np.setProperty('vid', 'auto');
     if (reload) {
+      if (Platform.isIOS) {
+        // Some live demuxers expose valid tracks while auto selection remains
+        // empty. Recover the active player's single unselected video only.
+        // Multiple programmes or video tracks keep the existing selection.
+        final raw = await np.getProperty('track-list');
+        final tracks = raw.isEmpty ? const [] : jsonDecode(raw) as List;
+        final videos = tracks.whereType<Map>().where((track) =>
+            track['type'] == 'video' && track['image'] != true &&
+            track['albumart'] != true).toList();
+        if (videos.length == 1 && videos.single['selected'] != true) {
+          final id = videos.single['id'];
+          if (id is int && id > 0) {
+            await np.setProperty('vid', '$id');
+            AppDiagnostics.instance.log('ios_video_track_recovered', {'trackId': id});
+          }
+        }
+      }
       try {
         await np.command(['video-reload']);
       } catch (_) {}

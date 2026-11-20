@@ -1,0 +1,74 @@
+{
+  "format": "bobtv-resource",
+  "schemaVersion": 1,
+  "id": "bobtv-open-hls-live-demo",
+  "name": "BobTV 开放授权 HLS 直播范例",
+  "revision": "2026-11-20.1",
+  "updateUrl": "http://127.0.0.1:18767/demo.bobtv",
+  "categories": [
+    {
+      "id": "animation",
+      "name": "开放动画直播"
+    },
+    {
+      "id": "signal",
+      "name": "直播测试信号"
+    }
+  ],
+  "epgSources": [
+    {
+      "id": "demo",
+      "url": "http://127.0.0.1:18767/epg.xml"
+    }
+  ],
+  "channels": [
+    {
+      "id": "bunny",
+      "name": "开放动画直播 · Big Buck Bunny",
+      "categoryId": "animation",
+      "logo": "http://127.0.0.1:18767/logos/bunny.png",
+      "epg": {
+        "sourceId": "demo",
+        "channelId": "bunny"
+      },
+      "routes": [
+        {
+          "id": "hls",
+          "url": "http://127.0.0.1:18767/hls/bunny/master.m3u8"
+        }
+      ]
+    },
+    {
+      "id": "sintel",
+      "name": "开放动画直播 · Sintel",
+      "categoryId": "animation",
+      "logo": "http://127.0.0.1:18767/logos/sintel.png",
+      "epg": {
+        "sourceId": "demo",
+        "channelId": "sintel"
+      },
+      "routes": [
+        {
+          "id": "hls",
+          "url": "http://127.0.0.1:18767/hls/sintel/master.m3u8"
+        }
+      ]
+    },
+    {
+      "id": "signal",
+      "name": "BobTV 实时测试信号",
+      "categoryId": "signal",
+      "logo": "http://127.0.0.1:18767/logos/signal.png",
+      "epg": {
+        "sourceId": "demo",
+        "channelId": "signal"
+      },
+      "routes": [
+        {
+          "id": "hls",
+          "url": "http://127.0.0.1:18767/hls/signal/master.m3u8"
+        }
+      ]
+    }
+  ]
+}

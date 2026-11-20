@@ -59,3 +59,8 @@ dart run tools/validate_resource_package.dart my-catalog.json output.bobtv
 本次协议不新增字幕服务器接口、字幕时间轴字段或原生字幕算法。任意第三方线路能否匹配到字幕，取决于现有服务的节目识别与覆盖；协议验收不等同于这些线路均已出现正确字幕。iOS 模拟器端原生识别尚有未解决的错误，沿用 ios-native-adaptation.md 中的记录。
 
 第一版尚未实现 ETag/Last-Modified、签名、加密、发布者登录、刷新取消按钮、后台固定同步。先前草案中对应内容是后续设计项。协议端到端证据见 [本次验收记录](acceptance-20261120.md)。
+
+
+## 可运行直播范例
+
+见 [流式直播范例](examples/live-demo/README.md)，包含持续推进的 HLS 轮播服务、授权说明及公共 DASH 直播测试包。原 `examples/demo.bobtv` 继续作为字段占位示例。

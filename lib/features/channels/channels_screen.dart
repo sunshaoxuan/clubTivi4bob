@@ -1,3 +1,4 @@
+import '../account/account_button.dart';
 import '../../core/user_source_policy.dart';
 import '../providers/add_provider_dialog.dart';
 import '../player/bobtv_video.dart';
@@ -3288,7 +3289,10 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
             body: SafeArea(
               child: Column(
                 children: [
-                  if (!PlatformInfo.isTV) _buildTopBar(context),
+                  if (PlatformInfo.isTV)
+                    const Align(alignment: Alignment.centerRight, child: AccountButton())
+                  else
+                    _buildTopBar(context),
                   Expanded(
                     child: Row(
                       children: [
@@ -3664,6 +3668,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                         IconButton(key: const ValueKey('tablet-more-actions'),
                           tooltip: AppMessages.text(context, '更多'), icon: const Icon(Icons.more_horiz),
                           onPressed: () => _showMobileTools()),
+                      const AccountButton(),
                       const LanguageMenu(),
                       _buildUpdateBadge(),
                       const DesktopExitButton(),
@@ -4555,7 +4560,8 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
           Expanded(child: Text(_localizedLoadStatus(context),
             maxLines: 1, overflow: TextOverflow.ellipsis,
             style: const TextStyle(fontSize: 11, color: Colors.white54))),
-          const LanguageMenu(),
+          const AccountButton(),
+                      const LanguageMenu(),
         ]),
       );
     }
@@ -4573,7 +4579,8 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
           ),
           const SizedBox(width: 10),
           _buildUpdateBadge(),
-          const LanguageMenu(),
+          const AccountButton(),
+                      const LanguageMenu(),
           const DesktopExitButton(),
           const SizedBox(width: 10),
           ConstrainedBox(

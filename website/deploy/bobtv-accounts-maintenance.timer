@@ -1,0 +1,8 @@
+[Unit]
+Description=Daily BobTV account cleanup and backup
+[Timer]
+OnCalendar=*-*-* 03:40:00 UTC
+Persistent=true
+RandomizedDelaySec=120
+[Install]
+WantedBy=timers.target

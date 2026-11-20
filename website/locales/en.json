@@ -867,5 +867,11 @@
     "cta": "Get 1.3.1 and try auto subtitles",
     "historyTitle": "Programme guides and automatic subtitles, together",
     "historyText": "BobTV automatically searches multiple subtitle sources when the guide confirms the current programme. Switch between seven language preferences and choose from up to three distinct subtitle versions per language during playback. Automatic selection tries your preferred language, then English. Subtitles pause for adverts and realign when the programme returns."
-  }
+  },
+  "account_privacy": [
+    "Optional accounts and sign-in",
+    "The account service stores email, name, provider identifiers, verification/disabled status and hashed session credentials. Email codes expire in ten minutes and are sent using encrypted SMTP through mail.briconbric.com. Google and Apple exchange identity information with their services. Account access does not require playback URLs or viewing history.",
+    "Biometrics and deletion",
+    "Face ID, Touch ID and Android biometrics are processed by the device OS. BobTV receives no face or fingerprint templates. The preference and session are kept in secure system storage. Delete your account from the account screen; Apple credentials are revoked. Rate-limit records expire with their windows; admin audits and account database backups are periodically pruned under 180-day and 30-day retention policies."
+  ]
 }

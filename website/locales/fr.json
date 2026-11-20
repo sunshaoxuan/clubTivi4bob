@@ -867,5 +867,11 @@
     "cta": "Essayez les sous-titres avec la version 1.3.1",
     "historyTitle": "Le guide TV et les sous-titres automatiques réunis",
     "historyText": "BobTV recherche automatiquement des sous-titres dans plusieurs sources lorsque le guide TV confirme le programme en cours. Changez de langue pendant la lecture parmi sept langues proposées et choisissez jusqu’à trois versions distinctes par langue. La sélection automatique essaie d’abord votre langue, puis l’anglais. Les sous-titres se mettent en pause pendant la publicité et se recalent au retour du programme."
-  }
+  },
+  "account_privacy": [
+    "Compte facultatif et connexion",
+    "Le service conserve e-mail, nom, identifiants des fournisseurs, états de vérification et de désactivation et empreintes des sessions. Les codes expirent après dix minutes et sont envoyés par SMTP chiffré via mail.briconbric.com. Google et Apple échangent les informations d’identité nécessaires. Aucune URL de lecture ni aucun historique de visionnage n’est requis.",
+    "Biométrie et suppression",
+    "La biométrie est traitée par le système de l’appareil. BobTV ne reçoit aucun modèle facial ou digital. Préférence et session sont conservées dans le stockage sécurisé du système. Le compte peut être supprimé dans l’application, avec révocation des identifiants Apple. Les limites expirent avec leur période. Les audits administratifs et les sauvegardes de comptes sont purgés périodiquement selon des politiques de 180 et 30 jours."
+  ]
 }

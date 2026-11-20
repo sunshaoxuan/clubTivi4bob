@@ -54,6 +54,16 @@ class FakeResponse extends Fake implements HttpClientResponse {
 }
 
 void main() {
+  test('account and admin credentials stay on the primary authority', () async {
+    final router = ResourceNodeRouter(
+      probe: (_) async => const Duration(milliseconds: 1),
+    );
+    for (final path in ['account/me', 'account/email/code', 'admin/users']) {
+      final uri = Uri.parse('https://bobtv.briconbric.com/api/v1/$path');
+      expect(ResourceNodeRouter.eligible(uri), isFalse);
+      expect(await router.resolve(uri), uri);
+    }
+  });
   final source = Uri.parse(
     'https://bobtv.briconbric.com/api/v1/channel-catalog/events?a=1',
   );

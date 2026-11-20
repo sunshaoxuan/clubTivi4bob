@@ -10,11 +10,11 @@ import android.net.wifi.WifiManager
 import android.content.Context
 import android.provider.Settings
 import android.util.Rational
-import io.flutter.embedding.android.FlutterActivity
+import io.flutter.embedding.android.FlutterFragmentActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
 
-class MainActivity : FlutterActivity() {
+class MainActivity : FlutterFragmentActivity() {
     private val CHANNEL = "io.github.clubanderson.clubtivi/installer"
     private var deviceChannel: MethodChannel? = null
     private var exitRequested = false

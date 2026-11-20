@@ -1,3 +1,4 @@
+import '../account/account_button.dart';
 import 'dart:async';
 import 'dart:ui' as ui;
 
@@ -311,7 +312,7 @@ class _MobileChannelHomeState extends State<MobileChannelHome>
       Positioned(
         top: 8,
         left: 12,
-        right: 12,
+        right: 68,
         child: Text(
           widget.currentName ?? t('选择频道'),
           maxLines: 1,
@@ -323,6 +324,7 @@ class _MobileChannelHomeState extends State<MobileChannelHome>
           ),
         ),
       ),
+      const Positioned(top: 0, right: 8, child: AccountButton(compact: true)),
       Positioned(
         left: 4,
         right: 4,

@@ -7,12 +7,12 @@ import android.net.Uri
 import android.os.Build
 import android.provider.Settings
 import androidx.core.content.FileProvider
-import io.flutter.embedding.android.FlutterActivity
+import android.app.Activity
 import java.io.File
 import java.security.MessageDigest
 
 /** APKs stay in app-private cache and must be signed by the installed publisher. */
-class BobTvPackageInstaller(private val activity: FlutterActivity) {
+class BobTvPackageInstaller(private val activity: Activity) {
     @Suppress("DEPRECATION")
     private fun certificates(info: PackageInfo): Set<String> {
         val signatures = if (Build.VERSION.SDK_INT >= 28) info.signingInfo?.apkContentsSigners else info.signatures

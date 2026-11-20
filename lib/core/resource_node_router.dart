@@ -40,6 +40,11 @@ class ResourceNodeRouter {
   static bool eligible(Uri uri) {
     final value = canonical(uri);
     if (value == null) return false;
+    // Identity credentials go directly to the primary account authority.
+    if (value.path.startsWith('/api/v1/account/') ||
+        value.path.startsWith('/api/v1/admin/')) {
+      return false;
+    }
     // Video manifests, segments and downloads never use the resource relay.
     if (value.path == '/api/v1/egress/resource' &&
         value.queryParameters['kind'] == 'media') {

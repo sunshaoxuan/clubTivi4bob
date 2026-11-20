@@ -867,5 +867,11 @@
     "cta": "Prueba los subtítulos automáticos de 1.3.1",
     "historyTitle": "La guía y los subtítulos automáticos, juntos",
     "historyText": "BobTV busca automáticamente en varias fuentes de subtítulos cuando la guía confirma el programa actual. Durante la reproducción puedes cambiar entre siete idiomas de preferencia y elegir hasta tres versiones distintas por idioma. La selección automática prueba tu idioma primero y luego el inglés. Los subtítulos se pausan durante los anuncios y se vuelven a sincronizar al regresar el programa."
-  }
+  },
+  "account_privacy": [
+    "Cuenta e inicio de sesión opcionales",
+    "El servicio guarda correo, nombre, identificadores del proveedor, estados de verificación y desactivación y hashes de sesiones. Los códigos caducan en diez minutos y se envían mediante SMTP cifrado con mail.briconbric.com. Google y Apple intercambian la información de identidad necesaria. No se requieren direcciones de reproducción ni historial.",
+    "Biometría y eliminación",
+    "El sistema del dispositivo procesa la biometría. BobTV no recibe plantillas de rostro o huellas. La preferencia y la sesión se conservan en el almacenamiento seguro del sistema. Puedes eliminar la cuenta desde la aplicación; se revocan las credenciales de Apple. Los límites caducan con su período. Las auditorías y las copias de seguridad se depuran periódicamente con políticas de retención de 180 y 30 días."
+  ]
 }

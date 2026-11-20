@@ -18,6 +18,8 @@ def backup(directory):
     report = {'createdAt': datetime.now(timezone.utc).isoformat(), 'databases': [], 'catalog': None}
     try:
         for path in sorted(directory.glob('*.sqlite3')):
+            # Account data has separate private backups with bounded retention.
+            if path.name == 'accounts.sqlite3': continue
             if path.is_symlink() or not path.is_file(): continue
             target = temporary / path.name
             source = sqlite3.connect(path.as_uri() + '?mode=ro', uri=True, timeout=30)

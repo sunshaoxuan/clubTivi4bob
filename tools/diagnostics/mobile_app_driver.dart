@@ -2,6 +2,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'package:clubtivi/features/account/account_service.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_driver/driver_extension.dart';
@@ -14,6 +15,25 @@ import 'package:clubtivi/features/player/client_subtitle_runtime.dart';
 import 'package:clubtivi/features/player/ios_native_media.dart';
 
 Future<String> handleMobileQaCommand(String? message) async {
+  if (message == 'account-probe') {
+    const storage = AccountService.credentialStorage;
+    final key =
+        'bobtv.account.qa.' + DateTime.now().microsecondsSinceEpoch.toString();
+    var roundTrip = false;
+    try {
+      await storage.write(key: key, value: 'qa-storage-check');
+      roundTrip = await storage.read(key: key) == 'qa-storage-check';
+    } finally {
+      await storage.delete(key: key);
+    }
+    final account = AccountService.instance;
+    return jsonEncode({
+      'secureStorageRoundTrip': roundTrip,
+      'biometricAvailable': await account.canUseBiometrics(),
+      'optionalLogin': true,
+      'loggedIn': account.loggedIn,
+    });
+  }
   if (message == 'silent-audio') {
     final context = router.routerDelegate.navigatorKey.currentContext!;
     final container = ProviderScope.containerOf(context, listen: false);

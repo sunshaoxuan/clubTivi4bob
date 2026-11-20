@@ -73,6 +73,8 @@
 		<key>NSAllowsArbitraryLoads</key>
 		<true/>
 	</dict>
+	<key>NSFaceIDUsageDescription</key>
+	<string>Use Face ID to unlock your BobTV account after signing in.</string>
 	<key>UIBackgroundModes</key>
 	<array>
 		<string>audio</string>

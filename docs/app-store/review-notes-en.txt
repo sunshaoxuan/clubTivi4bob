@@ -1,0 +1,27 @@
+DRAFT FOR FINAL REVIEW. Do not paste until readiness.json passes.
+
+BobTV is a universal iPhone/iPad streaming player. The initial iOS channel list is empty. The current development bundle still contains legacy compressed catalog/snapshot assets; exclude them or verify distribution rights before submission. The runtime source policy skips their import and public catalog synchronization. Users can add a single stream address or explicitly import a compatible .bobtv data package. This version has no recharge, subscriptions, In-App Purchases or external purchase links.
+
+Playback walkthrough
+1. Open the app as a guest. Playback does not require account registration.
+2. Open source management and add the verified public demonstration package URL supplied in demo-access.json. This URL is not yet deployed; do not substitute a localhost URL.
+3. Inspect the import preview, confirm the categories/channels and select a channel. The demonstration contains licensed trailer loops and an original real-time test signal, delivered as continuously updated HLS. These are test channels with generated programme information.
+4. On iPhone, the channel drawer opens from the bottom in portrait and from the right in landscape. iPad rearranges the player/channel layout by orientation. Try category filtering and channel switching.
+
+Data and synchronization
+The package is data interpreted by capabilities already compiled into the app. It supplies names, categories, stream routes, logos, EPG references and an optional update URL. It does not supply scripts, dynamic libraries, executable code, UI patches or a different hidden application. Import and refresh use the same documented source-management flow.
+
+Programme guide, subtitle and metadata features have network dependencies. Media playback reads the user-selected source directly. The current networking layer can relay metadata/image/data requests through BobTV services; review the final privacy worksheet rather than assuming all playlist or metadata operations remain on-device. On-device speech recognition, when available and explicitly requested, is intended for subtitle alignment and does not use microphone recording. Speech model availability and supported languages must be verified before submission. Native system playback/Picture in Picture/AirPlay availability depends on device and receiver; no proprietary external hardware is bundled.
+
+Accounts
+Registration is optional for current playback. Open the account button at the top. The code includes email verification, Google and Apple sign-in adapters, sign-out and deletion. Google/Apple developer configuration has been deferred by the owner. The current cross-platform adapter opens an external default browser. Apple account guidance identifies this as an inappropriate iOS sign-in/registration experience; the iOS flow needs native/in-app authentication adaptation before submission. The account routes must be made fully working, or a final visible feature-scope decision must be implemented and disclosed before submission. Do not send this draft while these paths remain unfinished.
+
+Review login instructions and any ordinary test-account access belong in private/account-access.json. No privileged administrator account or fixed verification-code bypass is provided. For account deletion, use Account > Delete account and reauthenticate if the session is older than ten minutes. Apple credentials are revoked as part of deletion when Apple sign-in is configured; failure is surfaced and the user can retry.
+
+Biometric unlocking is optional after sign-in, only on compatible devices with enrolled biometrics. The OS handles biometric templates. Cancelling authentication keeps account access locked; the player remains available to guests.
+
+Additional development scope
+An unmerged regional catalog module currently exists in the working tree and is documented as not connected to the channel UI. It is not represented here as an enabled feature. Any later integration, account/region restrictions or developer-supplied catalog must be included in the final submission notes, rights evidence, screenshots and reviewer access. This preparation package does not establish rights for unrelated server catalogs.
+
+Rights
+The included demonstration provenance identifies Blender trailers under CC BY 3.0 and original generated test material. Attribution and modifications are documented in rights/. This evidence applies to those assets only. Supply separate rights records for any other developer-provided content in the submitted version.

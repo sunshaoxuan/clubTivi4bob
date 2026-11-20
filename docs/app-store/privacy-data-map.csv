@@ -1,0 +1,15 @@
+数据,Apple分类候选,目的候选,关联候选,适用条件,当前依据,最终确认
+邮箱,Contact Info / Email Address,App Functionality,关联账号,用户注册登录,website/accounts.py email OTP 与 public_user,需核对生产配置与最终包
+名称,Contact Info / Name,App Functionality,关联账号,第三方登录或管理员填写,website/accounts.py provider name / admin user input,第三方配置后补时确认实际上线范围
+账号ID,Identifiers / User ID,App Functionality,关联账号,注册登录,website/accounts.py users.id / sessions,需核对最终账号访问
+安装UUID,Identifiers / Device ID,App Functionality / Analytics候选,关联设备,明确同意可选诊断,diagnostic_sync_service.dart installationId,不能仅凭随机化认定不关联
+崩溃及错误,Diagnostics / Crash Data,App Functionality,可能通过安装ID关联设备,开启诊断同步,diagnostic_sync_service.dart consent v2,核对上传投影字段和保留
+运行性能与网络故障,Diagnostics / Performance Data / Other Diagnostic Data,App Functionality,可能通过安装ID关联设备,开启诊断同步,diagnostic_log_store.dart 和 diagnostic_sync_service.dart,核对最终事件及数据用途
+选择的频道/节目信息,Usage Data / Product Interaction 候选,App Functionality,取决于服务请求与日志关联,EPG或字幕等网络查找,server_task_client.dart 及相关输入,必须做动态网络核查后定稿
+用户输入URL和资源引用,Other User Content 或 Other Data候选,App Functionality,取决于请求日志及账号关联,播放源及元数据转发,resource_package_client.dart / ServerEgress,核对哪些直接请求及哪些由服务中转
+网络IP及推断国家,Coarse Location / Other Data候选,App Functionality / Security候选,取决于保留和关联,连接主站及来源服务器,website/network_routes.py 与请求日志,确认是否仅瞬时处理及日志保留
+设备目录签名公钥,Identifiers / Device ID候选,App Functionality,关联账号,未来接入地区目录时,尚未合并的 regional_catalog_client.dart,当前未接UI不能当成已上线采集
+面容及指纹模板,不由BobTV接收或上传,设备系统验证,不适用,开启本机生物验证,local_auth 系统调用,不将模板误报为BobTV收集
+麦克风采集,当前未申请采集,不适用,不适用,当前设备语音识别使用节目音频,ios/Runner/Info.plist 与原生语音实现,检查最终二进制和SDK权限
+支付信息,本版本未提供收费,不适用,不适用,当前版本,无充值或IAP实现,以后收费时重新申报
+跨App广告追踪,当前未发现相应用途,不适用,待最终核查,当前源码与已观察SDK,没有据此签署完整无追踪认证,须确认全部SDK与服务器用途

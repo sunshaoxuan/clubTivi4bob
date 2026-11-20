@@ -708,7 +708,8 @@ class _PlayerControlBarState extends ConsumerState<PlayerControlBar> {
                 widget.onRename,
               ),
               TouchAction('cast', '投屏', Icons.cast, widget.onCastTap),
-              if (Theme.of(context).platform == TargetPlatform.android)
+              if (Theme.of(context).platform == TargetPlatform.android ||
+                  Theme.of(context).platform == TargetPlatform.iOS)
                 TouchAction(
                   'pip',
                   '画中画',

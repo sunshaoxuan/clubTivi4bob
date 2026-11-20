@@ -1,3 +1,4 @@
+import 'ios_native_media.dart';
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
@@ -11,6 +12,9 @@ class HlsLinearizedPipe {
   void Function()? onFailure;
   final sourceClock = SourceClockLedger();
   Process? _process;
+  String? _nativeId;
+  Timer? _nativePoll;
+  bool _polling = false;
   HttpServer? _server;
   StreamSubscription<String>? _errors;
   int _generation = 0;
@@ -20,6 +24,46 @@ class HlsLinearizedPipe {
     await stop();
     sourceClock.reset();
     final generation = _generation;
+    if (Platform.isIOS) {
+      final response = await IosNativeMedia.channel
+          .invokeMapMethod<String, dynamic>('startRemux', {'source': source});
+      final id = response!['id'] as String;
+      if (generation != _generation) {
+        await IosNativeMedia.channel.invokeMethod<void>('stopRemux', {
+          'id': id,
+        });
+        throw const HttpException('Native pipe superseded');
+      }
+      _nativeId = id;
+      _nativePoll = Timer.periodic(const Duration(milliseconds: 150), (
+        _,
+      ) async {
+        if (_polling || _nativeId != id) return;
+        _polling = true;
+        try {
+          final state = await IosNativeMedia.channel
+              .invokeMapMethod<String, dynamic>('remuxState', {'id': id});
+          if (_nativeId != id) return;
+          for (final event in state?['events'] as List? ?? []) {
+            sourceClock.observe(Map<String, dynamic>.from(event as Map));
+          }
+          if (state?['running'] != true) {
+            _nativePoll?.cancel();
+            sourceClock.invalidate();
+            onFailure?.call();
+          }
+        } on Object {
+          if (_nativeId == id) {
+            _nativePoll?.cancel();
+            sourceClock.invalidate();
+            onFailure?.call();
+          }
+        } finally {
+          _polling = false;
+        }
+      });
+      return response['url'] as String;
+    }
     final path = ClientSubtitleRuntime.remux;
     if (path == null) {
       throw StateError('Client timestamp normalizer is unavailable');
@@ -127,6 +171,15 @@ class HlsLinearizedPipe {
 
   Future<void> stop() async {
     ++_generation;
+    _nativePoll?.cancel();
+    _nativePoll = null;
+    final nativeId = _nativeId;
+    _nativeId = null;
+    if (nativeId != null) {
+      await IosNativeMedia.channel.invokeMethod<void>('stopRemux', {
+        'id': nativeId,
+      });
+    }
     final process = _process;
     _process = null;
     final server = _server;

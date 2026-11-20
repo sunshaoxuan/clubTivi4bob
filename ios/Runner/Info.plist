@@ -24,6 +24,8 @@
 	<string>????</string>
 	<key>CFBundleVersion</key>
 	<string>$(FLUTTER_BUILD_NUMBER)</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>在设备上识别正在播放节目的音频，用于对齐已有字幕。音频不会发送到语音识别服务器。</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>UIApplicationSceneManifest</key>

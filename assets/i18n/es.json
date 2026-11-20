@@ -1172,5 +1172,13 @@
   "筛选频道": "Filtrar canales",
   "返回": "Volver",
   "选择频道": "Elegir un canal",
-  "重置": "Restablecer"
+  "重置": "Restablecer",
+  "设备端语音识别": "Reconocimiento de voz en el dispositivo",
+  "用于对齐已有字幕，需系统授权和对应音频语言模型。未标注音轨使用系统语言。": "Sincroniza subtítulos existentes. Requiere permiso y un modelo del idioma del audio. El audio sin idioma usa el idioma del sistema.",
+  "设备允许离线识别，重新打开频道后尝试。缺少语言模型时保留现有字幕。": "Se probará el reconocimiento local al abrir de nuevo el canal. Los subtítulos seguirán disponibles si falta el modelo.",
+  "设备端识别暂不可用，请检查语音权限和语言模型。现有字幕仍可使用。": "El reconocimiento local no está disponible. Revisa los permisos y los modelos de idioma. Los subtítulos siguen disponibles.",
+  "此设备或模拟器未提供系统画中画功能": "Imagen dentro de imagen no está disponible en este dispositivo o simulador.",
+  "系统播放器未能打开此线路": "El reproductor del sistema no pudo abrir esta transmisión.",
+  "此线路无法由 Apple 系统播放器播放": "El reproductor del sistema Apple no puede reproducir esta transmisión.",
+  "系统播放器连接超时": "La conexión del reproductor del sistema agotó el tiempo de espera."
 }

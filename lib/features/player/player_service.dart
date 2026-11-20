@@ -1,3 +1,5 @@
+import 'ios_native_media.dart';
+import 'package:flutter/widgets.dart';
 import 'dart:async';
 import 'dart:io' show Platform;
 import '../../core/playback_memory_budget.dart';
@@ -108,6 +110,7 @@ class PlayerService {
       }
       target.fallbackOpenGate = (operation) async {
         if (_disposed) throw const RetiredRouteException();
+        if (_nativeMediaActive && identical(target, _player)) return;
         if (guard == null) {
           await operation();
         } else {
@@ -295,6 +298,7 @@ class PlayerService {
 
   CastService? castService;
   LocalCastMute? _localCastMute;
+  Player? _localCastMuteOwner;
 
   Future<void> syncLocalCastMute(bool casting) async {
     // Ordinary playback and pre-initialization status events are untouched.
@@ -302,12 +306,15 @@ class PlayerService {
     if (p == null || !_playerReady) return;
     final np = p.platform;
     if (np is! native_player.NativePlayer) return;
+    if (!identical(_localCastMuteOwner, p)) {
+      _localCastMute?.dispose(); _localCastMute = null; _localCastMuteOwner = p;
+    }
     _localCastMute ??= LocalCastMute(
       readMute: () async => await np.getProperty('mute') == 'yes',
       writeMute: (muted) => np.setProperty('mute', (muted || _qaSilent) ? 'yes' : 'no'),
     );
     try {
-      await _localCastMute!.update(casting);
+      await _localCastMute!.update(casting || _nativeMediaActive);
     } catch (error) {
       AppDiagnostics.instance.log('cast_local_mute_error', {
         'errorType': error.runtimeType.toString(),
@@ -642,6 +649,9 @@ class PlayerService {
         });
       });
       _playingLogSub = active.stream.playing.distinct().listen((playing) {
+        if (_nativeMediaActive && playing && identical(active, _player)) {
+          unawaited(active.pause());
+        }
         AppDiagnostics.instance.log('playing_changed', {
           'playing': playing,
           'channel': _currentChannelName,
@@ -1402,6 +1412,11 @@ class PlayerService {
         (selectionRequest != null && selectionRequest != _channelSwitchGeneration)) {
       throw StateError('Preview promotion was superseded');
     }
+    await _closeIosMediaForSwitch();
+    if (stillValid?.call() == false ||
+        (selectionRequest != null && selectionRequest != _channelSwitchGeneration)) {
+      throw StateError('Preview promotion was superseded');
+    }
     final previous = player;
     final previousVolume = previous.state.volume;
     final generation = ++_playGeneration;
@@ -1506,6 +1521,7 @@ class PlayerService {
     List<String>? failoverGroupUrls,
     bool allowAudioOnly = false,
   }) async {
+    await _closeIosMediaForSwitch();
     final request = ++_channelSwitchGeneration;
     await _retirementGuard?.refresh();
     if (_disposed || request != _channelSwitchGeneration) return;
@@ -2171,6 +2187,7 @@ class PlayerService {
 
   /// Stop playback.
   Future<void> stop() async {
+    await _closeIosMediaForSwitch();
     ++_channelSwitchGeneration;
     ++_playGeneration;
     _currentUrl = null;
@@ -2201,6 +2218,128 @@ class PlayerService {
       'channel': _currentChannelName,
     });
     AppDiagnostics.instance.updatePlaybackContext();
+  }
+
+  bool _nativeMediaActive = false;
+  int _nativeMediaSerial = 0;
+  Future<void> _closeIosMediaForSwitch() async {
+    if (!_nativeMediaActive) return;
+    ++_nativeMediaSerial;
+    await IosNativeMedia.channel.invokeMethod<void>('closePlayer');
+    _nativeMediaActive = false;
+    await syncLocalCastMute(castService?.isCasting == true);
+  }
+
+  /// Give the system player sole audio ownership until its session ends.
+  Future<String?> presentIosPlayer() async {
+    if (!Platform.isIOS || _nativeMediaActive || _currentUrl == null) {
+      return null;
+    }
+    if (_failoverSwitching || channelSwitching.value) {
+      return '系统播放器未能打开此线路';
+    }
+    final url = _currentUrl!;
+    final channel = _currentChannelId;
+    final generation = _playGeneration;
+    final nativeSerial = ++_nativeMediaSerial;
+    final original = player;
+    bool ownsPlayer() => nativeSerial == _nativeMediaSerial &&
+      generation == _playGeneration && !_disposed && identical(_player, original);
+    final wasPlaying = original.state.playing;
+    final position = original.state.position;
+    final live = iosNeedsLiveReopen(url, original.state.duration);
+    // AVPlayer has no public arbitrary HTTP-header option. Preserve provider
+    // headers through the existing resource gateway when they are required.
+    final nativeUrl = ServerEgress.mediaHeaders(url).isEmpty
+        ? ServerEgress.mediaUrl(url)
+        : ServerEgress.resourceUri(url, 'media').toString();
+    _nativeMediaActive = true;
+    Map<String, dynamic>? state;
+    String? error;
+    try {
+      final wasMuted = await getMpvProperty('mute') == 'yes';
+      if (!ownsPlayer()) return null;
+      await syncLocalCastMute(castService?.isCasting == true);
+      if (!ownsPlayer()) return null;
+      await original.pause();
+      if (!ownsPlayer()) return null;
+      state = await IosNativeMedia.channel
+          .invokeMapMethod<String, dynamic>('presentPlayer', {
+            'url': nativeUrl,
+            'position': position.inMilliseconds / 1000,
+            'live': live,
+            'muted': wasMuted || original.state.volume == 0,
+            'qaSilent':
+                kDebugMode && const bool.fromEnvironment('BOBTV_QA_SILENT'),
+          });
+      AppDiagnostics.instance.log('ios_native_session_ended', {
+        'playing': state?['playing'], 'position': state?['position'],
+        'error': state?['error'] != null,
+      });
+      error = state?['error'] as String?;
+    } on Object {
+      error = '系统播放器未能打开此线路';
+    } finally {
+      try {
+        // Closing PiP in the background must never start a second audio player.
+        while (nativeSerial == _nativeMediaSerial &&
+            !_disposed &&
+            _currentUrl == url &&
+            _playGeneration == generation &&
+            WidgetsBinding.instance.lifecycleState !=
+                AppLifecycleState.resumed) {
+          await Future<void>.delayed(const Duration(milliseconds: 200));
+        }
+        if (nativeSerial == _nativeMediaSerial &&
+            !_disposed &&
+            _currentUrl == url &&
+            _currentChannelId == channel &&
+            _playGeneration == generation &&
+            identical(player, original)) {
+          _nativeMediaActive = false;
+          await syncLocalCastMute(castService?.isCasting == true);
+          final resume = error != null ? wasPlaying : state?['playing'] == true;
+          if (live) {
+            await play(
+              url,
+              channelId: channel,
+              epgChannelId: _currentEpgChannelId,
+              tvgId: _currentTvgId,
+              channelName: _currentChannelName,
+              vanityName: _currentVanityName,
+              originalName: _currentOriginalName,
+              failoverGroupUrls: _failoverGroupUrls,
+              allowAudioOnly: _allowsAudioOnly,
+            );
+          } else {
+            final seconds = state?['position'] as num?;
+            await player.seek(
+              seconds == null
+                  ? position
+                  : Duration(milliseconds: (seconds * 1000).round()),
+            );
+          }
+          if (resume) {
+            await this.resume();
+          } else {
+            await pause();
+          }
+        }
+      } on Object catch (restoreError, stack) {
+        AppDiagnostics.instance.recordError(
+          'ios_native_restore',
+          restoreError,
+          stack,
+        );
+        error ??= '系统播放器未能打开此线路';
+      } finally {
+        if (nativeSerial == _nativeMediaSerial) {
+          _nativeMediaActive = false;
+          await syncLocalCastMute(castService?.isCasting == true);
+        }
+      }
+    }
+    return error;
   }
 
   /// Pause playback.
@@ -2238,6 +2377,7 @@ class PlayerService {
 
   /// Check if buffer stall exceeds threshold (for failover trigger).
   bool get shouldFailover {
+    if (_nativeMediaActive) return false;
     if (!_isBuffering || _bufferStartTime == null) return false;
     return DateTime.now().difference(_bufferStartTime!) > bufferStallThreshold;
   }
@@ -2956,6 +3096,7 @@ class PlayerService {
   }
 
   Future<void> _autoFailover() async {
+    if (_nativeMediaActive) return;
     if (_preparingChannelSwitch) return;
     if (_autoFailoverInProgress) return;
     if (_currentUrl == null) return;
@@ -3212,6 +3353,7 @@ class PlayerService {
 
   Future<void> _dispose() async {
     _disposed = true;
+    await _closeIosMediaForSwitch();
     await _subtitleWarmPlayer?.dispose();
     _subtitleWarmPlayer = null;
     ++_playGeneration;

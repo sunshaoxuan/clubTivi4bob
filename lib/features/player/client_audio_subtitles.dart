@@ -1,3 +1,4 @@
+import 'ios_native_media.dart';
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
@@ -44,6 +45,7 @@ class ClientAudioSubtitles {
   final label = 'bobtv_pcm_${_nextLabel++}';
   static bool get supported => ClientSubtitleRuntime.available;
   String? _workerModel;
+  String? _iosRecognitionId;
   String text = '';
   SubtitlePhase phase = SubtitlePhase.searching;
   String? _source, _session;
@@ -177,9 +179,9 @@ class ClientAudioSubtitles {
       (_) => unawaited(_tick()),
     );
     AppDiagnostics.instance.log('client_asr_ready', {
-      'engine': 'whisper.cpp-v1.8.2',
+      'engine': Platform.isIOS ? 'apple-on-device' : 'whisper.cpp-v1.8.2',
       'model': _workerModel,
-      'cpuVariant': ClientSubtitleRuntime.asr!.contains('avx2')
+      'cpuVariant': (ClientSubtitleRuntime.asr?.contains('avx2') ?? false)
           ? 'avx2'
           : 'baseline',
       'audioUploaded': false,
@@ -191,6 +193,10 @@ class ClientAudioSubtitles {
     _directory = await Directory.systemTemp.createTemp('bobtv-client-asr-');
     if (_disposed) {
       await _directory?.delete(recursive: true);
+      return;
+    }
+    if (Platform.isIOS) {
+      _workerModel = 'AppleOnDeviceSpeech';
       return;
     }
     final ready = Completer<void>();
@@ -761,7 +767,11 @@ class ClientAudioSubtitles {
           (_verifiedProgrammeClock || _variants.pending) && !_transportLocked;
       // Try after six seconds, then grow the same PCM history naturally.
       // Fixed short recovery windows lose complete sentences and cue onsets.
-      retainPcmContext(_chunks, end, mobile: Platform.isAndroid);
+      retainPcmContext(
+        _chunks,
+        end,
+        mobile: Platform.isAndroid || Platform.isIOS,
+      );
       final duration = _chunks.isEmpty ? 0.0 : end - _chunks.first.start;
       if (!_recognizing &&
           !_variants.awaitingRefresh &&
@@ -770,7 +780,7 @@ class ClientAudioSubtitles {
               (_transportLocked || phase == SubtitlePhase.unavailable
                   ? 30
                   : (reacquiring ? 2 : 6))) {
-        if (Platform.isAndroid) {
+        if (Platform.isAndroid || Platform.isIOS) {
           final buffered = double.tryParse(
             await native.getProperty('demuxer-cache-duration'),
           );
@@ -907,33 +917,48 @@ class ClientAudioSubtitles {
       final timeout = reacquiring
           ? _playbackBudget.recoveryTimeoutSeconds(window.duration)
           : 40.0;
-      final response = await recognizeOffline<Map<String, dynamic>>(
-        (pcmPath: file.path, audioLocale: hint),
-        isCurrent: () =>
-            !_disposed &&
-            epoch == _epoch &&
-            player.state.track.audio.id == trackId,
-        system: (request) => _recognizeWithSystem(request, epoch),
-        whisper: (request) {
-          final future = _recognition = Completer<Map<String, dynamic>>();
-          final legacy =
-              ClientSubtitleRuntime.model?.endsWith('.en-q5_1.bin') == true;
-          final workerLanguage = legacy
-              ? null
-              : request.audioLocale?.split('-').first;
-          _worker!.stdin.writeln(
-            jsonEncode({
-              'path': request.pcmPath,
+      final response = Platform.isIOS
+          ? <String, dynamic>{
+              ...await IosNativeMedia.recognize(
+                file.path,
+                hint,
+                id: _iosRecognitionId =
+                    '$label-$epoch-${DateTime.now().microsecondsSinceEpoch}',
+              ),
               'id': epoch,
-              'audioLanguage': ?workerLanguage,
-            }),
-          );
-          return future.future.timeout(
-            Duration(milliseconds: (timeout * 1000).ceil()),
-          );
-        },
-      );
-      if (response == null) return;
+            }
+          : await recognizeOffline<Map<String, dynamic>>(
+              (pcmPath: file.path, audioLocale: hint),
+              isCurrent: () =>
+                  !_disposed &&
+                  epoch == _epoch &&
+                  player.state.track.audio.id == trackId,
+              system: (request) => _recognizeWithSystem(request, epoch),
+              whisper: (request) {
+                final future = _recognition = Completer<Map<String, dynamic>>();
+                final legacy =
+                    ClientSubtitleRuntime.model?.endsWith('.en-q5_1.bin') ==
+                    true;
+                final workerLanguage = legacy
+                    ? null
+                    : request.audioLocale?.split('-').first;
+                _worker!.stdin.writeln(
+                  jsonEncode({
+                    'path': request.pcmPath,
+                    'id': epoch,
+                    'audioLanguage': ?workerLanguage,
+                  }),
+                );
+                return future.future.timeout(
+                  Duration(milliseconds: (timeout * 1000).ceil()),
+                );
+              },
+            );
+      if (response == null ||
+          _disposed ||
+          epoch != _epoch ||
+          player.state.track.audio.id != trackId)
+        return;
       final words = response['words'] as List? ?? [];
       final seconds = response['processSeconds'];
       if (seconds is num) {
@@ -1004,6 +1029,7 @@ class ClientAudioSubtitles {
       });
     } finally {
       _recognition = null;
+      _iosRecognitionId = null;
       try {
         if (file != null && await file.exists()) await file.delete();
       } catch (_) {}
@@ -1013,6 +1039,12 @@ class ClientAudioSubtitles {
 
   Future<void> dispose() async {
     _disposed = true;
+    final iosId = _iosRecognitionId;
+    if (Platform.isIOS && iosId != null) {
+      await IosNativeMedia.channel.invokeMethod<void>('cancelRecognition', {
+        'id': iosId,
+      });
+    }
     _startupRetry?.cancel();
     _workerRetry?.cancel();
     _timer?.cancel();

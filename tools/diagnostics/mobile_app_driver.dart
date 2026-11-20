@@ -1,4 +1,5 @@
 // Explicit local QA entry. The normal app never enables the driver extension.
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/services.dart';
@@ -10,9 +11,115 @@ import 'package:clubtivi/features/player/player_service.dart';
 import 'package:clubtivi/features/providers/provider_manager.dart';
 import 'package:clubtivi/features/player/subtitle_preferences.dart';
 import 'package:clubtivi/features/player/client_subtitle_runtime.dart';
+import 'package:clubtivi/features/player/ios_native_media.dart';
 
 Future<String> handleMobileQaCommand(String? message) async {
-  if (message == 'landscape') {
+  if (message?.startsWith('native-call:') == true) {
+    final command =
+        jsonDecode(message!.substring('native-call:'.length)) as Map;
+    try {
+      return jsonEncode(
+        await IosNativeMedia.channel.invokeMethod(
+          command['method'] as String,
+          command['args'],
+        ),
+      );
+    } on PlatformException catch (error) {
+      return jsonEncode({'error': error.code, 'details': error.details});
+    }
+  } else if (message == 'native-capabilities') {
+    await IosNativeMedia.refresh();
+    return jsonEncode(IosNativeMedia.capabilities);
+  } else if (message == 'native-state') {
+    return jsonEncode(await IosNativeMedia.channel.invokeMethod('playerState'));
+  } else if (message == 'native-close') {
+    await IosNativeMedia.channel.invokeMethod<void>('closePlayer');
+  } else if (message?.startsWith('native-open:') == true) {
+    unawaited(
+      IosNativeMedia.channel.invokeMethod('presentPlayer', {
+        'url': message!.substring('native-open:'.length),
+        'qaSilent': true,
+        'live': false,
+        'position': 2.0,
+      }),
+    );
+  } else if (message == 'native-fixture-play' ||
+      message == 'native-pcm-probe') {
+    final context = router.routerDelegate.navigatorKey.currentContext!;
+    final container = ProviderScope.containerOf(context, listen: false);
+    final service = container.read(playerServiceProvider);
+    if (message == 'native-fixture-play') {
+      final dynamic native = service.player.platform;
+      await native.setProperty('ao', 'null');
+      await service.setVolume(0);
+      await service.play(
+        'http://127.0.0.1:18765/fixture.mp4',
+        channelId: 'owned-native-qa-fixture',
+        channelName: 'BobTV Native QA',
+      );
+    } else {
+      final dynamic native = service.player.platform;
+      const label = 'bobtv_qa_pcm';
+      try {
+        await native.command([
+          'af',
+          'add',
+          '@$label:lavfi=[bobtv_pcm]:o=[threads=1]',
+        ]);
+        for (var attempt = 0; attempt < 30; attempt++) {
+          await Future<void>.delayed(const Duration(milliseconds: 200));
+          final raw = await native.getProperty('af-metadata/$label') as String;
+          if (raw.isEmpty) continue;
+          final metadata = jsonDecode(raw) as Map;
+          if (metadata['lavfi.bobtv_pcm.pcm'] != null) {
+            return jsonEncode({
+              'pcmBytes': base64Decode(
+                metadata['lavfi.bobtv_pcm.pcm'] as String,
+              ).length,
+              'start': metadata['lavfi.bobtv_pcm.start'],
+              'end': metadata['lavfi.bobtv_pcm.end'],
+              'sequence': metadata['lavfi.bobtv_pcm.sequence'],
+              'playing': service.player.state.playing,
+              'muted': await native.getProperty('mute') == 'yes',
+            });
+          }
+        }
+        return jsonEncode({
+          'error': 'pcm_timeout',
+          'filters': await native.getProperty('af'),
+          'audio': await native.getProperty('audio-params'),
+          'audioOutput': await native.getProperty('audio-out-params'),
+          'track': service.player.state.track.audio.id,
+          'metadata': await native.getProperty('af-metadata/$label'),
+        });
+      } finally {
+        await native.command(['af', 'remove', '@$label']);
+      }
+    }
+  } else if (message == 'native-fixture-prepare' ||
+      message == 'native-fixture-commit') {
+    final context = router.routerDelegate.navigatorKey.currentContext!;
+    final container = ProviderScope.containerOf(context, listen: false);
+    final service = container.read(playerServiceProvider);
+    final success = message == 'native-fixture-prepare'
+        ? await service.switchChannel(
+            'http://127.0.0.1:18765/fixture.mp4?next=1',
+            channelId: 'owned-native-qa-next',
+            channelName: 'BobTV Native QA Next',
+            previewOnly: true,
+            onlyRequestedRoute: true,
+          )
+        : await service.commitPreparedChannel('owned-native-qa-next');
+    return jsonEncode({'success': success});
+  } else if (message == 'native-resume-local') {
+    final context = router.routerDelegate.navigatorKey.currentContext!;
+    final container = ProviderScope.containerOf(context, listen: false);
+    await container.read(playerServiceProvider).player.play();
+  } else if (message == 'native-handoff') {
+    final context = router.routerDelegate.navigatorKey.currentContext!;
+    final container = ProviderScope.containerOf(context, listen: false);
+    unawaited(container.read(playerServiceProvider).presentIosPlayer());
+  } else if (message == 'landscape') {
     await SystemChrome.setPreferredOrientations([
       DeviceOrientation.landscapeLeft,
       DeviceOrientation.landscapeRight,

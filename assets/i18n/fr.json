@@ -1172,5 +1172,13 @@
   "筛选频道": "Filtrer les chaînes",
   "返回": "Retour",
   "选择频道": "Choisir une chaîne",
-  "重置": "Réinitialiser"
+  "重置": "Réinitialiser",
+  "设备端语音识别": "Reconnaissance vocale sur l’appareil",
+  "用于对齐已有字幕，需系统授权和对应音频语言模型。未标注音轨使用系统语言。": "Synchronise les sous-titres existants. Nécessite une autorisation et un modèle pour la langue audio. Sans indication, la langue du système est utilisée.",
+  "设备允许离线识别，重新打开频道后尝试。缺少语言模型时保留现有字幕。": "La reconnaissance locale sera essayée à la prochaine ouverture de chaîne. Les sous-titres restent disponibles si le modèle manque.",
+  "设备端识别暂不可用，请检查语音权限和语言模型。现有字幕仍可使用。": "Reconnaissance locale indisponible. Vérifiez les autorisations et les modèles linguistiques. Les sous-titres restent disponibles.",
+  "此设备或模拟器未提供系统画中画功能": "L’incrustation vidéo système est indisponible sur cet appareil ou simulateur.",
+  "系统播放器未能打开此线路": "Le lecteur système n’a pas pu ouvrir ce flux.",
+  "此线路无法由 Apple 系统播放器播放": "Le lecteur système Apple ne peut pas lire ce flux.",
+  "系统播放器连接超时": "La connexion du lecteur système a expiré."
 }

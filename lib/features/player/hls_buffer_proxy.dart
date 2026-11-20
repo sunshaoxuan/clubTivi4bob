@@ -446,7 +446,7 @@ class HlsBufferProxy {
         }
         final body = utf8.decode(bytes);
         if (body.contains('#EXT-X-STREAM-INF:')) {
-          final maxBandwidth = Platform.isAndroid && captureClock
+          final maxBandwidth = (Platform.isAndroid || Platform.isIOS) && captureClock
               ? 1800000
               : 3000000;
           origin = selectActionMoviesMedia(
@@ -458,7 +458,7 @@ class HlsBufferProxy {
           );
           AppDiagnostics.instance.log('client_hls_rendition_policy', {
             'maxBandwidth': maxBandwidth,
-            'mobileSpeech': Platform.isAndroid && captureClock,
+            'mobileSpeech': (Platform.isAndroid || Platform.isIOS) && captureClock,
           });
         }
       } catch (_) {

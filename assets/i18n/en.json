@@ -1172,5 +1172,13 @@
   "筛选频道": "Filter channels",
   "返回": "Back",
   "选择频道": "Choose a channel",
-  "重置": "Reset"
+  "重置": "Reset",
+  "设备端语音识别": "On-device speech recognition",
+  "用于对齐已有字幕，需系统授权和对应音频语言模型。未标注音轨使用系统语言。": "Aligns existing subtitles. Requires speech permission and an audio language model. Untagged audio uses the system language.",
+  "设备允许离线识别，重新打开频道后尝试。缺少语言模型时保留现有字幕。": "On-device recognition is enabled for the next channel session. Existing subtitles remain available if the language model is missing.",
+  "设备端识别暂不可用，请检查语音权限和语言模型。现有字幕仍可使用。": "On-device recognition is unavailable. Check speech permission and language models. Existing subtitles remain available.",
+  "此设备或模拟器未提供系统画中画功能": "System Picture in Picture is unavailable on this device or simulator.",
+  "系统播放器未能打开此线路": "The system player could not open this stream.",
+  "此线路无法由 Apple 系统播放器播放": "Apple’s system player cannot play this stream.",
+  "系统播放器连接超时": "The system player connection timed out."
 }

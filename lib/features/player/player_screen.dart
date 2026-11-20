@@ -1,3 +1,4 @@
+import 'ios_native_media.dart';
 import '../player/bobtv_video.dart';
 import 'radio_playback_surface.dart';
 import 'playback_capture.dart';
@@ -214,7 +215,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
           ScaffoldMessenger.of(context).hideCurrentSnackBar();
           ScaffoldMessenger.of(
             context,
-          ).showSnackBar(SnackBar(content: Text(message)));
+          ).showSnackBar(SnackBar(content: Text(AppMessages.text(context, message))));
         }
       },
     );
@@ -458,7 +459,17 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     });
   }
 
+  Future<void> _openIosSystemPlayer() async {
+    final message = await ref.read(playerServiceProvider).presentIosPlayer();
+    if (message != null && mounted) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(AppMessages.text(context, message))));
+    }
+  }
+
   Future<void> _showCastPicker() async {
+    if (Platform.isIOS) { await _openIosSystemPlayer(); return; }
     if (_castBusy) return;
     final device = await showCastDialog(context, ref);
     if (device != null && mounted) {
@@ -1808,6 +1819,17 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
 
   Future<void> _enterPip() async {
     if (_pipMode || _pipTransition || _leavingPlayer) return;
+    if (Platform.isIOS) {
+      await IosNativeMedia.refresh();
+      if (!mounted) return;
+      if (IosNativeMedia.capabilities['pip'] != true) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(AppMessages.text(context, '此设备或模拟器未提供系统画中画功能'))));
+        return;
+      }
+      await _openIosSystemPlayer();
+      return;
+    }
     if (Platform.isAndroid) {
       try {
         final state = ref.read(playerServiceProvider).player.state;

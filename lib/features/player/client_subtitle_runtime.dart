@@ -1,3 +1,4 @@
+import 'ios_native_media.dart';
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
@@ -8,12 +9,17 @@ import 'package:flutter/services.dart';
 class ClientSubtitleRuntime {
   static String? asr, remux, model, systemAsr;
   static Future<void>? _initialization;
-  static bool get available => asr != null && remux != null && model != null;
-  static Future<void> initialize() => _initialization ??= _load();
+  static bool get available => Platform.isIOS
+      ? IosNativeMedia.offlineReady
+      : asr != null && remux != null && model != null;
+  static Future<void> initialize() => Platform.isIOS ? _load() : _initialization ??= _load();
 
   static Future<void> _load() async {
     try {
-      if (Platform.isAndroid) {
+      if (Platform.isIOS) {
+        await IosNativeMedia.refresh();
+        return;
+      } else if (Platform.isAndroid) {
         final paths = await const MethodChannel('bobtv/client_subtitles')
             .invokeMapMethod<String, String>('resources')
             .timeout(const Duration(seconds: 15));

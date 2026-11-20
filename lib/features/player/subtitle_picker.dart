@@ -1,3 +1,5 @@
+import 'dart:io';
+import 'ios_native_media.dart';
 import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
@@ -121,6 +123,34 @@ class SubtitlePicker extends StatelessWidget {
                     child: Text(AppMessages.text(context, '完成')),
                   ),
                 ),
+                if (Platform.isIOS)
+                  ListTile(
+                    key: const ValueKey('ios-offline-speech'),
+                    leading: const Icon(Icons.record_voice_over),
+                    title: Text(AppMessages.text(context, '设备端语音识别')),
+                    subtitle: Text(
+                      AppMessages.text(
+                        context,
+                        '用于对齐已有字幕，需系统授权和对应音频语言模型。未标注音轨使用系统语言。',
+                      ),
+                    ),
+                    onTap: () async {
+                      await IosNativeMedia.refresh(authorize: true);
+                      if (!context.mounted) return;
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text(
+                            AppMessages.text(
+                              context,
+                              IosNativeMedia.offlineReady
+                                  ? '设备允许离线识别，重新打开频道后尝试。缺少语言模型时保留现有字幕。'
+                                  : '设备端识别暂不可用，请检查语音权限和语言模型。现有字幕仍可使用。',
+                            ),
+                          ),
+                        ),
+                      );
+                    },
+                  ),
                 Flexible(
                   child: SingleChildScrollView(
                     padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),

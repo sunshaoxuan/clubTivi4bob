@@ -18,6 +18,7 @@
 - [手机频道抽屉 UI/UE 计划](./mobile-ui-ue.md)
 - [自定义资源包协议草案](./resource-package-v1.md)
 - [桌面功能同步与移动验收](./desktop-feature-sync.md)
+- [iOS 原生媒体适配](./ios-native-adaptation.md)
 
 ## 2. 本次核实的工程基线
 

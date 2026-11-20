@@ -1,3 +1,4 @@
+import '../../core/user_source_policy.dart';
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:crypto/crypto.dart';
@@ -41,7 +42,7 @@ class ChannelInventorySyncService {
   /// Existing installations need one inventory migration. New installations
   /// already receive the website catalog and report subsequent edits via events.
   Future<void> syncLegacyInventoryOnce() {
-    if (_disposed || _legacyComplete) return Future.value();
+    if (UserSourcePolicy.enabled || _disposed || _legacyComplete) return Future.value();
     return _legacyRunning ??= _syncLegacyInventoryOnce().whenComplete(
       () => _legacyRunning = null,
     );
@@ -76,7 +77,7 @@ class ChannelInventorySyncService {
     _legacyComplete = true;
   }
 
-  Future<int> flushEvents() => _eventsRunning ??= _flushEvents().whenComplete(
+  Future<int> flushEvents() => UserSourcePolicy.enabled ? Future.value(0) : _eventsRunning ??= _flushEvents().whenComplete(
     () => _eventsRunning = null,
   );
 
@@ -349,6 +350,7 @@ class ChannelInventorySyncService {
   }
 
   Future<void> sync({bool refreshAfterRunning = false}) {
+    if (UserSourcePolicy.enabled) return Future.value();
     if (_running != null) {
       _refreshAfterRunning |= refreshAfterRunning;
       return _running!;
@@ -522,6 +524,7 @@ class ChannelInventorySyncService {
   }
 
   Future<void> reportRetirement(String url) async {
+    if (UserSourcePolicy.enabled) return;
     if (_disposed || !BobTvApiClient.isPublicCatalogUrl(url)) return;
     try {
       if (!(await database.getSharedBlockedStreamUrls()).contains(url)) return;

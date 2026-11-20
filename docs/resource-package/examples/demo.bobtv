@@ -1,0 +1,36 @@
+{
+  "format": "bobtv-resource",
+  "schemaVersion": 1,
+  "id": "example-catalog",
+  "name": "我的频道",
+  "revision": "2026-11-20.1",
+  "updateUrl": "https://media.example.invalid/catalog.bobtv",
+  "categories": [
+    {"id": "national", "name": "中国 / 央视"},
+    {"id": "private", "name": "我的直播"}
+  ],
+  "epgSources": [
+    {"id": "guide", "url": "https://media.example.invalid/epg.xml.gz"}
+  ],
+  "channels": [
+    {
+      "id": "channel-one",
+      "name": "示例频道",
+      "categoryId": "national",
+      "logo": "https://media.example.invalid/logos/channel-one.png",
+      "epg": {"sourceId": "guide", "channelId": "channel-one.epg"},
+      "routes": [
+        {"id": "main", "url": "https://media.example.invalid/live/main.m3u8"},
+        {"id": "backup", "url": "https://backup.example.invalid/live/one.m3u8"}
+      ]
+    },
+    {
+      "id": "channel-two",
+      "name": "自有直播",
+      "categoryId": "private",
+      "routes": [
+        {"id": "main", "url": "https://media.example.invalid/live/two.m3u8"}
+      ]
+    }
+  ]
+}

@@ -1,3 +1,4 @@
+import '../../core/user_source_policy.dart';
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
@@ -107,7 +108,7 @@ class BobTvCommunityService {
       .whenComplete(() => _refreshing = null);
 
   Future<void> _fetchAndApplyCatalog() async {
-    if (_disposed) return;
+    if (UserSourcePolicy.enabled || _disposed) return;
     state.value = BobTvCatalogState(
       count: _sources.length,
       fresh: state.value.fresh,

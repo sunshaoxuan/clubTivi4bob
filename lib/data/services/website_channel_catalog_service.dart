@@ -1,3 +1,4 @@
+import '../../core/user_source_policy.dart';
 import 'dart:convert';
 import 'dart:io';
 
@@ -88,13 +89,13 @@ class WebsiteChannelCatalogService {
   Object? lastError;
 
   Future<int> sync() {
-    if (_disposed || (_retryAt?.isAfter(_now()) ?? false)) {
+    if (UserSourcePolicy.enabled || _disposed || (_retryAt?.isAfter(_now()) ?? false)) {
       return Future.value(0);
     }
     return _running ??= _sync().whenComplete(() => _running = null);
   }
 
-  Future<int> importBundled() => _running ??= _sync(
+  Future<int> importBundled() => UserSourcePolicy.enabled ? Future.value(0) : _running ??= _sync(
     source: _BundledCatalogApi(),
   ).whenComplete(() => _running = null);
 

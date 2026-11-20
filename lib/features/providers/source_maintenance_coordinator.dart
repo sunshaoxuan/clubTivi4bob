@@ -1,4 +1,5 @@
 import 'dart:async';
+import '../../core/user_source_policy.dart';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -52,6 +53,7 @@ class SourceMaintenanceCoordinator {
   bool get sourceManagementInitialized =>
       _maintenanceService != null || _bundledSourceSnapshot != null;
 
+  Timer? _resourceTimer;
   Timer? _snapshotTimer;
   Timer? _catalogTimer;
   Timer? _changesTimer;
@@ -74,6 +76,10 @@ class SourceMaintenanceCoordinator {
   void start() {
     if (_started || _disposed) return;
     _started = true;
+    _resourceTimer = Timer.periodic(const Duration(minutes: 1), (_) =>
+      unawaited(manager.refreshResourcePackagesDue()));
+    unawaited(manager.refreshResourcePackagesDue());
+    if (UserSourcePolicy.enabled) return;
     unawaited(
       _initialization = regionalRoutes?.initialize() ?? Future<void>.value(),
     );
@@ -172,6 +178,7 @@ class SourceMaintenanceCoordinator {
   Future<void> shutdown() async {
     dispose();
     await Future.wait<Object?>([
+      manager.shutdownResourcePackages(),
       ?_initialization,
       ?_bootstrap,
       ?_changes,
@@ -186,6 +193,7 @@ class SourceMaintenanceCoordinator {
   void dispose() {
     if (_disposed) return;
     _disposed = true;
+    _resourceTimer?.cancel();
     _snapshotTimer?.cancel();
     _catalogTimer?.cancel();
     _changesTimer?.cancel();

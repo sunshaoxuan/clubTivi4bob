@@ -29,15 +29,20 @@ Future<void> main(List<String> args) async {
         );
         stdout.writeln('absent: ${args[2]}');
       case 'tap':
-        await driver.tap(
-          find.byValueKey(args[2]),
-          timeout: const Duration(seconds: 15),
+        await driver.runUnsynchronized(
+          () => driver.tap(
+            find.byValueKey(args[2]),
+            timeout: const Duration(seconds: 15),
+          ),
         );
       case 'text':
         await driver.tap(
           find.text(args[2]),
           timeout: const Duration(seconds: 15),
         );
+      case 'input-key':
+        await driver.tap(find.byValueKey(args[2]));
+        await driver.enterText(args[3]);
       case 'enter':
         await driver.tap(find.byValueKey('mobile-search-field'));
         await driver.enterText(args[2]);

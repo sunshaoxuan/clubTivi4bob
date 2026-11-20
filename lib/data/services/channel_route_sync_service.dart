@@ -1,3 +1,4 @@
+import '../../core/user_source_policy.dart';
 import 'dart:async';
 
 import '../../core/app_diagnostics.dart';
@@ -43,6 +44,7 @@ class ChannelRouteSyncService {
       .toList();
 
   Future<void> priority(Iterable<String> urls) async {
+    if (UserSourcePolicy.enabled) return;
     final requested = _publicUrls(urls);
     if (_disposed || requested.isEmpty || _temporarilyUnavailable) return;
     // Each click reads fresh state. Duplicate concurrent clicks share a request.
@@ -75,6 +77,7 @@ class ChannelRouteSyncService {
   }
 
   void queueCategory(Iterable<String> urls) {
+    if (UserSourcePolicy.enabled) return;
     if (_disposed) return;
     ++_categoryGeneration;
     _queued = _publicUrls(urls);

@@ -1,3 +1,4 @@
+import '../../core/user_source_policy.dart';
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
@@ -112,6 +113,7 @@ class ServerEpgSyncService {
   }
 
   Future<bool> _check(bool forced) async {
+    if (UserSourcePolicy.enabled && !await database.hasPlayableChannels()) return false;
     final now = _now().toUtc();
     if (_retryAt?.isAfter(now) == true ||
         !forced && _nextCheckAt?.isAfter(now) == true) {

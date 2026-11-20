@@ -14,6 +14,38 @@ import 'package:clubtivi/features/player/client_subtitle_runtime.dart';
 import 'package:clubtivi/features/player/ios_native_media.dart';
 
 Future<String> handleMobileQaCommand(String? message) async {
+  if (message == 'source-manager') {
+    router.go('/providers');
+    return 'ok';
+  }
+  if (message == 'source-state' || message == 'source-refresh') {
+    final context = router.routerDelegate.navigatorKey.currentContext!;
+    final container = ProviderScope.containerOf(context, listen: false);
+    final database = container.read(databaseProvider);
+    if (message == 'source-refresh') {
+      for (final provider in await database.getAllProviders()) {
+        if (provider.type == 'resource')
+          await container
+              .read(providerManagerProvider)
+              .refreshProvider(provider.id);
+      }
+    }
+    final channels = await database.getAllChannels();
+    final keys = await database.channelPresentationKeys(channels);
+    return jsonEncode({
+      'providers': (await database.getAllProviders())
+          .map((p) => {'name': p.name, 'type': p.type})
+          .toList(),
+      'routes': channels.length,
+      'cards': keys.values.toSet().length,
+      'names': channels.map((c) => c.name).toSet().toList(),
+      'groups': await database.getUserSourceCategoryGroups(),
+      'logos': channels.where((c) => c.tvgLogo?.isNotEmpty ?? false).length,
+      'epgSources': (await database.getAllEpgSources()).length,
+      'epgChannels': (await database.select(database.epgChannels).get()).length,
+      'epgMappings': (await database.select(database.epgMappings).get()).length,
+    });
+  }
   if (message?.startsWith('native-call:') == true) {
     final command =
         jsonDecode(message!.substring('native-call:'.length)) as Map;

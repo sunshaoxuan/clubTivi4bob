@@ -3,6 +3,12 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'provider_manager.dart';
+import '../../data/services/epg_refresh_service.dart';
+import 'dart:async';
+import 'dart:convert';
+import 'package:file_picker/file_picker.dart';
+import '../../data/resource_package/resource_package.dart';
+import '../../core/user_source_policy.dart';
 import '../../core/i18n/app_language.dart';
 
 /// Shows the Add Provider dialog.
@@ -16,7 +22,7 @@ Future<bool?> showAddProviderDialog(BuildContext context) {
   );
 }
 
-enum _ProviderType { m3u, xtream }
+enum _ProviderType { resource, single, m3u, xtream }
 
 class _AddProviderPage extends ConsumerStatefulWidget {
   const _AddProviderPage();
@@ -27,7 +33,10 @@ class _AddProviderPage extends ConsumerStatefulWidget {
 
 class _AddProviderPageState extends ConsumerState<_AddProviderPage> {
   final _formKey = GlobalKey<FormState>();
-  _ProviderType _type = _ProviderType.m3u;
+  _ProviderType _type = UserSourcePolicy.enabled
+      ? _ProviderType.resource
+      : _ProviderType.m3u;
+  final _category = TextEditingController();
 
   // M3U fields
   final _m3uName = TextEditingController();
@@ -43,6 +52,7 @@ class _AddProviderPageState extends ConsumerState<_AddProviderPage> {
 
   @override
   void dispose() {
+    _category.dispose();
     _m3uName.dispose();
     _m3uUrl.dispose();
     _xtreamName.dispose();
@@ -76,9 +86,84 @@ class _AddProviderPageState extends ConsumerState<_AddProviderPage> {
     return null;
   }
 
+  Future<void> _importLocalPackage() async {
+    await _addProvider(() async {
+      final result = await FilePicker.platform.pickFiles(
+        type: FileType.any,
+        withReadStream: true,
+        withData: false,
+      );
+      if (result == null) throw const _ImportCancelled();
+      final file = result.files.single;
+      if (file.size > ResourcePackage.maxBytes || file.readStream == null) {
+        throw const FormatException('Resource file is too large or unreadable');
+      }
+      final bytes = <int>[];
+      await for (final chunk in file.readStream!) {
+        if (bytes.length + chunk.length > ResourcePackage.maxBytes) {
+          throw const FormatException('Resource file is too large');
+        }
+        bytes.addAll(chunk);
+      }
+      final package = ResourcePackage.parse(utf8.decode(bytes));
+      await _confirmResource(package, package.updateUrl?.toString() ?? '');
+    });
+  }
+
+  Future<void> _confirmResource(ResourcePackage package, String address) async {
+    if (!mounted) throw const _ImportCancelled();
+    setState(() => _loading = false);
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(package.name),
+        content: Text(
+          '${AppMessages.text(context, '资源包摘要', [package.categories.length, package.channels.length, package.routeCount])}${address.isEmpty ? '' : '\n\n${Uri.parse(address).host}'}',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: Text(AppMessages.text(context, '取消')),
+          ),
+          FilledButton(
+            key: const ValueKey('resource-package-confirm'),
+            onPressed: () => Navigator.pop(context, true),
+            child: Text(AppMessages.text(context, '导入资源包')),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) throw const _ImportCancelled();
+    setState(() => _loading = true);
+    await ref
+        .read(providerManagerProvider)
+        .addResourcePackage(
+          id: _generateId(package.name),
+          address: address,
+          package: package,
+        );
+  }
+
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
-    if (_type == _ProviderType.m3u) {
+    if (_type == _ProviderType.resource) {
+      await _addProvider(() async {
+        final manager = ref.read(providerManagerProvider);
+        final address = _m3uUrl.text.trim();
+        final package = await manager.previewResourcePackage(address);
+        await _confirmResource(package, address);
+      });
+    } else if (_type == _ProviderType.single) {
+      await _addProvider(
+        () => ref
+            .read(providerManagerProvider)
+            .addSingleRoute(
+              name: _m3uName.text.trim(),
+              address: _m3uUrl.text.trim(),
+              category: _category.text.trim(),
+            ),
+      );
+    } else if (_type == _ProviderType.m3u) {
       await _addProvider(() {
         final manager = ref.read(providerManagerProvider);
         return manager.addM3uProvider(
@@ -106,10 +191,19 @@ class _AddProviderPageState extends ConsumerState<_AddProviderPage> {
     try {
       await action();
       if (!mounted) return;
+      final epg = ref.read(epgRefreshServiceProvider);
+      unawaited(() async {
+        try {
+          await epg.addDefaultSources();
+          await epg.refreshAllSources();
+        } catch (_) {}
+      }());
       Navigator.of(context).pop(true);
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(AppMessages.text(context, "电视源添加成功"))));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(AppMessages.text(context, "电视源添加成功"))),
+      );
+    } on _ImportCancelled {
+      // Preview was dismissed without writing anything.
     } on ProviderLimitException catch (e) {
       if (!mounted) return;
       showDialog(
@@ -133,7 +227,11 @@ class _AddProviderPageState extends ConsumerState<_AddProviderPage> {
         builder: (_) => AlertDialog(
           backgroundColor: const Color(0xFF1A1A2E),
           title: Text(AppMessages.text(context, "错误")),
-          content: Text(AppMessages.text(context, "电视源添加失败：\n{0}", [e])),
+          content: Text(
+            AppMessages.text(context, '电视源添加失败：\n{0}', [
+              e is FormatException ? e.message : e.runtimeType.toString(),
+            ]),
+          ),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context),
@@ -166,7 +264,7 @@ class _AddProviderPageState extends ConsumerState<_AddProviderPage> {
             return;
           }
           Future.microtask(() {
-            Navigator.of(context).pop();
+            if (context.mounted) Navigator.of(context).pop();
           });
         },
       },
@@ -188,7 +286,8 @@ class _AddProviderPageState extends ConsumerState<_AddProviderPage> {
               children: [
                 // Provider type dropdown — D-pad navigable as a form field
                 DropdownButtonFormField<_ProviderType>(
-                  value: _type,
+                  key: const ValueKey('source-type'),
+                  initialValue: _type,
                   autofocus: true,
                   decoration: InputDecoration(
                     labelText: AppMessages.text(context, "电视源类型"),
@@ -197,19 +296,74 @@ class _AddProviderPageState extends ConsumerState<_AddProviderPage> {
                   dropdownColor: const Color(0xFF1A1A2E),
                   items: [
                     DropdownMenuItem(
-                      value: _ProviderType.m3u,
-                      child: Text(AppMessages.text(context, "M3U 播放列表")),
+                      value: _ProviderType.resource,
+                      child: Text(AppMessages.text(context, 'BobTV 资源包')),
                     ),
                     DropdownMenuItem(
-                      value: _ProviderType.xtream,
-                      child: Text(AppMessages.text(context, "Xtream Codes")),
+                      value: _ProviderType.single,
+                      child: Text(AppMessages.text(context, '单条播放线路')),
                     ),
+                    if (!UserSourcePolicy.enabled)
+                      DropdownMenuItem(
+                        value: _ProviderType.m3u,
+                        child: Text(AppMessages.text(context, "M3U 播放列表")),
+                      ),
+                    if (!UserSourcePolicy.enabled)
+                      DropdownMenuItem(
+                        value: _ProviderType.xtream,
+                        child: Text(AppMessages.text(context, "Xtream Codes")),
+                      ),
                   ],
                   onChanged: (v) {
                     if (v != null) setState(() => _type = v);
                   },
                 ),
                 const SizedBox(height: 24),
+                if (_type == _ProviderType.resource) ...[
+                  TextFormField(
+                    controller: _m3uUrl,
+                    key: const ValueKey('resource-package-url'),
+                    decoration: InputDecoration(
+                      labelText: AppMessages.text(context, '资源包 URL'),
+                    ),
+                    keyboardType: TextInputType.url,
+                    validator: _validateUrl,
+                  ),
+                  const SizedBox(height: 12),
+                  Text(AppMessages.text(context, '资源包导入说明')),
+                  TextButton.icon(
+                    onPressed: _loading ? null : _importLocalPackage,
+                    icon: const Icon(Icons.upload_file),
+                    label: Text(AppMessages.text(context, '选择资源包文件')),
+                  ),
+                ],
+                if (_type == _ProviderType.single) ...[
+                  TextFormField(
+                    controller: _m3uName,
+                    key: const ValueKey('single-route-name'),
+                    decoration: InputDecoration(
+                      labelText: AppMessages.text(context, '频道名称'),
+                    ),
+                    validator: _validateRequired,
+                  ),
+                  const SizedBox(height: 16),
+                  TextFormField(
+                    controller: _m3uUrl,
+                    key: const ValueKey('single-route-url'),
+                    decoration: InputDecoration(
+                      labelText: AppMessages.text(context, '播放地址'),
+                    ),
+                    validator: _validateRequired,
+                    keyboardType: TextInputType.url,
+                  ),
+                  const SizedBox(height: 16),
+                  TextFormField(
+                    controller: _category,
+                    decoration: InputDecoration(
+                      labelText: AppMessages.text(context, '分类（留空自动识别）'),
+                    ),
+                  ),
+                ],
                 // Fields change based on type
                 if (_type == _ProviderType.m3u) ..._buildM3uFields(),
                 if (_type == _ProviderType.xtream) ..._buildXtreamFields(),
@@ -283,7 +437,9 @@ class _AddProviderPageState extends ConsumerState<_AddProviderPage> {
       const SizedBox(height: 16),
       TextFormField(
         controller: _xtreamUser,
-        decoration: InputDecoration(labelText: AppMessages.text(context, "用户名")),
+        decoration: InputDecoration(
+          labelText: AppMessages.text(context, "用户名"),
+        ),
         validator: _validateRequired,
         textInputAction: TextInputAction.next,
       ),
@@ -304,6 +460,7 @@ class _AddProviderPageState extends ConsumerState<_AddProviderPage> {
     return SizedBox(
       height: 48,
       child: FilledButton(
+        key: const ValueKey('source-submit'),
         onPressed: _loading ? null : _submit,
         style: FilledButton.styleFrom(backgroundColor: accent),
         child: _loading
@@ -315,8 +472,15 @@ class _AddProviderPageState extends ConsumerState<_AddProviderPage> {
                   color: Colors.white,
                 ),
               )
-            : Text(AppMessages.text(context, "添加电视源"), style: TextStyle(fontSize: 16)),
+            : Text(
+                AppMessages.text(context, "添加电视源"),
+                style: TextStyle(fontSize: 16),
+              ),
       ),
     );
   }
+}
+
+class _ImportCancelled implements Exception {
+  const _ImportCancelled();
 }

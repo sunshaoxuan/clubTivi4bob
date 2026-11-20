@@ -195,6 +195,8 @@ class ChannelPresentationIdentity {
       for (final route in routes)
         route.id: route.mergeId != null
             ? 'manual:${route.mergeId}'
+            : route.id.startsWith('user:') && route.id.split(':').length == 3
+            ? route.id.split(':').take(2).join(':')
             : route.catalogId != null
             ? publicKeys[route.catalogId]!
             : bridges[route.legacyKey]?.length == 1

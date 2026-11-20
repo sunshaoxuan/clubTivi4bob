@@ -1,3 +1,5 @@
+import '../../core/user_source_policy.dart';
+import '../providers/add_provider_dialog.dart';
 import '../player/bobtv_video.dart';
 import '../../core/server_image.dart';
 import '../../core/i18n/language_menu.dart';
@@ -140,6 +142,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
   final Map<String, ChannelCategoryDestination> _pendingManualCategories = {};
   Future<void> _manualCategorySaveQueue = Future<void>.value();
   static const _simpleMode = true;
+  Set<String> _userSourceIds = {};
   bool _sharedCatalogAvailable = false;
   bool _showUnavailableSources = true;
   static const _pinnedCountriesPreferenceKey = 'bobtv_pinned_countries';
@@ -610,20 +613,28 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
         database.getAllFavoritedChannelIds(reconcile: false),
         SharedPreferences.getInstance(),
         database.getStructuredCategoryGroups(),
+        database.getUserSourceCategoryGroups(),
       ]);
       final providers = results[0] as List<db.Provider>;
+      _userSourceIds = providers.where((p) => p.type == 'resource' || p.type == 'manual').map((p) => p.id).toSet();
       final favLists = results[1] as List<db.FavoriteList>;
       final favChannelIds = results[2] as Set<String>;
       final prefs = results[3] as SharedPreferences;
       final categoryGroups = <String>{
         ...results[4] as List<String>,
+        ...results[5] as List<String>,
         ..._pendingManualCategories.values.map((d) => d.group),
       }.toList();
       final navigationGroups = ChannelCategoryDestination.navigationCategories(
         categoryGroups.map(ChannelCategoryDestination.fromGroup)
             .whereType<ChannelCategoryDestination>(),
       );
-      _sharedCatalogAvailable = providers.any((provider) =>
+      if (UserSourcePolicy.enabled) {
+        navigationGroups.clear();
+        navigationGroups.addAll(categoryGroups.map((g) => ChannelCategoryDestination.fromGroup(g)?.category ?? g).toSet());
+      }
+      navigationGroups.addAll(categoryGroups.where((g) => ChannelCategoryDestination.fromGroup(g) == null && !navigationGroups.contains(g)));
+      _sharedCatalogAvailable = !UserSourcePolicy.enabled && providers.any((provider) =>
           provider.id == WebsiteChannelCatalogService.providerId);
       _pinnedInternationalCountries = (prefs.getStringList(
                 _pinnedCountriesPreferenceKey,
@@ -663,6 +674,9 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
         }
       }
 
+      if (UserSourcePolicy.enabled && navigationGroups.isNotEmpty &&
+          selectedGroup != 'Favorites' && !selectedGroup.startsWith('fav:') &&
+          !navigationGroups.contains(selectedGroup)) selectedGroup = navigationGroups.first;
       if (!mounted) return;
       setState(() {
         _providers = providers;
@@ -755,7 +769,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
       ..._pendingManualCategories,
     };
     if (!mounted || generation != _categoryLoadGeneration) return;
-    final publicOnly = _simpleMode && _sharedCatalogAvailable &&
+    final publicOnly = _simpleMode && _sharedCatalogAvailable && _userSourceIds.isEmpty &&
         group != 'Favorites' && !group.startsWith('fav:');
     if (group == '国际') {
       final counts = Map<String, int>.of(await _countryCache.load('$publicOnly',
@@ -798,7 +812,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
     if (_simpleMode) {
       final personalCollection = group == 'Favorites' ||
           group.startsWith('fav:');
-      loaded = loaded.where((channel) =>
+      loaded = loaded.where((channel) => _userSourceIds.contains(channel.providerId) ||
           WebsiteChannelCatalogService.showInSimpleMode(
             sharedCatalogAvailable: _sharedCatalogAvailable,
             personalCollection: personalCollection,
@@ -883,6 +897,8 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
     if (channel.providerId == WebsiteChannelCatalogService.providerId) {
       return WebsiteChannelCatalogService.categoryForGroup(channel.groupTitle);
     }
+    if ((channel.id.startsWith('user:') || channel.providerId == 'user-manual-routes') &&
+        (channel.groupTitle?.isNotEmpty ?? false)) return channel.groupTitle!;
     return ChannelCategoryClassifier.classify(
       name: channel.name,
       groupTitle: channel.groupTitle,
@@ -1186,7 +1202,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
       channels = channels.where((channel) {
         // A reviewed public route with no measurement in this network must
         // remain selectable. Global retirement removes it from the database.
-        if (channel.providerId == WebsiteChannelCatalogService.providerId) {
+        if (channel.providerId == WebsiteChannelCatalogService.providerId || _userSourceIds.contains(channel.providerId)) {
           return true;
         }
         final key = _automaticChannelKey(channel);
@@ -1700,6 +1716,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
     );
     if (index < 0) return;
     final channel = _filteredChannels[index];
+    if (channel.streamUrl.isEmpty) return;
     unawaited(_inlineProgrammePreview.select(
       channelId: channel.id,
       epgChannelId: _getEpgId(channel),
@@ -1740,6 +1757,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
     if (index < 0 || index >= _filteredChannels.length) return;
     _routeRecovery.cancel();
     final channel = _filteredChannels[index];
+    if (channel.streamUrl.isEmpty) return;
     unawaited(_inlineProgrammePreview.select(
       channelId: channel.id, epgChannelId: _getEpgId(channel),
       timeshiftHours: _epgTimeshifts[channel.id] ?? 0,
@@ -4442,7 +4460,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
   }
 
   Widget _buildEmptyState(BuildContext context) {
-    final waitingForBundledSources = _providers.isEmpty;
+    final waitingForBundledSources = !UserSourcePolicy.enabled && _providers.isEmpty;
     final title = _categoryLoading
         ? AppMessages.text(context, "正在载入 {0}…", [AppMessages.category(context, _selectedGroup)])
         : waitingForBundledSources
@@ -4452,7 +4470,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
         ? AppMessages.text(context, "频道和备用线路会在载入完成后自动显示")
         : waitingForBundledSources
         ? AppMessages.text(context, "BobTV 正在载入已分类的启动清单，并与网站同步")
-        : AppMessages.text(context, "频道会自动从 BobTV 网站同步，暂时没有可用线路时可稍后重试");
+        : AppMessages.text(context, UserSourcePolicy.enabled ? '空播放器添加说明' : "频道会自动从 BobTV 网站同步，暂时没有可用线路时可稍后重试");
     return Scaffold(
       body: SafeArea(
         child: Column(
@@ -4508,9 +4526,13 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
             const SizedBox(height: 24),
             OutlinedButton.icon(
               autofocus: true,
-              onPressed: () => ref.read(sourceMaintenanceCoordinatorProvider).websiteCatalog.sync(),
-              icon: const Icon(Icons.refresh),
-              label: Text(AppMessages.text(context, "重新同步频道")),
+              key: const ValueKey('empty-add-source'),
+              onPressed: () async {
+                if (UserSourcePolicy.enabled) { await showAddProviderDialog(context); }
+                else { await ref.read(sourceMaintenanceCoordinatorProvider).websiteCatalog.sync(); }
+              },
+              icon: Icon(UserSourcePolicy.enabled ? Icons.add : Icons.refresh),
+              label: Text(AppMessages.text(context, UserSourcePolicy.enabled ? '添加电视源' : "重新同步频道")),
             ),
             const Spacer(),
           ],

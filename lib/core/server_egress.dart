@@ -169,6 +169,10 @@ class ServerEgress {
   static HttpClient createPinnedResourceClient() =>
       _ServerOnlyHttpOverrides().rawClient(null);
 
+  /// Direct transport for explicit, bounded user-source imports.
+  static HttpClient createUserSourceClient() =>
+      _ServerOnlyHttpOverrides().rawClient(null, media: true);
+
   static HttpClient createMediaClient() =>
       _ServerOnlyHttpOverrides().rawClient(null, media: true);
 

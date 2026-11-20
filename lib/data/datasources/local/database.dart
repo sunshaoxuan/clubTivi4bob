@@ -996,7 +996,7 @@ class AppDatabase extends _$AppDatabase {
       // Explicit custom hierarchies are matched exactly. Never run the broad
       // "Other" name heuristic for a newly created category.
       return (select(channels)..where((row) =>
-          row.groupTitle.equals('中国 / $category'))).get();
+          (row.groupTitle.equals('中国 / $category') | row.groupTitle.equals(category)))).get();
     }
     if (terms == null) {
       // "Other" is evaluated only when selected. SQL removes every row that
@@ -1168,6 +1168,15 @@ class AppDatabase extends _$AppDatabase {
   }
 
   /// Reads only distinct explicit paths, without loading channel objects.
+  Future<List<String>> getUserSourceCategoryGroups() async {
+    final rows = await customSelect(
+      "SELECT DISTINCT c.group_title FROM channels c JOIN providers p ON p.id=c.provider_id "
+      "WHERE p.type IN ('resource','manual') AND c.stream_url<>'' AND c.group_title IS NOT NULL ORDER BY c.group_title",
+      readsFrom: {channels, providers},
+    ).get();
+    return rows.map((r) => r.read<String>('group_title')).toList();
+  }
+
   Future<List<String>> getStructuredCategoryGroups() async {
     final rows = await customSelect(
       'SELECT DISTINCT group_title FROM channels '
@@ -1901,6 +1910,9 @@ class AppDatabase extends _$AppDatabase {
     await (delete(epgChannels)..where((t) => t.sourceId.equals(id))).go();
     await (delete(epgSources)..where((t) => t.id.equals(id))).go();
   }
+
+  Future<bool> hasPlayableChannels() async =>
+      await (select(channels)..where((t) => t.streamUrl.equals('').not())..limit(1)).getSingleOrNull() != null;
 
   Future<List<Channel>> getAllChannels() => select(channels).get();
 

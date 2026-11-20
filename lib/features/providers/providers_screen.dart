@@ -1,3 +1,4 @@
+import '../../core/user_source_policy.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -71,6 +72,7 @@ class ProvidersScreen extends ConsumerWidget {
                     ...providers.map((p) => _ProviderCard(provider: p)),
                     const SizedBox(height: 24),
                   ],
+                  if (!UserSourcePolicy.enabled) ...[
                   const _SectionHeader(title: '免费电视源'),
                   const SizedBox(height: 4),
                   ...FreeTvProvider.all.map(
@@ -79,6 +81,7 @@ class ProvidersScreen extends ConsumerWidget {
                       isAdded: providers.any((p) => p.id == fp.id),
                     ),
                   ),
+                  ],
                 ],
               ),
             ),
@@ -174,7 +177,7 @@ class _ProviderCard extends ConsumerWidget {
                                 borderRadius: BorderRadius.circular(4),
                               ),
                               child: Text(
-                                isXtream ? AppMessages.text(context, "Xtream") : 'M3U',
+                                provider.type == 'resource' ? AppMessages.text(context, 'BobTV 资源包') : provider.type == 'manual' ? AppMessages.text(context, '单条播放线路') : isXtream ? AppMessages.text(context, 'Xtream') : 'M3U',
                                 style: const TextStyle(
                                   fontSize: 11,
                                   color: accent,

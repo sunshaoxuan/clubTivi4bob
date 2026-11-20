@@ -1,3 +1,4 @@
+import '../../core/user_source_policy.dart';
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
@@ -38,7 +39,7 @@ class DeviceFavoritesSyncService {
   DateTime? _retryAt;
 
   Future<void> sync({bool force = false}) {
-    if (_disposed || (!force && _retryAt?.isAfter(now()) == true)) {
+    if (UserSourcePolicy.enabled || _disposed || (!force && _retryAt?.isAfter(now()) == true)) {
       return Future.value();
     }
     return _running ??= _sync().whenComplete(() => _running = null);

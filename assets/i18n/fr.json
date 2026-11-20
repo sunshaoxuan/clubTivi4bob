@@ -1180,5 +1180,15 @@
   "此设备或模拟器未提供系统画中画功能": "L’incrustation vidéo système est indisponible sur cet appareil ou simulateur.",
   "系统播放器未能打开此线路": "Le lecteur système n’a pas pu ouvrir ce flux.",
   "此线路无法由 Apple 系统播放器播放": "Le lecteur système Apple ne peut pas lire ce flux.",
-  "系统播放器连接超时": "La connexion du lecteur système a expiré."
+  "系统播放器连接超时": "La connexion du lecteur système a expiré.",
+  "BobTV 资源包": "Paquet de ressources BobTV",
+  "单条播放线路": "Flux unique",
+  "资源包 URL": "URL du paquet",
+  "资源包导入说明": "Vérifiez les catégories, chaînes et flux avant l’importation.",
+  "资源包摘要": "{0} catégories, {1} chaînes, {2} flux",
+  "导入资源包": "Importer le paquet",
+  "分类（留空自动识别）": "Catégorie (automatique si vide)",
+  "空播放器添加说明": "Importez un paquet ou ajoutez les URL de flux une à une.",
+  "播放地址": "URL du flux",
+  "选择资源包文件": "Choisir un fichier de paquet"
 }

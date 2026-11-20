@@ -1,4 +1,6 @@
 import '../../core/server_egress.dart';
+import '../../core/user_source_policy.dart';
+import 'package:dio/io.dart';
 import 'dart:io';
 import 'dart:async';
 import 'dart:convert';
@@ -87,6 +89,9 @@ class EpgRefreshService {
         headers: {'User-Agent': 'BobTV/1.0'},
       ),
     );
+    if (sourceId.startsWith('user:')) {
+      dio.httpClientAdapter = IOHttpClientAdapter(createHttpClient: ServerEgress.createUserSourceClient);
+    }
     _downloads.add(dio);
     try {
       final response = await dio.get<List<int>>(
@@ -200,6 +205,7 @@ class EpgRefreshService {
       ).whenComplete(() => _refreshing = null);
 
   Future<void> _refreshAllSources({bool force = false}) async {
+    if (UserSourcePolicy.enabled && !await _db.hasPlayableChannels()) return;
     final sources = await _db.getAllEpgSources();
     final now = DateTime.now();
     for (final source in sources.where((s) => s.enabled)) {
@@ -227,6 +233,7 @@ class EpgRefreshService {
   Future<void> addDefaultSources() => _track(_addDefaultSources);
 
   Future<void> _addDefaultSources() async {
+    if (UserSourcePolicy.enabled && !await _db.hasPlayableChannels()) return;
     final existing = await _db.getAllEpgSources();
     // Seed only an unconfigured installation. Existing global, custom and
     // disabled sources belong to the user and must remain unchanged.

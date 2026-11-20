@@ -1,4 +1,8 @@
 import '../../core/server_egress.dart';
+import '../../data/resource_package/resource_package.dart';
+import '../../data/resource_package/resource_package_client.dart';
+import '../../data/resource_package/resource_package_store.dart';
+import 'package:uuid/uuid.dart';
 import 'package:drift/drift.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -27,6 +31,139 @@ class ProviderManager {
     if (existing.length >= FeatureGate.maxProviders) {
       throw ProviderLimitException(FeatureGate.maxProviders);
     }
+  }
+
+  Future<ResourcePackage> previewResourcePackage(String address) =>
+      ResourcePackageClient().fetch(address);
+
+  Future<void> addResourcePackage({
+    required String id,
+    required String address,
+    required ResourcePackage package,
+  }) async {
+    await _checkProviderLimit();
+    await ResourcePackageStore(
+      _db,
+    ).apply(providerId: id, package: package, address: address, create: true);
+    _enrichProvider(id);
+  }
+
+  final Map<String, DateTime> _lastResourceAttempt = {};
+  bool _closing = false;
+  Future<void> refreshResourcePackagesDue() async {
+    if (_closing) return;
+    for (final provider in await _db.getAllProviders()) {
+      if (_closing) return;
+      if (provider.type != 'resource' ||
+          !provider.enabled ||
+          (provider.url?.isEmpty ?? true)) {
+        continue;
+      }
+      final now = DateTime.now();
+      final last = _lastResourceAttempt[provider.id] ?? provider.lastRefresh;
+      if (last != null && now.difference(last) < const Duration(minutes: 15)) {
+        continue;
+      }
+      _lastResourceAttempt[provider.id] = now;
+      try {
+        await _refreshResource(provider);
+      } catch (_) {
+        /* Retain last snapshot. */
+      }
+    }
+  }
+
+  Future<void> shutdownResourcePackages() async {
+    _closing = true;
+    await Future.wait(
+      _resourceRefreshes.values.map((f) => f.catchError((Object _) => 0)),
+    );
+  }
+
+  final Map<String, Future<int>> _resourceRefreshes = {};
+
+  Future<int> _refreshResource(db.Provider provider) =>
+      _resourceRefreshes.putIfAbsent(provider.id, () async {
+        try {
+          final package = await previewResourcePackage(provider.url!);
+          final count = await ResourcePackageStore(_db).apply(
+            providerId: provider.id,
+            package: package,
+            address: provider.url!,
+            create: false,
+          );
+          _enrichProvider(provider.id);
+          return count;
+        } finally {
+          _resourceRefreshes.remove(provider.id);
+        }
+      });
+
+  void _enrichProvider(String id) async {
+    try {
+      final rows = await _db.getChannelsForProvider(id);
+      await resolveLogosForChannels(
+        rows
+            .where((c) => c.streamUrl.isNotEmpty)
+            .map(
+              (c) => Channel(
+                id: c.id,
+                providerId: id,
+                name: c.name,
+                streamUrl: c.streamUrl,
+                groupTitle: c.groupTitle,
+                tvgId: c.tvgId,
+                tvgLogo: c.tvgLogo,
+              ),
+            )
+            .toList(),
+      );
+    } catch (_) {
+      /* Enrichment never rolls back a valid import. */
+    }
+  }
+
+  Future<void> addSingleRoute({
+    required String name,
+    required String address,
+    String? category,
+  }) async {
+    final uri = ResourcePackage.url(address, 'stream URL', media: true);
+    const providerId = 'user-manual-routes';
+    await _db.transaction(() async {
+      if (!(await _db.getAllProviders()).any((p) => p.id == providerId)) {
+        await _checkProviderLimit();
+        await _db.upsertProvider(
+          db.ProvidersCompanion.insert(
+            id: providerId,
+            name: '手工线路',
+            type: 'manual',
+          ),
+        );
+      }
+      final existing = await _db.getChannelsForProvider(providerId);
+      if (existing.any((c) => c.streamUrl == uri.toString())) return;
+      final group = category?.trim();
+      await _db
+          .into(_db.channels)
+          .insertOnConflictUpdate(
+            db.ChannelsCompanion.insert(
+              id: const Uuid().v4(),
+              providerId: providerId,
+              name: name,
+              streamUrl: uri.toString(),
+              groupTitle: Value(
+                group == null || group.isEmpty
+                    ? ChannelCategoryClassifier.classify(
+                        name: name,
+                        streamUrl: uri.toString(),
+                      )
+                    : group,
+              ),
+            ),
+          );
+    });
+    _enrichProvider(providerId);
   }
 
   /// Add an M3U provider.
@@ -73,6 +210,10 @@ class ProviderManager {
   Future<int> refreshProvider(String providerId) async {
     final providers = await _db.getAllProviders();
     final provider = providers.firstWhere((p) => p.id == providerId);
+
+    if (provider.type == 'resource') {
+      return (provider.url?.isEmpty ?? true) ? 0 : _refreshResource(provider);
+    }
 
     List<Channel> channels;
     if (provider.type == 'm3u') {
@@ -141,11 +282,15 @@ class ProviderManager {
 
   Future<List<Channel>> _refreshM3u(db.Provider provider) async {
     final host = Uri.tryParse(provider.url ?? '')?.host.toLowerCase() ?? '';
-    if (host == 'github.com' || host == 'raw.githubusercontent.com' ||
-        host == 'api.github.com' || host.endsWith('.github.io')) {
+    if (host == 'github.com' ||
+        host == 'raw.githubusercontent.com' ||
+        host == 'api.github.com' ||
+        host.endsWith('.github.io')) {
       throw StateError('GitHub 公共线路由服务器统一刷新，请使用公共频道库；已有频道会保留');
     }
-    final dio = ServerEgress.dio(BaseOptions(extra: {'egressKind': 'playlist'}));
+    final dio = ServerEgress.dio(
+      BaseOptions(extra: {'egressKind': 'playlist'}),
+    );
     try {
       final response = await dio.get<String>(provider.url!);
       final result = _m3uParser.parse(response.data!, providerId: provider.id);
@@ -169,6 +314,22 @@ class ProviderManager {
   }
 
   Future<void> deleteProvider(String id) async {
+    final provider = (await _db.getAllProviders())
+        .where((p) => p.id == id)
+        .firstOrNull;
+    if (provider?.type == 'resource') {
+      await ResourcePackageStore(_db).remove(id);
+      return;
+    }
+    if (provider?.type == 'manual') {
+      await _db.transaction(() async {
+        await _db.deleteChannelsByIds(
+          (await _db.getChannelsForProvider(id)).map((c) => c.id),
+        );
+        await _db.deleteProvider(id);
+      });
+      return;
+    }
     await _db.deleteProvider(id);
   }
 

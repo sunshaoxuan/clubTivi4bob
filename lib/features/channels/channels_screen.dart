@@ -8,7 +8,7 @@ import 'dart:ui' as ui;
 import 'package:drift/drift.dart' show Value;
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart' show listEquals, setEquals;
+import 'package:flutter/foundation.dart' show listEquals, setEquals, defaultTargetPlatform;
 import 'package:flutter/services.dart';
 
 import 'package:shared_preferences/shared_preferences.dart';
@@ -57,6 +57,7 @@ import 'desktop_update_badge.dart';
 import 'adaptive_home_toolbar.dart';
 import 'compact_category_row.dart';
 import 'simple_home_content.dart';
+import 'mobile_channel_home.dart';
 import 'simple_channel_panel_frame.dart';
 import '../player/player_service.dart';
 import '../player/player_presentation_buttons.dart';
@@ -186,6 +187,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
   bool _showVolumeOverlay = false;
   Timer? _volumeOverlayTimer;
   StreamSubscription<double>? _volumeSubscription;
+  StreamSubscription<bool>? _playingSubscription;
   StreamSubscription<Player>? _activePlayerSubscription;
 
   // Last channel for back/forth toggle (not a full history stack)
@@ -211,6 +213,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
   bool _channelLoadInProgress = false;
   bool _channelReloadQueued = false;
   bool _categoryLoading = false;
+  Object? _categoryLoadError;
   int _categoryLoadGeneration = 0;
   final _categoryCache = CategoryLoadCache<_CategorySnapshot>();
   final _countryCache = CategoryLoadCache<Map<String, int>>(capacity: 2);
@@ -554,6 +557,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
     _nowPlayingTimer?.cancel();
     _volumeOverlayTimer?.cancel();
     _volumeSubscription?.cancel();
+    _playingSubscription?.cancel();
     _activePlayerSubscription?.cancel();
     _providersSub?.cancel();
     _channelsSub?.cancel();
@@ -715,6 +719,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
         _loadStatus = '正在载入 {0}…';
         _loadStatusArgs = [group];
         _categoryLoading = true;
+        _categoryLoadError = null;
         _routeAvailabilityLoading = true;
         _verifiedRouteCounts = {};
         _verifiedRouteUrls = {};
@@ -826,6 +831,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
         setState(() {
           _categoryLoading = false;
           _routeAvailabilityLoading = false;
+          _categoryLoadError = error;
           _loadStatus = '分类读取失败，可点击重试';
         });
       }
@@ -1709,6 +1715,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
     bool force = false,
     String? preferredUrl,
     bool onlyRequestedRoute = false,
+    bool direct = false,
   }) async {
     if (index < 0 || index >= _filteredChannels.length) return;
     _routeRecovery.cancel();
@@ -1757,9 +1764,9 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
         (playerService.player.state.playing ||
             playerService.player.state.buffering ||
             playerService.preparedChannelId == channel.id);
-    final commitPreview = preferredUrl == null && !force && _simpleMode && hasActivePlayback &&
+    final commitPreview = !direct && preferredUrl == null && !force && _simpleMode && hasActivePlayback &&
         playerService.preparedChannelId == channel.id;
-    final prepareOnly = !force && _simpleMode && hasActivePlayback &&
+    final prepareOnly = !direct && !force && _simpleMode && hasActivePlayback &&
         !commitPreview;
     if (hasActivePlayback) {
       setState(() {
@@ -1897,7 +1904,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
       await playerService.discardPreparedChannel();
     }
     if (!hasActivePlayback) {
-      unawaited(playerService.play(
+      final playback = playerService.play(
         requestedUrl,
         channelId: channel.id,
         epgChannelId: _getEpgId(channel),
@@ -1907,7 +1914,14 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
         originalName: channel.tvgName,
         failoverGroupUrls: failoverUrls,
         allowAudioOnly: _allowsAudioOnly(channel),
-      ));
+      );
+      if (direct) {
+        await playback;
+        switched = playerService.currentChannelId == channel.id &&
+            playerService.currentUrl != null;
+      } else {
+        unawaited(playback);
+      }
     }
     if (!mounted || selectionGeneration != _channelSelectionGeneration) return;
     final currentIndex = ChannelListIdentity.indexOf(
@@ -3074,6 +3088,13 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
 
   void _bindVolumePlayer(Player player) {
     _volumeSubscription?.cancel();
+    _playingSubscription?.cancel();
+    _playingSubscription = player.stream.playing.listen((_) {
+      if (mounted && useMobileChannelHome(platform: defaultTargetPlatform,
+          size: MediaQuery.sizeOf(context), television: PlatformInfo.isTV)) {
+        setState(() {});
+      }
+    });
     _volume = player.state.volume.clamp(0.0, 100.0);
     if (_volume > 0) _preMuteVolume = _volume;
     _volumeSubscription = player.stream.volume.listen((value) {
@@ -3164,6 +3185,13 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
         !_selectedGroup.startsWith('fav:')) {
       return _buildEmptyState(context);
     }
+    if (useMobileChannelHome(
+      platform: Theme.of(context).platform,
+      size: MediaQuery.sizeOf(context),
+      television: PlatformInfo.isTV,
+    )) {
+      return _buildMobileHome();
+    }
     if (TabletPresentation.useSimpleHome(
       simpleMode: _simpleMode,
       television: PlatformInfo.isTV,
@@ -3249,6 +3277,91 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
           ),
         ),
       ),
+    );
+  }
+
+  Future<void> _selectMobileCategory(String group, String country) async {
+    if (_categoryLoadError == null && group == _selectedGroup &&
+        (group != '国际' || country == _selectedInternationalCountry)) {
+      return;
+    }
+    setState(() {
+      _selectedGroup = group;
+      if (country.isNotEmpty) {
+        _selectedInternationalCountry = country;
+      }
+      _pendingAutoplayGroup = null;
+      _selectedIndex = -1;
+      _clearSearch();
+    });
+    await _loadGroupChannels(group);
+    if (!mounted || group != _selectedGroup) return;
+    if (_categoryLoadError != null) {
+      throw StateError('Category load failed');
+    }
+    await _loadEpgData(ref.read(databaseProvider), _allChannels, _favoritedChannelIds);
+    await _saveSession();
+  }
+
+  Widget _buildMobileHome() {
+    final service = ref.read(playerServiceProvider);
+    return Scaffold(
+      backgroundColor: BobTvPalette.deep,
+      resizeToAvoidBottomInset: false,
+      body: SafeArea(child: MobileChannelHome(
+        video: _previewChannel == null
+            ? const Center(child: Icon(Icons.tv, size: 64, color: Colors.white24))
+            : _buildActiveVideo(),
+        channels: [for (final channel in _filteredChannels) MobileChannelItem(
+          id: channel.id, name: _channelDisplayName(channel), sourceId: channel.providerId,
+          programme: _getChannelNowPlaying(channel),
+          logoUrl: channel.tvgLogo,
+          favorite: _favoritedChannelIds.contains(channel.id),
+        )],
+        sources: {for (final provider in _providers) provider.id: provider.name},
+        categories: _groups.isEmpty ? [_selectedGroup] : _groups,
+        category: _selectedGroup,
+        countries: _internationalCountries,
+        country: _selectedGroup == '国际' ? _selectedInternationalCountry : '',
+        currentId: _previewChannel?.id,
+        currentName: _previewChannel == null ? null : _channelDisplayName(_previewChannel!),
+        programme: _previewChannel == null ? null : _getChannelNowPlaying(_previewChannel!),
+        loading: _categoryLoading,
+        muted: _volume == 0,
+        playing: service.player.state.playing,
+        onCategory: _selectMobileCategory,
+        onSelect: (id) async {
+          final index = _filteredChannels.indexWhere((channel) => channel.id == id);
+          if (index < 0) return false;
+          final selectedChannel = _filteredChannels[index];
+          await _selectChannel(index, direct: true);
+          final generation = _channelSelectionGeneration;
+          if (!mounted || service.currentChannelId != id) return false;
+          try {
+            // The view must mount before waiting for its native texture.
+            await WidgetsBinding.instance.endOfFrame;
+            if (!_allowsAudioOnly(selectedChannel)) {
+              await (service.activeVideoController.value ?? service.videoController)
+                  .waitUntilFirstFrameRendered.timeout(const Duration(seconds: 30));
+            }
+          } catch (_) {
+            return false;
+          }
+          return mounted && generation == _channelSelectionGeneration &&
+              service.currentChannelId == id && service.currentUrl != null &&
+              service.player.state.playing;
+        },
+        onPause: () async {
+          if (service.player.state.playing) {
+            await service.pause();
+          } else {
+            await service.player.play();
+          }
+          if (mounted) setState(() {});
+        },
+        onMute: () => _setPreviewVolume(_volume == 0 ? _preMuteVolume : 0),
+        onManageSources: () => context.push('/providers'),
+      )),
     );
   }
 
@@ -4197,6 +4310,23 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
   }
 
   Widget _buildTopBar(BuildContext context) {
+    if (useMobileChannelHome(
+      platform: defaultTargetPlatform,
+      size: MediaQuery.sizeOf(context),
+      television: PlatformInfo.isTV,
+    )) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        child: Row(children: [
+          const Text('BobTV'),
+          const SizedBox(width: 12),
+          Expanded(child: Text(_localizedLoadStatus(context),
+            maxLines: 1, overflow: TextOverflow.ellipsis,
+            style: const TextStyle(fontSize: 11, color: Colors.white54))),
+          const LanguageMenu(),
+        ]),
+      );
+    }
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       child: Row(

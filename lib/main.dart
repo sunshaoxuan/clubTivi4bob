@@ -19,11 +19,12 @@ import 'data/services/client_fingerprint_service.dart';
 import 'data/services/legacy_preferences_migration.dart';
 import 'data/services/desktop_update_service.dart';
 
-void main() {
+void main({VoidCallback? onBindingReady}) {
   ServerEgress.installGuard();
   final diagnostics = AppDiagnostics.instance;
   runZonedGuarded(
     () async {
+      onBindingReady?.call();
       WidgetsFlutterBinding.ensureInitialized();
       await diagnostics.initialize();
       await LegacyPreferencesMigration.run();

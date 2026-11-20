@@ -416,7 +416,14 @@ void main() {
             final channels = tester.getRect(
               find.byKey(const ValueKey('simple-channel-pane')),
             );
-            expect(main.width, lessThanOrEqualTo(size.width / 2));
+            if (platform == TargetPlatform.android &&
+                size.height > size.width) {
+              expect(main.bottom, lessThan(channels.top));
+              expect(main.width, closeTo(size.width - 20, .01));
+            } else {
+              expect(main.right, lessThan(channels.left));
+              expect(main.width, lessThanOrEqualTo(size.width / 2));
+            }
             expect(main.width, closeTo(channels.width, .01));
           }
           final list = tester.getRect(find.byType(InlineExpandedChannelGrid));

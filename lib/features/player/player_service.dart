@@ -61,6 +61,9 @@ class AlternativePreviewState {
 
 /// Manages video playback with stream failover support.
 class PlayerService {
+  // Explicit local QA builds only; ordinary and release builds stay unchanged.
+  static const _qaSilent = kDebugMode &&
+      bool.fromEnvironment('BOBTV_QA_SILENT');
   PlayerService({RetiredRouteGuard? retirementGuard})
       : _retirementGuard = retirementGuard {
     _retirementSubscription = retirementGuard?.changes.listen((_) {
@@ -161,7 +164,7 @@ class PlayerService {
     if (np is! native_player.NativePlayer) return;
     _localCastMute ??= LocalCastMute(
       readMute: () async => await np.getProperty('mute') == 'yes',
-      writeMute: (muted) => np.setProperty('mute', muted ? 'yes' : 'no'),
+      writeMute: (muted) => np.setProperty('mute', (muted || _qaSilent) ? 'yes' : 'no'),
     );
     try {
       await _localCastMute!.update(casting);
@@ -539,7 +542,12 @@ class PlayerService {
       await np.setProperty('audio-spdif', '');
       // Volume
       await np.setProperty('volume', '100');
-      await np.setProperty('mute', 'no');
+      await np.setProperty('mute', _qaSilent ? 'yes' : 'no');
+      if (_qaSilent) {
+        AppDiagnostics.instance.log('qa_silent_player', {
+          'muted': await np.getProperty('mute') == 'yes',
+        });
+      }
       // AndroidVideoController owns vo/hwdec and the Surface lifecycle.
       // Setting vo=gpu before a valid wid can crash libmpv. Its auto-safe
       // decoder selection also retains fallback for older tablet chipsets.
@@ -1282,7 +1290,7 @@ class PlayerService {
     _activePlayerController.add(candidate);
     if (native is native_player.NativePlayer) {
       try {
-        await native.setProperty('mute', 'no');
+        await native.setProperty('mute', _qaSilent ? 'yes' : 'no');
       } catch (error) {
         AppDiagnostics.instance.log('prepared_player_unmute_failed', {
           'error': error.toString(),

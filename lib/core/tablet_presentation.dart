@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/painting.dart';
 
 /// One presentation policy for desktop windows and touch tablets.
@@ -9,8 +11,17 @@ class TabletPresentation {
     required bool television,
   }) => simpleMode && !television;
 
-  static bool splitLayout({required double width, required double height}) =>
-      width >= 640;
+  static bool splitLayout({
+    required double width,
+    required double height,
+    bool touchPortrait = false,
+  }) => width >= 640 && !touchPortrait;
+
+  /// Allow a wide video plus its channel information above the browsing area.
+  static double portraitPreviewHeight(double width, double height) => math.min(
+    (width - 36).clamp(0.0, double.infinity) * 9 / 16 + 112,
+    height * .52,
+  );
 
   static double compactCardHeight(
     double availableHeight,

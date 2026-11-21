@@ -590,6 +590,9 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
   /// Add default EPG sources on first run and kick off a background refresh.
   Future<void> _ensureEpgSources() async {
     final epgService = ref.read(epgRefreshServiceProvider);
+    // The bundled demo registers its guide during catalog initialization.
+    // Include it in the first refresh rather than waiting for the timer.
+    await ref.read(providerManagerProvider).regionalCatalog.initialize();
     await epgService.addDefaultSources();
     // Refresh in background — don't block the UI
     epgService

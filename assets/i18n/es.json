@@ -753,7 +753,7 @@
   "搜索频道…": "Buscar canales…",
   "搜索频道名称": "Nombre del canal de búsqueda",
   "撤销失败，请稍后重试": "Error al deshacer. Vuelve a intentarlo más tarde.",
-  "播放": "jugar",
+  "播放": "Reproducir",
   "播放体验": "Experiencia de reproducción",
   "播放器准备失败，请重试": "La preparación del jugador falló, inténtalo de nuevo.",
   "播放网址": "Reproducir URL",
@@ -1238,5 +1238,6 @@
   "解除绑定": "Desvincular",
   "解除绑定失败，请稍后重试": "No se pudo desvincular este dispositivo. Inténtalo más tarde.",
   "全屏播放": "Reproducir a pantalla completa",
-  "清除搜索": "Borrar búsqueda"
+  "清除搜索": "Borrar búsqueda",
+  "暂停": "Pausar"
 }

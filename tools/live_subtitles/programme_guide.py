@@ -27,10 +27,16 @@ def wikidata_read(**query):
     return json.loads(raw)
 
 
+def film_number(title):
+    # Normalize Unicode Roman sequel numbers without dropping the sequel.
+    return re.sub(r'[\u2160-\u216b\u2170-\u217b]$',
+                  lambda match: str(int(unicodedata.numeric(match[0]))), title)
+
+
 def film_search_title(title):
     # A programme may split one feature across two broadcast slots. Strip only
     # explicit bracketed part markers, retaining numbered sequel identities.
-    return re.sub(r'\s*[（(](?:上|中|下)(?:集|部)?[）)]\s*$', '', title).strip()
+    return film_number(re.sub(r'\s*[（(](?:上|中|下)(?:集|部)?[）)]\s*$', '', title).strip())
 
 
 def film_alias(title, year=None, imdb_id=None):
@@ -113,7 +119,7 @@ def player_programme(context, channel_id, now):
 
 
 def identity_title(value):
-    return re.findall(r'[^\W_]+',unicodedata.normalize('NFKC',value).casefold())
+    return re.findall(r'[^\W_]+',unicodedata.normalize('NFKC',film_number(value)).casefold())
 
 
 def route_key(source):

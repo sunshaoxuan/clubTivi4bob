@@ -28,6 +28,18 @@ class GuideTests(unittest.TestCase):
         self.assertEqual(film_search_title('赤壁2：决战天下'), '赤壁2：决战天下')
         self.assertEqual(film_search_title('Kill Bill: Volume 2'), 'Kill Bill: Volume 2')
 
+    def test_unicode_sequel_numbers_reach_exact_localized_movie_identity(self):
+        def claim(value):return {'mainsnak':{'datavalue':{'value':value}}}
+        movie={'labels':{'zh':{'value':'卧底肥妈2'},'en':{'value':"Big Momma's House 2"}},
+               'claims':{'P31':[claim({'id':'Q11424'})], 'P345':[claim('tt0421729')],
+                         'P577':[claim({'time':'+2006-01-01T00:00:00Z'})]}}
+        with patch('programme_guide.wikidata_read',side_effect=[
+                {'search':[{'id':'Q1'}]},{'entities':{'Q1':movie}}]) as lookup:
+            self.assertEqual(film_alias('卧底肥妈Ⅱ')['imdbId'],'tt0421729')
+            self.assertEqual(lookup.call_args_list[0].kwargs['search'],'卧底肥妈2')
+        self.assertEqual(film_search_title('卧底肥妈Ⅲ（下）'),'卧底肥妈3')
+        self.assertNotEqual(film_search_title('卧底肥妈Ⅱ'),film_search_title('卧底肥妈'))
+
     def test_current_player_epg_reaches_subtitle_discovery_without_mutating_public_guide(self):
         self.rows()
         source = 'https://example.org/cctv6.m3u8'

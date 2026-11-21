@@ -17,6 +17,7 @@ import '../../core/server_egress.dart';
 import 'adaptive_buffer.dart';
 import 'prepared_channel_commit_gate.dart';
 import 'playback_stall_detector.dart';
+import 'playback_open_deadline.dart';
 import 'stream_proxy.dart';
 import 'hls_buffer_proxy.dart';
 import 'subtitle_preferences.dart';
@@ -1789,7 +1790,17 @@ class PlayerService {
     bool continueOnError = false,
   }) async {
     try {
-      await operation.timeout(timeout);
+      if (step == 'open_media') {
+        await awaitPlaybackOpen(
+          operation,
+          initialTimeout: timeout,
+          preparingSubtitleClock: () => generation == _playGeneration &&
+              (Uri.tryParse(_currentUrl ?? '')?.path.endsWith('.m3u8') ?? false) &&
+              usesLocalSubtitleAudio,
+        );
+      } else {
+        await operation.timeout(timeout);
+      }
     } catch (error, stackTrace) {
       AppDiagnostics.instance.log('play_step_failed', {
         'step': step,

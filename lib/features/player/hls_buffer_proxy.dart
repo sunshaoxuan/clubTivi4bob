@@ -9,6 +9,11 @@ import 'hls_playlist_history.dart';
 const actionMoviesLegacyConfig = 'production-LiveChannel-6065';
 const actionMoviesCurrentConfig = 'production-hls-aes128-rtv-6065-playout';
 
+/// Resolve media and key references against the playlist that actually replied.
+Uri hlsResponseBase(Uri requested, HttpClientResponse response) => response
+    .redirects
+    .fold(requested, (uri, redirect) => uri.resolveUri(redirect.location));
+
 /// A failed streamed segment must terminate its socket, so the decoder can
 /// distinguish a truncated body from a successfully completed video segment.
 Future<void> closeFailedHlsResponse(HttpResponse response) async {
@@ -334,6 +339,7 @@ class HlsBufferProxy {
   final _keys = <String, Uri>{};
   final _histories = <Uri, HlsPlaylistHistory>{};
   final _playlistBodies = <Uri, String>{};
+  final _playlistOrigins = <Uri, Uri>{};
   final _playlistTimes = <Uri, DateTime>{};
   final _playlistRequests = <Uri, Future<String>>{};
   Timer? _manifestPoll;
@@ -363,6 +369,7 @@ class HlsBufferProxy {
     final request = await _client!.getUrl(uri);
     _headers.forEach(request.headers.set);
     final response = await request.close().timeout(const Duration(seconds: 8));
+    final effectiveOrigin = hlsResponseBase(uri, response);
     if (response.statusCode != 200) {
       await response.drain<void>();
       throw HttpException('HLS manifest ${response.statusCode}');
@@ -376,7 +383,9 @@ class HlsBufferProxy {
     }
     final body = _providerWindowOnly
         ? raw
-        : _histories.putIfAbsent(uri, HlsPlaylistHistory.new).update(raw, uri);
+        : _histories
+              .putIfAbsent(uri, HlsPlaylistHistory.new)
+              .update(raw, effectiveOrigin);
     final durations = RegExp(
       r'#EXTINF:([0-9.]+)',
     ).allMatches(raw).map((match) => double.parse(match[1]!)).toList();
@@ -395,11 +404,12 @@ class HlsBufferProxy {
     final result = captureClock
         ? indexSegments(
             body,
-            uri,
+            effectiveOrigin,
             (key) => 'http://127.0.0.1:${_server!.port}$key',
           )
         : body;
     _playlistBodies[uri] = result;
+    _playlistOrigins[uri] = effectiveOrigin;
     _playlistTimes[uri] = DateTime.now();
     return result;
   }
@@ -477,13 +487,14 @@ class HlsBufferProxy {
         }
         final body = utf8.decode(bytes);
         if (body.contains('#EXT-X-STREAM-INF:')) {
+          final effectiveOrigin = hlsResponseBase(origin, response);
           final maxBandwidth =
               (Platform.isAndroid || Platform.isIOS) && captureClock
               ? 1800000
               : 3000000;
           origin = selectActionMoviesMedia(
             body,
-            origin,
+            effectiveOrigin,
             // Leave mobile decode/network headroom for offline speech.
             maxBandwidth: maxBandwidth,
             allowBoundEpgSource: true,
@@ -571,7 +582,7 @@ class HlsBufferProxy {
             request.response.write(
               rewriteBufferedHls(
                 body,
-                uri,
+                _playlistOrigins[uri] ?? uri,
                 _register,
                 holdBackSeconds: subtitleLiveHoldback(
                   body,
@@ -638,6 +649,7 @@ class HlsBufferProxy {
     _keys.clear();
     _histories.clear();
     _playlistBodies.clear();
+    _playlistOrigins.clear();
     _playlistTimes.clear();
     _playlistRequests.clear();
     _lastManifestFacts = null;

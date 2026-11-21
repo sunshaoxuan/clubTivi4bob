@@ -42,7 +42,7 @@ try:
  subprocess.run([python,'-c',modules],cwd=folder,check=True)
  for service in services:subprocess.run(['systemctl','restart',service],check=True)
  if not origin:subprocess.run(['systemctl','reload','nginx'],check=True)
- endpoints=['http://127.0.0.1:8917/api/v1/epg/manifest','http://127.0.0.1:8918/api/v1/epg/manifest'] if origin else ['http://127.0.0.1:8927/bobtv/api/v1/resource-node/probe']
+ endpoints=['http://127.0.0.1:8917/api/v1/regional-catalog/bootstrap.bobtv','http://127.0.0.1:8918/api/v1/epg/manifest'] if origin else ['http://127.0.0.1:8927/bobtv/api/v1/resource-node/probe']
  for endpoint in endpoints:
   for attempt in range(25):
    try:

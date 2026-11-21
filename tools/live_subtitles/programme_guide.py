@@ -57,6 +57,7 @@ def film_alias(title, year=None, imdb_id=None):
         if len(matching) != 1:
             return None
         return dict(title=matching[0]['l'], year=released, imdbId=imdb,
+                    verifiedTitleAliases=film.get('releaseTitles', []),
                     identityEvidence='reviewed_localized_title_pending_audio_verification')
     language = 'zh' if re.search(r'[\u3400-\u9fff]', title) else 'en'
     results = wikidata_read(action='wbsearchentities', language=language, search=title, limit=6)

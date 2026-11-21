@@ -29,6 +29,13 @@ class SubtitleAITest(unittest.TestCase):
         self.assertFalse(matches_bound_release('T-34 2 2018 BluRay',alias,2018))
         self.assertEqual(verified_release_aliases(dict(movie,identityEvidence=None)),())
 
+    def test_reviewed_localized_release_alias_requires_server_identity_evidence(self):
+        movie=dict(imdbId='tt15341102',verifiedTitleAliases=['Mountain King','野王'],
+            identityEvidence='reviewed_localized_title_pending_audio_verification')
+        self.assertEqual(verified_release_aliases(movie),('Mountain King','野王'))
+        self.assertEqual(verified_release_aliases(dict(movie,identityEvidence=None)),())
+        self.assertEqual(verified_release_aliases(dict(movie,imdbId=None)),())
+
     def test_review_cannot_select_unoffered_records(self):
         with tempfile.TemporaryDirectory() as root:
             ai=SubtitleAI(root,lambda *_: {'indices':[1]})

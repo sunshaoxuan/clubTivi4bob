@@ -24,6 +24,13 @@ RESOURCE_SCHEMA = 5
 
 
 def verified_release_aliases(programme):
+    if programme.get('identityEvidence')=='reviewed_localized_title_pending_audio_verification':
+        aliases=programme.get('verifiedTitleAliases',[])
+        if (not re.fullmatch(r'tt[0-9]{7,10}',str(programme.get('imdbId','')))
+                or not isinstance(aliases,list) or len(aliases)>6
+                or any(not isinstance(name,str) or not 1<=len(name)<=200 for name in aliases)):
+            return ()
+        return tuple(aliases)
     if programme.get('identityEvidence')!='official_movie_record' or not programme.get('imdbId'):
         return ()
     slug = programme.get('movieId') or ''
@@ -271,6 +278,7 @@ class SubtitleCache:
                 outcome = 'not_found_this_search'
             searches[language] = dict(checkedAt=self.clock(), outcome=outcome, variantCount=variants)
         atomic(folder/'index.json', json.dumps(dict(schemaVersion=1,
+            lookupAliases=list(verified_release_aliases(programme)),
             resourceSchemaVersion=RESOURCE_SCHEMA if searched else 3, identity=movie_aliases(programme),
             title=programme['title'], year=programme['year'], subtitleYear=programme.get('subtitleYear',programme['year']),
             editions=editions, resources=resources, searches=searches, providerOutcomes=outcomes),
@@ -309,6 +317,7 @@ class SubtitleCache:
                 resource_schema=manifest.get('resourceSchemaVersion',0)
                 if programme.get('imdbId') and 'imdb:'+programme['imdbId'] not in manifest.get('identity',[]):resource_schema=0
             except (OSError,ValueError):resource_schema=0;manifest={}
+            if manifest.get('lookupAliases',[])!=list(release_aliases):searches={}
             if resource_schema < RESOURCE_SCHEMA:
                 searches = {key: result for key, result in searches.items()
                             if result.get('outcome') == 'temporarily_unavailable'}

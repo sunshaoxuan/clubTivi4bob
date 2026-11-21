@@ -1236,5 +1236,7 @@
   "解除此设备绑定": "Dissocier cet appareil",
   "解除后，本机将移除已订阅的地区频道。个人导入和账号收藏会保留。": "Les chaînes régionales suivies seront supprimées de cet appareil. Les imports personnels et les favoris du compte seront conservés.",
   "解除绑定": "Dissocier",
-  "解除绑定失败，请稍后重试": "Impossible de dissocier cet appareil. Réessayez plus tard."
+  "解除绑定失败，请稍后重试": "Impossible de dissocier cet appareil. Réessayez plus tard.",
+  "全屏播放": "Lire en plein écran",
+  "清除搜索": "Effacer la recherche"
 }

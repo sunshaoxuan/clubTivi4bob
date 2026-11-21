@@ -377,7 +377,7 @@ class _MobileChannelHomeState extends State<MobileChannelHome>
           children: [
             _section('来源', [
               _chip(
-                '全部',
+                t('全部'),
                 _draftSource == null,
                 () => setState(() => _draftSource = null),
               ),

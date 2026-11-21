@@ -1236,5 +1236,7 @@
   "解除此设备绑定": "Desvincular este dispositivo",
   "解除后，本机将移除已订阅的地区频道。个人导入和账号收藏会保留。": "Los canales regionales suscritos se eliminarán de este dispositivo. Se conservarán las importaciones personales y los favoritos de la cuenta.",
   "解除绑定": "Desvincular",
-  "解除绑定失败，请稍后重试": "No se pudo desvincular este dispositivo. Inténtalo más tarde."
+  "解除绑定失败，请稍后重试": "No se pudo desvincular este dispositivo. Inténtalo más tarde.",
+  "全屏播放": "Reproducir a pantalla completa",
+  "清除搜索": "Borrar búsqueda"
 }

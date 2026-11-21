@@ -1236,5 +1236,7 @@
   "解除此设备绑定": "Unlink this device",
   "解除后，本机将移除已订阅的地区频道。个人导入和账号收藏会保留。": "Subscribed regional channels will be removed from this device. Personal imports and account favorites will be kept.",
   "解除绑定": "Unlink",
-  "解除绑定失败，请稍后重试": "Could not unlink this device. Please try again later."
+  "解除绑定失败，请稍后重试": "Could not unlink this device. Please try again later.",
+  "全屏播放": "Play fullscreen",
+  "清除搜索": "Clear search"
 }

@@ -52,6 +52,7 @@ class TextHub:
         self.searching_language=None
         self.lock=threading.RLock();self.sessions={};self.candidates=None;self.discovery_error=False
         self.source,self.programme=self.guide();self.last_guide_success=time.time();self.gap=False
+        self.discovery_thread=None
         self.discovery_generation=0;self.last_discovery=0;self.discovery_busy=False
         self.fetch_subtitles()
         self.next_guide=time.monotonic()+25
@@ -72,6 +73,7 @@ class TextHub:
 
     def fetch_subtitles(self,language='en',*,refresh=False):
         with self.lock:
+            if getattr(self,'stop_event',None) and self.stop_event.is_set():return
             if refresh:
                 self.manual_searches.add(language)
             self.requested_languages.add(language)
@@ -80,7 +82,7 @@ class TextHub:
         def work():
             while True:
                 with self.lock:
-                    if not self.requested_languages:
+                    if (getattr(self,'stop_event',None) and self.stop_event.is_set()) or not self.requested_languages:
                         self.searching_language=None
                         self.discovery_busy=False;self.last_discovery=time.monotonic();return
                     manual = getattr(self, 'manual_searches', set())
@@ -124,7 +126,15 @@ class TextHub:
                     with self.lock:
                         if generation==self.discovery_generation:self.discovery_error=not bool(self.candidates)
                     self.event('subtitle_discovery_error',language=language,errorType=type(e).__name__)
-        threading.Thread(target=work,daemon=True).start()
+        thread=threading.Thread(target=work,daemon=True)
+        self.discovery_thread=thread
+        thread.start()
+    def close(self):
+        self.stop_event.set()
+        thread=getattr(self,'discovery_thread',None)
+        if thread and thread is not threading.current_thread():
+            thread.join(timeout=45)
+
     def valid_context(self,source,programme):
         return (self.source_validator(source) if getattr(self,'source_validator',None) else source==self.source or reviewed_pilot_source(source) and reviewed_pilot_source(self.source)) and not self.gap and time.time()<self.programme['stopUtc'] and time.time()-self.last_guide_success<=120 and (programme is None or isinstance(programme,dict) and programme.get('key')==self.programme['key'])
     def create(self,source,context,language,features=()):

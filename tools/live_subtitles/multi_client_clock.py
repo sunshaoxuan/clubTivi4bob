@@ -37,6 +37,10 @@ class MultiTextHub:
         self.stop_event.set()
         if self.maintenance_thread:self.maintenance_thread.join(timeout=5)
         self.pool.shutdown(wait=True,cancel_futures=True)
+        with self.lock:children=list(self.channels.values())
+        for child in children:
+            if hasattr(child,'close'):child.close()
+            else:child.stop_event.set()
 
     def maintain(self):
         while not self.stop_event.wait(1):

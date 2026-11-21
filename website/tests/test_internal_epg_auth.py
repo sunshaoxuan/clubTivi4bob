@@ -1,4 +1,4 @@
-from urllib.request import Request
+from urllib.request import HTTPRedirectHandler, Request
 
 import pytest
 
@@ -48,9 +48,29 @@ def test_missing_invalid_or_symlinked_key_never_authenticates(key):
     headers = auth.headers_for('https://bobtv.briconbric.com/api/v1/epg/manifest', now=1000)
     key.write_bytes(b'short')
     assert not auth.authorized('GET', '/api/v1/epg/manifest', headers, now=1000)
+
     key.unlink()
     assert auth.headers_for('https://bobtv.briconbric.com/api/v1/epg/manifest') == {}
     other = key.with_suffix('.other')
     other.write_bytes(b'r' * 32)
     key.symlink_to(other)
     assert not auth.authorized('GET', '/api/v1/epg/manifest', headers, now=1000)
+
+
+def test_redirect_never_copies_proof_and_mirror_gets_a_fresh_scoped_proof(key):
+    handler = auth.ReadAuthHandler()
+    request = Request('https://bobtv.briconbric.com/api/v1/epg/manifest')
+    handler.https_request(request)
+    assert request.has_header(auth.PROOF.capitalize())
+    for destination in ('https://evil.example/api/v1/epg/manifest',
+                        'https://bobtv.briconbric.com/api/v1/channel-catalog/manifest'):
+        redirected = HTTPRedirectHandler().redirect_request(request, None, 302, '', {}, destination)
+        assert not redirected.has_header(auth.PROOF.capitalize())
+        handler.https_request(redirected)
+        assert not redirected.has_header(auth.PROOF.capitalize())
+    mirror = HTTPRedirectHandler().redirect_request(request, None, 302, '', {},
+        'https://cndrp.com/bobtv/api/v1/epg/manifest')
+    handler.https_request(mirror)
+    proof = {auth.STAMP: mirror.get_header(auth.STAMP.capitalize()),
+             auth.PROOF: mirror.get_header(auth.PROOF.capitalize())}
+    assert auth.authorized('GET', '/api/v1/epg/manifest', proof)

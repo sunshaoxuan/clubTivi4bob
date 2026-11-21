@@ -62,8 +62,13 @@ def authorized(method, path, headers, *, now=None):
 
 class ReadAuthHandler(BaseHandler):
     def http_request(self, request):
+        # urllib copies ordinary request headers into redirect requests.
+        # Recompute the proof for each reviewed destination and keep it out
+        # of the headers copied by HTTPRedirectHandler.
+        for name in (STAMP, PROOF):
+            request.remove_header(name.capitalize())
         for name, value in headers_for(request.full_url, request.get_method()).items():
-            request.add_header(name, value)
+            request.add_unredirected_header(name, value)
         return request
 
     https_request = http_request

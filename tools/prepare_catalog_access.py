@@ -68,7 +68,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--receipt', type=Path, required=True)
     args = parser.parse_args()
-    baseline = '6412724171b178c883e53c5171b95db0f8b99dcc'
+    baseline = '02ecc2fff91b4f5e18880f5f3ea8667a0b1821fe'
     groups = {
         'ccnode.briconbric.com': [('internal_epg_auth.py', '/opt/bobtv/site/internal_epg_auth.py'),
             *[(name, '/opt/bobtv/site/' + name) for name in
@@ -85,12 +85,11 @@ def main():
             current = (ROOT/'website'/name).read_bytes()
             digest = hashlib.sha256(current).hexdigest()
             previous = [digest]
-            if name != 'internal_epg_auth.py':
-                old = subprocess.check_output(['git', 'show', baseline + ':website/' + name], cwd=ROOT)
-                previous.append(hashlib.sha256(old).hexdigest())
-                if name == 'epg_api.py':
-                    previous.append(hashlib.sha256(old.replace(b'from catalog_access import install\n', b'')
-                        .replace(b'install(app)\n', b'')).hexdigest())
+            old = subprocess.check_output(['git', 'show', baseline + ':website/' + name], cwd=ROOT)
+            previous.append(hashlib.sha256(old).hexdigest())
+            if name == 'epg_api.py':
+                previous.append(hashlib.sha256(old.replace(b'from catalog_access import install\n', b'')
+                    .replace(b'install(app)\n', b'')).hexdigest())
             payload.append(dict(name=Path(name).name, target=target, sha256=digest, previous=previous))
         results[host] = json.loads(ssh(host, 'python3 -c '+shlex.quote(INSTALL),
             json.dumps(dict(stage=stage, origin=host.startswith('ccnode.'), files=payload))))

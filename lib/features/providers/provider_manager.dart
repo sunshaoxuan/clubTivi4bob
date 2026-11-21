@@ -1,3 +1,4 @@
+import '../account/regional_catalog_service.dart';
 import '../../core/server_egress.dart';
 import '../../data/resource_package/resource_package.dart';
 import '../../data/resource_package/resource_package_client.dart';
@@ -24,6 +25,7 @@ class ProviderManager {
   ProviderManager(this._db);
 
   db.AppDatabase get database => _db;
+  late final regionalCatalog = RegionalCatalogService(_db);
 
   /// Check provider count against tier limit.
   Future<void> _checkProviderLimit() async {
@@ -533,5 +535,7 @@ final databaseProvider = Provider<db.AppDatabase>((ref) {
 
 /// Riverpod provider for the provider manager.
 final providerManagerProvider = Provider<ProviderManager>((ref) {
-  return ProviderManager(ref.watch(databaseProvider));
+  final manager = ProviderManager(ref.watch(databaseProvider));
+  ref.onDispose(() => manager.regionalCatalog.dispose());
+  return manager;
 });

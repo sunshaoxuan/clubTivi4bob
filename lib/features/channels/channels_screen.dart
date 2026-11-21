@@ -1,3 +1,4 @@
+import '../../data/services/public_inventory_policy.dart';
 import '../account/account_button.dart';
 import '../../core/user_source_policy.dart';
 import '../providers/add_provider_dialog.dart';
@@ -12,7 +13,8 @@ import 'dart:ui' as ui;
 import 'package:drift/drift.dart' show Value;
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart' show listEquals, setEquals, defaultTargetPlatform;
+import 'package:flutter/foundation.dart'
+    show listEquals, setEquals, defaultTargetPlatform;
 import 'package:flutter/services.dart';
 
 import 'package:shared_preferences/shared_preferences.dart';
@@ -97,8 +99,11 @@ class ChannelsScreen extends ConsumerStatefulWidget {
   ConsumerState<ChannelsScreen> createState() => _ChannelsScreenState();
 }
 
-typedef _CategorySnapshot = ({List<db.Channel> channels,
-  ChannelIndexMetadata metadata, Map<String, List<String>> groups});
+typedef _CategorySnapshot = ({
+  List<db.Channel> channels,
+  ChannelIndexMetadata metadata,
+  Map<String, List<String>> groups,
+});
 
 class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
   Map<String, String> _presentationKeys = {};
@@ -271,18 +276,25 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
   void initState() {
     super.initState();
     _inlineProgrammePreview = ChannelProgrammePreview(
-      load: (epgId, at, limit) => ref.read(databaseProvider).getUpcomingProgrammes(
-        epgChannelId: epgId,
-        at: at,
-        limit: limit,
-      ),
+      load: (epgId, at, limit) => ref
+          .read(databaseProvider)
+          .getUpcomingProgrammes(epgChannelId: epgId, at: at, limit: limit),
       resolve: (id, fallback) async {
-        final index = ChannelListIdentity.indexOf(_filteredChannels, id, (c) => c.id);
-        return resolveLiveEpgId(ref.read(databaseProvider), channelId: id,
+        final index = ChannelListIdentity.indexOf(
+          _filteredChannels,
+          id,
+          (c) => c.id,
+        );
+        return resolveLiveEpgId(
+          ref.read(databaseProvider),
+          channelId: id,
           providerId: index < 0 ? null : _filteredChannels[index].providerId,
-          actualStreamUrl: ref.read(playerServiceProvider).currentChannelId == id
-            ? ref.read(playerServiceProvider).currentUrl : null,
-          fallbackId: null);
+          actualStreamUrl:
+              ref.read(playerServiceProvider).currentChannelId == id
+              ? ref.read(playerServiceProvider).currentUrl
+              : null,
+          fallbackId: null,
+        );
       },
       onError: (error, stack) => AppDiagnostics.instance.recordError(
         'inline_channel_epg',
@@ -290,12 +302,19 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
         stack,
       ),
     )..addListener(_onInlineProgrammeChanged);
-    _epgRouteSubscription = ref.read(playerServiceProvider).currentUrlStream.listen((_) {
-      if (!mounted) return;
-      _syncActiveChannelAfterPlayerReturn();
-      _refreshInlineProgrammeStrip(forceRefresh: true);
-    });
+    _epgRouteSubscription = ref
+        .read(playerServiceProvider)
+        .currentUrlStream
+        .listen((_) {
+          if (!mounted) return;
+          _syncActiveChannelAfterPlayerReturn();
+          _refreshInlineProgrammeStrip(forceRefresh: true);
+        });
     _guideScrollController = ScrollController();
+    ref
+        .read(providerManagerProvider)
+        .regionalCatalog
+        .addListener(_regionalCatalogChanged);
     _loadChannels();
     unawaited(ref.read(bobTvCommunityProvider).start());
     _ensureEpgSources();
@@ -317,15 +336,22 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
       }
     };
     _routeRecovery = ChannelRouteRecoveryService(
-      submit: (id, url) => ref.read(serverTaskClientProvider).submit('recover', [
-        {'channelId': id, 'failedUrl': url},
-      ]),
+      submit: (id, url) =>
+          ref.read(serverTaskClientProvider).submit('recover', [
+            {'channelId': id, 'failedUrl': url},
+          ]),
       result: (id) => ref.read(serverTaskClientProvider).result(id),
       syncCatalog: () async {
-        await ref.read(sourceMaintenanceCoordinatorProvider).websiteCatalog.sync();
+        await ref
+            .read(sourceMaintenanceCoordinatorProvider)
+            .websiteCatalog
+            .sync();
       },
       readRoutes: (id) async => [
-        for (final route in await ref.read(databaseProvider).publicRoutesForCatalogChannel(id))
+        for (final route
+            in await ref
+                .read(databaseProvider)
+                .publicRoutesForCatalogChannel(id))
           RecoveryRoute(route.id, route.streamUrl),
       ],
       onAvailable: _retryRecoveredChannel,
@@ -339,22 +365,37 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
           _ => '服务器正在查找替补线路，找到后自动同步',
         };
         ps.routeSearchProgress.value = RouteSearchProgress(
-          stage: stage, index: 0, total: 0, active: false, background: true,
+          stage: stage,
+          index: 0,
+          total: 0,
+          active: false,
+          background: true,
         );
       },
     );
     ps.onSourcesExhausted = (_) {
       if (!mounted) return;
-      final channel = _allChannels.where((c) => c.id == ps.currentChannelId).firstOrNull;
-      if (channel != null) unawaited(_recoverChannelSources(channel, failedUrl: ps.currentUrl));
+      final channel = _allChannels
+          .where((c) => c.id == ps.currentChannelId)
+          .firstOrNull;
+      if (channel != null)
+        unawaited(_recoverChannelSources(channel, failedUrl: ps.currentUrl));
     };
     // Watch providers table — reload when providers or channels change
     final database = ref.read(databaseProvider);
-    _epgUiRefresh = EpgUiRefresh(database.watchEpgChanges(), () async {
-      if (!mounted) return;
-      await _loadEpgData(database, _allChannels, _favoritedChannelIds);
-      if (mounted) await _refreshNowPlaying();
-    }, onError: (error, stack) => AppDiagnostics.instance.recordError('channel_epg_hot_refresh', error, stack));
+    _epgUiRefresh = EpgUiRefresh(
+      database.watchEpgChanges(),
+      () async {
+        if (!mounted) return;
+        await _loadEpgData(database, _allChannels, _favoritedChannelIds);
+        if (mounted) await _refreshNowPlaying();
+      },
+      onError: (error, stack) => AppDiagnostics.instance.recordError(
+        'channel_epg_hot_refresh',
+        error,
+        stack,
+      ),
+    );
     void debouncedReload() {
       _categoryCache.invalidate();
       _countryCache.invalidate();
@@ -369,17 +410,24 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
         .watch()
         .skip(1)
         .listen((_) => debouncedReload());
-    _channelsSub = database.watchChannelChanges().listen((_) => debouncedReload());
+    _channelsSub = database.watchChannelChanges().listen(
+      (_) => debouncedReload(),
+    );
     void reloadFavorites() {
       _favoritesReloadTimer?.cancel();
       _favoritesReloadTimer = Timer(const Duration(milliseconds: 120), () {
         unawaited(_reloadFavoriteSelections());
       });
     }
-    _favoriteListsSub = database.select(database.favoriteLists).watch()
+
+    _favoriteListsSub = database
+        .select(database.favoriteLists)
+        .watch()
         .skip(1)
         .listen((_) => reloadFavorites());
-    _favoriteMembersSub = database.select(database.favoriteListChannels).watch()
+    _favoriteMembersSub = database
+        .select(database.favoriteListChannels)
+        .watch()
         .skip(1)
         .listen((_) => reloadFavorites());
     ref.read(sourceMaintenanceCoordinatorProvider);
@@ -397,7 +445,9 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
       final lists = await database.getAllFavoriteLists();
       final ids = await database.getAllFavoritedChannelIds(reconcile: false);
       if (!mounted) return;
-      if (listEquals(lists, _favoriteLists) && setEquals(ids, _favoritedChannelIds)) return;
+      if (listEquals(lists, _favoriteLists) &&
+          setEquals(ids, _favoritedChannelIds))
+        return;
       _categoryCache.invalidate();
       setState(() {
         _favoriteLists = lists;
@@ -559,8 +609,23 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
         });
   }
 
+  void _regionalCatalogChanged() {
+    if (!mounted) return;
+    final service = ref.read(providerManagerProvider).regionalCatalog;
+    final player = ref.read(playerServiceProvider);
+    if (!service.hasAccess &&
+        player.currentChannelId?.startsWith('bobtv-channel-catalog:') == true) {
+      unawaited(player.stop());
+    }
+    if (!service.busy) unawaited(_loadChannels());
+  }
+
   @override
   void dispose() {
+    ref
+        .read(providerManagerProvider)
+        .regionalCatalog
+        .removeListener(_regionalCatalogChanged);
     unawaited(_epgRouteSubscription?.cancel());
     _routeRecovery.dispose();
     _epgUiRefresh?.dispose();
@@ -604,6 +669,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
     _countryCache.invalidate();
     try {
       final database = ref.read(databaseProvider);
+      await ref.read(providerManagerProvider).regionalCatalog.initialize();
       final isFirstLoad = !_initialLoadDone;
 
       // ── Micro-phase 1: providers + favIds (tiny queries) ──
@@ -617,7 +683,10 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
         database.getUserSourceCategoryGroups(),
       ]);
       final providers = results[0] as List<db.Provider>;
-      _userSourceIds = providers.where((p) => p.type == 'resource' || p.type == 'manual').map((p) => p.id).toSet();
+      _userSourceIds = providers
+          .where((p) => !sharedInventoryProviderIds.contains(p.id))
+          .map((p) => p.id)
+          .toSet();
       final favLists = results[1] as List<db.FavoriteList>;
       final favChannelIds = results[2] as Set<String>;
       final prefs = results[3] as SharedPreferences;
@@ -627,24 +696,41 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
         ..._pendingManualCategories.values.map((d) => d.group),
       }.toList();
       final navigationGroups = ChannelCategoryDestination.navigationCategories(
-        categoryGroups.map(ChannelCategoryDestination.fromGroup)
+        categoryGroups
+            .map(ChannelCategoryDestination.fromGroup)
             .whereType<ChannelCategoryDestination>(),
       );
       if (UserSourcePolicy.enabled) {
         navigationGroups.clear();
-        navigationGroups.addAll(categoryGroups.map((g) => ChannelCategoryDestination.fromGroup(g)?.category ?? g).toSet());
+        navigationGroups.addAll(
+          categoryGroups
+              .map(
+                (g) => ChannelCategoryDestination.fromGroup(g)?.category ?? g,
+              )
+              .toSet(),
+        );
       }
-      navigationGroups.addAll(categoryGroups.where((g) => ChannelCategoryDestination.fromGroup(g) == null && !navigationGroups.contains(g)));
-      _sharedCatalogAvailable = !UserSourcePolicy.enabled && providers.any((provider) =>
-          provider.id == WebsiteChannelCatalogService.providerId);
-      _pinnedInternationalCountries = (prefs.getStringList(
-                _pinnedCountriesPreferenceKey,
-              ) ??
-              const <String>[])
-          .where((country) => country.trim().isNotEmpty)
-          .map(ChannelCategoryClassifier.normalizeCountryName)
-          .toSet()
-          .toList();
+      navigationGroups.addAll(
+        categoryGroups.where(
+          (g) =>
+              ChannelCategoryDestination.fromGroup(g) == null &&
+              !navigationGroups.contains(g),
+        ),
+      );
+      _sharedCatalogAvailable =
+          ref.read(providerManagerProvider).regionalCatalog.hasAccess &&
+          !UserSourcePolicy.enabled &&
+          providers.any(
+            (provider) =>
+                provider.id == WebsiteChannelCatalogService.providerId,
+          );
+      _pinnedInternationalCountries =
+          (prefs.getStringList(_pinnedCountriesPreferenceKey) ??
+                  const <String>[])
+              .where((country) => country.trim().isNotEmpty)
+              .map(ChannelCategoryClassifier.normalizeCountryName)
+              .toSet()
+              .toList();
       if (isFirstLoad) {
         _selectedInternationalCountry =
             ChannelCategoryClassifier.normalizeCountryName(
@@ -675,9 +761,12 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
         }
       }
 
-      if (UserSourcePolicy.enabled && navigationGroups.isNotEmpty &&
-          selectedGroup != 'Favorites' && !selectedGroup.startsWith('fav:') &&
-          !navigationGroups.contains(selectedGroup)) selectedGroup = navigationGroups.first;
+      if (UserSourcePolicy.enabled &&
+          navigationGroups.isNotEmpty &&
+          selectedGroup != 'Favorites' &&
+          !selectedGroup.startsWith('fav:') &&
+          !navigationGroups.contains(selectedGroup))
+        selectedGroup = navigationGroups.first;
       if (!mounted) return;
       setState(() {
         _providers = providers;
@@ -696,9 +785,12 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
         // favorites can paint immediately; reconcile once after the first frame.
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (!mounted) return;
-          unawaited(database.reconcileFavoriteMemberships().catchError(
-            (Object error, StackTrace stack) => AppDiagnostics.instance
-              .recordError('favorite_background_reconcile', error, stack)));
+          unawaited(
+            database.reconcileFavoriteMemberships().catchError(
+              (Object error, StackTrace stack) => AppDiagnostics.instance
+                  .recordError('favorite_background_reconcile', error, stack),
+            ),
+          );
         });
         if (!_startupHealthScheduled) {
           _startupHealthScheduled = true;
@@ -747,121 +839,185 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
     ref.read(streamAlternativesProvider).cancelPendingRebuild();
     final clock = Stopwatch()..start();
     try {
-    final database = ref.read(databaseProvider);
-    final scrollAnchor = preserveScroll ? _captureScrollAnchor() : null;
-    if (mounted) {
-      setState(() {
-        _loadStatus = '正在载入 {0}…';
-        _loadStatusArgs = [group];
-        _categoryLoading = true;
-        _categoryLoadError = null;
-        _routeAvailabilityLoading = true;
-        _verifiedRouteCounts = {};
-        _verifiedRouteUrls = {};
-        if (!preserveScroll) {
-          _allChannels = [];
-          _filteredChannels = [];
-        }
-      });
-    }
+      final database = ref.read(databaseProvider);
+      final scrollAnchor = preserveScroll ? _captureScrollAnchor() : null;
+      if (mounted) {
+        setState(() {
+          _loadStatus = '正在载入 {0}…';
+          _loadStatusArgs = [group];
+          _categoryLoading = true;
+          _categoryLoadError = null;
+          _routeAvailabilityLoading = true;
+          _verifiedRouteCounts = {};
+          _verifiedRouteUrls = {};
+          if (!preserveScroll) {
+            _allChannels = [];
+            _filteredChannels = [];
+          }
+        });
+      }
 
-    _manualCategories = {
-      ...await ManualChannelCategory.load(),
-      ..._pendingManualCategories,
-    };
-    if (!mounted || generation != _categoryLoadGeneration) return;
-    final publicOnly = _simpleMode && _sharedCatalogAvailable && _userSourceIds.isEmpty &&
-        group != 'Favorites' && !group.startsWith('fav:');
-    if (group == '国际') {
-      final counts = Map<String, int>.of(await _countryCache.load('$publicOnly',
-        () => database.getInternationalCountryCounts(publicOnly: publicOnly)));
+      _manualCategories = {
+        ...await ManualChannelCategory.load(),
+        ..._pendingManualCategories,
+      };
       if (!mounted || generation != _categoryLoadGeneration) return;
-      for (final destination in _manualCategories.values) {
-        if (destination.category == '国际') counts.putIfAbsent(destination.country, () => 1);
+      final publicOnly =
+          _simpleMode &&
+          _sharedCatalogAvailable &&
+          _userSourceIds.isEmpty &&
+          group != 'Favorites' &&
+          !group.startsWith('fav:');
+      if (group == '国际') {
+        final counts = Map<String, int>.of(
+          await _countryCache.load(
+            '$publicOnly',
+            () =>
+                database.getInternationalCountryCounts(publicOnly: publicOnly),
+          ),
+        );
+        if (!mounted || generation != _categoryLoadGeneration) return;
+        for (final destination in _manualCategories.values) {
+          if (destination.category == '国际')
+            counts.putIfAbsent(destination.country, () => 1);
+        }
+        _rebuildInternationalCountries(counts, group);
       }
-      _rebuildInternationalCountries(counts, group);
-    }
-    final country = group == '国际' ? _selectedInternationalCountry : null;
-    final cacheKey = jsonEncode([group, country, publicOnly,
-      _manualCategories.map((url, destination) => MapEntry(url, destination.group)),
-      if (group == 'Favorites') _favoritedChannelIds.toList()..sort(),
-    ]);
-    final cached = _categoryCache.contains(cacheKey);
-    final snapshot = await _categoryCache.load(cacheKey, () async {
-    List<db.Channel> loaded;
-    if (group == 'Favorites') {
-      loaded = _favoritedChannelIds.isEmpty
-          ? const []
-          : await database.getChannelsByIds(_favoritedChannelIds);
-    } else if (group.startsWith('fav:')) {
-      loaded = await database.getChannelsInList(group.substring(4), reconcile: false);
-    } else {
-      final candidates = await database.getChannelCategoryCandidates(group,
-        internationalCountry: country, publicOnly: publicOnly);
-      final manual = await database.getChannelsByStreamUrls(
-        _manualCategories.entries.where((entry) => entry.value.category == group &&
-          (country == null || entry.value.country == country))
-            .map((entry) => entry.key),
-      );
-      loaded = {
-        for (final channel in candidates) channel.id: channel,
-        for (final channel in manual) channel.id: channel,
-      }.values.where((channel) => _categoryFor(channel) == group &&
-        (country == null || _countryFor(channel) == country)).toList();
-    }
+      final country = group == '国际' ? _selectedInternationalCountry : null;
+      final cacheKey = jsonEncode([
+        group,
+        country,
+        publicOnly,
+        _manualCategories.map(
+          (url, destination) => MapEntry(url, destination.group),
+        ),
+        if (group == 'Favorites') _favoritedChannelIds.toList()..sort(),
+      ]);
+      final cached = _categoryCache.contains(cacheKey);
+      final snapshot = await _categoryCache.load(cacheKey, () async {
+        List<db.Channel> loaded;
+        if (group == 'Favorites') {
+          loaded = _favoritedChannelIds.isEmpty
+              ? const []
+              : await database.getChannelsByIds(_favoritedChannelIds);
+        } else if (group.startsWith('fav:')) {
+          loaded = await database.getChannelsInList(
+            group.substring(4),
+            reconcile: false,
+          );
+        } else {
+          final candidates = await database.getChannelCategoryCandidates(
+            group,
+            internationalCountry: country,
+            publicOnly: publicOnly,
+          );
+          final manual = await database.getChannelsByStreamUrls(
+            _manualCategories.entries
+                .where(
+                  (entry) =>
+                      entry.value.category == group &&
+                      (country == null || entry.value.country == country),
+                )
+                .map((entry) => entry.key),
+          );
+          loaded =
+              {
+                    for (final channel in candidates) channel.id: channel,
+                    for (final channel in manual) channel.id: channel,
+                  }.values
+                  .where(
+                    (channel) =>
+                        _categoryFor(channel) == group &&
+                        (country == null || _countryFor(channel) == country),
+                  )
+                  .toList();
+        }
 
-    if (_simpleMode) {
-      final personalCollection = group == 'Favorites' ||
-          group.startsWith('fav:');
-      loaded = loaded.where((channel) => _userSourceIds.contains(channel.providerId) ||
-          WebsiteChannelCatalogService.showInSimpleMode(
-            sharedCatalogAvailable: _sharedCatalogAvailable,
-            personalCollection: personalCollection,
-            providerId: channel.providerId,
-          )).toList();
-    }
+        if (!ref.read(providerManagerProvider).regionalCatalog.hasAccess) {
+          loaded = loaded
+              .where(
+                (c) => c.providerId != WebsiteChannelCatalogService.providerId,
+              )
+              .toList();
+        }
+        loaded = loaded
+            .where(
+              (c) =>
+                  c.providerId == WebsiteChannelCatalogService.providerId ||
+                  _userSourceIds.contains(c.providerId),
+            )
+            .toList();
+        if (_simpleMode) {
+          final personalCollection =
+              group == 'Favorites' || group.startsWith('fav:');
+          loaded = loaded
+              .where(
+                (channel) =>
+                    _userSourceIds.contains(channel.providerId) ||
+                    WebsiteChannelCatalogService.showInSimpleMode(
+                      sharedCatalogAvailable: _sharedCatalogAvailable,
+                      personalCollection: personalCollection,
+                      providerId: channel.providerId,
+                    ),
+              )
+              .toList();
+        }
 
-    final metadata = await Future.wait([
-      database.channelPresentationKeys(loaded),
-      database.channelMergeIds(loaded.map((c) => c.streamUrl)),
-      database.publicCatalogChannelIds(loaded.map((c) => c.id)),
-    ]);
-    final categoryGroups = await database.publicCatalogCategoryGroups(loaded.map((c) => c.id));
-    return (channels: loaded, groups: categoryGroups,
-      metadata: ChannelIndexMetadata(presentationKeys: metadata[0],
-        mergeIds: metadata[1], catalogIds: metadata[2]));
-    });
-    if (!mounted || generation != _categoryLoadGeneration) return;
-    final loaded = snapshot.channels;
-    final unchanged = _sameChannelSnapshot(_allChannels, loaded);
-    setState(() {
-      _presentationKeys = snapshot.metadata.presentationKeys;
-      _catalogCategoryGroups = snapshot.groups;
-      _channelMergeIds = snapshot.metadata.mergeIds;
-      if (!unchanged) {
-        _allChannels = loaded;
+        final metadata = await Future.wait([
+          database.channelPresentationKeys(loaded),
+          database.channelMergeIds(loaded.map((c) => c.streamUrl)),
+          database.publicCatalogChannelIds(loaded.map((c) => c.id)),
+        ]);
+        final categoryGroups = await database.publicCatalogCategoryGroups(
+          loaded.map((c) => c.id),
+        );
+        return (
+          channels: loaded,
+          groups: categoryGroups,
+          metadata: ChannelIndexMetadata(
+            presentationKeys: metadata[0],
+            mergeIds: metadata[1],
+            catalogIds: metadata[2],
+          ),
+        );
+      });
+      if (!mounted || generation != _categoryLoadGeneration) return;
+      final loaded = snapshot.channels;
+      final unchanged = _sameChannelSnapshot(_allChannels, loaded);
+      setState(() {
+        _presentationKeys = snapshot.metadata.presentationKeys;
+        _catalogCategoryGroups = snapshot.groups;
+        _channelMergeIds = snapshot.metadata.mergeIds;
+        if (!unchanged) {
+          _allChannels = loaded;
+        }
+        _rebuildAutomaticChannelIndex();
+        _applyFilters();
+        _loadStatus = '{0}：载入 {1} 条线路，合并为 {2} 个频道';
+        _loadStatusArgs = [group, loaded.length, _filteredChannels.length];
+        _categoryLoading = false;
+      });
+      AppDiagnostics.instance.log('channel_category_loaded', {
+        'elapsedMs': clock.elapsedMilliseconds,
+        'rows': loaded.length,
+        'cached': cached,
+        'publicOnly': publicOnly,
+      });
+      if (!unchanged && scrollAnchor != null) {
+        _restoreScrollAnchor(scrollAnchor);
       }
-      _rebuildAutomaticChannelIndex();
-      _applyFilters();
-      _loadStatus =
-          '{0}：载入 {1} 条线路，合并为 {2} 个频道';
-      _loadStatusArgs = [group, loaded.length, _filteredChannels.length];
-      _categoryLoading = false;
-    });
-    AppDiagnostics.instance.log('channel_category_loaded', {
-      'elapsedMs': clock.elapsedMilliseconds, 'rows': loaded.length,
-      'cached': cached, 'publicOnly': publicOnly,
-    });
-    if (!unchanged && scrollAnchor != null) {
-      _restoreScrollAnchor(scrollAnchor);
-    }
-    unawaited(_refreshRouteAvailability(loaded, generation));
-    await ref.read(streamAlternativesProvider).rebuildForChannels(loaded,
-      metadata: snapshot.metadata);
-    if (!mounted || generation != _categoryLoadGeneration) return;
-    _playFirstFilteredChannelForGroup(group);
+      unawaited(_refreshRouteAvailability(loaded, generation));
+      await ref
+          .read(streamAlternativesProvider)
+          .rebuildForChannels(loaded, metadata: snapshot.metadata);
+      if (!mounted || generation != _categoryLoadGeneration) return;
+      _playFirstFilteredChannelForGroup(group);
     } catch (error, stack) {
-      AppDiagnostics.instance.recordError('channel_category_load', error, stack);
+      AppDiagnostics.instance.recordError(
+        'channel_category_load',
+        error,
+        stack,
+      );
       if (mounted && generation == _categoryLoadGeneration) {
         setState(() {
           _categoryLoading = false;
@@ -898,8 +1054,10 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
     if (channel.providerId == WebsiteChannelCatalogService.providerId) {
       return WebsiteChannelCatalogService.categoryForGroup(channel.groupTitle);
     }
-    if ((channel.id.startsWith('user:') || channel.providerId == 'user-manual-routes') &&
-        (channel.groupTitle?.isNotEmpty ?? false)) return channel.groupTitle!;
+    if ((channel.id.startsWith('user:') ||
+            channel.providerId == 'user-manual-routes') &&
+        (channel.groupTitle?.isNotEmpty ?? false))
+      return channel.groupTitle!;
     return ChannelCategoryClassifier.classify(
       name: channel.name,
       groupTitle: channel.groupTitle,
@@ -908,7 +1066,10 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
     );
   }
 
-  void _rebuildInternationalCountries(Map<String, int> internationalCountries, String group) {
+  void _rebuildInternationalCountries(
+    Map<String, int> internationalCountries,
+    String group,
+  ) {
     if (group != '国际') {
       _internationalCountries = [];
       return;
@@ -926,7 +1087,9 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
           if (bPriority < 0) return -1;
           return aPriority.compareTo(bPriority);
         }
-        final countOrder = internationalCountries[b]!.compareTo(internationalCountries[a]!);
+        final countOrder = internationalCountries[b]!.compareTo(
+          internationalCountries[a]!,
+        );
         return countOrder != 0 ? countOrder : a.compareTo(b);
       });
     _internationalCountries = sortedCountries;
@@ -945,7 +1108,9 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
   ) async {
     final generation = ++_epgDataLoadGeneration;
     ++_nowPlayingLoadGeneration;
-    final epgSources = (await database.getAllEpgSources()).where((s) => s.enabled).toList();
+    final epgSources = (await database.getAllEpgSources())
+        .where((s) => s.enabled)
+        .toList();
     epgSources.sort((a, b) {
       int priority(String id) {
         if (id == 'hotel-cn-epg') return 0;
@@ -961,8 +1126,9 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
     final epgNameToId = <String, String>{};
     final epgSportsServiceById = <String, String>{};
     final epgCallSignToId = <String, String>{}; // WABC → prefixed id
-    final needsPrivateMatching = allChannels.any((c) =>
-      c.providerId != WebsiteChannelCatalogService.providerId);
+    final needsPrivateMatching = allChannels.any(
+      (c) => c.providerId != WebsiteChannelCatalogService.providerId,
+    );
     for (final src in epgSources) {
       final chs = await database.getEpgChannelsForSource(src.id);
       for (final ch in chs) {
@@ -1006,10 +1172,14 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
     final epgMap = <String, String>{};
     for (final m in mappings) {
       final directKey = (m.epgChannelId.startsWith('${m.epgSourceId}_')
-          ? m.epgChannelId : '${m.epgSourceId}_${m.epgChannelId}');
+          ? m.epgChannelId
+          : '${m.epgSourceId}_${m.epgChannelId}');
       if (m.locked || m.source == 'manual' || m.source == 'server') {
-        epgMap[m.channelId] = currentSourceIds.contains(m.epgSourceId) && validIds.contains(directKey)
-          ? directKey : '';
+        epgMap[m.channelId] =
+            currentSourceIds.contains(m.epgSourceId) &&
+                validIds.contains(directKey)
+            ? directKey
+            : '';
         continue;
       }
       if (currentSourceIds.contains(m.epgSourceId)) {
@@ -1042,7 +1212,8 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
     // Collect EPG channel IDs for now-playing lookup
     final epgChannelIds = <String>{};
     bool acceptsEpg(db.Channel channel, String epgId) {
-      if (channel.providerId == WebsiteChannelCatalogService.providerId) return true;
+      if (channel.providerId == WebsiteChannelCatalogService.providerId)
+        return true;
       final channelService =
           ChannelNameNormalizer.cctvSportsServiceKey(channel.name) ??
           ChannelNameNormalizer.cctvSportsServiceKey(channel.tvgName ?? '') ??
@@ -1134,10 +1305,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_kLastGroup, _selectedGroup);
     if (_selectedIndex >= 0 && _previewChannel != null) {
-      await prefs.setString(
-        _kLastChannelId,
-        _previewChannel!.id,
-      );
+      await prefs.setString(_kLastChannelId, _previewChannel!.id);
     }
   }
 
@@ -1159,7 +1327,9 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
     } else {
       // Group filters only apply when not searching
       if (_selectedGroup == 'Favorites') {
-        channels = channels.where((c) => _favoritedChannelIds.contains(c.id)).toList();
+        channels = channels
+            .where((c) => _favoritedChannelIds.contains(c.id))
+            .toList();
       } else if (_selectedGroup.startsWith('fav:')) {
         // _allChannels already contains this exact list. A second asynchronous
         // query here repeated on every route/EPG update and could overwrite a
@@ -1199,11 +1369,13 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
     }
 
     if ((_simpleMode || !_showUnavailableSources) &&
-        _selectedGroup != 'Favorites' && !_selectedGroup.startsWith('fav:')) {
+        _selectedGroup != 'Favorites' &&
+        !_selectedGroup.startsWith('fav:')) {
       channels = channels.where((channel) {
         // A reviewed public route with no measurement in this network must
         // remain selectable. Global retirement removes it from the database.
-        if (channel.providerId == WebsiteChannelCatalogService.providerId || _userSourceIds.contains(channel.providerId)) {
+        if (channel.providerId == WebsiteChannelCatalogService.providerId ||
+            _userSourceIds.contains(channel.providerId)) {
           return true;
         }
         final key = _automaticChannelKey(channel);
@@ -1213,27 +1385,34 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
 
     _filteredChannels = _deduplicateChannels(channels);
     if (_groups.contains(_selectedGroup)) {
-      _filteredChannels.sort((a, b) => (a.channelNumber ?? a.sortOrder)
-        .compareTo(b.channelNumber ?? b.sortOrder));
+      _filteredChannels.sort(
+        (a, b) => (a.channelNumber ?? a.sortOrder).compareTo(
+          b.channelNumber ?? b.sortOrder,
+        ),
+      );
     }
     if (_selectedIndex >= 0) {
       _selectedIndex = ChannelListIdentity.indexOf(
-        _filteredChannels, _previewChannel?.id, (channel) => channel.id,
+        _filteredChannels,
+        _previewChannel?.id,
+        (channel) => channel.id,
       );
     }
   }
 
   List<db.Channel> _deduplicateChannels(List<db.Channel> channels) {
     return ChannelPresentationIdentity.representatives(
-      channels.where((c) => !(_hideIpv6Sources && _isIpv6Channel(c)) &&
-          !_hasInvalidStreamMetadata(c)),
+      channels.where(
+        (c) =>
+            !(_hideIpv6Sources && _isIpv6Channel(c)) &&
+            !_hasInvalidStreamMetadata(c),
+      ),
       idOf: (c) => c.id,
       keyOf: (c) => _automaticChannelKey(c),
       scoreOf: _representativeScore,
       playingId: _previewChannel?.id,
     );
   }
-
 
   bool _sameChannelSnapshot(List<db.Channel> previous, List<db.Channel> next) {
     if (previous.length != next.length) return false;
@@ -1311,12 +1490,15 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
   }
 
   Iterable<String> _internationalGenresOf(db.Channel channel) =>
-      (_catalogCategoryGroups[channel.id] ?? [channel.groupTitle ?? ''])
-          .map(ChannelCategoryClassifier.internationalGenreFor);
+      (_catalogCategoryGroups[channel.id] ?? [channel.groupTitle ?? '']).map(
+        ChannelCategoryClassifier.internationalGenreFor,
+      );
 
   String _internationalMediaOf(db.Channel channel) =>
       ChannelCategoryClassifier.internationalMediaFor(
-        name: channel.name, groupTitle: channel.groupTitle, streamUrl: channel.streamUrl,
+        name: channel.name,
+        groupTitle: channel.groupTitle,
+        streamUrl: channel.streamUrl,
       );
 
   void _selectInternationalMedia(String media) {
@@ -1364,7 +1546,8 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
   }
 
   bool _hasInvalidStreamMetadata(db.Channel channel) {
-    if (channel.providerId == WebsiteChannelCatalogService.providerId) return false;
+    if (channel.providerId == WebsiteChannelCatalogService.providerId)
+      return false;
     final names = [channel.name, channel.tvgName ?? '', channel.tvgId ?? ''];
     return ChannelNameNormalizer.hasCctvSportsMetadataConflict(
           names: names,
@@ -1425,7 +1608,11 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(value ? AppMessages.text(context, "已隐藏 IPv6 源") : AppMessages.text(context, "已显示 IPv6 源")),
+        content: Text(
+          value
+              ? AppMessages.text(context, "已隐藏 IPv6 源")
+              : AppMessages.text(context, "已显示 IPv6 源"),
+        ),
         duration: const Duration(seconds: 2),
         behavior: SnackBarBehavior.floating,
         width: 220,
@@ -1445,15 +1632,15 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
       final urls = _automaticUrlSetsByKey.putIfAbsent(key, () => <String>{});
       final url = canonicalRouteUrl(channel.streamUrl);
       if (urls.add(url)) {
-        _automaticUrlsByKey.putIfAbsent(key, () => <String>[])
-            .add(url);
+        _automaticUrlsByKey.putIfAbsent(key, () => <String>[]).add(url);
       }
     }
   }
 
   int _representativeScore(db.Channel channel) {
     var score = 0;
-    if (_verifiedRouteUrls.contains(canonicalRouteUrl(channel.streamUrl))) score += 100;
+    if (_verifiedRouteUrls.contains(canonicalRouteUrl(channel.streamUrl)))
+      score += 100;
     if (_epgMappings.containsKey(channel.id)) score += 8;
     if (channel.tvgId?.isNotEmpty ?? false) score += 4;
     if (channel.tvgLogo?.isNotEmpty ?? false) score += 2;
@@ -1461,23 +1648,32 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
     return score;
   }
 
-  List<String> _automaticAlternativeUrls(db.Channel channel,
-      {bool includeUnverified = false}) {
+  List<String> _automaticAlternativeUrls(
+    db.Channel channel, {
+    bool includeUnverified = false,
+  }) {
     final key = _automaticChannelKey(channel);
     if (key.isEmpty) return const [];
     final urls = (_automaticUrlsByKey[key] ?? const <String>[])
-        .where((url) =>
-            url != canonicalRouteUrl(channel.streamUrl) &&
-            (includeUnverified || !_simpleMode ||
-                channel.providerId == WebsiteChannelCatalogService.providerId ||
-                _verifiedRouteUrls.contains(url)))
+        .where(
+          (url) =>
+              url != canonicalRouteUrl(channel.streamUrl) &&
+              (includeUnverified ||
+                  !_simpleMode ||
+                  channel.providerId ==
+                      WebsiteChannelCatalogService.providerId ||
+                  _verifiedRouteUrls.contains(url)),
+        )
         .toList();
     final tracker = ref.read(streamHealthTrackerProvider);
     final order = {for (var i = 0; i < urls.length; i++) urls[i]: i};
     urls.sort((a, b) {
-      final verified = (_verifiedRouteUrls.contains(b) ? 1 : 0) -
+      final verified =
+          (_verifiedRouteUrls.contains(b) ? 1 : 0) -
           (_verifiedRouteUrls.contains(a) ? 1 : 0);
-      if (verified != 0 && channel.providerId != WebsiteChannelCatalogService.providerId) return verified;
+      if (verified != 0 &&
+          channel.providerId != WebsiteChannelCatalogService.providerId)
+        return verified;
       final health = tracker.getScore(b).compareTo(tracker.getScore(a));
       return health != 0 ? health : order[a]!.compareTo(order[b]!);
     });
@@ -1488,7 +1684,8 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
     final key = _automaticChannelKey(channel);
     final urls = _automaticUrlSetsByKey[key];
     if (urls == null || urls.isEmpty) return 1;
-    return urls.length + (urls.contains(canonicalRouteUrl(channel.streamUrl)) ? 0 : 1);
+    return urls.length +
+        (urls.contains(canonicalRouteUrl(channel.streamUrl)) ? 0 : 1);
   }
 
   int _verifiedRouteCount(db.Channel channel) {
@@ -1498,7 +1695,10 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
 
   int _verifiedAlternativeCount(db.Channel channel) {
     final count = _verifiedRouteCount(channel);
-    return count - (_verifiedRouteUrls.contains(canonicalRouteUrl(channel.streamUrl)) ? 1 : 0);
+    return count -
+        (_verifiedRouteUrls.contains(canonicalRouteUrl(channel.streamUrl))
+            ? 1
+            : 0);
   }
 
   Future<void> _refreshRouteAvailability(
@@ -1509,26 +1709,46 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
     // A country tab only reads that country's checks. Other countries remain
     // available for cross-category merge searches on explicit request.
     if (_selectedGroup == '国际') {
-      channels = channels.where((c) => _countryFor(c) == _selectedInternationalCountry &&
-        _internationalMediaOf(c) == _selectedInternationalMedia &&
-        (_selectedInternationalGenre == '全部' ||
-          _matchesInternationalGenre(c, _selectedInternationalGenre))).toList();
+      channels = channels
+          .where(
+            (c) =>
+                _countryFor(c) == _selectedInternationalCountry &&
+                _internationalMediaOf(c) == _selectedInternationalMedia &&
+                (_selectedInternationalGenre == '全部' ||
+                    _matchesInternationalGenre(c, _selectedInternationalGenre)),
+          )
+          .toList();
     }
-    ref.read(sourceMaintenanceCoordinatorProvider).routeStates.queueCategory(
-        channels.map((channel) => channel.streamUrl));
+    ref
+        .read(sourceMaintenanceCoordinatorProvider)
+        .routeStates
+        .queueCategory(channels.map((channel) => channel.streamUrl));
     List<db.StreamCheck> checks;
     try {
-      checks = await ref.read(databaseProvider).getStreamChecksForChannels(channels)
-        .timeout(const Duration(seconds: 5));
+      checks = await ref
+          .read(databaseProvider)
+          .getStreamChecksForChannels(channels)
+          .timeout(const Duration(seconds: 5));
     } catch (error, stack) {
-      AppDiagnostics.instance.recordError('channel_availability_read', error, stack);
-      if (mounted && generation == _categoryLoadGeneration && revision == _availabilityRevision) {
-        setState(() { _routeAvailabilityLoading = false; _applyFilters(); });
+      AppDiagnostics.instance.recordError(
+        'channel_availability_read',
+        error,
+        stack,
+      );
+      if (mounted &&
+          generation == _categoryLoadGeneration &&
+          revision == _availabilityRevision) {
+        setState(() {
+          _routeAvailabilityLoading = false;
+          _applyFilters();
+        });
       }
       return;
     }
-    if (!mounted || generation != _categoryLoadGeneration ||
-        revision != _availabilityRevision) return;
+    if (!mounted ||
+        generation != _categoryLoadGeneration ||
+        revision != _availabilityRevision)
+      return;
     final checkByRoute = <String, db.StreamCheck>{
       for (final check in checks)
         '${check.providerId}\u0000${check.streamUrl}': check,
@@ -1537,14 +1757,20 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
     final validByChannel = <String, Set<String>>{};
     final verifiedUrls = <String>{};
     for (final channel in channels) {
-      final check = checkByRoute['${channel.providerId}\u0000${channel.streamUrl}'];
+      final check =
+          checkByRoute['${channel.providerId}\u0000${channel.streamUrl}'];
       final lastVerifiedAt = check?.lastCheckedAt ?? check?.lastSuccessAt;
-      if (check == null || check.retired || check.consecutiveFailures != 0 ||
-          check.lastSuccessAt == null || lastVerifiedAt == null ||
-          lastVerifiedAt.isBefore(recent)) continue;
+      if (check == null ||
+          check.retired ||
+          check.consecutiveFailures != 0 ||
+          check.lastSuccessAt == null ||
+          lastVerifiedAt == null ||
+          lastVerifiedAt.isBefore(recent))
+        continue;
       final key = _automaticChannelKey(channel);
-      (validByChannel[key.isEmpty ? channel.id : key] ??= <String>{})
-          .add(canonicalRouteUrl(channel.streamUrl));
+      (validByChannel[key.isEmpty ? channel.id : key] ??= <String>{}).add(
+        canonicalRouteUrl(channel.streamUrl),
+      );
       verifiedUrls.add(canonicalRouteUrl(channel.streamUrl));
     }
     setState(() {
@@ -1596,8 +1822,10 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
     return [
       '全部',
       ...ChannelCategoryClassifier.internationalGenres.where(found.contains),
-      ...(found.difference(ChannelCategoryClassifier.internationalGenres.toSet())
-          .toList()..sort()),
+      ...(found
+          .difference(ChannelCategoryClassifier.internationalGenres.toSet())
+          .toList()
+        ..sort()),
     ];
   }
 
@@ -1612,8 +1840,15 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
     });
     unawaited(_saveSelectedInternationalCountry(country));
     await _loadGroupChannels('国际');
-    if (!mounted || _selectedGroup != '国际' || _selectedInternationalCountry != country) return;
-    await _loadEpgData(ref.read(databaseProvider), _allChannels, _favoritedChannelIds);
+    if (!mounted ||
+        _selectedGroup != '国际' ||
+        _selectedInternationalCountry != country)
+      return;
+    await _loadEpgData(
+      ref.read(databaseProvider),
+      _allChannels,
+      _favoritedChannelIds,
+    );
   }
 
   Future<void> _saveSelectedInternationalCountry(String country) async {
@@ -1670,11 +1905,18 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
           value: true,
           child: Row(
             children: [
-              Icon(pinned ? Icons.push_pin_outlined : Icons.push_pin_rounded,
-                  size: 19, color: BobTvPalette.accent),
+              Icon(
+                pinned ? Icons.push_pin_outlined : Icons.push_pin_rounded,
+                size: 19,
+                color: BobTvPalette.accent,
+              ),
               const SizedBox(width: 12),
-              Text(pinned ? AppMessages.text(context, "取消钉选主导航分类") : AppMessages.text(context, "钉选到主导航分类"),
-                  style: const TextStyle(color: Colors.white)),
+              Text(
+                pinned
+                    ? AppMessages.text(context, "取消钉选主导航分类")
+                    : AppMessages.text(context, "钉选到主导航分类"),
+                style: const TextStyle(color: Colors.white),
+              ),
             ],
           ),
         ),
@@ -1701,9 +1943,14 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
     _selectChannel(0);
   }
 
-  Future<void> _selectChannelById(String channelId, {bool force = false}) async {
+  Future<void> _selectChannelById(
+    String channelId, {
+    bool force = false,
+  }) async {
     final index = ChannelListIdentity.indexOf(
-      _filteredChannels, channelId, (channel) => channel.id,
+      _filteredChannels,
+      channelId,
+      (channel) => channel.id,
     );
     if (index >= 0) await _selectChannel(index, force: force);
   }
@@ -1713,17 +1960,21 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
 
   void _refreshInlineProgrammeStrip({bool forceRefresh = false}) {
     final index = ChannelListIdentity.indexOf(
-      _filteredChannels, _inlineProgrammePreview.selectedChannelId, (c) => c.id,
+      _filteredChannels,
+      _inlineProgrammePreview.selectedChannelId,
+      (c) => c.id,
     );
     if (index < 0) return;
     final channel = _filteredChannels[index];
     if (channel.streamUrl.isEmpty) return;
-    unawaited(_inlineProgrammePreview.select(
-      channelId: channel.id,
-      epgChannelId: _getEpgId(channel),
-      timeshiftHours: _epgTimeshifts[channel.id] ?? 0,
-      forceRefresh: forceRefresh,
-    ));
+    unawaited(
+      _inlineProgrammePreview.select(
+        channelId: channel.id,
+        epgChannelId: _getEpgId(channel),
+        timeshiftHours: _epgTimeshifts[channel.id] ?? 0,
+        forceRefresh: forceRefresh,
+      ),
+    );
   }
 
   void _onInlineProgrammeChanged() {
@@ -1740,16 +1991,19 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
       if (!mounted || _inlineProgrammePreview.selectedChannelId != id) return;
       final stripContext = _inlineProgrammeStripKey.currentContext;
       if (stripContext == null || !stripContext.mounted) return;
-      unawaited(Scrollable.ensureVisible(
-        stripContext,
-        alignmentPolicy: ScrollPositionAlignmentPolicy.keepVisibleAtEnd,
-        duration: const Duration(milliseconds: 180),
-        curve: Curves.easeOutCubic,
-      ));
+      unawaited(
+        Scrollable.ensureVisible(
+          stripContext,
+          alignmentPolicy: ScrollPositionAlignmentPolicy.keepVisibleAtEnd,
+          duration: const Duration(milliseconds: 180),
+          curve: Curves.easeOutCubic,
+        ),
+      );
     });
   }
 
-  Future<void> _selectChannel(int index, {
+  Future<void> _selectChannel(
+    int index, {
     bool force = false,
     String? preferredUrl,
     bool onlyRequestedRoute = false,
@@ -1759,24 +2013,40 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
     _routeRecovery.cancel();
     final channel = _filteredChannels[index];
     if (channel.streamUrl.isEmpty) return;
-    unawaited(_inlineProgrammePreview.select(
-      channelId: channel.id, epgChannelId: _getEpgId(channel),
-      timeshiftHours: _epgTimeshifts[channel.id] ?? 0,
-    ));
+    unawaited(
+      _inlineProgrammePreview.select(
+        channelId: channel.id,
+        epgChannelId: _getEpgId(channel),
+        timeshiftHours: _epgTimeshifts[channel.id] ?? 0,
+      ),
+    );
     final playerService = ref.read(playerServiceProvider);
-    final isPlayingChannel = playerService.currentUrl != null &&
+    final isPlayingChannel =
+        playerService.currentUrl != null &&
         (playerService.currentChannelId == channel.id ||
             (playerService.currentChannelId == null &&
                 playerService.currentUrl == channel.streamUrl));
     if (isPlayingChannel && !force && preferredUrl == null) {
-      unawaited(ref.read(sourceMaintenanceCoordinatorProvider).routeStates.priority([
-        channel.streamUrl, ..._automaticAlternativeUrls(channel, includeUnverified: true),
-      ]).catchError((Object error, StackTrace stack) {
-        AppDiagnostics.instance.recordError('selected_channel_route_sync', error, stack);
-      }));
+      unawaited(
+        ref
+            .read(sourceMaintenanceCoordinatorProvider)
+            .routeStates
+            .priority([
+              channel.streamUrl,
+              ..._automaticAlternativeUrls(channel, includeUnverified: true),
+            ])
+            .catchError((Object error, StackTrace stack) {
+              AppDiagnostics.instance.recordError(
+                'selected_channel_route_sync',
+                error,
+                stack,
+              );
+            }),
+      );
       ++_channelSelectionGeneration;
       _pendingAutoplayGroup = null;
-      final hadPreview = _pendingChannelId != null ||
+      final hadPreview =
+          _pendingChannelId != null ||
           _preparedChannelId != null ||
           playerService.preparedChannelId != null;
       if (hadPreview || _selectedIndex != index) {
@@ -1790,7 +2060,8 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
       if (hadPreview) await playerService.discardPreparedChannel();
       return;
     }
-    if (!force && preferredUrl == null && channel.id == _pendingChannelId) return;
+    if (!force && preferredUrl == null && channel.id == _pendingChannelId)
+      return;
     if (preferredUrl != null) _cardRouteSelection[channel.id] = preferredUrl;
     final selectionGeneration = ++_channelSelectionGeneration;
     _pendingAutoplayGroup = null;
@@ -1799,14 +2070,20 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
       unawaited(playerService.discardPreparedChannel());
     }
 
-    final hasActivePlayback = playerService.currentUrl != null &&
+    final hasActivePlayback =
+        playerService.currentUrl != null &&
         (playerService.player.state.playing ||
             playerService.player.state.buffering ||
             playerService.preparedChannelId == channel.id);
-    final commitPreview = !direct && preferredUrl == null && !force && _simpleMode && hasActivePlayback &&
+    final commitPreview =
+        !direct &&
+        preferredUrl == null &&
+        !force &&
+        _simpleMode &&
+        hasActivePlayback &&
         playerService.preparedChannelId == channel.id;
-    final prepareOnly = !direct && !force && _simpleMode && hasActivePlayback &&
-        !commitPreview;
+    final prepareOnly =
+        !direct && !force && _simpleMode && hasActivePlayback && !commitPreview;
     if (hasActivePlayback) {
       setState(() {
         _pendingChannelId = channel.id;
@@ -1820,9 +2097,14 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
       try {
         committed = await playerService.commitPreparedChannel(channel.id);
       } catch (error, stack) {
-        AppDiagnostics.instance.recordError('channel_preview_commit', error, stack);
+        AppDiagnostics.instance.recordError(
+          'channel_preview_commit',
+          error,
+          stack,
+        );
       }
-      if (!mounted || selectionGeneration != _channelSelectionGeneration) return;
+      if (!mounted || selectionGeneration != _channelSelectionGeneration)
+        return;
       if (committed) {
         _finishChannelSelection(channel);
       } else {
@@ -1830,9 +2112,11 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
           _pendingChannelId = null;
           _preparedChannelId = playerService.preparedChannelId;
         });
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text(AppMessages.text(context, "预览已失效，原频道继续播放，请重新选择")),
-        ));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(AppMessages.text(context, "预览已失效，原频道继续播放，请重新选择")),
+          ),
+        );
       }
       return;
     }
@@ -1843,9 +2127,12 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
 
     // Merge legacy manual groups into the hidden automatic alternatives.
     final groupMemberships = _failoverGroupIndex[channel.id];
-    final failoverUrls = _automaticAlternativeUrls(channel,
-        includeUnverified: true);
-    if (preferredUrl != null && preferredUrl != channel.streamUrl &&
+    final failoverUrls = _automaticAlternativeUrls(
+      channel,
+      includeUnverified: true,
+    );
+    if (preferredUrl != null &&
+        preferredUrl != channel.streamUrl &&
         !failoverUrls.contains(channel.streamUrl)) {
       failoverUrls.add(channel.streamUrl);
     }
@@ -1871,16 +2158,20 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
 
     var requestedUrl = preferredUrl ?? channel.streamUrl;
     try {
-      await ref.read(sourceMaintenanceCoordinatorProvider).routeStates.priority([
-        requestedUrl, ...failoverUrls,
-      ]);
+      await ref.read(sourceMaintenanceCoordinatorProvider).routeStates.priority(
+        [requestedUrl, ...failoverUrls],
+      );
     } catch (error, stack) {
-      AppDiagnostics.instance.recordError('selected_channel_route_sync', error, stack);
+      AppDiagnostics.instance.recordError(
+        'selected_channel_route_sync',
+        error,
+        stack,
+      );
       if (mounted && selectionGeneration == _channelSelectionGeneration) {
         setState(() => _pendingChannelId = null);
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text(AppMessages.text(context, "无法读取本地线路状态，请重试")),
-        ));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(AppMessages.text(context, "无法读取本地线路状态，请重试"))),
+        );
       }
       return;
     }
@@ -1890,9 +2181,11 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
     if (retired.contains(canonicalRouteUrl(requestedUrl))) {
       if (failoverUrls.isEmpty) {
         setState(() => _pendingChannelId = null);
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text(AppMessages.text(context, "该频道线路已全部淘汰，原频道继续播放")),
-        ));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(AppMessages.text(context, "该频道线路已全部淘汰，原频道继续播放")),
+          ),
+        );
         return;
       }
       requestedUrl = failoverUrls.removeAt(0);
@@ -1902,21 +2195,8 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
     try {
       if (force && hasActivePlayback && _simpleMode) {
         await playerService.discardPreparedChannel();
-        unawaited(playerService.play(
-          requestedUrl,
-          channelId: channel.id,
-          epgChannelId: _getEpgId(channel),
-          tvgId: channel.tvgId,
-          channelName: channel.name,
-          vanityName: _vanityNames[channel.id],
-          originalName: channel.tvgName,
-          failoverGroupUrls: failoverUrls,
-          allowAudioOnly: _allowsAudioOnly(channel),
-        ));
-        switched = true;
-      } else {
-        switched = hasActivePlayback
-            ? await playerService.switchChannel(
+        unawaited(
+          playerService.play(
             requestedUrl,
             channelId: channel.id,
             epgChannelId: _getEpgId(channel),
@@ -1926,17 +2206,36 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
             originalName: channel.tvgName,
             failoverGroupUrls: failoverUrls,
             allowAudioOnly: _allowsAudioOnly(channel),
-            previewOnly: prepareOnly,
-            preferRequestedRoute: preferredUrl != null ||
-                (prepareOnly && channel.providerId != WebsiteChannelCatalogService.providerId &&
-                    _verifiedRouteUrls.contains(canonicalRouteUrl(channel.streamUrl))),
-            onlyRequestedRoute: onlyRequestedRoute,
-          )
+          ),
+        );
+        switched = true;
+      } else {
+        switched = hasActivePlayback
+            ? await playerService.switchChannel(
+                requestedUrl,
+                channelId: channel.id,
+                epgChannelId: _getEpgId(channel),
+                tvgId: channel.tvgId,
+                channelName: channel.name,
+                vanityName: _vanityNames[channel.id],
+                originalName: channel.tvgName,
+                failoverGroupUrls: failoverUrls,
+                allowAudioOnly: _allowsAudioOnly(channel),
+                previewOnly: prepareOnly,
+                preferRequestedRoute:
+                    preferredUrl != null ||
+                    (prepareOnly &&
+                        channel.providerId !=
+                            WebsiteChannelCatalogService.providerId &&
+                        _verifiedRouteUrls.contains(
+                          canonicalRouteUrl(channel.streamUrl),
+                        )),
+                onlyRequestedRoute: onlyRequestedRoute,
+              )
             : true;
       }
     } catch (error, stackTrace) {
-      AppDiagnostics.instance.recordError(
-          'channel_preload', error, stackTrace);
+      AppDiagnostics.instance.recordError('channel_preload', error, stackTrace);
       switched = false;
     }
     if (force && !hasActivePlayback) {
@@ -1956,7 +2255,8 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
       );
       if (direct) {
         await playback;
-        switched = playerService.currentChannelId == channel.id &&
+        switched =
+            playerService.currentChannelId == channel.id &&
             playerService.currentUrl != null;
       } else {
         unawaited(playback);
@@ -1964,7 +2264,9 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
     }
     if (!mounted || selectionGeneration != _channelSelectionGeneration) return;
     final currentIndex = ChannelListIdentity.indexOf(
-      _filteredChannels, channel.id, (candidate) => candidate.id,
+      _filteredChannels,
+      channel.id,
+      (candidate) => candidate.id,
     );
     if (currentIndex < 0) {
       setState(() => _pendingChannelId = null);
@@ -1975,10 +2277,12 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
         _pendingChannelId = null;
         _preparedChannelId = null;
       });
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text(AppMessages.text(context, "新频道暂时无法播放，已保留原频道")),
-        duration: Duration(seconds: 3),
-      ));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(AppMessages.text(context, "新频道暂时无法播放，已保留原频道")),
+          duration: Duration(seconds: 3),
+        ),
+      );
       unawaited(_recoverChannelSources(channel, failedUrl: requestedUrl));
       return;
     }
@@ -1994,7 +2298,9 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
 
   void _finishChannelSelection(db.Channel channel) {
     final currentIndex = ChannelListIdentity.indexOf(
-      _filteredChannels, channel.id, (candidate) => candidate.id,
+      _filteredChannels,
+      channel.id,
+      (candidate) => candidate.id,
     );
     if (currentIndex < 0) {
       setState(() => _pendingChannelId = null);
@@ -2013,10 +2319,17 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
     _saveSession();
   }
 
-  Future<void> _recoverChannelSources(db.Channel channel, {String? failedUrl}) async {
-    if (!mounted || channel.providerId != WebsiteChannelCatalogService.providerId) return;
+  Future<void> _recoverChannelSources(
+    db.Channel channel, {
+    String? failedUrl,
+  }) async {
+    if (!mounted ||
+        channel.providerId != WebsiteChannelCatalogService.providerId)
+      return;
     final generation = _channelSelectionGeneration;
-    final identities = await ref.read(databaseProvider).publicCatalogChannelIds([channel.id]);
+    final identities = await ref.read(databaseProvider).publicCatalogChannelIds(
+      [channel.id],
+    );
     if (!mounted || generation != _channelSelectionGeneration) return;
     final catalogId = identities[channel.id];
     if (catalogId == null || catalogId.startsWith('manual-transfer:')) return;
@@ -2025,10 +2338,17 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
     await _routeRecovery.request(catalogId, failedUrl ?? channel.streamUrl);
   }
 
-  Future<void> _retryRecoveredChannel(String catalogId, List<RecoveryRoute> routes) async {
+  Future<void> _retryRecoveredChannel(
+    String catalogId,
+    List<RecoveryRoute> routes,
+  ) async {
     final generation = _recoverySelectionGeneration;
     final localId = _recoveryLocalChannelId;
-    if (!mounted || generation != _channelSelectionGeneration || localId == null || routes.isEmpty) return;
+    if (!mounted ||
+        generation != _channelSelectionGeneration ||
+        localId == null ||
+        routes.isEmpty)
+      return;
     final service = ref.read(playerServiceProvider);
     final activeUrl = service.currentUrl;
     final activeChannelId = service.currentChannelId;
@@ -2040,22 +2360,35 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
     final retryMode = recoveryRetryMode(
       intendedChannelId: localId,
       activeChannelId: activeChannelId,
-      activeChanged: activeUrl != service.currentUrl || activeChannelId != service.currentChannelId,
+      activeChanged:
+          activeUrl != service.currentUrl ||
+          activeChannelId != service.currentChannelId,
       hasActiveUrl: activeUrl != null,
-      playbackAdvancing: service.player.state.playing && !service.player.state.buffering &&
+      playbackAdvancing:
+          service.player.state.playing &&
+          !service.player.state.buffering &&
           service.player.state.position > position,
     );
     if (retryMode == RecoveryRetryMode.none) return;
     final database = ref.read(databaseProvider);
     final identities = await database.publicCatalogChannelIds([localId]);
-    if (!mounted || generation != _channelSelectionGeneration || identities[localId] != catalogId) return;
+    if (!mounted ||
+        generation != _channelSelectionGeneration ||
+        identities[localId] != catalogId)
+      return;
     _categoryCache.invalidate();
     await _loadGroupChannels(_selectedGroup, preserveScroll: true);
     if (!mounted || generation != _channelSelectionGeneration) return;
-    final index = _filteredChannels.indexWhere((channel) => channel.id == localId);
+    final index = _filteredChannels.indexWhere(
+      (channel) => channel.id == localId,
+    );
     if (index < 0) return;
-    await _selectChannel(index, force: retryMode == RecoveryRetryMode.restart,
-        preferredUrl: routes.first.url, onlyRequestedRoute: true);
+    await _selectChannel(
+      index,
+      force: retryMode == RecoveryRetryMode.restart,
+      preferredUrl: routes.first.url,
+      onlyRequestedRoute: true,
+    );
   }
 
   Future<void> _changeChannelCategory(db.Channel channel) async {
@@ -2084,9 +2417,13 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
         _pendingManualCategories[url] = destination;
       }
       _pendingAutoplayGroup = null;
-      _structuredCategoryGroups = {..._structuredCategoryGroups, destination.group}.toList();
+      _structuredCategoryGroups = {
+        ..._structuredCategoryGroups,
+        destination.group,
+      }.toList();
       _groups = ChannelCategoryDestination.navigationCategories(
-        _structuredCategoryGroups.map(ChannelCategoryDestination.fromGroup)
+        _structuredCategoryGroups
+            .map(ChannelCategoryDestination.fromGroup)
             .whereType<ChannelCategoryDestination>(),
       );
       _allChannels = moveChannelRows(_allChannels, urls, destination);
@@ -2096,10 +2433,14 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
       }, _selectedGroup);
       _applyFilters();
     });
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      content: Text(AppMessages.text(context, "已移至 {0}", [destination.path.join(' / ')])),
-      duration: const Duration(seconds: 3),
-    ));
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          AppMessages.text(context, "已移至 {0}", [destination.path.join(' / ')]),
+        ),
+        duration: const Duration(seconds: 3),
+      ),
+    );
     // Paint the local move first. Serialize writes so rapid edits cannot race.
     final painted = WidgetsBinding.instance.endOfFrame;
     _manualCategorySaveQueue = _manualCategorySaveQueue.then((_) async {
@@ -2113,7 +2454,11 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
         }
         unawaited(inventory.flushEvents());
       } catch (error, stack) {
-        AppDiagnostics.instance.recordError('manual_channel_category', error, stack);
+        AppDiagnostics.instance.recordError(
+          'manual_channel_category',
+          error,
+          stack,
+        );
         final saved = await ManualChannelCategory.load();
         for (final url in urls) {
           if (identical(_pendingManualCategories[url], destination)) {
@@ -2157,7 +2502,8 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
       constraints: BoxConstraints(
         minWidth: (MediaQuery.sizeOf(context).width - 32).clamp(0.0, 340.0),
         maxWidth: (MediaQuery.sizeOf(context).width - 32).clamp(0.0, 380.0),
-        maxHeight: MediaQuery.sizeOf(context).height * .75),
+        maxHeight: MediaQuery.sizeOf(context).height * .75,
+      ),
       position: RelativeRect.fromLTRB(
         position.dx,
         position.dy,
@@ -2165,44 +2511,69 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
         overlay.size.height - position.dy,
       ),
       items: [
-        _routeMenuHeader(_previewChannel == null
-            ? '当前频道' : _channelDisplayName(_previewChannel!),
-            alternatives.length + 1),
+        _routeMenuHeader(
+          _previewChannel == null
+              ? '当前频道'
+              : _channelDisplayName(_previewChannel!),
+          alternatives.length + 1,
+        ),
         if (_previewChannel != null)
-          _routeMenuAction(-2,
-              _favoritedChannelIds.contains(_previewChannel!.id)
-                  ? Icons.star_rounded : Icons.star_outline_rounded,
-              _favoritedChannelIds.contains(_previewChannel!.id)
-                  ? '取消收藏' : '加入收藏',
-              _favoritedChannelIds.contains(_previewChannel!.id)
-                  ? '一键取消，支持撤销' : '一键保存到我的收藏',
-              favorite: true),
+          _routeMenuAction(
+            -2,
+            _favoritedChannelIds.contains(_previewChannel!.id)
+                ? Icons.star_rounded
+                : Icons.star_outline_rounded,
+            _favoritedChannelIds.contains(_previewChannel!.id)
+                ? '取消收藏'
+                : '加入收藏',
+            _favoritedChannelIds.contains(_previewChannel!.id)
+                ? '一键取消，支持撤销'
+                : '一键保存到我的收藏',
+            favorite: true,
+          ),
         if (_previewChannel != null)
           _routeMenuAction(-8, Icons.folder_open_rounded, '管理收藏夹', '分别设置所属收藏夹'),
         const PopupMenuDivider(height: 14),
         if (menuChannel != null)
-          _routeMenuAction(-5, Icons.folder_open_rounded, '变更分类',
-              '选择地区和子分类'),
+          _routeMenuAction(-5, Icons.folder_open_rounded, '变更分类', '选择地区和子分类'),
         if (menuChannel != null)
           _routeMenuAction(-6, Icons.merge_rounded, '合并频道', '跨分类选择同内容频道'),
         if (menuChannel != null)
-          _routeMenuAction(-7, Icons.drive_file_move_rounded, '转移线路到…', '将当前线路移入其他频道'),
-        _routeMenuAction(-3, Icons.skip_next_rounded, '切换到下一条线路',
-            '先检查线路，成功后切换',
-            enabled: alternatives.isNotEmpty),
-        if (alternatives.isEmpty)
-          _routeMenuEmpty(),
+          _routeMenuAction(
+            -7,
+            Icons.drive_file_move_rounded,
+            '转移线路到…',
+            '将当前线路移入其他频道',
+          ),
+        _routeMenuAction(
+          -3,
+          Icons.skip_next_rounded,
+          '切换到下一条线路',
+          '先检查线路，成功后切换',
+          enabled: alternatives.isNotEmpty,
+        ),
+        if (alternatives.isEmpty) _routeMenuEmpty(),
         if (Platform.isMacOS)
-          _routeMenuAction(-4, Icons.tune_rounded,
-              service.compatibilityDecoding ? '恢复自动解码' : '使用兼容解码',
-              '排查当前线路的视频闪屏'),
+          _routeMenuAction(
+            -4,
+            Icons.tune_rounded,
+            service.compatibilityDecoding ? '恢复自动解码' : '使用兼容解码',
+            '排查当前线路的视频闪屏',
+          ),
         const PopupMenuDivider(height: 14),
-        _routeMenuAction(-1, Icons.block_rounded, '淘汰当前线路',
-            '立即停播并尝试下一条', danger: true),
+        _routeMenuAction(
+          -1,
+          Icons.block_rounded,
+          '淘汰当前线路',
+          '立即停播并尝试下一条',
+          danger: true,
+        ),
       ],
     );
     if (!mounted || choice == null) return;
-    if (choice == -7 && menuChannel != null && service.currentUrl == currentUrl) {
+    if (choice == -7 &&
+        menuChannel != null &&
+        service.currentUrl == currentUrl) {
       await _transferChannelRoute(menuChannel, currentUrl);
       return;
     }
@@ -2233,17 +2604,19 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
       final enabled = !service.compatibilityDecoding;
       final changed = await service.setCompatibilityDecoding(enabled);
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text(changed
-            ? (enabled ? '已使用兼容解码，请观察画面' : '已恢复自动解码')
-            : AppMessages.text(context, "解码方式切换失败")),
-      ));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            changed
+                ? (enabled ? '已使用兼容解码，请观察画面' : '已恢复自动解码')
+                : AppMessages.text(context, "解码方式切换失败"),
+          ),
+        ),
+      );
       return;
     }
     final channelId = _previewChannel?.id ?? service.currentChannelId ?? '';
-    final selectedUrl = _nextManualRoute(
-      channelId, currentUrl, alternatives,
-    );
+    final selectedUrl = _nextManualRoute(channelId, currentUrl, alternatives);
     if (selectedUrl == null) {
       _showManualRoutesExhausted();
       return;
@@ -2252,19 +2625,34 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
       SnackBar(content: Text(AppMessages.text(context, "正在检查所选线路…"))),
     );
     final switched = await service.switchCurrentRoute(
-      selectedUrl, onlyRequestedRoute: true);
+      selectedUrl,
+      onlyRequestedRoute: true,
+    );
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      content: Text(switched ? AppMessages.text(context, "已切换到可播放线路") : AppMessages.text(context, "候选线路不可用，已保留当前画面")),
-    ));
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          switched
+              ? AppMessages.text(context, "已切换到可播放线路")
+              : AppMessages.text(context, "候选线路不可用，已保留当前画面"),
+        ),
+      ),
+    );
   }
 
   Future<void> _mergeChannel(db.Channel channel) async {
-    final plan = await showDialog<ChannelMergePlan>(context: context,
+    final plan = await showDialog<ChannelMergePlan>(
+      context: context,
       barrierDismissible: false,
-      builder: (_) => ChannelMergeDialog(database: ref.read(databaseProvider),
-        channel: channel, seedUrls: [channel.streamUrl,
-          ..._automaticAlternativeUrls(channel, includeUnverified: true)]));
+      builder: (_) => ChannelMergeDialog(
+        database: ref.read(databaseProvider),
+        channel: channel,
+        seedUrls: [
+          channel.streamUrl,
+          ..._automaticAlternativeUrls(channel, includeUnverified: true),
+        ],
+      ),
+    );
     if (!mounted || plan == null) return;
     ++_channelSelectionGeneration;
     final service = ref.read(playerServiceProvider);
@@ -2278,18 +2666,31 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
         _pendingManualCategories.remove(url);
       }
       if (main != null && plan.urls.contains(main.streamUrl)) {
-        _previewChannel = main.copyWith(name: plan.name,
-          groupTitle: Value(plan.group), tvgId: Value(plan.epgId), tvgName: Value(plan.name));
+        _previewChannel = main.copyWith(
+          name: plan.name,
+          groupTitle: Value(plan.group),
+          tvgId: Value(plan.epgId),
+          tvgName: Value(plan.name),
+        );
       }
     });
     await _loadGroupChannels(_selectedGroup, preserveScroll: true);
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      content: Text(AppMessages.text(context, "已合并为“{0}”，公共线路在后台同步", [plan.name])),
-      duration: const Duration(seconds: 3)));
-    unawaited(ref.read(sourceMaintenanceCoordinatorProvider).inventory.flushEvents());
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          AppMessages.text(context, "已合并为“{0}”，公共线路在后台同步", [plan.name]),
+        ),
+        duration: const Duration(seconds: 3),
+      ),
+    );
+    unawaited(
+      ref.read(sourceMaintenanceCoordinatorProvider).inventory.flushEvents(),
+    );
     if (_previewChannel != null) {
-      await service.updateFailoverAlternatives(_automaticAlternativeUrls(_previewChannel!, includeUnverified: true));
+      await service.updateFailoverAlternatives(
+        _automaticAlternativeUrls(_previewChannel!, includeUnverified: true),
+      );
     }
   }
 
@@ -2322,7 +2723,12 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
     );
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(AppMessages.text(context, "线路已转移至“{0}”，{1}", [result.name, result.shared ? '公共线路在后台同步' : '私有线路仅保存到本机'])),
+        content: Text(
+          AppMessages.text(context, "线路已转移至“{0}”，{1}", [
+            result.name,
+            result.shared ? '公共线路在后台同步' : '私有线路仅保存到本机',
+          ]),
+        ),
         duration: const Duration(seconds: 3),
       ),
     );
@@ -2349,14 +2755,14 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
       );
   }
 
-  Future<void> _showCardRouteMenu(
-      db.Channel channel, Offset position) async {
+  Future<void> _showCardRouteMenu(db.Channel channel, Offset position) async {
     final service = ref.read(playerServiceProvider);
     final urls = <String>[
       channel.streamUrl,
       ..._automaticAlternativeUrls(channel, includeUnverified: true),
     ].where((url) => url.isNotEmpty).toSet().toList();
-    final lastUrl = service.currentChannelId == channel.id && service.currentUrl != null
+    final lastUrl =
+        service.currentChannelId == channel.id && service.currentUrl != null
         ? service.currentUrl!
         : service.preparedChannelId == channel.id
         ? service.preparedChannelUrl ?? channel.streamUrl
@@ -2375,41 +2781,59 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
       constraints: BoxConstraints(
         minWidth: (MediaQuery.sizeOf(context).width - 32).clamp(0.0, 340.0),
         maxWidth: (MediaQuery.sizeOf(context).width - 32).clamp(0.0, 380.0),
-        maxHeight: MediaQuery.sizeOf(context).height * .75),
+        maxHeight: MediaQuery.sizeOf(context).height * .75,
+      ),
       position: RelativeRect.fromLTRB(
-        position.dx, position.dy,
+        position.dx,
+        position.dy,
         overlay.size.width - position.dx,
         overlay.size.height - position.dy,
       ),
       items: [
         _routeMenuHeader(_channelDisplayName(channel), urls.length),
-        _routeMenuAction(-2,
-            _favoritedChannelIds.contains(channel.id)
-                ? Icons.star_rounded : Icons.star_outline_rounded,
-            _favoritedChannelIds.contains(channel.id)
-                ? '取消收藏' : '加入收藏',
-            _favoritedChannelIds.contains(channel.id)
-                ? '一键取消，支持撤销' : '一键保存到我的收藏',
-            favorite: true),
+        _routeMenuAction(
+          -2,
+          _favoritedChannelIds.contains(channel.id)
+              ? Icons.star_rounded
+              : Icons.star_outline_rounded,
+          _favoritedChannelIds.contains(channel.id) ? '取消收藏' : '加入收藏',
+          _favoritedChannelIds.contains(channel.id) ? '一键取消，支持撤销' : '一键保存到我的收藏',
+          favorite: true,
+        ),
         _routeMenuAction(-8, Icons.folder_open_rounded, '管理收藏夹', '分别设置所属收藏夹'),
         const PopupMenuDivider(height: 14),
-        _routeMenuAction(-5, Icons.folder_open_rounded, '变更分类',
-            '选择地区和子分类'),
+        _routeMenuAction(-5, Icons.folder_open_rounded, '变更分类', '选择地区和子分类'),
         _routeMenuAction(-6, Icons.merge_rounded, '合并频道', '跨分类选择同内容频道'),
-        _routeMenuAction(-7, Icons.drive_file_move_rounded, '转移线路到…', '将这条线路移入其他频道'),
-        _routeMenuAction(-3, Icons.skip_next_rounded, '切换到下一条线路',
-            '在卡片中预览下一条',
-            enabled: alternatives.isNotEmpty),
-        if (alternatives.isEmpty)
-          _routeMenuEmpty(),
+        _routeMenuAction(
+          -7,
+          Icons.drive_file_move_rounded,
+          '转移线路到…',
+          '将这条线路移入其他频道',
+        ),
+        _routeMenuAction(
+          -3,
+          Icons.skip_next_rounded,
+          '切换到下一条线路',
+          '在卡片中预览下一条',
+          enabled: alternatives.isNotEmpty,
+        ),
+        if (alternatives.isEmpty) _routeMenuEmpty(),
         if (Platform.isMacOS)
-          _routeMenuAction(-4, Icons.tune_rounded,
-              service.compatibilityDecoding ? '恢复自动解码' : '使用兼容解码',
-              '排查卡片与主画面闪屏'),
+          _routeMenuAction(
+            -4,
+            Icons.tune_rounded,
+            service.compatibilityDecoding ? '恢复自动解码' : '使用兼容解码',
+            '排查卡片与主画面闪屏',
+          ),
         const PopupMenuDivider(height: 14),
-        _routeMenuAction(-1, Icons.block_rounded, '淘汰当前线路',
-            '从候选线路中移除',
-            enabled: lastUrl.isNotEmpty, danger: true),
+        _routeMenuAction(
+          -1,
+          Icons.block_rounded,
+          '淘汰当前线路',
+          '从候选线路中移除',
+          enabled: lastUrl.isNotEmpty,
+          danger: true,
+        ),
       ],
     );
     if (!mounted || choice == null) return;
@@ -2429,11 +2853,15 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
       final enabled = !service.compatibilityDecoding;
       final changed = await service.setCompatibilityDecoding(enabled);
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text(changed
-            ? (enabled ? '已使用兼容解码，请观察画面' : '已恢复自动解码')
-            : AppMessages.text(context, "解码方式切换失败")),
-      ));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            changed
+                ? (enabled ? '已使用兼容解码，请观察画面' : '已恢复自动解码')
+                : AppMessages.text(context, "解码方式切换失败"),
+          ),
+        ),
+      );
       return;
     }
     if (choice == -2) {
@@ -2453,12 +2881,18 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
         context: context,
         builder: (context) => AlertDialog(
           title: Text(AppMessages.text(context, "淘汰这条线路？")),
-          content: Text(AppMessages.text(context, "将屏蔽这个信号地址，其他线路会保留。此操作无法在界面中撤销。")),
+          content: Text(
+            AppMessages.text(context, "将屏蔽这个信号地址，其他线路会保留。此操作无法在界面中撤销。"),
+          ),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(context, false),
-                child: Text(AppMessages.text(context, "取消"))),
-            FilledButton(onPressed: () => Navigator.pop(context, true),
-                child: Text(AppMessages.text(context, "确认淘汰"))),
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: Text(AppMessages.text(context, "取消")),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: Text(AppMessages.text(context, "确认淘汰")),
+            ),
           ],
         ),
       );
@@ -2467,42 +2901,60 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
       if (service.preparedChannelId == channel.id) {
         await service.discardPreparedChannel();
       }
-      final deleted = await ref.read(databaseProvider).blockAndDeleteStreamUrl(
-          lastUrl, reason: 'user_reported_wrong_content');
+      final deleted = await ref
+          .read(databaseProvider)
+          .blockAndDeleteStreamUrl(
+            lastUrl,
+            reason: 'user_reported_wrong_content',
+          );
       _cardRouteSelection.remove(channel.id);
       if (!mounted) return;
       await _loadGroupChannels(_selectedGroup, preserveScroll: true);
       if (!mounted) return;
-      final replacement = _filteredChannels.indexWhere((candidate) =>
-          _automaticChannelKey(candidate) == channelKey);
+      final replacement = _filteredChannels.indexWhere(
+        (candidate) => _automaticChannelKey(candidate) == channelKey,
+      );
       final canTryNext = replacement >= 0 && alternatives.isNotEmpty;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text(!canTryNext
-            ? AppMessages.text(context, "已淘汰线路，当前频道没有其他候选线路")
-            : AppMessages.text(context, "已淘汰线路，正在尝试下一条线路，移除 {0} 条重复记录", [deleted])),
-      ));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            !canTryNext
+                ? AppMessages.text(context, "已淘汰线路，当前频道没有其他候选线路")
+                : AppMessages.text(context, "已淘汰线路，正在尝试下一条线路，移除 {0} 条重复记录", [
+                    deleted,
+                  ]),
+          ),
+        ),
+      );
       if (canTryNext) {
-        await _selectChannel(replacement,
-            preferredUrl: alternatives.first, onlyRequestedRoute: false);
+        await _selectChannel(
+          replacement,
+          preferredUrl: alternatives.first,
+          onlyRequestedRoute: false,
+        );
       }
       return;
     }
-    final selectedUrl = _nextManualRoute(
-      channel.id, lastUrl, alternatives,
-    );
+    final selectedUrl = _nextManualRoute(channel.id, lastUrl, alternatives);
     if (selectedUrl == null) {
       _showManualRoutesExhausted();
       return;
     }
     final currentIndex = _filteredChannels.indexWhere(
-        (item) => item.id == channel.id);
+      (item) => item.id == channel.id,
+    );
     if (currentIndex < 0) return;
-    await _selectChannel(currentIndex,
-        preferredUrl: selectedUrl, onlyRequestedRoute: true);
+    await _selectChannel(
+      currentIndex,
+      preferredUrl: selectedUrl,
+      onlyRequestedRoute: true,
+    );
   }
 
   String? _nextManualRoute(
-    String channelId, String currentUrl, Iterable<String> alternatives,
+    String channelId,
+    String currentUrl,
+    Iterable<String> alternatives,
   ) {
     final tracker = ref.read(streamHealthTrackerProvider);
     final next = _manualRouteCycle.chooseNext(
@@ -2520,10 +2972,12 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
   void _showManualRoutesExhausted() {
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
-      ..showSnackBar(SnackBar(
-        content: Text(AppMessages.text(context, "候选线路本轮已试完，稍后可重新尝试")),
-        duration: Duration(seconds: 3),
-      ));
+      ..showSnackBar(
+        SnackBar(
+          content: Text(AppMessages.text(context, "候选线路本轮已试完，稍后可重新尝试")),
+          duration: Duration(seconds: 3),
+        ),
+      );
   }
 
   Future<void> _handleRouteMenuFavorite(db.Channel channel) async {
@@ -2534,9 +2988,13 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
     try {
       await WidgetsBinding.instance.endOfFrame;
       if (!mounted) return;
-      await toggleChannelFavorite(context: context, database: database,
-        channelId: channel.id, isFavorite: wasFavorite,
-        onChanged: _refreshFavoriteState);
+      await toggleChannelFavorite(
+        context: context,
+        database: database,
+        channelId: channel.id,
+        isFavorite: wasFavorite,
+        onChanged: _refreshFavoriteState,
+      );
     } finally {
       if (mounted) setState(() => _favoriteActionsPending.remove(channel.id));
     }
@@ -2565,40 +3023,63 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
       child: Row(
         children: [
           Container(
-            width: 38, height: 38,
+            width: 38,
+            height: 38,
             decoration: BoxDecoration(
               color: const Color(0xFF9BB5FF).withValues(alpha: 0.18),
               borderRadius: BorderRadius.circular(12),
             ),
-            child: const Icon(Icons.live_tv_rounded,
-                color: BobTvPalette.accent, size: 20),
+            child: const Icon(
+              Icons.live_tv_rounded,
+              color: BobTvPalette.accent,
+              size: 20,
+            ),
           ),
           const SizedBox(width: 12),
-          Expanded(child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(channelName, maxLines: 1, overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(color: Colors.white,
-                      fontSize: 16, fontWeight: FontWeight.w700)),
-              const SizedBox(height: 3),
-              Text(AppMessages.text(context, "{0} 条候选线路", [routeCount]), style: const TextStyle(
-                  color: BobTvPalette.muted, fontSize: 12)),
-            ],
-          )),
+          Expanded(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  channelName,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  AppMessages.text(context, "{0} 条候选线路", [routeCount]),
+                  style: const TextStyle(
+                    color: BobTvPalette.muted,
+                    fontSize: 12,
+                  ),
+                ),
+              ],
+            ),
+          ),
         ],
       ),
     );
   }
 
   PopupMenuItem<int> _routeMenuAction(
-    int value, IconData icon, String title, String subtitle, {
+    int value,
+    IconData icon,
+    String title,
+    String subtitle, {
     bool enabled = true,
     bool danger = false,
     bool favorite = false,
   }) {
-    final accent = danger ? const Color(0xFFFFA4A4)
-        : favorite ? const Color(0xFFFFD36B)
+    final accent = danger
+        ? const Color(0xFFFFA4A4)
+        : favorite
+        ? const Color(0xFFFFD36B)
         : BobTvPalette.accent;
     return PopupMenuItem<int>(
       value: value,
@@ -2609,7 +3090,8 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
         child: Row(
           children: [
             Container(
-              width: 34, height: 34,
+              width: 34,
+              height: 34,
               decoration: BoxDecoration(
                 color: accent.withValues(alpha: 0.13),
                 borderRadius: BorderRadius.circular(10),
@@ -2617,22 +3099,40 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
               child: Icon(icon, color: accent, size: 19),
             ),
             const SizedBox(width: 12),
-            Expanded(child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(title, maxLines: 1, overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(color: Colors.white,
-                        fontSize: 14, fontWeight: FontWeight.w600)),
-                const SizedBox(height: 3),
-                Text(subtitle, maxLines: 1, overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(color: BobTvPalette.muted,
-                        fontSize: 11)),
-              ],
-            )),
+            Expanded(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 3),
+                  Text(
+                    subtitle,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: BobTvPalette.muted,
+                      fontSize: 11,
+                    ),
+                  ),
+                ],
+              ),
+            ),
             if (value == -3)
-              const Icon(Icons.chevron_right_rounded,
-                  color: BobTvPalette.muted, size: 20),
+              const Icon(
+                Icons.chevron_right_rounded,
+                color: BobTvPalette.muted,
+                size: 20,
+              ),
           ],
         ),
       ),
@@ -2642,18 +3142,20 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
   PopupMenuItem<int> _routeMenuEmpty() => PopupMenuItem<int>(
     enabled: false,
     height: 46,
-    child: Text(AppMessages.text(context, "暂无其他候选线路"), style: TextStyle(
-        color: BobTvPalette.muted, fontSize: 12)),
+    child: Text(
+      AppMessages.text(context, "暂无其他候选线路"),
+      style: TextStyle(color: BobTvPalette.muted, fontSize: 12),
+    ),
   );
 
-  Future<void> _retireCurrentRoute(
-    String currentUrl,
-  ) async {
+  Future<void> _retireCurrentRoute(String currentUrl) async {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
         title: Text(AppMessages.text(context, "淘汰当前线路？")),
-        content: Text(AppMessages.text(context, "将屏蔽这个信号地址，其他线路会保留。此操作无法在界面中撤销。")),
+        content: Text(
+          AppMessages.text(context, "将屏蔽这个信号地址，其他线路会保留。此操作无法在界面中撤销。"),
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
@@ -2673,28 +3175,40 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
     service.rejectCurrentRoute();
     final alternatives = service.retirementAlternativeUrls;
     await service.stop();
-    final deleted = await ref.read(databaseProvider).blockAndDeleteStreamUrl(
-      currentUrl,
-      reason: 'user_reported_wrong_content',
+    final deleted = await ref
+        .read(databaseProvider)
+        .blockAndDeleteStreamUrl(
+          currentUrl,
+          reason: 'user_reported_wrong_content',
+        );
+    unawaited(
+      ref
+          .read(sourceMaintenanceCoordinatorProvider)
+          .inventory
+          .reportRetirement(currentUrl),
     );
-    unawaited(ref.read(sourceMaintenanceCoordinatorProvider).inventory.reportRetirement(currentUrl));
-    final switched = alternatives.isNotEmpty &&
+    final switched =
+        alternatives.isNotEmpty &&
         await service.playRetirementReplacement(
-            alternatives.first, alternatives.skip(1).toList());
+          alternatives.first,
+          alternatives.skip(1).toList(),
+        );
     if (alternatives.isEmpty) {
       service.routeSearchProgress.value = const RouteSearchProgress(
-        stage: '当前频道没有其他候选线路', index: 0, total: 0,
+        stage: '当前频道没有其他候选线路',
+        index: 0,
+        total: 0,
       );
       service.onSourcesExhausted?.call(_previewChannel?.name ?? '');
     }
     if (!mounted) return;
     await _loadGroupChannels(_selectedGroup, preserveScroll: true);
-    await ref.read(streamAlternativesProvider)
-        .rebuildForChannels(_allChannels);
+    await ref.read(streamAlternativesProvider).rebuildForChannels(_allChannels);
     if (!mounted) return;
     final activeUrl = service.currentUrl;
     final replacement = _filteredChannels.indexWhere(
-      (channel) => channel.streamUrl == activeUrl ||
+      (channel) =>
+          channel.streamUrl == activeUrl ||
           (channelKey?.isNotEmpty == true &&
               _automaticChannelKey(channel) == channelKey),
     );
@@ -2702,11 +3216,17 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
       _selectedIndex = replacement;
       _previewChannel = replacement < 0 ? null : _filteredChannels[replacement];
     });
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      content: Text(switched
-          ? AppMessages.text(context, "已淘汰当前线路，正在尝试下一条线路，移除 {0} 条重复记录", [deleted])
-          : AppMessages.text(context, "已淘汰当前线路，暂无可用的候选线路")),
-    ));
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          switched
+              ? AppMessages.text(context, "已淘汰当前线路，正在尝试下一条线路，移除 {0} 条重复记录", [
+                  deleted,
+                ])
+              : AppMessages.text(context, "已淘汰当前线路，暂无可用的候选线路"),
+        ),
+      ),
+    );
   }
 
   /// Toggle between current channel and the last channel.
@@ -2714,7 +3234,9 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
     final previousId = _previousChannelId;
     if (previousId == null) return;
     final index = ChannelListIdentity.indexOf(
-      _filteredChannels, previousId, (channel) => channel.id,
+      _filteredChannels,
+      previousId,
+      (channel) => channel.id,
     );
     if (index >= 0) unawaited(_selectChannel(index));
   }
@@ -2739,10 +3261,14 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
   }) async {
     if (_playerRouteOpen || !mounted) return;
     final fullscreenChannels = ChannelListIdentity.includingCurrent(
-      _filteredChannels, channel, (c) => c.id,
+      _filteredChannels,
+      channel,
+      (c) => c.id,
     );
     final currentIndex = ChannelListIdentity.indexOf(
-      fullscreenChannels, channel.id, (c) => c.id,
+      fullscreenChannels,
+      channel.id,
+      (c) => c.id,
     );
     final channelMaps = fullscreenChannels
         .map(
@@ -2791,18 +3317,33 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
     }
     if (mounted) {
       final activeId = ref.read(playerServiceProvider).currentChannelId;
-      final activeChannel = fullscreenChannels.where((c) => c.id == activeId).firstOrNull;
+      final activeChannel = fullscreenChannels
+          .where((c) => c.id == activeId)
+          .firstOrNull;
       if (activeChannel != null) {
         setState(() {
           _previewChannel = activeChannel;
-          _selectedIndex = _filteredChannels.indexWhere((c) => c.id == activeId);
+          _selectedIndex = _filteredChannels.indexWhere(
+            (c) => c.id == activeId,
+          );
         });
-        unawaited(_inlineProgrammePreview.select(channelId: activeChannel.id,
-          epgChannelId: _getEpgId(activeChannel), timeshiftHours: _epgTimeshifts[activeChannel.id] ?? 0));
+        unawaited(
+          _inlineProgrammePreview.select(
+            channelId: activeChannel.id,
+            epgChannelId: _getEpgId(activeChannel),
+            timeshiftHours: _epgTimeshifts[activeChannel.id] ?? 0,
+          ),
+        );
         if (PlatformInfo.isMobile) {
-          _mobileRecentIds = [activeChannel.id, ..._mobileRecentIds.where((id) => id != activeChannel.id)].take(50).toList();
+          _mobileRecentIds = [
+            activeChannel.id,
+            ..._mobileRecentIds.where((id) => id != activeChannel.id),
+          ].take(50).toList();
           final prefs = await SharedPreferences.getInstance();
-          await prefs.setStringList('mobile_recent_channel_ids', _mobileRecentIds);
+          await prefs.setStringList(
+            'mobile_recent_channel_ids',
+            _mobileRecentIds,
+          );
         }
         await _saveSession();
       }
@@ -2835,7 +3376,8 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
         _acceptsEpgForChannel(channel, mapped)) {
       return mapped;
     }
-    if (channel.providerId == WebsiteChannelCatalogService.providerId) return null;
+    if (channel.providerId == WebsiteChannelCatalogService.providerId)
+      return null;
     if (channel.tvgId != null && channel.tvgId!.isNotEmpty) {
       final prefixed = _rawToPrefixedEpg[channel.tvgId!.toLowerCase()];
       if (prefixed != null && _acceptsEpgForChannel(channel, prefixed)) {
@@ -2860,7 +3402,8 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
   }
 
   bool _acceptsEpgForChannel(db.Channel channel, String epgId) {
-    if (channel.providerId == WebsiteChannelCatalogService.providerId) return true;
+    if (channel.providerId == WebsiteChannelCatalogService.providerId)
+      return true;
     final channelService =
         ChannelNameNormalizer.cctvSportsServiceKey(channel.name) ??
         ChannelNameNormalizer.cctvSportsServiceKey(channel.tvgName ?? '') ??
@@ -3151,8 +3694,12 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
     _volumeSubscription?.cancel();
     _playingSubscription?.cancel();
     _playingSubscription = player.stream.playing.listen((_) {
-      if (mounted && useMobileChannelHome(platform: defaultTargetPlatform,
-          size: MediaQuery.sizeOf(context), television: PlatformInfo.isTV)) {
+      if (mounted &&
+          useMobileChannelHome(
+            platform: defaultTargetPlatform,
+            size: MediaQuery.sizeOf(context),
+            television: PlatformInfo.isTV,
+          )) {
         setState(() {});
       }
     });
@@ -3190,19 +3737,21 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
         mainAxisSize: MainAxisSize.min,
         children: [
           IconButton(
-            tooltip: _volume == 0 ? AppMessages.text(context, "取消静音") : AppMessages.text(context, "静音"),
+            tooltip: _volume == 0
+                ? AppMessages.text(context, "取消静音")
+                : AppMessages.text(context, "静音"),
             visualDensity: VisualDensity.compact,
             icon: Icon(
               _volume == 0
                   ? Icons.volume_off_rounded
                   : _volume < 50
-                      ? Icons.volume_down_rounded
-                      : Icons.volume_up_rounded,
+                  ? Icons.volume_down_rounded
+                  : Icons.volume_up_rounded,
               color: Colors.white,
               size: 19,
             ),
-            onPressed: () => _setPreviewVolume(
-                _volume == 0 ? _preMuteVolume : 0),
+            onPressed: () =>
+                _setPreviewVolume(_volume == 0 ? _preMuteVolume : 0),
           ),
           SizedBox(
             width: 92,
@@ -3213,8 +3762,10 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
               onChanged: _setPreviewVolume,
             ),
           ),
-          Text('${_volume.round()}%',
-              style: const TextStyle(color: Colors.white70, fontSize: 11)),
+          Text(
+            '${_volume.round()}%',
+            style: const TextStyle(color: Colors.white70, fontSize: 11),
+          ),
         ],
       ),
     );
@@ -3290,7 +3841,10 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
               child: Column(
                 children: [
                   if (PlatformInfo.isTV)
-                    const Align(alignment: Alignment.centerRight, child: AccountButton())
+                    const Align(
+                      alignment: Alignment.centerRight,
+                      child: AccountButton(),
+                    )
                   else
                     _buildTopBar(context),
                   Expanded(
@@ -3345,7 +3899,8 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
   }
 
   Future<void> _selectMobileCategory(String group, String country) async {
-    if (_categoryLoadError == null && group == _selectedGroup &&
+    if (_categoryLoadError == null &&
+        group == _selectedGroup &&
         (group != '国际' || country == _selectedInternationalCountry)) {
       return;
     }
@@ -3363,7 +3918,11 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
     if (_categoryLoadError != null) {
       throw StateError('Category load failed');
     }
-    await _loadEpgData(ref.read(databaseProvider), _allChannels, _favoritedChannelIds);
+    await _loadEpgData(
+      ref.read(databaseProvider),
+      _allChannels,
+      _favoritedChannelIds,
+    );
     await _saveSession();
   }
 
@@ -3372,79 +3931,108 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
     return Scaffold(
       backgroundColor: BobTvPalette.deep,
       resizeToAvoidBottomInset: false,
-      body: SafeArea(child: MobileChannelHome(
-        video: _previewChannel == null
-            ? const Center(child: Icon(Icons.tv, size: 64, color: Colors.white24))
-            : _buildActiveVideo(),
-        channels: [for (final channel in _filteredChannels) MobileChannelItem(
-          id: channel.id, name: _channelDisplayName(channel), sourceId: channel.providerId,
-          programme: _getChannelNowPlaying(channel),
-          logoUrl: channel.tvgLogo,
-          favorite: _favoritedChannelIds.contains(channel.id),
-        )],
-        sources: {for (final provider in _providers) provider.id: provider.name},
-        categories: _groups.isEmpty ? [_selectedGroup] : _groups,
-        category: _selectedGroup,
-        countries: _internationalCountries,
-        country: _selectedGroup == '国际' ? _selectedInternationalCountry : '',
-        currentId: _previewChannel?.id,
-        currentName: _previewChannel == null ? null : _channelDisplayName(_previewChannel!),
-        programme: _previewChannel == null ? null : _getChannelNowPlaying(_previewChannel!),
-        loading: _categoryLoading,
-        muted: _volume == 0,
-        playing: service.player.state.playing,
-        onCategory: _selectMobileCategory,
-        onSelect: (id) async {
-          final index = _filteredChannels.indexWhere((channel) => channel.id == id);
-          if (index < 0) return false;
-          final selectedChannel = _filteredChannels[index];
-          await _selectChannel(index, direct: true);
-          final generation = _channelSelectionGeneration;
-          if (!mounted || service.currentChannelId != id) return false;
-          try {
-            // The view must mount before waiting for its native texture.
-            await WidgetsBinding.instance.endOfFrame;
-            if (!_allowsAudioOnly(selectedChannel)) {
-              await (service.activeVideoController.value ?? service.videoController)
-                  .waitUntilFirstFrameRendered.timeout(const Duration(seconds: 30));
+      body: SafeArea(
+        child: MobileChannelHome(
+          video: _previewChannel == null
+              ? const Center(
+                  child: Icon(Icons.tv, size: 64, color: Colors.white24),
+                )
+              : _buildActiveVideo(),
+          channels: [
+            for (final channel in _filteredChannels)
+              MobileChannelItem(
+                id: channel.id,
+                name: _channelDisplayName(channel),
+                sourceId: channel.providerId,
+                programme: _getChannelNowPlaying(channel),
+                logoUrl: channel.tvgLogo,
+                favorite: _favoritedChannelIds.contains(channel.id),
+              ),
+          ],
+          sources: {
+            for (final provider in _providers) provider.id: provider.name,
+          },
+          categories: _groups.isEmpty ? [_selectedGroup] : _groups,
+          category: _selectedGroup,
+          countries: _internationalCountries,
+          country: _selectedGroup == '国际' ? _selectedInternationalCountry : '',
+          currentId: _previewChannel?.id,
+          currentName: _previewChannel == null
+              ? null
+              : _channelDisplayName(_previewChannel!),
+          programme: _previewChannel == null
+              ? null
+              : _getChannelNowPlaying(_previewChannel!),
+          loading: _categoryLoading,
+          muted: _volume == 0,
+          playing: service.player.state.playing,
+          onCategory: _selectMobileCategory,
+          onSelect: (id) async {
+            final index = _filteredChannels.indexWhere(
+              (channel) => channel.id == id,
+            );
+            if (index < 0) return false;
+            final selectedChannel = _filteredChannels[index];
+            await _selectChannel(index, direct: true);
+            final generation = _channelSelectionGeneration;
+            if (!mounted || service.currentChannelId != id) return false;
+            try {
+              // The view must mount before waiting for its native texture.
+              await WidgetsBinding.instance.endOfFrame;
+              if (!_allowsAudioOnly(selectedChannel)) {
+                await (service.activeVideoController.value ??
+                        service.videoController)
+                    .waitUntilFirstFrameRendered
+                    .timeout(const Duration(seconds: 30));
+              }
+            } catch (_) {
+              return false;
             }
-          } catch (_) {
-            return false;
-          }
-          return mounted && generation == _channelSelectionGeneration &&
-              service.currentChannelId == id && service.currentUrl != null &&
-              service.player.state.playing;
-        },
-        onPause: () async {
-          if (service.player.state.playing) {
-            await service.pause();
-          } else {
-            await service.player.play();
-          }
-          if (mounted) setState(() {});
-        },
-        onMute: () => _setPreviewVolume(_volume == 0 ? _preMuteVolume : 0),
-        recentIds: _mobileRecentIds,
-        onRecentChanged: (ids) {
-          _mobileRecentIds = ids;
-          unawaited(SharedPreferences.getInstance().then((prefs) async {
-            await prefs.setStringList('mobile_recent_channel_ids', ids);
-          }));
-        },
-        onMore: () => unawaited(_showMobileTools()),
-        subtitleControl: _previewChannel == null || _allowsAudioOnly(_previewChannel!)
-            ? null : _buildPreviewSubtitleButton(),
-        details: _buildMobileDetails(),
-        onChannelFavorite: (id) async {
-          final channel = _filteredChannels.where((c) => c.id == id).firstOrNull;
-          if (channel != null) await _handleRouteMenuFavorite(channel);
-        },
-        onChannelActions: (id) async {
-          final channel = _filteredChannels.where((c) => c.id == id).firstOrNull;
-          if (channel != null) await _showMobileChannelActions(channel);
-        },
-        onManageSources: () => context.push('/providers'),
-      )),
+            return mounted &&
+                generation == _channelSelectionGeneration &&
+                service.currentChannelId == id &&
+                service.currentUrl != null &&
+                service.player.state.playing;
+          },
+          onPause: () async {
+            if (service.player.state.playing) {
+              await service.pause();
+            } else {
+              await service.player.play();
+            }
+            if (mounted) setState(() {});
+          },
+          onMute: () => _setPreviewVolume(_volume == 0 ? _preMuteVolume : 0),
+          recentIds: _mobileRecentIds,
+          onRecentChanged: (ids) {
+            _mobileRecentIds = ids;
+            unawaited(
+              SharedPreferences.getInstance().then((prefs) async {
+                await prefs.setStringList('mobile_recent_channel_ids', ids);
+              }),
+            );
+          },
+          onMore: () => unawaited(_showMobileTools()),
+          subtitleControl:
+              _previewChannel == null || _allowsAudioOnly(_previewChannel!)
+              ? null
+              : _buildPreviewSubtitleButton(),
+          details: _buildMobileDetails(),
+          onChannelFavorite: (id) async {
+            final channel = _filteredChannels
+                .where((c) => c.id == id)
+                .firstOrNull;
+            if (channel != null) await _handleRouteMenuFavorite(channel);
+          },
+          onChannelActions: (id) async {
+            final channel = _filteredChannels
+                .where((c) => c.id == id)
+                .firstOrNull;
+            if (channel != null) await _showMobileChannelActions(channel);
+          },
+          onManageSources: () => context.push('/providers'),
+        ),
+      ),
     );
   }
 
@@ -3458,12 +4046,26 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
       _previewChannel = channel;
       _selectedIndex = _filteredChannels.indexWhere((c) => c.id == id);
     });
-    unawaited(_inlineProgrammePreview.select(channelId: channel.id,
-      epgChannelId: _getEpgId(channel), timeshiftHours: _epgTimeshifts[channel.id] ?? 0));
+    unawaited(
+      _inlineProgrammePreview.select(
+        channelId: channel.id,
+        epgChannelId: _getEpgId(channel),
+        timeshiftHours: _epgTimeshifts[channel.id] ?? 0,
+      ),
+    );
     if (PlatformInfo.isMobile) {
-      _mobileRecentIds = [id, ..._mobileRecentIds.where((item) => item != id)].take(50).toList();
-      unawaited(SharedPreferences.getInstance().then((prefs) =>
-          prefs.setStringList('mobile_recent_channel_ids', _mobileRecentIds)));
+      _mobileRecentIds = [
+        id,
+        ..._mobileRecentIds.where((item) => item != id),
+      ].take(50).toList();
+      unawaited(
+        SharedPreferences.getInstance().then(
+          (prefs) => prefs.setStringList(
+            'mobile_recent_channel_ids',
+            _mobileRecentIds,
+          ),
+        ),
+      );
     }
     unawaited(_saveSession());
   }
@@ -3472,114 +4074,283 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
     final channel = _previewChannel;
     if (channel == null) return const SizedBox.shrink();
     Widget action(String key, String label, IconData icon, VoidCallback run) =>
-        OutlinedButton.icon(key: ValueKey(key), onPressed: run,
+        OutlinedButton.icon(
+          key: ValueKey(key),
+          onPressed: run,
           style: OutlinedButton.styleFrom(minimumSize: const Size(48, 48)),
-          icon: Icon(icon, size: 20), label: Text(AppMessages.text(context, label)));
+          icon: Icon(icon, size: 20),
+          label: Text(AppMessages.text(context, label)),
+        );
     final favorite = _favoritedChannelIds.contains(channel.id);
     final guide = _inlineProgrammePreview.selectedChannelId == channel.id
-        ? _inlineProgrammePreview.programmes : const <db.EpgProgramme>[];
-    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Wrap(spacing: 8, runSpacing: 8, children: [
-        action('mobile-fullscreen', '全屏播放', Icons.fullscreen, () => _goFullscreen(channel)),
-        action('mobile-current-favorite', favorite ? '取消收藏' : '加入收藏',
-          favorite ? Icons.star : Icons.star_border, () => _handleRouteMenuFavorite(channel)),
-        action('mobile-programmes', '节目单', Icons.schedule, () => _showMobileProgrammes(channel)),
-        action('mobile-channel-actions', '频道操作', Icons.tune, () => _showMobileChannelActions(channel)),
-      ]),
-      if (guide.isNotEmpty) ...[
-        const SizedBox(height: 16),
-        for (final programme in guide.take(3))
-          ListTile(contentPadding: EdgeInsets.zero, dense: true,
-            title: Text(programme.title, maxLines: 2, overflow: TextOverflow.ellipsis),
-            subtitle: Text(_mobileProgrammeTime(programme, channel)),
-            onTap: () => _showMobileProgrammes(channel)),
+        ? _inlineProgrammePreview.programmes
+        : const <db.EpgProgramme>[];
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            action(
+              'mobile-fullscreen',
+              '全屏播放',
+              Icons.fullscreen,
+              () => _goFullscreen(channel),
+            ),
+            action(
+              'mobile-current-favorite',
+              favorite ? '取消收藏' : '加入收藏',
+              favorite ? Icons.star : Icons.star_border,
+              () => _handleRouteMenuFavorite(channel),
+            ),
+            action(
+              'mobile-programmes',
+              '节目单',
+              Icons.schedule,
+              () => _showMobileProgrammes(channel),
+            ),
+            action(
+              'mobile-channel-actions',
+              '频道操作',
+              Icons.tune,
+              () => _showMobileChannelActions(channel),
+            ),
+          ],
+        ),
+        if (guide.isNotEmpty) ...[
+          const SizedBox(height: 16),
+          for (final programme in guide.take(3))
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              dense: true,
+              title: Text(
+                programme.title,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
+              subtitle: Text(_mobileProgrammeTime(programme, channel)),
+              onTap: () => _showMobileProgrammes(channel),
+            ),
+        ],
       ],
-    ]);
+    );
   }
 
-  Future<void> _showMobileTools() => showTouchActionSheet(context,
-    title: AppMessages.text(context, '更多'), actions: [
-      if (_previewChannel case final channel?) ..._mobileChannelActions(channel),
-      TouchAction('favorite-lists', '管理收藏夹', Icons.folder_special, _showManageFavoritesDialog),
-      TouchAction('sources', '管理播放源', Icons.playlist_add, () async { await context.push('/providers'); }),
-      TouchAction('refresh-routes', '重新读取线路检查结果', Icons.refresh,
-        _routeAvailabilityLoading ? null : () async {
-          setState(() => _routeAvailabilityLoading = true);
-          await _refreshRouteAvailability(_allChannels, _categoryLoadGeneration);
-        }),
+  Future<void> _showMobileTools() => showTouchActionSheet(
+    context,
+    title: AppMessages.text(context, '更多'),
+    actions: [
+      if (_previewChannel case final channel?)
+        ..._mobileChannelActions(channel),
+      TouchAction(
+        'favorite-lists',
+        '管理收藏夹',
+        Icons.folder_special,
+        _showManageFavoritesDialog,
+      ),
+      TouchAction('sources', '管理播放源', Icons.playlist_add, () async {
+        await context.push('/providers');
+      }),
+      TouchAction(
+        'refresh-routes',
+        '重新读取线路检查结果',
+        Icons.refresh,
+        _routeAvailabilityLoading
+            ? null
+            : () async {
+                setState(() => _routeAvailabilityLoading = true);
+                await _refreshRouteAvailability(
+                  _allChannels,
+                  _categoryLoadGeneration,
+                );
+              },
+      ),
       TouchAction('language', '语言', Icons.language, _showMobileLanguages),
-      TouchAction('settings', '设置', Icons.settings, () async { await context.push('/settings'); }),
-    ]);
+      TouchAction('settings', '设置', Icons.settings, () async {
+        await context.push('/settings');
+      }),
+    ],
+  );
 
   List<TouchAction> _mobileChannelActions(db.Channel channel) {
     final favorite = _favoritedChannelIds.contains(channel.id);
     final size = MediaQuery.sizeOf(context);
     return [
-      TouchAction('fullscreen', '全屏播放', Icons.fullscreen, () => _goFullscreen(channel)),
-      TouchAction('favorite', favorite ? '取消收藏' : '加入收藏',
+      TouchAction(
+        'fullscreen',
+        '全屏播放',
+        Icons.fullscreen,
+        () => _goFullscreen(channel),
+      ),
+      TouchAction(
+        'favorite',
+        favorite ? '取消收藏' : '加入收藏',
         favorite ? Icons.star : Icons.star_border,
-        _favoriteActionsPending.contains(channel.id) ? null : () => _handleRouteMenuFavorite(channel), selected: favorite),
-      TouchAction('channel-favorite-lists', '管理收藏夹', Icons.folder_open, () => _showFavoriteListSheet(channel)),
-      TouchAction('programmes', '节目单', Icons.schedule, () => _showMobileProgrammes(channel)),
+        _favoriteActionsPending.contains(channel.id)
+            ? null
+            : () => _handleRouteMenuFavorite(channel),
+        selected: favorite,
+      ),
+      TouchAction(
+        'channel-favorite-lists',
+        '管理收藏夹',
+        Icons.folder_open,
+        () => _showFavoriteListSheet(channel),
+      ),
+      TouchAction(
+        'programmes',
+        '节目单',
+        Icons.schedule,
+        () => _showMobileProgrammes(channel),
+      ),
       if (ref.read(playerServiceProvider).currentChannelId == channel.id)
-        TouchAction('capture', '截图', Icons.camera_alt, () => capturePlaybackFrame(context, ref.read(playerServiceProvider))),
-      TouchAction('routes', '线路管理', Icons.route,
-        () => _showCardRouteMenu(channel, Offset(size.width / 2, size.height / 3))),
-      TouchAction('category', '变更分类', Icons.category, () => _changeChannelCategory(channel)),
+        TouchAction(
+          'capture',
+          '截图',
+          Icons.camera_alt,
+          () => capturePlaybackFrame(context, ref.read(playerServiceProvider)),
+        ),
+      TouchAction(
+        'routes',
+        '线路管理',
+        Icons.route,
+        () => _showCardRouteMenu(
+          channel,
+          Offset(size.width / 2, size.height / 3),
+        ),
+      ),
+      TouchAction(
+        'category',
+        '变更分类',
+        Icons.category,
+        () => _changeChannelCategory(channel),
+      ),
     ];
   }
 
   Future<void> _showMobileChannelActions(db.Channel channel) =>
-      showTouchActionSheet(context, title: _channelDisplayName(channel), actions: _mobileChannelActions(channel));
+      showTouchActionSheet(
+        context,
+        title: _channelDisplayName(channel),
+        actions: _mobileChannelActions(channel),
+      );
 
   Future<void> _showMobileLanguages() {
     final scope = LanguageScope.of(context);
-    return showTouchActionSheet(context, title: AppMessages.text(context, '语言'), actions: [
-      TouchAction('language-system', '跟随系统', Icons.language, () => scope?.onSelected('system'), selected: scope?.selected == null),
-      for (final language in AppLanguage.values)
-        TouchAction('language-${language.tag}', language.label, Icons.translate,
-          () => scope?.onSelected(language.tag), selected: scope?.selected == language),
-    ]);
+    return showTouchActionSheet(
+      context,
+      title: AppMessages.text(context, '语言'),
+      actions: [
+        TouchAction(
+          'language-system',
+          '跟随系统',
+          Icons.language,
+          () => scope?.onSelected('system'),
+          selected: scope?.selected == null,
+        ),
+        for (final language in AppLanguage.values)
+          TouchAction(
+            'language-${language.tag}',
+            language.label,
+            Icons.translate,
+            () => scope?.onSelected(language.tag),
+            selected: scope?.selected == language,
+          ),
+      ],
+    );
   }
 
   String _mobileProgrammeTime(db.EpgProgramme programme, db.Channel channel) {
     final shift = Duration(hours: _epgTimeshifts[channel.id] ?? 0);
     final localizations = MaterialLocalizations.of(context);
-    String time(DateTime value) => localizations.formatTimeOfDay(TimeOfDay.fromDateTime(value.add(shift)));
+    String time(DateTime value) =>
+        localizations.formatTimeOfDay(TimeOfDay.fromDateTime(value.add(shift)));
     return '${time(programme.start)}  ~  ${time(programme.stop)}';
   }
 
   Future<List<db.EpgProgramme>> _mobileProgrammes(db.Channel channel) async {
     final database = ref.read(databaseProvider);
     final service = ref.read(playerServiceProvider);
-    final epgId = await resolveLiveEpgId(database, channelId: channel.id,
-      providerId: channel.providerId, actualStreamUrl: service.currentChannelId == channel.id ? service.currentUrl : null,
-      fallbackId: _getEpgId(channel));
+    final epgId = await resolveLiveEpgId(
+      database,
+      channelId: channel.id,
+      providerId: channel.providerId,
+      actualStreamUrl: service.currentChannelId == channel.id
+          ? service.currentUrl
+          : null,
+      fallbackId: _getEpgId(channel),
+    );
     if (epgId == null) return [];
-    return database.getUpcomingProgrammes(epgChannelId: epgId,
-      at: DateTime.now().subtract(Duration(hours: _epgTimeshifts[channel.id] ?? 0)), limit: 20);
+    return database.getUpcomingProgrammes(
+      epgChannelId: epgId,
+      at: DateTime.now().subtract(
+        Duration(hours: _epgTimeshifts[channel.id] ?? 0),
+      ),
+      limit: 20,
+    );
   }
 
   Future<void> _showMobileProgrammes(db.Channel channel) async {
     var future = _mobileProgrammes(channel);
-    await showModalBottomSheet<void>(context: context, isScrollControlled: true, showDragHandle: true,
-      builder: (sheetContext) => SafeArea(child: SizedBox(
-        height: MediaQuery.sizeOf(context).height * .72,
-        child: StatefulBuilder(builder: (context, update) => Column(children: [
-          Padding(padding: const EdgeInsets.all(16), child: Text('${_channelDisplayName(channel)} · ${AppMessages.text(context, '节目单')}',
-            style: Theme.of(context).textTheme.titleLarge)),
-          Expanded(child: FutureBuilder<List<db.EpgProgramme>>(future: future, builder: (context, snapshot) {
-            if (snapshot.connectionState != ConnectionState.done) return const Center(child: CircularProgressIndicator());
-            if (snapshot.hasError) return Center(child: TextButton.icon(
-              onPressed: () => update(() => future = _mobileProgrammes(channel)), icon: const Icon(Icons.refresh),
-              label: Text(AppMessages.text(context, '加载失败，请重试'))));
-            final programmes = snapshot.data ?? [];
-            if (programmes.isEmpty) return Center(child: Text(AppMessages.text(context, '暂无节目单')));
-            return ListView(children: [for (final programme in programmes)
-              ListTile(title: Text(programme.title), subtitle: Text(_mobileProgrammeTime(programme, channel))) ]);
-          })),
-        ])),
-      )));
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (sheetContext) => SafeArea(
+        child: SizedBox(
+          height: MediaQuery.sizeOf(context).height * .72,
+          child: StatefulBuilder(
+            builder: (context, update) => Column(
+              children: [
+                Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Text(
+                    '${_channelDisplayName(channel)} · ${AppMessages.text(context, '节目单')}',
+                    style: Theme.of(context).textTheme.titleLarge,
+                  ),
+                ),
+                Expanded(
+                  child: FutureBuilder<List<db.EpgProgramme>>(
+                    future: future,
+                    builder: (context, snapshot) {
+                      if (snapshot.connectionState != ConnectionState.done)
+                        return const Center(child: CircularProgressIndicator());
+                      if (snapshot.hasError)
+                        return Center(
+                          child: TextButton.icon(
+                            onPressed: () => update(
+                              () => future = _mobileProgrammes(channel),
+                            ),
+                            icon: const Icon(Icons.refresh),
+                            label: Text(AppMessages.text(context, '加载失败，请重试')),
+                          ),
+                        );
+                      final programmes = snapshot.data ?? [];
+                      if (programmes.isEmpty)
+                        return Center(
+                          child: Text(AppMessages.text(context, '暂无节目单')),
+                        );
+                      return ListView(
+                        children: [
+                          for (final programme in programmes)
+                            ListTile(
+                              title: Text(programme.title),
+                              subtitle: Text(
+                                _mobileProgrammeTime(programme, channel),
+                              ),
+                            ),
+                        ],
+                      );
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
   }
 
   Widget _buildUpdateBadge() {
@@ -3594,115 +4365,147 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
   }
 
   Widget _buildSimpleHome(BuildContext context) {
-    return ResponsiveHomeLayout(builder: (context, tiny) => PopScope(
-      canPop: false,
-      child: Scaffold(
-        backgroundColor: BobTvPalette.deep,
-        resizeToAvoidBottomInset: false,
-        body: DecoratedBox(
-          decoration: const BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: BobTvPalette.pageGradient,
-              stops: [0, 0.48, 1],
+    return ResponsiveHomeLayout(
+      builder: (context, tiny) => PopScope(
+        canPop: false,
+        child: Scaffold(
+          backgroundColor: BobTvPalette.deep,
+          resizeToAvoidBottomInset: false,
+          body: DecoratedBox(
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: BobTvPalette.pageGradient,
+                stops: [0, 0.48, 1],
+              ),
             ),
-          ),
-          child: SafeArea(
-            child: Column(
-              children: [
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(12, 4, 12, 4),
-                  child: AdaptiveHomeToolbar(
-                    compact: true,
-                    brand: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Container(
-                          width: 26,
-                          height: 26,
-                          decoration: BoxDecoration(
-                            gradient: BobTvPalette.brandGradient,
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                          child: const Icon(
-                            Icons.play_arrow_rounded,
-                            color: BobTvPalette.onAccent,
-                            size: 27,
-                          ),
-                        ),
-                        const SizedBox(width: 11),
-                        Text(
-                          'BobTV',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 19,
-                            fontWeight: FontWeight.w700,
-                            letterSpacing: -0.7,
-                          ),
-                        ),
-                        const SizedBox(width: 16),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 9,
-                            vertical: 4,
-                          ),
-                          decoration: BoxDecoration(
-                            color: Colors.white.withValues(alpha: 0.09),
-                            borderRadius: BorderRadius.circular(6),
-                          ),
-                          child: Text(
-                            AppMessages.text(context, "直播"),
-                            style: TextStyle(
-                              color: Colors.white70,
-                              fontSize: 10,
-                              fontWeight: FontWeight.w700,
-                              letterSpacing: 1.5,
+            child: SafeArea(
+              child: Column(
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(12, 4, 12, 4),
+                    child: AdaptiveHomeToolbar(
+                      compact: true,
+                      brand: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Container(
+                            width: 26,
+                            height: 26,
+                            decoration: BoxDecoration(
+                              gradient: BobTvPalette.brandGradient,
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: const Icon(
+                              Icons.play_arrow_rounded,
+                              color: BobTvPalette.onAccent,
+                              size: 27,
                             ),
                           ),
-                        ),
-                      ],
-                    ),
-                    actions: [
-                      if (Platform.isIOS || Platform.isAndroid)
-                        IconButton(key: const ValueKey('tablet-more-actions'),
-                          tooltip: AppMessages.text(context, '更多'), icon: const Icon(Icons.more_horiz),
-                          onPressed: () => _showMobileTools()),
-                      const AccountButton(),
-                      const LanguageMenu(),
-                      _buildUpdateBadge(),
-                      const DesktopExitButton(),
-                      if (!Platform.isIOS && !Platform.isAndroid)
-                      PopupMenuButton<String>(
-                        iconSize: tiny ? 20 : 24,
-                        style: tiny ? IconButton.styleFrom(minimumSize: const Size(40, 40), maximumSize: const Size(40, 40), padding: const EdgeInsets.all(4), tapTargetSize: MaterialTapTargetSize.shrinkWrap) : null,
-                        tooltip: AppMessages.text(context, "更多操作"),
-                        icon: const Icon(Icons.more_horiz, color: Colors.white70),
-                        onSelected: (action) {
-                          if (action == 'refresh' && !_routeAvailabilityLoading) {
-                            setState(() => _routeAvailabilityLoading = true);
-                            unawaited(_refreshRouteAvailability(_allChannels, _categoryLoadGeneration));
-                          }
-                        },
-                        itemBuilder: (_) => [
-                          PopupMenuItem(value: 'refresh', enabled: !_routeAvailabilityLoading, child: Text(AppMessages.text(context, "重新读取线路检查结果"))),
+                          const SizedBox(width: 11),
+                          Text(
+                            'BobTV',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 19,
+                              fontWeight: FontWeight.w700,
+                              letterSpacing: -0.7,
+                            ),
+                          ),
+                          const SizedBox(width: 16),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 9,
+                              vertical: 4,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.white.withValues(alpha: 0.09),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: Text(
+                              AppMessages.text(context, "直播"),
+                              style: TextStyle(
+                                color: Colors.white70,
+                                fontSize: 10,
+                                fontWeight: FontWeight.w700,
+                                letterSpacing: 1.5,
+                              ),
+                            ),
+                          ),
                         ],
                       ),
-                    ],
+                      actions: [
+                        if (Platform.isIOS || Platform.isAndroid)
+                          IconButton(
+                            key: const ValueKey('tablet-more-actions'),
+                            tooltip: AppMessages.text(context, '更多'),
+                            icon: const Icon(Icons.more_horiz),
+                            onPressed: () => _showMobileTools(),
+                          ),
+                        const AccountButton(),
+                        const LanguageMenu(),
+                        _buildUpdateBadge(),
+                        const DesktopExitButton(),
+                        if (!Platform.isIOS && !Platform.isAndroid)
+                          PopupMenuButton<String>(
+                            iconSize: tiny ? 20 : 24,
+                            style: tiny
+                                ? IconButton.styleFrom(
+                                    minimumSize: const Size(40, 40),
+                                    maximumSize: const Size(40, 40),
+                                    padding: const EdgeInsets.all(4),
+                                    tapTargetSize:
+                                        MaterialTapTargetSize.shrinkWrap,
+                                  )
+                                : null,
+                            tooltip: AppMessages.text(context, "更多操作"),
+                            icon: const Icon(
+                              Icons.more_horiz,
+                              color: Colors.white70,
+                            ),
+                            onSelected: (action) {
+                              if (action == 'refresh' &&
+                                  !_routeAvailabilityLoading) {
+                                setState(
+                                  () => _routeAvailabilityLoading = true,
+                                );
+                                unawaited(
+                                  _refreshRouteAvailability(
+                                    _allChannels,
+                                    _categoryLoadGeneration,
+                                  ),
+                                );
+                              }
+                            },
+                            itemBuilder: (_) => [
+                              PopupMenuItem(
+                                value: 'refresh',
+                                enabled: !_routeAvailabilityLoading,
+                                child: Text(
+                                  AppMessages.text(context, "重新读取线路检查结果"),
+                                ),
+                              ),
+                            ],
+                          ),
+                      ],
+                    ),
                   ),
-                ),
-                Expanded(
-                  child: SimpleHomeContent(
-                    preview: RepaintBoundary(child: _buildSimplePreview()),
-                    channels: RepaintBoundary(child: _buildSimpleChannelPanel(tiny: tiny)),
+                  Expanded(
+                    child: SimpleHomeContent(
+                      preview: RepaintBoundary(child: _buildSimplePreview()),
+                      channels: RepaintBoundary(
+                        child: _buildSimpleChannelPanel(tiny: tiny),
+                      ),
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         ),
       ),
-    ));
+    );
   }
 
   BoxDecoration _simpleSurfaceDecoration() => BoxDecoration(
@@ -3714,11 +4517,13 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
     ),
     borderRadius: BorderRadius.circular(28),
     border: Border.all(color: BobTvPalette.outline.withValues(alpha: 0.42)),
-    boxShadow: const [BoxShadow(
-      color: Color(0x50000000),
-      blurRadius: 30,
-      offset: Offset(0, 14),
-    )],
+    boxShadow: const [
+      BoxShadow(
+        color: Color(0x50000000),
+        blurRadius: 30,
+        offset: Offset(0, 14),
+      ),
+    ],
   );
 
   Widget _buildSimplePreview() {
@@ -3754,30 +4559,6 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                             child: _buildActiveVideo(),
                           ),
                   ),
-                  if (channel != null)
-                    Positioned(
-                      top: 16,
-                      left: 16,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 11,
-                          vertical: 6,
-                        ),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFE6485B),
-                          borderRadius: BorderRadius.circular(7),
-                        ),
-                        child: Text(
-                          AppMessages.text(context, "● 直播"),
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 11,
-                            fontWeight: FontWeight.w700,
-                            letterSpacing: 1,
-                          ),
-                        ),
-                      ),
-                    ),
                   if (channel != null)
                     Positioned(
                       left: 12,
@@ -3869,9 +4650,17 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                         style: const TextStyle(color: Colors.white60),
                       ),
                     if (channel != null)
-                      Text(playingRouteCountLabel(ref.read(playerServiceProvider).currentCandidateCount, context: context),
-                        maxLines: 1, overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(color: Colors.white60, fontSize: 10),
+                      Text(
+                        playingRouteCountLabel(
+                          ref.read(playerServiceProvider).currentCandidateCount,
+                          context: context,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: Colors.white60,
+                          fontSize: 10,
+                        ),
                       ),
                   ],
                 ),
@@ -3879,8 +4668,12 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
               if (channel != null) ...[
                 if (!_allowsAudioOnly(channel)) _buildPreviewSubtitleButton(),
                 IconButton(
-                  tooltip: _favoritedChannelIds.contains(channel.id) ? AppMessages.text(context, "取消收藏") : AppMessages.text(context, "加入收藏"),
-                  onPressed: _favoriteActionsPending.contains(channel.id) ? null : () => _handleRouteMenuFavorite(channel),
+                  tooltip: _favoritedChannelIds.contains(channel.id)
+                      ? AppMessages.text(context, "取消收藏")
+                      : AppMessages.text(context, "加入收藏"),
+                  onPressed: _favoriteActionsPending.contains(channel.id)
+                      ? null
+                      : () => _handleRouteMenuFavorite(channel),
                   icon: Icon(
                     _favoritedChannelIds.contains(channel.id)
                         ? Icons.star_rounded
@@ -3943,82 +4736,241 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
   String? _compactChinaSection;
 
   Widget _buildCompactCategories({required bool tiny}) {
-    final favorites = _selectedGroup == 'Favorites' || _selectedGroup.startsWith('fav:');
+    final favorites =
+        _selectedGroup == 'Favorites' || _selectedGroup.startsWith('fav:');
     final international = _selectedGroup == '国际';
     final other = _selectedGroup == '其他';
     final mainland = !favorites && !international && !other;
-    final province = ChannelCategoryClassifier.provinceCategories.contains(_selectedGroup.split(' / ').first);
-    final section = _compactChinaSection ?? (province ? '地方台' : _selectedGroup.split(' / ').first);
-    final customGroups = _groups.where((g) => !ChannelCategoryClassifier.categories.contains(g)).toList();
-    final customRoots = customGroups.map((g) => g.split(' / ').first).where((g) => !ChannelCategoryClassifier.categories.contains(g)).toSet().toList();
+    final province = ChannelCategoryClassifier.provinceCategories.contains(
+      _selectedGroup.split(' / ').first,
+    );
+    final section =
+        _compactChinaSection ??
+        (province ? '地方台' : _selectedGroup.split(' / ').first);
+    final customGroups = _groups
+        .where((g) => !ChannelCategoryClassifier.categories.contains(g))
+        .toList();
+    final customRoots = customGroups
+        .map((g) => g.split(' / ').first)
+        .where((g) => !ChannelCategoryClassifier.categories.contains(g))
+        .toSet()
+        .toList();
     final levels = <Widget>[
-      CompactCategoryRow(tiny: tiny, level: 1, title: AppMessages.text(context, "主分类"), options: [
-        CompactCategoryOption(id: 'favorites', label: AppMessages.text(context, "我的收藏"), selected: favorites, onTap: () => _selectGroupAndPlayFirst('Favorites')),
-        CompactCategoryOption(id: 'china', label: AppMessages.text(context, "中国"), selected: mainland, onTap: () {
-          setState(() => _compactChinaSection = null);
-          if (!mainland) _selectGroupAndPlayFirst('央视');
-        }),
-        CompactCategoryOption(id: 'international', label: AppMessages.text(context, "国际"), selected: international && !_pinnedInternationalCountries.contains(_selectedInternationalCountry), onTap: () => _selectGroupAndPlayFirst('国际')),
-        CompactCategoryOption(id: 'other', label: AppMessages.text(context, "其他"), selected: other, onTap: () => _selectGroupAndPlayFirst('其他')),
-        for (final country in _pinnedInternationalCountries)
-          CompactCategoryOption(id: country, label: AppMessages.category(context, country), selected: international && _selectedInternationalCountry == country, onTap: () => _selectPinnedCountry(country), onContextMenu: (p) => _showCountryPinMenu(country, p)),
-      ]),
+      CompactCategoryRow(
+        tiny: tiny,
+        level: 1,
+        title: AppMessages.text(context, "主分类"),
+        options: [
+          CompactCategoryOption(
+            id: 'favorites',
+            label: AppMessages.text(context, "我的收藏"),
+            selected: favorites,
+            onTap: () => _selectGroupAndPlayFirst('Favorites'),
+          ),
+          CompactCategoryOption(
+            id: 'china',
+            label: AppMessages.text(context, "中国"),
+            selected: mainland,
+            onTap: () {
+              setState(() => _compactChinaSection = null);
+              if (!mainland) _selectGroupAndPlayFirst('央视');
+            },
+          ),
+          CompactCategoryOption(
+            id: 'international',
+            label: AppMessages.text(context, "国际"),
+            selected:
+                international &&
+                !_pinnedInternationalCountries.contains(
+                  _selectedInternationalCountry,
+                ),
+            onTap: () => _selectGroupAndPlayFirst('国际'),
+          ),
+          CompactCategoryOption(
+            id: 'other',
+            label: AppMessages.text(context, "其他"),
+            selected: other,
+            onTap: () => _selectGroupAndPlayFirst('其他'),
+          ),
+          for (final country in _pinnedInternationalCountries)
+            CompactCategoryOption(
+              id: country,
+              label: AppMessages.category(context, country),
+              selected:
+                  international && _selectedInternationalCountry == country,
+              onTap: () => _selectPinnedCountry(country),
+              onContextMenu: (p) => _showCountryPinMenu(country, p),
+            ),
+        ],
+      ),
     ];
     if (mainland) {
-      levels.add(CompactCategoryRow(tiny: tiny, level: 2, title: AppMessages.text(context, "频道分类"), options: [
-        for (final group in ['央视', '数字', '广播', '地方台', ...customRoots])
-          CompactCategoryOption(id: group, label: AppMessages.category(context, group), selected: section == group, onTap: () {
-            setState(() => _compactChinaSection = group);
-            if (group == '地方台') { return; }
-            final destination = _groups.contains(group) ? group : customGroups.firstWhere((g) => g.startsWith('$group / '), orElse: () => group);
-            _selectGroupAndPlayFirst(destination);
-          }),
-      ]));
-      if (section == '地方台') {
-        final provinces = ChannelCategoryClassifier.provinceCategories;
-        levels.add(CompactCategoryRow(tiny: tiny, level: 3, title: AppMessages.text(context, "地区"), options: [
-          for (final group in provinces.toSet()) CompactCategoryOption(id: group, label: AppMessages.category(context, group), selected: _selectedGroup == group, onTap: () => _selectGroupAndPlayFirst(group)),
-        ]));
-      } else {
-        final children = _groups.where((g) => g == section || g.startsWith('$section / ')).toList();
-        if (children.any((g) => g.contains(' / '))) {
-          levels.add(CompactCategoryRow(tiny: tiny, level: 3, title: AppMessages.text(context, "子分类"), options: [
-            for (final group in children)
+      levels.add(
+        CompactCategoryRow(
+          tiny: tiny,
+          level: 2,
+          title: AppMessages.text(context, "频道分类"),
+          options: [
+            for (final group in ['央视', '数字', '广播', '地方台', ...customRoots])
               CompactCategoryOption(
                 id: group,
-                label: group == section
-                    ? AppMessages.text(context, '全部')
-                    : AppMessages.category(
-                        context,
-                        group.substring(section.length + 3),
-                      ),
-                selected: _selectedGroup == group,
-                onTap: () => _selectGroupAndPlayFirst(group),
+                label: AppMessages.category(context, group),
+                selected: section == group,
+                onTap: () {
+                  setState(() => _compactChinaSection = group);
+                  if (group == '地方台') {
+                    return;
+                  }
+                  final destination = _groups.contains(group)
+                      ? group
+                      : customGroups.firstWhere(
+                          (g) => g.startsWith('$group / '),
+                          orElse: () => group,
+                        );
+                  _selectGroupAndPlayFirst(destination);
+                },
               ),
-          ]));
+          ],
+        ),
+      );
+      if (section == '地方台') {
+        final provinces = ChannelCategoryClassifier.provinceCategories;
+        levels.add(
+          CompactCategoryRow(
+            tiny: tiny,
+            level: 3,
+            title: AppMessages.text(context, "地区"),
+            options: [
+              for (final group in provinces.toSet())
+                CompactCategoryOption(
+                  id: group,
+                  label: AppMessages.category(context, group),
+                  selected: _selectedGroup == group,
+                  onTap: () => _selectGroupAndPlayFirst(group),
+                ),
+            ],
+          ),
+        );
+      } else {
+        final children = _groups
+            .where((g) => g == section || g.startsWith('$section / '))
+            .toList();
+        if (children.any((g) => g.contains(' / '))) {
+          levels.add(
+            CompactCategoryRow(
+              tiny: tiny,
+              level: 3,
+              title: AppMessages.text(context, "子分类"),
+              options: [
+                for (final group in children)
+                  CompactCategoryOption(
+                    id: group,
+                    label: group == section
+                        ? AppMessages.text(context, '全部')
+                        : AppMessages.category(
+                            context,
+                            group.substring(section.length + 3),
+                          ),
+                    selected: _selectedGroup == group,
+                    onTap: () => _selectGroupAndPlayFirst(group),
+                  ),
+              ],
+            ),
+          );
         }
       }
     } else if (international) {
-      if (_internationalCountries.isNotEmpty) { levels.add(CompactCategoryRow(tiny: tiny, level: 2, title: AppMessages.text(context, "国家或地区"), countryIndex: true, countryLocale: AppLanguage.resolve([Localizations.localeOf(context)], null).tag, options: [
-        for (final country in _internationalCountries) CompactCategoryOption(id: country, label: AppMessages.category(context, country), selected: country == _selectedInternationalCountry, onTap: () => _selectInternationalCountry(country), onContextMenu: (p) => _showCountryPinMenu(country, p)),
-      ])); }
-      levels.add(CompactCategoryRow(tiny: tiny, level: 3, title: AppMessages.text(context, "广播或电视"), options: [
-        for (final media in ['电视', '广播'])
-          CompactCategoryOption(id: media, label: AppMessages.category(context, media), selected: media == _selectedInternationalMedia, onTap: () => _selectInternationalMedia(media)),
-      ]));
+      if (_internationalCountries.isNotEmpty) {
+        levels.add(
+          CompactCategoryRow(
+            tiny: tiny,
+            level: 2,
+            title: AppMessages.text(context, "国家或地区"),
+            countryIndex: true,
+            countryLocale: AppLanguage.resolve([
+              Localizations.localeOf(context),
+            ], null).tag,
+            options: [
+              for (final country in _internationalCountries)
+                CompactCategoryOption(
+                  id: country,
+                  label: AppMessages.category(context, country),
+                  selected: country == _selectedInternationalCountry,
+                  onTap: () => _selectInternationalCountry(country),
+                  onContextMenu: (p) => _showCountryPinMenu(country, p),
+                ),
+            ],
+          ),
+        );
+      }
+      levels.add(
+        CompactCategoryRow(
+          tiny: tiny,
+          level: 3,
+          title: AppMessages.text(context, "广播或电视"),
+          options: [
+            for (final media in ['电视', '广播'])
+              CompactCategoryOption(
+                id: media,
+                label: AppMessages.category(context, media),
+                selected: media == _selectedInternationalMedia,
+                onTap: () => _selectInternationalMedia(media),
+              ),
+          ],
+        ),
+      );
       final genres = _internationalGenresForSelectedCountry();
-      if (_selectedInternationalMedia == '电视' && genres.isNotEmpty) { levels.add(CompactCategoryRow(tiny: tiny, level: 4, title: AppMessages.text(context, "节目类型"), options: [
-        for (final genre in genres) CompactCategoryOption(id: genre, label: AppMessages.category(context, genre), selected: genre == _selectedInternationalGenre, onTap: () => _selectInternationalGenre(genre)),
-      ])); }
+      if (_selectedInternationalMedia == '电视' && genres.isNotEmpty) {
+        levels.add(
+          CompactCategoryRow(
+            tiny: tiny,
+            level: 4,
+            title: AppMessages.text(context, "节目类型"),
+            options: [
+              for (final genre in genres)
+                CompactCategoryOption(
+                  id: genre,
+                  label: AppMessages.category(context, genre),
+                  selected: genre == _selectedInternationalGenre,
+                  onTap: () => _selectInternationalGenre(genre),
+                ),
+            ],
+          ),
+        );
+      }
     } else if (favorites && _favoriteLists.isNotEmpty) {
-      levels.add(CompactCategoryRow(tiny: tiny, level: 2, title: AppMessages.text(context, "收藏列表"), options: [
-        CompactCategoryOption(id: 'all', label: AppMessages.text(context, "全部收藏"), selected: _selectedGroup == 'Favorites', onTap: () => _selectGroupAndPlayFirst('Favorites')),
-        for (final list in _favoriteLists) CompactCategoryOption(id: list.id, label: list.name, selected: _selectedGroup == 'fav:${list.id}', onTap: () => _selectGroupAndPlayFirst('fav:${list.id}')),
-      ]));
+      levels.add(
+        CompactCategoryRow(
+          tiny: tiny,
+          level: 2,
+          title: AppMessages.text(context, "收藏列表"),
+          options: [
+            CompactCategoryOption(
+              id: 'all',
+              label: AppMessages.text(context, "全部收藏"),
+              selected: _selectedGroup == 'Favorites',
+              onTap: () => _selectGroupAndPlayFirst('Favorites'),
+            ),
+            for (final list in _favoriteLists)
+              CompactCategoryOption(
+                id: list.id,
+                label: list.name,
+                selected: _selectedGroup == 'fav:${list.id}',
+                onTap: () => _selectGroupAndPlayFirst('fav:${list.id}'),
+              ),
+          ],
+        ),
+      );
     }
-    return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-      for (var i = 0; i < levels.length; i++) ...[if (i > 0) const SizedBox(height: 3), levels[i]],
-    ]);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        for (var i = 0; i < levels.length; i++) ...[
+          if (i > 0) const SizedBox(height: 3),
+          levels[i],
+        ],
+      ],
+    );
   }
 
   Widget _buildSimpleChannelPanel({required bool tiny}) {
@@ -4032,184 +4984,218 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
           context: context,
           builder: (dialogContext) => AlertDialog(
             backgroundColor: BobTvPalette.raised,
-            title: Text(AppMessages.text(context, "搜索当前分类"), style: TextStyle(color: Colors.white, fontSize: 16)),
+            title: Text(
+              AppMessages.text(context, "搜索当前分类"),
+              style: TextStyle(color: Colors.white, fontSize: 16),
+            ),
             content: TextField(
               controller: _searchController,
               autofocus: true,
               style: const TextStyle(color: Colors.white),
-              onChanged: (value) => setState(() { _searchQuery = value; _applyFilters(); }),
+              onChanged: (value) => setState(() {
+                _searchQuery = value;
+                _applyFilters();
+              }),
               onSubmitted: (_) => Navigator.pop(dialogContext),
             ),
-            actions: [TextButton(onPressed: () => Navigator.pop(dialogContext), child: Text(AppMessages.text(context, "完成")))],
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(dialogContext),
+                child: Text(AppMessages.text(context, "完成")),
+              ),
+            ],
           ),
         ),
         header: SimpleChannelPanelHeader(
-            compact: true,
-            syncBadge: SharedSyncBadge(
-              catalog: ref
-                  .read(sourceMaintenanceCoordinatorProvider)
-                  .websiteCatalog
-                  .state,
-              upload: ref
-                  .read(sourceMaintenanceCoordinatorProvider)
-                  .inventory
-                  .state,
-            ),
-            summary: _routeAvailabilityLoading
-                ? AppMessages.text(context, "正在读取服务器线路状态…")
-                : AppMessages.text(context, "{0} 个频道", [_filteredChannels.length]),
+          compact: true,
+          syncBadge: SharedSyncBadge(
+            catalog: ref
+                .read(sourceMaintenanceCoordinatorProvider)
+                .websiteCatalog
+                .state,
+            upload: ref
+                .read(sourceMaintenanceCoordinatorProvider)
+                .inventory
+                .state,
           ),
+          summary: _routeAvailabilityLoading
+              ? AppMessages.text(context, "正在读取服务器线路状态…")
+              : AppMessages.text(context, "{0} 个频道", [
+                  _filteredChannels.length,
+                ]),
+        ),
         navigation: _buildCompactCategories(tiny: tiny),
         search: TextField(
-            controller: _searchController,
-            style: const TextStyle(color: Colors.white, fontSize: 12),
-            decoration: InputDecoration(
-              isDense: true,
-              contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-              prefixIconConstraints: const BoxConstraints(minWidth: 32, minHeight: 32),
-              hintText: AppMessages.text(context, "搜索当前分类"),
-              hintStyle: const TextStyle(color: Colors.white54),
-              prefixIcon: const Icon(
-                Icons.search_rounded,
-                color: Colors.white54,
-              ),
-              filled: true,
-              fillColor: BobTvPalette.background,
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(16),
-                borderSide: const BorderSide(color: Colors.white12),
-              ),
-              enabledBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(16),
-                borderSide: const BorderSide(color: Colors.white12),
-              ),
+          controller: _searchController,
+          style: const TextStyle(color: Colors.white, fontSize: 12),
+          decoration: InputDecoration(
+            isDense: true,
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 10,
+              vertical: 8,
             ),
-            onChanged: (value) => setState(() {
-              _searchQuery = value;
-              _applyFilters();
-            }),
+            prefixIconConstraints: const BoxConstraints(
+              minWidth: 32,
+              minHeight: 32,
+            ),
+            hintText: AppMessages.text(context, "搜索当前分类"),
+            hintStyle: const TextStyle(color: Colors.white54),
+            prefixIcon: const Icon(Icons.search_rounded, color: Colors.white54),
+            filled: true,
+            fillColor: BobTvPalette.background,
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(16),
+              borderSide: const BorderSide(color: Colors.white12),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(16),
+              borderSide: const BorderSide(color: Colors.white12),
+            ),
           ),
+          onChanged: (value) => setState(() {
+            _searchQuery = value;
+            _applyFilters();
+          }),
+        ),
         body: _filteredChannels.isEmpty
-                ? Center(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        ChannelCatalogStatus(
-                          category: _selectedGroup == '国际'
-                              ? _selectedInternationalCountry
-                              : _selectedGroup == 'Favorites'
-                              ? '我的收藏'
-                              : _selectedGroup,
-                          loading: _categoryLoading,
-                          checking: _routeAvailabilityLoading,
-                          onRetry: () => _loadGroupChannels(_selectedGroup),
-                        ),
-                      ],
+            ? Center(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    ChannelCatalogStatus(
+                      category: _selectedGroup == '国际'
+                          ? _selectedInternationalCountry
+                          : _selectedGroup == 'Favorites'
+                          ? '我的收藏'
+                          : _selectedGroup,
+                      loading: _categoryLoading,
+                      checking: _routeAvailabilityLoading,
+                      onRetry: () => _loadGroupChannels(_selectedGroup),
                     ),
-                  )
-                : LayoutBuilder(
-                    builder: (context, constraints) {
-                      final columns = TabletPresentation.channelColumns(constraints.maxWidth, compact: true, tiny: tiny);
-                      final guideIndex = ChannelListIdentity.indexOf(
-                        _filteredChannels,
-                        _inlineProgrammePreview.selectedChannelId,
-                        (c) => c.id,
-                      );
-                      final hasGuide = guideIndex >= 0;
-                      final hasProgrammes = _inlineProgrammePreview.programmes.isNotEmpty;
-                      final singleLineGuide = constraints.maxHeight < 230;
-                      final guideHeight = hasGuide
-                          ? hasProgrammes
-                            ? ChannelProgrammeStrip.compactHeight(MediaQuery.textScalerOf(context), singleLine: singleLineGuide, dense: tiny)
-                            : 96.0
-                          : 0.0;
-                      return InlineExpandedChannelGrid(
-                        cardHeight: TabletPresentation.compactCardHeight(constraints.maxHeight, guideHeight, tiny: tiny),
-                        spacing: 8,
-                        guideGap: tiny ? 4 : 6,
-                        padding: tiny ? const EdgeInsets.fromLTRB(4, 2, 4, 4) : const EdgeInsets.fromLTRB(4, 4, 4, 8),
-                        channelIds: _filteredChannels.map((c) => c.id).toList(),
-                        columns: columns,
-                        expandedChannelId: hasGuide
-                            ? _inlineProgrammePreview.selectedChannelId
-                            : null,
-                        expandedContent: hasGuide
-                            ? Container(
-                                key: _inlineProgrammeStripKey,
-                                child: !hasProgrammes ? ServerEpgChannelStatus(
-                                  epgChannelId: _inlineProgrammePreview.epgChannelId,
-                                  fallback: ChannelProgrammeStatus(
-                                  loading: _inlineProgrammePreview.loading,
-                                  failed: _inlineProgrammePreview.failed,
-                                  hasMapping: _inlineProgrammePreview.hasMapping,
-                                )) : ChannelProgrammeStrip(
-                                  key: ValueKey(
-                                    'programme-strip-${_inlineProgrammePreview.selectedChannelId}',
-                                  ),
-                                  channelName: _channelDisplayName(
-                                    _filteredChannels[guideIndex],
-                                  ),
-                                  embedded: true,
-                                  compact: true,
-                                  compactSingleLine: singleLineGuide,
-                                  compactDense: tiny,
-                                  showHeader: false,
-                                  programmes:
-                                      _inlineProgrammePreview.programmes,
-                                  timeshiftHours:
-                                      _inlineProgrammePreview.timeshiftHours,
-                                ),
+                  ],
+                ),
+              )
+            : LayoutBuilder(
+                builder: (context, constraints) {
+                  final columns = TabletPresentation.channelColumns(
+                    constraints.maxWidth,
+                    compact: true,
+                    tiny: tiny,
+                  );
+                  final guideIndex = ChannelListIdentity.indexOf(
+                    _filteredChannels,
+                    _inlineProgrammePreview.selectedChannelId,
+                    (c) => c.id,
+                  );
+                  final hasGuide = guideIndex >= 0;
+                  final hasProgrammes =
+                      _inlineProgrammePreview.programmes.isNotEmpty;
+                  final singleLineGuide = constraints.maxHeight < 230;
+                  final guideHeight = hasGuide
+                      ? hasProgrammes
+                            ? ChannelProgrammeStrip.compactHeight(
+                                MediaQuery.textScalerOf(context),
+                                singleLine: singleLineGuide,
+                                dense: tiny,
                               )
-                            : null,
-                        cardBuilder: (context, index) {
-                          final channel = _filteredChannels[index];
-                          final selected =
-                              _selectedIndex >= 0 &&
-                              ChannelListIdentity.matches(
-                                _previewChannel?.id,
-                                channel.id,
-                              );
-                          final service = ref.read(playerServiceProvider);
-                          return ChannelCardPlaybackBinding(
-                            key: ValueKey('channel-card-${channel.id}'),
-                            channelId: channel.id,
-                            selected: selected,
-                            pending: ChannelListIdentity.matches(
-                              _pendingChannelId,
-                              channel.id,
-                            ),
-                            preparedChannelId: () =>
-                                _preparedChannelId == channel.id
-                                ? service.preparedChannelId
-                                : null,
-                            previewController: service.previewVideoController,
-                            mainProgress: service.routeSearchProgress,
-                            previewProgress: service.channelPreviewProgress,
-                            builder: (previewController, progress, loading) =>
-                                _buildSimpleChannelTile(
-                                  channel,
-                                  tiny: tiny,
-                                  joinedToProgramme:
-                                      hasGuide && index == guideIndex,
-                                  selected: selected,
-                                  loading: loading,
-                                  loadingProgress: progress,
-                                  previewController: previewController,
-                                  onTap: () => _onSimpleChannelTap(channel),
-                                  onDoubleTap: () => _selectChannelById(
-                                    channel.id,
-                                    force: true,
+                            : 96.0
+                      : 0.0;
+                  return InlineExpandedChannelGrid(
+                    cardHeight: TabletPresentation.compactCardHeight(
+                      constraints.maxHeight,
+                      guideHeight,
+                      tiny: tiny,
+                    ),
+                    spacing: 8,
+                    guideGap: tiny ? 4 : 6,
+                    padding: tiny
+                        ? const EdgeInsets.fromLTRB(4, 2, 4, 4)
+                        : const EdgeInsets.fromLTRB(4, 4, 4, 8),
+                    channelIds: _filteredChannels.map((c) => c.id).toList(),
+                    columns: columns,
+                    expandedChannelId: hasGuide
+                        ? _inlineProgrammePreview.selectedChannelId
+                        : null,
+                    expandedContent: hasGuide
+                        ? Container(
+                            key: _inlineProgrammeStripKey,
+                            child: !hasProgrammes
+                                ? ServerEpgChannelStatus(
+                                    epgChannelId:
+                                        _inlineProgrammePreview.epgChannelId,
+                                    fallback: ChannelProgrammeStatus(
+                                      loading: _inlineProgrammePreview.loading,
+                                      failed: _inlineProgrammePreview.failed,
+                                      hasMapping:
+                                          _inlineProgrammePreview.hasMapping,
+                                    ),
+                                  )
+                                : ChannelProgrammeStrip(
+                                    key: ValueKey(
+                                      'programme-strip-${_inlineProgrammePreview.selectedChannelId}',
+                                    ),
+                                    channelName: _channelDisplayName(
+                                      _filteredChannels[guideIndex],
+                                    ),
+                                    embedded: true,
+                                    compact: true,
+                                    compactSingleLine: singleLineGuide,
+                                    compactDense: tiny,
+                                    showHeader: false,
+                                    programmes:
+                                        _inlineProgrammePreview.programmes,
+                                    timeshiftHours:
+                                        _inlineProgrammePreview.timeshiftHours,
                                   ),
-                                  onContextMenu: (position) =>
-                                      selected && service.currentUrl != null
-                                      ? _showCurrentRouteMenu(position)
-                                      : _showCardRouteMenu(channel, position),
-                                ),
+                          )
+                        : null,
+                    cardBuilder: (context, index) {
+                      final channel = _filteredChannels[index];
+                      final selected =
+                          _selectedIndex >= 0 &&
+                          ChannelListIdentity.matches(
+                            _previewChannel?.id,
+                            channel.id,
                           );
-                        },
+                      final service = ref.read(playerServiceProvider);
+                      return ChannelCardPlaybackBinding(
+                        key: ValueKey('channel-card-${channel.id}'),
+                        channelId: channel.id,
+                        selected: selected,
+                        pending: ChannelListIdentity.matches(
+                          _pendingChannelId,
+                          channel.id,
+                        ),
+                        preparedChannelId: () =>
+                            _preparedChannelId == channel.id
+                            ? service.preparedChannelId
+                            : null,
+                        previewController: service.previewVideoController,
+                        mainProgress: service.routeSearchProgress,
+                        previewProgress: service.channelPreviewProgress,
+                        builder: (previewController, progress, loading) =>
+                            _buildSimpleChannelTile(
+                              channel,
+                              tiny: tiny,
+                              joinedToProgramme:
+                                  hasGuide && index == guideIndex,
+                              selected: selected,
+                              loading: loading,
+                              loadingProgress: progress,
+                              previewController: previewController,
+                              onTap: () => _onSimpleChannelTap(channel),
+                              onDoubleTap: () =>
+                                  _selectChannelById(channel.id, force: true),
+                              onContextMenu: (position) =>
+                                  selected && service.currentUrl != null
+                                  ? _showCurrentRouteMenu(position)
+                                  : _showCardRouteMenu(channel, position),
+                            ),
                       );
                     },
-                  ),
+                  );
+                },
+              ),
       ),
     );
   }
@@ -4349,20 +5335,22 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                           children: [
                             Row(
                               children: [
-                                Expanded(child: Text(
-                                  selected
-                                      ? AppMessages.text(context, "● 正在播放")
-                                      : previewController != null
-                                      ? AppMessages.text(context, "● 静音预览")
-                                      : AppMessages.text(context, "● 直播"),
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: TextStyle(
-                                    color: BobTvPalette.ink,
-                                    fontSize: tiny ? 8 : 9,
-                                    fontWeight: FontWeight.w700,
+                                Expanded(
+                                  child: Text(
+                                    selected
+                                        ? AppMessages.text(context, "● 正在播放")
+                                        : previewController != null
+                                        ? AppMessages.text(context, "● 静音预览")
+                                        : AppMessages.text(context, "● 直播"),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                      color: BobTvPalette.ink,
+                                      fontSize: tiny ? 8 : 9,
+                                      fontWeight: FontWeight.w700,
+                                    ),
                                   ),
-                                )),
+                                ),
                                 if (busy) ...[
                                   const SizedBox(
                                     width: 13,
@@ -4374,18 +5362,29 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                                   ),
                                   const SizedBox(width: 6),
                                 ],
-                                Expanded(child: Text(
-                                  loading && loadingProgress != null
-                                      ? AppMessages.text(context, "{0}/{1} 路", [loadingProgress.index, loadingProgress.total])
-                                      : AppMessages.text(context, "{0} 路候选", [_candidateRouteCount(channel)]),
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  textAlign: TextAlign.right,
-                                  style: TextStyle(
-                                    color: Colors.white70,
-                                    fontSize: tiny ? 8 : 9,
+                                Expanded(
+                                  child: Text(
+                                    loading && loadingProgress != null
+                                        ? AppMessages.text(
+                                            context,
+                                            "{0}/{1} 路",
+                                            [
+                                              loadingProgress.index,
+                                              loadingProgress.total,
+                                            ],
+                                          )
+                                        : AppMessages.text(context, "{0} 路候选", [
+                                            _candidateRouteCount(channel),
+                                          ]),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    textAlign: TextAlign.right,
+                                    style: TextStyle(
+                                      color: Colors.white70,
+                                      fontSize: tiny ? 8 : 9,
+                                    ),
                                   ),
-                                )),
+                                ),
                               ],
                             ),
                             if (cardSpectrum != null)
@@ -4409,21 +5408,32 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                             SizedBox(height: tiny ? 2 : 4),
                             Row(
                               children: [
-                                Expanded(child: Text(
-                                  previewController != null
-                                      ? AppMessages.text(context, "点击切换到主画面")
-                                      : busy
-                                      ? loadingProgress == null
-                                            ? AppMessages.text(context, "正在准备预览")
-                                            : AppMessages.text(context, "正在尝试线路")
-                                      : AppMessages.text(context, "单击预览 · 双击播放"),
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: TextStyle(
-                                    color: Colors.white70,
-                                    fontSize: tiny ? 8 : 9,
+                                Expanded(
+                                  child: Text(
+                                    previewController != null
+                                        ? AppMessages.text(context, "点击切换到主画面")
+                                        : busy
+                                        ? loadingProgress == null
+                                              ? AppMessages.text(
+                                                  context,
+                                                  "正在准备预览",
+                                                )
+                                              : AppMessages.text(
+                                                  context,
+                                                  "正在尝试线路",
+                                                )
+                                        : AppMessages.text(
+                                            context,
+                                            "单击预览 · 双击播放",
+                                          ),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                      color: Colors.white70,
+                                      fontSize: tiny ? 8 : 9,
+                                    ),
                                   ),
-                                )),
+                                ),
                                 if (_favoritedChannelIds.contains(channel.id))
                                   const Icon(
                                     Icons.star_rounded,
@@ -4449,11 +5459,16 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
   Widget _buildSimpleChannelMonogram(String name) {
     final compact = name.replaceAll(RegExp(r'\s+'), '');
     final monogram = compact.length > 4 ? compact.substring(0, 4) : compact;
-    return Text(monogram.isEmpty ? 'TV' : monogram,
-        maxLines: 1,
-        style: const TextStyle(color: Colors.white,
-            fontSize: 58, fontWeight: FontWeight.w800,
-            letterSpacing: -1));
+    return Text(
+      monogram.isEmpty ? 'TV' : monogram,
+      maxLines: 1,
+      style: const TextStyle(
+        color: Colors.white,
+        fontSize: 58,
+        fontWeight: FontWeight.w800,
+        letterSpacing: -1,
+      ),
+    );
   }
 
   String _localizedLoadStatus(BuildContext context) {
@@ -4465,9 +5480,12 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
   }
 
   Widget _buildEmptyState(BuildContext context) {
-    final waitingForBundledSources = !UserSourcePolicy.enabled && _providers.isEmpty;
+    final waitingForBundledSources =
+        !UserSourcePolicy.enabled && _providers.isEmpty;
     final title = _categoryLoading
-        ? AppMessages.text(context, "正在载入 {0}…", [AppMessages.category(context, _selectedGroup)])
+        ? AppMessages.text(context, "正在载入 {0}…", [
+            AppMessages.category(context, _selectedGroup),
+          ])
         : waitingForBundledSources
         ? AppMessages.text(context, "正在初始化共享频道")
         : AppMessages.text(context, "当前分类暂无频道");
@@ -4475,7 +5493,12 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
         ? AppMessages.text(context, "频道和备用线路会在载入完成后自动显示")
         : waitingForBundledSources
         ? AppMessages.text(context, "BobTV 正在载入已分类的启动清单，并与网站同步")
-        : AppMessages.text(context, UserSourcePolicy.enabled ? '空播放器添加说明' : "频道会自动从 BobTV 网站同步，暂时没有可用线路时可稍后重试");
+        : AppMessages.text(
+            context,
+            UserSourcePolicy.enabled
+                ? '空播放器添加说明'
+                : "频道会自动从 BobTV 网站同步，暂时没有可用线路时可稍后重试",
+          );
     return Scaffold(
       body: SafeArea(
         child: Column(
@@ -4508,14 +5531,15 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                     ),
                     const SizedBox(height: 8),
                     ValueListenableBuilder<WebsiteCatalogProgress>(
-                      valueListenable: ref.read(
-                        sourceMaintenanceCoordinatorProvider,
-                      ).websiteCatalog.state,
+                      valueListenable: ref
+                          .read(sourceMaintenanceCoordinatorProvider)
+                          .websiteCatalog
+                          .state,
                       builder: (context, progress, _) => Text(
                         progress.phase.isNotEmpty && !progress.complete
                             ? progress.total > 0
-                                ? '${AppMessages.text(context, progress.phase)} ${progress.imported}/${progress.total}'
-                                : AppMessages.text(context, progress.phase)
+                                  ? '${AppMessages.text(context, progress.phase)} ${progress.imported}/${progress.total}'
+                                  : AppMessages.text(context, progress.phase)
                             : message,
                         textAlign: TextAlign.center,
                         style: const TextStyle(
@@ -4533,11 +5557,22 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
               autofocus: true,
               key: const ValueKey('empty-add-source'),
               onPressed: () async {
-                if (UserSourcePolicy.enabled) { await showAddProviderDialog(context); }
-                else { await ref.read(sourceMaintenanceCoordinatorProvider).websiteCatalog.sync(); }
+                if (UserSourcePolicy.enabled) {
+                  await showAddProviderDialog(context);
+                } else {
+                  await ref
+                      .read(sourceMaintenanceCoordinatorProvider)
+                      .websiteCatalog
+                      .sync();
+                }
               },
               icon: Icon(UserSourcePolicy.enabled ? Icons.add : Icons.refresh),
-              label: Text(AppMessages.text(context, UserSourcePolicy.enabled ? '添加电视源' : "重新同步频道")),
+              label: Text(
+                AppMessages.text(
+                  context,
+                  UserSourcePolicy.enabled ? '添加电视源' : "重新同步频道",
+                ),
+              ),
             ),
             const Spacer(),
           ],
@@ -4554,15 +5589,22 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
     )) {
       return Padding(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        child: Row(children: [
-          const Text('BobTV'),
-          const SizedBox(width: 12),
-          Expanded(child: Text(_localizedLoadStatus(context),
-            maxLines: 1, overflow: TextOverflow.ellipsis,
-            style: const TextStyle(fontSize: 11, color: Colors.white54))),
-          const AccountButton(),
-                      const LanguageMenu(),
-        ]),
+        child: Row(
+          children: [
+            const Text('BobTV'),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                _localizedLoadStatus(context),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(fontSize: 11, color: Colors.white54),
+              ),
+            ),
+            const AccountButton(),
+            const LanguageMenu(),
+          ],
+        ),
       );
     }
     return Padding(
@@ -4580,7 +5622,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
           const SizedBox(width: 10),
           _buildUpdateBadge(),
           const AccountButton(),
-                      const LanguageMenu(),
+          const LanguageMenu(),
           const DesktopExitButton(),
           const SizedBox(width: 10),
           ConstrainedBox(
@@ -4594,8 +5636,12 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
           ),
           const SizedBox(width: 16),
           if (_previewChannel != null) ...[
-            Text(AppMessages.text(context, "备选 {0} 条", [_verifiedAlternativeCount(_previewChannel!)]),
-                style: const TextStyle(color: Colors.white70, fontSize: 12)),
+            Text(
+              AppMessages.text(context, "备选 {0} 条", [
+                _verifiedAlternativeCount(_previewChannel!),
+              ]),
+              style: const TextStyle(color: Colors.white70, fontSize: 12),
+            ),
             const SizedBox(width: 12),
           ],
           Expanded(
@@ -4757,8 +5803,10 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Text(AppMessages.text(context, "显示无可用线"),
-                            style: TextStyle(color: Colors.white70, fontSize: 12)),
+                        Text(
+                          AppMessages.text(context, "显示无可用线"),
+                          style: TextStyle(color: Colors.white70, fontSize: 12),
+                        ),
                         Switch.adaptive(
                           value: _showUnavailableSources,
                           onChanged: (value) => setState(() {
@@ -4797,7 +5845,9 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
   Widget _buildIpv6SourceToggle() {
     final active = _hideIpv6Sources;
     return Tooltip(
-      message: active ? AppMessages.text(context, "点击显示 IPv6 源") : AppMessages.text(context, "点击隐藏 IPv6 源"),
+      message: active
+          ? AppMessages.text(context, "点击显示 IPv6 源")
+          : AppMessages.text(context, "点击隐藏 IPv6 源"),
       child: Material(
         color: Colors.transparent,
         child: InkWell(
@@ -4843,7 +5893,9 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                         value: active,
                         onChanged: (_) {},
                         activeThumbColor: BobTvPalette.accent,
-                        activeTrackColor: BobTvPalette.action.withValues(alpha: 0.75),
+                        activeTrackColor: BobTvPalette.action.withValues(
+                          alpha: 0.75,
+                        ),
                       ),
                     ),
                   ),
@@ -5024,7 +6076,8 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                                             vertical: 2,
                                           ),
                                           decoration: BoxDecoration(
-                                            color: BobTvPalette.action.withValues(alpha: 0.2),
+                                            color: BobTvPalette.action
+                                                .withValues(alpha: 0.2),
                                             borderRadius: BorderRadius.circular(
                                               4,
                                             ),
@@ -5064,12 +6117,25 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                               }
                               return Text(
                                 progress.total > 0
-                                    ? AppMessages.text(context, "{0} {1}/{2} 路", [AppMessages.text(context, progress.stage), progress.index, progress.total])
+                                    ? AppMessages.text(
+                                        context,
+                                        "{0} {1}/{2} 路",
+                                        [
+                                          AppMessages.text(
+                                            context,
+                                            progress.stage,
+                                          ),
+                                          progress.index,
+                                          progress.total,
+                                        ],
+                                      )
                                     : AppMessages.text(context, progress.stage),
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                                 style: const TextStyle(
-                                    color: BobTvPalette.accent, fontSize: 11),
+                                  color: BobTvPalette.accent,
+                                  fontSize: 11,
+                                ),
                               );
                             },
                           ),
@@ -5160,7 +6226,15 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                                         ),
                                         const SizedBox(width: 8),
                                         Text(
-                                          hasExact ? AppMessages.text(context, "IMDb ↗") : AppMessages.text(context, "IMDb 🔍"),
+                                          hasExact
+                                              ? AppMessages.text(
+                                                  context,
+                                                  "IMDb ↗",
+                                                )
+                                              : AppMessages.text(
+                                                  context,
+                                                  "IMDb 🔍",
+                                                ),
                                           style: const TextStyle(
                                             color: Colors.amber,
                                             fontSize: 11,
@@ -5229,7 +6303,9 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                                         ),
                                       const SizedBox(width: 4),
                                       Text(
-                                        buffering ? AppMessages.text(context, "缓冲中") : AppMessages.text(context, "正常"),
+                                        buffering
+                                            ? AppMessages.text(context, "缓冲中")
+                                            : AppMessages.text(context, "正常"),
                                         style: TextStyle(
                                           color: buffering
                                               ? Colors.orangeAccent
@@ -5249,7 +6325,10 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                                   final hasAudio = snapshot.data ?? true;
                                   if (hasAudio) return const SizedBox.shrink();
                                   return Tooltip(
-                                    message: AppMessages.text(context, "未检测到音轨"),
+                                    message: AppMessages.text(
+                                      context,
+                                      "未检测到音轨",
+                                    ),
                                     child: Icon(
                                       Icons.volume_off_rounded,
                                       size: 14,
@@ -5297,7 +6376,10 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                                     ),
                                     padding: EdgeInsets.zero,
                                     color: Colors.white70,
-                                    tooltip: AppMessages.text(context, "频道诊断信息"),
+                                    tooltip: AppMessages.text(
+                                      context,
+                                      "频道诊断信息",
+                                    ),
                                   ),
                                 ),
                               ),
@@ -5475,7 +6557,9 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
             Padding(
               padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 8),
               child: Text(
-                _sidebarExpanded ? AppMessages.text(context, "BobTV v{0}", [bobTvVersion]) : 'v$bobTvVersion',
+                _sidebarExpanded
+                    ? AppMessages.text(context, "BobTV v{0}", [bobTvVersion])
+                    : 'v$bobTvVersion',
                 style: const TextStyle(
                   fontSize: 10,
                   color: Colors.white24,
@@ -5578,12 +6662,17 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
     final filteredCountries = q.isEmpty
         ? _internationalCountries
         : _internationalCountries
-            .where((country) => country.toLowerCase().contains(q))
-            .toList();
+              .where((country) => country.toLowerCase().contains(q))
+              .toList();
     final filteredGroups = q.isEmpty
         ? _groups
-        : _groups.where((g) => g.toLowerCase().contains(q) ||
-            (g == '国际' && filteredCountries.isNotEmpty)).toList();
+        : _groups
+              .where(
+                (g) =>
+                    g.toLowerCase().contains(q) ||
+                    (g == '国际' && filteredCountries.isNotEmpty),
+              )
+              .toList();
     final filteredProvinceGroups = filteredGroups
         .where(ChannelCategoryClassifier.provinceCategories.contains)
         .toList();
@@ -5633,69 +6722,74 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
           const Divider(height: 1, color: Colors.white10),
         if (filteredGroups.isNotEmpty) _buildSidebarSectionLabel('国家或地区'),
         if (filteredGroups.isNotEmpty)
-          _buildTreeSection(
-            'groups',
-            Icons.folder_rounded,
-            '频道分类',
-            [
-              if (filteredProvinceGroups.isNotEmpty ||
-                  filteredMainGroups.any((g) =>
-                      const ['央视', '广播', '数字'].contains(g)))
-                _buildTreeSection('china', Icons.map_rounded, '中国', [
-                  if (filteredMainGroups.contains('央视'))
-                    _buildTreeItem('央视', '央视', null, indent: 1,
-                        focusNode: _sidebarAllItemFocusNode),
-                  if (filteredProvinceGroups.isNotEmpty)
-                    _buildTreeSection(
-                      'regions',
-                      Icons.map_rounded,
-                      '地方（省份） (${filteredProvinceGroups.length})',
-                      [
-                        for (final group in filteredProvinceGroups)
-                          _buildTreeItem(group, group, null, indent: 2),
-                      ],
-                    ),
-                  for (final group in const ['数字', '广播'])
-                    if (filteredMainGroups.contains(group))
-                      _buildTreeItem(group, group, null, indent: 1),
-                ]),
-              if (filteredMainGroups.contains('其他'))
-                _buildTreeItem('其他', '其他', Icons.help_outline_rounded, indent: 1),
-              if (filteredMainGroups.contains('国际')) ...[
-                _buildTreeItem('国际频道', '国际', Icons.public_rounded,
-                    indent: 1),
-                if (_selectedGroup == '国际') ...[
-                  for (final country in filteredCountries) ...[
-                    _buildTreeItem(
-                      country,
-                      'international-country:$country',
-                      null,
-                      indent: 2,
-                      onSelect: () => _selectInternationalCountry(country),
-                      selectedOverride:
-                          country == _selectedInternationalCountry,
-                    ),
-                    if (country == _selectedInternationalCountry)
-                      for (final media in ['电视', '广播'])
-                        _buildTreeItem(media, 'international-media:$media', null, indent: 3,
-                          onSelect: () => _selectInternationalMedia(media),
-                          selectedOverride: media == _selectedInternationalMedia),
-                    if (country == _selectedInternationalCountry && _selectedInternationalMedia == '电视')
-                      for (final genre in _internationalGenresForSelectedCountry())
-                        _buildTreeItem(
-                          genre,
-                          'international-genre:$genre',
-                          null,
-                          indent: 3,
-                          onSelect: () => _selectInternationalGenre(genre),
-                          selectedOverride:
-                              genre == _selectedInternationalGenre,
-                        ),
-                  ],
+          _buildTreeSection('groups', Icons.folder_rounded, '频道分类', [
+            if (filteredProvinceGroups.isNotEmpty ||
+                filteredMainGroups.any(
+                  (g) => const ['央视', '广播', '数字'].contains(g),
+                ))
+              _buildTreeSection('china', Icons.map_rounded, '中国', [
+                if (filteredMainGroups.contains('央视'))
+                  _buildTreeItem(
+                    '央视',
+                    '央视',
+                    null,
+                    indent: 1,
+                    focusNode: _sidebarAllItemFocusNode,
+                  ),
+                if (filteredProvinceGroups.isNotEmpty)
+                  _buildTreeSection(
+                    'regions',
+                    Icons.map_rounded,
+                    '地方（省份） (${filteredProvinceGroups.length})',
+                    [
+                      for (final group in filteredProvinceGroups)
+                        _buildTreeItem(group, group, null, indent: 2),
+                    ],
+                  ),
+                for (final group in const ['数字', '广播'])
+                  if (filteredMainGroups.contains(group))
+                    _buildTreeItem(group, group, null, indent: 1),
+              ]),
+            if (filteredMainGroups.contains('其他'))
+              _buildTreeItem('其他', '其他', Icons.help_outline_rounded, indent: 1),
+            if (filteredMainGroups.contains('国际')) ...[
+              _buildTreeItem('国际频道', '国际', Icons.public_rounded, indent: 1),
+              if (_selectedGroup == '国际') ...[
+                for (final country in filteredCountries) ...[
+                  _buildTreeItem(
+                    country,
+                    'international-country:$country',
+                    null,
+                    indent: 2,
+                    onSelect: () => _selectInternationalCountry(country),
+                    selectedOverride: country == _selectedInternationalCountry,
+                  ),
+                  if (country == _selectedInternationalCountry)
+                    for (final media in ['电视', '广播'])
+                      _buildTreeItem(
+                        media,
+                        'international-media:$media',
+                        null,
+                        indent: 3,
+                        onSelect: () => _selectInternationalMedia(media),
+                        selectedOverride: media == _selectedInternationalMedia,
+                      ),
+                  if (country == _selectedInternationalCountry &&
+                      _selectedInternationalMedia == '电视')
+                    for (final genre
+                        in _internationalGenresForSelectedCountry())
+                      _buildTreeItem(
+                        genre,
+                        'international-genre:$genre',
+                        null,
+                        indent: 3,
+                        onSelect: () => _selectInternationalGenre(genre),
+                        selectedOverride: genre == _selectedInternationalGenre,
+                      ),
                 ],
               ],
             ],
-          ),
+          ]),
         // Shows & Movies
         const Divider(height: 1, color: Colors.white10),
         _buildTreeItem('影视资料', 'action:shows', Icons.movie_rounded, indent: 0),
@@ -5957,7 +7051,10 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                     autofocus: true,
                     keyboardType: TextInputType.url,
                     decoration: InputDecoration(
-                      hintText: AppMessages.text(context, "http:// or rtsp:// stream URL"),
+                      hintText: AppMessages.text(
+                        context,
+                        "http:// or rtsp:// stream URL",
+                      ),
                       isDense: true,
                     ),
                     onSubmitted: (v) => Navigator.pop(ctx, v.trim()),
@@ -6127,7 +7224,9 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
           _selectedGroup == 'Favorites' || _selectedGroup.startsWith('fav:');
       return Center(
         child: Text(
-          isFavorites ? AppMessages.text(context, "暂无收藏频道，点击频道的星号即可收藏") : AppMessages.text(context, "当前分类暂无频道"),
+          isFavorites
+              ? AppMessages.text(context, "暂无收藏频道，点击频道的星号即可收藏")
+              : AppMessages.text(context, "当前分类暂无频道"),
           style: const TextStyle(color: Colors.white38),
         ),
       );
@@ -6386,15 +7485,9 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                         border: focused
                             ? Border.all(color: Colors.white, width: 2.0)
                             : isMultiSelected
-                            ? Border.all(
-                                color: BobTvPalette.accent,
-                                width: 1.5,
-                              )
+                            ? Border.all(color: BobTvPalette.accent, width: 1.5)
                             : isSelected
-                            ? Border.all(
-                                color: BobTvPalette.accent,
-                                width: 1.5,
-                              )
+                            ? Border.all(color: BobTvPalette.accent, width: 1.5)
                             : null,
                       ),
                       child: Row(
@@ -6761,7 +7854,9 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                                     ],
                                   ),
                                   Text(
-                                    AppMessages.text(context, "{0} streams", [members.length]),
+                                    AppMessages.text(context, "{0} streams", [
+                                      members.length,
+                                    ]),
                                     style: const TextStyle(
                                       fontSize: 9,
                                       color: Colors.white30,
@@ -6971,7 +8066,9 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
         child: Row(
           children: [
             Text(
-              AppMessages.text(context, "{0} selected", [_multiSelectedChannelIds.length]),
+              AppMessages.text(context, "{0} selected", [
+                _multiSelectedChannelIds.length,
+              ]),
               style: const TextStyle(color: Colors.white70, fontSize: 13),
             ),
             const Spacer(),
@@ -7008,7 +8105,9 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                           ? _addToExistingFailoverGroup
                           : null,
                       icon: const Icon(Icons.add, size: 16),
-                      label: Text(AppMessages.text(context, "Add to Smart Channel")),
+                      label: Text(
+                        AppMessages.text(context, "Add to Smart Channel"),
+                      ),
                       style: FilledButton.styleFrom(
                         backgroundColor: const Color(0xFF2D3436),
                         side: focused
@@ -7076,7 +8175,11 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
             mainAxisSize: MainAxisSize.min,
             children: [
               Text(
-                AppMessages.text(context, "{0} channels selected. Streams will auto-switch when buffering is detected.", [_multiSelectedChannelIds.length]),
+                AppMessages.text(
+                  context,
+                  "{0} channels selected. Streams will auto-switch when buffering is detected.",
+                  [_multiSelectedChannelIds.length],
+                ),
                 style: const TextStyle(color: Colors.white54, fontSize: 12),
               ),
               const SizedBox(height: 12),
@@ -7130,7 +8233,11 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            AppMessages.text(context, "Smart channel \"{0}\" created with {1} streams", [name, orderedIds.length]),
+            AppMessages.text(
+              context,
+              "Smart channel \"{0}\" created with {1} streams",
+              [name, orderedIds.length],
+            ),
           ),
           duration: const Duration(seconds: 3),
           behavior: SnackBarBehavior.floating,
@@ -7197,7 +8304,10 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-              AppMessages.text(context, "All selected streams are already in this smart channel"),
+              AppMessages.text(
+                context,
+                "All selected streams are already in this smart channel",
+              ),
             ),
             duration: Duration(seconds: 2),
             behavior: SnackBarBehavior.floating,
@@ -7219,7 +8329,11 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            AppMessages.text(context, "Added {0} stream{1} to \"{2}\"", [newIds.length, newIds.length == 1 ? '' : 's', selected.name]),
+            AppMessages.text(context, "Added {0} stream{1} to \"{2}\"", [
+              newIds.length,
+              newIds.length == 1 ? '' : 's',
+              selected.name,
+            ]),
           ),
           duration: const Duration(seconds: 3),
           behavior: SnackBarBehavior.floating,
@@ -7384,7 +8498,11 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                               ],
                             ),
                             Text(
-                              AppMessages.text(context, "{0} streams · smart channel", [members.length]),
+                              AppMessages.text(
+                                context,
+                                "{0} streams · smart channel",
+                                [members.length],
+                              ),
                               style: const TextStyle(
                                 color: Colors.white38,
                                 fontSize: 11,
@@ -7489,7 +8607,9 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                           borderRadius: BorderRadius.circular(6),
                           border: focused
                               ? Border.all(
-                                  color: BobTvPalette.action.withValues(alpha: 0.5),
+                                  color: BobTvPalette.action.withValues(
+                                    alpha: 0.5,
+                                  ),
                                 )
                               : null,
                         ),
@@ -7649,7 +8769,9 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                 color: Colors.white70,
               ),
               title: Text(
-                AppMessages.text(context, "Play {0}", [_channelDisplayName(channel)]),
+                AppMessages.text(context, "Play {0}", [
+                  _channelDisplayName(channel),
+                ]),
                 style: const TextStyle(color: Colors.white),
               ),
               onTap: () {
@@ -7681,7 +8803,11 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
                       content: Text(
-                        AppMessages.text(context, "Removed \"{0}\" from \"{1}\"", [_channelDisplayName(channel), group.name]),
+                        AppMessages.text(
+                          context,
+                          "Removed \"{0}\" from \"{1}\"",
+                          [_channelDisplayName(channel), group.name],
+                        ),
                       ),
                       duration: const Duration(seconds: 2),
                       behavior: SnackBarBehavior.floating,
@@ -7791,7 +8917,11 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                       style: TextStyle(color: Colors.white),
                     ),
                     content: Text(
-                      AppMessages.text(context, "Delete \"{0}\"? The individual streams will be kept.", [group.name]),
+                      AppMessages.text(
+                        context,
+                        "Delete \"{0}\"? The individual streams will be kept.",
+                        [group.name],
+                      ),
                       style: const TextStyle(color: Colors.white70),
                     ),
                     actions: [
@@ -7841,14 +8971,18 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              AppMessages.text(context, "Original: {0}", [channel.tvgName ?? channel.name]),
+              AppMessages.text(context, "Original: {0}", [
+                channel.tvgName ?? channel.name,
+              ]),
               style: const TextStyle(fontSize: 12, color: Colors.white54),
             ),
             const SizedBox(height: 12),
             TextFormField(
               controller: controller,
               autofocus: true,
-              decoration: InputDecoration(labelText: AppMessages.text(context, "Display Name")),
+              decoration: InputDecoration(
+                labelText: AppMessages.text(context, "Display Name"),
+              ),
             ),
           ],
         ),
@@ -7935,7 +9069,10 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                     controller: searchCtrl,
                     autofocus: true,
                     decoration: InputDecoration(
-                      hintText: AppMessages.text(context, "Search EPG channels..."),
+                      hintText: AppMessages.text(
+                        context,
+                        "Search EPG channels...",
+                      ),
                       prefixIcon: Icon(Icons.search),
                       isDense: true,
                     ),
@@ -7943,7 +9080,9 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    AppMessages.text(context, "{0} EPG channels", [filtered.length]),
+                    AppMessages.text(context, "{0} EPG channels", [
+                      filtered.length,
+                    ]),
                     style: const TextStyle(fontSize: 12, color: Colors.white54),
                   ),
                   const SizedBox(height: 4),
@@ -8026,7 +9165,10 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                       icon: const Icon(Icons.remove_circle_outline),
                     ),
                     Text(
-                      AppMessages.text(context, "{0}{1}h", [selected > 0 ? '+' : '', selected]),
+                      AppMessages.text(context, "{0}{1}h", [
+                        selected > 0 ? '+' : '',
+                        selected,
+                      ]),
                       style: const TextStyle(
                         fontSize: 20,
                         fontWeight: FontWeight.bold,
@@ -8042,7 +9184,11 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                 Text(
                   selected == 0
                       ? AppMessages.text(context, "No shift")
-                      : AppMessages.text(context, "Programmes shifted {0} {1}h", [selected > 0 ? 'forward' : 'back', selected.abs()]),
+                      : AppMessages.text(
+                          context,
+                          "Programmes shifted {0} {1}h",
+                          [selected > 0 ? 'forward' : 'back', selected.abs()],
+                        ),
                   style: const TextStyle(color: Colors.white54, fontSize: 12),
                 ),
               ],
@@ -8081,11 +9227,15 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
     }
   }
 
-  Future<void> _showFavoriteListSheet(db.Channel channel) => showChannelFavoriteListSheet(
-    context: context, database: ref.read(databaseProvider),
-    channelId: channel.id, channelName: channel.name,
-    createListName: _showCreateListDialog, onChanged: _refreshFavoriteState,
-  );
+  Future<void> _showFavoriteListSheet(db.Channel channel) =>
+      showChannelFavoriteListSheet(
+        context: context,
+        database: ref.read(databaseProvider),
+        channelId: channel.id,
+        channelName: channel.name,
+        createListName: _showCreateListDialog,
+        onChanged: _refreshFavoriteState,
+      );
 
   /// Dialog to create a new favorite list — returns the name or null.
   Future<String?> _showCreateListDialog() async {
@@ -8180,7 +9330,10 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                         padding: EdgeInsets.symmetric(vertical: 24),
                         child: Center(
                           child: Text(
-                            AppMessages.text(context, "No favorite lists yet.\nTap + to create one."),
+                            AppMessages.text(
+                              context,
+                              "No favorite lists yet.\nTap + to create one.",
+                            ),
                             textAlign: TextAlign.center,
                             style: TextStyle(color: Colors.white38),
                           ),
@@ -8355,7 +9508,11 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
           style: TextStyle(color: Colors.white),
         ),
         content: Text(
-          AppMessages.text(context, "Are you sure you want to delete \"{0}\"?\nChannels will not be deleted.", [listName]),
+          AppMessages.text(
+            context,
+            "Are you sure you want to delete \"{0}\"?\nChannels will not be deleted.",
+            [listName],
+          ),
           style: const TextStyle(color: Colors.white70),
         ),
         actions: [
@@ -8782,11 +9939,17 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                                             _multiSelectedChannelIds.contains(
                                               channel.id,
                                             ))
-                                        ? BobTvPalette.action.withValues(alpha: 0.25)
+                                        ? BobTvPalette.action.withValues(
+                                            alpha: 0.25,
+                                          )
                                         : isSelected
-                                        ? BobTvPalette.action.withValues(alpha: 0.25)
+                                        ? BobTvPalette.action.withValues(
+                                            alpha: 0.25,
+                                          )
                                         : hasFocus
-                                        ? BobTvPalette.action.withValues(alpha: 0.15)
+                                        ? BobTvPalette.action.withValues(
+                                            alpha: 0.15,
+                                          )
                                         : Colors.transparent,
                                     border: Border(
                                       bottom: const BorderSide(
@@ -8865,7 +10028,8 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                                                           ) => Container(
                                                             width: 28,
                                                             height: 28,
-                                                            color: BobTvPalette.raised,
+                                                            color: BobTvPalette
+                                                                .raised,
                                                             child: const Icon(
                                                               Icons.tv,
                                                               size: 14,
@@ -8877,7 +10041,8 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                                                   : Container(
                                                       width: 28,
                                                       height: 28,
-                                                      color: BobTvPalette.raised,
+                                                      color:
+                                                          BobTvPalette.raised,
                                                       child: const Icon(
                                                         Icons.tv,
                                                         size: 14,
@@ -9040,11 +10205,18 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                 color: Colors.amber,
               ),
               const SizedBox(width: 8),
-              Text(isFav ? AppMessages.text(context, "取消收藏") : AppMessages.text(context, "加入收藏")),
+              Text(
+                isFav
+                    ? AppMessages.text(context, "取消收藏")
+                    : AppMessages.text(context, "加入收藏"),
+              ),
             ],
           ),
         ),
-        PopupMenuItem(value: 'manage_favorites', child: Text(AppMessages.text(context, "管理收藏夹"))),
+        PopupMenuItem(
+          value: 'manage_favorites',
+          child: Text(AppMessages.text(context, "管理收藏夹")),
+        ),
         PopupMenuItem(
           value: 'epg_map',
           child: Row(
@@ -9057,11 +10229,13 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
         ),
         PopupMenuItem(
           value: 'category',
-          child: Row(children: [
-            Icon(Icons.folder_open_rounded, size: 18),
-            SizedBox(width: 8),
-            Text(AppMessages.text(context, "变更分类")),
-          ]),
+          child: Row(
+            children: [
+              Icon(Icons.folder_open_rounded, size: 18),
+              SizedBox(width: 8),
+              Text(AppMessages.text(context, "变更分类")),
+            ],
+          ),
         ),
         const PopupMenuDivider(),
         PopupMenuItem(
@@ -9106,7 +10280,11 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
               const Icon(Icons.schedule, size: 18),
               const SizedBox(width: 8),
               Text(
-                AppMessages.text(context, "Timeshift EPG{0}", [_epgTimeshifts.containsKey(channel.id) ? ' (${_epgTimeshifts[channel.id]! > 0 ? '+' : ''}${_epgTimeshifts[channel.id]!}h)' : '']),
+                AppMessages.text(context, "Timeshift EPG{0}", [
+                  _epgTimeshifts.containsKey(channel.id)
+                      ? ' (${_epgTimeshifts[channel.id]! > 0 ? '+' : ''}${_epgTimeshifts[channel.id]!}h)'
+                      : '',
+                ]),
               ),
             ],
           ),
@@ -9144,11 +10322,15 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
           unawaited(_changeChannelCategory(channel));
         case 'reminder':
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(AppMessages.text(context, "Reminders coming soon"))),
+            SnackBar(
+              content: Text(AppMessages.text(context, "Reminders coming soon")),
+            ),
           );
         case 'record':
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(AppMessages.text(context, "Recording coming soon"))),
+            SnackBar(
+              content: Text(AppMessages.text(context, "Recording coming soon")),
+            ),
           );
         case 'rename':
           _renameChannel(channel);
@@ -9290,7 +10472,10 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: BobTvPalette.panel,
-        title: Text(AppMessages.text(context, "Rename List"), style: TextStyle(color: Colors.white)),
+        title: Text(
+          AppMessages.text(context, "Rename List"),
+          style: TextStyle(color: Colors.white),
+        ),
         content: SizedBox(
           width: 300,
           child: TextFormField(

@@ -46,6 +46,12 @@ class ClientAudioSubtitles {
   static bool get supported => ClientSubtitleRuntime.available;
   String? _workerModel;
   String? _iosRecognitionId;
+  String? get _modelPath =>
+      _usesPlayerGuide &&
+          _source != null &&
+          !isReviewedRakutenUkMovieSource(_source!)
+      ? ClientSubtitleRuntime.cjkQaModel ?? ClientSubtitleRuntime.model
+      : ClientSubtitleRuntime.model;
   String text = '';
   SubtitlePhase phase = SubtitlePhase.searching;
   String? _source, _session;
@@ -201,7 +207,7 @@ class ClientAudioSubtitles {
     }
     final ready = Completer<void>();
     final worker = await Process.start(ClientSubtitleRuntime.asr!, [
-      ClientSubtitleRuntime.model!,
+      _modelPath!,
     ]);
     if (_disposed) {
       worker.kill();
@@ -912,7 +918,16 @@ class ClientAudioSubtitles {
       file = File('${directory.path}/window.pcm');
       final input = prepareRecognitionPcm(bytes);
       await file.writeAsBytes(input.bytes, flush: true);
-      final hint = subtitleLanguage(player.state.track.audio.language);
+      final rawLanguage = player.state.track.audio.language;
+      final useCjkQa =
+          ClientSubtitleRuntime.cjkQaModel != null &&
+          _modelPath == ClientSubtitleRuntime.cjkQaModel;
+      final hint = useCjkQa
+          ? cjkQaAudioLocale(rawLanguage) ??
+                (isUnspecifiedChineseSpeech(rawLanguage)
+                    ? null
+                    : subtitleLanguage(rawLanguage))
+          : subtitleLanguage(rawLanguage);
       final trackId = player.state.track.audio.id;
       final timeout = reacquiring
           ? _playbackBudget.recoveryTimeoutSeconds(window.duration)
@@ -936,9 +951,7 @@ class ClientAudioSubtitles {
               system: (request) => _recognizeWithSystem(request, epoch),
               whisper: (request) {
                 final future = _recognition = Completer<Map<String, dynamic>>();
-                final legacy =
-                    ClientSubtitleRuntime.model?.endsWith('.en-q5_1.bin') ==
-                    true;
+                final legacy = _modelPath?.endsWith('.en-q5_1.bin') == true;
                 final workerLanguage = legacy
                     ? null
                     : request.audioLocale?.split('-').first;
@@ -975,14 +988,18 @@ class ClientAudioSubtitles {
         'captureGapSeconds': window.gapSeconds,
         'inputGain': input.gain,
         'error': response['error'],
+        if (useCjkQa) 'detectedAudioLanguage': response['audioLanguage'],
       });
       final detected =
           response['audioLanguage'] ??
-          (ClientSubtitleRuntime.model?.endsWith('.en-q5_1.bin') == true &&
+          (_modelPath?.endsWith('.en-q5_1.bin') == true &&
                   (hint == null || hint == 'en')
               ? 'en'
               : null);
-      final audioLanguage = detected == 'zh'
+      final audioLanguage =
+          useCjkQa && (detected == 'yue' || detected == 'yue-HK')
+          ? 'zh-TW'
+          : detected == 'zh'
           ? (hint == 'zh-TW' ? 'zh-TW' : 'zh-CN')
           : subtitleLanguage(detected is String ? detected : null);
       if (!_disposed &&

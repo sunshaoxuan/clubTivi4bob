@@ -36,7 +36,8 @@ class SubtitleVariants:
             provenance = facts.get(language, {})
             tracks[language] = dict(id=variant_id, language=language,
                 provider=str(provenance.get('provider') or '')[:80],
-                label=str(provenance.get('release') or candidate.get('label') or '')[:200])
+                label=str(provenance.get('release') or candidate.get('label') or '')[:200],
+                generated=provenance.get('generated') is True)
         return tracks
 
     def _candidate_tracks(self, candidate):

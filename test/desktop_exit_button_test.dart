@@ -60,10 +60,10 @@ void main() {
     final channels = File(
       'lib/features/channels/channels_screen.dart',
     ).readAsStringSync();
-    final player = File(
-      'lib/features/player/player_screen.dart',
+    final toolbar = File(
+      'lib/features/player/player_toolbar_actions.dart',
     ).readAsStringSync();
     expect('const DesktopExitButton()'.allMatches(channels).length, 2);
-    expect(player, contains('const DesktopExitButton()'));
+    expect(toolbar, contains('DesktopExitButton(compact: compact)'));
   });
 }

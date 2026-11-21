@@ -45,7 +45,7 @@ def read(url):
     return raw
 
 
-def discover(title, year, root, *, imdb_id, max_candidates=3):
+def discover(title, year, root, *, imdb_id, max_candidates=3, aliases=(), reviewer=None):
     if not isinstance(imdb_id, str) or not re.fullmatch(r'tt[0-9]{7,10}', imdb_id):
         return []
     root = Path(root); root.mkdir(parents=True, exist_ok=True)
@@ -56,10 +56,20 @@ def discover(title, year, root, *, imdb_id, max_candidates=3):
         admitted = [dict(row, language=language, label=row.get('movieReleaseName','').replace('.', ' '))
                     for row in rows if row.get('lang') == code and
                     row.get('season', 0) == 0 and row.get('episode', 0) == 0 and
-                    matches_bound_release(row.get('movieReleaseName','').replace('.', ' '), title, year)]
+                    any(matches_bound_release(row.get('movieReleaseName','').replace('.', ' '), name, year)
+                        for name in (title, *aliases))]
         for row in admitted:
             url = row.get('url')
             selected.setdefault((language, url if isinstance(url, str) else None), row)
+    if reviewer and not any(language == 'en' for language, _ in selected):
+        eligible = [row for row in rows if row.get('lang') == 'eng'
+                    and row.get('season',0)==0 and row.get('episode',0)==0
+                    and isinstance(row.get('movieReleaseName'),str) and isinstance(row.get('url'),str)][:16]
+        approved = reviewer(title, year, imdb_id, [row['movieReleaseName'] for row in eligible])
+        for i in sorted(approved):
+            row = eligible[i]
+            selected.setdefault(('en',row['url']),
+                dict(row,language='en',label=row['movieReleaseName'].replace('.',' '),aiReviewed=True))
     failures=[]
     def download(row):
         try:
@@ -81,7 +91,8 @@ def discover(title, year, root, *, imdb_id, max_candidates=3):
     def facts(row):
         return dict(provider=PROVIDER, url=row['url'], sha256=row['sha256'],
             cueCount=len(row['cues']), imdbId=imdb_id, identityLookup=lookup,
-            release=row['label'], declaredLanguage=row['declaredLanguage'])
+            release=row['label'], declaredLanguage=row['declaredLanguage'],
+            aiIdentityReviewed=row.get('aiReviewed') is True)
     translations = [(row['language'], row['cues'], facts(row)) for row in tracks
                     if row['language'] not in (None, 'en')]
     results = []

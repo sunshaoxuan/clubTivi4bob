@@ -62,6 +62,9 @@ class AccountService extends ChangeNotifier with WidgetsBindingObserver {
   }
 
   bool get loggedIn => user != null && _token != null && !locked;
+  Map<String, String> get serviceHeaders =>
+      loggedIn ? {'Authorization': 'Bearer $_token'} : const {};
+
   bool get supportsBiometrics => Platform.isIOS || Platform.isAndroid;
 
   Future<void> initialize() => _initializing ??= _initialize();
@@ -139,6 +142,57 @@ class AccountService extends ChangeNotifier with WidgetsBindingObserver {
       throw AccountException(detail is String ? detail : 'request_failed');
     }
     return value;
+  }
+
+  /// Fixed account origin only. A resource package cannot choose where the
+  /// account session is sent, and redirects never inherit credentials.
+  Future<Map<String, dynamic>> regionalCatalogRequest(
+    String operation, {
+    Map<String, dynamic>? body,
+  }) async {
+    if (!const {
+      'bootstrap.bobtv',
+      'challenge',
+      'complete',
+    }.contains(operation)) {
+      throw const AccountException('invalid_catalog_operation');
+    }
+    final public = operation == 'bootstrap.bobtv';
+    if (!public && !loggedIn) throw const AccountException('login_required');
+    final generation = _generation;
+    final uri = Uri.parse('$origin/api/v1/regional-catalog/$operation');
+    final req = http.Request(public ? 'GET' : 'POST', uri)
+      ..followRedirects = false;
+    req.headers['Accept'] = 'application/json';
+    if (!public) {
+      req.headers['Authorization'] = 'Bearer $_token';
+      req.headers['Content-Type'] = 'application/json';
+      req.body = jsonEncode(body);
+    }
+    return await (() async {
+      final response = await _client.send(req);
+      final maxBytes = operation == 'complete' ? 12 * 1024 * 1024 : 16384;
+      final bytes = <int>[];
+      await for (final chunk in response.stream) {
+        if (bytes.length + chunk.length > maxBytes) {
+          throw const AccountException('catalog_response_too_large');
+        }
+        bytes.addAll(chunk);
+      }
+      if (!public && generation != _generation) {
+        throw const AccountException('login_cancelled');
+      }
+      final decoded = jsonDecode(utf8.decode(bytes));
+      if (decoded is! Map<String, dynamic>) {
+        throw const AccountException('invalid_catalog_response');
+      }
+      if (response.statusCode != 200) {
+        if (!public && response.statusCode == 401) await clearLocal();
+        final error = decoded['detail'];
+        throw AccountException(error is String ? error : 'request_failed');
+      }
+      return decoded;
+    })().timeout(const Duration(seconds: 25));
   }
 
   Future<void> refresh() async {

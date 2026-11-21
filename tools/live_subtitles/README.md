@@ -218,3 +218,25 @@ errors separately from the service's scheduled onset errors. Playback acceptance
 requires no buffering after the verified baseline; initial acquisition and
 buffering before that baseline are reported separately. Native sampling is
 50 ms, with the backend's own decoded-position notification granularity.
+### Optional AI subtitle fallback
+
+The client-only service can read `/etc/bobtv/subtitle-ai.env` via systemd.
+Keep this file root-owned and private. Its three server-only settings are
+`BOBTV_SUBTITLE_AI_BASE_URL`, `BOBTV_SUBTITLE_AI_TOKEN`, and
+`BOBTV_SUBTITLE_AI_MODEL`. Use the approved protected HTTPS Responses
+endpoint. No setting is sent to the client. With any setting absent, no
+AI requests are made.
+
+The last-resort English review accepts only candidate indices from an existing
+IMDb-bound provider response. A verified movie and a complete search without
+either Chinese script are required for translation. Live translation starts
+after the viewer has aligned the English reference. Use only English inputs
+permitted for this use. The comma-delimited
+`BOBTV_SUBTITLE_AI_TRANSLATION_ALLOWED_PROVIDERS` sets an explicit list of
+providers reviewed for translation and downstream use; an empty list disables
+translation while permitting metadata review. The original English cue grid is preserved, incomplete
+translations never become tracks, and `[AI]` is visible in the rendered text.
+Generated tracks use a separate cache and do not stop provider retries. The
+subtitle-specific rolling 24-hour budget is 64 attempts, including upstream
+errors, with one concurrent API request. Test responses can be injected
+without any network calls or credentials.

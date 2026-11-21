@@ -5,6 +5,7 @@ retrieves existing subtitle files and runs local ASR for alignment only. Media
 and subtitle caches are private, bounded to the active viewing session.
 """
 import argparse
+import os
 import gzip
 import hashlib
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -42,6 +43,23 @@ _SNAPSHOT_CACHE = {}
 _SNAPSHOT_LOCK = threading.RLock()
 
 def snapshot(kind):
+    private_root = os.environ.get('BOBTV_SUBTITLE_SNAPSHOT_ROOT')
+    if private_root:
+        if kind not in ('channel-catalog', 'epg'):
+            raise ValueError('unreviewed_snapshot_kind')
+        folder = Path(private_root) / kind
+        manifest = json.loads((folder / 'manifest.json').read_bytes())
+        digest = manifest['sha256']
+        if not re.fullmatch(r'[a-f0-9]{64}', digest):
+            raise ValueError('invalid_local_snapshot_digest')
+        raw = (folder / 'snapshots' / (digest + '.json.gz')).read_bytes()
+        if hashlib.sha256(raw).hexdigest() != digest:
+            raise ValueError('local_snapshot_checksum')
+        with gzip.GzipFile(fileobj=__import__('io').BytesIO(raw)) as file:
+            decoded = file.read(32 * 1024 * 1024 + 1)
+        if len(decoded) > 32 * 1024 * 1024:
+            raise ValueError('local_snapshot_size')
+        return json.loads(decoded)
     manifest = json.loads(public_read(NODE + '/api/v1/' + kind + '/manifest'))
     path = manifest['snapshotUrl']
     if not path.startswith('/api/v1/' + kind + '/snapshots/'):

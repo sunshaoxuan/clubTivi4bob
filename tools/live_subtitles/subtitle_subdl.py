@@ -73,7 +73,7 @@ def unpack(raw):
     raise ValueError('usable_srt_required')
 
 
-def discover(title,year,root,*,imdb_id,max_candidates=3):
+def discover(title,year,root,*,imdb_id,max_candidates=3,aliases=()):
     if not isinstance(imdb_id,str) or not re.fullmatch(r'tt[0-9]{7,10}',imdb_id):return []
     root=Path(root);root.mkdir(parents=True,exist_ok=True)
     lookup='https://api3.subdl.com/auto?'+urlencode({'query':imdb_id})
@@ -90,7 +90,8 @@ def discover(title,year,root,*,imdb_id,max_candidates=3):
     if len(rows)!=1:return record_identity_failure('ambiguous_imdb_result')
     movie=rows[0]
     if (movie.get('type')!='movie' or movie.get('year')!=year
-        or title_norm(movie.get('original_name') or movie.get('name',''))!=title_norm(title)):
+        or title_norm(movie.get('original_name') or movie.get('name','')) not in
+        [title_norm(name) for name in (title,*aliases)]):
         return record_identity_failure('title_year_or_type_mismatch')
     path=movie.get('link','')
     if not re.fullmatch(r'/subtitle/sd[0-9]+/[a-z0-9-]+',path):
@@ -99,7 +100,9 @@ def discover(title,year,root,*,imdb_id,max_candidates=3):
     parser=Releases();parser.feed(read(page).decode('utf-8'))
     selected={}
     for language in LANGUAGES:
-        releases=[r for r in parser.rows if r['language']==language and (matches_movie_title(r['label'],title,year) or title_norm(r['label'])==title_norm(title))]
+        releases=[r for r in parser.rows if r['language']==language and any(
+            matches_movie_title(r['label'],name,year) or title_norm(r['label'])==title_norm(name)
+            for name in (title,*aliases))]
         for row in releases:
             selected.setdefault((language,row['url']),row)
     tracks=[]

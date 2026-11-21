@@ -84,6 +84,7 @@ class BobTvRouteState {
 /// Strict client for the public BobTV service. Never sends a media URL in a
 /// playback report, and never follows API or download redirects.
 class BobTvApiClient {
+  static Map<String, String> Function()? accountHeaders;
   BobTvApiClient({
     HttpClient? httpClient,
     Uri? baseUri,
@@ -1068,6 +1069,14 @@ class BobTvApiClient {
         request.headers.set(HttpHeaders.userAgentHeader, 'BobTV/$bobTvVersion');
         request.headers.set(HttpHeaders.acceptHeader, 'application/json');
         request.headers.set('X-BobTV-Request-ID', requestId);
+        if (ResourceNodeRouter.isNode(target) &&
+            (path.startsWith('/api/v1/epg/') ||
+                path.startsWith('/api/v1/channel-catalog/') ||
+                path == '/api/v1/sources')) {
+          (accountHeaders?.call() ?? const <String, String>{}).forEach(
+            request.headers.set,
+          );
+        }
         headers.forEach(request.headers.set);
         if (contentType != null) {
           request.headers.set(HttpHeaders.contentTypeHeader, contentType);

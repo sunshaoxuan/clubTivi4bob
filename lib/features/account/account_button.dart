@@ -1,3 +1,4 @@
+import 'regional_catalog_button.dart';
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -24,37 +25,55 @@ class _AccountButtonState extends State<AccountButton> {
   }
 
   @override
-  Widget build(BuildContext context) => ListenableBuilder(
-    listenable: account,
-    builder: (context, _) => widget.compact
-        ? IconButton(
-            key: const ValueKey('account-entry'),
-            tooltip: AppMessages.text(
-              context,
-              account.loggedIn ? '我的账号' : '注册 / 登录',
-            ),
-            onPressed: () => showDialog<void>(
-              context: context,
-              builder: (_) => const _AccountDialog(),
-            ),
-            icon: Icon(
-              account.loggedIn ? Icons.account_circle : Icons.person_outline,
-            ),
-          )
-        : TextButton.icon(
-            key: const ValueKey('account-entry'),
-            onPressed: () => showDialog<void>(
-              context: context,
-              builder: (_) => const _AccountDialog(),
-            ),
-            icon: Icon(
-              account.loggedIn ? Icons.account_circle : Icons.person_outline,
-              size: 20,
-            ),
-            label: Text(
-              AppMessages.text(context, account.loggedIn ? '我的账号' : '注册 / 登录'),
-            ),
-          ),
+  Widget build(BuildContext context) => Row(
+    mainAxisSize: MainAxisSize.min,
+    children: [
+      RegionalCatalogButton(
+        onSignIn: () => showDialog<void>(
+          context: context,
+          builder: (_) => const _AccountDialog(),
+        ),
+      ),
+      ListenableBuilder(
+        listenable: account,
+        builder: (context, _) => widget.compact
+            ? IconButton(
+                key: const ValueKey('account-entry'),
+                tooltip: AppMessages.text(
+                  context,
+                  account.loggedIn ? '我的账号' : '注册 / 登录',
+                ),
+                onPressed: () => showDialog<void>(
+                  context: context,
+                  builder: (_) => const _AccountDialog(),
+                ),
+                icon: Icon(
+                  account.loggedIn
+                      ? Icons.account_circle
+                      : Icons.person_outline,
+                ),
+              )
+            : TextButton.icon(
+                key: const ValueKey('account-entry'),
+                onPressed: () => showDialog<void>(
+                  context: context,
+                  builder: (_) => const _AccountDialog(),
+                ),
+                icon: Icon(
+                  account.loggedIn
+                      ? Icons.account_circle
+                      : Icons.person_outline,
+                  size: 20,
+                ),
+                label: Text(
+                  AppMessages.text(
+                    context,
+                    account.loggedIn ? '我的账号' : '注册 / 登录',
+                  ),
+                ),
+              ),
+      ),
+    ],
   );
 }
 

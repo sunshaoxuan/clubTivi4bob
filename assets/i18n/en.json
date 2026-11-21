@@ -1227,5 +1227,10 @@
   "使用 Apple 登录": "Sign in with Apple",
   "灰色登录方式尚未配置": "Disabled sign-in methods are not configured yet",
   "账号隐私说明": "Account privacy",
-  "扫码登录此设备，请勿分享登录二维码": "Scan to sign in on this device. Do not share this QR code."
+  "扫码登录此设备，请勿分享登录二维码": "Scan to sign in on this device. Do not share this QR code.",
+  "选择频道地区": "Select channel regions",
+  "地区目录暂时不可用，请稍后重试": "The region catalog is temporarily unavailable. Try again later.",
+  "同步失败，已保留原有频道": "Sync failed. Your existing channels were kept.",
+  "共 {0} 个频道": "{0} channels",
+  "同步所选地区": "Sync selected regions"
 }

@@ -8,6 +8,27 @@ typedef OfflineAsrRequest = ({String pcmPath, String? audioLocale});
 typedef OfflineAsrRecognize<T extends Object> =
     Future<T?> Function(OfflineAsrRequest request);
 
+/// A bare Chinese language tag does not identify the spoken variety.
+String? cjkQaAudioLocale(String? value) {
+  final tag = value?.trim().toLowerCase().replaceAll('_', '-');
+  if (tag == null) return null;
+  if (tag == 'yue' || tag.startsWith('yue-') || tag == 'cantonese') {
+    return 'yue-HK';
+  }
+  if (tag == 'cmn' || tag.startsWith('cmn-') || tag == 'mandarin') {
+    return 'zh-CN';
+  }
+  return null;
+}
+
+/// Script and region tags by themselves cannot distinguish Mandarin from
+/// Cantonese. Let the QA model detect the spoken language in these cases.
+bool isUnspecifiedChineseSpeech(String? value) {
+  final tag = value?.trim().toLowerCase().replaceAll('_', '-');
+  return const {'zh', 'zho', 'chi', 'chinese'}.contains(tag) ||
+      (tag?.startsWith('zh-') ?? false);
+}
+
 /// Try the device recognizer first, then a local multilingual worker.
 ///
 /// Providers return null for unavailable or unusable output. A successful

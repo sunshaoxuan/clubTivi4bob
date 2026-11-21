@@ -20,6 +20,7 @@ import '../../app/bobtv_palette.dart';
 import '../../core/app_diagnostics.dart';
 import '../../core/platform_info.dart';
 import '../../core/desktop_app_exit.dart';
+import '../../core/player_resources.dart';
 import '../../core/tablet_presentation.dart';
 import '../../data/services/android_pip_service.dart';
 import '../../data/services/epg_ui_refresh.dart';
@@ -43,12 +44,12 @@ import 'desktop_fullscreen_session.dart';
 import 'mobile_fullscreen_session.dart';
 import 'window_manager_fullscreen_backend.dart';
 import 'fullscreen_return_navigation.dart';
-import 'desktop_exit_button.dart';
 import 'desktop_pip_session.dart';
 import 'window_manager_pip_backend.dart';
 import 'desktop_pip_controls.dart';
 import 'fullscreen_programme_overlay.dart';
 import 'window_playback_session.dart';
+import 'playback_status_labels.dart';
 import '../../core/i18n/app_language.dart';
 
 /// Window-filling or fullscreen player with shared playback and overlay controls.
@@ -213,21 +214,24 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
         setState(() {});
         if (message != null) {
           ScaffoldMessenger.of(context).hideCurrentSnackBar();
-          ScaffoldMessenger.of(
-            context,
-          ).showSnackBar(SnackBar(content: Text(AppMessages.text(context, message))));
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(AppMessages.text(context, message))),
+          );
         }
       },
     );
     _autoHideOverlay();
     _scheduleCursorHide();
     _loadEpgInfo();
-    _epgRouteSubscription = ref.read(playerServiceProvider).currentUrlStream.listen((_) {
-      if (mounted) {
-        _syncChannelFromService();
-        unawaited(_loadEpgInfo(clear: true, force: true));
-      }
-    });
+    _epgRouteSubscription = ref
+        .read(playerServiceProvider)
+        .currentUrlStream
+        .listen((_) {
+          if (mounted) {
+            _syncChannelFromService();
+            unawaited(_loadEpgInfo(clear: true, force: true));
+          }
+        });
     _epgUiRefresh = EpgUiRefresh(
       ref.read(databaseProvider).watchEpgChanges(),
       () async {
@@ -258,7 +262,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       _currentChannelName = channel['name']?.toString() ?? '';
       _currentChannelLogo = channel['tvgLogo']?.toString();
       _groupTitle = channel['groupTitle']?.toString();
-      _providerName = ref.read(streamAlternativesProvider).providerName(channel['providerId']?.toString() ?? '');
+      _providerName = ref
+          .read(streamAlternativesProvider)
+          .providerName(channel['providerId']?.toString() ?? '');
       _currentUrlIndex = 0;
     });
     unawaited(_loadFavoriteState());
@@ -462,14 +468,17 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   Future<void> _openIosSystemPlayer() async {
     final message = await ref.read(playerServiceProvider).presentIosPlayer();
     if (message != null && mounted) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(AppMessages.text(context, message))));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(AppMessages.text(context, message))),
+      );
     }
   }
 
   Future<void> _showCastPicker() async {
-    if (Platform.isIOS) { await _openIosSystemPlayer(); return; }
+    if (Platform.isIOS) {
+      await _openIosSystemPlayer();
+      return;
+    }
     if (_castBusy) return;
     final device = await showCastDialog(context, ref);
     if (device != null && mounted) {
@@ -504,7 +513,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
         ScaffoldMessenger.of(context).hideCurrentSnackBar();
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(AppMessages.text(context, "已向 {0} 發送播放請求，請確認電視畫面", [device.name])),
+            content: Text(
+              AppMessages.text(context, "已向 {0} 發送播放請求，請確認電視畫面", [device.name]),
+            ),
             backgroundColor: Colors.green.shade800,
             duration: const Duration(seconds: 2),
           ),
@@ -926,7 +937,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                 ),
               ),
               Text(
-                AppMessages.text(context, "{0} 条候选线路", [alternatives.length + 1]),
+                AppMessages.text(context, "{0} 条候选线路", [
+                  alternatives.length + 1,
+                ]),
                 style: const TextStyle(color: BobTvPalette.muted, fontSize: 12),
               ),
             ],
@@ -939,7 +952,12 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
           _isFavorite ? '一键取消，支持撤销' : '一键保存到我的收藏',
           accent: const Color(0xFFFFD36B),
         ),
-        _routeContextAction(-8, Icons.folder_open_rounded, '管理收藏夹', '分别设置所属收藏夹'),
+        _routeContextAction(
+          -8,
+          Icons.folder_open_rounded,
+          '管理收藏夹',
+          '分别设置所属收藏夹',
+        ),
         const PopupMenuDivider(height: 14),
         _routeContextAction(
           -7,
@@ -990,7 +1008,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            AppMessages.text(context, "线路已转移至“{0}”，{1}", [result.name, result.shared ? '公共线路在后台同步' : '私有线路仅保存到本机']),
+            AppMessages.text(context, "线路已转移至“{0}”，{1}", [
+              result.name,
+              result.shared ? '公共线路在后台同步' : '私有线路仅保存到本机',
+            ]),
           ),
           duration: const Duration(seconds: 3),
         ),
@@ -1050,7 +1071,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       if (widget.channels.isEmpty) return;
       final channel = widget.channels[_channelIndex];
       final id = channel['id'] as String? ?? '';
-      if (id.isNotEmpty) await _showFavoriteListSheet(id, channel['name'] as String? ?? '');
+      if (id.isNotEmpty)
+        await _showFavoriteListSheet(id, channel['name'] as String? ?? '');
       return;
     }
     if (choice == -3) {
@@ -1077,7 +1099,13 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       );
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(switched ? AppMessages.text(context, "已切换到可播放线路") : AppMessages.text(context, "候选线路不可用，已保留当前画面"))),
+        SnackBar(
+          content: Text(
+            switched
+                ? AppMessages.text(context, "已切换到可播放线路")
+                : AppMessages.text(context, "候选线路不可用，已保留当前画面"),
+          ),
+        ),
       );
       return;
     }
@@ -1085,7 +1113,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       context: context,
       builder: (context) => AlertDialog(
         title: Text(AppMessages.text(context, "淘汰当前线路？")),
-        content: Text(AppMessages.text(context, "将屏蔽这个信号地址，其他线路会保留。此操作无法在界面中撤销。")),
+        content: Text(
+          AppMessages.text(context, "将屏蔽这个信号地址，其他线路会保留。此操作无法在界面中撤销。"),
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
@@ -1129,7 +1159,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       SnackBar(
         content: Text(
           switched
-              ? AppMessages.text(context, "已淘汰当前线路，正在尝试下一条线路，移除 {0} 条重复记录", [deleted])
+              ? AppMessages.text(context, "已淘汰当前线路，正在尝试下一条线路，移除 {0} 条重复记录", [
+                  deleted,
+                ])
               : AppMessages.text(context, "已淘汰当前线路，暂无可用的候选线路"),
         ),
       ),
@@ -1146,27 +1178,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     _volumeTimer = Timer(const Duration(milliseconds: 1500), () {
       if (mounted) setState(() => _showVolumeOverlay = false);
     });
-  }
-
-  Widget _mouseActionButton({
-    required IconData icon,
-    required String label,
-    required VoidCallback onPressed,
-  }) {
-    return TextButton.icon(
-      onPressed: onPressed,
-      icon: Icon(icon, size: 16),
-      label: Text(label),
-      style: TextButton.styleFrom(
-        foregroundColor: Colors.white,
-        backgroundColor: Colors.black.withValues(alpha: 0.55),
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        minimumSize: const Size(0, 36),
-        textStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
-        side: const BorderSide(color: Colors.white24),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-      ),
-    );
   }
 
   @override
@@ -1213,6 +1224,13 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   Widget build(BuildContext context) {
     final playerService = ref.watch(playerServiceProvider);
     final initialVideoController = playerService.videoController;
+    final radio = widget.channels.isNotEmpty
+        ? _allowsAudioOnly(widget.channels[_channelIndex])
+        : ChannelCategoryClassifier.isRadioChannel(
+            name: _currentChannelName,
+            groupTitle: _groupTitle,
+            streamUrl: widget.streamUrl,
+          );
 
     return PopScope(
       canPop: _leavingPlayer,
@@ -1253,13 +1271,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                     valueListenable: playerService.activeVideoController,
                     builder: (context, controller, _) {
                       final active = controller ?? initialVideoController;
-                      final radio = widget.channels.isNotEmpty
-                          ? _allowsAudioOnly(widget.channels[_channelIndex])
-                          : ChannelCategoryClassifier.isRadioChannel(
-                              name: _currentChannelName,
-                              groupTitle: _groupTitle,
-                              streamUrl: widget.streamUrl,
-                            );
                       if (radio) {
                         return RadioPlaybackSurface.forPlayer(
                           key: ValueKey(active.player),
@@ -1273,6 +1284,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                         controller: active,
                         controls: NoVideoControls,
                         fit: TabletPresentation.videoFit,
+                        showSubtitleStatus: _pipMode,
                       );
                     },
                   ),
@@ -1290,49 +1302,58 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                                 child: SafeArea(
                                   child: Padding(
                                     padding: const EdgeInsets.all(16),
-                                    child: DecoratedBox(
-                                      decoration: BoxDecoration(
-                                        color: const Color(0xBD000000),
-                                        borderRadius: BorderRadius.circular(10),
-                                      ),
-                                      child: Padding(
-                                        padding: const EdgeInsets.symmetric(
-                                          horizontal: 12,
-                                          vertical: 7,
+                                    child:
+                                        ValueListenableBuilder<
+                                          VideoController?
+                                        >(
+                                          valueListenable: playerService
+                                              .activeVideoController,
+                                          builder: (context, controller, _) {
+                                            final player =
+                                                (controller ??
+                                                        initialVideoController)
+                                                    .player;
+                                            final routeLabel =
+                                                progress == null ||
+                                                    progress.background
+                                                ? AppMessages.text(
+                                                    context,
+                                                    '候选 {0} 路',
+                                                    [
+                                                      playerService
+                                                          .currentCandidateCount,
+                                                    ],
+                                                  )
+                                                : progress.total > 0
+                                                ? AppMessages.text(
+                                                    context,
+                                                    '{0} {1}/{2} 路',
+                                                    [
+                                                      AppMessages.text(
+                                                        context,
+                                                        progress.stage,
+                                                      ),
+                                                      progress.index,
+                                                      progress.total,
+                                                    ],
+                                                  )
+                                                : AppMessages.text(
+                                                    context,
+                                                    progress.stage,
+                                                  );
+                                            return PlaybackStatusLabels(
+                                              routeLabel: routeLabel,
+                                              routeBusy:
+                                                  progress?.active == true &&
+                                                  progress?.background != true,
+                                              subtitleStatus:
+                                                  !radio &&
+                                                      player is ManagedPlayer
+                                                  ? player.liveSubtitles.status
+                                                  : null,
+                                            );
+                                          },
                                         ),
-                                        child: Row(
-                                          mainAxisSize: MainAxisSize.min,
-                                          children: [
-                                            if (progress?.active == true &&
-                                                progress?.background !=
-                                                    true) ...[
-                                              const SizedBox(
-                                                width: 12,
-                                                height: 12,
-                                                child:
-                                                    CircularProgressIndicator(
-                                                      strokeWidth: 2,
-                                                      color: Colors.white70,
-                                                    ),
-                                              ),
-                                              const SizedBox(width: 7),
-                                            ],
-                                            Text(
-                                              progress != null &&
-                                                      !progress.background
-                                                  ? progress.total > 0
-                                                        ? AppMessages.text(context, "{0} {1}/{2} 路", [AppMessages.text(context, progress.stage), progress.index, progress.total])
-                                                        : AppMessages.text(context, progress.stage)
-                                                  : AppMessages.text(context, "候选 {0} 路", [playerService.currentCandidateCount]),
-                                              style: const TextStyle(
-                                                color: Colors.white70,
-                                                fontSize: 12,
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                    ),
                                   ),
                                 ),
                               ),
@@ -1342,57 +1363,74 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
 
                   // TiviMate-style control bar overlay
                   if (!_pipMode)
-                    SafeArea(top: false, child: PlayerControlBar(
-                      isCasting: ref.read(castServiceProvider).isCasting,
-                      isFavorite: _isFavorite,
-                      audioTrackCount: _audioTracks.length,
-                      onAudioSelect: _showAudioPicker,
-                      onCastTap: () => _showCastPicker(),
-                      onBackTap: () {
-                        _leavePlayer();
-                      },
-                      onScreenshot: _takeScreenshot,
-                      onFavorite: _favoriteActionPending ? null : _toggleFavorite,
-                      onPip: _enterPip,
-                      onInfo: _showInfoDialog,
-                      onRename: _renameCurrentChannel,
-                      onChannelList: () =>
-                          setState(() => _showChannelList = !_showChannelList),
-                      onFullscreenToggle: _toggleNativeFullscreen,
-                      isFullscreen: _nativeFullscreen,
-                      fullscreenTooltip: _usesWindowPlayback
-                          ? _nativeFullscreen
-                                ? '退出全屏，返回全窗口'
-                                : '全屏播放'
-                          : PlatformInfo.isMobile ? '返回频道' : '返回频道，保持窗口全屏',
-                    )),
+                    SafeArea(
+                      top: false,
+                      child: PlayerControlBar(
+                        isCasting: ref.read(castServiceProvider).isCasting,
+                        isFavorite: _isFavorite,
+                        audioTrackCount: _audioTracks.length,
+                        onAudioSelect: _showAudioPicker,
+                        onCastTap: () => _showCastPicker(),
+                        onBackTap: () {
+                          _leavePlayer();
+                        },
+                        onScreenshot: _takeScreenshot,
+                        onFavorite: _favoriteActionPending
+                            ? null
+                            : _toggleFavorite,
+                        onPip: _enterPip,
+                        onInfo: _showInfoDialog,
+                        onRename: _renameCurrentChannel,
+                        onChannelList: () => setState(
+                          () => _showChannelList = !_showChannelList,
+                        ),
+                        onFullscreenToggle: _toggleNativeFullscreen,
+                        isFullscreen: _nativeFullscreen,
+                        fullscreenTooltip: _usesWindowPlayback
+                            ? _nativeFullscreen
+                                  ? '退出全屏，返回全窗口'
+                                  : '全屏播放'
+                            : PlatformInfo.isMobile
+                            ? '返回频道'
+                            : '返回频道，保持窗口全屏',
+                      ),
+                    ),
 
                   if (!_pipMode)
                     Positioned(
                       right: 24,
-                      bottom: _showOverlay ? 96 : 24,
+                      bottom: _showOverlay ? 96 : 64,
                       child: AlternativePreviewOverlay(service: playerService),
                     ),
 
                   // Channel info overlay (top, shown alongside control bar)
                   if (_showOverlay &&
                       !_pipMode &&
-                      (Platform.isMacOS || Platform.isWindows || PlatformInfo.isMobile))
+                      (Platform.isMacOS ||
+                          Platform.isWindows ||
+                          PlatformInfo.isMobile))
                     Positioned(
-                      top: PlatformInfo.isMobile ? 0 : Platform.isMacOS ? 52 : 44,
+                      top: PlatformInfo.isMobile
+                          ? 0
+                          : Platform.isMacOS
+                          ? 52
+                          : 44,
                       left: 24,
                       right: 24,
-                      child: SafeArea(bottom: false, child: FullscreenProgrammeOverlay(
-                        channelName: _currentChannelName,
-                        programmes: _fullscreenProgrammes,
-                        timeshiftHours: _epgTimeshiftHours,
-                        onReturn: () => unawaited(_leavePlayer()),
-                      )),
+                      child: SafeArea(
+                        bottom: false,
+                        child: FullscreenProgrammeOverlay(
+                          channelName: _currentChannelName,
+                          programmes: _fullscreenProgrammes,
+                          timeshiftHours: _epgTimeshiftHours,
+                        ),
+                      ),
                     ),
                   if (_showOverlay &&
                       !_pipMode &&
                       !Platform.isMacOS &&
-                      !Platform.isWindows && !PlatformInfo.isMobile) ...[
+                      !Platform.isWindows &&
+                      !PlatformInfo.isMobile) ...[
                     Positioned(
                       top: 0,
                       left: 0,
@@ -1495,7 +1533,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                                   if (_nextTitle != null) ...[
                                     const SizedBox(height: 2),
                                     Text(
-                                      AppMessages.text(context, "接下来：{0}{1}", [_nextTitle, _nextTime != null ? '  $_nextTime' : '']),
+                                      AppMessages.text(context, "接下来：{0}{1}", [
+                                        _nextTitle,
+                                        _nextTime != null ? '  $_nextTime' : '',
+                                      ]),
                                       style: const TextStyle(
                                         color: Colors.white38,
                                         fontSize: 10,
@@ -1547,7 +1588,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                                           vertical: 2,
                                         ),
                                         decoration: BoxDecoration(
-                                          color: BobTvPalette.action.withValues(alpha: 0.3),
+                                          color: BobTvPalette.action.withValues(
+                                            alpha: 0.3,
+                                          ),
                                           borderRadius: BorderRadius.circular(
                                             4,
                                           ),
@@ -1575,19 +1618,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                                     color: Colors.white38,
                                     fontSize: 11,
                                   ),
-                                ),
-                                const SizedBox(height: 8),
-                                Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    _mouseActionButton(
-                                      icon: Icons.arrow_back,
-                                      label: '返回频道',
-                                      onPressed: _leavePlayer,
-                                    ),
-                                    const SizedBox(width: 8),
-                                    const DesktopExitButton(),
-                                  ],
                                 ),
                               ],
                             ),
@@ -1640,7 +1670,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                   if (_showChannelList &&
                       !_pipMode &&
                       widget.channels.isNotEmpty)
-                    PlayerChannelDrawerFrame(touch: PlatformInfo.isMobile,
+                    PlayerChannelDrawerFrame(
+                      touch: PlatformInfo.isMobile,
                       child: Material(
                         color: Colors.black.withValues(alpha: 0.85),
                         child: Column(
@@ -1688,7 +1719,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                                   return ListTile(
                                     dense: true,
                                     selected: isCurrent,
-                                    selectedTileColor: BobTvPalette.action.withValues(alpha: 0.3),
+                                    selectedTileColor: BobTvPalette.action
+                                        .withValues(alpha: 0.3),
                                     leading: ch['tvgLogo'] != null
                                         ? ServerImage.network(
                                             ch['tvgLogo'] as String,
@@ -1773,18 +1805,27 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     try {
       await WidgetsBinding.instance.endOfFrame;
       if (!mounted) return;
-      await toggleChannelFavorite(context: context, database: database,
-        channelId: channelId, isFavorite: wasFavorite, onChanged: _loadFavoriteState);
+      await toggleChannelFavorite(
+        context: context,
+        database: database,
+        channelId: channelId,
+        isFavorite: wasFavorite,
+        onChanged: _loadFavoriteState,
+      );
     } finally {
       if (mounted) setState(() => _favoriteActionPending = false);
     }
   }
 
-  Future<void> _showFavoriteListSheet(String channelId, String channelName) => showChannelFavoriteListSheet(
-    context: context, database: ref.read(databaseProvider),
-    channelId: channelId, channelName: channelName,
-    createListName: _showCreateListDialog, onChanged: _loadFavoriteState,
-  );
+  Future<void> _showFavoriteListSheet(String channelId, String channelName) =>
+      showChannelFavoriteListSheet(
+        context: context,
+        database: ref.read(databaseProvider),
+        channelId: channelId,
+        channelName: channelName,
+        createListName: _showCreateListDialog,
+        onChanged: _loadFavoriteState,
+      );
 
   Future<String?> _showCreateListDialog() async {
     String name = '';
@@ -1792,7 +1833,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: BobTvPalette.panel,
-        title: Text(AppMessages.text(context, "新建收藏列表"), style: TextStyle(color: Colors.white)),
+        title: Text(
+          AppMessages.text(context, "新建收藏列表"),
+          style: TextStyle(color: Colors.white),
+        ),
         content: TextField(
           autofocus: true,
           style: const TextStyle(color: Colors.white),
@@ -1823,8 +1867,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       await IosNativeMedia.refresh();
       if (!mounted) return;
       if (IosNativeMedia.capabilities['pip'] != true) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text(AppMessages.text(context, '此设备或模拟器未提供系统画中画功能'))));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(AppMessages.text(context, '此设备或模拟器未提供系统画中画功能')),
+          ),
+        );
         return;
       }
       await _openIosSystemPlayer();
@@ -1838,9 +1885,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
           height: state.height ?? 9,
         );
         if (!entered && mounted) {
-          ScaffoldMessenger.of(
-            context,
-          ).showSnackBar(SnackBar(content: Text(AppMessages.text(context, "此设备或系统版本未提供画中画功能"))));
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(AppMessages.text(context, "此设备或系统版本未提供画中画功能")),
+            ),
+          );
         }
       } catch (error, stack) {
         AppDiagnostics.instance.recordError('android_pip', error, stack);
@@ -1848,16 +1897,15 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       return;
     }
     if (!_supportsNativeFullscreen) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(AppMessages.text(context, "当前平台尚未接入画中画"))));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(AppMessages.text(context, "当前平台尚未接入画中画"))),
+      );
       return;
     }
     _pipTransition = true;
     try {
       _restoreFullscreenAfterPip =
-          !_usesWindowPlayback ||
-          _windowPlaybackSession!.fullscreenRequested;
+          !_usesWindowPlayback || _windowPlaybackSession!.fullscreenRequested;
       await _windowPlaybackSession?.exitFullscreen();
       _fullscreenReturnSnapshot ??= _fullscreenSession?.returnSnapshot;
       await _fullscreenSession?.exit(forceWindowed: true);
@@ -1879,9 +1927,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
         setState(() => _pipMode = false);
         await _restorePlayerPresentation();
         if (mounted) {
-          ScaffoldMessenger.of(
-            context,
-          ).showSnackBar(SnackBar(content: Text(AppMessages.text(context, "无法打开画中画，已恢复播放窗口"))));
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(AppMessages.text(context, "无法打开画中画，已恢复播放窗口")),
+            ),
+          );
         }
       }
     } finally {
@@ -1905,9 +1955,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     } catch (error, stack) {
       AppDiagnostics.instance.recordError('desktop_pip_restore', error, stack);
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(AppMessages.text(context, "恢复窗口失败，请再点击返回频道"))));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(AppMessages.text(context, "恢复窗口失败，请再点击返回频道"))),
+        );
       }
       return false;
     } finally {
@@ -1978,7 +2028,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
             TextFormField(
               controller: controller,
               autofocus: true,
-              decoration: InputDecoration(labelText: AppMessages.text(context, "显示名称")),
+              decoration: InputDecoration(
+                labelText: AppMessages.text(context, "显示名称"),
+              ),
             ),
           ],
         ),

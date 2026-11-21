@@ -7,6 +7,18 @@ void main() {
   const request = (pcmPath: 'window.pcm', audioLocale: 'ja-JP');
 
   test(
+    'QA Mandarin and Cantonese routes never guess from a Chinese region',
+    () {
+      expect(cjkQaAudioLocale('cmn-Hans-CN'), 'zh-CN');
+      expect(cjkQaAudioLocale('yue_HK'), 'yue-HK');
+      expect(cjkQaAudioLocale('zh-HK'), isNull);
+      expect(isUnspecifiedChineseSpeech('zh-HK'), isTrue);
+      expect(isUnspecifiedChineseSpeech('chi'), isTrue);
+      expect(isUnspecifiedChineseSpeech('en-GB'), isFalse);
+    },
+  );
+
+  test(
     'uses system recognition and treats confirmed silence as success',
     () async {
       final words = await recognizeOffline<List<String>>(

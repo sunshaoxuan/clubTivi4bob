@@ -13,6 +13,8 @@ from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
 from accounts import router as account_router
+from catalog_access import install as install_catalog_access
+from regional_catalog_sync import router as regional_catalog_router
 from source_registry import router as source_router
 from source_candidates import router as candidate_router
 from channel_catalog import router as catalog_router
@@ -37,7 +39,9 @@ RETENTION_SECONDS = 14 * 86400
 ALLOWED_FIELDS = {"time", "event", "source", "fatal", "uptimeSeconds", "rssBytes", "maxRssBytes", "platform"}
 ID_PATTERN = re.compile(r"^[a-f0-9]{32}$")
 app = FastAPI(docs_url=None, redoc_url=None, openapi_url=None)
+install_catalog_access(app)
 app.include_router(account_router)
+app.include_router(regional_catalog_router)
 app.include_router(source_router)
 app.include_router(candidate_router)
 app.include_router(catalog_router)

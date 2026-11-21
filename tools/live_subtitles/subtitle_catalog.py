@@ -243,7 +243,8 @@ def _provider_outcome(rows, audit, failures):
     return 'no_matching_release'
 
 
-def discover(title, year, root, *, max_candidates=3, requested_language='en', imdb_id=None):
+def discover(title, year, root, *, max_candidates=3, requested_language='en', imdb_id=None,
+             aliases=(), reviewer=None):
     """Search every applicable source and retain all proven acoustic editions."""
     from subtitle_stremio import discover as stremio_discover, PROVIDER as STREMIO
     from subtitle_subdl import discover as subdl_discover, PROVIDER as SUBDL
@@ -266,6 +267,8 @@ def discover(title, year, root, *, max_candidates=3, requested_language='en', im
             reports.append(dict(report, outcome='skipped', reason='verified_imdb_required'))
             continue
         options = {'imdb_id': imdb_id} if needs_imdb else {'requested_language': requested_language}
+        if needs_imdb and aliases:
+            options['aliases'] = aliases
         try:
             rows = adapter(title, year, root, max_candidates=max_candidates, **options)
             audit = json.loads(audit_file.read_text()) if audit_file.exists() else {}
@@ -286,6 +289,16 @@ def discover(title, year, root, *, max_candidates=3, requested_language='en', im
             reports.append(dict(report, **failure, outcome='unavailable', failureCount=1))
             errors.append(dict(provider=provider, **failure))
             last_error = error
+    if not results and reviewer is not None and imdb_verified:
+        try:
+            reviewed = stremio_discover(title, year, root, max_candidates=max_candidates,
+                imdb_id=imdb_id, aliases=aliases, reviewer=reviewer)
+            results.extend(reviewed)
+            reports.append(dict(provider=STREMIO, stage='ai_identity_review',
+                outcome='found' if reviewed else 'no_matching_release',
+                acceptedEditions=len(reviewed)))
+        except (OSError, ValueError, TypeError, KeyError) as error:
+            errors.append(dict(provider=STREMIO, **_failure(error)))
     (root/PROVIDER_AUDIT).write_text(json.dumps(dict(requestedLanguage=requested_language,
         providerOutcomes=reports, acceptedVariantCounts=variant_counts(results)), ensure_ascii=False))
     (root/'provider-errors.json').write_text(json.dumps(errors))

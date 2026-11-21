@@ -17,6 +17,7 @@ import '../../data/services/channel_route_sync_service.dart';
 
 class SourceMaintenanceCoordinator {
   final ProviderManager manager;
+  final bool useRegionalCatalog;
   SourceMaintenanceService? _maintenanceService;
   BundledSourceSnapshotService? _bundledSourceSnapshot;
   // Source-management tools allocate their HTTP clients only on explicit use.
@@ -66,6 +67,7 @@ class SourceMaintenanceCoordinator {
 
   SourceMaintenanceCoordinator({
     required this.manager,
+    this.useRegionalCatalog = false,
     required this.websiteCatalog,
     ChannelInventorySyncService? inventory,
     this.regionalRoutes,
@@ -76,9 +78,15 @@ class SourceMaintenanceCoordinator {
   void start() {
     if (_started || _disposed) return;
     _started = true;
-    _resourceTimer = Timer.periodic(const Duration(minutes: 1), (_) =>
-      unawaited(manager.refreshResourcePackagesDue()));
+    _resourceTimer = Timer.periodic(
+      const Duration(minutes: 1),
+      (_) => unawaited(manager.refreshResourcePackagesDue()),
+    );
     unawaited(manager.refreshResourcePackagesDue());
+    if (useRegionalCatalog) {
+      unawaited(manager.regionalCatalog.initialize());
+      return;
+    }
     if (UserSourcePolicy.enabled) return;
     unawaited(
       _initialization = regionalRoutes?.initialize() ?? Future<void>.value(),
@@ -232,9 +240,11 @@ final sourceMaintenanceCoordinatorProvider =
       };
       final coordinator = SourceMaintenanceCoordinator(
         manager: ref.watch(providerManagerProvider),
+        useRegionalCatalog: true,
         regionalRoutes: regional,
         websiteCatalog: WebsiteChannelCatalogService(
           database: database,
+          authenticatedOnly: true,
           onSharedScores: tracker.setSharedScores,
         ),
       );

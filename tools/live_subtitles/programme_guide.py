@@ -26,8 +26,15 @@ def wikidata_read(**query):
     return json.loads(raw)
 
 
+def film_search_title(title):
+    # A programme may split one feature across two broadcast slots. Strip only
+    # explicit bracketed part markers, retaining numbered sequel identities.
+    return re.sub(r'\s*[（(](?:上|中|下)(?:集|部)?[）)]\s*$', '', title).strip()
+
+
 def film_alias(title, year=None, imdb_id=None):
     """Require a unique film with the exact localized label or alias."""
+    title = film_search_title(title)
     language = 'zh' if re.search(r'[\u3400-\u9fff]', title) else 'en'
     results = wikidata_read(action='wbsearchentities', language=language, search=title, limit=6)
     ids = [r['id'] for r in results.get('search', []) if re.fullmatch(r'Q[0-9]+', r.get('id', ''))][:6]

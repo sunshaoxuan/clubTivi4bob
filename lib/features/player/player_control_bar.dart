@@ -1,5 +1,4 @@
 import 'dart:async';
-
 import '../channels/touch_action_sheet.dart';
 
 import 'package:flutter/material.dart';
@@ -12,13 +11,12 @@ import '../../core/platform_info.dart';
 import '../../core/player_resources.dart';
 import 'subtitle_picker.dart';
 import 'desktop_window_pin_button.dart';
+import 'player_toolbar_actions.dart';
 import '../../core/i18n/app_language.dart';
 
 /// TiviMate-style fullscreen player control bar.
 ///
-/// Two-row layout on a dark semi-transparent background:
-/// - Top row: volume, resolution badge, transport controls, action icons
-/// - Bottom row: position, seek bar, duration
+/// A bottom toolbar with persistent navigation and transient playback controls.
 class PlayerControlBar extends ConsumerStatefulWidget {
   final VoidCallback? onCastTap;
   final VoidCallback? onBackTap;
@@ -245,44 +243,54 @@ class _PlayerControlBarState extends ConsumerState<PlayerControlBar> {
 
   @override
   Widget build(BuildContext context) {
+    if (PlatformInfo.isMobile) {
+      return SafeArea(
+        top: false,
+        child: Align(
+          alignment: Alignment.bottomLeft,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              PlayerToolbarActions(onBack: widget.onBackTap, showExit: false),
+              if (_visible)
+                ColoredBox(
+                  color: Colors.black.withValues(alpha: 0.7),
+                  child: _buildTouchControls(),
+                ),
+            ],
+          ),
+        ),
+      );
+    }
     return MouseRegion(
-      onEnter: (_) {
-        _isHoveringBar = true;
-        _hideTimer?.cancel();
-        if (!_visible) setState(() => _visible = true);
-      },
-      onExit: (_) {
-        _isHoveringBar = false;
-        _scheduleHide();
-      },
       onHover: (_) => _onInteraction(),
       child: GestureDetector(
-        key: const ValueKey('player-controls-interaction'),
         behavior: HitTestBehavior.translucent,
         onTap: _onInteraction,
-        child: AnimatedOpacity(
-          opacity: _visible ? 1.0 : 0.0,
-          duration: const Duration(milliseconds: 300),
-          child: IgnorePointer(
-            ignoring: !_visible,
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.end,
-              children: [
-                // ── Top row ──
-                Container(
-                  color: Colors.black.withValues(alpha: 0.7),
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 6,
-                  ),
-                  child: PlatformInfo.isMobile
-                      ? _buildTouchControls()
-                      : Row(
-                          children: [
-                            // Back button
-                            _iconBtn(Icons.arrow_back, onTap: widget.onBackTap),
-                            const SizedBox(width: 4),
-
+        child: SafeArea(
+          top: false,
+          child: Align(
+            alignment: Alignment.bottomLeft,
+            child: MouseRegion(
+              onEnter: (_) {
+                _isHoveringBar = true;
+                _hideTimer?.cancel();
+              },
+              onExit: (_) {
+                _isHoveringBar = false;
+                _scheduleHide();
+              },
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                verticalDirection: VerticalDirection.up,
+                children: [
+                  // Navigation stays anchored at the bottom.
+                  PlayerToolbarActions(
+                    onBack: widget.onBackTap,
+                    showExit: PlatformInfo.isDesktop,
+                    playbackActions: !_visible
+                        ? null
+                        : [
                             // Volume icon (tap to toggle mute) + slider
                             GestureDetector(
                               onTap: () {
@@ -351,8 +359,6 @@ class _PlayerControlBarState extends ConsumerState<PlayerControlBar> {
                               onTap: () => _comingSoon('录像'),
                             ),
 
-                            const Spacer(),
-
                             // ── Transport controls (center) ──
                             _iconBtn(
                               Icons.fast_rewind,
@@ -391,8 +397,6 @@ class _PlayerControlBarState extends ConsumerState<PlayerControlBar> {
                                 _scheduleHide();
                               },
                             ),
-
-                            const Spacer(),
 
                             // ── Right side icons ──
                             SubtitleMenuButton(
@@ -539,89 +543,89 @@ class _PlayerControlBarState extends ConsumerState<PlayerControlBar> {
                               ),
                             ],
                           ],
-                        ),
-                ),
+                  ),
 
-                // ── Bottom row: seek bar ──
-                Container(
-                  color: Colors.black.withValues(alpha: 0.7),
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 2,
-                  ),
-                  child: Row(
-                    children: [
-                      Text(
-                        _formatDuration(
-                          _isSeeking
-                              ? Duration(milliseconds: _seekValue.round())
-                              : _position,
-                        ),
-                        style: const TextStyle(
-                          color: Colors.white70,
-                          fontSize: 12,
-                        ),
+                  // The seek bar opens above the action row.
+                  if (_visible)
+                    Container(
+                      color: Colors.black.withValues(alpha: 0.7),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 2,
                       ),
-                      Expanded(
-                        child: SliderTheme(
-                          data: SliderTheme.of(context).copyWith(
-                            trackHeight: 3,
-                            thumbShape: const RoundSliderThumbShape(
-                              enabledThumbRadius: 6,
+                      child: Row(
+                        children: [
+                          Text(
+                            _formatDuration(
+                              _isSeeking
+                                  ? Duration(milliseconds: _seekValue.round())
+                                  : _position,
                             ),
-                            overlayShape: const RoundSliderOverlayShape(
-                              overlayRadius: 10,
+                            style: const TextStyle(
+                              color: Colors.white70,
+                              fontSize: 12,
                             ),
-                            activeTrackColor: Colors.blue,
-                            inactiveTrackColor: Colors.white24,
-                            thumbColor: Colors.blue,
                           ),
-                          child: Slider(
-                            value: _isSeeking
-                                ? _seekValue
-                                : _position.inMilliseconds.toDouble().clamp(
-                                    0,
-                                    _duration.inMilliseconds.toDouble().clamp(
-                                      1,
-                                      double.infinity,
-                                    ),
-                                  ),
-                            min: 0,
-                            max: _duration.inMilliseconds.toDouble().clamp(
-                              1,
-                              double.infinity,
+                          Expanded(
+                            child: SliderTheme(
+                              data: SliderTheme.of(context).copyWith(
+                                trackHeight: 3,
+                                thumbShape: const RoundSliderThumbShape(
+                                  enabledThumbRadius: 6,
+                                ),
+                                overlayShape: const RoundSliderOverlayShape(
+                                  overlayRadius: 10,
+                                ),
+                                activeTrackColor: Colors.blue,
+                                inactiveTrackColor: Colors.white24,
+                                thumbColor: Colors.blue,
+                              ),
+                              child: Slider(
+                                value: _isSeeking
+                                    ? _seekValue
+                                    : _position.inMilliseconds.toDouble().clamp(
+                                        0,
+                                        _duration.inMilliseconds
+                                            .toDouble()
+                                            .clamp(1, double.infinity),
+                                      ),
+                                min: 0,
+                                max: _duration.inMilliseconds.toDouble().clamp(
+                                  1,
+                                  double.infinity,
+                                ),
+                                onChangeStart: (v) {
+                                  setState(() {
+                                    _isSeeking = true;
+                                    _seekValue = v;
+                                  });
+                                },
+                                onChanged: (v) {
+                                  setState(() => _seekValue = v);
+                                  _scheduleHide();
+                                },
+                                onChangeEnd: (v) {
+                                  ref
+                                      .read(playerServiceProvider)
+                                      .player
+                                      .seek(Duration(milliseconds: v.round()));
+                                  setState(() => _isSeeking = false);
+                                },
+                              ),
                             ),
-                            onChangeStart: (v) {
-                              setState(() {
-                                _isSeeking = true;
-                                _seekValue = v;
-                              });
-                            },
-                            onChanged: (v) {
-                              setState(() => _seekValue = v);
-                              _scheduleHide();
-                            },
-                            onChangeEnd: (v) {
-                              ref
-                                  .read(playerServiceProvider)
-                                  .player
-                                  .seek(Duration(milliseconds: v.round()));
-                              setState(() => _isSeeking = false);
-                            },
                           ),
-                        ),
+                          Text(
+                            _formatDuration(_duration),
+                            style: const TextStyle(
+                              color: Colors.white70,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ],
                       ),
-                      Text(
-                        _formatDuration(_duration),
-                        style: const TextStyle(
-                          color: Colors.white70,
-                          fontSize: 12,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
+                    ),
+                ],
+              ),
             ),
           ),
         ),
@@ -645,7 +649,6 @@ class _PlayerControlBarState extends ConsumerState<PlayerControlBar> {
     );
     return Row(
       children: [
-        button('back', '返回频道', Icons.arrow_back, widget.onBackTap),
         button(
           'play',
           _playing ? '暂停' : '播放',

@@ -1,3 +1,5 @@
+import 'features/account/account_service.dart';
+import 'data/services/bobtv_api_client.dart';
 import 'dart:async';
 import 'dart:io' show Platform;
 import 'dart:ui' show PlatformDispatcher;
@@ -26,6 +28,8 @@ void main({VoidCallback? onBindingReady}) {
     () async {
       onBindingReady?.call();
       WidgetsFlutterBinding.ensureInitialized();
+      BobTvApiClient.accountHeaders = () =>
+          AccountService.instance.serviceHeaders;
       await diagnostics.initialize();
       await LegacyPreferencesMigration.run();
       await PlatformInfo.initialize();

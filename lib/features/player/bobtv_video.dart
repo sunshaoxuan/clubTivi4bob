@@ -13,12 +13,14 @@ class BobtvVideo extends StatelessWidget {
     this.fit = BoxFit.contain,
     this.fill = Colors.black,
     this.showSubtitleMenu = false,
+    this.showSubtitleStatus = true,
   });
   final VideoController controller;
   final VideoControlsBuilder? controls;
   final BoxFit fit;
   final Color fill;
   final bool showSubtitleMenu;
+  final bool showSubtitleStatus;
 
   @override
   Widget build(BuildContext context) {
@@ -61,7 +63,7 @@ class BobtvVideo extends StatelessWidget {
               ),
             ),
           ),
-        if (player is ManagedPlayer)
+        if (player is ManagedPlayer && showSubtitleStatus)
           Positioned.fill(
             child: ValueListenableBuilder<SubtitlePhase>(
               valueListenable: player.liveSubtitles.status,

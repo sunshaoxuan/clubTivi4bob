@@ -38,6 +38,7 @@ class WebsiteCatalogProgress {
 class WebsiteChannelCatalogService {
   WebsiteChannelCatalogService({
     required this.database,
+    this.authenticatedOnly = false,
     BobTvApiClient? api,
     this.onSharedScores,
     DateTime Function()? now,
@@ -78,6 +79,7 @@ class WebsiteChannelCatalogService {
   }
 
   final db.AppDatabase database;
+  final bool authenticatedOnly;
   final BobTvApiClient api;
   final Future<void> Function(Map<String, double>)? onSharedScores;
   final state = ValueNotifier(const WebsiteCatalogProgress());
@@ -89,15 +91,32 @@ class WebsiteChannelCatalogService {
   Object? lastError;
 
   Future<int> sync() {
-    if (UserSourcePolicy.enabled || _disposed || (_retryAt?.isAfter(_now()) ?? false)) {
+    if (authenticatedOnly ||
+        UserSourcePolicy.enabled ||
+        _disposed ||
+        (_retryAt?.isAfter(_now()) ?? false)) {
       return Future.value(0);
     }
     return _running ??= _sync().whenComplete(() => _running = null);
   }
 
-  Future<int> importBundled() => UserSourcePolicy.enabled ? Future.value(0) : _running ??= _sync(
-    source: _BundledCatalogApi(),
-  ).whenComplete(() => _running = null);
+  Future<int> importBundled() => (authenticatedOnly || UserSourcePolicy.enabled)
+      ? Future.value(0)
+      : _running ??= _sync(
+          source: _BundledCatalogApi(),
+        ).whenComplete(() => _running = null);
+
+  /// The caller has already verified the publisher signature and account scope.
+  Future<int> applyVerifiedSnapshot(Map<String, dynamic> catalog) async {
+    final source = VerifiedRegionalCatalogApi(catalog);
+    try {
+      return await (_running ??= _sync(
+        source: source,
+      ).whenComplete(() => _running = null));
+    } finally {
+      source.close();
+    }
+  }
 
   Future<int> _sync({BobTvApiClient? source}) async {
     final client = source ?? api;
@@ -134,7 +153,8 @@ class WebsiteChannelCatalogService {
       if (oldTime != null && newTime != null && newTime.isBefore(oldTime))
         throw const FormatException('Stale website snapshot');
       final identityBinding = ServerEpgBinding(database);
-      if (installedVersion == manifest.version && installed &&
+      if (installedVersion == manifest.version &&
+          installed &&
           await identityBinding.catalogIdentityVersion() == manifest.version &&
           await identityBinding.hasPresentationContext()) {
         state.value = WebsiteCatalogProgress(
@@ -183,7 +203,10 @@ class WebsiteChannelCatalogService {
       await database.withoutSharedReporting(() async {
         // Make exact server ownership available to favorite inheritance during
         // the same atomic import; no client-side name matching is needed.
-        await identityBinding.replaceCatalogIdentities(manifest.version, records);
+        await identityBinding.replaceCatalogIdentities(
+          manifest.version,
+          records,
+        );
         final revisions = await database.sharedRouteRevisions();
         final pending = await database.pendingSharedCategoryUrls();
         final pendingMerges = await database.pendingSharedMergeUrls();
@@ -340,7 +363,8 @@ class WebsiteChannelCatalogService {
           delay = const Duration(minutes: 15);
         }
         if (error is BobTvApiException &&
-            error.retryAfter != null && error.retryAfter! > delay) {
+            error.retryAfter != null &&
+            error.retryAfter! > delay) {
           delay = error.retryAfter!;
         }
         _retryAt = _now().add(delay);
@@ -373,9 +397,7 @@ class WebsiteChannelCatalogService {
   /// Stop scheduling work and join every operation that can still use the DB.
   Future<void> shutdown() async {
     dispose();
-    await Future.wait<Object?>([
-      ?_running,
-    ]);
+    await Future.wait<Object?>([?_running]);
   }
 
   void dispose() {
@@ -492,10 +514,14 @@ Future<List<Map<String, Object?>>> _decodeCatalog(
     final groups = <String>[group];
     final aliases = channel['categoryIds'];
     if (aliases != null) {
-      if (aliases is! List || aliases.isEmpty || aliases.length > 16 ||
+      if (aliases is! List ||
+          aliases.isEmpty ||
+          aliases.length > 16 ||
           !aliases.contains(channel['categoryId']) ||
           aliases.toSet().length != aliases.length) {
-        throw const FormatException('Invalid alternate channel classifications');
+        throw const FormatException(
+          'Invalid alternate channel classifications',
+        );
       }
       final primary = group.split(' / ');
       for (final alias in aliases) {
@@ -503,13 +529,21 @@ Future<List<Map<String, Object?>>> _decodeCatalog(
         if (category == null) {
           throw const FormatException('Unknown alternate channel category');
         }
-        final alternate = _catalogGroupFor(category, categories,
-          channel['countryCode'] as String?);
+        final alternate = _catalogGroupFor(
+          category,
+          categories,
+          channel['countryCode'] as String?,
+        );
         final parts = alternate.split(' / ');
-        if (primary.length != 3 || parts.length != 3 ||
-            primary.first != '国际' || primary[1] == '未识别地区' ||
-            parts[0] != primary[0] || parts[1] != primary[1] ||
-            !ChannelCategoryClassifier.internationalGenres.contains(primary[2]) ||
+        if (primary.length != 3 ||
+            parts.length != 3 ||
+            primary.first != '国际' ||
+            primary[1] == '未识别地区' ||
+            parts[0] != primary[0] ||
+            parts[1] != primary[1] ||
+            !ChannelCategoryClassifier.internationalGenres.contains(
+              primary[2],
+            ) ||
             !ChannelCategoryClassifier.internationalGenres.contains(parts[2])) {
           throw const FormatException('Conflicting alternate channel identity');
         }
@@ -565,7 +599,6 @@ Future<List<Map<String, Object?>>> _decodeCatalog(
             ? (route['healthScore'] as num).toDouble().clamp(0, 1)
             : .5,
       });
-
     }
   }
   if (sourceRouteCount != routeCount) {
@@ -631,11 +664,43 @@ String _catalogGroupFor(
     return chain.join(' / ');
   }
   chain[0] = ChannelCategoryClassifier.normalizeCountryName(root);
-  if (ChannelCategoryClassifier.internationalCountryNames.containsValue(chain[0])) {
+  if (ChannelCategoryClassifier.internationalCountryNames.containsValue(
+    chain[0],
+  )) {
     return '国际 / ${chain.join(' / ')}';
   }
   final country = ChannelCategoryClassifier
       .internationalCountryNames[countryCode?.toLowerCase()];
   if (country != null) return '国际 / $country / $leaf';
   return ChannelCategoryClassifier.categories.contains(leaf) ? leaf : '其他';
+}
+
+/// An in-memory adapter reuses the validated catalog importer and identity rules.
+class VerifiedRegionalCatalogApi extends BobTvApiClient {
+  VerifiedRegionalCatalogApi(this.catalog);
+  final Map<String, dynamic> catalog;
+  late final List<int> bytes = gzip.encode(utf8.encode(jsonEncode(catalog)));
+  @override
+  Future<List<String>> fetchCatalogBlockedRoutes() async => const [];
+  @override
+  Future<BobTvChannelCatalogManifest?> fetchChannelCatalogManifest() async {
+    final rows = catalog['channels'] as List;
+    return BobTvChannelCatalogManifest(
+      version: catalog['version'] as String,
+      channelCount: rows.length,
+      routeCount: rows.fold<int>(
+        0,
+        (n, row) => n + (row['routes'] as List).length,
+      ),
+      snapshotPath:
+          '/api/v1/channel-catalog/snapshots/${sha256.convert(bytes)}.json.gz',
+      compressedBytes: bytes.length,
+      sha256: sha256.convert(bytes).toString(),
+    );
+  }
+
+  @override
+  Future<List<int>> downloadChannelCatalog(
+    BobTvChannelCatalogManifest manifest,
+  ) async => bytes;
 }

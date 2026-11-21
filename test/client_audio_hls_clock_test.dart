@@ -3,6 +3,27 @@ import 'dart:io';
 import 'package:clubtivi/features/player/hls_buffer_proxy.dart';
 
 void main() {
+  test('generic short HLS clock does not start at an expiring segment', () {
+    final origin = Uri.parse('https://media.example/hls/index.m3u8');
+    final playlist = [
+      '#EXTM3U',
+      '#EXT-X-TARGETDURATION:4',
+      '#EXT-X-MEDIA-SEQUENCE:100',
+      for (var i = 0; i < 5; i++) ...['#EXTINF:4,', 'part-$i.ts'],
+    ].join('\n');
+    String rewrite({required bool useProviderWindow}) => rewriteBufferedHls(
+      playlist,
+      origin,
+      (url) => url.toString(),
+      holdBackSeconds: subtitleLiveHoldback(
+        playlist,
+        providerWindowOnly: useProviderWindow,
+      ),
+    );
+    expect(rewrite(useProviderWindow: true), contains('TIME-OFFSET=-8.0,'));
+    expect(rewrite(useProviderWindow: false), contains('TIME-OFFSET=-16.0,'));
+    expect(subtitleLiveHoldback('', providerWindowOnly: false), 30);
+  });
   test(
     'missing clock helper returns untouched provider HLS for playback',
     () async {

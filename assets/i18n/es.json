@@ -1227,5 +1227,10 @@
   "使用 Apple 登录": "Iniciar sesión con Apple",
   "灰色登录方式尚未配置": "Los métodos desactivados aún no están configurados",
   "账号隐私说明": "Privacidad de la cuenta",
-  "扫码登录此设备，请勿分享登录二维码": "Escanea para iniciar sesión en este dispositivo. No compartas el código QR."
+  "扫码登录此设备，请勿分享登录二维码": "Escanea para iniciar sesión en este dispositivo. No compartas el código QR.",
+  "选择频道地区": "Seleccionar regiones",
+  "地区目录暂时不可用，请稍后重试": "El catálogo regional no está disponible. Inténtalo más tarde.",
+  "同步失败，已保留原有频道": "La sincronización falló. Se conservaron tus canales.",
+  "共 {0} 个频道": "{0} canales",
+  "同步所选地区": "Sincronizar regiones"
 }

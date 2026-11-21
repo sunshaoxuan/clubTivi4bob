@@ -100,7 +100,6 @@ void main() {
                             '第三部电影',
                           ),
                         ],
-                    onReturn: () {},
                   ),
                 ),
               ),
@@ -155,11 +154,12 @@ void main() {
     await tester.pumpWidget(const SizedBox.shrink());
   });
   testWidgets(
-    'Missing EPG keeps channel and return controls without fake programmes',
+    'Missing EPG keeps the channel without adding navigation or programmes',
     (tester) async {
       await pump(tester, rows: []);
       expect(find.text('CCTV-6 电影'), findsOneWidget);
-      expect(find.text('返回频道'), findsOneWidget);
+      expect(find.text('返回频道'), findsNothing);
+      expect(find.byIcon(Icons.power_settings_new_rounded), findsNothing);
       expect(
         find.byKey(const ValueKey('channel-programme-strip')),
         findsNothing,
@@ -203,13 +203,13 @@ void main() {
         ),
       ],
     );
-    expect(find.text('返回频道'), findsOneWidget);
+    expect(find.text('返回频道'), findsNothing);
     expect(find.textContaining('接下来：'), findsOneWidget);
     expect(tester.takeException(), isNull);
     await tester.pumpWidget(const SizedBox.shrink());
   });
   testWidgets(
-    'Fullscreen regions stay left, centered and right on wide screens',
+    'Channel and guide keep their alignment without header navigation',
     (tester) async {
       for (final width in [752.0, 1440.0, 3840.0]) {
         await pump(tester, width: width);
@@ -217,12 +217,9 @@ void main() {
         final guide = tester.getRect(
           find.byKey(const ValueKey('fullscreen-programme-region')),
         );
-        final actions = tester.getRect(
-          find.byKey(const ValueKey('fullscreen-actions-region')),
-        );
         expect(name.left, closeTo(12, 1));
         expect(guide.center.dx, closeTo(width / 2, 1));
-        expect(actions.right, closeTo(width - 12, 1));
+        expect(find.text('返回频道'), findsNothing);
         expect(guide.height, lessThan(150));
         expect(tester.takeException(), isNull);
       }

@@ -8,6 +8,8 @@ import 'package:flutter/services.dart';
 /// microphone permission is needed; unsupported bundles preserve video playback.
 class ClientSubtitleRuntime {
   static String? asr, remux, model, systemAsr;
+  static const cjkQa = bool.fromEnvironment('BOBTV_QA_CJK_ASR');
+  static String? cjkQaModel;
   static Future<void>? _initialization;
   static bool get available => Platform.isIOS
       ? IosNativeMedia.offlineReady
@@ -46,6 +48,10 @@ class ClientSubtitleRuntime {
         final root = Platform.isMacOS
             ? '${base.parent.path}/Resources/ClientASR'
             : '${base.path}/data/ClientASR';
+        if (cjkQa && Platform.isMacOS) {
+          final file = File('$root/ggml-large-v3-turbo-q5_0.bin');
+          if (await file.exists()) cjkQaModel = file.path;
+        }
         final suffix = Platform.isWindows ? '.exe' : '';
         asr = '$root/bobtv-client-asr$suffix';
         remux = '$root/bobtv-client-remux$suffix';

@@ -9,6 +9,12 @@ import 'package:fake_async/fake_async.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+class IdlePackageManager extends ProviderManager {
+  IdlePackageManager(super.database);
+  @override
+  Future<void> refreshResourcePackagesDue() async {}
+}
+
 class MigrationInventory extends ChannelInventorySyncService {
   MigrationInventory(db.AppDatabase database)
     : super(database: database, fingerprintOverride: 'a' * 64);
@@ -34,20 +40,20 @@ void main() {
   setUp(() => SharedPreferences.setMockInitialValues({}));
 
   test(
-    'startup has only shared pull/upload timers and no management clients',
+    'startup has shared and subscribed-package timers without management clients',
     () async {
       final database = db.AppDatabase.forTesting(NativeDatabase.memory());
       final catalog = WebsiteChannelCatalogService(database: database);
       final favorites = LightweightFavorites(database);
       final coordinator = SourceMaintenanceCoordinator(
-        manager: ProviderManager(database),
+        manager: IdlePackageManager(database),
         websiteCatalog: catalog,
         privateFavorites: favorites,
       );
       fakeAsync((clock) {
         coordinator.start();
         coordinator.start();
-        expect(clock.periodicTimerCount, 2);
+        expect(clock.periodicTimerCount, 3);
         expect(clock.nonPeriodicTimerCount, 1);
         expect(favorites.calls, 1);
         expect(coordinator.sourceManagementInitialized, false);

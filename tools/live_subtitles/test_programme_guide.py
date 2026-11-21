@@ -5,11 +5,17 @@ import threading
 import tempfile
 import unittest
 from unittest.mock import patch
-from programme_guide import ProgrammeGuide,route_key,film_alias
+from programme_guide import ProgrammeGuide,route_key,film_alias,film_search_title
 from multi_client_clock import MultiTextHub
 from subtitle_cache import SubtitleCache
 
 class GuideTests(unittest.TestCase):
+    def test_broadcast_part_markers_do_not_change_film_identity(self):
+        self.assertEqual(film_search_title('第五元素(下)'), '第五元素')
+        self.assertEqual(film_search_title('第五元素（上部）'), '第五元素')
+        self.assertEqual(film_search_title('赤壁2：决战天下'), '赤壁2：决战天下')
+        self.assertEqual(film_search_title('Kill Bill: Volume 2'), 'Kill Bill: Volume 2')
+
     def test_current_player_epg_reaches_subtitle_discovery_without_mutating_public_guide(self):
         self.rows()
         source = 'https://example.org/cctv6.m3u8'

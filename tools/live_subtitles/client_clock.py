@@ -16,6 +16,7 @@ import time
 import uuid
 from live_engine import align, fit_clock_rate, clock_rate_confident
 from subtitle_cache import RETRY_TTL
+from subtitle_ai import CHINESE
 from subtitle_catalog import discover, LANGUAGES
 from subtitle_variants import SubtitleVariants, UNCHANGED
 from service import reviewed_pilot_source
@@ -106,6 +107,19 @@ class TextHub:
                             self.variants=variants
                             self.discovery_error=False
                     self.event('subtitle_resources_ready',programmeKey=programme['key'],language=language,candidates=len(candidates),manual=refresh)
+                    add_translation = getattr(self.cache,'with_ai_chinese',None)
+                    with self.lock:
+                        reference_page = next((session['reference']['page'] for session in self.sessions.values()
+                            if generation==self.discovery_generation and session.get('programmeKey')==programme['key']
+                            and session.get('language')==language and not session.get('ad')
+                            and session.get('reference')),None)
+                    if add_translation is not None and lookup and reference_page:
+                        translated = add_translation(lookup,candidates,language,reference_page=reference_page)
+                        if translated is not candidates:
+                            with self.lock:
+                                if generation==self.discovery_generation:
+                                    self.candidates=translated
+                                    self.variants=SubtitleVariants(translated)
                 except Exception as e:
                     with self.lock:
                         if generation==self.discovery_generation:self.discovery_error=not bool(self.candidates)
@@ -131,8 +145,10 @@ class TextHub:
         catalog = self.variant_catalog()
         tracks = []
         for language, cues in candidate['tracks'].items():
+            generated = self.ai_track(candidate, language)
             emitted = [dict(index=cue['index'], start=(cue['start']-intercept)/rate,
-                            end=(cue['end']-intercept)/rate, text=cue['text'])
+                            end=(cue['end']-intercept)/rate,
+                            text=('[AI] ' if generated else '') + cue['text'])
                        for cue in cues if cue['end'] >= rate*start+intercept
                        and cue['start'] <= rate*end+intercept]
             if emitted:
@@ -142,6 +158,21 @@ class TextHub:
                     track['variantId'] = choice['id']
                 tracks.append(track)
         return tracks
+
+    @staticmethod
+    def ai_track(candidate, language):
+        return bool(candidate and candidate.get('provenance',{}).get(language,{}).get('generated'))
+
+    @classmethod
+    def preferred_track(cls, candidate, preferred):
+        if not candidate:
+            return None
+        languages = [preferred]
+        if preferred in CHINESE:
+            languages.extend(tag for tag in CHINESE if tag != preferred)
+        return next((tag for tag in languages if tag in candidate['tracks'] and not
+                     cls.ai_track(candidate,tag)),None) or next(
+                         (tag for tag in (*languages,'en') if tag in candidate['tracks']),None)
 
     def clock_window(self, session, candidate, start, end, rate, intercept):
         tracks = self.caption_tracks(candidate, start, end, rate, intercept)
@@ -255,10 +286,10 @@ class TextHub:
             if not words:return
             prior=session.get('priorReference')
             known=session['reference'] or session.get('lastMatchedReference') or prior
-            preferred=[c for c in self.candidates or [] if session['language'] in c['tracks']]
+            preferred=[c for c in self.candidates or [] if self.preferred_track(c,session['language']) not in (None,'en')]
             # Prove the requested language's edition first. An already matched
             # fallback remains available until a preferred edition is verified.
-            trial=([known] if known and session['language'] in known['tracks'] else preferred[:])
+            trial=([known] if self.preferred_track(known,session['language']) not in (None,'en') else preferred[:])
             if known is not None and known not in trial:trial.append(known)
             if known is None or session['unmatchedWindows']>=3:
                 trial += [c for c in self.candidates or [] if c not in trial]
@@ -267,7 +298,7 @@ class TextHub:
             selected=None
             for candidate in trial:
                 cues=candidate['tracks'].get(speech)
-                if cues is None:continue
+                if cues is None or self.ai_track(candidate,speech):continue
                 candidate_rate=session['rate'] if session.get('candidateKey')==candidate['page'] else session.get('priorRate',1.) if candidate is prior else 1.
                 offset,anchors=align(words,cues,start,rate=candidate_rate,language=speech)
                 # Accumulate distinct, exact cue-onset matches across overlapping
@@ -473,15 +504,21 @@ class TextHub:
             return
         speech = session.get('audioLanguage', 'en')
         preferred = session['language']
+        selection = lambda candidate: self.preferred_track(candidate,preferred)
+        def rank(candidate):
+            tag = selection(candidate)
+            return (tag not in (None,'en'), not self.ai_track(candidate,tag), tag==preferred)
         compatible = (candidate for candidate in self.candidates or []
                       if candidate is not previous
                       and (candidate['page'] == previous['page']
-                           or preferred not in previous['tracks'] and preferred in candidate['tracks'])
+                           or rank(candidate)>rank(previous))
                       and candidate['tracks'].get(speech) == previous['tracks'].get(speech)
-                      and all(candidate['tracks'].get(language) == cues
-                              for language, cues in previous['tracks'].items()))
-        current = max(compatible, key=lambda candidate: preferred in candidate['tracks'], default=None)
-        if current is not None:
+                      and (self.ai_track(previous,selection(previous)) and rank(candidate)>rank(previous)
+                           or all(self.ai_track(previous,language) or
+                                  candidate['tracks'].get(language) == cues
+                                  for language, cues in previous['tracks'].items())))
+        current = max(compatible, key=rank, default=None)
+        if current is not None and rank(current)>=rank(previous):
             self.replace_reference(session, current)
 
     def response(self, token, position=None):
@@ -504,7 +541,7 @@ class TextHub:
             if pinned:
                 active = pinned if catalog.supports(reference, pinned) and not session.get('ad') else None
             else:
-                preferred = catalog.track(reference, session['language']) or catalog.track(reference, 'en')
+                preferred = catalog.track(reference, self.preferred_track(reference,session['language']))
                 active = preferred['id'] if preferred and not session.get('ad') else None
             searching = set(getattr(self, 'requested_languages', ()))
             if getattr(self, 'searching_language', None):
@@ -554,7 +591,8 @@ class TextHub:
                     for language in languages or {'en'}:
                         self.fetch_subtitles(language)
                 elif not self.discovery_busy and time.monotonic() - self.last_discovery >= RETRY_TTL:
-                    available = {language for candidate in self.candidates or [] for language in candidate['tracks']}
+                    available = {language for candidate in self.candidates or [] for language in candidate['tracks']
+                                 if not self.ai_track(candidate,language)}
                     # An aligned fallback must not stop discovery for an active
                     # viewer. The shared cache controls each provider retry.
                     for language in languages - available:

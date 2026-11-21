@@ -36,7 +36,13 @@ T? selectSubtitle<T>(
   bool Function(T)? usable,
 }) {
   final available = candidates.where((c) => usable?.call(c) ?? true).toList();
-  for (final wanted in {subtitleLanguage(requested), 'en'}..remove(null)) {
+  final preferred = subtitleLanguage(requested);
+  final otherChinese = switch (preferred) {
+    'zh-CN' => 'zh-TW',
+    'zh-TW' => 'zh-CN',
+    _ => null,
+  };
+  for (final wanted in {preferred, otherChinese, 'en'}..remove(null)) {
     for (final candidate in available) {
       if (subtitleLanguage(language(candidate)) == wanted) return candidate;
     }

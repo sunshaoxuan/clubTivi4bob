@@ -7,6 +7,7 @@ User=bobtv
 Group=bobtv
 WorkingDirectory=/opt/bobtv/live-subtitles/current-client
 Environment=PYTHONDONTWRITEBYTECODE=1
+EnvironmentFile=-/etc/bobtv/subtitle-ai.env
 ExecStart=/opt/bobtv/subtitles-venv/bin/python service.py --root /var/lib/bobtv/client-subtitles --subtitle-cache-root /var/lib/bobtv/resource-cache/subtitles --model-root /var/lib/bobtv/live-subtitle-models --base https://bobtv.briconbric.com/api/v1/subtitles/client/ --port 8923 --client-only
 Restart=on-failure
 RestartSec=10

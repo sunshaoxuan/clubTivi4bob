@@ -22,7 +22,7 @@ void main() {
     expect(subtitleLanguage('chi'), isNull);
     expect(
       selectSubtitle(['zh-TW', 'eng'], 'zh-CN', language: (s) => s),
-      'eng',
+      'zh-TW',
     );
     expect(
       selectSubtitle(

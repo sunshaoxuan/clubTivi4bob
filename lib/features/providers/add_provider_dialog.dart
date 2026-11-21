@@ -105,7 +105,14 @@ class _AddProviderPageState extends ConsumerState<_AddProviderPage> {
         }
         bytes.addAll(chunk);
       }
-      final package = ResourcePackage.parse(utf8.decode(bytes));
+      final text = utf8.decode(bytes);
+      final value = jsonDecode(text);
+      if (value is Map<String, dynamic> &&
+          value['format'] == 'bobtv-sync-bootstrap') {
+        await ref.read(providerManagerProvider).regionalCatalog.attach(value);
+        return;
+      }
+      final package = ResourcePackage.parse(text);
       await _confirmResource(package, package.updateUrl?.toString() ?? '');
     });
   }

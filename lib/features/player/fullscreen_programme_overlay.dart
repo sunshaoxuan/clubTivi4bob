@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import '../../data/datasources/local/database.dart' as db;
-import 'desktop_exit_button.dart';
 import '../../core/i18n/app_language.dart';
 
 /// Lightweight text over the video, matching the original fullscreen guide.
@@ -9,13 +8,11 @@ class FullscreenProgrammeOverlay extends StatelessWidget {
     super.key,
     required this.channelName,
     required this.programmes,
-    required this.onReturn,
     this.timeshiftHours = 0,
     this.now,
   });
   final String channelName;
   final List<db.EpgProgramme> programmes;
-  final VoidCallback onReturn;
   final int timeshiftHours;
   final DateTime? now;
 
@@ -140,19 +137,6 @@ class FullscreenProgrammeOverlay extends StatelessWidget {
         shadows: shadow,
       ),
     );
-    final controls = Wrap(
-      alignment: WrapAlignment.end,
-      crossAxisAlignment: WrapCrossAlignment.center,
-      runSpacing: 4,
-      children: [
-        TextButton.icon(
-          onPressed: onReturn,
-          icon: const Icon(Icons.arrow_back, size: 16),
-          label: Text(AppMessages.text(context, "返回频道")),
-        ),
-        const DesktopExitButton(),
-      ],
-    );
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
       child: LayoutBuilder(
@@ -167,12 +151,7 @@ class FullscreenProgrammeOverlay extends StatelessWidget {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Row(
-                  children: [
-                    Expanded(child: name),
-                    Flexible(child: controls),
-                  ],
-                ),
+                name,
                 if (rows.isNotEmpty)
                   Padding(padding: const EdgeInsets.only(top: 4), child: guide),
               ],
@@ -202,15 +181,7 @@ class FullscreenProgrammeOverlay extends StatelessWidget {
                   ),
                 ),
               ),
-              SizedBox(
-                width: sideWidth,
-                child: Align(
-                  key: const ValueKey('fullscreen-actions-region'),
-                  heightFactor: 1,
-                  alignment: Alignment.topRight,
-                  child: controls,
-                ),
-              ),
+              SizedBox(width: sideWidth),
             ],
           );
         },

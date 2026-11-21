@@ -163,6 +163,18 @@ String rewriteBufferedHls(
   return '${lines.join('\n')}\n';
 }
 
+/// A generic live guide does not establish that a CDN can still serve old
+/// segments. Stay near the provider's edge without changing Rakuten's
+/// advert-aware preroll or the normal playback path.
+double subtitleLiveHoldback(String body, {required bool providerWindowOnly}) {
+  if (!providerWindowOnly) return 30;
+  final target = double.tryParse(
+    RegExp(r'#EXT-X-TARGETDURATION:([0-9.]+)').firstMatch(body)?[1] ?? '',
+  );
+  if (target == null || !target.isFinite || target <= 0) return 8;
+  return (2 * target).clamp(2.0, 18.0);
+}
+
 class HlsPlaybackSegment {
   HlsPlaybackSegment({
     required this.sequence,
@@ -184,6 +196,7 @@ class HlsPlaybackSegment {
 class HlsBufferProxy {
   HlsBufferProxy({this.captureClock = false});
   bool captureClock;
+  bool _providerWindowOnly = false;
   int _generation = 0;
   final _segments = <String, HlsPlaybackSegment>{};
   final _segmentUris = <String, Uri>{};
@@ -345,9 +358,9 @@ class HlsBufferProxy {
     if (generation != _generation || _server == null) {
       throw const HttpException('HLS session closed');
     }
-    final body = _histories
-        .putIfAbsent(uri, HlsPlaylistHistory.new)
-        .update(raw, uri);
+    final body = _providerWindowOnly
+        ? raw
+        : _histories.putIfAbsent(uri, HlsPlaylistHistory.new).update(raw, uri);
     final durations = RegExp(
       r'#EXTINF:([0-9.]+)',
     ).allMatches(raw).map((match) => double.parse(match[1]!)).toList();
@@ -416,6 +429,8 @@ class HlsBufferProxy {
     await stop();
     if (!isReviewedRakutenUkMovieSource(source) && !captureClock) return source;
     if (!Uri.parse(source).path.endsWith('.m3u8')) return source;
+    _providerWindowOnly =
+        captureClock && !isReviewedRakutenUkMovieSource(source);
     final generation = ++_generation;
     _headers = headers ?? const {};
     final client = ServerEgress.createMediaClient();
@@ -540,6 +555,10 @@ class HlsBufferProxy {
                 body,
                 uri,
                 _register,
+                holdBackSeconds: subtitleLiveHoldback(
+                  body,
+                  providerWindowOnly: _providerWindowOnly,
+                ),
                 keyUrl: captureClock && !Platform.isMacOS ? _registerKey : null,
               ),
             );
@@ -588,6 +607,7 @@ class HlsBufferProxy {
 
   Future<void> stop() async {
     ++_generation;
+    _providerWindowOnly = false;
     _manifestPoll?.cancel();
     _manifestPoll = null;
     await _linearized.stop();

@@ -14,12 +14,23 @@ from urllib.parse import urlsplit
 
 from subtitle_edition import chinese_script, merge_editions, timing_evidence, track_fingerprint
 from subtitle_identity import resolve as resolve_identity, release_year
+from subtitle_ai import SubtitleAI, CHINESE, PROVIDER as AI_PROVIDER
 from subtitle_catalog import (LANGUAGES, PROVIDER_AUDIT, matches_movie_title, parse_srt,
                               resource_path, title_norm, variant_counts)
 
 NEGATIVE_TTL = 900
 RETRY_TTL = 60
-RESOURCE_SCHEMA = 4
+RESOURCE_SCHEMA = 5
+
+
+def verified_release_aliases(programme):
+    if programme.get('identityEvidence')!='official_movie_record' or not programme.get('imdbId'):
+        return ()
+    slug = programme.get('movieId') or ''
+    if '-aka-' not in slug:
+        return ()
+    alias = slug.rsplit('-aka-',1)[-1].replace('-',' ')
+    return (alias,) if re.fullmatch(r'[a-z0-9 ]{2,80}',alias) else ()
 
 
 def movie_aliases(programme):
@@ -67,6 +78,47 @@ class SubtitleCache:
         self.root, self.clock = Path(root), clock
         self.root.mkdir(parents=True, exist_ok=True, mode=0o700)
         (self.root/'blobs').mkdir(exist_ok=True, mode=0o700)
+        self.ai = SubtitleAI(self.root/'.ai')
+
+    def with_ai_chinese(self, programme, candidates, language, *, reference_page=None):
+        if (language not in CHINESE or not candidates or not self.ai.enabled or
+                not programme.get('searchable') or not programme.get('imdbId') or
+                not programme.get('identityEvidence') or
+                any(tag in row['tracks'] for tag in CHINESE for row in candidates)):
+            return candidates
+        programme = resolve_identity(programme,self.root)
+        with self.locked(self.identity(programme)) as folder:
+            try:
+                receipt = json.loads((folder/'index.json').read_text())
+            except (OSError,ValueError):
+                return candidates
+            # Any incomplete search, provider error or unpaired Chinese file defers AI.
+            audit = receipt.get('providerOutcomes',[])
+            if not audit or any(receipt.get('searches',{}).get(tag,{}).get('outcome') !=
+                                'not_found_this_search' for tag in CHINESE):
+                return candidates
+            if any(row.get('outcome') in ('unavailable','identity_pending','skipped') or
+                   row.get('failureCount') for row in audit):
+                return candidates
+        reference = next((row for row in candidates if row.get('provenance',{}).get('en',{}).get('imdbId') ==
+                          programme['imdbId'] and row['tracks'].get('en') and
+                          (reference_page is None or row['page']==reference_page)),None)
+        if reference is None or not self.ai.permits_translation(reference.get('provenance',{}).get('en',{})):
+            return candidates
+        english = reference['tracks']['en']
+        cues = self.ai.translate(programme['title'],english)
+        if not cues:
+            return candidates
+        # Another hub can discover an existing subtitle during translation.
+        with self.locked(self.identity(programme)) as folder:
+            newest, _ = self.load(folder)
+        if newest and any(tag in row['tracks'] for tag in CHINESE for row in newest):
+            return newest
+        translated = {**reference,'tracks':{**reference['tracks'],'zh-CN':cues},
+            'provenance':{**reference.get('provenance',{}),'zh-CN':{
+                'provider':AI_PROVIDER,'release':'AI 翻译','generated':True,
+                'referenceFingerprint':track_fingerprint(english)}}}
+        return [translated if item is reference else item for item in candidates]
 
     def identity(self, programme):
         aliases = movie_aliases(programme)
@@ -249,6 +301,7 @@ class SubtitleCache:
     def get_or_discover(self, programme, download_root, discover, *, requested_language='en', refresh=False):
         if requested_language not in LANGUAGES: raise ValueError('unsupported_language')
         programme=resolve_identity(programme,self.root)
+        release_aliases = verified_release_aliases(programme)
         with self.locked(self.identity(programme)) as folder:
             cached, searches = self.load(folder)
             try:
@@ -273,10 +326,15 @@ class SubtitleCache:
             programme={**programme,'subtitleYear':lookup_year}
             def same_film(candidate):
                 label = candidate.get('label', '')
-                source_imdb = candidate.get('provenance', {}).get('en', {}).get('imdbId')
+                facts = candidate.get('provenance', {}).get('en', {})
+                source_imdb = facts.get('imdbId')
                 if source_imdb is not None and programme.get('imdbId') not in (None, source_imdb):
                     return False
-                return (matches_movie_title(label, programme['title'], lookup_year) or
+                return (any(matches_movie_title(label, name, lookup_year) for name in
+                            (programme['title'],*release_aliases)) or
+                        bool(source_imdb and source_imdb == programme.get('imdbId') and
+                             (facts.get('aiIdentityReviewed') is True or any(
+                                 title_norm(label)==title_norm(name) for name in release_aliases))) or
                         bool(source_imdb and source_imdb == programme.get('imdbId')
                              and title_norm(label) == title_norm(programme['title'])))
             admitted = [candidate for candidate in cached if same_film(candidate)]
@@ -301,7 +359,11 @@ class SubtitleCache:
             if not refresh and not cached and fresh_miss: return []
             self.hydrate_resources(folder,download_root)
             try:
-                found = discover(programme['title'], lookup_year, download_root, requested_language=requested_language, imdb_id=programme.get('imdbId'))
+                options = dict(requested_language=requested_language,imdb_id=programme.get('imdbId'))
+                if release_aliases: options['aliases'] = release_aliases
+                if self.ai.enabled and programme.get('searchable') and programme.get('identityEvidence'):
+                    options['reviewer'] = self.ai.review
+                found = discover(programme['title'],lookup_year,download_root,**options)
             except Exception:
                 try: manifest = json.loads((folder/'index.json').read_text())
                 except (OSError, ValueError): manifest = dict(schemaVersion=1, identity=movie_aliases(programme), title=programme['title'], year=programme['year'], editions=[], searches={})

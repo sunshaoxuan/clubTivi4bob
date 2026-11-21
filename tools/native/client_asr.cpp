@@ -76,14 +76,19 @@ int main(int argc,char **argv) {
   return 0;
  }
  const auto filename=std::filesystem::u8path(argv[1]).filename().string();
+ #ifdef BOBTV_QA_CJK_ASR
+ const bool turbo=filename=="ggml-large-v3-turbo-q5_0.bin";
+ #else
+ const bool turbo=false;
+ #endif
  const bool tiny=filename=="ggml-tiny.en-q5_1.bin"||filename=="ggml-tiny-q5_1.bin";
- const bool multilingual=filename=="ggml-tiny-q5_1.bin"||filename=="ggml-base-q5_1.bin";
+ const bool multilingual=turbo||filename=="ggml-tiny-q5_1.bin"||filename=="ggml-base-q5_1.bin";
 #ifdef __ANDROID__
  nice(5);
 #endif
  whisper_log_set([](ggml_log_level,const char*,void*){},nullptr);
  auto cp=whisper_context_default_params();cp.use_gpu=false;cp.flash_attn=false;cp.dtw_token_timestamps=true;
- cp.dtw_aheads_preset=tiny?(multilingual?WHISPER_AHEADS_TINY:WHISPER_AHEADS_TINY_EN):(multilingual?WHISPER_AHEADS_BASE:WHISPER_AHEADS_BASE_EN);
+ cp.dtw_aheads_preset=turbo?WHISPER_AHEADS_LARGE_V3_TURBO:tiny?(multilingual?WHISPER_AHEADS_TINY:WHISPER_AHEADS_TINY_EN):(multilingual?WHISPER_AHEADS_BASE:WHISPER_AHEADS_BASE_EN);
  std::ifstream model(std::filesystem::u8path(argv[1]),std::ios::binary);if(!model)return 3;
  whisper_model_loader loader{};loader.context=&model;
  loader.read=[](void* p,void* out,size_t count)->size_t{auto* in=static_cast<std::ifstream*>(p);in->read(static_cast<char*>(out),count);return size_t(in->gcount());};
@@ -91,14 +96,15 @@ int main(int argc,char **argv) {
  loader.close=[](void*){};
  auto *ctx=whisper_init_with_params(&loader,cp);model.close();if(!ctx)return 3;
  if(bool(whisper_is_multilingual(ctx))!=multilingual){whisper_free(ctx);return 3;}
- std::string model_name=tiny?"tiny":"base";if(!multilingual)model_name+=".en";
+ if(turbo&&(whisper_model_n_vocab(ctx)<51866||whisper_model_n_mels(ctx)!=128||whisper_model_n_text_layer(ctx)!=4)){whisper_free(ctx);return 3;}
+ std::string model_name=turbo?"large-v3-turbo":tiny?"tiny":"base";if(!multilingual)model_name+=".en";
  std::cout<<json({{"ready",true},{"engine","whisper.cpp-v1.8.2"},{"model",model_name}}).dump()<<std::endl;
  std::string line;
  while(std::getline(std::cin,line)) {
   try {
    auto request=json::parse(line);std::string path=request.at("path");
    const auto language=request.value("audioLanguage",std::string(multilingual?"auto":"en"));
-   if((!multilingual&&language!="en")||
+   if((!multilingual&&language!="en")||(language=="yue"&&whisper_model_n_vocab(ctx)<51866)||
       (language!="auto"&&(language.size()<2||language.size()>3||
          language.find_first_not_of("abcdefghijklmnopqrstuvwxyz")!=std::string::npos||
          whisper_lang_id(language.c_str())<0)))throw std::runtime_error("unsupported_audio_language");
@@ -120,6 +126,12 @@ int main(int argc,char **argv) {
    if(energy/pcm.size()>1e-7) {
     auto p=whisper_full_default_params(WHISPER_SAMPLING_GREEDY);p.n_threads=tiny?2:3;p.language=language.c_str();
     p.translate=false;p.no_context=true;p.print_progress=false;p.print_realtime=false;p.print_timestamps=false;
+    if(turbo){
+     // QA receives short decoder windows, not full recordings. Avoid repeated
+     // temperature passes and bound the attention window with quiet padding.
+     p.temperature_inc=0.f;p.greedy.best_of=1;
+     p.audio_ctx=std::min(whisper_model_n_audio_ctx(ctx),std::max(128,int((pcm.size()+319)/320)+100));
+    }
 #if defined(__ANDROID__)
     // Live playback cannot wait for repeated temperature fallback on music.
     // A single greedy pass leaves weak speech unmatched instead of resampling.
@@ -128,7 +140,7 @@ int main(int argc,char **argv) {
     p.token_timestamps=true;p.split_on_word=true;p.max_len=1;p.suppress_blank=true;p.suppress_nst=true;
     if(whisper_full(ctx,p,pcm.data(),int(pcm.size()))!=0)throw std::runtime_error("recognition_failed");
     if(const auto* code=whisper_lang_str(whisper_full_lang_id(ctx)))detected_language=code;
-    const bool cjk=detected_language=="ja"||detected_language=="zh"||detected_language=="ko";
+    const bool cjk=detected_language=="ja"||detected_language=="zh"||detected_language=="ko"||detected_language=="yue";
     for(int s=0;s<whisper_full_n_segments(ctx);s++) {
      if(words.size()>=512)break;
      if(cjk&&cjk_tokens(ctx,s,shift,duration,words))continue;

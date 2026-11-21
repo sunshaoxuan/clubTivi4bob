@@ -9,6 +9,12 @@ class TransportClockTests(unittest.TestCase):
     def proposal(self,model=None,current=None,**changes):
         args=dict(asset='movie',programme='programme',epoch=3,start=170.,position=169.3,ad_start=20.,ad_clock_start=20.,now=time.time());args.update(changes)
         return project(model or self.model(),current or dict(epoch=1,audioRemoved=-148.053333,videoRemoved=-147.925033,updatedAt=170.),**args)
+    def test_a_shorter_verified_model_lifetime_cannot_be_extended_by_transport(self):
+        m=self.model();m['maxAgeSeconds']=30
+        from transport_clock import project
+        self.assertIsNone(project(m,m['clock'],asset=m['asset'],programme=m['programme'],epoch=m['epoch'],
+            start=m['clock']['updatedAt'],position=m['clock']['updatedAt'],ad_start=None,now=m['verifiedAt']+31))
+
     def test_captured_two_second_content_jump_is_not_ad_duration_subtraction(self):
         result=self.proposal()
         self.assertAlmostEqual(result['sourceMovieAdvanceSeconds'],2.010817,places=6)

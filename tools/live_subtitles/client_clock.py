@@ -14,13 +14,14 @@ from urllib.parse import urlsplit
 import threading
 import time
 import uuid
-from live_engine import align, fit_clock_rate, clock_rate_confident, short_cue_clock_evidence
+from live_engine import align, fit_clock_rate, clock_rate_confident, short_cue_clock_evidence, short_cue_clock_cluster
 from subtitle_cache import RETRY_TTL
 from subtitle_ai import CHINESE
 from subtitle_catalog import discover, LANGUAGES
 from subtitle_variants import SubtitleVariants, UNCHANGED
 from service import reviewed_pilot_source
 from transport_clock import clock as source_clock, project as project_clock
+from semantic_dialogue import SemanticDialogue
 
 
 def finite(value, low, high):
@@ -106,6 +107,8 @@ class TextHub:
                     with self.lock:
                         if generation==self.discovery_generation:
                             self.candidates=candidates
+                            self.resource_identity=dict(lookup) if lookup else None
+                            self.resource_identity_programme=programme['key']
                             self.variants=variants
                             self.discovery_error=False
                     self.event('subtitle_resources_ready',programmeKey=programme['key'],language=language,candidates=len(candidates),manual=refresh)
@@ -266,6 +269,8 @@ class TextHub:
                     self.fetch_subtitles(speech)
             changed=(session['epoch']!=epoch or session['asset']!=asset or session['programmeKey']!=self.programme['key'])
             if changed:
+                session.pop('semanticState',None)
+                session.pop('semanticClockLimit',None)
                 session.pop('pendingTransport',None)
                 session.pop('clockJump',None);session.pop('acceptedClock',None);session.pop('editionSwitch',None)
                 session.pop('sparseClockProposal',None)
@@ -283,6 +288,8 @@ class TextHub:
             window=previous if delayed and previous and previous['end']>end else dict(start=start,end=end)
             session.update(lastObservation=highest,lastAccess=time.time(),lastWindow=window,ad=ad)
             if ad:
+                session.pop('semanticState',None)
+                session.pop('semanticClockLimit',None)
                 if changed or 'adStart' not in session:
                     session['adStart']=start
                     session['adClockStart']=clock['updatedAt'] if clock and abs(clock['updatedAt']-start)<=12 else None
@@ -339,7 +346,9 @@ class TextHub:
                         candidate is prior and session.get('priorRateVerified',False) and len(ordinary)>=2 and ordinary_span>=2 and all(a['words']>=4 for a in ordinary))
                     if any(a.get('shortCuePrefix') for a in cluster):
                         if ordinary_proof:cluster=ordinary
-                        elif not short_cue_clock_evidence(cluster):continue
+                        else:
+                            cluster=short_cue_clock_cluster(projected,fresh_ids)
+                            if not cluster:continue
                     count=len({a['cue'] for a in cluster})
                     span=max(a['asrStart'] for a in cluster)-min(a['asrStart'] for a in cluster)
                     long_pair=(candidate is prior or bound) and count>=2 and span>=2 and all(a['words']>=8 for a in cluster)
@@ -352,6 +361,22 @@ class TextHub:
                 if hypotheses:
                     _,_,candidate_rate,offset,anchors=max(hypotheses,key=lambda h:(h[0],h[1]))
                 if offset is not None:selected=(candidate,anchors,candidate_rate);break
+            matcher=getattr(self,'semantic_matcher',None)
+            if selected is None and clock is not None:
+                ai=getattr(getattr(self,'cache',None),'ai',None)
+                if matcher is None and ai is not None:
+                    matcher=self.semantic_matcher=SemanticDialogue(ai,self.lock,lambda:self.sessions,
+                        lambda:self.candidates,self.event)
+                if matcher is not None:
+                    selected=matcher.take(session,trial,end,speech,token)
+                    identity=(getattr(self,'resource_identity',None) if
+                              getattr(self,'resource_identity_programme',None)==self.programme['key'] else None)
+                    model=session.get('sourceModel',{})
+                    refresh_semantic=(projected and model.get('semanticDialogue') and
+                        model.get('maxAgeSeconds',1800)-(time.time()-model.get('verifiedAt',0))<=180)
+                    if selected is None and ((not projected and session['unmatchedWindows']>=2) or refresh_semantic):
+                        for candidate in trial:
+                            if matcher.offer(token,session,identity,candidate,speech,words,start,end):break
             if selected is None:
                 if prior_speech is not None and speech!=prior_speech:
                     self.event('unmatched_speech_language',session=token,epoch=epoch,language=speech)
@@ -363,6 +388,8 @@ class TextHub:
                     self.event('unmatched_speech',session=token,start=start,end=end,words=len(words))
                 return
             candidate,anchors,selected_rate=selected
+            semantic_verified=any(a.get('semanticDialogue') for a in anchors)
+            if not semantic_verified:session.pop('semanticState',None)
             if prior_speech is not None and speech!=prior_speech:
                 for key in ('priorReference','lastMatchedReference','sourceModel','transportAt','pendingTransport','candidateKey','priorRate','priorRateVerified','priorAsset','adStart','adClockStart','acceptedClock','editionSwitch','clockJump'):
                     session.pop(key,None)
@@ -370,10 +397,10 @@ class TextHub:
             session['audioLanguage']=speech
             session['audioLanguageEpoch']=epoch
             if session.get('adStart') is not None:
-                exact=[a for a in anchors if not (a.get('fuzzyPrefix') or a.get('sparseWords')) and a['words']>=4]
+                exact=[a for a in anchors if not (a.get('fuzzyPrefix') or a.get('sparseWords') or a.get('semanticDialogue')) and a['words']>=4]
                 enough_exact=(len({a['cue'] for a in exact})>=2 and
                     max(a['asrStart'] for a in exact)-min(a['asrStart'] for a in exact)>=2)
-                if not enough_exact and not short_cue_clock_evidence(anchors):
+                if not enough_exact and not short_cue_clock_evidence(anchors) and not semantic_verified:
                     return
                 if enough_exact:anchors=exact
             accepted=session.get('acceptedClock',{})
@@ -419,7 +446,7 @@ class TextHub:
             old_points=dict(session['points'])
             for a in anchors:session['points'][a['cue']]=dict(cue=a['cue'],sourcePts=a['asrStart'],subtitleStart=a['subtitleStart'])
             points=list(session['points'].values())[-128:];proposal=fit_clock_rate(points,session['rate'])
-            rate=proposal['rate'] if proposal else session['rate'] if session.get('rateVerified',False) else selected_rate
+            rate=selected_rate if semantic_verified else proposal['rate'] if proposal else session['rate'] if session.get('rateVerified',False) else selected_rate
             intercept=proposal['intercept'] if proposal else statistics.median(a['subtitleStart']-rate*a['asrStart'] for a in anchors)
             baseline=session.get('acceptedClock',{})
             baseline=baseline if baseline.get('page')==candidate['page'] else {}
@@ -451,11 +478,13 @@ class TextHub:
             inherited=bool(prior_model and prior_model['reference']['page']==candidate['page'] and prior_model['rate']==rate and clock and prior_model['clock']['epoch']==clock['epoch'] and abs(prior_model['intercept']-intercept)/rate<=.75)
             if clock and (session.get('rateVerified',False) or inherited):
                 session['sourceModel']=dict(asset=asset,programme=self.programme['key'],epoch=epoch,clock=clock,reference=candidate,rate=rate,intercept=intercept,verifiedAt=time.time(),notBefore=prior_model.get('notBefore',0) if inherited else 0)
+                if semantic_verified:
+                    session['sourceModel'].update(semanticDialogue=True,maxAgeSeconds=session.pop('semanticClockLimit',1800))
             # Refresh only observed movie windows; ad intervals remain excluded.
             trusted_rate=session.get('rateVerified',False) or candidate is session.get('priorReference') and session.get('priorRateVerified',False) and abs(rate-session.get('priorRate',rate))<1e-8
             movie_end=max(end+12,position+12) if trusted_rate else end+12
             self.clock_window(session,candidate,start,movie_end,rate,intercept)
-            self.event('client_acoustic_lock',referenceId=hashlib.sha256(candidate['page'].encode()).hexdigest(),session=token,epoch=epoch,start=start,end=end,rate=rate,intercept=intercept,anchors=anchors,residualSeconds=residuals,clockRateVerified=session['rateVerified'],clockRateReused=warm_rate)
+            self.event('client_acoustic_lock',referenceId=hashlib.sha256(candidate['page'].encode()).hexdigest(),session=token,epoch=epoch,start=start,end=end,rate=rate,intercept=intercept,anchors=anchors,residualSeconds=residuals,clockRateVerified=session['rateVerified'],clockRateReused=warm_rate,alignmentMethod='semantic_dialogue' if semantic_verified else 'exact_dialogue')
             if resuming:
                 session['acousticResumeEpoch']=epoch
                 if clock:session['transportAt']=time.time()
@@ -555,6 +584,7 @@ class TextHub:
             phase = ('programme_unavailable' if not valid else
                      'service_unavailable' if self.discovery_error else
                      'searching' if self.candidates is None else
+                     'synchronizing' if session.get('semanticState',{}).get('inFlight') else
                      'unavailable' if not self.candidates or session['exhausted'] else
                      'matched' if reference else 'synchronizing')
             choices = catalog.choices(reference, pinned) if valid else []

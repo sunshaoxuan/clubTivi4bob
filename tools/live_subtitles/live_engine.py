@@ -121,6 +121,22 @@ def short_cue_clock_evidence(anchors):
                     for a in values) <= .5)
 
 
+def short_cue_clock_cluster(anchors, fresh_ids=None):
+    groups = {}
+    for center in anchors:
+        group = [a for a in anchors if abs(a['offset']-center['offset']) < .5]
+        if (short_cue_clock_evidence(group) and
+                (fresh_ids is None or any(a['cue'] in fresh_ids for a in group))):
+            groups[tuple(sorted((a['cue'],a['asrStart']) for a in group))] = group
+    ranked = sorted(groups.values(),key=lambda group:len({a['cue'] for a in group}),reverse=True)
+    if not ranked:return []
+    best=ranked[0];offset=statistics.median(a['offset'] for a in best)
+    if any(len({a['cue'] for a in other})>=len({a['cue'] for a in best})-1 and
+           abs(statistics.median(a['offset'] for a in other)-offset)>=.9 for other in ranked[1:]):
+        return []
+    return best
+
+
 def align(words, cues, timeline, *, rate=1., language='en'):
     def tokenize(text):
         if language == 'en':
@@ -167,6 +183,9 @@ def align(words, cues, timeline, *, rate=1., language='en'):
                 onset = timeline + matched_owners[0]['start']
                 anchors.append(dict(cue=cue['index'],subtitleStart=cue['start'],asrStart=onset,
                     offset=cue['start']-rate*onset,words=count,shortCuePrefix=True,sparseWords=True))
+        placements={}
+        for anchor in anchors:placements.setdefault(anchor['cue'],set()).add(anchor['asrStart'])
+        anchors=[a for a in anchors if len(placements[a['cue']])==1]
     for match in difflib.SequenceMatcher(None, tokens, asr, autojunk=False).get_matching_blocks():
         if match.size < minimum:
             continue
@@ -221,9 +240,8 @@ def align(words, cues, timeline, *, rate=1., language='en'):
                   key=len, default=[])
     if len({a['cue'] for a in cluster}) >= 3 and max(a['asrStart'] for a in cluster) - min(a['asrStart'] for a in cluster) >= 4:
         return statistics.median(a['offset'] for a in cluster), cluster
-    short_cluster = max(([a for a in anchors if abs(a['offset']-c['offset']) < .5] for c in anchors),
-                        key=lambda group: len({a['cue'] for a in group}), default=[])
-    if short_cue_clock_evidence(short_cluster):
+    short_cluster = short_cue_clock_cluster(anchors)
+    if short_cluster:
         return statistics.median(a['offset'] for a in short_cluster), short_cluster
     if language == 'en':
         sparse = sparse_word_anchors(cues, cue_words, asr, owners, timeline, rate, anchors)

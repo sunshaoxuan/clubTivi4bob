@@ -59,7 +59,7 @@ class SubtitleAI:
         return self.transport is not None or reference.get('provider') in {
             value.strip() for value in reviewed.split(',') if value.strip()}
 
-    def call(self, instruction, data):
+    def call(self, instruction, data, *, timeout=15):
         if self.transport is not None:
             return self.transport(instruction, data)
         settings = {k: os.environ.get('BOBTV_SUBTITLE_AI_' + k, '')
@@ -79,9 +79,11 @@ class SubtitleAI:
                 fcntl.flock(lock,fcntl.LOCK_EX | fcntl.LOCK_NB)
             except BlockingIOError:
                 raise ValueError('subtitle_ai_busy') from None
-            return self.request(settings,body)
+            return self.request(settings,body,timeout=timeout)
 
-    def request(self, settings, body):
+    def request(self, settings, body, *, timeout=15):
+        if timeout not in (15,60):
+            raise ValueError('subtitle_ai_timeout_limit')
         now = int(time.time())
         with sqlite3.connect(self.root/'budget.sqlite3', timeout=2) as db:
             db.execute('BEGIN IMMEDIATE')
@@ -96,7 +98,7 @@ class SubtitleAI:
         req = Request(settings['BASE_URL'].rstrip('/')+'/responses', data=body,
             headers={'Authorization':'Bearer '+settings['TOKEN'], 'Content-Type':'application/json'})
         try:
-            with build_opener(*transport_handlers(settings['BASE_URL'])).open(req, timeout=15) as response:
+            with build_opener(*transport_handlers(settings['BASE_URL'])).open(req, timeout=timeout) as response:
                 raw = response.read(131073)
         except HTTPError as error:
             if error.code in (401,403,429,500,502,503,504):

@@ -495,7 +495,7 @@
         []
       ],
       [
-        "Política de privacidad / Política de privacidad · Fecha de actualización: 2026-10-13",
+        "Política de privacidad / Política de privacidad · Fecha de actualización: 2026-11-22",
         []
       ],
       [
@@ -845,7 +845,7 @@
         "Comprueba diálogos y tiempos con el audio reproducido en tu dispositivo. Pausa los subtítulos durante los anuncios y confirma la nueva posición antes de reanudarlos."
       ]
     ],
-    "privacy": "El audio permanece en tu dispositivo. El servidor busca, almacena y sincroniza subtítulos sin descargar el vídeo de forma continua. Los recursos se reutilizan cuando vuelve a emitirse la misma película. Solo se envían fragmentos de diálogo e información temporal para sincronizar.",
+    "privacy": "El audio se reconoce en tu dispositivo. BobTV recibe fragmentos de diálogo, tiempos y datos del programa para buscar, almacenar y comparar subtítulos. El servicio de IA configurado puede comparar los textos sin recibir audio, vídeo ni URL de reproducción.",
     "condition": "La guía debe identificar el programa actual y la versión de los subtítulos debe corresponder a la emisión. El reproductor indica cuándo faltan subtítulos o se están sincronizando. La resincronización por voz admite actualmente audio en inglés.",
     "demo": "Explora qué ocurre durante un anuncio",
     "demoNote": "Ejemplo del funcionamiento. La disponibilidad depende del programa, el idioma y la edición de los subtítulos.",
@@ -879,5 +879,9 @@
     "Biometría y eliminación",
     "El sistema del dispositivo procesa la biometría. BobTV no recibe plantillas de rostro o huellas. La preferencia y la sesión se conservan en el almacenamiento seguro del sistema. Puedes eliminar la cuenta desde la aplicación; se revocan las credenciales de Apple. Los límites caducan con su período. Las auditorías y las copias de seguridad se depuran periódicamente con políticas de retención de 180 y 30 días.",
     "El catálogo regional también guarda la clave pública de la cuenta en este dispositivo y su fecha de registro, además de retos de sincronización de corta duración. La clave privada permanece en el almacenamiento seguro del dispositivo. Las regiones elegidas y las cachés verificadas se guardan en el dispositivo y se retiran de la vista activa al cerrar sesión. Puedes desvincular este dispositivo en el selector de regiones."
+  ],
+  "subtitle_privacy": [
+    "Subtítulos en directo y comparación de diálogos",
+    "Al activar los subtítulos en directo, tu dispositivo reconoce los diálogos y sus tiempos. BobTV los compara con subtítulos existentes. El título, las palabras reconocidas y fragmentos de subtítulos pueden enviarse al servicio de IA configurado. Estas solicitudes no incluyen audio, vídeo, URL de reproducción ni credenciales de cuenta. Las palabras se guardan temporalmente en la memoria de sesión del servidor BobTV. Desactivar los subtítulos detiene nuevos envíos. La conservación del servicio de IA depende de su configuración y sus políticas."
   ]
 }

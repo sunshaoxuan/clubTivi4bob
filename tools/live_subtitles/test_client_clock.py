@@ -454,6 +454,24 @@ class ClientClockTests(unittest.TestCase):
             with self.assertRaises(ValueError):h.ingest(t,self.observation(h))
 
 
+    def test_verified_semantic_onsets_use_the_existing_clock_and_caption_pipeline(self):
+        from types import SimpleNamespace
+        with tempfile.TemporaryDirectory() as d:
+            h=self.hub(d);candidate=h.candidates[0]
+            candidate['tracks']['zh-CN']=candidate['tracks']['en']
+            token=h.create(h.source,None,'zh-CN',['clientClockV1'])
+            anchors=[dict(cue=i,asrStart=i*8.,asrEnd=i*8.+2.,subtitleStart=100+(25/24)*i*8.,
+                          offset=100.,words=20,semanticDialogue=True) for i in range(10)]
+            h.semantic_matcher=SimpleNamespace(take=lambda *a:(candidate,anchors,25/24))
+            words=[dict(word='这是一段新的中文对白',start=1,end=3,probability=.99)]
+            clock=dict(epoch=1,audioRemoved=0,videoRemoved=0,updatedAt=100)
+            h.ingest(token,self.observation(h,start=80.,end=100.,audioLanguage='zh-CN',words=words,sourceClock=clock))
+            state=h.sessions[token]
+            self.assertIs(state['reference'],candidate)
+            self.assertTrue(state['rateVerified'])
+            self.assertAlmostEqual(state['intercept'],100.)
+            self.assertIs(state['sourceModel']['reference'],candidate)
+
     def test_short_cjk_clocks_require_stronger_evidence_and_a_second_window(self):
         def anchors(count):
             return [dict(cue=i,asrStart=i*3.,subtitleStart=100+i*3.,offset=100.,words=6,

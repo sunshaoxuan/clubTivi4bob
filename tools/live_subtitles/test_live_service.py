@@ -515,6 +515,17 @@ class ShortCjkClockTests(unittest.TestCase):
         words[-1]=dict(words[-1],start=words[-1]['start']+3)
         self.assertIsNone(align(words,cues,0,language='zh-CN')[0])
 
+    def test_repeated_speech_does_not_choose_an_arbitrary_short_cue_clock(self):
+        cues,words=self.fixture()
+        repeated=words+[dict(w,start=w['start']+20,end=w['end']+20) for w in words]
+        self.assertIsNone(align(repeated,cues,0,language='zh-CN')[0])
+
+    def test_competing_short_dialogue_groups_do_not_choose_an_arbitrary_clock(self):
+        from live_engine import short_cue_clock_cluster
+        anchors=[dict(cue=i,asrStart=i*3.,subtitleStart=100+i*3.,offset=100.,words=6,shortCuePrefix=True) for i in range(6)]
+        anchors += [dict(a,cue=a['cue']+10,offset=200.,subtitleStart=a['subtitleStart']+100) for a in anchors[:]]
+        self.assertEqual(short_cue_clock_cluster(anchors),[])
+
     def test_a_single_long_asr_token_cannot_invent_separate_short_cue_onsets(self):
         cues,words=self.fixture()
         one=[dict(word=''.join(w['word'] for w in words),start=0.,end=17.,probability=.99)]

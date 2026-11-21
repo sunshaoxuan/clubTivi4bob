@@ -495,7 +495,7 @@
         []
       ],
       [
-        "Privacy Policy / Privacy policy · Updated date: 2026-10-13",
+        "Privacy Policy / Privacy policy · Updated date: 2026-11-22",
         []
       ],
       [
@@ -845,7 +845,7 @@
         "Check dialogue and timing using playback audio on your device. Pause subtitles during adverts, then confirm the new position before showing them again."
       ]
     ],
-    "privacy": "Playback audio stays on your device. The server searches, caches and aligns subtitles without continuously fetching the video stream. Cached resources can be reused when the same film returns. Only dialogue fragments and timing information are sent for alignment.",
+    "privacy": "Playback audio is recognized on your device. BobTV receives dialogue excerpts, times and programme details to find, cache and match subtitles. The configured AI service may compare dialogue text; it receives no audio, video or playback URLs.",
     "condition": "The guide must identify the current programme and a subtitle version must match the broadcast. The player shows when subtitles are unavailable or still synchronising. Speech realignment currently supports English audio.",
     "demo": "Explore what happens during an advert",
     "demoNote": "Workflow illustration. Availability depends on programme information, subtitle language and edition.",
@@ -879,5 +879,9 @@
     "Biometrics and deletion",
     "Face ID, Touch ID and Android biometrics are processed by the device OS. BobTV receives no face or fingerprint templates. The preference and session are kept in secure system storage. Delete your account from the account screen; Apple credentials are revoked. Rate-limit records expire with their windows; admin audits and account database backups are periodically pruned under 180-day and 30-day retention policies.",
     "The regional catalog service also stores this device’s account public key and enrollment time, and briefly retains sync challenges. The private key stays in secure device storage. Region choices and verified caches stay on the device and are removed from the active channel view on sign-out. You can unlink this device in the region picker."
+  ],
+  "subtitle_privacy": [
+    "Live subtitles and dialogue matching",
+    "When live subtitles are enabled, your device recognizes dialogue and timestamps from playback audio. BobTV matches them to existing subtitles. Programme titles, recognized words and subtitle excerpts may be sent to the configured AI service for dialogue matching. These AI requests do not include audio, video, playback URLs or account credentials. Recognized words are held temporarily in BobTV server session memory. Turning subtitles off stops new recognition uploads. AI service retention depends on its settings and policies."
   ]
 }

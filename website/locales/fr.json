@@ -495,7 +495,7 @@
         []
       ],
       [
-        "Politique de confidentialité / Politique de confidentialité · Date de mise à jour : 2026-10-13",
+        "Politique de confidentialité / Politique de confidentialité · Date de mise à jour : 2026-11-22",
         []
       ],
       [
@@ -845,7 +845,7 @@
         "Vérifier les dialogues et le temps avec le son lu sur l’appareil. Suspendre les sous-titres pendant la publicité, puis confirmer la nouvelle position avant de les reprendre."
       ]
     ],
-    "privacy": "Le son reste sur votre appareil. Le serveur recherche, met en cache et synchronise les sous-titres sans récupérer le flux vidéo en continu. Les ressources peuvent être réutilisées quand le même film est rediffusé. Seuls des fragments de dialogue et leurs temps sont envoyés pour le recalage.",
+    "privacy": "La reconnaissance audio se fait sur votre appareil. BobTV reçoit des dialogues, leurs temps et le programme pour rechercher, mettre en cache et rapprocher les sous-titres. Le service IA configuré peut comparer les textes, sans recevoir de son, de vidéo ou d’URL de lecture.",
     "condition": "Le guide TV doit identifier le programme en cours et une version des sous-titres doit correspondre à la diffusion. Le lecteur indique si les sous-titres sont indisponibles ou en cours de synchronisation. Le recalage vocal prend actuellement en charge les pistes audio en anglais.",
     "demo": "Découvrez le comportement pendant une publicité",
     "demoNote": "Illustration du fonctionnement. La disponibilité dépend du programme, de la langue et de l’édition des sous-titres.",
@@ -879,5 +879,9 @@
     "Biométrie et suppression",
     "La biométrie est traitée par le système de l’appareil. BobTV ne reçoit aucun modèle facial ou digital. Préférence et session sont conservées dans le stockage sécurisé du système. Le compte peut être supprimé dans l’application, avec révocation des identifiants Apple. Les limites expirent avec leur période. Les audits administratifs et les sauvegardes de comptes sont purgés périodiquement selon des politiques de 180 et 30 jours.",
     "Le service de catalogue régional conserve aussi la clé publique du compte sur cet appareil et sa date d’inscription, ainsi que de brefs défis de synchronisation. La clé privée reste dans le stockage sécurisé de l’appareil. Les régions choisies et les caches vérifiés restent sur l’appareil et sont retirés de la liste active à la déconnexion. Vous pouvez dissocier cet appareil dans le sélecteur de régions."
+  ],
+  "subtitle_privacy": [
+    "Sous-titres en direct et rapprochement des dialogues",
+    "Lorsque les sous-titres en direct sont activés, votre appareil reconnaît les dialogues et leurs horodatages. BobTV les rapproche des sous-titres existants. Le titre du programme, les mots reconnus et des extraits de sous-titres peuvent être envoyés au service IA configuré. Ces requêtes ne contiennent ni audio, ni vidéo, ni URL de lecture, ni identifiants de compte. Les mots reconnus restent temporairement en mémoire de session sur le serveur BobTV. Désactiver les sous-titres arrête les nouveaux envois. La conservation par le service IA dépend de ses paramètres et politiques."
   ]
 }

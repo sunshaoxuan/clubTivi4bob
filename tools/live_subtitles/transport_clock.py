@@ -14,7 +14,9 @@ def clock(value,end):
     return result
 
 def project(model,current,*,asset,programme,epoch,start,position,ad_start,now,ad_clock_start=None):
-    if not model or not current or model['asset']!=asset or model['programme']!=programme or now-model['verifiedAt']>1800:return None
+    if not model or not current or model['asset']!=asset or model['programme']!=programme:return None
+    age_limit=model.get('maxAgeSeconds',1800)
+    if type(age_limit)is not int or not 1<=age_limit<=1800 or now-model['verifiedAt']>age_limit:return None
     old=model['clock']
     if current['epoch']!=old['epoch']:return None
     a=current['audioRemoved']-old['audioRemoved'];v=current['videoRemoved']-old['videoRemoved']

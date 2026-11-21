@@ -15,6 +15,7 @@ import http.client
 from pathlib import Path
 import re
 import shutil
+import sqlite3
 import subprocess
 import threading
 import time
@@ -48,7 +49,24 @@ def snapshot(kind):
         if kind not in ('channel-catalog', 'epg'):
             raise ValueError('unreviewed_snapshot_kind')
         folder = Path(private_root) / kind
-        manifest = json.loads((folder / 'manifest.json').read_bytes())
+        if kind == 'epg':
+            # Match the authoritative API activation. EPG has no mutable
+            # filesystem manifest; its audit and activation commit together.
+            database = folder / 'epg.sqlite3'
+            with __import__('contextlib').closing(sqlite3.connect(
+                    database.resolve().as_uri()+'?mode=ro',uri=True,timeout=2)) as conn:
+                row = conn.execute('''SELECT m.manifest,a.version,a.sha256
+                    FROM epg_publication_state s
+                    JOIN epg_publication_manifests m ON m.audit_id=s.audit_id
+                    JOIN epg_publication_audit a ON a.id=s.audit_id WHERE s.id=1''').fetchone()
+            if not row:
+                raise ValueError('local_epg_activation_required')
+            manifest = json.loads(row[0])
+            if manifest.get('version') != row[1] or manifest.get('sha256') != row[2]:
+                raise ValueError('local_epg_activation_mismatch')
+            folder = folder / 'public'
+        else:
+            manifest = json.loads((folder / 'manifest.json').read_bytes())
         digest = manifest['sha256']
         if not re.fullmatch(r'[a-f0-9]{64}', digest):
             raise ValueError('invalid_local_snapshot_digest')

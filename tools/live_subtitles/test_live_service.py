@@ -13,6 +13,32 @@ from subtitle_catalog import discover, parse_srt, title_norm, matches_movie_titl
 
 
 class LiveServiceTests(unittest.TestCase):
+    def test_private_epg_follows_committed_activation_and_rejects_mismatch(self):
+        import gzip,hashlib,sqlite3,service
+        with tempfile.TemporaryDirectory() as root:
+            folder=Path(root)/'epg';snapshots=folder/'public/snapshots'
+            snapshots.mkdir(parents=True)
+            expected=dict(programmes=[dict(title='Current film')])
+            raw=gzip.compress(json.dumps(expected).encode())
+            digest=hashlib.sha256(raw).hexdigest()
+            (snapshots/(digest+'.json.gz')).write_bytes(raw)
+            with sqlite3.connect(folder/'epg.sqlite3') as conn:
+                conn.executescript('''CREATE TABLE epg_publication_state(id INTEGER,audit_id INTEGER);
+                    CREATE TABLE epg_publication_manifests(audit_id INTEGER,manifest TEXT);
+                    CREATE TABLE epg_publication_audit(id INTEGER,version TEXT,sha256 TEXT);
+                    INSERT INTO epg_publication_state VALUES(1,2);''')
+                conn.execute('INSERT INTO epg_publication_audit VALUES(2,?,?)',('v2',digest))
+                conn.execute('INSERT INTO epg_publication_manifests VALUES(2,?)',
+                    (json.dumps(dict(version='v2',sha256=digest)),))
+            (folder/'manifest.json').write_text(json.dumps(dict(version='stale',sha256='0'*64)))
+            with patch.dict('os.environ',{'BOBTV_SUBTITLE_SNAPSHOT_ROOT':root}),patch('service.public_read') as network:
+                self.assertEqual(service.snapshot('epg'),expected)
+                network.assert_not_called()
+                with sqlite3.connect(folder/'epg.sqlite3') as conn:
+                    conn.execute("UPDATE epg_publication_audit SET sha256=?",('0'*64,))
+                with self.assertRaisesRegex(ValueError,'local_epg_activation_mismatch'):
+                    service.snapshot('epg')
+
     def test_unchanged_verified_snapshot_is_not_downloaded_again(self):
         import gzip,hashlib,service
         raw=gzip.compress(json.dumps(dict(channels=[])).encode());digest=hashlib.sha256(raw).hexdigest()

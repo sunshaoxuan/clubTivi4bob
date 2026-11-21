@@ -1,0 +1,59 @@
+{
+  "state": "applied",
+  "backupDirectory": "/var/lib/bobtv/market-review-backups/20261115T100839070362Z",
+  "newManifest": {
+    "schemaVersion": 1,
+    "version": "2026-11-15T10:08:39.070362Z",
+    "generatedAt": "2026-11-15T10:08:42.819551Z",
+    "channelCount": 9098,
+    "routeCount": 10127,
+    "snapshotUrl": "/api/v1/channel-catalog/snapshots/7c2612972eaa2ee4cee1c11fe50f31e6c32fb36fd3bf2857028d94369c8c0ec2.json.gz",
+    "compressedBytes": 1017714,
+    "sha256": "7c2612972eaa2ee4cee1c11fe50f31e6c32fb36fd3bf2857028d94369c8c0ec2"
+  },
+  "changes": [
+    {
+      "channelId": "channel-b842f9cdd43743693f77fc81",
+      "oldCountryCode": "US",
+      "newCountryCode": "GB",
+      "oldPath": [
+        "国际",
+        "美国",
+        "电视",
+        "电影"
+      ],
+      "newPath": [
+        "国际",
+        "英国",
+        "电视",
+        "电影"
+      ]
+    },
+    {
+      "channelId": "channel-9294d4892ed3478727d98e6d",
+      "oldCountryCode": "US",
+      "newCountryCode": "GB",
+      "oldPath": [
+        "国际",
+        "美国",
+        "电视",
+        "电影"
+      ],
+      "newPath": [
+        "国际",
+        "英国",
+        "电视",
+        "电影"
+      ]
+    }
+  ],
+  "epgMappingEdits": 0,
+  "privateClientEdits": 0,
+  "sourceCommit": "b8270f133c3454d5c0991a94d0c1ee868055127c",
+  "codeBackupDirectory": "/opt/bobtv/backups/broadcast-market-20261115T100837Z",
+  "sourceHashesVerified": true,
+  "unrelatedChannelsUnchanged": true,
+  "channelCount": 9098,
+  "routeCount": 10127,
+  "serviceRestartedAndActive": true
+}

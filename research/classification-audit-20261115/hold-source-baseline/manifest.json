@@ -1,0 +1,10 @@
+[
+  {
+    "name": "catalog_taxonomy_worker.py",
+    "sha256": "f221fe127e54b5aa8ae1bc49086d5fdb0200adb0392317977b306cd94cc5310c"
+  },
+  {
+    "name": "reclassify_public_catalog.py",
+    "sha256": "c3302839c9b6c6cc2f26da42ba3afd36bd52f2c7ed632cdafa8ee7db62cc55c0"
+  }
+]

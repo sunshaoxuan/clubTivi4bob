@@ -1,0 +1,10 @@
+{
+  "schemaVersion": 1,
+  "version": "2026-11-15T09:06:17.512837Z",
+  "generatedAt": "2026-11-15T09:06:20.920154Z",
+  "channelCount": 9098,
+  "routeCount": 10127,
+  "snapshotUrl": "/api/v1/channel-catalog/snapshots/dedeb14639d5dada492c7d892711fa1eba31940a9545e81f485e1d843a256621.json.gz",
+  "compressedBytes": 1017704,
+  "sha256": "dedeb14639d5dada492c7d892711fa1eba31940a9545e81f485e1d843a256621"
+}

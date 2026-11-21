@@ -608,9 +608,9 @@ def test_readonly_version_api_and_immutable_content_cache_policy(conn, tmp_path,
     assert client.get('/api/v1/epg/snapshots/' + 'a' * 64 + '.json.gz').status_code == 404
 
 
-def test_relay_cache_configuration_never_caches_dynamic_epg_manifest():
+def test_relay_cache_configuration_keeps_authenticated_epg_out_of_shared_cache():
     config = (Path(__file__).parents[1] / 'deploy/bobtv-resource-relay-cache.conf').read_text()
-    assert '~^/bobtv/api/v1/epg/snapshots/ 1;' in config
+    assert '/api/v1/epg/snapshots/' not in config
     assert '/api/v1/epg/manifest' not in config
 
 

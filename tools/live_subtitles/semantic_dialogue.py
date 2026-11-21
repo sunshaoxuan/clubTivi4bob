@@ -112,11 +112,12 @@ def fit(anchors, *, minimum, characters, span):
     return best
 
 
-def validate(answer, request, words, cues, *, confirmation=False):
+def validate(answer, request, words, cues, *, confirmation=False, diagnostic=None):
     if not isinstance(answer,dict) or set(answer)!={'pairs'}:return None
     pairs=answer['pairs']
     if not isinstance(pairs,list) or not 1<=len(pairs)<=8:return None
     offered={c[0] for c in request['subtitleCues']};references={c['index']:c for c in cues}
+    if diagnostic is not None:diagnostic['proposedPairs']=len(pairs)
     anchors=[];last_word=-1;last_cue=-1
     for pair in pairs:
         if not isinstance(pair,dict) or set(pair)!={'first','last','cue'}:return None
@@ -137,6 +138,9 @@ def validate(answer, request, words, cues, *, confirmation=False):
         if not 0<end-phrase[0]['onset']<=20:continue
         anchors.append(dict(cue=cue,subtitleStart=references[cue]['start'],asrStart=phrase[0]['onset'],
             asrEnd=end,words=len(text),semanticDialogue=True))
+    if diagnostic is not None:
+        diagnostic.update(acceptedOnsets=len(anchors),characters=sum(a['words'] for a in anchors),
+            spanSeconds=round(max(a['asrStart'] for a in anchors)-min(a['asrStart'] for a in anchors),3) if anchors else 0)
     return fit(anchors,minimum=4 if confirmation else 5,characters=64,span=20 if confirmation else 30)
 
 
@@ -180,8 +184,12 @@ class SemanticDialogue:
         if not state['history'] or end>state['history'][-1]['end']:
             state['history'].append(dict(start=start,end=end,words=words))
             state['history']=state['history'][-8:]
-        if self.busy or state['attempts']>=4 or end-state['lastRequestEnd']<30 or state.get('ready'):return True
         hint=state.get('hypothesis') or state.get('confirmed')
+        # Rejected early windows need substantially more independent dialogue.
+        # Preserve two calls for a holdout even if acquisition used all four.
+        interval=30 if hint else min(240,30*2**state['attempts'])
+        limit=6 if hint else 4
+        if self.busy or state['attempts']>=limit or end-state['lastRequestEnd']<interval or state.get('ready'):return True
         prepared=prepare(cues,state['history'],identity,hint)
         if prepared is None:return True
         request,observed=prepared;hypothesis=hint
@@ -190,7 +198,8 @@ class SemanticDialogue:
         def work():
             try:
                 answer=self.ai.call(INSTRUCTION,request,timeout=60)
-                proposal=validate(answer,request,observed,cues,confirmation=bool(hypothesis))
+                diagnostic={}
+                proposal=validate(answer,request,observed,cues,confirmation=bool(hypothesis),diagnostic=diagnostic)
                 with self.lock:
                     current=self.sessions().get(token)
                     if (current is None or not self.allowed(token) or current.get('semanticState') is not state or current.get('ad') or
@@ -200,7 +209,7 @@ class SemanticDialogue:
                             track_fingerprint(c['tracks'].get(speech,[]))==fingerprint
                             for c in self.candidates() or []):return
                     if proposal is None:
-                        self.event('semantic_dialogue_rejected',reason='insufficient_independent_onsets');return
+                        self.event('semantic_dialogue_rejected',reason='insufficient_independent_onsets',**diagnostic);return
                     if hypothesis is None:
                         proposal['sourceEnd']=end
                         state['hypothesis']=proposal

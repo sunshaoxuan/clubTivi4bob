@@ -34,6 +34,33 @@ def fixture(count=6, origin=0, cue_origin=10, intercept=100, rate=25/24, phrase_
 
 
 class SemanticDialogueTests(unittest.TestCase):
+    def test_failed_acquisition_backs_off_and_reserves_independent_holdout_calls(self):
+        words,cues,answer,request=fixture()
+        candidate=dict(page='verified',tracks={'zh-CN':cues,'en':cues},
+            provenance={tag:dict(imdbId='tt0421729') for tag in ['zh-CN','en']})
+        session=dict(programmeKey='programme',epoch=1,asset='movie',variantId=None,ad=False)
+        calls=[];lock=threading.RLock()
+        def call(*args,**kwargs):calls.append(1);return answer
+        matcher=SemanticDialogue(SimpleNamespace(enabled=True,call=call),lock,
+            lambda:{'token':session},lambda:[candidate],lambda *a,**k:None)
+        def feed(end):
+            with lock:matcher.offer('token',session,dict(title='Film',imdbId='tt0421729'),
+                                    candidate,'zh-CN',words,end-60,end)
+            deadline=time.monotonic()+2
+            while matcher.busy and time.monotonic()<deadline:time.sleep(.01)
+            self.assertFalse(matcher.busy)
+        proof=validate(answer,request,words,cues)
+        with patch.dict('os.environ',{'BOBTV_SUBTITLE_SEMANTIC_CLOCK':'1'}), \
+                patch('semantic_dialogue.prepare',return_value=(request,words)), \
+                patch('semantic_dialogue.validate',side_effect=[None,None,None,proof,None,None]):
+            feed(60);feed(90);self.assertEqual(len(calls),1)
+            feed(120);feed(180);self.assertEqual(len(calls),2)
+            feed(240);feed(360);self.assertEqual(len(calls),3)
+            feed(480);self.assertEqual(len(calls),4)
+            self.assertIn('hypothesis',session['semanticState'])
+            feed(510);feed(540);self.assertEqual(len(calls),6)
+            feed(600);self.assertEqual(len(calls),6)
+
     def test_independent_unseen_utterances_confirm_the_same_fps_clock(self):
         words,cues,answer,request=fixture()
         first=validate(answer,request,words,cues)

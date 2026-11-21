@@ -5,14 +5,11 @@ import '../../core/server_egress.dart';
 import '../../core/app_diagnostics.dart';
 import 'hls_linearized_pipe.dart';
 import 'hls_playlist_history.dart';
+import 'hls_playlist_transport.dart';
+export 'hls_playlist_transport.dart' show hlsResponseBase;
 
 const actionMoviesLegacyConfig = 'production-LiveChannel-6065';
 const actionMoviesCurrentConfig = 'production-hls-aes128-rtv-6065-playout';
-
-/// Resolve media and key references against the playlist that actually replied.
-Uri hlsResponseBase(Uri requested, HttpClientResponse response) => response
-    .redirects
-    .fold(requested, (uri, redirect) => uri.resolveUri(redirect.location));
 
 /// A failed streamed segment must terminate its socket, so the decoder can
 /// distinguish a truncated body from a successfully completed video segment.
@@ -342,6 +339,7 @@ class HlsBufferProxy {
   final _playlistOrigins = <Uri, Uri>{};
   final _playlistTimes = <Uri, DateTime>{};
   final _playlistRequests = <Uri, Future<String>>{};
+  final _playlistTransport = HlsPlaylistTransport();
   Timer? _manifestPoll;
   String? _lastManifestFacts;
 
@@ -366,18 +364,9 @@ class HlsBufferProxy {
 
   Future<String> _fetchPlaylist(Uri uri) async {
     final generation = _generation;
-    final request = await _client!.getUrl(uri);
-    _headers.forEach(request.headers.set);
-    final response = await request.close().timeout(const Duration(seconds: 8));
-    final effectiveOrigin = hlsResponseBase(uri, response);
-    if (response.statusCode != 200) {
-      await response.drain<void>();
-      throw HttpException('HLS manifest ${response.statusCode}');
-    }
-    final raw = await utf8.decoder
-        .bind(response)
-        .join()
-        .timeout(const Duration(seconds: 8));
+    final fetched = await _playlistTransport.read(_client!, uri, _headers);
+    final effectiveOrigin = fetched.origin;
+    final raw = fetched.body;
     if (generation != _generation || _server == null) {
       throw const HttpException('HLS session closed');
     }
@@ -465,29 +454,18 @@ class HlsBufferProxy {
     var origin = currentSubtitleMaster(source);
     if (origin.path.contains('/v1/master/') || captureClock) {
       try {
-        final request = await client.getUrl(origin);
-        (headers ?? const <String, String>{}).forEach(request.headers.set);
-        final response = await request.close().timeout(
-          const Duration(seconds: 8),
+        final fetched = await _playlistTransport.read(
+          client,
+          origin,
+          _headers,
+          maxBytes: 256 * 1024,
         );
-        if (response.statusCode != 200) {
-          await response.drain<void>();
-          throw HttpException(
-            'Action UK master returned ${response.statusCode}',
-          );
+        final body = fetched.body;
+        if (utf8.encode(body).length > 256 * 1024) {
+          throw const FormatException('Action UK master exceeds size limit');
         }
-        final bytes = <int>[];
-        await for (final chunk in response.timeout(
-          const Duration(seconds: 8),
-        )) {
-          bytes.addAll(chunk);
-          if (bytes.length > 256 * 1024) {
-            throw const FormatException('Action UK master exceeds size limit');
-          }
-        }
-        final body = utf8.decode(bytes);
         if (body.contains('#EXT-X-STREAM-INF:')) {
-          final effectiveOrigin = hlsResponseBase(origin, response);
+          final effectiveOrigin = fetched.origin;
           final maxBandwidth =
               (Platform.isAndroid || Platform.isIOS) && captureClock
               ? 1800000
@@ -652,6 +630,7 @@ class HlsBufferProxy {
     _playlistOrigins.clear();
     _playlistTimes.clear();
     _playlistRequests.clear();
+    _playlistTransport.clear();
     _lastManifestFacts = null;
     _segments.clear();
     _segmentUris.clear();

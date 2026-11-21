@@ -10,6 +10,7 @@ import hashlib
 import html
 import json
 import os
+import re
 from pathlib import Path
 import shutil
 import signal
@@ -161,13 +162,22 @@ def main():
     class Handler(SimpleHTTPRequestHandler):
         def __init__(self,*pos,**kw):super().__init__(*pos,directory=str(root),**kw)
         def do_GET(self):
-            if urlsplit(self.path).path=='/epg.xml':
+            path=urlsplit(self.path).path
+            allowed=(path in ('/','/index.html','/demo.bobtv','/CREDITS.html','/provenance.json','/epg.xml')
+                or re.fullmatch(r'/logos/(?:bunny|sintel|signal)\.png',path)
+                or re.fullmatch(r'/hls/(?:bunny|sintel|signal)/(?:master\.m3u8|index\.m3u8|segment_\d{10}\.ts)',path))
+            if not allowed:
+                self.send_error(404)
+            elif path=='/epg.xml':
                 body=epg();self.send_response(200);self.send_header('Content-Type','application/xml; charset=utf-8')
                 self.send_header('Cache-Control','no-store');self.send_header('Content-Length',str(len(body)))
-                self.end_headers();self.wfile.write(body)
-            elif urlsplit(self.path).path.startswith(('/inputs/','/.')):
-                self.send_error(404)
+                self.end_headers()
+                if self.command!='HEAD':self.wfile.write(body)
+            elif self.command=='HEAD':super().do_HEAD()
             else:super().do_GET()
+        def do_HEAD(self):
+            # Use the same public path policy and headers as GET.
+            self.do_GET()
         def end_headers(self):
             if self.path.split('?')[0].endswith(('.m3u8','.bobtv')):self.send_header('Cache-Control','no-store')
             super().end_headers()

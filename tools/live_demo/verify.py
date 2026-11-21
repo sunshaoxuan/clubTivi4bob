@@ -5,16 +5,32 @@ import datetime as dt
 import json
 from pathlib import Path
 import re
+import subprocess
 import time
-from urllib.parse import urljoin
+from urllib.parse import urljoin, urlsplit
 import urllib.request
 
 
+USE_CURL = False
+TRANSPORT_BASE = None
+
+
+def read(url, limit):
+    if TRANSPORT_BASE and urlsplit(url).hostname=='bobtv.briconbric.com':
+        parsed=urlsplit(url)
+        url=TRANSPORT_BASE.rstrip('/')+parsed.path+('?' + parsed.query if parsed.query else '')
+    if USE_CURL:
+        data=subprocess.check_output(['curl','--fail','--silent','--show-error',
+            '--max-time','15','--max-filesize',str(limit),url],timeout=20)
+    else:
+        with urllib.request.urlopen(url,timeout=15) as response:
+            data=response.read(limit+1)
+    if len(data)>limit:raise ValueError('Response is too large')
+    return data
+
+
 def text(url):
-    with urllib.request.urlopen(url,timeout=15) as response:
-        data=response.read(8*1024*1024+1)
-        if len(data)>8*1024*1024:raise ValueError('Response is too large')
-        return data.decode('utf-8')
+    return read(url,8*1024*1024).decode('utf-8')
 
 
 def snapshot(url):
@@ -28,21 +44,24 @@ def snapshot(url):
         raise ValueError('Expected a media playlist: '+url)
     if '#EXT-X-ENDLIST' in value or '#EXT-X-PLAYLIST-TYPE:VOD' in value:
         raise ValueError('Playlist ended or is VOD: '+url)
-    with urllib.request.urlopen(urljoin(url,segments[-1]),timeout=15) as response:
-        data=response.read(4*1024*1024+1)
-        if len(data)>4*1024*1024:raise ValueError('Demo segment is too large')
-        prefix=data[:188*3]
+    data=read(urljoin(url,segments[-1]),4*1024*1024)
+    prefix=data[:188*3]
     if len(prefix)<188*2 or prefix[0]!=0x47 or prefix[188]!=0x47:
         raise ValueError('Expected an MPEG-TS segment')
     return {'sequence':int(match[1]),'segments':segments,'endList':False,'segmentBytesChecked':len(prefix)}
 
 
 def main():
+    global USE_CURL, TRANSPORT_BASE
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('package_url')
     parser.add_argument('--wait',type=float,default=7)
     parser.add_argument('--output',type=Path)
+    parser.add_argument('--curl',action='store_true',help='Use curl for public CDN requests')
+    parser.add_argument('--transport-base',help='Read canonical BobTV resources through this mirror base URL')
     args=parser.parse_args()
+    USE_CURL=args.curl
+    TRANSPORT_BASE=args.transport_base
     if not 4<=args.wait<=30:parser.error('--wait must be between 4 and 30 seconds')
     package=json.loads(text(args.package_url))
     urls={channel['id']:channel['routes'][0]['url'] for channel in package['channels']}

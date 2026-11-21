@@ -70,6 +70,7 @@ class TextHub:
                     or not self.valid_context(session['source'], data.get('programme'))
                     or not self.programme.get('searchable', True)):
                 raise ValueError('current_programme_required')
+            session.pop('semanticState',None)
             self.fetch_subtitles(language, refresh=True)
 
     def fetch_subtitles(self,language='en',*,refresh=False):

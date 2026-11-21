@@ -110,6 +110,17 @@ def sparse_word_anchors(cues, cue_words, asr, owners, timeline, rate, existing):
     return best
 
 
+def short_cue_clock_evidence(anchors):
+    """Short CJK lines require more independent onsets and exact characters."""
+    unique = {a['cue']: a for a in anchors}
+    values = list(unique.values())
+    return (any(a.get('shortCuePrefix') for a in values) and len(values) >= 6
+            and sum(min(8, a['words']) for a in values) >= 32
+            and max(a['asrStart'] for a in values) - min(a['asrStart'] for a in values) >= 12
+            and max(abs(a['offset']-statistics.median(x['offset'] for x in values))
+                    for a in values) <= .5)
+
+
 def align(words, cues, timeline, *, rate=1., language='en'):
     def tokenize(text):
         if language == 'en':
@@ -133,6 +144,29 @@ def align(words, cues, timeline, *, rate=1., language='en'):
             asr.append(token); owners.append(word)
     prefixes={n:Counter(tuple(values[:n]) for values in cue_words.values() if len(values)>=n) for n in range(4,9)}
     anchors = []
+    if language in ('ja','ko','zh-CN','zh-TW'):
+        # A short subtitle can be a complete utterance. Do not require eight
+        # characters inside every line; retain exact unique whole-line matches
+        # for the separate, stricter multi-onset clock proof below.
+        observed_short = {count: {} for count in range(4, 8)}
+        for count, placements in observed_short.items():
+            for observed in range(len(asr)-count+1):
+                placements.setdefault(tuple(asr[observed:observed+count]), []).append(observed)
+        for cue in firsts.values():
+            values = cue_words[cue['index']]
+            count = len(values)
+            if not 4 <= count < 8 or prefixes[count][tuple(values)] != 1:
+                continue
+            for observed in observed_short[count].get(tuple(values), ()):
+                if observed and owners[observed] is owners[observed-1]:
+                    continue
+                matched_owners = owners[observed:observed+count]
+                if (matched_owners[0]['probability'] < .7 or
+                        statistics.mean(w['probability'] for w in matched_owners) < .8):
+                    continue
+                onset = timeline + matched_owners[0]['start']
+                anchors.append(dict(cue=cue['index'],subtitleStart=cue['start'],asrStart=onset,
+                    offset=cue['start']-rate*onset,words=count,shortCuePrefix=True,sparseWords=True))
     for match in difflib.SequenceMatcher(None, tokens, asr, autojunk=False).get_matching_blocks():
         if match.size < minimum:
             continue
@@ -182,10 +216,15 @@ def align(words, cues, timeline, *, rate=1., language='en'):
             anchors.append(dict(cue=cue['index'],subtitleStart=cue['start'],asrStart=onset,
                 offset=cue['start']-rate*onset,words=5,fuzzyPrefix=True))
             anchored.add(cue['index']);break
-    cluster = max(([a for a in anchors if abs(a['offset'] - c['offset']) < .9] for c in anchors),
+    strong = [a for a in anchors if not (a.get('shortCuePrefix'))]
+    cluster = max(([a for a in strong if abs(a['offset'] - c['offset']) < .9] for c in strong),
                   key=len, default=[])
     if len({a['cue'] for a in cluster}) >= 3 and max(a['asrStart'] for a in cluster) - min(a['asrStart'] for a in cluster) >= 4:
         return statistics.median(a['offset'] for a in cluster), cluster
+    short_cluster = max(([a for a in anchors if abs(a['offset']-c['offset']) < .5] for c in anchors),
+                        key=lambda group: len({a['cue'] for a in group}), default=[])
+    if short_cue_clock_evidence(short_cluster):
+        return statistics.median(a['offset'] for a in short_cluster), short_cluster
     if language == 'en':
         sparse = sparse_word_anchors(cues, cue_words, asr, owners, timeline, rate, anchors)
         if sparse:

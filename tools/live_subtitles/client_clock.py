@@ -14,7 +14,7 @@ from urllib.parse import urlsplit
 import threading
 import time
 import uuid
-from live_engine import align, fit_clock_rate, clock_rate_confident
+from live_engine import align, fit_clock_rate, clock_rate_confident, short_cue_clock_evidence
 from subtitle_cache import RETRY_TTL
 from subtitle_ai import CHINESE
 from subtitle_catalog import discover, LANGUAGES
@@ -332,6 +332,14 @@ class TextHub:
                     clusters=[[a for a in projected if abs(a['offset']-c['offset'])<.6] for c in projected]
                     cluster=max((group for group in clusters if any(a['cue'] in fresh_ids for a in group)),key=len,default=[])
                     if not cluster:continue
+                    ordinary=[a for a in cluster if not (a.get('shortCuePrefix'))]
+                    ordinary_span=(max(a['asrStart'] for a in ordinary)-min(a['asrStart'] for a in ordinary)) if ordinary else 0
+                    ordinary_proof=(len(ordinary)>=3 and ordinary_span>=4 or
+                        (candidate is prior or bound) and len(ordinary)>=2 and ordinary_span>=2 and all(a['words']>=8 for a in ordinary) or
+                        candidate is prior and session.get('priorRateVerified',False) and len(ordinary)>=2 and ordinary_span>=2 and all(a['words']>=4 for a in ordinary))
+                    if any(a.get('shortCuePrefix') for a in cluster):
+                        if ordinary_proof:cluster=ordinary
+                        elif not short_cue_clock_evidence(cluster):continue
                     count=len({a['cue'] for a in cluster})
                     span=max(a['asrStart'] for a in cluster)-min(a['asrStart'] for a in cluster)
                     long_pair=(candidate is prior or bound) and count>=2 and span>=2 and all(a['words']>=8 for a in cluster)
@@ -363,9 +371,11 @@ class TextHub:
             session['audioLanguageEpoch']=epoch
             if session.get('adStart') is not None:
                 exact=[a for a in anchors if not (a.get('fuzzyPrefix') or a.get('sparseWords')) and a['words']>=4]
-                if len({a['cue'] for a in exact})<2 or max(a['asrStart'] for a in exact)-min(a['asrStart'] for a in exact)<2:
+                enough_exact=(len({a['cue'] for a in exact})>=2 and
+                    max(a['asrStart'] for a in exact)-min(a['asrStart'] for a in exact)>=2)
+                if not enough_exact and not short_cue_clock_evidence(anchors):
                     return
-                anchors=exact
+                if enough_exact:anchors=exact
             accepted=session.get('acceptedClock',{})
             if any(anchor.get('sparseWords') for anchor in anchors):
                 offset = statistics.median(a['subtitleStart'] - selected_rate * a['asrStart'] for a in anchors)

@@ -453,4 +453,25 @@ class ClientClockTests(unittest.TestCase):
             self.assertEqual(h.response(t)['windows'],[])
             with self.assertRaises(ValueError):h.ingest(t,self.observation(h))
 
+
+    def test_short_cjk_clocks_require_stronger_evidence_and_a_second_window(self):
+        def anchors(count):
+            return [dict(cue=i,asrStart=i*3.,subtitleStart=100+i*3.,offset=100.,words=6,
+                         shortCuePrefix=True,sparseWords=True) for i in range(count)]
+        for count in [3,5,6]:
+            with tempfile.TemporaryDirectory() as d:
+                h=self.hub(d);candidate=h.candidates[0]
+                candidate['tracks']['zh-CN']=candidate['tracks']['en']
+                token=h.create(h.source,None,'zh-CN',['clientClockV1'])
+                with patch('client_clock.align',return_value=(None,anchors(count))):
+                    h.ingest(token,self.observation(h,audioLanguage='zh-CN',words=[dict(word='清晰中文对白',start=1,end=2,probability=.99)]))
+                self.assertIsNone(h.sessions[token]['reference'])
+                self.assertEqual('sparseClockProposal' in h.sessions[token],count==6)
+                if count==6:
+                    fresh=dict(cue=6,asrStart=18.,subtitleStart=118.,offset=100.,words=6,
+                               shortCuePrefix=True,sparseWords=True)
+                    with patch('client_clock.align',return_value=(None,[fresh])):
+                        h.ingest(token,self.observation(h,start=10.,end=30.,serial=2,audioLanguage='zh-CN',words=[dict(word='清晰中文对白',start=1,end=2,probability=.99)]))
+                    self.assertIs(h.sessions[token]['reference'],candidate)
+
 if __name__=='__main__':unittest.main()

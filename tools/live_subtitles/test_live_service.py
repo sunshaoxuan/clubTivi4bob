@@ -485,5 +485,40 @@ class LiveServiceTests(unittest.TestCase):
                 self.assertIsNone(e.reference)
 
 
+
+class ShortCjkClockTests(unittest.TestCase):
+    def fixture(self):
+        phrases=['请把窗户打开','今晚一起吃饭','明早给我电话','把门轻轻关上','他们正在等你','现在开始工作']
+        cues=[dict(index=i,start=100+i*3.,end=102+i*3.,text=text) for i,text in enumerate(phrases)]
+        words=[dict(word=text,start=i*3.,end=i*3.+2,probability=.95) for i,text in enumerate(phrases)]
+        return cues,words
+
+    def test_six_unique_short_lines_can_prove_a_clock_without_an_eight_character_line(self):
+        cues,words=self.fixture()
+        for language in ['zh-CN','zh-TW','ja','ko']:
+            offset,anchors=align(words,cues,0,language=language)
+            self.assertEqual(offset,100.)
+            self.assertEqual(len(anchors),6)
+            self.assertTrue(all(a['shortCuePrefix'] and a['sparseWords'] for a in anchors))
+
+    def test_short_lines_cannot_lock_from_five_cues_or_too_few_characters(self):
+        cues,words=self.fixture()
+        self.assertIsNone(align(words[:5],cues,0,language='zh-CN')[0])
+        cues=[dict(c,text=c['text'][:5]) for c in cues]
+        words=[dict(w,word=c['text']) for w,c in zip(words,cues)]
+        self.assertIsNone(align(words,cues,0,language='zh-CN')[0])
+
+    def test_short_lines_reject_repeated_text_low_confidence_and_inconsistent_timing(self):
+        cues,words=self.fixture()
+        self.assertIsNone(align(words,cues+[dict(cues[0],index=99,start=500.)],0,language='zh-CN')[0])
+        self.assertIsNone(align([dict(w,probability=.6) for w in words],cues,0,language='zh-CN')[0])
+        words[-1]=dict(words[-1],start=words[-1]['start']+3)
+        self.assertIsNone(align(words,cues,0,language='zh-CN')[0])
+
+    def test_a_single_long_asr_token_cannot_invent_separate_short_cue_onsets(self):
+        cues,words=self.fixture()
+        one=[dict(word=''.join(w['word'] for w in words),start=0.,end=17.,probability=.99)]
+        self.assertIsNone(align(one,cues,0,language='zh-CN')[0])
+
 if __name__=='__main__':
     unittest.main()

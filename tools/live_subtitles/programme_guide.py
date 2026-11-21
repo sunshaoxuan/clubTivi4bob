@@ -9,6 +9,7 @@ import re
 import threading
 import time
 import unicodedata
+from pathlib import Path
 from urllib.parse import urlsplit, urlencode, quote
 from urllib.request import Request, urlopen
 from service import snapshot, public_read, official_imdb_id
@@ -35,6 +36,28 @@ def film_search_title(title):
 def film_alias(title, year=None, imdb_id=None):
     """Require a unique film with the exact localized label or alias."""
     title = film_search_title(title)
+    # Reviewed localized titles bridge gaps in Wikidata. A checked-in pointer
+    # still needs a fresh matching movie record before seeding subtitle search.
+    aliases = json.loads((Path(__file__).with_name('film_identity_aliases.json')).read_text())
+    if aliases.get('schemaVersion') != 1 or len(aliases.get('films', [])) > 256:
+        raise ValueError('invalid_reviewed_film_aliases')
+    reviewed = [film for film in aliases['films']
+                if any(identity_title(name) == identity_title(title) for name in film['titles'])]
+    if reviewed:
+        if len(reviewed) != 1:
+            return None
+        film = reviewed[0]
+        imdb, released = film['imdbId'], film['year']
+        if (not re.fullmatch(r'tt[0-9]{7,10}', imdb) or type(released) is not int
+                or (year is not None and year != released) or (imdb_id and imdb_id != imdb)):
+            return None
+        rows = json.loads(public_read('https://v3.sg.media-imdb.com/suggestion/x/'+imdb+'.json')).get('d', [])
+        matching = [r for r in rows if r.get('id') == imdb and r.get('qid') == 'movie'
+                    and r.get('y') == released and identity_title(r.get('l','')) == identity_title(film['imdbTitle'])]
+        if len(matching) != 1:
+            return None
+        return dict(title=matching[0]['l'], year=released, imdbId=imdb,
+                    identityEvidence='reviewed_localized_title_pending_audio_verification')
     language = 'zh' if re.search(r'[\u3400-\u9fff]', title) else 'en'
     results = wikidata_read(action='wbsearchentities', language=language, search=title, limit=6)
     ids = [r['id'] for r in results.get('search', []) if re.fullmatch(r'Q[0-9]+', r.get('id', ''))][:6]

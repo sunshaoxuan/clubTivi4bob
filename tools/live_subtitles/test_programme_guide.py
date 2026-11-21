@@ -10,6 +10,18 @@ from multi_client_clock import MultiTextHub
 from subtitle_cache import SubtitleCache
 
 class GuideTests(unittest.TestCase):
+    def test_reviewed_localized_alias_requires_fresh_matching_movie_metadata(self):
+        movie=dict(id='tt15341102',l='Ye wang',qid='movie',y=2020)
+        with patch('programme_guide.public_read',return_value=json.dumps(dict(d=[movie])).encode()):
+            found=film_alias('野王')
+            self.assertEqual(found['imdbId'],'tt15341102')
+            self.assertEqual(found['title'],'Ye wang')
+            self.assertIsNone(film_alias('野王',2013))
+            self.assertIsNone(film_alias('野王',imdb_id='tt0000000'))
+        for altered in [dict(movie,qid='tvSeries'),dict(movie,y=2013),dict(movie,l='Other film')]:
+            with patch('programme_guide.public_read',return_value=json.dumps(dict(d=[altered])).encode()):
+                self.assertIsNone(film_alias('野王'))
+
     def test_broadcast_part_markers_do_not_change_film_identity(self):
         self.assertEqual(film_search_title('第五元素(下)'), '第五元素')
         self.assertEqual(film_search_title('第五元素（上部）'), '第五元素')

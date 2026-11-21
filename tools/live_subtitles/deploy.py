@@ -7,7 +7,7 @@ import tarfile
 import tempfile
 
 ROOT = Path(__file__).resolve().parents[2]
-FILES = ['programme_guide.py', 'multi_client_clock.py', 'test_programme_guide.py', 'test_multi_client_clock.py', 'transport_clock.py', 'test_transport_clock.py', 'subtitle_identity.py', 'test_subtitle_identity.py', 'subtitle_stremio.py', 'test_subtitle_stremio.py', 'client_clock.py', 'test_client_clock.py', 'subtitle_cache.py','subtitle_subdl.py','test_subtitle_subdl.py', 'live_media.py', 'subtitle_catalog.py', 'live_engine.py', 'service.py', 'test_live_service.py', 'test_subtitle_cache.py',
+FILES = ['programme_guide.py', 'film_identity_aliases.json', 'multi_client_clock.py', 'test_programme_guide.py', 'test_multi_client_clock.py', 'transport_clock.py', 'test_transport_clock.py', 'subtitle_identity.py', 'test_subtitle_identity.py', 'subtitle_stremio.py', 'test_subtitle_stremio.py', 'client_clock.py', 'test_client_clock.py', 'subtitle_cache.py','subtitle_subdl.py','test_subtitle_subdl.py', 'live_media.py', 'subtitle_catalog.py', 'live_engine.py', 'service.py', 'test_live_service.py', 'test_subtitle_cache.py',
          'subtitle_ai.py', 'test_subtitle_ai.py', 'subtitle_edition.py', 'subtitle_io.py',
          'subtitle_variants.py', 'test_subtitle_edition.py', 'test_subtitle_variants.py',
          'bobtv-live-subtitles.service', 'bobtv-live-subtitles.conf', 'requirements.txt']

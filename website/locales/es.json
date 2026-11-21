@@ -78,8 +78,8 @@
       {
         "id": "sync",
         "label": "Catálogo compartido",
-        "title": "Los canales públicos se sincronizan en Windows y Mac.",
-        "text": "Al inicio, BobTV muestra el catálogo local o incluido y luego recupera un catálogo público verificado en segundo plano.",
+        "title": "Canales regionales y fuentes personales",
+        "text": "Empieza con tres canales de demostración con licencia abierta. Inicia sesión para elegir regiones o importa directamente tus fuentes .bobtv, M3U y Xtream.",
         "items": [
           [
             "Registros compartidos",
@@ -91,7 +91,7 @@
           ],
           [
             "Datos personales",
-            "Los favoritos tienen una copia de seguridad privada protegida por la huella digital del dispositivo original y un secreto dedicado. Sólo ese dispositivo puede restaurarlos; nunca entran en el catálogo público. El historial de visualización y las suscripciones privadas siguen siendo locales."
+            "Al cerrar sesión se retiran los canales regionales de la lista activa y se conservan las importaciones personales. Las cachés regionales y los favoritos se separan por cuenta."
           ]
         ]
       },
@@ -416,19 +416,19 @@
       {
         "id": "first-launch",
         "title": "Primer lanzamiento y sincronización de canales.",
-        "text": "BobTV sincroniza canales y jerarquías de categorías completas de BobTV y compara el sitio principal con cndrp para la entrega de recursos. El descubrimiento y la IA se ejecutan en el servidor; El vídeo se conecta directamente a su fuente. Los clientes consultan el canal seleccionado bajo demanda.",
+        "text": "Empieza con tres canales de demostración con licencia abierta. Inicia sesión para elegir regiones o importa directamente tus fuentes .bobtv, M3U y Xtream.",
         "items": [
           [
             "Catálogo inicial",
-            "BobTV muestra primero los canales locales o agrupados y luego recupera el catálogo público categorizado y verificado. Los recuentos de canales cambian a medida que se mantienen las fuentes."
+            "Empieza con tres canales de demostración con licencia abierta. Inicia sesión para elegir regiones o importa directamente tus fuentes .bobtv, M3U y Xtream."
           ],
           [
             "Estado de sincronización",
             "Las sincronizaciones fallidas se reintentan a intervalos espaciados para evitar cambios rápidos de estado. Los cambios locales permanecen guardados mientras se espera; Los clics repetidos son innecesarios."
           ],
           [
-            "Público y personal",
-            "Las categorías públicas, clasificaciones, retiros y transferencias de rutas se sincronizan entre dispositivos. La reproducción exitosa de otros clientes no puede restaurar rutas retiradas. Las copias de seguridad privadas favoritas sólo pueden volver al dispositivo original; el historial y las suscripciones privadas siguen siendo locales."
+            "Canales regionales y fuentes personales",
+            "Al cerrar sesión se retiran los canales regionales de la lista activa y se conservan las importaciones personales. Las cachés regionales y los favoritos se separan por cuenta."
           ]
         ]
       }
@@ -722,7 +722,7 @@
   "showcase": {
     "title": "BobTV | Televisión en directo, radio y guía de programación",
     "meta": "BobTV confirma el programa actual con la guía y busca automáticamente en varias fuentes de subtítulos compatibles. Los subtítulos se actualizan al cambiar de canal o de programa.",
-    "eyebrow": "1.3.0 · Guía y subtítulos",
+    "eyebrow": "1.4.0 · Canales regionales y panel móvil",
     "countries": "países y territorios",
     "languages": "idiomas en la web",
     "support": "Asistencia y políticas",

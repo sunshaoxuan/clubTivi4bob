@@ -78,8 +78,8 @@
       {
         "id": "sync",
         "label": "Catalogue partagé",
-        "title": "Les chaînes publiques se synchronisent sur Windows et Mac.",
-        "text": "Au démarrage, BobTV affiche le catalogue local ou groupé, puis récupère un catalogue public vérifié en arrière-plan.",
+        "title": "Chaînes régionales et sources personnelles",
+        "text": "Commencez avec trois chaînes de démonstration sous licence ouverte. Connectez-vous pour choisir les régions, ou importez directement vos sources .bobtv, M3U et Xtream.",
         "items": [
           [
             "Enregistrements partagés",
@@ -91,7 +91,7 @@
           ],
           [
             "Données personnelles",
-            "Les favoris disposent d'une sauvegarde privée protégée par l'empreinte digitale d'origine de l'appareil et d'un secret dédié. Seul cet appareil peut les restaurer ; ils n'entrent jamais dans le catalogue public. L’historique de visualisation et les abonnements privés restent locaux."
+            "La déconnexion retire les chaînes régionales de la liste active et conserve vos imports. Les caches régionaux et les favoris sont séparés par compte."
           ]
         ]
       },
@@ -416,19 +416,19 @@
       {
         "id": "first-launch",
         "title": "Premier lancement et synchronisation des chaînes",
-        "text": "BobTV synchronise les chaînes et les hiérarchies complètes de catégories de BobTV et compare le site principal avec cndrp pour la livraison des ressources. La découverte et l'IA s'exécutent sur le serveur ; la vidéo se connecte directement à sa source. Les clients vérifient le canal sélectionné à la demande.",
+        "text": "Commencez avec trois chaînes de démonstration sous licence ouverte. Connectez-vous pour choisir les régions, ou importez directement vos sources .bobtv, M3U et Xtream.",
         "items": [
           [
             "Catalogue initial",
-            "BobTV affiche d'abord les chaînes locales ou groupées, puis récupère le catalogue public catégorisé et vérifié. Le nombre de chaînes change à mesure que les sources sont conservées."
+            "Commencez avec trois chaînes de démonstration sous licence ouverte. Connectez-vous pour choisir les régions, ou importez directement vos sources .bobtv, M3U et Xtream."
           ],
           [
             "Statut de synchronisation",
             "Les synchronisations ayant échoué réessayent à intervalles espacés pour éviter des changements d'état rapides. Les modifications locales restent enregistrées en attendant ; les clics répétés sont inutiles."
           ],
           [
-            "Public et personnel",
-            "Les catégories publiques, les notes, les abandons et les transferts d'itinéraires sont synchronisés sur tous les appareils. La lecture réussie d'autres clients ne peut pas restaurer les itinéraires retirés. Les sauvegardes privées des favoris ne peuvent revenir qu'à l'appareil d'origine ; l’histoire et les abonnements privés restent locaux."
+            "Chaînes régionales et sources personnelles",
+            "La déconnexion retire les chaînes régionales de la liste active et conserve vos imports. Les caches régionaux et les favoris sont séparés par compte."
           ]
         ]
       }
@@ -722,7 +722,7 @@
   "showcase": {
     "title": "BobTV | Télévision en direct, radio et guide TV",
     "meta": "BobTV identifie le programme en cours grâce au guide TV et recherche automatiquement des sous-titres dans plusieurs sources prises en charge. Les sous-titres se mettent à jour quand vous changez de chaîne ou de programme.",
-    "eyebrow": "1.3.0 · Guide TV et sous-titres",
+    "eyebrow": "1.4.0 · Chaînes régionales et volet mobile",
     "countries": "pays et territoires",
     "languages": "langues sur ce site",
     "support": "Assistance et politiques",

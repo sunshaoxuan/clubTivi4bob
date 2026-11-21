@@ -85,7 +85,7 @@ def test_product_pages_reflect_published_releases():
     assert '<a href="/release-notes" aria-current="page">版本记录</a>' in history
     assert "v1.0.3" in history and "v1.0.5 · 服务器链路、频道合并与全屏修复" in history
     assert "桌面画中画与全屏节目单" in history
-    assert "自动节目单与字幕" in home and "七种界面语言" in home
+    assert version.split("+")[0] in home and "地区频道与手机抽屉" in home and "七种界面语言" in home
     assert "个国家和地区" in home
     assert "iPhone、iPad 和嵌入式网页播放器正在开发" in home
     assert "部分频道" in home and "质量差的线路可以淘汰" in home

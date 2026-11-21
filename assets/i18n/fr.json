@@ -1232,5 +1232,9 @@
   "地区目录暂时不可用，请稍后重试": "Le catalogue régional est indisponible. Réessayez plus tard.",
   "同步失败，已保留原有频道": "La synchronisation a échoué. Vos chaînes sont conservées.",
   "共 {0} 个频道": "{0} chaînes",
-  "同步所选地区": "Synchroniser les régions"
+  "同步所选地区": "Synchroniser les régions",
+  "解除此设备绑定": "Dissocier cet appareil",
+  "解除后，本机将移除已订阅的地区频道。个人导入和账号收藏会保留。": "Les chaînes régionales suivies seront supprimées de cet appareil. Les imports personnels et les favoris du compte seront conservés.",
+  "解除绑定": "Dissocier",
+  "解除绑定失败，请稍后重试": "Impossible de dissocier cet appareil. Réessayez plus tard."
 }

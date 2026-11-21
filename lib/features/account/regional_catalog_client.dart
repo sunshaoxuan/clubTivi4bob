@@ -182,6 +182,14 @@ class RegionalCatalogClient {
     await _execute(publisher, 'enroll');
   }
 
+  Future<void> revoke(RegionalCatalogBootstrap publisher) async {
+    final user = account.user?['id'];
+    await _execute(publisher, 'revoke');
+    if (account.user?['id'] == user && user is String) {
+      await storage.delete(key: 'bobtv.catalog.device.v1.$user');
+    }
+  }
+
   Future<Map<String, int>> regions(RegionalCatalogBootstrap publisher) async {
     final data = await _execute(publisher, 'regions');
     final result = <String, int>{};

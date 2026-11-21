@@ -51,6 +51,7 @@ class TestAccount extends AccountService {
 class TestCatalog extends RegionalCatalogClient {
   TestCatalog(super.account);
   bool fail = false;
+  int revocations = 0;
   Completer<void>? blocked;
   Completer<void>? started;
   @override
@@ -60,6 +61,12 @@ class TestCatalog extends RegionalCatalogClient {
       RegionalCatalogBootstrap.parse(imported, Uri.parse(account.origin));
   @override
   Future<void> enroll(RegionalCatalogBootstrap publisher) async {}
+  @override
+  Future<void> revoke(RegionalCatalogBootstrap publisher) async {
+    if (fail) throw StateError('offline');
+    revocations++;
+  }
+
   @override
   Future<Map<String, int>> regions(RegionalCatalogBootstrap publisher) async =>
       {'JP': 1, 'HK': 1};
@@ -132,6 +139,32 @@ void main() {
     account.dispose();
     await database.close();
   });
+
+  test(
+    'device disconnect stops syncing and restores account favorites on resubscription',
+    () async {
+      await service.select({'JP'});
+      const id = 'bobtv-channel-catalog:route-JP';
+      await (database.update(database.channels)..where((c) => c.id.equals(id)))
+          .write(const db.ChannelsCompanion(favorite: Value(true)));
+      client.fail = true;
+      await expectLater(service.disconnectDevice(), throwsStateError);
+      expect(service.selected, {'JP'});
+      client.fail = false;
+      await service.disconnectDevice();
+      expect(client.revocations, 1);
+      expect(service.selected, isEmpty);
+      expect(
+        await database.getChannelsForProvider('bobtv-channel-catalog'),
+        isEmpty,
+      );
+      await service.refresh();
+      expect(service.selected, isEmpty);
+      await service.loadRegions();
+      await service.select({'JP'});
+      expect((await database.getChannelsByIds({id})).single.favorite, isTrue);
+    },
+  );
 
   test(
     'selected regions retain exact public IDs and favorites across resubscription',

@@ -1232,5 +1232,9 @@
   "地区目录暂时不可用，请稍后重试": "The region catalog is temporarily unavailable. Try again later.",
   "同步失败，已保留原有频道": "Sync failed. Your existing channels were kept.",
   "共 {0} 个频道": "{0} channels",
-  "同步所选地区": "Sync selected regions"
+  "同步所选地区": "Sync selected regions",
+  "解除此设备绑定": "Unlink this device",
+  "解除后，本机将移除已订阅的地区频道。个人导入和账号收藏会保留。": "Subscribed regional channels will be removed from this device. Personal imports and account favorites will be kept.",
+  "解除绑定": "Unlink",
+  "解除绑定失败，请稍后重试": "Could not unlink this device. Please try again later."
 }

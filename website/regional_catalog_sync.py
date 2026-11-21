@@ -82,7 +82,7 @@ def member(request):
 class ChallengeRequest(BaseModel):
     model_config=ConfigDict(extra='forbid',strict=True)
     publicKey: str = Field(pattern=r'^[A-Za-z0-9_-]{43}$')
-    action: str = Field(pattern=r'^(enroll|regions|sync)$')
+    action: str = Field(pattern=r'^(enroll|regions|sync|revoke)$')
     region: Optional[str] = Field(default=None,pattern=r'^[A-Z]{2}$')
     knownRevision: Optional[str] = Field(default=None,pattern=r'^[a-f0-9]{64}$')
 
@@ -175,6 +175,11 @@ def consume(request, proof):
             db.execute('INSERT OR IGNORE INTO regional_devices VALUES (?,?,?)',(*args,now))
         elif not db.execute('SELECT 1 FROM regional_devices WHERE user_id=? AND public_key=?',args).fetchone():
             raise HTTPException(403,'device_not_registered')
+        if claims['action']=='revoke':
+            db.execute('DELETE FROM regional_devices WHERE user_id=? AND public_key=?',args)
+            for pending in db.execute('SELECT nonce,claims FROM regional_challenges WHERE user_id=?',args[:1]).fetchall():
+                if json.loads(pending['claims'])['publicKey']==public_key:
+                    db.execute('DELETE FROM regional_challenges WHERE nonce=?',(pending['nonce'],))
     return claims
 
 
@@ -250,7 +255,7 @@ def complete(proof: Proof, request: Request):
     action=claims['action']
     payload=dict(format=NS,action=action,nonce=claims['nonce'],
                  userId=claims['userId'],**package_metadata(key))
-    if action!='enroll':
+    if action not in ('enroll','revoke'):
         version,categories,groups=latest()
         payload['catalogVersion']=version
         if action=='regions':

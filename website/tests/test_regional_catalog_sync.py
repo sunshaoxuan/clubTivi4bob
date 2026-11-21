@@ -69,6 +69,26 @@ def test_guest_bootstrap_contains_no_catalog_and_all_sync_requires_login(regiona
     assert client.post(BASE+'/complete',json=dict(nonce='a'*43,signature='b'*86)).status_code==401
 
 
+def test_device_revocation_invalidates_pending_proofs_without_affecting_another_device(regional):
+    client,publisher,accounts_env=regional
+    _,auth=login(accounts_env)
+    device=Ed25519PrivateKey.generate()
+    other=Ed25519PrivateKey.generate()
+    for key in [device,other]:
+        opened(client.post(BASE+'/complete',headers=auth,
+            json=proof(client,publisher,auth,key,'enroll')),publisher)
+    pending=proof(client,publisher,auth,device,'sync',region='JP')
+    revoked=proof(client,publisher,auth,device,'revoke')
+    _,receipt=opened(client.post(BASE+'/complete',headers=auth,json=revoked),publisher)
+    assert receipt['action']=='revoke' and 'package' not in receipt
+    assert client.post(BASE+'/complete',headers=auth,json=pending).status_code==403
+    public=sync.b64(device.public_key().public_bytes_raw())
+    assert client.post(BASE+'/challenge',headers=auth,
+        json=dict(publicKey=public,action='regions')).status_code==403
+    opened(client.post(BASE+'/complete',headers=auth,
+        json=proof(client,publisher,auth,other,'regions')),publisher)
+
+
 def test_enrollment_signature_replay_isolation_and_revision(regional):
     client,publisher,accounts_env=regional
     _, auth=login(accounts_env)

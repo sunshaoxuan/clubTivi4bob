@@ -79,6 +79,41 @@ class _RegionDialogState extends State<_RegionDialog> {
     }
   }
 
+  Future<void> disconnect() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(t('解除此设备绑定')),
+        content: Text(t('解除后，本机将移除已订阅的地区频道。个人导入和账号收藏会保留。')),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: Text(t('取消')),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: Text(t('解除绑定')),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    setState(() {
+      loading = true;
+      error = null;
+    });
+    try {
+      await widget.service.disconnectDevice();
+      if (mounted) Navigator.pop(context);
+    } catch (_) {
+      if (mounted)
+        setState(() {
+          loading = false;
+          error = t('解除绑定失败，请稍后重试');
+        });
+    }
+  }
+
   @override
   Widget build(BuildContext context) => AlertDialog(
     title: Text(t('选择频道地区')),
@@ -97,10 +132,13 @@ class _RegionDialogState extends State<_RegionDialog> {
                         CheckboxListTile(
                           value: selected.contains(region.key),
                           title: Text(
-                            ChannelCategoryClassifier
-                                    .internationalCountryNames[region.key
-                                    .toLowerCase()] ??
-                                region.key,
+                            AppMessages.category(
+                              context,
+                              ChannelCategoryClassifier
+                                      .internationalCountryNames[region.key
+                                      .toLowerCase()] ??
+                                  region.key,
+                            ),
                           ),
                           subtitle: Text(
                             AppMessages.text(context, '共 {0} 个频道', [
@@ -120,6 +158,10 @@ class _RegionDialogState extends State<_RegionDialog> {
             ),
     ),
     actions: [
+      TextButton(
+        onPressed: loading ? null : disconnect,
+        child: Text(t('解除此设备绑定')),
+      ),
       TextButton(
         onPressed: loading ? null : () => Navigator.pop(context),
         child: Text(t('取消')),

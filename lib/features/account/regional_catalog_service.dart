@@ -43,7 +43,8 @@ class RegionalCatalogService extends ChangeNotifier
   Map<String, int> available = {};
   RegionalCatalogBootstrap? _publisher;
 
-  bool get hasAccess => !_closed && account.loggedIn && _owner == account.user?['id'];
+  bool get hasAccess =>
+      !_closed && account.loggedIn && _owner == account.user?['id'];
 
   Future<void> initialize() => _initializing ??= _initialize();
   Future<void> _initialize() async {
@@ -248,15 +249,11 @@ class RegionalCatalogService extends ChangeNotifier
     await _serial(() async {
       await _switchAccount();
       if (!hasAccess) throw const AccountException('login_required');
-      final imported =
-          jsonDecode(
-                prefs.getString('bobtv.regional.bootstrap') ??
-                    jsonEncode(
-                      await account.regionalCatalogRequest('bootstrap.bobtv'),
-                    ),
-              )
-              as Map<String, dynamic>;
+      // The account origin remains the trust anchor when the publisher rotates
+      // its signing key. Imported files still undergo their explicit pin check.
+      final imported = await account.regionalCatalogRequest('bootstrap.bobtv');
       _publisher = await client.verifyBootstrap(imported);
+      await prefs.setString('bobtv.regional.bootstrap', jsonEncode(imported));
       try {
         available = await client.regions(_publisher!);
       } on AccountException catch (e) {
@@ -275,6 +272,22 @@ class RegionalCatalogService extends ChangeNotifier
     await _serial(() => _refresh(regions));
   }
 
+  Future<void> disconnectDevice() async {
+    await initialize();
+    await _serial(() async {
+      await _switchAccount();
+      if (!hasAccess) throw const AccountException('login_required');
+      final owner = _owner;
+      _publisher ??= await client.verifyBootstrap(
+        await account.regionalCatalogRequest('bootstrap.bobtv'),
+      );
+      await client.revoke(_publisher!);
+      if (!hasAccess || _owner != owner) return;
+      await _refresh({});
+      available = {};
+    });
+  }
+
   Future<void> refresh() async {
     await initialize();
     try {
@@ -282,7 +295,8 @@ class RegionalCatalogService extends ChangeNotifier
         await _switchAccount();
         if (hasAccess && selected.isNotEmpty) await _refresh(selected);
       });
-    } catch (_) {
+    } catch (error) {
+      if (error is FormatException) _publisher = null;
       // Retain the active account's last validated cache on network failure.
     }
   }

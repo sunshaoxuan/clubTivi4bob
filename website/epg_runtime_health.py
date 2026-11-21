@@ -18,6 +18,7 @@ from epg_ingest import EpgError, NoRedirect
 from epg_coverage import summarize
 from epg_store import NODES, active_manifest
 from process_channel_inventory import _HTTPHandler, _HTTPSHandler
+from internal_epg_auth import ReadAuthHandler
 
 WORKERS = {'validator': 600, 'discovery': 600, 'schedules': 600,
            'publisher': 600, 'source-discovery': 1200}
@@ -59,7 +60,8 @@ def read_node(node):
     if node not in NODES:
         raise ValueError('unapproved_node')
     url = node + '/api/v1/epg/manifest'
-    opener = urllib.request.build_opener(urllib.request.ProxyHandler({}), NoRedirect(), _HTTPHandler(), _HTTPSHandler())
+    opener = urllib.request.build_opener(urllib.request.ProxyHandler({}), NoRedirect(),
+                                        _HTTPHandler(), _HTTPSHandler(), ReadAuthHandler())
     request = urllib.request.Request(url, headers={'User-Agent': 'BobTV-EPG-Health/1.0',
         'Accept-Encoding': 'identity', 'Cache-Control': 'no-cache, no-store', 'Pragma': 'no-cache'})
     with opener.open(request, timeout=12) as response:

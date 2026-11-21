@@ -6,6 +6,7 @@ from fastapi.responses import JSONResponse
 from starlette.concurrency import run_in_threadpool
 
 import accounts
+from internal_epg_auth import authorized
 
 PRIVATE = {'Cache-Control': 'private, no-store', 'Vary': 'Authorization, Cookie'}
 
@@ -26,9 +27,10 @@ def install(app):
             legacy = (request.url.path == '/api/v1/channel-catalog/manifest' or
                       request.url.path.startswith('/api/v1/channel-catalog/snapshots/') or
                       request.url.path == '/api/v1/sources')
-            user = await run_in_threadpool(accounts.current, request, admin=legacy)
-            if not user['verified']:
-                raise HTTPException(403, 'verified_account_required')
+            if not authorized(request.method, request.url.path, request.headers):
+                user = await run_in_threadpool(accounts.current, request, admin=legacy)
+                if not user['verified']:
+                    raise HTTPException(403, 'verified_account_required')
         except HTTPException as exc:
             return JSONResponse({'detail': exc.detail}, status_code=exc.status_code,
                                 headers=PRIVATE)

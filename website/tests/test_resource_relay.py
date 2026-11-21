@@ -154,6 +154,18 @@ def test_device_favorites_keep_device_headers_and_bypass_every_shared_cache(clie
     assert 'proxy_set_header If-Modified-Since $bobtv_if_modified_since;' in location
 
 
+def test_protected_snapshots_bypass_old_shared_caches_and_relay_server_proofs(client):
+    test, seen = client
+    test.get('/bobtv/api/v1/epg/manifest', headers={
+        'X-BobTV-EPG-Read-Time': '1000', 'X-BobTV-EPG-Read-Auth': 'b' * 64})
+    assert seen[0].headers['x-bobtv-epg-read-time'] == '1000'
+    assert seen[0].headers['x-bobtv-epg-read-auth'] == 'b' * 64
+    nginx = (Path(__file__).parents[1] / 'deploy/bobtv-resource-relay-cache.conf').read_text()
+    assert '/channel-catalog/snapshots/' not in nginx
+    assert '/epg/snapshots/' not in nginx
+    assert '/updates/files/BobTV-' in nginx and '/downloads/BobTV-' in nginx
+
+
 def test_mirror_page_only_relays_bobtv_language_cookie(client):
     test, seen = client
     result = test.get('/bobtv/downloads?lang=fr', headers={

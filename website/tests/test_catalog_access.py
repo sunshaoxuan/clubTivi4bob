@@ -40,3 +40,17 @@ def test_verified_admin_can_audit_full_catalog(protected):
     result = client.get('/api/v1/channel-catalog/manifest', headers=headers)
     assert result.status_code == 200
     assert result.headers['cache-control'] == 'private, no-store'
+
+
+def test_server_read_proof_keeps_epg_workers_independent_of_member_sessions(protected, tmp_path, monkeypatch):
+    from internal_epg_auth import headers_for, PROOF
+    key = tmp_path / 'read.key'
+    key.write_bytes(b'r' * 32)
+    monkeypatch.setenv('BOBTV_INTERNAL_EPG_KEY', str(key))
+    client, _, _ = protected
+    headers = headers_for('https://bobtv.briconbric.com/api/v1/epg/manifest')
+    result = client.get('/api/v1/epg/manifest', headers=headers)
+    assert result.status_code == 200 and result.headers['cache-control'] == 'private, no-store'
+    assert client.get('/api/v1/channel-catalog/manifest', headers=headers).status_code == 401
+    assert client.post('/api/v1/epg/manifest', headers=headers).status_code in (401, 403)
+    assert client.get('/api/v1/epg/manifest', headers={**headers, PROOF: '0' * 64}).status_code == 401

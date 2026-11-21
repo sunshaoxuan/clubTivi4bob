@@ -18,6 +18,10 @@ from epg_ingest import EpgError, parse_xmltv, fetch
 from publish_channel_catalog import _atomic_write
 from source_registry import validate_public_url
 from epg_route_binding import validate_scope, public_identity
+from internal_epg_auth import ReadAuthHandler
+from epg_ingest import NoRedirect
+from process_channel_inventory import _HTTPHandler, _HTTPSHandler
+from urllib.request import build_opener, ProxyHandler
 
 NODES = ('https://bobtv.briconbric.com', 'https://cndrp.com/bobtv')
 
@@ -432,7 +436,9 @@ def build_payload(conn, now=None):
 
 
 def _node_fetch(url):
-    return fetch({'url': url})[0]
+    opener = build_opener(ProxyHandler({}), NoRedirect(), _HTTPHandler(),
+                          _HTTPSHandler(), ReadAuthHandler())
+    return fetch({'url': url}, opener=opener)[0]
 
 
 def active_manifest(conn):

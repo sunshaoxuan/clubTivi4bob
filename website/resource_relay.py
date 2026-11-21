@@ -157,7 +157,7 @@ async def relay(path: str, request: Request):
     headers = {key: value for key, value in request.headers.items() if key.lower() in {
         'accept', 'content-type', 'authorization', 'user-agent', 'range', 'if-range',
         'if-none-match', 'if-modified-since', 'idempotency-key',
-        'x-bobtv-device-fingerprint'}}
+        'x-bobtv-device-fingerprint', 'x-bobtv-epg-read-time', 'x-bobtv-epg-read-auth'}}
     if path in PUBLIC_PAGES:
         if 'accept-language' in request.headers:
             headers['accept-language'] = request.headers['accept-language']

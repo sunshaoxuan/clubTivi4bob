@@ -7,7 +7,7 @@
   <title>隐私政策 | BobTV</title>
   <meta name="theme-color" content="#0d101e">
   <link rel="icon" type="image/png" href="/assets/favicon.png?v=2">
-  <link rel="stylesheet" href="/assets/site.css?v=21">
+  <link rel="stylesheet" href="/assets/site.css?v=22">
   <link rel="alternate" hreflang="en" href="/privacy?lang=en"><link rel="alternate" hreflang="zh-CN" href="/privacy?lang=zh-CN"><link rel="alternate" hreflang="zh-TW" href="/privacy?lang=zh-TW"><link rel="alternate" hreflang="ja" href="/privacy?lang=ja"><link rel="alternate" hreflang="fr" href="/privacy?lang=fr"><link rel="alternate" hreflang="es" href="/privacy?lang=es"><link rel="alternate" hreflang="ko" href="/privacy?lang=ko">
   <link rel="alternate" hreflang="x-default" href="/privacy?lang=en">
 </head>
@@ -17,6 +17,10 @@
     <nav class="main-nav" aria-label="主导航">
       <a href="/">产品</a>
       <a class="nav-download" href="/downloads">下载 <span aria-hidden="true">↓</span></a>
+      <details class="nav-menu"><summary aria-label="主导航">☰</summary><div>
+        <a href="/#subtitles">自动字幕</a>
+        <a href="/release-notes">版本记录</a>
+      </div></details>
     </nav>
     <form class="language-form" action="/privacy" method="get">
       <label class="visually-hidden" for="language">语言</label>
@@ -34,7 +38,9 @@
 
 <section class="download-help" id="diagnostics-v2"><div class="download-help-title"><p class="section-index">诊断V2</p><h2>可选的 30 天脱敏诊断同步</h2><p>仅适用于包含诊断同步 V2 的新客户端。首次启用需要明确同意，可随时在设置中关闭；旧摘要上传授权不会自动扩大。</p></div><div class="download-help-grid"><article><h3>范围和保存期限</h3><p>允许上传最近 30 天仍可用的事件、应用版本、平台、请求阶段、节点、耗时、状态码和资源统计。每次使用有界批次增量同步，不上传原始异常、堆栈、播放地址、私人订阅、凭据、收藏、观看内容或转储。诊断使用应用内随机标识，不使用硬件序列号。主节点和中继最多保存到事件发生后 30 天，本机容量保护可能缩短可用历史。旧版摘要仍按原有 14 天政策保存。</p></article><article><h3>中继和关闭</h3><p>中国大陆经 cndrp 私有队列暂存，再由服务器任务使用 TLS 转交主节点。客户端区分中继暂存和主节点接收回执；主节点确认后中继删除内容，仅保留到期回执。未知网络也优先走中继。关闭后停止新的客户端上传并取消本机在途请求；已经到达服务器的请求不能撤回，按上述期限自动清理。服务器不提供公开诊断内容下载入口。</p></article></div></section>
 
-</div><section id="accounts"><h2>可选账号与登录</h2><p>账号服务保存邮箱、名称、身份提供方标识、验证与禁用状态，以及经过哈希的会话凭据。邮箱验证码十分钟有效，邮件由 mail.briconbric.com 加密发送；Google 和 Apple 登录会与相应提供方交换身份信息。账号服务不需要上传播放地址或观看历史。</p><h3>生物验证与删除</h3><p>Face ID、Touch ID 及安卓生物验证由设备系统处理，BobTV 不接收或上传面容、指纹模板。开关及会话保存在系统安全存储中。可在应用账号页面删除账号；Apple 登录凭据会撤销。限流记录按窗口失效；管理操作审计和账号数据库备份分别按一百八十天、三十天保留策略定期清理。</p></section></main>
+<section class="download-help" id="accounts"><div class="download-help-title"><h2>可选账号与登录</h2><p>账号服务保存邮箱、名称、身份提供方标识、验证与禁用状态，以及经过哈希的会话凭据。邮箱验证码十分钟有效，邮件由 mail.briconbric.com 加密发送；Google 和 Apple 登录会与相应提供方交换身份信息。账号服务不需要上传播放地址或观看历史。</p><p>地区目录服务还会保存本设备的账号公钥与登记时间，并短暂保存同步挑战。设备私钥留在设备安全存储中。地区选择和已验证缓存保存在本机，退出账号时从活动频道视图移除。可在地区选择页解除本设备绑定。</p></div><div class="download-help-grid"><article><h3>生物验证与删除</h3><p>Face ID、Touch ID 及安卓生物验证由设备系统处理，BobTV 不接收或上传面容、指纹模板。开关及会话保存在系统安全存储中。可在应用账号页面删除账号；Apple 登录凭据会撤销。限流记录按窗口失效；管理操作审计和账号数据库备份分别按一百八十天、三十天保留策略定期清理。</p></article></div></section>
+</div></main>
+
 
   <footer>
     <div class="container footer-inner">

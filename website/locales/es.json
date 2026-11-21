@@ -202,6 +202,11 @@
     "history_title": "Cambios recientes",
     "history": [
       [
+        "2026-11-22",
+        "v1.4.0 · Suscripciones regionales y panel móvil",
+        "Se añaden suscripciones regionales por cuenta, demostraciones en directo e importación y actualización de paquetes .bobtv. En el teléfono, el panel de canales se abre desde abajo en vertical y desde la derecha en horizontal. Los modelos de subtítulos del dispositivo pasan a ser multilingües, con mejoras en la identificación de programas, los estados y la recuperación tras interrupciones."
+      ],
+      [
         "2026-11-19",
         "v1.3.1 · Todas las versiones disponibles en el menú de subtítulos",
         "Abre Subtítulos durante la reproducción para ver las versiones por idioma. Elige una versión o vuelve al modo automático. La selección manual solo se aplica al programa actual. En ventanas pequeñas, Subtítulos está a la izquierda de Favoritos. El menú permite buscar de nuevo en el idioma elegido."
@@ -381,7 +386,7 @@
     "closing_text": "Una columna para Windows, macOS y Android, con opciones de CPU en su interior. Hay disponibles paquetes nativos de Windows ARM64; Las pruebas de hardware de superficie están pendientes."
   },
   "downloads": {
-    "intro": "Windows, macOS y Android comparten la versión 1.3.1+1. Cambia de idioma en la parte superior de la aplicación. La selección manual se guarda. El modo automático usa el idioma del sistema, la zona horaria y, como último recurso, el inglés. Todos los instaladores incluyen los recursos de idioma. Se ha cerrado el acceso al modo avanzado. La sincronización de diagnósticos está desactivada de forma predeterminada. Con tu consentimiento, puede enviar hasta 30 días de registros depurados y puedes desactivarla en cualquier momento. La aplicación de macOS utiliza una firma ad-hoc.",
+    "intro": "Windows, macOS y Android comparten la versión 1.4.0+2. Empieza con tres canales de demostración e inicia sesión para elegir regiones o importar tus fuentes .bobtv, M3U y Xtream. Se incluyen siete idiomas y se conserva la selección manual. La sincronización de diagnósticos está desactivada de forma predeterminada. Con tu consentimiento explícito puede sincronizar hasta 30 días de registros depurados y se puede desactivar en cualquier momento.",
     "latest": "Últimos instaladores",
     "local": "Descargas alojadas en este sitio",
     "sections": [
@@ -391,19 +396,19 @@
         "text": "Elija el paquete para su sistema operativo y procesador.",
         "items": [
           [
-            "ventanas",
+            "Windows",
             "Ejecute el programa de instalación para elegir la carpeta de instalación y el acceso directo en el escritorio. La carpeta predeterminada es BoB\\BoBTV en Archivos de programa; Se requiere la aprobación del administrador. Para el ZIP portátil, extraiga todos los archivos y ejecute BobTV.exe. Los canales personales y favoritos se almacenan en su carpeta de datos de usuario."
           ],
           [
-            "macos",
-            "Abra el DMG alojado en este sitio y arrastre BobTV.app a Aplicaciones. Para obtener actualizaciones automáticas después de salir, instálelas en una carpeta de Aplicaciones grabable en su directorio de inicio. No ejecute la aplicación a largo plazo desde la imagen del disco de solo lectura. La aplicación está firmada ad hoc, sin firma ni certificación notarial de ID de desarrollador de Apple; Los ZIP de actualización automática se verifican por separado con la firma del editor de BobTV. Es posible que el primer lanzamiento aún requiera aprobación manual. Las funciones deshabilitadas no leen sus credenciales de Llavero y el acceso denegado detiene los intentos automáticos hasta que lo reanude explícitamente."
+            "macOS",
+            "Abra el DMG alojado en este sitio y arrastre BobTV.app a Aplicaciones. Para obtener actualizaciones automáticas después de salir, instálelas en una carpeta de Aplicaciones grabable en su directorio de inicio. No ejecute la aplicación a largo plazo desde la imagen del disco de solo lectura. La aplicación está firmada ad-hoc, sin firma ni certificación notarial de ID de desarrollador de Apple; Los ZIP de actualización automática se verifican por separado con la firma del editor de BobTV. Es posible que el primer lanzamiento aún requiera aprobación manual. Las funciones deshabilitadas no leen sus credenciales de Llavero y el acceso denegado detiene los intentos automáticos hasta que lo reanude explícitamente."
           ],
           [
             "Actualizaciones",
             "BobTV realiza comprobaciones al inicio, cada seis horas y al volver al primer plano. Las instalaciones administradas de Windows descargan y verifican la configuración dentro de BobTV, solicitan la aprobación del administrador cuando eligen Instalar y luego muestran el progreso de la instalación. Cancelar la aprobación mantiene la aplicación anterior en funcionamiento. Los clientes administrados más antiguos necesitan esta configuración una vez. Las ubicaciones portátiles de Windows y Mac con capacidad de escritura se actualizan después de salir e intentan revertir después de tres inicios fallidos. Las ubicaciones de Mac protegidas requieren reemplazo manual. Sin una firma de código confiable, es posible que permanezcan las advertencias de Edge en la primera descarga del navegador."
           ],
           [
-            "Androide",
+            "Android",
             "Instale el APK en Android 7 o posterior. Elija primero ARM64, ARM32 para dispositivos limitados a aplicaciones de 32 bits o x64 para dispositivos/emuladores coincidentes. El vídeo conserva su relación de aspecto original en vertical y horizontal. Las actualizaciones requieren permiso de instalación de Android y confirmación del sistema."
           ]
         ]
@@ -864,7 +869,7 @@
       "Los subtítulos de la película se pausan durante los anuncios.",
       "Confirma la nueva posición antes de reanudar los subtítulos."
     ],
-    "cta": "Prueba los subtítulos automáticos de 1.3.1",
+    "cta": "Obtén 1.4.0 y elige las regiones",
     "historyTitle": "La guía y los subtítulos automáticos, juntos",
     "historyText": "BobTV busca automáticamente en varias fuentes de subtítulos cuando la guía confirma el programa actual. Durante la reproducción puedes cambiar entre siete idiomas de preferencia y elegir hasta tres versiones distintas por idioma. La selección automática prueba tu idioma primero y luego el inglés. Los subtítulos se pausan durante los anuncios y se vuelven a sincronizar al regresar el programa."
   },
@@ -872,6 +877,7 @@
     "Cuenta e inicio de sesión opcionales",
     "El servicio guarda correo, nombre, identificadores del proveedor, estados de verificación y desactivación y hashes de sesiones. Los códigos caducan en diez minutos y se envían mediante SMTP cifrado con mail.briconbric.com. Google y Apple intercambian la información de identidad necesaria. No se requieren direcciones de reproducción ni historial.",
     "Biometría y eliminación",
-    "El sistema del dispositivo procesa la biometría. BobTV no recibe plantillas de rostro o huellas. La preferencia y la sesión se conservan en el almacenamiento seguro del sistema. Puedes eliminar la cuenta desde la aplicación; se revocan las credenciales de Apple. Los límites caducan con su período. Las auditorías y las copias de seguridad se depuran periódicamente con políticas de retención de 180 y 30 días."
+    "El sistema del dispositivo procesa la biometría. BobTV no recibe plantillas de rostro o huellas. La preferencia y la sesión se conservan en el almacenamiento seguro del sistema. Puedes eliminar la cuenta desde la aplicación; se revocan las credenciales de Apple. Los límites caducan con su período. Las auditorías y las copias de seguridad se depuran periódicamente con políticas de retención de 180 y 30 días.",
+    "El catálogo regional también guarda la clave pública de la cuenta en este dispositivo y su fecha de registro, además de retos de sincronización de corta duración. La clave privada permanece en el almacenamiento seguro del dispositivo. Las regiones elegidas y las cachés verificadas se guardan en el dispositivo y se retiran de la vista activa al cerrar sesión. Puedes desvincular este dispositivo en el selector de regiones."
   ]
 }

@@ -14,7 +14,7 @@ COMMIT = '4979e04f5dcaccb36057e059bbaed8a2f5288315'
 MODEL = 'ggml-base.en-q5_1.bin'
 MODEL_SHA = '4baf70dd0d7c4247ba2b81fafd9c01005ac77c2f9ef064e00dcf195d0e2fdd2f'
 
-if os.environ.get('BOBTV_ASR_MULTILINGUAL') == '1':
+if os.environ.get('BOBTV_ASR_MULTILINGUAL', '1') == '1':
     MODEL = 'ggml-base-q5_1.bin'
     MODEL_SHA = '422f1ae452ade6f30a004d7e5c6a43195e4433bc370bf23fac9cc591f01a8898'
 

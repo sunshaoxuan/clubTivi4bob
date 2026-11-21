@@ -9,6 +9,22 @@ import 'hls_playlist_history.dart';
 const actionMoviesLegacyConfig = 'production-LiveChannel-6065';
 const actionMoviesCurrentConfig = 'production-hls-aes128-rtv-6065-playout';
 
+/// A failed streamed segment must terminate its socket, so the decoder can
+/// distinguish a truncated body from a successfully completed video segment.
+Future<void> closeFailedHlsResponse(HttpResponse response) async {
+  try {
+    response.statusCode = HttpStatus.badGateway;
+  } catch (_) {
+    // Once streaming starts, headers cannot be replaced with a 502 response.
+    try {
+      final socket = await response.detachSocket(writeHeaders: false);
+      socket.destroy();
+    } catch (_) {
+      // The decoder may already have disconnected or switched channels.
+    }
+  }
+}
+
 bool isActionMoviesUk(String source) {
   final uri = Uri.tryParse(source);
   return uri?.scheme == 'https' &&
@@ -461,7 +477,8 @@ class HlsBufferProxy {
         }
         final body = utf8.decode(bytes);
         if (body.contains('#EXT-X-STREAM-INF:')) {
-          final maxBandwidth = (Platform.isAndroid || Platform.isIOS) && captureClock
+          final maxBandwidth =
+              (Platform.isAndroid || Platform.isIOS) && captureClock
               ? 1800000
               : 3000000;
           origin = selectActionMoviesMedia(
@@ -473,7 +490,8 @@ class HlsBufferProxy {
           );
           AppDiagnostics.instance.log('client_hls_rendition_policy', {
             'maxBandwidth': maxBandwidth,
-            'mobileSpeech': (Platform.isAndroid || Platform.isIOS) && captureClock,
+            'mobileSpeech':
+                (Platform.isAndroid || Platform.isIOS) && captureClock,
           });
         }
       } catch (_) {
@@ -565,7 +583,7 @@ class HlsBufferProxy {
           }
         }
       } catch (_) {
-        request.response.statusCode = 502;
+        await closeFailedHlsResponse(request.response);
       } finally {
         try {
           await request.response.close();

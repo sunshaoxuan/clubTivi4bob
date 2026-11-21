@@ -1,14 +1,23 @@
 import tempfile
 import unittest
 import json
+from unittest.mock import patch
 
-from subtitle_ai import SubtitleAI
+from subtitle_ai import SubtitleAI, transport_handlers, LocalTlsHandler
 from subtitle_cache import SubtitleCache, verified_release_aliases
 from subtitle_stremio import matches_bound_release
 from client_clock import TextHub
 
 
 class SubtitleAITest(unittest.TestCase):
+    def test_local_gateway_requires_the_reviewed_tls_endpoint(self):
+        with patch.dict('os.environ', {'BOBTV_SUBTITLE_AI_LOCAL_TLS':'1'}):
+            handlers=transport_handlers('https://ccnode.briconbric.com:49531/v1')
+            self.assertTrue(any(isinstance(handler,LocalTlsHandler) for handler in handlers))
+            for base in ['https://other.example:49531/v1','http://ccnode.briconbric.com:49531/v1',
+                         'https://ccnode.briconbric.com/v1']:
+                with self.assertRaises(ValueError):transport_handlers(base)
+
     def english(self):
         return [dict(index=i,start=i*25,end=i*25+2,text='Test input') for i in range(105)]
 

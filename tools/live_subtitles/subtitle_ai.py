@@ -1,14 +1,17 @@
 """Bounded, optional server-side review and whole-track translation."""
 import fcntl
+import http.client
 import json
 import os
 from pathlib import Path
 import re
 import sqlite3
+import socket
+import ssl
 import time
 from urllib.parse import urlsplit
 from urllib.error import HTTPError
-from urllib.request import HTTPRedirectHandler, Request, build_opener
+from urllib.request import HTTPRedirectHandler, HTTPSHandler, ProxyHandler, Request, build_opener
 
 from subtitle_edition import chinese_script, track_fingerprint
 
@@ -19,6 +22,26 @@ CHINESE = ('zh-CN', 'zh-TW')
 class NoRedirect(HTTPRedirectHandler):
     def redirect_request(self, *args, **kwargs):
         return None
+
+
+class LocalTlsHandler(HTTPSHandler):
+    """Reach the configured local gateway with normal certificate validation."""
+    def https_open(self, request):
+        class LocalConnection(http.client.HTTPSConnection):
+            def connect(self):
+                self.sock = socket.create_connection(('127.0.0.1', self.port), self.timeout)
+                self.sock = self._context.wrap_socket(self.sock, server_hostname=self.host)
+        return self.do_open(LocalConnection, request, context=ssl.create_default_context())
+
+
+def transport_handlers(base):
+    handlers = [NoRedirect()]
+    if os.environ.get('BOBTV_SUBTITLE_AI_LOCAL_TLS') == '1':
+        parsed = urlsplit(base)
+        if parsed.scheme != 'https' or parsed.hostname != 'ccnode.briconbric.com' or parsed.port != 49531:
+            raise ValueError('subtitle_ai_local_tls_endpoint_rejected')
+        handlers.extend([ProxyHandler({}), LocalTlsHandler()])
+    return handlers
 
 
 class SubtitleAI:
@@ -73,7 +96,7 @@ class SubtitleAI:
         req = Request(settings['BASE_URL'].rstrip('/')+'/responses', data=body,
             headers={'Authorization':'Bearer '+settings['TOKEN'], 'Content-Type':'application/json'})
         try:
-            with build_opener(NoRedirect()).open(req, timeout=15) as response:
+            with build_opener(*transport_handlers(settings['BASE_URL'])).open(req, timeout=15) as response:
                 raw = response.read(131073)
         except HTTPError as error:
             if error.code in (401,403,429,500,502,503,504):

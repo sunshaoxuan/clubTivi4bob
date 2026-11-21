@@ -36,8 +36,9 @@ class HlsPlaylistTransport {
                 'authorization',
                 'cookie',
                 'www-authenticate',
-              }.contains(entry.key.toLowerCase()))
+              }.contains(entry.key.toLowerCase())) {
             continue;
+          }
           request.headers.set(entry.key, entry.value);
         }
         final response = await request.close().timeout(
@@ -52,8 +53,9 @@ class HlsPlaylistTransport {
           chunk,
         ) {
           bytes += chunk.length;
-          if (maxBytes != null && bytes > maxBytes)
+          if (maxBytes != null && bytes > maxBytes) {
             throw const FormatException('HLS manifest exceeds size limit');
+          }
           return chunk;
         });
         final body = await utf8.decoder
@@ -64,8 +66,9 @@ class HlsPlaylistTransport {
         if (generation == _generation) _targets[source] = origin;
         return (origin: origin, body: body);
       } catch (_) {
-        if (generation != _generation || target == source || attempt != 0)
+        if (generation != _generation || target == source || attempt != 0) {
           rethrow;
+        }
         _targets.remove(source);
         target = source;
       }

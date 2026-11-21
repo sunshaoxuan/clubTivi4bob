@@ -761,8 +761,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
         }
       }
 
-      if (UserSourcePolicy.enabled &&
-          navigationGroups.isNotEmpty &&
+      if (navigationGroups.isNotEmpty &&
           selectedGroup != 'Favorites' &&
           !selectedGroup.startsWith('fav:') &&
           !navigationGroups.contains(selectedGroup))

@@ -1,0 +1,65 @@
+name: BobTV multilingual subtitle workers
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  workers:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 65
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: windows
+            arch: x64
+          - platform: windows
+            arch: arm64
+          - platform: android
+            arch: arm
+          - platform: android
+            arch: arm64
+          - platform: android
+            arch: x64
+    env:
+      BOBTV_ASR_MULTILINGUAL: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install build tools
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y cmake ninja-build make pkg-config
+      - name: Install pinned Android NDK
+        if: matrix.platform == 'android'
+        run: yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" 'ndk;28.2.13676358' > "$RUNNER_TEMP/ndk-setup.log"
+      - name: Install checksum-locked Windows cross compiler
+        if: matrix.platform == 'windows'
+        run: |
+          curl --fail --location --retry 3 'https://github.com/mstorsjo/llvm-mingw/releases/download/20261020/llvm-mingw-20261020-ucrt-ubuntu-22.04-x86_64.tar.xz' -o "$RUNNER_TEMP/llvm.tar.xz"
+          echo '55064b60b991a1e1e8090b8c2f84e82b22cfe5903d12c159d65064cf5e8ae335  '"$RUNNER_TEMP/llvm.tar.xz" | sha256sum --check
+          mkdir "$RUNNER_TEMP/llvm"
+          tar -xf "$RUNNER_TEMP/llvm.tar.xz" -C "$RUNNER_TEMP/llvm" --strip-components=1
+      - uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}/client-subtitle-cache
+          key: multilingual-whisper182-${{ matrix.platform }}-${{ matrix.arch }}-${{ hashFiles('tools/native/build_client_subtitles.py','tools/native/build_android_blas.py') }}
+      - name: Build baseline workers
+        run: |
+          args=()
+          if [[ '${{ matrix.platform }}' == windows ]]; then args+=(--toolchain "$RUNNER_TEMP/llvm"); fi
+          python tools/native/build_client_subtitles.py --platform '${{ matrix.platform }}' --arch '${{ matrix.arch }}' --cache "$RUNNER_TEMP/client-subtitle-cache" --output workers "${args[@]}"
+      - name: Build optimized x64 worker
+        if: matrix.arch == 'x64'
+        run: |
+          args=()
+          if [[ '${{ matrix.platform }}' == windows ]]; then args+=(--toolchain "$RUNNER_TEMP/llvm"); fi
+          python tools/native/build_client_subtitles.py --platform '${{ matrix.platform }}' --arch x64 --cpu avx2 --cache "$RUNNER_TEMP/client-subtitle-cache" --output workers "${args[@]}"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: multilingual-workers-${{ matrix.platform }}-${{ matrix.arch }}
+          path: workers
+          if-no-files-found: error
+          retention-days: 14

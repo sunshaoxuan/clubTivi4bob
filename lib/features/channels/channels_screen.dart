@@ -760,7 +760,9 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
             navigationGroups.contains(savedGroup)) {
           selectedGroup = savedGroup!;
         } else {
-          selectedGroup = ChannelCategoryClassifier.categories.first;
+          selectedGroup = ChannelCategoryDestination.initialCategory(
+            categoryGroups,
+          );
         }
       }
 

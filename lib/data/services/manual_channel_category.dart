@@ -130,6 +130,19 @@ class ChannelCategoryDestination {
     return [...ChannelCategoryClassifier.categories, ...custom];
   }
 
+  /// The navigation includes empty preset categories. Start from a category
+  /// represented in the installed sources when no saved choice is available.
+  static String initialCategory(Iterable<String> groups) {
+    final available = groups
+        .map((group) => fromGroup(group)?.category ?? group)
+        .where((group) => group.isNotEmpty)
+        .toList();
+    final preferred = ChannelCategoryClassifier.categories.first;
+    return available.contains(preferred)
+        ? preferred
+        : available.firstOrNull ?? preferred;
+  }
+
   bool get valid {
     if (!_safeInput ||
         path.isEmpty ||

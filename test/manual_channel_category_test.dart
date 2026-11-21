@@ -9,6 +9,22 @@ import 'package:shared_preferences/shared_preferences.dart';
 void main() {
   setUp(() => SharedPreferences.setMockInitialValues({}));
 
+  test('initial category shows installed demo or private sources', () {
+    expect(
+      ChannelCategoryDestination.initialCategory(['开放动画直播', '直播测试信号']),
+      '开放动画直播',
+    );
+    expect(
+      ChannelCategoryDestination.initialCategory(['中国 / 北京', '国际 / 日本']),
+      '北京',
+    );
+    expect(
+      ChannelCategoryDestination.initialCategory(['国际 / 日本', '中国 / 央视']),
+      '央视',
+    );
+    expect(ChannelCategoryDestination.initialCategory([]), '央视');
+  });
+
   test('destinations validate every level and retain country and genre', () {
     expect(ChannelCategoryDestination(['中国']).valid, isFalse);
     expect(ChannelCategoryDestination(['中国', '地方']).valid, isFalse);

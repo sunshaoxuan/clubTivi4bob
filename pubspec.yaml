@@ -106,7 +106,8 @@ flutter:
     - assets/icons/
     - assets/icon/
     - assets/fonts/
-    - assets/data/
+    - assets/data/demo.bobtv
+    - assets/data/UNICODE-LICENSE.txt
     - assets/i18n/
     - assets/identity/
     - assets/updater/

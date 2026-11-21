@@ -18,4 +18,4 @@ Big Buck Bunny 与 Sintel 预告片来自既有范例的可核查输入，许可
 
 ## 开发包内目录资源
 
-已实际发现 `channel_catalog_starter.json.gz` 和 `github_ai_snapshot.json.gz` 存在于 iOS Flutter 资源目录。首页不显示频道及代码跳过导入不能证明这些文件不存在。提审前移除与该 iOS 产品无关的目录/抓取快照，或核实其中内容的分发授权，并从最终 Archive 再检查。审核材料包不复制这两份原始目录。
+早期开发包曾包含 `channel_catalog_starter.json.gz` 和 `github_ai_snapshot.json.gz`。当前 `pubspec.yaml` 已用显式清单仅声明演示数据包及 Unicode 许可，不再声明这两份旧目录资产。源代码中的历史文件保留供开发回归使用。必须从最终安装包和 iOS Archive 检查实际资产，不能只以首页未显示频道作为依据。

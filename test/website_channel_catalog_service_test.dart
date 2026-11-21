@@ -8,6 +8,7 @@ import 'package:crypto/crypto.dart';
 import 'package:drift/drift.dart' show Value;
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:clubtivi/data/services/manual_channel_category.dart';
 
@@ -294,26 +295,25 @@ void main() {
   });
 
   test(
-    'packaged starter initializes an empty database without network access',
+    'authenticated catalog starts without embedded legacy route snapshots',
     () async {
       final database = db.AppDatabase.forTesting(NativeDatabase.memory());
       final service = WebsiteChannelCatalogService(
         database: database,
+        authenticatedOnly: true,
         api: _CatalogApi(null),
       );
       addTearDown(() async {
         service.dispose();
         await database.close();
       });
-      expect(
-        await service.importBundled(),
-        greaterThan(0),
-        reason: '${service.lastError}',
-      );
-      final rows = await database.getChannelsForProvider(
-        WebsiteChannelCatalogService.providerId,
-      );
-      expect(rows.where((row) => row.groupTitle == '中国 / 央视'), isNotEmpty);
+      expect(await service.importBundled(), 0);
+      expect(await database.getAllChannels(), isEmpty);
+      final manifest = await AssetManifest.loadFromAssetBundle(rootBundle);
+      final assets = manifest.listAssets();
+      expect(assets, contains('assets/data/demo.bobtv'));
+      expect(assets, isNot(contains('assets/data/channel_catalog_starter.json.gz')));
+      expect(assets, isNot(contains('assets/data/github_ai_snapshot.json.gz')));
     },
   );
 

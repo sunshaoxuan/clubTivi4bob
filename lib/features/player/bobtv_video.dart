@@ -14,6 +14,7 @@ class BobtvVideo extends StatelessWidget {
     this.fill = Colors.black,
     this.showSubtitleMenu = false,
     this.showSubtitleStatus = true,
+    this.channelName,
   });
   final VideoController controller;
   final VideoControlsBuilder? controls;
@@ -21,6 +22,7 @@ class BobtvVideo extends StatelessWidget {
   final Color fill;
   final bool showSubtitleMenu;
   final bool showSubtitleStatus;
+  final String? channelName;
 
   @override
   Widget build(BuildContext context) {
@@ -29,6 +31,44 @@ class BobtvVideo extends StatelessWidget {
       fit: StackFit.expand,
       children: [
         Video(controller: controller, controls: controls, fit: fit, fill: fill),
+        if (channelName?.trim().isNotEmpty ?? false)
+          Positioned(
+            top: 8,
+            left: 8,
+            right: 8,
+            child: IgnorePointer(
+              child: LayoutBuilder(
+                builder: (context, constraints) => Align(
+                  alignment: Alignment.topLeft,
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(
+                      maxWidth: constraints.maxWidth * .6,
+                    ),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 9,
+                        vertical: 5,
+                      ),
+                      decoration: BoxDecoration(
+                        color: const Color(0x99081220),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Text(
+                        channelName!.trim(),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
         if (player is ManagedPlayer)
           Positioned.fill(
             child: VideoSubtitleViewport(
@@ -74,9 +114,7 @@ class BobtvVideo extends StatelessWidget {
           Positioned(
             left: 8,
             bottom: 52,
-            child: SubtitleMenuButton(
-              session: () => player.liveSubtitles,
-            ),
+            child: SubtitleMenuButton(session: () => player.liveSubtitles),
           ),
       ],
     );

@@ -1282,6 +1282,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                       return BobtvVideo(
                         key: ValueKey(active),
                         controller: active,
+                        channelName: _currentChannelName,
                         controls: NoVideoControls,
                         fit: TabletPresentation.videoFit,
                         showSubtitleStatus: _pipMode,

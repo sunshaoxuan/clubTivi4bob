@@ -4743,6 +4743,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
           child: BobtvVideo(
             key: ValueKey(controller ?? initialController),
             controller: controller ?? initialController,
+            channelName: channel == null ? null : _channelDisplayName(channel),
             controls: NoVideoControls,
             fit: TabletPresentation.videoFit,
           ),

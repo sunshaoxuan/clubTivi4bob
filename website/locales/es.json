@@ -203,6 +203,11 @@
     "history": [
       [
         "2026-11-22",
+        "v1.4.2 · Nombre del canal e icono de programación",
+        "El vídeo principal muestra el nombre del canal en la esquina superior izquierda, también en ventanas separadas y a pantalla completa. El icono de programación pasa a la esquina superior izquierda de las tarjetas. Continúan el progreso EPG y el avance automático de programas en la serie 1.4."
+      ],
+      [
+        "2026-11-22",
         "v1.4.1 · Progreso EPG e iconos de programación",
         "El programa actual muestra el progreso verde en tiempo real y un indicador con un brillo suave. Los siguientes programas avanzan y se completan automáticamente. Un icono identifica los canales con EPG. Las actualizaciones de escritorio conservan solo la copia de la versión anterior."
       ],
@@ -392,7 +397,7 @@
   },
   "downloads": {
     "signing_notice": "La solicitud gratuita de SignPath Foundation no fue aprobada. No se emitió ningún certificado de Windows confiable y la firma de producción de SignPath.io no está en uso. Es posible que Edge aún requiera una confirmación de seguridad en la primera descarga del navegador.",
-    "intro": "Windows y macOS: 1.4.1+1. Android mantiene la versión pública existente 1.3.1+1. Cambia de idioma en la parte superior de la aplicación. La selección manual se guarda. El modo automático usa el idioma del sistema, la zona horaria y, como último recurso, el inglés. Todos los instaladores incluyen los recursos de idioma. Se ha cerrado el acceso al modo avanzado. La sincronización de diagnósticos está desactivada de forma predeterminada. Con tu consentimiento, puede enviar hasta 30 días de registros depurados y puedes desactivarla en cualquier momento. La aplicación de macOS utiliza una firma ad-hoc.",
+    "intro": "Windows y macOS: 1.4.2+2. Android mantiene la versión pública existente 1.3.1+1. Cambia de idioma en la parte superior de la aplicación. La selección manual se guarda. El modo automático usa el idioma del sistema, la zona horaria y, como último recurso, el inglés. Todos los instaladores incluyen los recursos de idioma. Se ha cerrado el acceso al modo avanzado. La sincronización de diagnósticos está desactivada de forma predeterminada. Con tu consentimiento, puede enviar hasta 30 días de registros depurados y puedes desactivarla en cualquier momento. La aplicación de macOS utiliza una firma ad-hoc.",
     "latest": "Últimos instaladores",
     "local": "Descargas alojadas en este sitio",
     "sections": [

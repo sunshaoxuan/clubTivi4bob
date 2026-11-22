@@ -203,6 +203,11 @@
     "history": [
       [
         "2026-11-22",
+        "v1.4.2 · Channel labels and guide icons",
+        "The main video now displays the current channel name in its upper-left corner, including separate player windows and fullscreen. Programme-guide icons move to the upper-left corner of channel cards. Live EPG progress and automatic programme rollover continue in the 1.4 series."
+      ],
+      [
+        "2026-11-22",
         "v1.4.1 · Live EPG progress and guide icons",
         "Current programmes show real-time green progress and a softly glowing playhead. Upcoming programmes advance and refill automatically. Guide icons identify channels with EPG. Desktop updates retain only the previous-version backup."
       ],
@@ -392,7 +397,7 @@
   },
   "downloads": {
     "signing_notice": "The free SignPath Foundation application was not approved. No trusted Windows certificate was issued and SignPath.io production signing is not in use. Edge may still require a security confirmation on the first browser download.",
-    "intro": "Windows and macOS: 1.4.1+1. Android remains at the existing public version 1.3.1+1. Switch languages at the top of the app. Manual choices persist. Automatic mode uses the system language, then the time zone, then English. The language resources are included with each installer. The advanced mode entry has been closed. Diagnostic sync is off by default. Explicit consent enables up to 30 days of redacted records and can be withdrawn at any time.",
+    "intro": "Windows and macOS: 1.4.2+2. Android remains at the existing public version 1.3.1+1. Switch languages at the top of the app. Manual choices persist. Automatic mode uses the system language, then the time zone, then English. The language resources are included with each installer. The advanced mode entry has been closed. Diagnostic sync is off by default. Explicit consent enables up to 30 days of redacted records and can be withdrawn at any time.",
     "latest": "Latest installers",
     "local": "Downloads hosted on this site",
     "sections": [

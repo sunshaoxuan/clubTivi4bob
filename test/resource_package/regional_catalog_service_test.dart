@@ -141,6 +141,37 @@ void main() {
   });
 
   test(
+    'legacy upgrade keeps channels and favorites without account migration',
+    () async {
+      await service.select({'JP'});
+      const id = 'bobtv-channel-catalog:route-JP';
+      await (database.update(database.channels)..where((c) => c.id.equals(id)))
+          .write(const db.ChannelsCompanion(favorite: Value(true)));
+      service.dispose();
+      account.signedIn = false;
+      account.user = null;
+      service = RegionalCatalogService(
+        database,
+        account: account,
+        catalogClient: client,
+        allowLegacyCatalog: true,
+      );
+      await service.initialize();
+      await service.refresh();
+      expect(service.canUseCatalog, isTrue);
+      expect(service.hasAccess, isFalse);
+      expect((await database.getChannelsByIds({id})).single.favorite, isTrue);
+      expect(await database.getChannelsForProvider('bobtv-demo'), isEmpty);
+      account.login('b' * 32);
+      await service.refresh();
+      await account.logout();
+      await service.refresh();
+      expect(service.canUseCatalog, isTrue);
+      expect((await database.getChannelsByIds({id})).single.favorite, isTrue);
+    },
+  );
+
+  test(
     'device disconnect stops syncing and restores account favorites on resubscription',
     () async {
       await service.select({'JP'});

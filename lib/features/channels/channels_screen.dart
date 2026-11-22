@@ -618,7 +618,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
     if (!mounted) return;
     final service = ref.read(providerManagerProvider).regionalCatalog;
     final player = ref.read(playerServiceProvider);
-    if (!service.hasAccess &&
+    if (!service.canUseCatalog &&
         player.currentChannelId?.startsWith('bobtv-channel-catalog:') == true) {
       unawaited(player.stop());
     }
@@ -723,7 +723,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
         ),
       );
       _sharedCatalogAvailable =
-          ref.read(providerManagerProvider).regionalCatalog.hasAccess &&
+          ref.read(providerManagerProvider).regionalCatalog.canUseCatalog &&
           !UserSourcePolicy.enabled &&
           providers.any(
             (provider) =>
@@ -939,7 +939,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                   .toList();
         }
 
-        if (!ref.read(providerManagerProvider).regionalCatalog.hasAccess) {
+        if (!ref.read(providerManagerProvider).regionalCatalog.canUseCatalog) {
           loaded = loaded
               .where(
                 (c) => c.providerId != WebsiteChannelCatalogService.providerId,

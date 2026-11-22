@@ -19,6 +19,7 @@ import 'core/platform_info.dart';
 import 'core/desktop_window_sizing.dart';
 import 'data/services/client_fingerprint_service.dart';
 import 'data/services/legacy_preferences_migration.dart';
+import 'data/services/installation_registration_policy.dart';
 import 'data/services/desktop_update_service.dart';
 
 void main({VoidCallback? onBindingReady}) {
@@ -30,6 +31,7 @@ void main({VoidCallback? onBindingReady}) {
       WidgetsFlutterBinding.ensureInitialized();
       BobTvApiClient.accountHeaders = () =>
           AccountService.instance.serviceHeaders;
+      await InstallationRegistrationPolicy.instance.initialize();
       await diagnostics.initialize();
       await LegacyPreferencesMigration.run();
       await PlatformInfo.initialize();

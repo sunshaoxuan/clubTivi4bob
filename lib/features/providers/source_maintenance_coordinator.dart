@@ -1,5 +1,6 @@
 import 'dart:async';
 import '../../core/user_source_policy.dart';
+import '../../data/services/installation_registration_policy.dart';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -240,11 +241,13 @@ final sourceMaintenanceCoordinatorProvider =
       };
       final coordinator = SourceMaintenanceCoordinator(
         manager: ref.watch(providerManagerProvider),
-        useRegionalCatalog: true,
+        useRegionalCatalog:
+            !InstallationRegistrationPolicy.instance.legacyAccess,
         regionalRoutes: regional,
         websiteCatalog: WebsiteChannelCatalogService(
           database: database,
-          authenticatedOnly: true,
+          authenticatedOnly:
+              !InstallationRegistrationPolicy.instance.legacyAccess,
           onSharedScores: tracker.setSharedScores,
         ),
       );

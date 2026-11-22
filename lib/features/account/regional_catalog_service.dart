@@ -22,10 +22,13 @@ class RegionalCatalogService extends ChangeNotifier
     AccountService? account,
     RegionalCatalogClient? catalogClient,
     this.installDemo = true,
+    this.allowLegacyCatalog = false,
   }) : account = account ?? AccountService.instance,
        _clientOverride = catalogClient;
 
   final bool installDemo;
+  final bool allowLegacyCatalog;
+  bool get canUseCatalog => allowLegacyCatalog || hasAccess;
   final db.AppDatabase database;
   final AccountService account;
   final RegionalCatalogClient? _clientOverride;
@@ -49,6 +52,7 @@ class RegionalCatalogService extends ChangeNotifier
   Future<void> initialize() => _initializing ??= _initialize();
   Future<void> _initialize() async {
     prefs = await SharedPreferences.getInstance();
+    if (allowLegacyCatalog) return;
     await database.customStatement(
       'CREATE TABLE IF NOT EXISTS regional_account_cache (slot TEXT PRIMARY KEY, payload TEXT NOT NULL)',
     );
@@ -202,6 +206,7 @@ class RegionalCatalogService extends ChangeNotifier
   }
 
   Future<void> _switchAccount() async {
+    if (allowLegacyCatalog) return;
     final next = account.loggedIn ? (account.user?['id'] as String?) : null;
     if (next == _owner && prefs.getBool('bobtv.regional.migrated') == true)
       return;
@@ -290,6 +295,7 @@ class RegionalCatalogService extends ChangeNotifier
 
   Future<void> refresh() async {
     await initialize();
+    if (allowLegacyCatalog) return;
     try {
       await _serial(() async {
         await _switchAccount();

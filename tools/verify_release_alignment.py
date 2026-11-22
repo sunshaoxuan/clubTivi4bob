@@ -1,4 +1,4 @@
-"""Gate an official release on seven matching platform versions and real APK identity."""
+"""Gate seven-platform releases or explicitly requested four-platform desktop releases."""
 import argparse
 import hashlib
 import json
@@ -14,20 +14,21 @@ sys.path.insert(0, str(ROOT / 'website'))
 from mirror_releases import _inspect_update_archive, _verify_publisher_signature, version_parts
 from android.verify_apk import verify as verify_apk
 from android.version_code import split_install_code
-from finalize_desktop_update_metadata import PLATFORMS
+from finalize_desktop_update_metadata import PLATFORMS, DESKTOP_PLATFORMS
 
 
 def digest(path):
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
-def validate_matrix(metadata, version):
+def validate_matrix(metadata, version, desktop_only=False):
     version_parts(version)
     if metadata.get('schema') != 1 or metadata.get('version') != version:
         raise ValueError('Release metadata version mismatch')
     packages = metadata.get('packages', [])
-    if len(packages) != len(PLATFORMS) or {p.get('platform') for p in packages} != set(PLATFORMS):
-        raise ValueError('Official release requires exactly all seven platforms')
+    platforms = DESKTOP_PLATFORMS if desktop_only else PLATFORMS
+    if len(packages) != len(platforms) or {p.get('platform') for p in packages} != set(platforms):
+        raise ValueError('Release must contain exactly the selected platform matrix')
     for package in packages:
         ext = 'apk' if package['platform'].startswith('android-') else 'zip'
         if package.get('filename') != f"BobTV-{version}-{package['platform']}.{ext}":
@@ -35,10 +36,10 @@ def validate_matrix(metadata, version):
     return packages
 
 
-def verify(directory, version, build_tools):
+def verify(directory, version, build_tools, desktop_only=False):
     directory = Path(directory)
     metadata = json.loads((directory / 'BobTV-update-metadata.json').read_text())
-    packages = validate_matrix(metadata, version)
+    packages = validate_matrix(metadata, version, desktop_only)
     source_version = re.search(r'^version:\s*(\S+)', (ROOT/'pubspec.yaml').read_text(), re.M)[1]
     if source_version != version or version not in (ROOT/'lib/core/app_version.dart').read_text():
         raise ValueError('Source version differs from official release')
@@ -77,13 +78,14 @@ def verify(directory, version, build_tools):
         sha,name=line.split('  ',1)
         if name in checksums:raise ValueError('Duplicate checksum entry')
         checksums[name]=sha
-    if set(checksums) != assets or len(assets) != 12:
-        raise ValueError('Expected checksums for twelve release files')
+    expected_assets = 9 if desktop_only else 12
+    if set(checksums) != assets or len(assets) != expected_assets:
+        raise ValueError('Unexpected release checksum matrix')
     for name,sha in checksums.items():
         if digest(directory/name) != sha:raise ValueError('Checksum mismatch: '+name)
     if {p.name for p in directory.iterdir() if p.is_file()} != assets | {'SHA256SUMS.txt'}:
-        raise ValueError('Official release must contain exactly thirteen assets')
-    return {'passed':True,'version':version,'platforms':list(PLATFORMS),'assets':13,'android':android}
+        raise ValueError('Unexpected release asset matrix')
+    return {'passed':True,'version':version,'platforms':list(DESKTOP_PLATFORMS if desktop_only else PLATFORMS),'assets':expected_assets+1,'android':android}
 
 
 if __name__ == '__main__':
@@ -91,5 +93,6 @@ if __name__ == '__main__':
     parser.add_argument('directory',type=Path)
     parser.add_argument('version')
     parser.add_argument('--android-build-tools',type=Path,required=True)
+    parser.add_argument('--desktop-only',action='store_true')
     args=parser.parse_args()
-    print(json.dumps(verify(args.directory,args.version,args.android_build_tools),indent=2))
+    print(json.dumps(verify(args.directory,args.version,args.android_build_tools,args.desktop_only),indent=2))

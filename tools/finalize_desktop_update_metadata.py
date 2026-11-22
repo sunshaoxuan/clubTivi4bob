@@ -14,6 +14,7 @@ from mirror_releases import _inspect_update_archive, _verify_mac_signature, vers
 
 PLATFORMS = ('windows-x64', 'windows-arm64', 'macos-x64', 'macos-arm64',
              'android-arm64', 'android-arm', 'android-x64')
+DESKTOP_PLATFORMS = PLATFORMS[:4]
 
 
 def digest(path):
@@ -33,8 +34,14 @@ def main():
     parser.add_argument("--platforms", nargs="+", choices=PLATFORMS,
                         default=list(PLATFORMS))
     parser.add_argument("--staging", action="store_true", help="Create platform build staging metadata; never a complete official release")
+    parser.add_argument('--desktop-only', action='store_true',
+                        help='Explicit desktop-only publication; preserve mobile releases and feeds')
     args = parser.parse_args()
-    if set(args.platforms) != set(PLATFORMS) and not args.staging:
+    if args.desktop_only:
+        if set(args.platforms) not in (set(PLATFORMS), set(DESKTOP_PLATFORMS)):
+            raise ValueError('Desktop publication requires all four desktop platforms')
+        args.platforms = list(DESKTOP_PLATFORMS)
+    if set(args.platforms) != set(PLATFORMS) and not (args.staging or args.desktop_only):
         raise ValueError("Official releases require all seven platforms at the same version; use --staging only for intermediate platform builds")
     version_parts(args.version)
     root = args.directory.resolve()

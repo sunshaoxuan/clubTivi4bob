@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import '../../core/platform_info.dart';
+import '../../data/services/installation_registration_policy.dart';
 import '../../core/i18n/app_language.dart';
 import 'account_service.dart';
 
@@ -28,12 +29,13 @@ class _AccountButtonState extends State<AccountButton> {
   Widget build(BuildContext context) => Row(
     mainAxisSize: MainAxisSize.min,
     children: [
-      RegionalCatalogButton(
-        onSignIn: () => showDialog<void>(
-          context: context,
-          builder: (_) => const _AccountDialog(),
+      if (!InstallationRegistrationPolicy.instance.legacyAccess)
+        RegionalCatalogButton(
+          onSignIn: () => showDialog<void>(
+            context: context,
+            builder: (_) => const _AccountDialog(),
+          ),
         ),
-      ),
       ListenableBuilder(
         listenable: account,
         builder: (context, _) => widget.compact

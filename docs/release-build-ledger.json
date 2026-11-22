@@ -10,14 +10,16 @@
     },
     {
       "version": "1.4.2+2",
-      "status": "reserved",
+      "status": "published",
       "date": "2026-11-22",
       "platforms": [
         "windows-x64",
         "windows-arm64",
         "macos-x64",
         "macos-arm64"
-      ]
+      ],
+      "sourceCommit": "5971ad5ebe424c56d50922fbea3aef1c45d4729b",
+      "releaseUrl": "https://github.com/sunshaoxuan/clubTivi4bob/releases/tag/v1.4.2"
     }
   ]
 }

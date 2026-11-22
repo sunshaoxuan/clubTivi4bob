@@ -5357,6 +5357,10 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                           children: [
                             Row(
                               children: [
+                                if (_hasProgrammeGuide(channel)) ...[
+                                  ChannelEpgBadge(size: tiny ? 13 : 15),
+                                  const SizedBox(width: 6),
+                                ],
                                 Expanded(
                                   child: Text(
                                     selected
@@ -5407,10 +5411,6 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                                     ),
                                   ),
                                 ),
-                                if (_hasProgrammeGuide(channel)) ...[
-                                  const SizedBox(width: 6),
-                                  ChannelEpgBadge(size: tiny ? 13 : 15),
-                                ],
                               ],
                             ),
                             if (cardSpectrum != null)

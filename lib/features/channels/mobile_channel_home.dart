@@ -701,6 +701,10 @@ class _MobileChannelHomeState extends State<MobileChannelHome>
                       children: [
                         Row(
                           children: [
+                            if (channel.hasProgrammeGuide) ...[
+                              const ChannelEpgBadge(),
+                              const SizedBox(width: 6),
+                            ],
                             Expanded(
                               child: Align(
                                 alignment: Alignment.centerLeft,
@@ -732,10 +736,6 @@ class _MobileChannelHomeState extends State<MobileChannelHome>
                                 ),
                               ),
                             ),
-                            if (channel.hasProgrammeGuide) ...[
-                              const ChannelEpgBadge(),
-                              const SizedBox(width: 6),
-                            ],
                             if (pending)
                               const SizedBox(
                                 width: 14,

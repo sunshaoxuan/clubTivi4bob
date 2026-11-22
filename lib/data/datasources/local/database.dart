@@ -1934,6 +1934,22 @@ class AppDatabase extends _$AppDatabase {
     return rows.map((row) => row.read(channels.name)!).toList();
   }
 
+  /// Latest valid schedule end for each EPG ID, without loading programme rows.
+  /// Callers compare against the channel's effective time, including time shift.
+  Future<Map<String, DateTime>> getEpgProgrammeCoverageEnds() async {
+    final end = epgProgrammes.stop.max();
+    final query = selectOnly(epgProgrammes)
+      ..addColumns([epgProgrammes.epgChannelId, end])
+      ..where(epgProgrammes.stop.isBiggerThan(epgProgrammes.start))
+      ..groupBy([epgProgrammes.epgChannelId]);
+    final rows = await query.get();
+    return {
+      for (final row in rows)
+        if (row.read(end) != null)
+          row.read(epgProgrammes.epgChannelId)!: row.read(end)!,
+    };
+  }
+
   /// Delete old programmes to keep DB size manageable.
   Future<void> pruneOldProgrammes({Duration maxAge = const Duration(days: 7)}) {
     final cutoff = DateTime.now().subtract(maxAge);

@@ -53,6 +53,7 @@ void main() {
                   name: '频道 $i',
                   sourceId: i.isEven ? 'a' : 'b',
                   favorite: i.isEven,
+                  hasProgrammeGuide: i == 0,
                 ),
               ),
               sources: const {'a': '来源 A', 'b': '来源 B'},
@@ -75,6 +76,28 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('mobile-open-channels')));
     await tester.pumpAndSettle();
   }
+
+  testWidgets('programme icon appears only on cards with available EPG', (
+    tester,
+  ) async {
+    await mount(tester);
+    await open(tester);
+    expect(
+      find.descendant(
+        of: find.byKey(const ValueKey('mobile-channel-0')),
+        matching: find.byIcon(Icons.list_alt_rounded),
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(
+        of: find.byKey(const ValueKey('mobile-channel-1')),
+        matching: find.byIcon(Icons.list_alt_rounded),
+      ),
+      findsNothing,
+    );
+    expect(tester.takeException(), isNull);
+  });
 
   test('phone policy keeps tablet and desktop layouts', () {
     expect(

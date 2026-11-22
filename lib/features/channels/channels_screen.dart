@@ -85,6 +85,7 @@ import 'channel_programme_status.dart';
 import 'channel_programme_strip.dart';
 import 'inline_expanded_channel_grid.dart';
 import 'channel_card_feedback.dart';
+import 'channel_epg_badge.dart';
 import 'channel_card_playback_binding.dart';
 import 'radio_card_spectrum.dart';
 import 'shared_sync_badge.dart';
@@ -169,6 +170,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
   /// Maps channel ID → user-set vanity name (original name preserved in DB)
   Map<String, String> _vanityNames = {};
   Set<String> _validEpgChannelIds = {};
+  Map<String, DateTime> _epgProgrammeEnds = {};
   Map<String, String> _rawToPrefixedEpg = {}; // XMLTV channelId → prefixed id
   Map<String, String> _epgNameToId =
       {}; // normalized EPG displayName → prefixed id
@@ -1266,11 +1268,13 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
       nowPlaying = await database.getNowPlaying(epgChannelIds.toList());
     }
 
+    final programmeEnds = await database.getEpgProgrammeCoverageEnds();
     if (!mounted || generation != _epgDataLoadGeneration) return;
     setState(() {
       _nowPlaying = nowPlaying;
       _epgMappings = epgMap;
       _validEpgChannelIds = validIds;
+      _epgProgrammeEnds = programmeEnds;
       _rawToPrefixedEpg = rawToPrefixed;
       _epgNameToId = epgNameToId;
       _epgSportsServiceById = epgSportsServiceById;
@@ -3433,6 +3437,15 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
     return match.isNotEmpty ? match.first.title : null;
   }
 
+  bool _hasProgrammeGuide(db.Channel channel) {
+    final end = _epgProgrammeEnds[_getEpgId(channel)];
+    if (end == null) return false;
+    final effectiveNow = DateTime.now().subtract(
+      Duration(hours: _epgTimeshifts[channel.id] ?? 0),
+    );
+    return end.isAfter(effectiveNow);
+  }
+
   /// Display name for a channel — vanity name if set, otherwise original name.
   String _channelDisplayName(db.Channel channel) =>
       _vanityNames[channel.id] ?? channel.name;
@@ -3949,6 +3962,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                 name: _channelDisplayName(channel),
                 sourceId: channel.providerId,
                 programme: _getChannelNowPlaying(channel),
+                hasProgrammeGuide: _hasProgrammeGuide(channel),
                 logoUrl: channel.tvgLogo,
                 favorite: _favoritedChannelIds.contains(channel.id),
               ),
@@ -5349,7 +5363,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                                         ? AppMessages.text(context, "● 正在播放")
                                         : previewController != null
                                         ? AppMessages.text(context, "● 静音预览")
-                                        : AppMessages.text(context, "● 直播"),
+                                        : '',
                                     maxLines: 1,
                                     overflow: TextOverflow.ellipsis,
                                     style: TextStyle(
@@ -5393,6 +5407,10 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                                     ),
                                   ),
                                 ),
+                                if (_hasProgrammeGuide(channel)) ...[
+                                  const SizedBox(width: 6),
+                                  ChannelEpgBadge(size: tiny ? 13 : 15),
+                                ],
                               ],
                             ),
                             if (cardSpectrum != null)

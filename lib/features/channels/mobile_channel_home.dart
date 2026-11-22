@@ -10,6 +10,7 @@ import '../../core/server_image.dart';
 import '../../core/server_egress.dart';
 import 'channel_logo_surface.dart';
 import 'channel_card_feedback.dart';
+import 'channel_epg_badge.dart';
 
 /// Shared by the phone home and the native, offline presentation probe.
 class MobileChannelItem {
@@ -18,6 +19,7 @@ class MobileChannelItem {
     required this.name,
     required this.sourceId,
     this.programme,
+    this.hasProgrammeGuide = false,
     this.logoUrl,
     this.logoImage,
     this.favorite = false,
@@ -26,6 +28,7 @@ class MobileChannelItem {
   final String name;
   final String sourceId;
   final String? programme;
+  final bool hasProgrammeGuide;
   final String? logoUrl;
 
   /// Optional cached image, also used by offline native QA with real logos.
@@ -698,31 +701,41 @@ class _MobileChannelHomeState extends State<MobileChannelHome>
                       children: [
                         Row(
                           children: [
-                            ChannelLogoSurface(
-                              key: ValueKey('mobile-logo-${channel.id}'),
-                              image:
-                                  channel.logoImage ??
-                                  ((channel.logoUrl?.isNotEmpty ?? false)
-                                      ? ResizeImage(
-                                          NetworkImage(
-                                            ServerEgress.imageUrl(
-                                              channel.logoUrl!,
-                                            ),
-                                          ),
-                                          width: 180,
-                                        )
-                                      : null),
-                              fallback: Center(
-                                child: Text(
-                                  channel.name.characters.take(2).toString(),
-                                  style: const TextStyle(
-                                    color: Color(0xFF243B59),
-                                    fontWeight: FontWeight.w800,
+                            Expanded(
+                              child: Align(
+                                alignment: Alignment.centerLeft,
+                                child: ChannelLogoSurface(
+                                  key: ValueKey('mobile-logo-${channel.id}'),
+                                  image:
+                                      channel.logoImage ??
+                                      ((channel.logoUrl?.isNotEmpty ?? false)
+                                          ? ResizeImage(
+                                              NetworkImage(
+                                                ServerEgress.imageUrl(
+                                                  channel.logoUrl!,
+                                                ),
+                                              ),
+                                              width: 180,
+                                            )
+                                          : null),
+                                  fallback: Center(
+                                    child: Text(
+                                      channel.name.characters
+                                          .take(2)
+                                          .toString(),
+                                      style: const TextStyle(
+                                        color: Color(0xFF243B59),
+                                        fontWeight: FontWeight.w800,
+                                      ),
+                                    ),
                                   ),
                                 ),
                               ),
                             ),
-                            const Spacer(),
+                            if (channel.hasProgrammeGuide) ...[
+                              const ChannelEpgBadge(),
+                              const SizedBox(width: 6),
+                            ],
                             if (pending)
                               const SizedBox(
                                 width: 14,

@@ -175,4 +175,31 @@ void main() {
     );
     expect(rows.map((row) => row.title), ['Future 1', 'Future 2', 'Future 3']);
   });
+
+  test('guide coverage uses valid programme data and exposes expiry', () async {
+    await database.insertProgrammes([
+      programme('current', 'Now', now, now.add(const Duration(hours: 1))),
+      programme(
+        'current',
+        'Later',
+        now.add(const Duration(hours: 1)),
+        now.add(const Duration(hours: 2)),
+      ),
+      programme(
+        'expired',
+        'Ended',
+        now.subtract(const Duration(hours: 1)),
+        now,
+      ),
+      programme('invalid', 'Invalid interval', now, now),
+    ]);
+    final ends = await database.getEpgProgrammeCoverageEnds();
+    expect(ends.map((key, value) => MapEntry(key, value.toUtc())), {
+      'current': now.add(const Duration(hours: 2)),
+      'expired': now,
+    });
+    expect(ends['current']!.isAfter(now), isTrue);
+    expect(ends['expired']!.isAfter(now), isFalse);
+    expect(ends['missing'], isNull);
+  });
 }

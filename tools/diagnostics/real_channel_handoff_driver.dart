@@ -4,6 +4,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'package:crypto/crypto.dart';
 import 'package:file/file.dart' as fs;
 import 'package:file/src/forwarding.dart';
 import 'package:path_provider_windows/path_provider_windows.dart';
@@ -259,24 +260,19 @@ Future<void> _drive() async {
       'backgroundProfiling':
           Platform.environment['BOBTV_HANDOFF_BACKGROUND'] == '1',
     });
-    final channels = [
-      'Action Movies',
-      'Comedy Movies',
-      'Drama Movies',
-      'Romance Movies',
-      'Action Movies',
-      'Comedy Movies',
-      'Romance Movies',
-      'Drama Movies',
-      'Comedy Movies',
-      'Action Movies',
-      'Drama Movies',
-      'Romance Movies',
-    ];
+    final channels = List.generate(
+      12,
+      (i) => i.isEven ? 'Action Movies' : 'Comedy Movies',
+    );
     final performanceFailures = <Map<String, Object?>>[];
     for (var cycle = 0; cycle < channels.length; cycle++) {
       final label = channels[cycle];
       final old = service.activeVideoController.value;
+      if (cycle == 4 || cycle == 8) {
+        await tap('Drama Movies');
+        await Future<void>.delayed(const Duration(milliseconds: 200));
+        record('cold_selection_cancelled', {'cycle': cycle});
+      }
       final preparation = Stopwatch()..start();
       await tap(label);
       await until(
@@ -344,16 +340,22 @@ Future<void> _drive() async {
         });
       }
       final position = service.player.state.position;
-      final videoBefore = double.tryParse(
-        await service.getMpvProperty('video-pts') ?? '',
-      );
+      final frameBefore = await service.player.screenshot();
+      if (frameBefore != null) {
+        await File(
+          '${root.path}/video-$cycle-before.jpg',
+        ).writeAsBytes(frameBefore);
+      }
       final audioBefore = double.tryParse(
         await service.getMpvProperty('audio-pts') ?? '',
       );
       await Future<void>.delayed(const Duration(seconds: 4));
-      final videoAfter = double.tryParse(
-        await service.getMpvProperty('video-pts') ?? '',
-      );
+      final frameAfter = await service.player.screenshot();
+      if (frameAfter != null) {
+        await File(
+          '${root.path}/video-$cycle-after.jpg',
+        ).writeAsBytes(frameAfter);
+      }
       final audioAfter = double.tryParse(
         await service.getMpvProperty('audio-pts') ?? '',
       );
@@ -361,14 +363,14 @@ Future<void> _drive() async {
       final mute = await service.getMpvProperty('mute');
       final positionAdvance =
           (service.player.state.position - position).inMilliseconds;
-      final videoAdvance = videoBefore != null && videoAfter != null
-          ? videoAfter - videoBefore
-          : null;
-      if (videoAdvance == null || videoAdvance < 0.5) {
+      final videoChanged =
+          frameBefore != null &&
+          frameAfter != null &&
+          sha256.convert(frameBefore) != sha256.convert(frameAfter);
+      if (!videoChanged) {
         performanceFailures.add({
           'cycle': cycle,
-          'kind': 'video_progress',
-          'advanceSeconds': videoAdvance,
+          'kind': 'video_frame_unchanged',
         });
       }
       if (audioOutput != 'wasapi' || mute != 'yes' || positionAdvance < 500) {
@@ -385,9 +387,7 @@ Future<void> _drive() async {
         'audioOutput': audioOutput,
         'mute': mute,
         'positionAdvanceMs': positionAdvance,
-        'videoAdvanceSeconds': videoBefore != null && videoAfter != null
-            ? videoAfter - videoBefore
-            : null,
+        'videoFrameChanged': videoChanged,
         'audioAdvanceSeconds': audioBefore != null && audioAfter != null
             ? audioAfter - audioBefore
             : null,

@@ -1,7 +1,7 @@
 # BobTV release requirements
 
-- Routine releases stay on `1.3.m+n`. Increment `m` for each release and keep `n` cumulative across the entire 1.3 series, including repeat official build attempts. One aligned multi-platform build batch consumes one shared build number. Do not reset `n` when `m` changes. A larger minor or major version is reserved for a substantial feature release.
-- Published numbering anchors are `1.3.0+0` and `1.3.1+1`. Record subsequent consumed build numbers in `docs/release-build-ledger.json` before an official build. Treat the published 1.4.1 numbering as a migration case: existing clients reject a numerically lower version, so verify the chosen transition path before changing public feeds.
+- Routine releases stay on `1.4.m+n`. Increment `m` for each release and keep `n` cumulative across the entire 1.4 series, including repeat official build attempts. One aligned multi-platform build batch consumes one shared build number. Do not reset `n` when `m` changes. A larger minor or major version is reserved for a substantial feature release.
+- Use the current public `1.4.1+1` as the imported build-counter baseline. Record every subsequent consumed build number in `docs/release-build-ledger.json` before starting an official build. Routine updates continue forward in the 1.4 series.
 - Commit and push every application source change to the remote main branch before building any official release. Verify that the exact frozen release commit is already present on remote main; a local-only commit or an uncommitted working tree cannot be released.
 - Local development builds and isolated tests may precede the push, but they are not official release artifacts. After integration changes, rebuild and retest the exact committed source before publication.
 - Every official release must publish Windows x64/ARM64, macOS Intel/Apple Silicon, and Android ARM32/ARM64/x64 with the same semantic version and base build number.

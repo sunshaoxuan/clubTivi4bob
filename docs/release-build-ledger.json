@@ -1,10 +1,23 @@
 {
   "schema": 1,
-  "series": "1.3",
-  "counterStartsAt": 0,
+  "series": "1.4",
+  "counterBasis": "Imported public counter baseline; subsequent official build batches increment without resets",
   "unit": "aligned official build batch",
   "builds": [
-    {"version": "1.3.0+0", "status": "published"},
-    {"version": "1.3.1+1", "status": "published"}
+    {
+      "version": "1.4.1+1",
+      "status": "published-baseline"
+    },
+    {
+      "version": "1.4.2+2",
+      "status": "reserved",
+      "date": "2026-11-22",
+      "platforms": [
+        "windows-x64",
+        "windows-arm64",
+        "macos-x64",
+        "macos-arm64"
+      ]
+    }
   ]
 }

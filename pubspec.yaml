@@ -1,7 +1,7 @@
 name: clubtivi
 description: "Open-source cross-platform IPTV player with intelligent EPG mapping, multi-provider stream failover, and remote control support."
 publish_to: 'none'
-version: 1.4.1+1
+version: 1.4.2+2
 
 environment:
   sdk: ^3.11.0

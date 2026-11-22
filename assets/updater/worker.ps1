@@ -52,6 +52,51 @@ function Get-Sha256([string]$path) {
   finally { $hash.Dispose(); $stream.Dispose() }
 }
 
+function Remove-ObsoleteBackups([string]$keep, [string]$candidateFile) {
+  # Run under the updater mutex, after a verified backup and installation have
+  # published their rollback record. A failed update keeps all recovery files.
+  function Remove-BackupDirectory([string]$path) {
+    # Windows PowerShell 5.1 recursive removal can traverse nested junctions.
+    # Enumerate one level at a time and unlink them without visiting targets.
+    foreach ($item in Get-ChildItem -LiteralPath $path -Force) {
+      if ($item.PSIsContainer) {
+        if ($item.Attributes -band [IO.FileAttributes]::ReparsePoint) {
+          [IO.Directory]::Delete($item.FullName)
+        } else { Remove-BackupDirectory $item.FullName }
+      } else { Remove-Item -LiteralPath $item.FullName -Force }
+    }
+    [IO.Directory]::Delete($path)
+  }
+  try {
+    $directory = [IO.Path]::GetFullPath((Join-Path $root 'Backups')).TrimEnd('\')
+    $keep = [IO.Path]::GetFullPath($keep).TrimEnd('\')
+    if (![IO.Path]::GetDirectoryName($keep).Equals($directory, [StringComparison]::OrdinalIgnoreCase)) {
+      throw 'Backup is outside the updater backup directory'
+    }
+    foreach ($path in @($root, $directory, $keep)) {
+      if ((Get-Item -LiteralPath $path -Force).Attributes -band [IO.FileAttributes]::ReparsePoint) {
+        throw 'Backup cleanup does not follow directory links'
+      }
+    }
+    if (!(Test-Path -LiteralPath (Join-Path $keep 'data\app.so') -PathType Leaf)) {
+      throw 'Current rollback backup is incomplete'
+    }
+    $record = @([IO.File]::ReadAllLines($candidateFile) | Where-Object { $_ -match '^BackupDir=' })
+    if ($record.Count -ne 1 -or
+        ![IO.Path]::GetFullPath($record[0].Substring(10)).TrimEnd('\').Equals($keep, [StringComparison]::OrdinalIgnoreCase)) {
+      throw 'Current rollback record does not reference the retained backup'
+    }
+    foreach ($old in Get-ChildItem -LiteralPath $directory -Directory -Force) {
+      if ($old.FullName.Equals($keep, [StringComparison]::OrdinalIgnoreCase) -or
+          ($old.Attributes -band [IO.FileAttributes]::ReparsePoint)) { continue }
+      try {
+        Remove-BackupDirectory $old.FullName
+        Write-Log ('Removed obsolete backup: ' + $old.Name)
+      } catch { Write-Log ('Backup cleanup deferred: ' + $_.Exception.Message) }
+    }
+  } catch { Write-Log ('Backup cleanup deferred: ' + $_.Exception.Message) }
+}
+
 function Get-UpdateMachine([string]$path) {
   $stream=[IO.File]::OpenRead($path)
   $reader=New-Object IO.BinaryReader($stream)
@@ -333,6 +378,7 @@ try {
     if (!$candidate.Version) { return }
     if (Test-Path -LiteralPath $healthyPath) {
       Set-Attempts 0
+      Remove-ObsoleteBackups ([string]$candidate.BackupDir) $statePath
       Remove-Item -LiteralPath $healthyPath, $markerPath -Force -ErrorAction SilentlyContinue
       return
     }
@@ -569,6 +615,7 @@ try {
       }
     }
   }
+  Remove-ObsoleteBackups $backup $statePath
   Write-Status 'installed' $Version 100 '安装完成，旧版已备份，下次启动即为新版本'
   Write-Log ('Installed ' + $Version)
   try { Remove-Item -LiteralPath $stage -Recurse -Force }

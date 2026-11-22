@@ -96,6 +96,12 @@ for outcome in pinned-match pinned-mismatch; do
   /usr/bin/openssl pkey -in "$fixture/signing.pem" -pubout \
     -out "$install_root/update-signing-public.pem"
   old_inode="$(stat -f%i "$installed/Contents/MacOS/BobTV")"
+  mkdir -p "$install_root/Backups/historical/BobTV.app"
+  printf historical > "$install_root/Backups/historical/BobTV.app/marker"
+  if [[ "$outcome" == pinned-match ]]; then
+    mkdir -p "$install_root/Backups/interrupted"
+    ln -s "$package_b" "$install_root/Backups/external-link"
+  fi
   result=0
   bash assets/updater/mac_worker.sh update "$install_root" "$installed" 99999999 \
     '0.9.3+1' 'https://bobtv.briconbric.com/updates/files/BobTV-signing-test.zip' \
@@ -107,13 +113,22 @@ for outcome in pinned-match pinned-mismatch; do
     [[ "$(cat "$installed/Contents/Resources/version-marker")" == new ]] || fail 'replacement missing'
     backup="$(sed -n '2p' "$install_root/candidate.txt")"
     [[ "$(cat "$backup/BobTV.app/Contents/Resources/version-marker")" == old ]] || fail 'backup missing'
+    [[ ! -e "$install_root/Backups/historical" && ! -e "$install_root/Backups/interrupted" ]] || fail 'older backups accumulated'
+    [[ -L "$install_root/Backups/external-link" && -d "$package_b" ]] || fail 'backup cleanup followed a link'
+    # The retained backup must remain usable by the real three-failure rollback.
+    for attempt in 1 2 3; do
+      printf 99999999 > "$install_root/startup.marker"
+      bash assets/updater/mac_worker.sh monitor "$install_root" "$installed" 99999999
+    done
+    [[ "$(cat "$installed/Contents/Resources/version-marker")" == old ]] || fail 'retained backup did not restore the old version'
   else
     [[ "$result" == 3 && ! -f "$install_root/candidate.txt" ]] || {
       cat "$install_root/worker.log" >&2; fail 'identity mismatch accepted or wrong failure'
     }
     [[ "$(cat "$installed/Contents/Resources/version-marker")" == old ]] || fail 'old app modified'
     [[ "$(stat -f%i "$installed/Contents/MacOS/BobTV")" == "$old_inode" ]] || fail 'old app moved'
-    [[ ! -d "$install_root/Backups" ]] || fail 'identity mismatch reached backup stage'
+    [[ "$(cat "$install_root/Backups/historical/BobTV.app/marker")" == historical ]] || fail 'failed verification removed recovery history'
+    [[ "$(find "$install_root/Backups" -mindepth 1 -maxdepth 1 -type d | wc -l | tr -d ' ')" == 1 ]] || fail 'identity mismatch reached backup stage'
   fi
   echo "PASS: $outcome with real designated-requirement evaluation"
 done

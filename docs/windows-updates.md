@@ -82,6 +82,16 @@ Setup as well, then backs up the complete previous application directory
 under the user's LocalAppData/HotelTV/Update/Backups directory and installs the
 new files. Runtime preferences and playlists remain in the user data directory.
 
+After a successful installation writes its rollback record, Windows portable
+and Setup updates retain only that update's verified previous-version backup.
+Older backup directories are deleted. macOS follows the same rule inside the
+installation's own updater directory. A confirmed healthy startup also rotates
+history left by older updater versions. Backup verification or installation
+failure preserves existing recovery files; cleanup failures are logged and
+retried after a later successful update. Directory links are never followed.
+Android uses the system package installer and does not participate in this
+desktop backup rotation policy.
+
 The update badge immediately animates while preparing the download, then shows
 percentage and transferred bytes. Readiness is displayed only after package
 verification and, for managed installs, the old-version backup. Clicking Install

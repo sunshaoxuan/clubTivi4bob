@@ -61,6 +61,28 @@ write_status() {
   fi
 }
 
+prune_obsolete_backups() {
+  local keep="$1" leaf obsolete
+  leaf="${keep#"$root/Backups/"}"
+  # update.lock is held; only the verified backup named by the new rollback
+  # record may replace the previous recovery history. Never follow links.
+  if [[ "$keep" != "$root/Backups/"* ||
+        ! "$leaf" =~ ^[A-Za-z0-9][A-Za-z0-9._+-]*$ ||
+        -L "$root" || -L "$root/Backups" || -L "$keep" ||
+        ! -d "$keep/BobTV.app" || ! -f "$candidate" ||
+        "$(sed -n '2p' "$candidate")" != "$keep" ||
+        "$(sed -n '4p' "$candidate")" != "$app" ]]; then
+    printf '%s backup cleanup deferred: invalid rollback record or backup\n' "$(date -u +%FT%TZ)"
+    return 0
+  fi
+  for obsolete in "$root/Backups/"*; do
+    [[ -d "$obsolete" && ! -L "$obsolete" && "$obsolete" != "$keep" ]] || continue
+    if ! rm -rf -- "$obsolete"; then
+      printf '%s backup cleanup deferred: %s\n' "$(date -u +%FT%TZ)" "$obsolete"
+    fi
+  done
+}
+
 archive_startup_state() {
   local source="$1" destination="$2" saved name
   mkdir -p "$destination/DeferredCandidates"
@@ -70,6 +92,11 @@ archive_startup_state() {
   done
   printf '%s startup state preserved in %s\n' "$(date -u +%FT%TZ)" "$saved"
 }
+
+if [[ "$mode" == 'prune-backups-locked' ]]; then
+  prune_obsolete_backups "$archive_url"
+  exit 0
+fi
 
 if [[ "$mode" == 'prepare' ]]; then
   /usr/bin/lockf -t 10 "$root/startup.lock" /bin/bash "$0" \
@@ -235,6 +262,13 @@ if [[ "$mode" == 'startup-locked' ]]; then
      "$candidate_app" == "$app" &&
      ( -z "$version" || "$candidate_version" == "$version" ) ]] || exit 4
   if [[ -f "$healthy" && "$(cat "$healthy")" == "$watched_pid" ]]; then
+    # Nonblocking update.lock acquisition avoids startup/update lock inversion.
+    # This also rotates history left by the old helper during the first upgrade
+    # to a client carrying the retention policy.
+    if ! /usr/bin/lockf -t 0 "$root/update.lock" /bin/bash "$0" \
+        prune-backups-locked "$root" "$app" "$watched_pid" "$candidate_version" "$backup"; then
+      printf '%s backup cleanup deferred: update is busy\n' "$(date -u +%FT%TZ)"
+    fi
     rm -f "$candidate" "$marker"
     printf '%s startup confirmed for installation version=%s pid=%s\n' "$(date -u +%FT%TZ)" "$candidate_version" "$watched_pid"
     exit 0
@@ -408,4 +442,5 @@ rm -f "$marker" "$healthy"
 printf '%s\n%s\n0\n%s\n' "$version" "$backup" "$app" > "$candidate.tmp"
 mv -f "$candidate.tmp" "$candidate"
 rm -rf "$old"
+prune_obsolete_backups "$backup"
 write_status installed "$version" 100

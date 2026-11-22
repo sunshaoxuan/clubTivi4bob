@@ -52,7 +52,11 @@ Write-Output 'PASS: Windows three failed startups restore backup, skip candidate
 [IO.File]::WriteAllText("$root\candidate.ini", "[Update]`nVersion=$version`nAppDir=$app`nBackupDir=$backup`nAttempts=2`n")
 [IO.File]::WriteAllText("$root\startup.marker", '99999999')
 [IO.File]::WriteAllText("$root\startup.healthy", '99999999')
+$historical=Join-Path $root 'Backups\historical'
+New-Item -ItemType Directory -Path "$historical\data" -Force|Out-Null
+[IO.File]::WriteAllText("$historical\data\app.so",'historical')
 & powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File $worker -Mode Monitor -CurrentPid 99999999 -TestRoot $root
 if ($LASTEXITCODE -ne 0 -or [IO.File]::ReadAllText("$root\candidate.ini") -notmatch 'Attempts=0') { throw 'Healthy acknowledgement did not reset failures' }
 if ((Test-Path "$root\startup.marker") -or (Test-Path "$root\startup.healthy")) { throw 'Healthy markers not cleared' }
+if ((Test-Path $historical) -or !(Test-Path "$backup\data\app.so")) {throw 'Healthy startup did not rotate historical backups'}
 Write-Output 'PASS: Windows healthy startup resets the consecutive failure counter.'

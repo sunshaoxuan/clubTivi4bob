@@ -11,6 +11,8 @@ pid=99999999
 version='0.9.2+1'
 mkdir -p "$app/Contents/MacOS" "$backup/BobTV.app/Contents/MacOS"
 printf 'new' > "$app/Contents/MacOS/BobTV"
+mkdir -p "$root/Backups/historical/BobTV.app" "$backup/BobTV.app/Contents/MacOS"
+printf 'old' > "$backup/BobTV.app/Contents/MacOS/BobTV"
 printf 'old' > "$backup/BobTV.app/Contents/MacOS/BobTV"
 printf '%s\n%s\n0\n%s\n' "$version" "$backup" "$app" > "$root/candidate.txt"
 
@@ -34,6 +36,7 @@ printf '%s' "$pid" > "$root/startup.healthy"
 bash assets/updater/mac_worker.sh monitor "$root" "$app" "$pid"
 [[ ! -f "$root/candidate.txt" ]]
 [[ "$(cat "$app/Contents/MacOS/BobTV")" == 'new' ]]
+[[ -d "$backup/BobTV.app" && ! -d "$root/Backups/historical" ]]
 
 /usr/bin/lockf -t 1 "$root/update.lock" sleep 3 &
 holder=$!

@@ -8,6 +8,7 @@ on:
       - 'windows/**'
       - 'macos/**'
       - 'tools/macos/**'
+      - 'tools/windows/test_update_*.ps1'
       - 'assets/updater/**'
       - 'lib/data/services/*update*'
       - 'pubspec.yaml'
@@ -18,6 +19,11 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Verify previous-version backup retention
+        shell: pwsh
+        run: |
+          & tools/windows/test_update_backup_retention.ps1
+          & tools/windows/test_update_rollback.ps1
       - uses: subosito/flutter-action@v2
         with:
           channel: stable

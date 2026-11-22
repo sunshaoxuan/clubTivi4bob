@@ -31,7 +31,7 @@ function Write-Log([string]$text){Log $text}
 $tokens=$null;$parseErrors=$null
 $legacy=[Management.Automation.Language.Parser]::ParseFile((Join-Path $PSScriptRoot 'worker.ps1'),[ref]$tokens,[ref]$parseErrors)
 if($parseErrors.Count){throw 'Invalid application-lock helper source'}
-foreach($name in @('Suspend-AppCrashMonitor','Invoke-UpdateDownload')){
+foreach($name in @('Suspend-AppCrashMonitor','Invoke-UpdateDownload','Remove-ObsoleteBackups')){
   $definition=$legacy.Find({param($node) $node -is [Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -eq $name},$true)
   if(!$definition){throw 'Application-lock helper missing'}
   . ([ScriptBlock]::Create($definition.Extent.Text))
@@ -204,6 +204,7 @@ try{
       PreviousUrl=$PreviousUrl;PreviousSha256=$PreviousSha256;PreviousBytes=$PreviousBytes;PreviousSignature=$PreviousSignature}
     $text="[Update]`r`n"+((@($values.Keys|Sort-Object)|ForEach-Object {$_+'='+$values[$_]}) -join "`r`n")+"`r`n"
     [IO.File]::WriteAllText($candidatePath,$text,(New-Object Text.UTF8Encoding($false)))
+    Remove-ObsoleteBackups $backup $candidatePath
     Status 'installed' 100 '更新已完成，旧版已备份。可以启动 BobTV。'
   }
 }catch{

@@ -17,6 +17,8 @@ class ChannelProgrammeStrip extends StatefulWidget {
     required this.programmes,
     this.timeshiftHours = 0,
     this.now,
+    this.clock,
+    this.onProgrammeBoundary,
     this.embedded = false,
     this.showHeader = true,
     this.compact = false,
@@ -28,6 +30,8 @@ class ChannelProgrammeStrip extends StatefulWidget {
   final List<db.EpgProgramme> programmes;
   final int timeshiftHours;
   final DateTime? now;
+  final DateTime Function()? clock;
+  final VoidCallback? onProgrammeBoundary;
   final bool embedded;
   final bool showHeader;
   final bool compact;
@@ -59,6 +63,7 @@ class ChannelProgrammeStrip extends StatefulWidget {
 class _ChannelProgrammeStripState extends State<ChannelProgrammeStrip> {
   final _scrollController = ScrollController();
   Timer? _clock;
+  DateTime? _nextBoundary;
 
   @override
   void initState() {
@@ -80,8 +85,13 @@ class _ChannelProgrammeStripState extends State<ChannelProgrammeStrip> {
   void _startClock() {
     _clock?.cancel();
     if (widget.now == null) {
-      _clock = Timer.periodic(const Duration(seconds: 30), (_) {
-        if (mounted) setState(() {});
+      _clock = Timer.periodic(const Duration(seconds: 1), (_) {
+        if (!mounted || !TickerMode.valuesOf(context).enabled) return;
+        final now = _now;
+        final crossedBoundary =
+            _nextBoundary != null && !now.isBefore(_nextBoundary!);
+        setState(() {});
+        if (crossedBoundary) widget.onProgrammeBoundary?.call();
       });
     }
   }
@@ -100,6 +110,30 @@ class _ChannelProgrammeStripState extends State<ChannelProgrammeStrip> {
   DateTime _effectiveTime(DateTime value) =>
       value.add(Duration(hours: widget.timeshiftHours)).toLocal();
 
+  DateTime get _now =>
+      (widget.now ?? widget.clock?.call() ?? DateTime.now()).toLocal();
+
+  Widget _rail(db.EpgProgramme programme, DateTime now, int upcomingIndex) {
+    final start = _effectiveTime(programme.start);
+    final stop = _effectiveTime(programme.stop);
+    final current = !start.isAfter(now) && stop.isAfter(now);
+    final progress = current
+        ? (now.difference(start).inMilliseconds /
+                  stop.difference(start).inMilliseconds)
+              .clamp(0.0, 1.0)
+        : 0.0;
+    return Semantics(
+      value: current ? '${(progress * 100).round()}%' : null,
+      child: _ProgrammeProgressRail(
+        key: ValueKey('programme-timeline-node-${programme.id}'),
+        current: current,
+        progress: progress,
+        upcomingIndex: upcomingIndex,
+        animate: widget.now == null,
+      ),
+    );
+  }
+
   void _page(double direction) {
     if (!_scrollController.hasClients) return;
     final position = _scrollController.position;
@@ -117,7 +151,14 @@ class _ChannelProgrammeStripState extends State<ChannelProgrammeStrip> {
 
   @override
   Widget build(BuildContext context) {
-    final now = (widget.now ?? DateTime.now()).toLocal();
+    final now = _now;
+    final boundaries =
+        widget.programmes
+            .expand((p) => [_effectiveTime(p.start), _effectiveTime(p.stop)])
+            .where((time) => time.isAfter(now))
+            .toList()
+          ..sort();
+    _nextBoundary = boundaries.firstOrNull;
     final programmes = widget.programmes.where((programme) {
       final start = _effectiveTime(programme.start);
       final stop = _effectiveTime(programme.stop);
@@ -356,13 +397,10 @@ class _ChannelProgrammeStripState extends State<ChannelProgrammeStrip> {
                                 ),
                                 SizedBox(
                                   height: widget.compactDense ? 8 : 12,
-                                  child: CustomPaint(
-                                    key: ValueKey(
-                                      'programme-timeline-node-${programme.id}',
-                                    ),
-                                    painter: _ProgrammeTimelineRail(
-                                      current: current,
-                                    ),
+                                  child: _rail(
+                                    programme,
+                                    now,
+                                    i - (firstIsCurrent ? 1 : 0),
                                   ),
                                 ),
                                 SizedBox(height: widget.compactDense ? 2 : 4),
@@ -448,12 +486,10 @@ class _ChannelProgrammeStripState extends State<ChannelProgrammeStrip> {
     final current = !start.isAfter(now) && stop.isAfter(now);
     final label = current
         ? AppMessages.text(context, '正在播出')
-        : (index == (followsCurrent ? 1 : 0) ? AppMessages.text(context, '接下来') : AppMessages.text(context, '随后'));
+        : (index == (followsCurrent ? 1 : 0)
+              ? AppMessages.text(context, '接下来')
+              : AppMessages.text(context, '随后'));
     final date = _dateLabel(start, now);
-    final progress = current
-        ? now.difference(start).inMilliseconds /
-              stop.difference(start).inMilliseconds
-        : 0.0;
 
     return Column(
       key: ValueKey('programme-${programme.id}'),
@@ -474,10 +510,7 @@ class _ChannelProgrammeStripState extends State<ChannelProgrammeStrip> {
         ),
         SizedBox(
           height: 16,
-          child: CustomPaint(
-            key: ValueKey('programme-timeline-node-${programme.id}'),
-            painter: _ProgrammeTimelineRail(current: current),
-          ),
+          child: _rail(programme, now, index - (followsCurrent ? 1 : 0)),
         ),
         const SizedBox(height: 7),
         Expanded(
@@ -560,20 +593,7 @@ class _ChannelProgrammeStripState extends State<ChannelProgrammeStrip> {
                   ),
                 ),
                 SizedBox(height: widget.compact ? 5 : 9),
-                SizedBox(
-                  height: 2,
-                  child: current
-                      ? ClipRRect(
-                          borderRadius: BorderRadius.circular(2),
-                          child: LinearProgressIndicator(
-                            value: progress.clamp(0.0, 1.0),
-                            minHeight: 2,
-                            color: const Color(0xFFB8D2FF),
-                            backgroundColor: const Color(0xFF506483),
-                          ),
-                        )
-                      : const SizedBox.shrink(),
-                ),
+                const SizedBox(height: 2),
               ],
             ),
           ),
@@ -589,41 +609,134 @@ class _ChannelProgrammeStripState extends State<ChannelProgrammeStrip> {
     final day = DateTime(value.year, value.month, value.day);
     final today = DateTime(now.year, now.month, now.day);
     if (day == today) return null;
-    if (day == DateTime(now.year, now.month, now.day + 1)) return AppMessages.text(context, '明天');
-    if (day == DateTime(now.year, now.month, now.day - 1)) return AppMessages.text(context, '昨天');
+    if (day == DateTime(now.year, now.month, now.day + 1)) {
+      return AppMessages.text(context, '明天');
+    }
+    if (day == DateTime(now.year, now.month, now.day - 1)) {
+      return AppMessages.text(context, '昨天');
+    }
     return MaterialLocalizations.of(context).formatShortDate(value);
   }
 }
 
-class _ProgrammeTimelineRail extends CustomPainter {
-  const _ProgrammeTimelineRail({required this.current});
+class _ProgrammeProgressRail extends StatefulWidget {
+  const _ProgrammeProgressRail({
+    super.key,
+    required this.current,
+    required this.progress,
+    required this.upcomingIndex,
+    required this.animate,
+  });
   final bool current;
+  final double progress;
+  final int upcomingIndex;
+  final bool animate;
+
+  @override
+  State<_ProgrammeProgressRail> createState() => _ProgrammeProgressRailState();
+}
+
+class _ProgrammeProgressRailState extends State<_ProgrammeProgressRail>
+    with SingleTickerProviderStateMixin {
+  late final _pulse = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 1400),
+  );
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _updatePulse();
+  }
+
+  @override
+  void didUpdateWidget(_ProgrammeProgressRail oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    _updatePulse();
+  }
+
+  void _updatePulse() {
+    if (widget.current &&
+        widget.animate &&
+        !MediaQuery.disableAnimationsOf(context)) {
+      if (!_pulse.isAnimating) _pulse.repeat(reverse: true);
+    } else {
+      _pulse.stop();
+      _pulse.value = 0;
+    }
+  }
+
+  @override
+  void dispose() {
+    _pulse.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => CustomPaint(
+    painter: _ProgrammeTimelineRail(
+      current: widget.current,
+      progress: widget.progress,
+      upcomingIndex: widget.upcomingIndex,
+      pulse: _pulse,
+    ),
+  );
+}
+
+class _ProgrammeTimelineRail extends CustomPainter {
+  _ProgrammeTimelineRail({
+    required this.current,
+    required this.progress,
+    required this.upcomingIndex,
+    required this.pulse,
+  }) : super(repaint: pulse);
+
+  final bool current;
+  final double progress;
+  final int upcomingIndex;
+  final Animation<double> pulse;
 
   @override
   void paint(Canvas canvas, Size size) {
+    final y = size.height / 2;
+    final inset = math.min(4.0, size.width / 2);
+    final start = Offset(inset, y);
+    final end = Offset(size.width - inset, y);
+    final position = Offset(inset + (size.width - inset * 2) * progress, y);
+    final track = Paint()
+      ..color = current
+          ? const Color(0xFF43D48C)
+          : upcomingIndex == 0
+          ? const Color(0xFF8FCBA8).withValues(alpha: .65)
+          : const Color(0xFFBCE2CD).withValues(alpha: .38)
+      ..strokeWidth = 2
+      ..strokeCap = StrokeCap.round;
+    canvas.drawLine(start, end, track);
+    if (!current) return;
     canvas.drawLine(
-      Offset(0, 8),
-      Offset(size.width, 8),
+      start,
+      position,
       Paint()
-        ..color = const Color(0xFF536D90)
-        ..strokeWidth = 1.5,
+        ..color = const Color(0xFF1F754B)
+        ..strokeWidth = 2
+        ..strokeCap = StrokeCap.round,
     );
-    if (current) {
-      canvas.drawCircle(
-        const Offset(12, 8),
-        8,
-        Paint()..color = const Color(0xFF8AB8FF).withValues(alpha: .18),
-      );
-    }
     canvas.drawCircle(
-      const Offset(12, 8),
-      current ? 4 : 3,
+      position,
+      5 + pulse.value * 1.5,
       Paint()
-        ..color = current ? const Color(0xFFC6DEFF) : const Color(0xFF819AB9),
+        ..color = const Color(
+          0xFF7EFFB5,
+        ).withValues(alpha: .18 + pulse.value * .16)
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 2),
     );
+    canvas.drawCircle(position, 3, Paint()..color = const Color(0xFFBAFFD8));
   }
 
   @override
   bool shouldRepaint(_ProgrammeTimelineRail oldDelegate) =>
-      current != oldDelegate.current;
+      current != oldDelegate.current ||
+      progress != oldDelegate.progress ||
+      upcomingIndex != oldDelegate.upcomingIndex ||
+      pulse != oldDelegate.pulse;
 }

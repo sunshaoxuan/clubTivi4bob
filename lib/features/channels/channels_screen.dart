@@ -5150,6 +5150,10 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                                         _inlineProgrammePreview.programmes,
                                     timeshiftHours:
                                         _inlineProgrammePreview.timeshiftHours,
+                                    onProgrammeBoundary: () =>
+                                        _refreshInlineProgrammeStrip(
+                                          forceRefresh: true,
+                                        ),
                                   ),
                           )
                         : null,

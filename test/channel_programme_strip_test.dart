@@ -30,6 +30,7 @@ Future<void> _pumpStrip(
   DateTime? now,
   bool previewFont = false,
   bool combined = false,
+  bool compact = false,
   List<String> previewChannelIds = const ['CCTV1', 'CCTV6', 'CCTV9'],
 }) async {
   final strip = ChannelProgrammeStrip(
@@ -38,6 +39,7 @@ Future<void> _pumpStrip(
     timeshiftHours: timeshiftHours,
     now: now ?? _now,
     embedded: combined,
+    compact: compact,
   );
   await tester.pumpWidget(
     MaterialApp(
@@ -95,6 +97,8 @@ Future<void> _pumpStrip(
                           ),
                         ),
                       )
+                    : compact
+                    ? ColoredBox(color: const Color(0xFF17263A), child: strip)
                     : strip,
               ),
             ),
@@ -141,10 +145,10 @@ void main() {
       lessThan(tester.getTopLeft(find.text('09:00')).dx),
     );
     expect(
-      tester
-          .widget<LinearProgressIndicator>(find.byType(LinearProgressIndicator))
-          .value,
-      .5,
+      find.byWidgetPredicate(
+        (widget) => widget is Semantics && widget.properties.value == '50%',
+      ),
+      findsOneWidget,
     );
     expect(tester.takeException(), isNull);
   });
@@ -185,10 +189,10 @@ void main() {
     expect(find.byKey(const ValueKey('programme-2')), findsOneWidget);
     expect(find.text('正在播出'), findsOneWidget);
     expect(
-      tester
-          .widget<LinearProgressIndicator>(find.byType(LinearProgressIndicator))
-          .value,
-      0,
+      find.byWidgetPredicate(
+        (widget) => widget is Semantics && widget.properties.value == '0%',
+      ),
+      findsOneWidget,
     );
   });
 
@@ -310,6 +314,17 @@ void main() {
         _programme(2, 9, title: '故事片：海边的日子'),
         _programme(3, 10, title: '中国电影报道'),
       ];
+      await _pumpStrip(
+        tester,
+        programmes: programmes,
+        width: 736,
+        previewFont: true,
+        compact: true,
+      );
+      await expectLater(
+        find.byKey(const ValueKey('programme-strip-preview')),
+        matchesGoldenFile('/tmp/bobtv-epg-live-progress-compact.png'),
+      );
       await _pumpStrip(
         tester,
         programmes: programmes,

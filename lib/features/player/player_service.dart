@@ -1189,9 +1189,10 @@ class PlayerService {
     _PreparedChannel prepared,
     int request,
   ) async {
+    final handoff = Stopwatch()..start();
     bool current() => request == _channelSwitchGeneration &&
         identical(_preparedChannel, prepared) && _routeAllowed(prepared.url);
-    await prepared.player.setVolume(player.state.volume)
+    await _setHandoffVolume(prepared.player, player.state.volume)
         .timeout(const Duration(seconds: 2));
     if (!current()) return false;
     await _promotePreparedChannel(
@@ -1217,8 +1218,19 @@ class PlayerService {
       prepared.url, _playGeneration, alreadyCredited: true);
     AppDiagnostics.instance.log('channel_preview_committed', {
       'channel': prepared.channelName,
+      'elapsedMs': handoff.elapsedMilliseconds,
     });
     return true;
+  }
+
+  Future<void> _setHandoffVolume(Player target, double volume) {
+    final platform = target.platform;
+    // A decoded preview owns a separate mpv core. Its volume command must not
+    // queue behind stop/dispose on an unrelated core's shared SDK lock. Keep
+    // the asynchronous native property acknowledgement and ownership checks.
+    return platform is native_player.NativePlayer
+        ? platform.setVolume(volume, synchronized: false)
+        : target.setVolume(volume);
   }
 
   Future<bool> _waitForPreparedChannel(
@@ -1435,7 +1447,8 @@ class PlayerService {
     _trackingBuffering = false;
     final native = candidate.platform;
     try {
-      await previous.setVolume(0).timeout(const Duration(seconds: 2));
+      await _setHandoffVolume(previous, 0)
+          .timeout(const Duration(seconds: 2));
     } catch (error) {
       AppDiagnostics.instance.log('previous_player_mute_failed', {
         'error': error.toString(),
@@ -1444,7 +1457,8 @@ class PlayerService {
     if (stillValid?.call() == false || !_routeAllowed(url) || generation != _playGeneration ||
         (selectionRequest != null && selectionRequest != _channelSwitchGeneration)) {
       if (identical(_player, previous)) {
-        await previous.setVolume(previousVolume).timeout(const Duration(seconds: 2));
+        await _setHandoffVolume(previous, previousVolume)
+            .timeout(const Duration(seconds: 2));
         startBufferTracking();
         _startFailoverMonitor();
       }

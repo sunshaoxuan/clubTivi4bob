@@ -1,4 +1,6 @@
-// Own-window Windows presentation regression. No user catalogue or updater.
+// Own-window Windows presentation regression. No user catalogue is opened.
+// Launch with an isolated LOCALAPPDATA: the native runner's update bootstrap
+// executes before this Dart entry point, even for a diagnostic target.
 import 'dart:async';
 import 'dart:convert';
 import 'dart:ffi' hide Size;
@@ -55,7 +57,10 @@ class _OwnWindowPixels {
       calloc.free(title);
     }
     if (hwnd == 0 || hwnd != _foreground()) {
-      throw StateError('Only the foreground fixture window may be sampled');
+      throw StateError(
+        'Only the foreground fixture window may be sampled '
+        '(fixture=$hwnd, foreground=${_foreground()})',
+      );
     }
     final dc = _getDC(hwnd);
     if (dc == 0) throw StateError('Fixture client capture unavailable');
@@ -65,6 +70,16 @@ class _OwnWindowPixels {
       return [color & 255, (color >> 8) & 255, (color >> 16) & 255];
     } finally {
       _releaseDC(hwnd, dc);
+    }
+  }
+
+  bool get foreground {
+    final title = 'BobTV presentation fixture $pid'.toNativeUtf16();
+    try {
+      final hwnd = _find(nullptr, title);
+      return hwnd != 0 && hwnd == _foreground();
+    } finally {
+      calloc.free(title);
     }
   }
 }
@@ -106,6 +121,7 @@ Future<void> main(List<String> arguments) async {
   await windowManager.setSize(const Size(800, 500));
   runApp(
     MaterialApp(
+      title: 'BobTV presentation fixture $pid',
       home: Scaffold(
         backgroundColor: Colors.black,
         body: ValueListenableBuilder<bool>(
@@ -168,6 +184,12 @@ Future<void> main(List<String> arguments) async {
   final pixels = _OwnWindowPixels();
   Future<int> untilColor(bool green, Stopwatch watch) async {
     while (watch.elapsed < const Duration(seconds: 10)) {
+      // Window activation and the first native frame can finish after show().
+      // Allow startup to settle without sampling another application's pixels.
+      if (!pixels.foreground && watch.elapsed < const Duration(seconds: 3)) {
+        await Future<void>.delayed(const Duration(milliseconds: 20));
+        continue;
+      }
       final rgb = pixels.sample();
       if (green
           ? rgb[1] > 100 && rgb[1] > rgb[0] * 2 && rgb[1] > rgb[2] * 2
@@ -207,10 +229,35 @@ Future<void> main(List<String> arguments) async {
       );
       await WidgetsBinding.instance.endOfFrame;
       await Future<void>.delayed(const Duration(milliseconds: 150));
+      // Simulate another decoder waiting for native stop/disposal while this
+      // already-decoded preview is promoted. The shared SDK lock must not be
+      // part of the handoff's volume-control path.
+      final acquired = Completer<void>();
+      final release = Completer<void>();
+      final contended = cycle == 2;
+      final held = contended
+          ? native.NativePlayer.lock.synchronized(() async {
+              acquired.complete();
+              await release.future;
+            })
+          : Future<void>.value();
+      if (contended) await acquired.future;
       final watch = Stopwatch()..start();
-      final committed = await service.commitPreparedChannel(channelId);
-      final logicalUs = watch.elapsedMicroseconds;
+      late final bool committed;
+      late final int logicalUs;
+      try {
+        committed = await service.commitPreparedChannel(channelId);
+        logicalUs = watch.elapsedMicroseconds;
+      } finally {
+        if (contended) release.complete();
+        await held;
+      }
       if (!committed || !identical(service.videoController, controller)) {
+        record('handoff_failed', {
+          'cycle': cycle,
+          'logicalMicroseconds': logicalUs,
+          'unrelatedNativeLockHeld': contended,
+        });
         throw StateError('Preview was not reused');
       }
       final visibleUs = await untilColor(green, watch);
@@ -220,6 +267,7 @@ Future<void> main(List<String> arguments) async {
         'visibleMicroseconds': visibleUs,
         'rgb': pixels.sample(),
         'sameController': identical(service.videoController, controller),
+        'unrelatedNativeLockHeld': contended,
         'localFixtureOnly': true,
         'audibleContinuityTested': false,
       });

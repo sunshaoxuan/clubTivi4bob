@@ -3,11 +3,9 @@
 Baseline: the unmodified pub.dev `media_kit` 1.2.6 package, including its MIT
 license. The fork does not add a new runtime library or a second player core.
 
-Integration status, 2026-10-29: retained investigation source, not an active
-dependency override. The application still resolves the published `media_kit`
-package. The worker regression imports this local helper directly so preserving
-the investigation does not silently change the production player dependency.
-Activation requires a separate runtime integration and affected-device tests.
+Integration status, 2026-11-22: the application resolves this package through
+its dependency override. The worker regression imports the resolved package,
+so it exercises the same disposal implementation as the application.
 Before repository-wide static analysis, resolve this standalone package with
 `cd third_party/media_kit && dart pub get --enforce-lockfile`. Its upstream tests
 have separate development dependencies; this does not add an app override.

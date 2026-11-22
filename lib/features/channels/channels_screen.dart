@@ -2034,7 +2034,9 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
         (playerService.currentChannelId == channel.id ||
             (playerService.currentChannelId == null &&
                 playerService.currentUrl == channel.streamUrl));
-    if (isPlayingChannel && !force && preferredUrl == null) {
+    // A rapid second click may arrive after the preview already became the
+    // active player. It must not reopen that same stream as a forced selection.
+    if (isPlayingChannel && preferredUrl == null) {
       unawaited(
         ref
             .read(sourceMaintenanceCoordinatorProvider)
@@ -2083,10 +2085,11 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
         (playerService.player.state.playing ||
             playerService.player.state.buffering ||
             playerService.preparedChannelId == channel.id);
+    // Both single and double clicks reuse a decoded preview. Force-play only
+    // bypasses preparation when there is no prepared player to transfer.
     final commitPreview =
         !direct &&
         preferredUrl == null &&
-        !force &&
         _simpleMode &&
         hasActivePlayback &&
         playerService.preparedChannelId == channel.id;

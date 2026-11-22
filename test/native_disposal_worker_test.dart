@@ -4,7 +4,7 @@ import 'dart:io';
 
 import 'package:ffi/ffi.dart';
 import 'package:flutter_test/flutter_test.dart';
-import '../third_party/media_kit/lib/src/player/native/core/native_disposal.dart';
+import 'package:media_kit/src/player/native/core/native_disposal.dart';
 
 void main() {
   test(

@@ -203,6 +203,11 @@
     "history": [
       [
         "2026-11-22",
+        "v1.4.3 · Passage rapide de l’aperçu à l’écran principal",
+        "Cliquez à nouveau sur l’aperçu en cours pour l’afficher dans la zone principale avec le même lecteur. Le nettoyage des autres lecteurs ne retarde plus ce passage et les clics répétés évitent de recharger la chaîne déjà prête ou en cours."
+      ],
+      [
+        "2026-11-22",
         "v1.4.2 · Nom de chaîne et icône du programme",
         "La vidéo principale affiche le nom de la chaîne en haut à gauche, y compris dans une fenêtre séparée et en plein écran. L’icône du programme passe en haut à gauche des cartes. La progression EPG et l’avancement automatique des émissions restent disponibles dans la série 1.4."
       ],
@@ -397,7 +402,7 @@
   },
   "downloads": {
     "signing_notice": "L'application gratuite SignPath Foundation n'a pas été approuvée. Aucun certificat Windows de confiance n'a été émis et la signature de production SignPath.io n'est pas utilisée. Edge peut toujours exiger une confirmation de sécurité lors du premier téléchargement du navigateur.",
-    "intro": "Windows et macOS : 1.4.2+2. Android conserve la version publique existante 1.3.1+1. Changez de langue en haut de l’application. Votre choix est mémorisé. En mode automatique, l’application utilise la langue du système, le fuseau horaire, puis l’anglais. Chaque programme d’installation contient les ressources linguistiques. L’accès au mode avancé a été fermé. La synchronisation des diagnostics est désactivée par défaut. Avec votre accord, elle transmet jusqu’à 30 jours de données expurgées. Vous pouvez la désactiver à tout moment. L’application macOS utilise une signature ad-hoc.",
+    "intro": "Windows et macOS : 1.4.3+3. Android conserve la version publique existante 1.3.1+1. Changez de langue en haut de l’application. Votre choix est mémorisé. En mode automatique, l’application utilise la langue du système, le fuseau horaire, puis l’anglais. Chaque programme d’installation contient les ressources linguistiques. L’accès au mode avancé a été fermé. La synchronisation des diagnostics est désactivée par défaut. Avec votre accord, elle transmet jusqu’à 30 jours de données expurgées. Vous pouvez la désactiver à tout moment. L’application macOS utilise une signature ad-hoc.",
     "latest": "Derniers installateurs",
     "local": "Téléchargements hébergés sur ce site",
     "sections": [

@@ -70,7 +70,7 @@ class PlayerService {
   // Explicit local QA only. Runtime opt-in also covers release-mode profiling.
   static final _qaSilent =
       (kDebugMode && const bool.fromEnvironment('BOBTV_QA_SILENT')) ||
-      Platform.environment['BOBTV_TEST_MUTE'] == '1';
+      (!kIsWeb && Platform.environment['BOBTV_TEST_MUTE'] == '1');
   PlayerService({RetiredRouteGuard? retirementGuard})
       : _retirementGuard = retirementGuard {
     _retirementSubscription = retirementGuard?.changes.listen((_) {

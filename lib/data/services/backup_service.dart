@@ -7,6 +7,8 @@ import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'sqlite_snapshot.dart';
+
 final _log = Logger(printer: SimplePrinter());
 
 /// Keys in SharedPreferences to include in backup.
@@ -34,7 +36,15 @@ class BackupService {
     final dir = await getApplicationSupportDirectory();
     final dbFile = File(p.join(dir.path, 'clubtivi', 'clubtivi.db'));
     if (await dbFile.exists()) {
-      final bytes = await dbFile.readAsBytes();
+      final temporary = await Directory.systemTemp.createTemp('bobtv-backup-');
+      late final List<int> bytes;
+      try {
+        final snapshot = File(p.join(temporary.path, 'snapshot.db'));
+        await copySqliteSnapshot(dbFile.path, snapshot.path);
+        bytes = await snapshot.readAsBytes();
+      } finally {
+        await temporary.delete(recursive: true);
+      }
       archive.addFile(ArchiveFile('clubtivi.db', bytes.length, bytes));
       _log.i('Backup: added database (${bytes.length} bytes)');
     }
@@ -108,7 +118,16 @@ class BackupService {
       final dir = await getApplicationSupportDirectory();
       final dbPath = p.join(dir.path, 'clubtivi', 'clubtivi.db');
       await File(dbPath).parent.create(recursive: true);
-      await File(dbPath).writeAsBytes(dbArchiveFile.content as List<int>);
+      final temporary = await Directory.systemTemp.createTemp('bobtv-restore-');
+      try {
+        final snapshot = File(p.join(temporary.path, 'snapshot.db'));
+        await snapshot.writeAsBytes(dbArchiveFile.content as List<int>);
+        // SQLite applies the snapshot through the destination's journal. A raw
+        // overwrite would leave live WAL pages from the previous database.
+        await copySqliteSnapshot(snapshot.path, dbPath);
+      } finally {
+        await temporary.delete(recursive: true);
+      }
       summary += 'Database restored\n';
     }
 

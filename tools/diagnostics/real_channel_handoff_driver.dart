@@ -17,6 +17,7 @@ import 'package:window_manager/window_manager.dart';
 import 'package:clubtivi/core/app_diagnostics.dart';
 import 'package:clubtivi/main.dart' as application;
 import 'package:clubtivi/features/player/player_service.dart';
+import 'package:clubtivi/features/providers/provider_manager.dart';
 
 class _ObservedPaths extends PathProviderWindows {
   _ObservedPaths(this.original);
@@ -242,10 +243,12 @@ Future<void> _drive() async {
         await preferences.pathProvider.getApplicationSupportPath();
       }
     }
-    final service = ProviderScope.containerOf(
+    final container = ProviderScope.containerOf(
       cardLabel('Action Movies'),
       listen: false,
-    ).read(playerServiceProvider);
+    );
+    final service = container.read(playerServiceProvider);
+    final database = container.read(databaseProvider);
     await until(
       () => service.currentUrl != null && service.player.state.playing,
       'Initial channel playback',
@@ -268,6 +271,30 @@ Future<void> _drive() async {
     for (var cycle = 0; cycle < channels.length; cycle++) {
       final label = channels[cycle];
       final old = service.activeVideoController.value;
+      Future<void>? heldWrite;
+      var writeReleased = true;
+      if (cycle == 2) {
+        final started = Completer<void>();
+        heldWrite = database.transaction(() async {
+          await database.customStatement(
+            'UPDATE catalog_sync_manifest SET version=version WHERE id=1',
+          );
+          writeReleased = false;
+          record('catalog_write_held', {'cycle': cycle, 'holdMs': 15000});
+          started.complete();
+          await Future<void>.delayed(const Duration(seconds: 15));
+          writeReleased = true;
+          record('catalog_write_released', {'cycle': cycle});
+        });
+        await started.future;
+        final readWatch = Stopwatch()..start();
+        await database.getBlockedStreamUrls().timeout(
+          const Duration(seconds: 1),
+        );
+        record('playback_read_during_write', {
+          'elapsedMs': readWatch.elapsedMilliseconds,
+        });
+      }
       if (cycle == 4 || cycle == 8) {
         await tap('Drama Movies');
         await Future<void>.delayed(const Duration(milliseconds: 200));
@@ -285,6 +312,7 @@ Future<void> _drive() async {
       await Future<void>.delayed(const Duration(milliseconds: 500));
       record('preview_ready', {
         'preparationMs': preparation.elapsedMilliseconds,
+        'catalogWriteStillHeld': !writeReleased,
         'cycle': cycle,
         'channel': label,
         'volume': service.player.state.volume,
@@ -392,6 +420,7 @@ Future<void> _drive() async {
             ? audioAfter - audioBefore
             : null,
       });
+      await heldWrite;
       _handoffWatch = null;
     }
     await SharedPreferencesWindows.flushPendingWrites();

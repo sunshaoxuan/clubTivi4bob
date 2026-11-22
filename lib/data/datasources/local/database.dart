@@ -51,11 +51,12 @@ Map<String, String> _presentationKeysInWorker(List<ChannelPresentationRoute> rou
 class AppDatabase extends _$AppDatabase {
   Future<void>? _favoriteExpansion;
   bool _favoriteExpansionDone = false;
-  factory AppDatabase() => AppDatabase._(_DatabaseWorker());
+  factory AppDatabase({bool? concurrentReads}) => AppDatabase._(
+        _DatabaseWorker(), concurrentReads ?? Platform.isWindows);
 
-  AppDatabase._(_DatabaseWorker worker)
+  AppDatabase._(_DatabaseWorker worker, bool concurrentReads)
       : _worker = worker,
-        super(_openConnection(worker));
+        super(_openConnection(worker, concurrentReads));
 
   AppDatabase.forTesting(super.e) : _worker = null;
 
@@ -2396,9 +2397,9 @@ class _DatabaseWorker {
   ReceivePort? _exitPort;
   Future<dynamic>? _exited;
 
-  SendPort observeExit() {
+  SendPort observeExit(int count) {
     final port = _exitPort = ReceivePort('BobTV SQLite shutdown');
-    _exited = port.first;
+    _exited = port.take(count).drain<void>();
     return port.sendPort;
   }
 
@@ -2417,7 +2418,7 @@ class _DatabaseWorker {
 void Function() _observeDatabaseExit(SendPort port) =>
     () => Isolate.current.addOnExitListener(port);
 
-LazyDatabase _openConnection(_DatabaseWorker worker) {
+LazyDatabase _openConnection(_DatabaseWorker worker, bool concurrentReads) {
   return LazyDatabase(() async {
     final dir = await getApplicationSupportDirectory();
     final file = File(p.join(dir.path, 'clubtivi', 'clubtivi.db'));
@@ -2434,7 +2435,14 @@ LazyDatabase _openConnection(_DatabaseWorker worker) {
 
     return NativeDatabase.createInBackground(
       file,
-      isolateSetup: _observeDatabaseExit(worker.observeExit()),
+      // Catalog imports remain atomic on the writer. Foreground playback reads
+      // use a committed snapshot instead of queuing behind the whole import.
+      readPool: concurrentReads ? 1 : 0,
+      setup: concurrentReads ? (database) {
+        database.execute('PRAGMA journal_mode=WAL');
+        database.execute('PRAGMA busy_timeout=5000');
+      } : null,
+      isolateSetup: _observeDatabaseExit(worker.observeExit(concurrentReads ? 2 : 1)),
     );
   });
 }

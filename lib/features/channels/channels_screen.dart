@@ -2136,6 +2136,14 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
     }
 
     // Cold selection may build large route sets; only that path yields a frame.
+    final preparationClock = Stopwatch()..start();
+    void recordPreparationPhase(String phase) {
+      AppDiagnostics.instance.log('channel_selection_prepare_phase', {
+        'channel': channel.name,
+        'phase': phase,
+        'elapsedMs': preparationClock.elapsedMilliseconds,
+      });
+    }
     await WidgetsBinding.instance.endOfFrame;
     if (!mounted || selectionGeneration != _channelSelectionGeneration) return;
 
@@ -2171,6 +2179,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
     }
 
     var requestedUrl = preferredUrl ?? channel.streamUrl;
+    recordPreparationPhase('candidate_collection');
     try {
       await ref.read(sourceMaintenanceCoordinatorProvider).routeStates.priority(
         [requestedUrl, ...failoverUrls],
@@ -2190,7 +2199,9 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
       return;
     }
     if (!mounted || selectionGeneration != _channelSelectionGeneration) return;
+    recordPreparationPhase('route_state');
     final retired = await ref.read(databaseProvider).getBlockedStreamUrls();
+    recordPreparationPhase('blocked_routes');
     failoverUrls.removeWhere((url) => retired.contains(canonicalRouteUrl(url)));
     if (retired.contains(canonicalRouteUrl(requestedUrl))) {
       if (failoverUrls.isEmpty) {

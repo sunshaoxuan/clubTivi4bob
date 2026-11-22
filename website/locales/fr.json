@@ -78,8 +78,8 @@
       {
         "id": "sync",
         "label": "Catalogue partagé",
-        "title": "Chaînes régionales et sources personnelles",
-        "text": "Commencez avec trois chaînes de démonstration sous licence ouverte. Connectez-vous pour choisir les régions, ou importez directement vos sources .bobtv, M3U et Xtream.",
+        "title": "Les chaînes publiques se synchronisent sur Windows et Mac.",
+        "text": "Au démarrage, BobTV affiche le catalogue local ou groupé, puis récupère un catalogue public vérifié en arrière-plan.",
         "items": [
           [
             "Enregistrements partagés",
@@ -91,7 +91,7 @@
           ],
           [
             "Données personnelles",
-            "La déconnexion retire les chaînes régionales de la liste active et conserve vos imports. Les caches régionaux et les favoris sont séparés par compte."
+            "Les favoris disposent d'une sauvegarde privée protégée par l'empreinte digitale d'origine de l'appareil et d'un secret dédié. Seul cet appareil peut les restaurer ; ils n'entrent jamais dans le catalogue public. L’historique de visualisation et les abonnements privés restent locaux."
           ]
         ]
       },
@@ -203,8 +203,8 @@
     "history": [
       [
         "2026-11-22",
-        "v1.4.0 · Abonnements régionaux et volet mobile",
-        "Ajout des abonnements régionaux par compte, des démonstrations en direct et de l’importation et mise à jour des paquets .bobtv. Sur téléphone, le volet des chaînes s’ouvre en bas en mode portrait et à droite en mode paysage. Les modèles de sous-titres locaux deviennent multilingues, avec des améliorations de l’identification des programmes, des états et de la reprise après interruption."
+        "v1.4.1 · Progression EPG et icônes du programme",
+        "Le programme en cours affiche une progression verte en temps réel et un repère légèrement lumineux. Les émissions suivantes avancent et se complètent automatiquement. Une icône signale les chaînes avec EPG. Les mises à jour de bureau ne gardent que la sauvegarde de la version précédente."
       ],
       [
         "2026-11-19",
@@ -245,6 +245,11 @@
         "2026-11-11",
         "v1.1.20 · Un nouveau thème sombre et sept langues",
         "Les chaînes et le lecteur reprennent les tons violets et roses du site. L’accès aux paramètres est masqué. Le sélecteur en haut de l’application propose sept langues."
+      ],
+      [
+        "2026-11-11",
+        "v1.1.19 · Sept langues dans l’application et sur le site",
+        "Windows, macOS et Android utilisent la version 1.1.19+114. Changez de langue en haut de l’application. Votre choix est mémorisé. En mode automatique, l’application utilise la langue du système, le fuseau horaire, puis l’anglais. Chaque programme d’installation contient les ressources linguistiques. L’accès au mode avancé a été fermé."
       ],
       [
         "2026-11-01",
@@ -386,7 +391,8 @@
     "closing_text": "Une colonne chacune pour Windows, macOS et Android, avec les choix de processeur à l'intérieur. Des packages natifs Windows ARM64 sont disponibles ; Les tests du matériel Surface sont en attente."
   },
   "downloads": {
-    "intro": "Windows, macOS et Android partagent la version 1.4.0+2. Commencez avec trois chaînes de démonstration, puis connectez-vous pour choisir les régions ou importer vos sources .bobtv, M3U et Xtream. Les sept langues sont incluses et votre choix manuel est conservé. La synchronisation des diagnostics est désactivée par défaut. Votre consentement explicite permet de synchroniser jusqu’à 30 jours de journaux expurgés, et vous pouvez la désactiver à tout moment.",
+    "signing_notice": "L'application gratuite SignPath Foundation n'a pas été approuvée. Aucun certificat Windows de confiance n'a été émis et la signature de production SignPath.io n'est pas utilisée. Edge peut toujours exiger une confirmation de sécurité lors du premier téléchargement du navigateur.",
+    "intro": "Windows et macOS : 1.4.1+1. Android conserve la version publique existante 1.3.1+1. Changez de langue en haut de l’application. Votre choix est mémorisé. En mode automatique, l’application utilise la langue du système, le fuseau horaire, puis l’anglais. Chaque programme d’installation contient les ressources linguistiques. L’accès au mode avancé a été fermé. La synchronisation des diagnostics est désactivée par défaut. Avec votre accord, elle transmet jusqu’à 30 jours de données expurgées. Vous pouvez la désactiver à tout moment. L’application macOS utilise une signature ad-hoc.",
     "latest": "Derniers installateurs",
     "local": "Téléchargements hébergés sur ce site",
     "sections": [
@@ -396,19 +402,19 @@
         "text": "Choisissez le package adapté à votre système d'exploitation et à votre processeur.",
         "items": [
           [
-            "Windows",
+            "Fenêtres",
             "Exécutez le programme d'installation pour choisir le dossier d'installation et le raccourci sur le bureau. Le dossier par défaut est BoB\\BoBTV sous Program Files ; l’approbation de l’administrateur est requise. Pour le ZIP portable, extrayez tous les fichiers et exécutez BobTV.exe. Les chaînes personnelles et les favoris sont stockés dans votre dossier de données utilisateur."
           ],
           [
             "macOS",
-            "Ouvrez le DMG hébergé sur ce site et faites glisser BobTV.app vers Applications. Pour les mises à jour automatiques après la fermeture, installez-les dans un dossier Applications accessible en écriture de votre répertoire personnel. N'exécutez pas l'application à long terme à partir de l'image disque en lecture seule. L'application est signée ad-hoc, sans signature ni notarisation de l'identifiant de développeur Apple ; Les ZIP à mise à jour automatique sont vérifiés séparément avec une signature d'éditeur BobTV. Le premier lancement peut encore nécessiter une approbation manuelle. Les fonctionnalités désactivées ne lisent pas leurs informations d'identification du trousseau et l'accès refusé suspend les tentatives automatiques jusqu'à ce que vous le repreniez explicitement."
+            "Ouvrez le DMG hébergé sur ce site et faites glisser BobTV.app vers Applications. Pour les mises à jour automatiques après la fermeture, installez-les dans un dossier Applications accessible en écriture de votre répertoire personnel. N'exécutez pas l'application à long terme à partir de l'image disque en lecture seule. L'application est signée ad hoc, sans signature ni notarisation de l'identifiant de développeur Apple ; Les ZIP à mise à jour automatique sont vérifiés séparément avec une signature d'éditeur BobTV. Le premier lancement peut encore nécessiter une approbation manuelle. Les fonctionnalités désactivées ne lisent pas leurs informations d'identification du trousseau et l'accès refusé suspend les tentatives automatiques jusqu'à ce que vous le repreniez explicitement."
           ],
           [
             "Mises à jour",
             "BobTV vérifie au démarrage, toutes les six heures et au retour au premier plan. Les installations Windows gérées téléchargent et vérifient la configuration dans BobTV, demandent l'approbation de l'administrateur lorsque vous choisissez Installer, puis affichent la progression de l'installation. L'annulation de l'approbation permet de maintenir l'ancienne application en cours d'exécution. Les clients gérés plus anciens ont besoin de cette configuration une fois. Les emplacements Windows portables et Mac inscriptibles sont mis à jour après la sortie et tentent de revenir en arrière après trois démarrages échoués. Les emplacements Mac protégés nécessitent un remplacement manuel. Sans signature de code fiable, les avertissements Edge lors d'un premier téléchargement dans le navigateur peuvent persister."
           ],
           [
-            "Android",
+            "Androïde",
             "Installez l'APK sur Android 7 ou version ultérieure. Choisissez d'abord ARM64, ARM32 pour les appareils limités aux applications 32 bits, ou x64 pour les appareils/émulateurs correspondants. La vidéo conserve son rapport hauteur/largeur source en mode portrait et paysage. Les mises à jour nécessitent une autorisation d'installation Android et une confirmation du système."
           ]
         ]
@@ -416,19 +422,19 @@
       {
         "id": "first-launch",
         "title": "Premier lancement et synchronisation des chaînes",
-        "text": "Commencez avec trois chaînes de démonstration sous licence ouverte. Connectez-vous pour choisir les régions, ou importez directement vos sources .bobtv, M3U et Xtream.",
+        "text": "BobTV synchronise les chaînes et les hiérarchies complètes de catégories de BobTV et compare le site principal avec cndrp pour la livraison des ressources. La découverte et l'IA s'exécutent sur le serveur ; la vidéo se connecte directement à sa source. Les clients vérifient le canal sélectionné à la demande.",
         "items": [
           [
             "Catalogue initial",
-            "Commencez avec trois chaînes de démonstration sous licence ouverte. Connectez-vous pour choisir les régions, ou importez directement vos sources .bobtv, M3U et Xtream."
+            "BobTV affiche d'abord les chaînes locales ou groupées, puis récupère le catalogue public catégorisé et vérifié. Le nombre de chaînes change à mesure que les sources sont conservées."
           ],
           [
             "Statut de synchronisation",
             "Les synchronisations ayant échoué réessayent à intervalles espacés pour éviter des changements d'état rapides. Les modifications locales restent enregistrées en attendant ; les clics répétés sont inutiles."
           ],
           [
-            "Chaînes régionales et sources personnelles",
-            "La déconnexion retire les chaînes régionales de la liste active et conserve vos imports. Les caches régionaux et les favoris sont séparés par compte."
+            "Public et personnel",
+            "Les catégories publiques, les notes, les abandons et les transferts d'itinéraires sont synchronisés sur tous les appareils. La lecture réussie d'autres clients ne peut pas restaurer les itinéraires retirés. Les sauvegardes privées des favoris ne peuvent revenir qu'à l'appareil d'origine ; l’histoire et les abonnements privés restent locaux."
           ]
         ]
       }
@@ -482,7 +488,7 @@
     "macos_note": "Les dépendances actuelles nécessitent macOS 13 ou version ultérieure ; la compatibilité avec les anciens systèmes est en attente. Choisissez votre puce, ouvrez le DMG et faites glisser l'application vers Applications.",
     "android_note": "Android 7+. Les mises à jour nécessitent une confirmation du système. Tests de l'appareil et de la Chine continentale en cours.",
     "windows_arm64_note": "Les packages ARM64 natifs ont réussi les vérifications de construction et d’architecture. La lecture sur Surface, AirPlay et l'installation des mises à jour nécessitent encore des tests matériels.",
-    "platform_pending": "Cette plateforme fournit actuellement {version}. Ses téléchargements existants et son canal de mise à jour restent disponibles."
+    "platform_pending": "Cette plateforme continue de proposer la version publique existante {version}."
   },
   "policies": {
     "privacy": [
@@ -495,7 +501,7 @@
         []
       ],
       [
-        "Politique de confidentialité / Politique de confidentialité · Date de mise à jour : 2026-11-22",
+        "Politique de confidentialité / Politique de confidentialité · Date de mise à jour : 2026-10-13",
         []
       ],
       [
@@ -722,7 +728,7 @@
   "showcase": {
     "title": "BobTV | Télévision en direct, radio et guide TV",
     "meta": "BobTV identifie le programme en cours grâce au guide TV et recherche automatiquement des sous-titres dans plusieurs sources prises en charge. Les sous-titres se mettent à jour quand vous changez de chaîne ou de programme.",
-    "eyebrow": "1.4.0 · Chaînes régionales et volet mobile",
+    "eyebrow": "1.3.0 · Guide TV et sous-titres",
     "countries": "pays et territoires",
     "languages": "langues sur ce site",
     "support": "Assistance et politiques",
@@ -845,7 +851,7 @@
         "Vérifier les dialogues et le temps avec le son lu sur l’appareil. Suspendre les sous-titres pendant la publicité, puis confirmer la nouvelle position avant de les reprendre."
       ]
     ],
-    "privacy": "La reconnaissance audio se fait sur votre appareil. BobTV reçoit des dialogues, leurs temps et le programme pour rechercher, mettre en cache et rapprocher les sous-titres. Le service IA configuré peut comparer les textes, sans recevoir de son, de vidéo ou d’URL de lecture.",
+    "privacy": "Le son reste sur votre appareil. Le serveur recherche, met en cache et synchronise les sous-titres sans récupérer le flux vidéo en continu. Les ressources peuvent être réutilisées quand le même film est rediffusé. Seuls des fragments de dialogue et leurs temps sont envoyés pour le recalage.",
     "condition": "Le guide TV doit identifier le programme en cours et une version des sous-titres doit correspondre à la diffusion. Le lecteur indique si les sous-titres sont indisponibles ou en cours de synchronisation. Le recalage vocal prend actuellement en charge les pistes audio en anglais.",
     "demo": "Découvrez le comportement pendant une publicité",
     "demoNote": "Illustration du fonctionnement. La disponibilité dépend du programme, de la langue et de l’édition des sous-titres.",
@@ -869,7 +875,7 @@
       "Les sous-titres du film restent suspendus pendant la publicité.",
       "Confirmer la nouvelle position avant de reprendre les sous-titres."
     ],
-    "cta": "Obtenir 1.4.0 et choisir les régions",
+    "cta": "Essayez les sous-titres avec la version 1.3.1",
     "historyTitle": "Le guide TV et les sous-titres automatiques réunis",
     "historyText": "BobTV recherche automatiquement des sous-titres dans plusieurs sources lorsque le guide TV confirme le programme en cours. Changez de langue pendant la lecture parmi sept langues proposées et choisissez jusqu’à trois versions distinctes par langue. La sélection automatique essaie d’abord votre langue, puis l’anglais. Les sous-titres se mettent en pause pendant la publicité et se recalent au retour du programme."
   },
@@ -877,11 +883,6 @@
     "Compte facultatif et connexion",
     "Le service conserve e-mail, nom, identifiants des fournisseurs, états de vérification et de désactivation et empreintes des sessions. Les codes expirent après dix minutes et sont envoyés par SMTP chiffré via mail.briconbric.com. Google et Apple échangent les informations d’identité nécessaires. Aucune URL de lecture ni aucun historique de visionnage n’est requis.",
     "Biométrie et suppression",
-    "La biométrie est traitée par le système de l’appareil. BobTV ne reçoit aucun modèle facial ou digital. Préférence et session sont conservées dans le stockage sécurisé du système. Le compte peut être supprimé dans l’application, avec révocation des identifiants Apple. Les limites expirent avec leur période. Les audits administratifs et les sauvegardes de comptes sont purgés périodiquement selon des politiques de 180 et 30 jours.",
-    "Le service de catalogue régional conserve aussi la clé publique du compte sur cet appareil et sa date d’inscription, ainsi que de brefs défis de synchronisation. La clé privée reste dans le stockage sécurisé de l’appareil. Les régions choisies et les caches vérifiés restent sur l’appareil et sont retirés de la liste active à la déconnexion. Vous pouvez dissocier cet appareil dans le sélecteur de régions."
-  ],
-  "subtitle_privacy": [
-    "Sous-titres en direct et rapprochement des dialogues",
-    "Lorsque les sous-titres en direct sont activés, votre appareil reconnaît les dialogues et leurs horodatages. BobTV les rapproche des sous-titres existants. Le titre du programme, les mots reconnus et des extraits de sous-titres peuvent être envoyés au service IA configuré. Ces requêtes ne contiennent ni audio, ni vidéo, ni URL de lecture, ni identifiants de compte. Les mots reconnus restent temporairement en mémoire de session sur le serveur BobTV. Désactiver les sous-titres arrête les nouveaux envois. La conservation par le service IA dépend de ses paramètres et politiques."
+    "La biométrie est traitée par le système de l’appareil. BobTV ne reçoit aucun modèle facial ou digital. Préférence et session sont conservées dans le stockage sécurisé du système. Le compte peut être supprimé dans l’application, avec révocation des identifiants Apple. Les limites expirent avec leur période. Les audits administratifs et les sauvegardes de comptes sont purgés périodiquement selon des politiques de 180 et 30 jours."
   ]
 }

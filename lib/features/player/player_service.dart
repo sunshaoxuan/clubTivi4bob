@@ -1220,6 +1220,14 @@ class PlayerService {
       'channel': prepared.channelName,
       'elapsedMs': handoff.elapsedMilliseconds,
     });
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (_disposed || !identical(_player, prepared.player)) return;
+      AppDiagnostics.instance.log('channel_preview_ui_frame', {
+        'channel': prepared.channelName,
+        'elapsedMs': handoff.elapsedMilliseconds,
+      });
+    });
+    WidgetsBinding.instance.ensureVisualUpdate();
     return true;
   }
 

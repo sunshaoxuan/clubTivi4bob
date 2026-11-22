@@ -362,7 +362,7 @@ packages:
     source: hosted
     version: "2.2.0"
   file:
-    dependency: transitive
+    dependency: "direct dev"
     description:
       name: file
       sha256: a3b4f84adafef897088c160faf7dfffb7696046cb13ae90b508c2cbc95d3b8d4
@@ -1204,12 +1204,11 @@ packages:
     source: hosted
     version: "2.4.3"
   shared_preferences_windows:
-    dependency: transitive
+    dependency: "direct main"
     description:
-      name: shared_preferences_windows
-      sha256: "94ef0f72b2d71bc3e700e025db3710911bd51a71cefb65cc609dd0d9a982e3c1"
-      url: "https://pub.dev"
-    source: hosted
+      path: "third_party/shared_preferences_windows"
+      relative: true
+    source: path
     version: "2.4.1"
   shelf:
     dependency: "direct main"

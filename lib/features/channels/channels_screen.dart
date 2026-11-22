@@ -1311,9 +1311,12 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
 
   Future<void> _saveSession() async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_kLastGroup, _selectedGroup);
-    if (_selectedIndex >= 0 && _previewChannel != null) {
-      await prefs.setString(_kLastChannelId, _previewChannel!.id);
+    if (prefs.getString(_kLastGroup) != _selectedGroup) {
+      await prefs.setString(_kLastGroup, _selectedGroup);
+    }
+    final channelId = _selectedIndex >= 0 ? _previewChannel?.id : null;
+    if (channelId != null && prefs.getString(_kLastChannelId) != channelId) {
+      await prefs.setString(_kLastChannelId, channelId);
     }
   }
 

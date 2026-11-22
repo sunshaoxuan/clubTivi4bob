@@ -5,6 +5,7 @@ import 'dart:ui' show AppExitResponse;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:window_manager/window_manager.dart';
+import 'package:shared_preferences_windows/shared_preferences_windows.dart';
 
 import '../core/android_app_exit.dart';
 import '../core/app_diagnostics.dart';
@@ -107,6 +108,12 @@ class _DesktopAppLifecycleState extends State<DesktopAppLifecycle>
     // permission to close over an unfinished native callback.
     await Future.wait(work).timeout(const Duration(seconds: 20));
     await resources.disposeAll().timeout(const Duration(seconds: 20));
+    if (Platform.isWindows) {
+      AppDiagnostics.instance.log('desktop_preferences_flush_begin');
+      await SharedPreferencesWindows.flushPendingWrites()
+          .timeout(const Duration(seconds: 20));
+      AppDiagnostics.instance.log('desktop_preferences_flush_completed');
+    }
     if (container.exists(databaseProvider)) {
       AppDiagnostics.instance.log('desktop_database_close_begin');
       await container

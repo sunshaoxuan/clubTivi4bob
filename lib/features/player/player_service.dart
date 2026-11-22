@@ -67,9 +67,10 @@ class AlternativePreviewState {
 
 /// Manages video playback with stream failover support.
 class PlayerService {
-  // Explicit local QA builds only; ordinary and release builds stay unchanged.
-  static const _qaSilent = kDebugMode &&
-      bool.fromEnvironment('BOBTV_QA_SILENT');
+  // Explicit local QA only. Runtime opt-in also covers release-mode profiling.
+  static final _qaSilent =
+      (kDebugMode && const bool.fromEnvironment('BOBTV_QA_SILENT')) ||
+      Platform.environment['BOBTV_TEST_MUTE'] == '1';
   PlayerService({RetiredRouteGuard? retirementGuard})
       : _retirementGuard = retirementGuard {
     _retirementSubscription = retirementGuard?.changes.listen((_) {
@@ -1501,7 +1502,7 @@ class PlayerService {
     if (native is native_player.NativePlayer) {
       try {
         await native.setProperty('mute',
-            (_qaSilent || Platform.environment['BOBTV_TEST_MUTE'] == '1') ? 'yes' : 'no');
+            _qaSilent ? 'yes' : 'no');
       } catch (error) {
         AppDiagnostics.instance.log('prepared_player_unmute_failed', {
           'error': error.toString(),

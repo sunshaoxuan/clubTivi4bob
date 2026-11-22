@@ -118,6 +118,9 @@ class _HandoffBinding extends WidgetsFlutterBinding {
 }
 
 void main() {
+  if (Platform.environment['BOBTV_TEST_MUTE'] != '1') {
+    throw StateError('This diagnostic requires BOBTV_TEST_MUTE=1');
+  }
   application.main(
     onBindingReady: () {
       _HandoffBinding();
@@ -246,9 +249,12 @@ Future<void> _drive() async {
       () => service.currentUrl != null && service.player.state.playing,
       'Initial channel playback',
     );
-    await service.setVolume(10);
+    await service.setVolume(0);
+    if (await service.getMpvProperty('mute') != 'yes') {
+      throw StateError('Application mute was not applied');
+    }
     record('started', {
-      'realAudio': true,
+      'applicationMuted': true,
       'normalApplication': true,
       'backgroundProfiling':
           Platform.environment['BOBTV_HANDOFF_BACKGROUND'] == '1',
@@ -256,15 +262,22 @@ Future<void> _drive() async {
     final channels = [
       'Action Movies',
       'Comedy Movies',
+      'Drama Movies',
+      'Romance Movies',
       'Action Movies',
       'Comedy Movies',
-      'Action Movies',
+      'Romance Movies',
+      'Drama Movies',
       'Comedy Movies',
+      'Action Movies',
+      'Drama Movies',
+      'Romance Movies',
     ];
     final performanceFailures = <Map<String, Object?>>[];
     for (var cycle = 0; cycle < channels.length; cycle++) {
       final label = channels[cycle];
       final old = service.activeVideoController.value;
+      final preparation = Stopwatch()..start();
       await tap(label);
       await until(
         () => service.previewVideoController.value != null,
@@ -275,6 +288,7 @@ Future<void> _drive() async {
       await WidgetsBinding.instance.endOfFrame;
       await Future<void>.delayed(const Duration(milliseconds: 500));
       record('preview_ready', {
+        'preparationMs': preparation.elapsedMilliseconds,
         'cycle': cycle,
         'channel': label,
         'volume': service.player.state.volume,
@@ -347,7 +361,17 @@ Future<void> _drive() async {
       final mute = await service.getMpvProperty('mute');
       final positionAdvance =
           (service.player.state.position - position).inMilliseconds;
-      if (audioOutput != 'wasapi' || mute != 'no' || positionAdvance < 500) {
+      final videoAdvance = videoBefore != null && videoAfter != null
+          ? videoAfter - videoBefore
+          : null;
+      if (videoAdvance == null || videoAdvance < 0.5) {
+        performanceFailures.add({
+          'cycle': cycle,
+          'kind': 'video_progress',
+          'advanceSeconds': videoAdvance,
+        });
+      }
+      if (audioOutput != 'wasapi' || mute != 'yes' || positionAdvance < 500) {
         performanceFailures.add({
           'cycle': cycle,
           'kind': 'live_audio_progress',

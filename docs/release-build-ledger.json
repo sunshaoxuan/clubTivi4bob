@@ -33,6 +33,19 @@
       ],
       "sourceCommit": "07a0501039d27771bbd89a20ef66879d15e9a874",
       "releaseUrl": "https://github.com/sunshaoxuan/clubTivi4bob/releases/tag/v1.4.3"
+    },
+    {
+      "version": "1.4.4+4",
+      "status": "allocated",
+      "date": "2026-11-23",
+      "platforms": [
+        "windows-x64",
+        "windows-arm64",
+        "macos-x64",
+        "macos-arm64"
+      ],
+      "scope": "Desktop-only release explicitly requested by user",
+      "fixesCommit": "8d2c8d2543d3c7fe113187bdb2e72ebb85f1e949"
     }
   ]
 }

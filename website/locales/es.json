@@ -202,6 +202,11 @@
     "history_title": "Cambios recientes",
     "history": [
       [
+        "2026-11-23",
+        "v1.4.4 · Cambio de canal más fluido",
+        "Corrige las imágenes congeladas al cambiar de canal durante el guardado de ajustes. Las vistas previas listas pasan rápidamente al reproductor principal y mejora la respuesta durante la sincronización del catálogo en Windows."
+      ],
+      [
         "2026-11-22",
         "v1.4.3 · Cambio rápido de la vista previa a la pantalla principal",
         "Vuelve a pulsar una vista previa en reproducción para pasarla a la pantalla principal con el mismo reproductor. La limpieza de otros reproductores deja de retrasar este cambio y los clics repetidos evitan recargar un canal ya preparado o en reproducción."
@@ -402,7 +407,7 @@
   },
   "downloads": {
     "signing_notice": "La solicitud gratuita de SignPath Foundation no fue aprobada. No se emitió ningún certificado de Windows confiable y la firma de producción de SignPath.io no está en uso. Es posible que Edge aún requiera una confirmación de seguridad en la primera descarga del navegador.",
-    "intro": "Windows y macOS: 1.4.3+3. Android mantiene la versión pública existente 1.3.1+1. Cambia de idioma en la parte superior de la aplicación. La selección manual se guarda. El modo automático usa el idioma del sistema, la zona horaria y, como último recurso, el inglés. Todos los instaladores incluyen los recursos de idioma. Se ha cerrado el acceso al modo avanzado. La sincronización de diagnósticos está desactivada de forma predeterminada. Con tu consentimiento, puede enviar hasta 30 días de registros depurados y puedes desactivarla en cualquier momento. La aplicación de macOS utiliza una firma ad-hoc.",
+    "intro": "Windows y macOS: 1.4.4+4. Android mantiene la versión pública existente 1.3.1+1. Cambia de idioma en la parte superior de la aplicación. La selección manual se guarda. El modo automático usa el idioma del sistema, la zona horaria y, como último recurso, el inglés. Todos los instaladores incluyen los recursos de idioma. Se ha cerrado el acceso al modo avanzado. La sincronización de diagnósticos está desactivada de forma predeterminada. Con tu consentimiento, puede enviar hasta 30 días de registros depurados y puedes desactivarla en cualquier momento. La aplicación de macOS utiliza una firma ad-hoc.",
     "latest": "Últimos instaladores",
     "local": "Descargas alojadas en este sitio",
     "sections": [

@@ -54,7 +54,7 @@ class TranslationFlowTests(unittest.TestCase):
             self.assertEqual(hub.sessions[token]['language'],'ko')
             self.assertTrue(any(c['language']=='ko' and c['generated'] for c in response['subtitleStatus']['variantCandidates']))
             self.assertEqual(hub.sessions[token]['reference']['tracks']['ko'][0]['text'],'우리는 역으로 가요.')
-            self.assertTrue(hub.sessions[token]['windows'][0]['tracks'][-1]['cues'][0]['text'].startswith('[AI] '))
+            self.assertEqual(hub.sessions[token]['windows'][0]['tracks'][-1]['cues'][0]['text'],'우리는 역으로 가요.')
 
     def test_programme_change_does_not_publish_old_translation(self):
         entered=threading.Event();release=threading.Event()

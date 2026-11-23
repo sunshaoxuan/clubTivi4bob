@@ -5,7 +5,7 @@ zh-TW, ja, fr, es and ko. The preference follows the application language until
 explicitly changed in the subtitle menu. Selection is requested language,
 English while a missing selected non-English language is translated in the background,
 then no subtitles if there is no usable English reference. Chinese scripts remain distinct.
-AI-generated captions are explicitly labelled and share the verified English cue grid.
+AI-generated subtitle versions are labelled in the menu and share the verified English cue grid.
 
 Native tracks are selected per ManagedPlayer. The shared video widget covers
 channel previews, main/window/fullscreen playback, alternative previews and
@@ -237,7 +237,7 @@ Each bounded batch has a translation pass and a separate proofreading pass again
 the English original. Cue IDs and timing are retained exactly. Validated draft and
 reviewed batches are saved independently, so retries and restarts resume unfinished
 work. Current playback is prioritized; only reviewed batches enter the playback
-catalog, marked `[AI]`. A window uses the generated track only when every
+catalog. The version menu identifies generated tracks; subtitle text has no AI prefix. A window uses the generated track only when every
 English cue in that window is covered; other windows retain English. Choice IDs
 remain stable as the reviewed track grows.
 Cache keys include the language, original cue grid and pipeline version. Background

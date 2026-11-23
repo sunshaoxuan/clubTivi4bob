@@ -79,7 +79,7 @@ class SubtitleAITest(unittest.TestCase):
         session=dict(reference=ai,language='zh-CN',audioLanguage='en',
                      windows=[dict(state='LOCKED',start=0,end=12,
                                    subtitleClock=dict(rate=1,intercept=0))])
-        self.assertTrue(hub.caption_tracks(ai,0,12,1,0)[-1]['cues'][0]['text'].startswith('[AI] '))
+        self.assertEqual(hub.caption_tracks(ai,0,12,1,0)[-1]['cues'][0]['text'],english[0]['text'])
         hub.candidates=[human]
         hub.refresh_reference_languages(session)
         self.assertIs(session['reference'],human)

@@ -252,7 +252,7 @@ class TextHub:
                 if not required.issubset({c['index'] for c in cues}):continue
             emitted = [dict(index=cue['index'], start=(cue['start']-intercept)/rate,
                             end=(cue['end']-intercept)/rate,
-                            text=('[AI] ' if generated else '') + cue['text'])
+                            text=cue['text'])
                        for cue in cues if cue['end'] >= rate*start+intercept
                        and cue['start'] <= rate*end+intercept]
             if emitted:

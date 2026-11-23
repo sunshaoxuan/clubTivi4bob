@@ -1,4 +1,4 @@
-"""Activate operator-reviewed, exact-route XMLTV facts, with a staging mode.
+"""Activate operator-reviewed, exact-route schedule facts, with a staging mode.
 
 The proof is an administrator input. Search results cannot invoke this tool.
 Only scoped source identities and current catalogue route sets are accepted.
@@ -27,7 +27,10 @@ def main():
     args = p.parse_args()
     proof = json.loads(args.proof.read_text())
     source = next(s for s in registry() if s['id'] == proof['sourceId'])
-    assert source['format'] == 'xmltv' and source['xmltvChannelIds']
+    assert source['format'] in ('xmltv', 'astro-json')
+    allowed = (source['xmltvChannelIds'] if source['format'] == 'xmltv' else
+               ['astro:my:'+str(s) for s in source['serviceIds']])
+    country = source['countryCode']
     assert proof['operatorReviewed'] is True
     root = Path(DATA)
     if args.validate_only:
@@ -49,17 +52,21 @@ def main():
         old = [dict(r) for r in conn.execute('SELECT * FROM epg_mapping_approvals ORDER BY channel_id')]
         body, receipt = fetch_source(source, now)
         parsed = parse_source(source, body, now)
-        assert set(parsed['channels']) <= set(source['xmltvChannelIds'])
+        assert set(parsed['channels']) <= set(allowed)
         for target in targets:
             c = by_id[target['channelId']]
-            assert c['name'] == target['channelName'] and c['countryCode'] == 'US'
+            assert c['name'] == target['channelName'] and c['countryCode'] == country
             assert sorted(hashlib.sha256(r['url'].encode()).hexdigest() for r in c['routes']) == target['routeSha256']
-            assert target['originalChannelId'] in source['xmltvChannelIds']
-            assert c['name'] in parsed['channels'][target['originalChannelId']]
+            assert target['originalChannelId'] in allowed
+            assert target.get('providerChannelName', c['name']) in parsed['channels'][target['originalChannelId']]
+            if source['format'] == 'astro-json':
+                assert parsed['identityContexts'][target['originalChannelId']]['channelNumber'] == target['providerChannelNumber']
             assert target['currentPictureReviewed'] is True
             rows = [r for r in parsed['programmes'] if r['originalChannelId'] == target['originalChannelId']]
+            observed = target.get('checkedAtUtc', proof['checkedAtUtc'])
+            assert 0 <= now-observed < 7200
             assert any(r['title'] == target['observedProgrammeTitle'] and
-                       r['startUtc'] <= proof['checkedAtUtc'] < r['endUtc'] for r in rows)
+                       r['startUtc'] <= observed < r['endUtc'] for r in rows)
             assert any(r['startUtc'] <= now < r['endUtc'] for r in rows)
             assert any(r['startUtc'] > now for r in rows)
         health = conn.execute('SELECT * FROM source_health WHERE id=?', (source['id'],)).fetchone()
@@ -67,20 +74,24 @@ def main():
         probe_batch(directory, [source], now, lambda _: (body, receipt))
         store.approve_data_use(conn, source['id'], source_url=source['url'],
             evidence_url=source['dataLicense']['evidenceUrl'],
-            data_license='Operator-authorized factual title and explicit start/stop scope for two reviewed services',
+            data_license=source['dataLicense']['name']+'; operator-authorized factual scope',
             programme_data_permission=True, now=now)
         ids = []
         for target in targets:
             c = by_id[target['channelId']]
             evidence = {'evidenceUrl': source['dataLicense']['evidenceUrl'],
-                'countryCode': 'US', 'regionCode': c.get('regionCode'),
-                'sourceCountryCode': 'US', 'sourceRegionCode': c.get('regionCode'),
+                'countryCode': country, 'regionCode': c.get('regionCode'),
+                'sourceCountryCode': country, 'sourceRegionCode': c.get('regionCode'),
                 'sameChannelAndDelayVersion': True,
-                'routeSha256': target['routeSha256'], 'observedAtUtc': proof['checkedAtUtc'],
+                'routeSha256': target['routeSha256'], 'observedAtUtc': target.get('checkedAtUtc', proof['checkedAtUtc']),
                 'observedProgrammeTitle': target['observedProgrammeTitle'],
                 'observation': target['observation'],
                 'proofSha256': hashlib.sha256(args.proof.read_bytes()).hexdigest(),
-                'identityPolicy': 'operator_reviewed_us_service_route_and_current_picture_v1'}
+                'identityPolicy': 'operator_reviewed_service_route_and_current_picture_v2'}
+            if source['format'] == 'astro-json':
+                evidence.update(routeScopeExplicitlyReviewed=True, routeScope=sorted(
+                    [{'routeId': r['id'], 'urlSha256': hashlib.sha256(r['url'].encode()).hexdigest()}
+                     for r in c['routes']], key=lambda r: r['routeId']))
             store.approve_mapping(conn, c['id'], source['id'], target['originalChannelId'],
                                   evidence=evidence, confidence=0.98, now=now)
             ids.append(c['id'])
@@ -89,7 +100,8 @@ def main():
         new = [dict(r) for r in conn.execute('SELECT * FROM epg_mapping_approvals ORDER BY channel_id')]
         assert [r for r in old if r['channel_id'] not in ids] == [r for r in new if r['channel_id'] not in ids]
         payload = store.build_payload(conn, now)
-        assert set(ids) <= {c['id'] for c in payload['channels']}
+        covered = {c.get('routeBinding', {}).get('catalogChannelId', c['id']) for c in payload['channels']}
+        assert set(ids) <= covered
         result = {'validationOnly': args.validate_only, 'targets': ids,
                   'sourceQuality': parsed['quality'], 'ingestion': ingestion,
                   'unrelatedMappingsUnchanged': True}

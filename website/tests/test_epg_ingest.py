@@ -56,6 +56,14 @@ def test_registry_rejects_invalid_xmltv_scope(tmp_path, scope):
         epg.registry(path)
 
 
+def test_scoping_does_not_bypass_input_channel_limit(monkeypatch):
+    monkeypatch.setattr(epg, 'MAX_CHANNELS', 1)
+    raw = xml(channels='<channel id="one"><display-name>One</display-name></channel>'
+              '<channel id="two"><display-name>Two</display-name></channel>')
+    with pytest.raises(epg.EpgError, match='channel_limit'):
+        epg.parse_source({**SOURCE, 'xmltvChannelIds': ['one']}, raw, NOW)
+
+
 def test_only_adjacent_start_can_infer_stop_never_last_programme():
     raw = xml('''<programme channel="one" start="20261016070000 +0800"><title>One</title></programme>
       <programme channel="one" start="20261016090000 +0800"><title>Two</title></programme>''')

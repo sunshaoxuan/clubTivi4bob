@@ -320,6 +320,31 @@
         "evidenceUrl": "https://www.samsungtvplus.com/assets/STVP_Channel-List.pdf",
         "restriction": "Operator explicitly requested EPG integration for Gravitas Movies and Midnight Pulp. Only factual title/start/stop values for the two scoped service IDs are used. No descriptions, plots, artwork or video are published by this adapter; no third-party blanket licence is asserted."
       }
+    },
+    {
+      "id": "astro-my-official-v1",
+      "url": "https://contenthub-api.eco.astro.com.my/channel/all.json",
+      "format": "astro-json",
+      "serviceIds": [
+        162,
+        172,
+        182,
+        355
+      ],
+      "countryCode": "MY",
+      "calendarTimezone": "Asia/Kuala_Lumpur",
+      "redirectUrls": [],
+      "refreshSeconds": 432000,
+      "minimumRetrySeconds": 1800,
+      "publicationAllowed": false,
+      "scope": "All four Astro Malaysia services currently present in the BobTV public catalogue, including both independently reviewed AOD delivery routes. Provider service identities and playback routes are reviewed separately.",
+      "dataLicense": {
+        "status": "operator_authorized_factual_schedule_scope",
+        "name": "Astro Malaysia factual schedule metadata",
+        "reviewedAt": "2026-11-23",
+        "evidenceUrl": "https://contenthub-api.eco.astro.com.my/channel/all.json",
+        "restriction": "Operator requested provider-wide EPG investigation and integration for existing Astro channels. Only factual channel title/number, programme title, explicit start/stop and event identifiers are projected. No descriptions, plots, images or video are published by this adapter; no blanket third-party licence is asserted."
+      }
     }
   ]
 }

@@ -97,9 +97,6 @@ class SubtitleVariantsTest(unittest.TestCase):
         self.assertEqual(result['windows'], [])
 
 
-if __name__ == '__main__':
-    unittest.main()
-
     def test_only_one_ai_choice_per_language_preserves_active_and_pinned_ids(self):
         a=self.translation('AI first');b=self.translation('AI second',page='b',offset=20)
         human=self.translation('native',page='human',provider='native')
@@ -112,3 +109,7 @@ if __name__ == '__main__':
         self.assertEqual([c['id'] for c in choices if c['generated']],[second])
         self.assertTrue(any(not c['generated'] for c in choices))
         self.assertTrue(catalog.supports(a,first));self.assertTrue(catalog.supports(b,second))
+
+
+if __name__ == '__main__':
+    unittest.main()

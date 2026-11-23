@@ -90,3 +90,22 @@ class TranslationFlowTests(unittest.TestCase):
         self.assertIn('ja',TextHub.preserve_generated([old],[fresh])[0]['tracks'])
         other=dict(page='a',tracks={'en':[{**english[0],'text':'Different dialogue'}]})
         self.assertNotIn('ja',TextHub.preserve_generated([old],[other])[0]['tracks'])
+
+    def test_suspension_retains_last_good_priority_and_pinned_partial_can_resume(self):
+        from subtitle_variants import SubtitleVariants
+        from subtitle_edition import track_fingerprint
+        with tempfile.TemporaryDirectory() as root:
+            hub,token=self.hub(root,lambda *_: None);session=hub.sessions[token]
+            ref=session['reference'];english=ref['tracks']['en']
+            ref['tracks']['ja']=[{**english[0],'text':'私たちです。'}]
+            ref['provenance']['ja']=dict(generated=True,partial=True,pipeline=3,referenceFingerprint=track_fingerprint(english))
+            session['variantId']=SubtitleVariants([ref]).track(ref,'ja')['id']
+            entered=threading.Event();release=threading.Event();values=[]
+            def translate(*args,**kwargs):
+                values.append(kwargs['priority_time']());entered.set();release.wait(2)
+                values.append(kwargs['priority_time']());return []
+            hub.cache.with_ai_translation=translate
+            self.assertIsNotNone(hub.ensure_translation(session));self.assertTrue(entered.wait(1))
+            session.update(ad=True,reference=None,intercept=None);release.set()
+            self.wait(lambda: all(not job['running'] for job in hub.translation_jobs.values()))
+            self.assertEqual(values,[100,100])

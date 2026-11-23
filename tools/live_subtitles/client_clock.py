@@ -134,7 +134,7 @@ class TextHub:
         identity=getattr(self,'resource_identity',None)
         if (not ai or not ai.enabled or language not in TARGETS or not reference or
                 reference['tracks'].get(language) and not reference.get('provenance',{}).get(language,{}).get('partial')
-                or session.get('variantId') or session.get('ad')
+                or session.get('variantId') and not self.ai_track(reference,language) or session.get('ad')
                 or not reference['tracks'].get('en') or not identity or
                 getattr(self,'resource_identity_programme',None)!=self.programme['key']
                 or not hasattr(cache,'with_ai_translation')):
@@ -160,10 +160,15 @@ class TextHub:
                     self.discovery_generation!=generation or self.programme['key']!=key[0] or
                     not any(s.get('language')==language and s.get('programmeKey')==key[0]
                             and s.get('lastAccess',0)>time.time()-120 for s in self.sessions.copy().values()))
+        last_priority=[session.get('rate',1)*(session.get('lastWindow') or {}).get('end',0)+(session.get('intercept') or 0)]
         def priority():
             latest=next((viewer for viewer in self.sessions.copy().values()
-                         if viewer.get('language')==language and (viewer.get('reference') or {}).get('page')==reference['page'] and viewer.get('intercept') is not None),session)
-            return latest.get('rate',1)*(latest.get('lastWindow') or {}).get('end',0)+(latest.get('intercept') or 0)
+                         if viewer.get('language')==language and not viewer.get('ad')
+                         and (viewer.get('reference') or {}).get('page')==reference['page']
+                         and viewer.get('intercept') is not None),None)
+            if latest is not None:
+                last_priority[0]=latest.get('rate',1)*(latest.get('lastWindow') or {}).get('end',0)+latest['intercept']
+            return last_priority[0]
         def publish(result):
             generated=next((c for c in result if c['page']==reference['page']
                 and self.ai_track(c,language)),None)

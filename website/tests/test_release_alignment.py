@@ -18,7 +18,7 @@ def metadata():
 
 def test_all_platforms_are_required():
     value=metadata();value['packages']=[p for p in value['packages'] if not p['platform'].startswith('android-')]
-    with pytest.raises(ValueError,match='seven platforms'):module.validate_matrix(value,'1.1.11+106')
+    with pytest.raises(ValueError,match='platform matrix'):module.validate_matrix(value,'1.1.11+106')
 
 
 def test_old_android_cannot_be_substituted():
@@ -48,3 +48,16 @@ def test_finalizer_rejects_partial_official_release(tmp_path,monkeypatch):
     monkeypatch.setattr(sys,'argv',['finalize',str(tmp_path),'1.1.11+106','--platforms','windows-x64'])
     with pytest.raises(ValueError,match='all seven platforms'):finalizer.main()
     assert not (tmp_path/'BobTV-update-metadata.json').exists()
+
+
+def test_explicit_desktop_release_accepts_exactly_four_desktop_platforms():
+    value=metadata()
+    value['packages']=[p for p in value['packages'] if p['platform'] in module.DESKTOP_PLATFORMS]
+    assert len(module.validate_matrix(value,'1.1.11+106',desktop_only=True)) == 4
+
+
+def test_explicit_desktop_release_rejects_incomplete_matrix():
+    value=metadata()
+    value['packages']=[p for p in value['packages'] if p['platform'] in module.DESKTOP_PLATFORMS][:-1]
+    with pytest.raises(ValueError,match='platform matrix'):
+        module.validate_matrix(value,'1.1.11+106',desktop_only=True)

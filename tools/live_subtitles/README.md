@@ -3,8 +3,9 @@
 The client supports the seven existing application languages: en, zh-CN,
 zh-TW, ja, fr, es and ko. The preference follows the application language until
 explicitly changed in the subtitle menu. Selection is requested language,
-English, then no subtitles. Chinese scripts remain distinct. There is no
-subtitle generation or translation fallback.
+English while a missing selected non-English language is translated in the background,
+then no subtitles if there is no usable English reference. Chinese scripts remain distinct.
+AI-generated captions are explicitly labelled and share the verified English cue grid.
 
 Native tracks are selected per ManagedPlayer. The shared video widget covers
 channel previews, main/window/fullscreen playback, alternative previews and
@@ -19,11 +20,11 @@ service 6065 route with a current public EPG identity. Other channels retain
 native track selection. Seven-language fallback applies to acquired and
 acoustically verified existing files; missing files remain unavailable.
 
-`service.py` verifies current immutable public catalogue/EPG snapshots and the
-official movie identity, retrieves existing Subtitle Cat download links, and
-runs local tiny.en speech recognition for synchronization. It never invokes a
-Translate action or generates subtitle text. Provider translation quality is
-unreviewed. English audio is the currently supported acoustic pilot.
+The service verifies public catalogue/EPG snapshots and the official movie
+identity before acquiring subtitle files. Device-side speech recognition aligns
+the English reference; generated translations retain that exact cue grid. The
+legacy media-collector pilot remains separate from the client-only translation
+workflow described below. No provider website Translate action is invoked.
 
 ## Resource discovery and subtitle variants
 
@@ -218,25 +219,33 @@ errors separately from the service's scheduled onset errors. Playback acceptance
 requires no buffering after the verified baseline; initial acquisition and
 buffering before that baseline are reported separately. Native sampling is
 50 ms, with the backend's own decoded-position notification granularity.
-### Optional AI subtitle fallback
+### AI subtitle translation fallback
 
-The client-only service can read `/etc/bobtv/subtitle-ai.env` via systemd.
-Keep this file root-owned and private. Its three server-only settings are
-`BOBTV_SUBTITLE_AI_BASE_URL`, `BOBTV_SUBTITLE_AI_TOKEN`, and
-`BOBTV_SUBTITLE_AI_MODEL`. Use the approved protected HTTPS Responses
-endpoint. No setting is sent to the client. With any setting absent, no
-AI requests are made.
+The client-only service reads its existing protected `/etc/bobtv/subtitle-ai.env`.
+`BOBTV_SUBTITLE_AI_BASE_URL`, `BOBTV_SUBTITLE_AI_TOKEN` and
+`BOBTV_SUBTITLE_AI_MODEL` remain server-only. Missing configuration leaves
+existing subtitles and playback working without making AI requests.
 
-The last-resort English review accepts only candidate indices from an existing
-IMDb-bound provider response. A verified movie and a complete search without
-either Chinese script are required for translation. Live translation starts
-after the viewer has aligned the English reference. Use only English inputs
-permitted for this use. The comma-delimited
-`BOBTV_SUBTITLE_AI_TRANSLATION_ALLOWED_PROVIDERS` sets an explicit list of
-providers reviewed for translation and downstream use; an empty list disables
-translation while permitting metadata review. The original English cue grid is preserved, incomplete
-translations never become tracks, and `[AI]` is visible in the rendered text.
-Generated tracks use a separate cache and do not stop provider retries. The
-subtitle-specific rolling 24-hour budget is 64 attempts, including upstream
-errors, with one concurrent API request. Test responses can be injected
-without any network calls or credentials.
+After the current film and English reference have been verified, a missing exact
+selected language triggers background translation to zh-CN, zh-TW, ja, ko, fr or
+es. Existing usable subtitles for that exact language take precedence. English
+continues playing while the translation is prepared. Provider failures and a
+subtitle in the other Chinese script do not suppress translation of the requested
+language. A later native exact-language track replaces its generated equivalent.
+
+Each bounded batch has a translation pass and a separate proofreading pass against
+the English original. Cue IDs and timing are retained exactly. Validated draft and
+reviewed batches are saved independently, so retries and restarts resume unfinished
+work. Only complete, reviewed tracks enter the playback catalog, marked `[AI]`.
+Cache keys include the language, original cue grid and pipeline version. Background
+completion does not change the selected language, pinned variant, player or clock.
+A programme change cancels further work for the old film, retaining reusable batches.
+
+The built-in source scope is the three configured providers: Subtitle Cat, SubDL,
+and OpenSubtitles via Stremio. `BOBTV_SUBTITLE_AI_TRANSLATION_ALLOWED_PROVIDERS`,
+when explicitly set, restricts that scope; an explicit empty value disables it.
+The rolling 24-hour attempt budget defaults to 1024 and is adjustable using
+`BOBTV_SUBTITLE_AI_DAILY_ATTEMPTS` (64–10000). At most two translation jobs run
+across all channels. Translation calls are serialized separately from existing
+alignment/metadata AI work, so a long translation cannot occupy its request slot.
+No video or raw audio is sent by this translation pipeline.

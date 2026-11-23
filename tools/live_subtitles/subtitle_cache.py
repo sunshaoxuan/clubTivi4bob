@@ -14,7 +14,7 @@ from urllib.parse import urlsplit
 
 from subtitle_edition import chinese_script, merge_editions, timing_evidence, track_fingerprint
 from subtitle_identity import resolve as resolve_identity, release_year
-from subtitle_ai import SubtitleAI, CHINESE, PROVIDER as AI_PROVIDER
+from subtitle_ai import SubtitleAI, TARGETS, PROVIDER as AI_PROVIDER
 from subtitle_catalog import (LANGUAGES, PROVIDER_AUDIT, matches_movie_title, parse_srt,
                               resource_path, title_norm, variant_counts)
 
@@ -87,45 +87,35 @@ class SubtitleCache:
         (self.root/'blobs').mkdir(exist_ok=True, mode=0o700)
         self.ai = SubtitleAI(self.root/'.ai')
 
-    def with_ai_chinese(self, programme, candidates, language, *, reference_page=None):
-        if (language not in CHINESE or not candidates or not self.ai.enabled or
+    def with_ai_translation(self, programme, candidates, language, *, reference_page=None,
+                            cancelled=lambda:False):
+        if (language not in TARGETS or not candidates or not self.ai.enabled or
                 not programme.get('searchable') or not programme.get('imdbId') or
-                not programme.get('identityEvidence') or
-                any(tag in row['tracks'] for tag in CHINESE for row in candidates)):
+                not programme.get('identityEvidence')):
             return candidates
-        programme = resolve_identity(programme,self.root)
-        with self.locked(self.identity(programme)) as folder:
-            try:
-                receipt = json.loads((folder/'index.json').read_text())
-            except (OSError,ValueError):
-                return candidates
-            # Any incomplete search, provider error or unpaired Chinese file defers AI.
-            audit = receipt.get('providerOutcomes',[])
-            if not audit or any(receipt.get('searches',{}).get(tag,{}).get('outcome') !=
-                                'not_found_this_search' for tag in CHINESE):
-                return candidates
-            if any(row.get('outcome') in ('unavailable','identity_pending','skipped') or
-                   row.get('failureCount') for row in audit):
-                return candidates
-        reference = next((row for row in candidates if row.get('provenance',{}).get('en',{}).get('imdbId') ==
-                          programme['imdbId'] and row['tracks'].get('en') and
-                          (reference_page is None or row['page']==reference_page)),None)
-        if reference is None or not self.ai.permits_translation(reference.get('provenance',{}).get('en',{})):
+        reference=next((row for row in candidates
+            if (row.get('provenance',{}).get('en',{}).get('imdbId')==programme['imdbId']
+                or reference_page is not None and row['page']==reference_page
+                and row.get('provenance',{}).get('en',{}).get('imdbId') is None
+                and row.get('provenance',{}).get('en',{}).get('provider')=='Subtitle Cat')
+            and row['tracks'].get('en') and not row.get('provenance',{}).get('en',{}).get('generated')
+            and (reference_page is None or row['page']==reference_page)),None)
+        if (reference is None or reference['tracks'].get(language) or
+                not self.ai.permits_translation(reference.get('provenance',{}).get('en',{}))):
             return candidates
-        english = reference['tracks']['en']
-        cues = self.ai.translate(programme['title'],english)
-        if not cues:
-            return candidates
-        # Another hub can discover an existing subtitle during translation.
-        with self.locked(self.identity(programme)) as folder:
-            newest, _ = self.load(folder)
-        if newest and any(tag in row['tracks'] for tag in CHINESE for row in newest):
-            return newest
-        translated = {**reference,'tracks':{**reference['tracks'],'zh-CN':cues},
-            'provenance':{**reference.get('provenance',{}),'zh-CN':{
-                'provider':AI_PROVIDER,'release':'AI 翻译','generated':True,
-                'referenceFingerprint':track_fingerprint(english)}}}
+        english=reference['tracks']['en']
+        cues=self.ai.translate(programme['title'],english,language,cancelled=cancelled)
+        if not cues:return candidates
+        translated={**reference,'tracks':{**reference['tracks'],language:cues},
+            'provenance':{**reference.get('provenance',{}),language:{
+                'provider':AI_PROVIDER,'release':f'AI {language} · proofread','generated':True,
+                'referenceFingerprint':track_fingerprint(english),'pipeline':2}}}
         return [translated if item is reference else item for item in candidates]
+
+    # Compatibility for external diagnostic callers; new production scheduling
+    # uses the exact requested language, including Traditional Chinese.
+    def with_ai_chinese(self, programme, candidates, language, **options):
+        return self.with_ai_translation(programme,candidates,language,**options)
 
     def identity(self, programme):
         aliases = movie_aliases(programme)

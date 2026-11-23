@@ -16,7 +16,8 @@ import time
 import uuid
 from live_engine import align, fit_clock_rate, clock_rate_confident, short_cue_clock_evidence, short_cue_clock_cluster
 from subtitle_cache import RETRY_TTL
-from subtitle_ai import CHINESE
+from subtitle_ai import CHINESE, TARGETS
+from subtitle_edition import track_fingerprint
 from subtitle_catalog import discover, LANGUAGES
 from subtitle_variants import SubtitleVariants, UNCHANGED
 from service import reviewed_pilot_source
@@ -28,6 +29,9 @@ def finite(value, low, high):
     if isinstance(value,bool) or not isinstance(value,(int,float)) or not math.isfinite(value) or not low<=value<=high:
         raise ValueError('invalid_clock_observation')
     return float(value)
+
+
+TRANSLATION_SLOTS = threading.BoundedSemaphore(2)
 
 
 class TextHub:
@@ -107,25 +111,13 @@ class TextHub:
                     variants=SubtitleVariants(candidates)
                     with self.lock:
                         if generation==self.discovery_generation:
+                            candidates=self.preserve_generated(self.candidates,candidates)
                             self.candidates=candidates
                             self.resource_identity=dict(lookup) if lookup else None
                             self.resource_identity_programme=programme['key']
-                            self.variants=variants
+                            self.variants=SubtitleVariants(candidates)
                             self.discovery_error=False
                     self.event('subtitle_resources_ready',programmeKey=programme['key'],language=language,candidates=len(candidates),manual=refresh)
-                    add_translation = getattr(self.cache,'with_ai_chinese',None)
-                    with self.lock:
-                        reference_page = next((session['reference']['page'] for session in self.sessions.values()
-                            if generation==self.discovery_generation and session.get('programmeKey')==programme['key']
-                            and session.get('language')==language and not session.get('ad')
-                            and session.get('reference')),None)
-                    if add_translation is not None and lookup and reference_page:
-                        translated = add_translation(lookup,candidates,language,reference_page=reference_page)
-                        if translated is not candidates:
-                            with self.lock:
-                                if generation==self.discovery_generation:
-                                    self.candidates=translated
-                                    self.variants=SubtitleVariants(translated)
                 except Exception as e:
                     with self.lock:
                         if generation==self.discovery_generation:self.discovery_error=not bool(self.candidates)
@@ -133,6 +125,84 @@ class TextHub:
         thread=threading.Thread(target=work,daemon=True)
         self.discovery_thread=thread
         thread.start()
+    def ensure_translation(self, session):
+        """Schedule outside playback/HTTP work, once the English clock is proven."""
+        cache=getattr(self,'cache',None);ai=getattr(cache,'ai',None)
+        language=session.get('language');reference=session.get('reference')
+        identity=getattr(self,'resource_identity',None)
+        if (not ai or not ai.enabled or language not in TARGETS or not reference or
+                reference['tracks'].get(language) or session.get('variantId') or session.get('ad')
+                or not reference['tracks'].get('en') or not identity or
+                getattr(self,'resource_identity_programme',None)!=self.programme['key']
+                or not hasattr(cache,'with_ai_translation')):
+            return None
+        fingerprint=track_fingerprint(reference['tracks']['en'])
+        key=(self.programme['key'],language,reference['page'],fingerprint)
+        jobs=getattr(self,'translation_jobs',None)
+        if jobs is None:self.translation_jobs=jobs={}
+        job=jobs.get(key)
+        if job and (job['running'] or time.monotonic()-job['finished']<30):
+            return dict(language=language,**ai.translation_status(reference['tracks']['en'],language))
+        if sum(row['running'] for row in jobs.values())>=2:return dict(language=language,phase='queued')
+        for old in list(jobs):
+            if not jobs[old]['running'] and old[0]!=self.programme['key']:jobs.pop(old)
+        if not TRANSLATION_SLOTS.acquire(blocking=False):return dict(language=language,phase='queued')
+        generation=self.discovery_generation
+        programme=dict(identity);candidates=list(self.candidates or [])
+        if not any(c['page']==reference['page'] and c['tracks'].get('en')==reference['tracks']['en'] for c in candidates):
+            candidates.append(reference)
+        jobs[key]=dict(running=True,finished=0)
+        def cancelled():
+            return (getattr(self,'stop_event',threading.Event()).is_set() or
+                    self.discovery_generation!=generation or self.programme['key']!=key[0] or
+                    not any(s.get('language')==language and s.get('programmeKey')==key[0]
+                            and s.get('lastAccess',0)>time.time()-120 for s in self.sessions.copy().values()))
+        def work():
+            self.event('subtitle_translation_started',programmeKey=key[0],language=language)
+            try:
+                result=cache.with_ai_translation(programme,candidates,language,
+                    reference_page=reference['page'],cancelled=cancelled)
+                generated=next((c for c in result if c['page']==reference['page']
+                    and self.ai_track(c,language)),None)
+                with self.lock:
+                    if not cancelled() and generated:
+                        merged=[]
+                        for candidate in self.candidates or []:
+                            if (candidate['page']==reference['page']
+                                    and candidate['tracks'].get('en')==reference['tracks']['en']
+                                    and not candidate['tracks'].get(language)):
+                                candidate={**candidate,'tracks':{**candidate['tracks'],language:generated['tracks'][language]},
+                                    'provenance':{**candidate.get('provenance',{}),language:generated['provenance'][language]}}
+                            merged.append(candidate)
+                        if not any(c['page']==reference['page'] and c['tracks'].get('en')==reference['tracks']['en'] for c in merged):
+                            merged.append(generated)
+                        self.candidates=merged;self.variants=SubtitleVariants(merged)
+                        self.event('subtitle_translation_ready',programmeKey=key[0],language=language,
+                            cues=len(generated['tracks'][language]))
+            except Exception as error:
+                self.event('subtitle_translation_retry',programmeKey=key[0],language=language,errorType=type(error).__name__)
+            finally:
+                with self.lock:jobs[key].update(running=False,finished=time.monotonic())
+                TRANSLATION_SLOTS.release()
+        threading.Thread(target=work,name='subtitle-translation',daemon=True).start()
+        return dict(language=language,phase='queued')
+
+    @classmethod
+    def preserve_generated(cls, previous, candidates):
+        """Provider refreshes must not erase a completed translation every minute."""
+        merged=[]
+        for candidate in candidates:
+            additions={};facts={}
+            for old in previous or []:
+                if (old['page']!=candidate['page'] or
+                        old['tracks'].get('en')!=candidate['tracks'].get('en')):continue
+                for language,cues in old['tracks'].items():
+                    if cls.ai_track(old,language) and not candidate['tracks'].get(language):
+                        additions[language]=cues;facts[language]=old['provenance'][language]
+            merged.append({**candidate,'tracks':{**candidate['tracks'],**additions},
+                'provenance':{**candidate.get('provenance',{}),**facts}} if additions else candidate)
+        return merged
+
     def close(self):
         self.stop_event.set()
         thread=getattr(self,'discovery_thread',None)
@@ -184,9 +254,7 @@ class TextHub:
         languages = [preferred]
         if preferred in CHINESE:
             languages.extend(tag for tag in CHINESE if tag != preferred)
-        return next((tag for tag in languages if tag in candidate['tracks'] and not
-                     cls.ai_track(candidate,tag)),None) or next(
-                         (tag for tag in (*languages,'en') if tag in candidate['tracks']),None)
+        return next((tag for tag in (*languages,'en') if tag in candidate['tracks']),None)
 
     def clock_window(self, session, candidate, start, end, rate, intercept):
         tracks = self.caption_tracks(candidate, start, end, rate, intercept)
@@ -557,7 +625,7 @@ class TextHub:
         selection = lambda candidate: self.preferred_track(candidate,preferred)
         def rank(candidate):
             tag = selection(candidate)
-            return (tag not in (None,'en'), not self.ai_track(candidate,tag), tag==preferred)
+            return (tag==preferred, tag not in (None,'en'), not self.ai_track(candidate,tag))
         compatible = (candidate for candidate in self.candidates or []
                       if candidate is not previous
                       and (candidate['page'] == previous['page']
@@ -577,8 +645,10 @@ class TextHub:
             session['lastAccess'] = time.time()
             valid = self.valid_context(session['source'], None)
             current = valid and session['programmeKey'] == self.programme['key']
+            translation=None
             if current:
                 self.refresh_reference_languages(session)
+                translation=self.ensure_translation(session)
             catalog = self.variant_catalog()
             reference = session.get('reference') if current else None
             pinned = session.get('variantId') if current else None
@@ -597,7 +667,7 @@ class TextHub:
             searching = set(getattr(self, 'requested_languages', ()))
             if getattr(self, 'searching_language', None):
                 searching.add(self.searching_language)
-            status = dict(phase=phase, candidateCount=len(self.candidates or []),
+            status = dict(phase=phase, translation=translation, candidateCount=len(self.candidates or []),
                           searchingLanguages=sorted(searching) if valid else [],
                           resourceLanguages=sorted({choice['language'] for choice in choices}),
                           availableLanguages=sorted(reference['tracks']) if reference else [],

@@ -13,3 +13,5 @@
 - Update GitHub assets, checksums, homepage, downloads and all seven website locales together; verify all seven update feeds, preserving mobile feeds for an explicitly desktop-only release. Wait for mirror success and verify public downloads before reporting completion.
 
 - Before finalizing a new desktop release, run `tools/canonicalize_desktop_release.py PACKAGES NATIVE_VERSION`. Public filenames and `displayVersion` use the semantic version only. Native update identities and compatibility aliases retain the internal build counter so installed clients can update.
+
+- Playback tests must mute only through BobTV’s own volume controls. Never change system or Windows application mixer volume, and never add a test-only forced-mute switch to shipped code.

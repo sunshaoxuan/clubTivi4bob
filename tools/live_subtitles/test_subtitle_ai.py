@@ -3,7 +3,7 @@ import unittest
 import json
 from unittest.mock import patch
 
-from subtitle_ai import SubtitleAI, transport_handlers, LocalTlsHandler
+from subtitle_ai import SubtitleAI, TARGETS, transport_handlers, LocalTlsHandler
 from subtitle_cache import SubtitleCache, verified_release_aliases
 from subtitle_stremio import matches_bound_release
 from client_clock import TextHub
@@ -56,7 +56,7 @@ class SubtitleAITest(unittest.TestCase):
             self.assertEqual([(c['start'],c['end']) for c in result],
                              [(c['start'],c['end']) for c in english])
             self.assertEqual(ai.translate('Film',english),result)
-            self.assertEqual(len(calls),2)
+            self.assertEqual(len(calls),6)
 
     def test_partial_batch_does_not_publish_and_obeys_retry(self):
         calls=[]
@@ -67,13 +67,13 @@ class SubtitleAITest(unittest.TestCase):
             ai=SubtitleAI(root,transport)
             self.assertIsNone(ai.translate('Film',self.english()))
             self.assertIsNone(ai.translate('Film',self.english()))
-            self.assertEqual(len(calls),1)
+            self.assertEqual(len(calls),3)
 
     def test_generated_caption_is_labelled_and_human_chinese_replaces_it(self):
         english=self.english()
         ai=dict(page='a',tracks={'en':english,'zh-CN':english},
                 provenance={'zh-CN':dict(generated=True)})
-        human=dict(page='b',tracks={'en':english,'zh-TW':english})
+        human=dict(page='b',tracks={'en':english,'zh-CN':english})
         hub=TextHub.__new__(TextHub)
         hub.candidates=[ai]
         session=dict(reference=ai,language='zh-CN',audioLanguage='en',
@@ -83,36 +83,78 @@ class SubtitleAITest(unittest.TestCase):
         hub.candidates=[human]
         hub.refresh_reference_languages(session)
         self.assertIs(session['reference'],human)
-        self.assertEqual(hub.preferred_track(human,'zh-CN'),'zh-TW')
+        self.assertEqual(hub.preferred_track(human,'zh-CN'),'zh-CN')
         self.assertFalse(session['windows'][0]['tracks'][-1]['cues'][0]['text'].startswith('[AI] '))
 
-    def test_no_generation_with_incomplete_search_or_either_chinese_track(self):
+    translations={'zh-CN':'我们正在说话。','zh-TW':'我們正在說話。',
+                  'ja':'私たちは今話しています。','ko':'우리는 지금 이야기하고 있어요.',
+                  'fr':'Nous sommes en train de parler.','es':'Estamos hablando ahora.'}
+
+    def test_every_target_is_reviewed_cached_separately_and_preserves_cue_grid(self):
         calls=[]
-        movie=dict(title='Iron Fury',year=2018,searchable=True,
-                   identityEvidence='official_movie_record',imdbId='tt8820590')
-        english=self.english()
-        reference=dict(page='a',tracks={'en':english},
+        def transport(instruction,data):
+            calls.append((data['targetLanguage'],'draft' in data))
+            text=self.translations[data['targetLanguage']] if 'draft' in data else 'draft'
+            return {'rows':[dict(id=c['id'],text=text) for c in data['cues']]}
+        with tempfile.TemporaryDirectory() as root:
+            ai=SubtitleAI(root,transport);english=self.english()[:45]
+            for language in TARGETS:
+                result=ai.translate('Film',english,language)
+                self.assertIsNotNone(result,language)
+                self.assertEqual([c['text'] for c in result],[self.translations[language]]*45)
+                self.assertEqual([(c['index'],c['start'],c['end']) for c in result],
+                                 [(c['index'],c['start'],c['end']) for c in english])
+                count=len(calls);self.assertEqual(ai.translate('Film',english,language),result)
+                self.assertEqual(len(calls),count)
+            self.assertEqual(len(calls),24)
+            self.assertEqual(sum(review for language,review in calls),12)
+
+    def test_missing_exact_target_translates_even_if_other_chinese_or_provider_offline(self):
+        calls=[];movie=dict(title='Film',year=2018,searchable=True,
+            identityEvidence='official_movie_record',imdbId='tt8820590')
+        english=self.english()[:5]
+        reference=dict(page='a',tracks={'en':english,'zh-TW':english},
                        provenance={'en':dict(imdbId=movie['imdbId'])})
         with tempfile.TemporaryDirectory() as root:
             cache=SubtitleCache(root)
-            def transport(_instruction,data):
+            def transport(instruction,data):
                 calls.append(data)
-                return {'rows':[dict(id=c['id'],text='我们正在说话。') for c in data['cues']]}
+                return {'rows':[dict(id=c['id'],text=self.translations[data['targetLanguage']]) for c in data['cues']]}
             cache.ai=SubtitleAI(cache.root/'.ai',transport)
-            rows=[reference]
-            with cache.locked(cache.identity(movie)) as folder:
-                receipt=folder/'index.json'
-                state=dict(providerOutcomes=[dict(outcome='no_matching_release')],
-                           searches={'zh-CN':dict(outcome='not_found_this_search'),
-                                     'zh-TW':dict(outcome='timing_pending')})
-                receipt.write_text(json.dumps(state))
-            self.assertIs(cache.with_ai_chinese(movie,rows,'zh-CN'),rows)
-            self.assertEqual(calls,[])
-            state['searches']['zh-TW']['outcome']='not_found_this_search'
-            receipt.write_text(json.dumps(state))
-            existing=[dict(reference,tracks={'en':english,'zh-TW':english})]
-            self.assertIs(cache.with_ai_chinese(movie,existing,'zh-CN'),existing)
-            self.assertEqual(calls,[])
-            result=cache.with_ai_chinese(movie,rows,'zh-TW')
+            result=cache.with_ai_translation(movie,[reference],'zh-CN',reference_page='a')
             self.assertTrue(result[0]['provenance']['zh-CN']['generated'])
             self.assertEqual(len(calls),2)
+            self.assertIs(cache.with_ai_translation(movie,result,'zh-CN'),result)
+            self.assertIs(cache.with_ai_translation(dict(movie,identityEvidence=None),[reference],'ja')[0],reference)
+            self.assertEqual(len(calls),2)
+            self.assertIs(cache.with_ai_translation(movie,[reference],'ja',reference_page='other')[0],reference)
+
+    def test_interrupted_later_batch_resumes_only_unfinished_review(self):
+        calls=[];fail=True
+        def transport(instruction,data):
+            calls.append((data['cues'][0]['id'],'draft' in data))
+            if fail and data['cues'][0]['id']==40 and 'draft' in data:
+                raise OSError('transient')
+            return {'rows':[dict(id=c['id'],text=self.translations['ja']) for c in data['cues']]}
+        with tempfile.TemporaryDirectory() as root, patch('subtitle_ai.time.sleep'):
+            ai=SubtitleAI(root,transport);english=self.english()[:45]
+            self.assertIsNone(ai.translate('Film',english,'ja'))
+            path=ai.root/(ai.translation_key(english,'ja')+'.json')
+            data=json.loads(path.read_text());self.assertEqual(data['completedCues'],40)
+            data['retryAfter']=0;path.write_text(json.dumps(data));fail=False;calls.clear()
+            self.assertEqual(len(ai.translate('Film',english,'ja')),45)
+            self.assertEqual(calls,[(40,True)])
+
+    def test_exact_generated_script_precedes_other_script_and_native_exact_wins(self):
+        english=self.english()
+        row=dict(page='a',tracks={'en':english,'zh-CN':english,'zh-TW':english},
+                 provenance={'zh-CN':dict(generated=True)})
+        self.assertEqual(TextHub.preferred_track(row,'zh-CN'),'zh-CN')
+
+    def test_default_provider_scope_is_enabled_without_secret_changes(self):
+        with tempfile.TemporaryDirectory() as root, patch.dict('os.environ',{},clear=True):
+            ai=SubtitleAI(root)
+            self.assertTrue(ai.permits_translation({'provider':'Subtitle Cat'}))
+            self.assertFalse(ai.permits_translation({'provider':'unverified'}))
+            with patch.dict('os.environ',{'BOBTV_SUBTITLE_AI_TRANSLATION_ALLOWED_PROVIDERS':''}):
+                self.assertFalse(ai.permits_translation({'provider':'Subtitle Cat'}))

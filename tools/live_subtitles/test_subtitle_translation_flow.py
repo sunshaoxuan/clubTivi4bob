@@ -1,0 +1,92 @@
+import tempfile
+import threading
+import time
+import unittest
+from pathlib import Path
+
+from client_clock import TextHub
+from subtitle_cache import SubtitleCache
+from subtitle_ai import SubtitleAI
+
+
+class TranslationFlowTests(unittest.TestCase):
+    def hub(self, root, transport):
+        from test_client_clock import ClientClockTests
+        hub=ClientClockTests().hub(root)
+        hub.discovery_generation=0
+        hub.resource_identity=dict(title='Film',year=2018,searchable=True,
+            imdbId='tt8820590',identityEvidence='official_movie_record')
+        hub.resource_identity_programme=hub.programme['key']
+        hub.cache=SubtitleCache(Path(root)/'cache')
+        hub.cache.ai=SubtitleAI(hub.cache.root/'.ai',transport)
+        hub.candidates[0]['provenance']={'en':dict(imdbId='tt8820590',provider='SubDL')}
+        token=hub.create(hub.source,None,'ja',['clientClockV1'])
+        session=hub.sessions[token]
+        session.update(reference=hub.candidates[0],audioLanguage='en',rate=1,intercept=100,
+                       asset='movie',epoch=1,rateVerified=True)
+        hub.clock_window(session,session['reference'],0,60,1,100)
+        return hub,token
+
+    def wait(self, condition):
+        deadline=time.monotonic()+4
+        while time.monotonic()<deadline:
+            if condition():return
+            time.sleep(.01)
+        self.fail('translation worker did not reach expected state')
+
+    def test_translation_is_background_and_late_old_language_cannot_change_selection(self):
+        entered=threading.Event();release=threading.Event()
+        def transport(instruction,data):
+            if data['targetLanguage']=='ja':entered.set();release.wait(3)
+            text='私たちは駅に向かいます。' if data['targetLanguage']=='ja' else '우리는 역으로 가요.'
+            return {'rows':[dict(id=c['id'],text=text) for c in data['cues']]}
+        with tempfile.TemporaryDirectory() as root:
+            hub,token=self.hub(root,transport)
+            started=time.monotonic();response=hub.response(token)
+            self.assertLess(time.monotonic()-started,.2)
+            self.assertEqual(response['subtitleStatus']['translation']['language'],'ja')
+            self.assertTrue(entered.wait(1))
+            hub.set_language(token,'ko');hub.response(token)
+            self.wait(lambda: any('ko' in row['tracks'] for row in hub.candidates))
+            release.set()
+            self.wait(lambda: all(not job['running'] for job in hub.translation_jobs.values()))
+            response=hub.response(token)
+            self.assertEqual(hub.sessions[token]['language'],'ko')
+            self.assertTrue(any(c['language']=='ko' and c['generated'] for c in response['subtitleStatus']['variantCandidates']))
+            self.assertEqual(hub.sessions[token]['reference']['tracks']['ko'][0]['text'],'우리는 역으로 가요.')
+            self.assertTrue(hub.sessions[token]['windows'][0]['tracks'][-1]['cues'][0]['text'].startswith('[AI] '))
+
+    def test_programme_change_does_not_publish_old_translation(self):
+        entered=threading.Event();release=threading.Event()
+        def transport(instruction,data):
+            entered.set();release.wait(3)
+            return {'rows':[dict(id=c['id'],text='私たちは駅に向かいます。') for c in data['cues']]}
+        with tempfile.TemporaryDirectory() as root:
+            hub,token=self.hub(root,transport);hub.response(token)
+            self.assertTrue(entered.wait(1))
+            hub.discovery_generation+=1;hub.programme['key']='new-film';release.set()
+            self.wait(lambda: all(not job['running'] for job in hub.translation_jobs.values()))
+            self.assertNotIn('ja',hub.candidates[0]['tracks'])
+
+    def test_native_exact_arriving_during_translation_is_never_overwritten(self):
+        entered=threading.Event();release=threading.Event()
+        def transport(instruction,data):
+            entered.set();release.wait(3)
+            return {'rows':[dict(id=c['id'],text='私たちは駅に向かいます。') for c in data['cues']]}
+        with tempfile.TemporaryDirectory() as root:
+            hub,token=self.hub(root,transport);hub.response(token)
+            self.assertTrue(entered.wait(1))
+            old=hub.candidates[0]
+            native={**old,'tracks':{**old['tracks'],'ja':[{**c,'text':'本物の字幕です。'} for c in old['tracks']['en']]}}
+            hub.candidates=[native];release.set()
+            self.wait(lambda: all(not job['running'] for job in hub.translation_jobs.values()))
+            self.assertEqual(hub.candidates[0]['tracks']['ja'][0]['text'],'本物の字幕です。')
+            self.assertFalse(hub.ai_track(hub.candidates[0],'ja'))
+
+    def test_refresh_keeps_only_translations_of_the_same_english_reference(self):
+        english=[dict(index=1,start=1,end=2,text='Hello')]
+        old=dict(page='a',tracks={'en':english,'ja':english},provenance={'ja':{'generated':True}})
+        fresh=dict(page='a',tracks={'en':english})
+        self.assertIn('ja',TextHub.preserve_generated([old],[fresh])[0]['tracks'])
+        other=dict(page='a',tracks={'en':[{**english[0],'text':'Different dialogue'}]})
+        self.assertNotIn('ja',TextHub.preserve_generated([old],[other])[0]['tracks'])

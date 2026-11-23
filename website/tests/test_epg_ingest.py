@@ -442,3 +442,17 @@ def test_replacement_must_be_known_and_removed_from_active_registry(tmp_path):
     path.write_text(json.dumps({'schemaVersion': 1, 'sources': [SOURCE, revised]}))
     with pytest.raises(epg.EpgError, match='replacement_source_still_active'):
         epg.registry(path)
+
+
+def test_refresh_order_does_not_starve_overdue_published_guides():
+    import sqlite3
+    from epg_ingest import fair_source_order
+    conn = sqlite3.connect(':memory:'); conn.row_factory = sqlite3.Row
+    conn.execute('CREATE TABLE source_health(id TEXT,next_retry INTEGER,last_attempt INTEGER)')
+    conn.execute('CREATE TABLE epg_mapping_approvals(source_id TEXT,revoked INTEGER)')
+    conn.executemany('INSERT INTO source_health VALUES(?,?,?)',
+                     [('frequent', 900, 800), ('overdue', 100, 0), ('unmapped', 0, 0)])
+    conn.executemany('INSERT INTO epg_mapping_approvals VALUES(?,0)', [('frequent',), ('overdue',)])
+    ordered = fair_source_order(conn, [{'id': x} for x in ['frequent', 'unmapped', 'overdue']])
+    assert [s['id'] for s in ordered] == ['overdue', 'frequent', 'unmapped']
+    conn.close()

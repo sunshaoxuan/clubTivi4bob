@@ -708,6 +708,17 @@ def probe_batch(directory, sources, now=None, fetcher=None, batch_size=1, admiss
         conn.close()
 
 
+def fair_source_order(conn, sources):
+    """Refresh admitted guides by oldest deadline, preserving each retry floor."""
+    approved = set()
+    if conn.execute("SELECT 1 FROM sqlite_master WHERE name='epg_mapping_approvals'").fetchone():
+        approved = {r[0] for r in conn.execute('SELECT source_id FROM epg_mapping_approvals WHERE revoked=0')}
+    health = {r['id']: dict(r) for r in conn.execute('SELECT id,next_retry,last_attempt FROM source_health')}
+    return sorted(sources, key=lambda s: (s['id'] not in approved,
+        health.get(s['id'], {}).get('next_retry', 0),
+        health.get(s['id'], {}).get('last_attempt') or 0))
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--registry', type=Path, default=REGISTRY)
@@ -726,7 +737,13 @@ def main():
             auto = due_source(conn, int(time.time()))
         finally:
             conn.close()
-        result = probe_batch(args.data_dir, registry(args.registry))
+        sources = registry(args.registry)
+        conn = database(args.data_dir)
+        try:
+            sources = fair_source_order(conn, sources)
+        finally:
+            conn.close()
+        result = probe_batch(args.data_dir, sources)
         if auto:
             auto_result = probe_batch(args.data_dir, auto)
             result['automaticSourceRefreshAttempts'] = auto_result['attemptedSources']

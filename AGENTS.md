@@ -10,4 +10,6 @@
 - Do not substitute a previous platform binary or update feed when another platform advances. An incomplete platform matrix blocks official publication.
 - Platform build jobs may generate intermediate metadata with `--staging`. This output is not a complete official release.
 - Before publication run `python tools/verify_release_alignment.py PACKAGES VERSION --android-build-tools SDK_BUILD_TOOLS` and complete each platform's existing native/package/signature checks.
-- Update GitHub assets, checksums, homepage, downloads, four locales and all seven update feeds together. Wait for mirror success and verify public downloads before reporting completion.
+- Update GitHub assets, checksums, homepage, downloads and all seven website locales together; verify all seven update feeds, preserving mobile feeds for an explicitly desktop-only release. Wait for mirror success and verify public downloads before reporting completion.
+
+- Before finalizing a new desktop release, run `tools/canonicalize_desktop_release.py PACKAGES NATIVE_VERSION`. Public filenames and `displayVersion` use the semantic version only. Native update identities and compatibility aliases retain the internal build counter so installed clients can update.

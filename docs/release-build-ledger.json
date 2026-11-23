@@ -65,7 +65,7 @@
     {
       "version": "1.4.4+6",
       "displayVersion": "1.4.4",
-      "status": "allocated",
+      "status": "published",
       "date": "2026-11-23",
       "platforms": [
         "windows-x64",
@@ -73,7 +73,9 @@
         "macos-x64",
         "macos-arm64"
       ],
-      "scope": "Explicit desktop-only release; native build identity is internal"
+      "scope": "Explicit desktop-only release; native build identity is internal",
+      "sourceCommit": "63264cb3fdad7a21d224bc2f3031838452cb1785",
+      "releaseUrl": "https://github.com/sunshaoxuan/clubTivi4bob/releases/tag/v1.4.4"
     }
   ]
 }

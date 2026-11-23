@@ -63,6 +63,8 @@ mkdir -p "$app/Contents/Resources/Updater"
 progress_app="$app/Contents/Resources/Updater/BobTVUpdateProgress.app"
 mkdir -p "$progress_app/Contents/MacOS"
 cp "$root/tools/macos/update_progress_info.plist" "$progress_app/Contents/Info.plist"
+/usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$app/Contents/Info.plist")" "$progress_app/Contents/Info.plist"
+/usr/libexec/PlistBuddy -c "Set :CFBundleVersion $(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$app/Contents/Info.plist")" "$progress_app/Contents/Info.plist"
 deployment='10.15'
 [[ "$(uname -m)" == arm64 ]] && deployment='11.0'
 xcrun swiftc -target "$(uname -m)-apple-macos$deployment" -O "$root/tools/macos/update_progress.swift" \

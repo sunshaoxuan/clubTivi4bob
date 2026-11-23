@@ -340,6 +340,17 @@ fi
 
 archive="$root/BobTV-${version//+/_}-macos.zip"
 partial="$archive.part"
+cached_hash=''
+if [[ -f "$archive" && ! -L "$archive" && "$(stat -f%z "$archive")" == "$expected_bytes" ]]; then
+  cached_hash="$(/usr/bin/openssl dgst -sha256 "$archive")"
+  cached_hash="${cached_hash##* }"
+fi
+if [[ "$cached_hash" == "$(printf '%s' "$expected_hash" | tr '[:upper:]' '[:lower:]')" ]]; then
+  # The replacement worker still verifies the archive signature and app below.
+  # Reuse bytes only; a cache hit never skips publisher or platform validation.
+  cp "$archive" "$partial"
+  printf '%s reusing downloaded update archive\n' "$(date -u +%FT%TZ)"
+else
 write_status downloading "$version" 0
 curl --fail --silent --show-error --proto '=https' --max-redirs 0 \
   --user-agent 'BobTV/0.9.1 updater' --connect-timeout 10 --max-time 14400 \
@@ -353,6 +364,7 @@ while kill -0 "$download_pid" 2>/dev/null; do
   sleep 1
 done
 wait "$download_pid"
+fi
 received_bytes="$(stat -f%z "$partial")"
 write_status verifying "$version" 100
 printf 'integrity bytes actual=%s expected=%s\n' "$received_bytes" "$expected_bytes"
@@ -420,6 +432,45 @@ if [[ -n "$installed_team" && "$installed_team" != 'not set' ]]; then
 fi
 [[ "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' \
   "$app/Contents/Info.plist")" == 'com.briconbric.bobtv' ]] || exit 8
+
+# The signed target app carries a compatible installer and observer. Bootstrap
+# them before replacing the player, while the original lockf owner keeps the
+# installation lock. No unverified script, key or status-file path is executed.
+next_assets="$replacement/Contents/Frameworks/App.framework/Resources/flutter_assets/assets/updater"
+if [[ -f "$next_assets/mac-updater-handoff-v1" &&
+      "$(cat "$next_assets/mac-updater-handoff-v1")" == 1 ]]; then
+  next_worker="$next_assets/mac_worker.sh"
+  [[ -f "$next_worker" && ! -L "$next_worker" ]] || exit 7
+  /bin/bash -n "$next_worker" || exit 7
+  current_worker_hash="$(/usr/bin/openssl dgst -sha256 "$0")"
+  next_worker_hash="$(/usr/bin/openssl dgst -sha256 "$next_worker")"
+  if [[ "${current_worker_hash##* }" != "${next_worker_hash##* }" ]]; then
+    # Keep the running script outside Stage, which its successor re-extracts.
+    handoff="$root/worker-verified-${version//+/_}-${next_worker_hash##* }.sh"
+    cp "$next_worker" "$handoff.tmp"; chmod 600 "$handoff.tmp"; mv -f "$handoff.tmp" "$handoff"
+    printf '%s handing off to verified updater version=%s\n' "$(date -u +%FT%TZ)" "$version"
+    exec /bin/bash "$handoff" update-locked "$root" "$app" "$watched_pid" "$version" \
+      "$archive_url" "$expected_hash" "$expected_bytes" "$package_signature" "$run_id"
+  fi
+  next_progress="$replacement/Contents/Resources/Updater/BobTVUpdateProgress.app"
+  [[ -f "$next_progress/Contents/MacOS/BobTVUpdateProgress" &&
+     "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$next_progress/Contents/Info.plist")" == 'com.briconbric.bobtv.updater' ]] || exit 7
+  [[ " $(lipo -archs "$next_progress/Contents/MacOS/BobTVUpdateProgress") " == *" $machine_arch "* ]] || exit 7
+  [[ "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$next_progress/Contents/Info.plist")+$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$next_progress/Contents/Info.plist")" == "$version" ]] || exit 7
+  if [[ -n "$run_id" ]]; then
+    progress="$root/Progress-$run_id-verified.app"
+    if ditto "$next_progress" "$progress"; then
+      printf '%s' "$progress" > "$root/progress-next-$run_id.txt.tmp"
+      mv -f "$root/progress-next-$run_id.txt.tmp" "$root/progress-next-$run_id.txt"
+      if ! /usr/bin/open -n -a "$progress" --stdout "$root/progress-verified-$run_id.log" \
+        --stderr "$root/progress-verified-errors-$run_id.log" --args \
+        "$root" "$app" "$watched_pid" "$$" "$version" "$run_id"; then
+        rm -f "$root/progress-next-$run_id.txt"
+        printf '%s verified observer launch failed; keeping current observer\n' "$(date -u +%FT%TZ)"
+      fi
+    fi
+  fi
+fi
 write_status ready "$version" 100
 
 wait_for_exit

@@ -61,6 +61,18 @@ final class UpdateProgress: NSObject, NSApplicationDelegate, NSWindowDelegate {
         guard !initialized else { return }
         initialized = true
         if snapshotPath == nil { log("application_ready run=\(runID)") }
+        if snapshotPath == nil {
+            // A verified replacement observer takes ownership of this run.
+            // Each observer retires itself, leaving the installer untouched.
+            let owner = root.appendingPathComponent("progress-owner-\(runID).txt")
+            let requested = try? String(contentsOf: root.appendingPathComponent("progress-next-\(runID).txt"), encoding: .utf8)
+            if requested == Bundle.main.bundleURL.path {
+                try? Data(Bundle.main.bundleURL.path.utf8).write(to: owner, options: .atomic)
+            } else if requested == nil {
+                // A late old observer must never reclaim a replacement's run.
+                try? Data(Bundle.main.bundleURL.path.utf8).write(to: owner, options: .withoutOverwriting)
+            }
+        }
         NSApp.setActivationPolicy(.accessory)
         window.title = "BobTV 更新"
         window.appearance = NSAppearance(named: .darkAqua)
@@ -113,6 +125,13 @@ final class UpdateProgress: NSObject, NSApplicationDelegate, NSWindowDelegate {
     func alive(_ pid: Int32) -> Bool { pid > 0 && (kill(pid, 0) == 0 || errno == EPERM) }
 
     func refresh() {
+        if snapshotPath == nil,
+           let owner = try? String(contentsOf: root.appendingPathComponent("progress-owner-\(runID).txt"), encoding: .utf8),
+           owner != Bundle.main.bundleURL.path {
+            log("observer_replaced run=\(runID)")
+            NSApp.terminate(nil)
+            return
+        }
         guard snapshotPath != nil || !alive(playerPID) else { return }
         if !shown {
             shown = true; startedAt = Date()

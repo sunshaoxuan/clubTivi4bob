@@ -44,3 +44,37 @@ signing-policy regression suite. The signing suite uses isolated, ad-hoc signed
 fixtures and real system requirement evaluation. Its synthetic TeamIdentifier
 branch exercises worker policy; it does not substitute for a real Developer ID
 cross-version acceptance test.
+
+## Verified updater handoff (unreleased)
+
+The player starts its bundled bootstrap worker. After downloading the target
+app, the worker verifies archive size, SHA-256, publisher signature, bundle
+signature, version, architecture and any installed publisher requirement.
+Targets carrying `assets/updater/mac-updater-handoff-v1` supply a compatible
+replacement worker. The bootstrap copies that verified script outside Stage and
+executes it under the existing installation lock. Its successor reuses the
+downloaded archive and independently verifies it before proceeding.
+
+The successor prepares the target's native progress app before installation.
+The new observer claims only its requested update run; the previous observer
+retires itself without signalling the player or installation worker. A late old
+observer cannot reclaim that run. Observer launch failure leaves the current
+observer available. Each built observer records the enclosing app's public
+version and native build number in its bundle metadata.
+
+The player remains installed and running during this handoff. Its verified
+replacement is installed only after exit, using the existing backup, startup
+confirmation and rollback flow. No separate unsigned component or extra package
+download is introduced. Legacy targets without the marker keep the existing
+installation path. An already installed client needs the release containing this
+bootstrap before it can perform handoffs on subsequent updates.
+
+Additional checks:
+
+- `bash tools/macos/test_updater_handoff.sh` exercises real signed fixture
+  archives, worker replacement while the player PID remains alive, inherited
+  installation locking, a single download, retained backup and signature failure.
+- Compile `tools/macos/update_progress.swift`, then pass the binary to
+  `python3 tools/macos/test_updater_observer_handoff.py PATH`. It checks real
+  observer processes, replacement, late old observers and unrelated update runs
+  with a live fixture player PID and no visible windows.

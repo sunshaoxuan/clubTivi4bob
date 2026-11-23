@@ -32,8 +32,10 @@ class SubtitleVariants:
             if language not in LANGUAGES or not cues:
                 continue
             digest = transcript_fingerprint(cues)
-            variant_id = hashlib.sha256(f'{language}:{digest}'.encode()).hexdigest()
             provenance = facts.get(language, {})
+            if provenance.get('generated') and provenance.get('referenceFingerprint'):
+                digest=f"ai:{provenance.get('pipeline',2)}:{provenance['referenceFingerprint']}"
+            variant_id = hashlib.sha256(f'{language}:{digest}'.encode()).hexdigest()
             tracks[language] = dict(id=variant_id, language=language,
                 provider=str(provenance.get('provider') or '')[:80],
                 label=str(provenance.get('release') or candidate.get('label') or '')[:200],

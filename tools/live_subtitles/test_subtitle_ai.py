@@ -158,3 +158,32 @@ class SubtitleAITest(unittest.TestCase):
             self.assertFalse(ai.permits_translation({'provider':'unverified'}))
             with patch.dict('os.environ',{'BOBTV_SUBTITLE_AI_TRANSLATION_ALLOWED_PROVIDERS':''}):
                 self.assertFalse(ai.permits_translation({'provider':'Subtitle Cat'}))
+
+    def test_current_playback_batch_first_and_only_reviewed_progress_is_published(self):
+        calls=[];published=[]
+        def transport(instruction,data):
+            calls.append((data['cues'][0]['id'],'draft' in data))
+            return {'rows':[dict(id=c['id'],text='私たちは今話しています。' if 'draft' in data else 'draft') for c in data['cues']]}
+        with tempfile.TemporaryDirectory() as root:
+            ai=SubtitleAI(root,transport);english=self.english()
+            result=ai.translate('Film',english,'ja',priority_time=2100,on_progress=lambda rows:published.append(rows))
+            self.assertEqual(calls[:2],[(80,False),(80,True)])
+            self.assertEqual([row['index'] for row in published[0]],list(range(80,105)))
+            self.assertTrue(all('draft' not in row['text'] for batch in published for row in batch))
+            self.assertEqual([row['index'] for row in result],list(range(105)))
+            self.assertEqual(published[-1],result)
+
+    def test_partial_track_keeps_stable_choice_and_requires_entire_window_coverage(self):
+        from subtitle_variants import SubtitleVariants
+        from subtitle_edition import track_fingerprint
+        english=self.english()[:45]
+        def candidate(cues):
+            return dict(page='a',tracks={'en':english,'ja':cues},provenance={'ja':dict(
+                generated=True,partial=len(cues)!=len(english),pipeline=3,referenceFingerprint=track_fingerprint(english))})
+        partial=candidate(english[40:]);full=candidate(english)
+        catalogue=SubtitleVariants([full]);choice=catalogue.track(full,'ja')['id']
+        self.assertEqual(catalogue.track(partial,'ja')['id'],choice)
+        self.assertTrue(catalogue.supports(partial,choice))
+        hub=TextHub.__new__(TextHub);hub.candidates=[partial]
+        self.assertEqual({t['language'] for t in hub.caption_tracks(partial,975,1001,1,0)},{'en'})
+        self.assertEqual({t['language'] for t in hub.caption_tracks(partial,1000,1001,1,0)},{'en','ja'})

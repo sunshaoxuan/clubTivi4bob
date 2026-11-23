@@ -133,7 +133,8 @@ class TextHub:
         language=session.get('language');reference=session.get('reference')
         identity=getattr(self,'resource_identity',None)
         if (not ai or not ai.enabled or language not in TARGETS or not reference or
-                reference['tracks'].get(language) or session.get('variantId') or session.get('ad')
+                reference['tracks'].get(language) and not reference.get('provenance',{}).get(language,{}).get('partial')
+                or session.get('variantId') or session.get('ad')
                 or not reference['tracks'].get('en') or not identity or
                 getattr(self,'resource_identity_programme',None)!=self.programme['key']
                 or not hasattr(cache,'with_ai_translation')):
@@ -159,28 +160,36 @@ class TextHub:
                     self.discovery_generation!=generation or self.programme['key']!=key[0] or
                     not any(s.get('language')==language and s.get('programmeKey')==key[0]
                             and s.get('lastAccess',0)>time.time()-120 for s in self.sessions.copy().values()))
+        def priority():
+            latest=next((viewer for viewer in self.sessions.copy().values()
+                         if viewer.get('language')==language and (viewer.get('reference') or {}).get('page')==reference['page'] and viewer.get('intercept') is not None),session)
+            return latest.get('rate',1)*(latest.get('lastWindow') or {}).get('end',0)+(latest.get('intercept') or 0)
+        def publish(result):
+            generated=next((c for c in result if c['page']==reference['page']
+                and self.ai_track(c,language)),None)
+            with self.lock:
+                if cancelled() or not generated:return
+                merged=[]
+                for candidate in self.candidates or []:
+                    if (candidate['page']==reference['page']
+                            and candidate['tracks'].get('en')==reference['tracks']['en']
+                            and (not candidate['tracks'].get(language) or self.ai_track(candidate,language))):
+                        candidate={**candidate,'tracks':{**candidate['tracks'],language:generated['tracks'][language]},
+                            'provenance':{**candidate.get('provenance',{}),language:generated['provenance'][language]}}
+                    merged.append(candidate)
+                if not any(c['page']==reference['page'] and c['tracks'].get('en')==reference['tracks']['en'] for c in merged):
+                    merged.append(generated)
+                self.candidates=merged;self.variants=SubtitleVariants(merged)
+                self.event('subtitle_translation_progress' if generated['provenance'][language].get('partial')
+                           else 'subtitle_translation_ready',programmeKey=key[0],language=language,
+                           cues=len(generated['tracks'][language]))
         def work():
             self.event('subtitle_translation_started',programmeKey=key[0],language=language)
             try:
                 result=cache.with_ai_translation(programme,candidates,language,
-                    reference_page=reference['page'],cancelled=cancelled)
-                generated=next((c for c in result if c['page']==reference['page']
-                    and self.ai_track(c,language)),None)
-                with self.lock:
-                    if not cancelled() and generated:
-                        merged=[]
-                        for candidate in self.candidates or []:
-                            if (candidate['page']==reference['page']
-                                    and candidate['tracks'].get('en')==reference['tracks']['en']
-                                    and not candidate['tracks'].get(language)):
-                                candidate={**candidate,'tracks':{**candidate['tracks'],language:generated['tracks'][language]},
-                                    'provenance':{**candidate.get('provenance',{}),language:generated['provenance'][language]}}
-                            merged.append(candidate)
-                        if not any(c['page']==reference['page'] and c['tracks'].get('en')==reference['tracks']['en'] for c in merged):
-                            merged.append(generated)
-                        self.candidates=merged;self.variants=SubtitleVariants(merged)
-                        self.event('subtitle_translation_ready',programmeKey=key[0],language=language,
-                            cues=len(generated['tracks'][language]))
+                    reference_page=reference['page'],cancelled=cancelled,
+                    priority_time=priority,on_progress=publish)
+                publish(result)
             except Exception as error:
                 self.event('subtitle_translation_retry',programmeKey=key[0],language=language,errorType=type(error).__name__)
             finally:
@@ -232,6 +241,10 @@ class TextHub:
         tracks = []
         for language, cues in candidate['tracks'].items():
             generated = self.ai_track(candidate, language)
+            if generated and candidate.get('provenance',{}).get(language,{}).get('partial'):
+                required={c['index'] for c in candidate['tracks'].get('en',[])
+                          if c['end']>=rate*start+intercept and c['start']<=rate*end+intercept}
+                if not required.issubset({c['index'] for c in cues}):continue
             emitted = [dict(index=cue['index'], start=(cue['start']-intercept)/rate,
                             end=(cue['end']-intercept)/rate,
                             text=('[AI] ' if generated else '') + cue['text'])
@@ -669,10 +682,14 @@ class TextHub:
             searching = set(getattr(self, 'requested_languages', ()))
             if getattr(self, 'searching_language', None):
                 searching.add(self.searching_language)
+            window=session.get('lastWindow') or {}
+            covered={t['language'] for t in self.caption_tracks(reference,window['start'],window['end'],session['rate'],session['intercept'])} if reference and window and session.get('intercept') is not None else set()
+            available=sorted(tag for tag in reference['tracks'] if
+                not reference.get('provenance',{}).get(tag,{}).get('partial') or tag in covered) if reference else []
             status = dict(phase=phase, translation=translation, candidateCount=len(self.candidates or []),
                           searchingLanguages=sorted(searching) if valid else [],
                           resourceLanguages=sorted({choice['language'] for choice in choices}),
-                          availableLanguages=sorted(reference['tracks']) if reference else [],
+                          availableLanguages=available,
                           cacheHit=bool(self.candidates and all(candidate.get('cacheHit') for candidate in self.candidates)),
                           variantCandidates=choices, selectedVariantId=pinned, activeVariantId=active)
             return dict(audioLanguageV1=True,

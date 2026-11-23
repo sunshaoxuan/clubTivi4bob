@@ -236,7 +236,10 @@ language. A later native exact-language track replaces its generated equivalent.
 Each bounded batch has a translation pass and a separate proofreading pass against
 the English original. Cue IDs and timing are retained exactly. Validated draft and
 reviewed batches are saved independently, so retries and restarts resume unfinished
-work. Only complete, reviewed tracks enter the playback catalog, marked `[AI]`.
+work. Current playback is prioritized; only reviewed batches enter the playback
+catalog, marked `[AI]`. A window uses the generated track only when every
+English cue in that window is covered; other windows retain English. Choice IDs
+remain stable as the reviewed track grows.
 Cache keys include the language, original cue grid and pipeline version. Background
 completion does not change the selected language, pinned variant, player or clock.
 A programme change cancels further work for the old film, retaining reusable batches.

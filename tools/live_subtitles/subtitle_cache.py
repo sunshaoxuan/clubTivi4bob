@@ -87,6 +87,9 @@ class SubtitleCache:
         (self.root/'blobs').mkdir(exist_ok=True, mode=0o700)
         self.ai = SubtitleAI(self.root/'.ai')
 
+    def resolve_programme(self, programme):
+        return resolve_identity(programme,self.root)
+
     def with_ai_translation(self, programme, candidates, language, *, reference_page=None,
                             cancelled=lambda:False):
         if (language not in TARGETS or not candidates or not self.ai.enabled or

@@ -115,7 +115,10 @@ class ClientClockTests(unittest.TestCase):
             h.discovery_generation=0;h.last_discovery=0
             entered=threading.Event();release=threading.Event();seen=set()
             class Cache:
+                def resolve_programme(self,p):
+                    return {**p,'imdbId':'tt8820590'}
                 def get_or_discover(self,p,r,discover,requested_language):
+                    assert p['imdbId']=='tt8820590'
                     if requested_language=='en':entered.set();release.wait(2)
                     seen.add(requested_language)
                     return [dict(page='same-film',tracks={language:[] for language in seen})]
@@ -126,6 +129,7 @@ class ClientClockTests(unittest.TestCase):
             self.assertFalse(h.discovery_busy)
             self.assertEqual(seen,{'en','zh-CN','zh-TW','ja','fr','es','ko'})
             self.assertEqual(set(h.candidates[0]['tracks']),seen)
+            self.assertEqual(h.resource_identity['imdbId'],'tt8820590')
     def test_english_fallback_does_not_stop_preferred_language_retry(self):
         with tempfile.TemporaryDirectory() as directory:
             hub = self.hub(directory)

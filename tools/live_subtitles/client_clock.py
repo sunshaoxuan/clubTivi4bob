@@ -105,6 +105,8 @@ class TextHub:
                         options['refresh'] = True
                     identity = getattr(self, 'discovery_identity', None)
                     lookup = identity(programme) if identity is not None else programme
+                    resolver=getattr(self.cache,'resolve_programme',None)
+                    if lookup and resolver is not None:lookup=resolver(lookup)
                     candidates = self.cache.get_or_discover(
                         lookup, self.root/'discovery'/uuid.uuid4().hex, discover, **options
                     ) if lookup and lookup.get('searchable', True) else []

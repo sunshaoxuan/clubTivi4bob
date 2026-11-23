@@ -17,7 +17,7 @@ import uuid
 from live_engine import align, fit_clock_rate, clock_rate_confident, short_cue_clock_evidence, short_cue_clock_cluster
 from subtitle_cache import RETRY_TTL
 from subtitle_ai import CHINESE, TARGETS
-from subtitle_edition import track_fingerprint
+from subtitle_edition import track_fingerprint, translation_fingerprint, rebase_translation
 from subtitle_catalog import discover, LANGUAGES
 from subtitle_variants import SubtitleVariants, UNCHANGED
 from service import reviewed_pilot_source
@@ -139,35 +139,47 @@ class TextHub:
                 getattr(self,'resource_identity_programme',None)!=self.programme['key']
                 or not hasattr(cache,'with_ai_translation')):
             return None
-        fingerprint=track_fingerprint(reference['tracks']['en'])
-        key=(self.programme['key'],language,reference['page'],fingerprint)
+        candidates=list(self.candidates or [])
+        if not any(c['page']==reference['page'] and c['tracks'].get('en')==reference['tracks']['en'] for c in candidates):
+            candidates.append(reference)
+        source,aliases=cache.translation_source(reference,candidates,language)
+        english=source['tracks']['en'];fingerprint=translation_fingerprint(english)
+        key=(self.programme['key'],language,fingerprint)
         jobs=getattr(self,'translation_jobs',None)
         if jobs is None:self.translation_jobs=jobs={}
         job=jobs.get(key)
         if job and (job['running'] or time.monotonic()-job['finished']<30):
-            return dict(language=language,**ai.translation_status(reference['tracks']['en'],language))
+            return dict(language=language,**ai.translation_status(english,language))
         if sum(row['running'] for row in jobs.values())>=2:return dict(language=language,phase='queued')
         for old in list(jobs):
             if not jobs[old]['running'] and old[0]!=self.programme['key']:jobs.pop(old)
         if not TRANSLATION_SLOTS.acquire(blocking=False):return dict(language=language,phase='queued')
         generation=self.discovery_generation
-        programme=dict(identity);candidates=list(self.candidates or [])
-        if not any(c['page']==reference['page'] and c['tracks'].get('en')==reference['tracks']['en'] for c in candidates):
-            candidates.append(reference)
+        programme=dict(identity)
         jobs[key]=dict(running=True,finished=0)
+        def needs_translation(viewer):
+            if (viewer.get('language')!=language or viewer.get('programmeKey')!=key[0]
+                    or viewer.get('lastAccess',0)<=time.time()-120):return False
+            current=viewer.get('reference') or viewer.get('lastMatchedReference')
+            if not current or translation_fingerprint(current['tracks'].get('en',[]))!=fingerprint:return False
+            return not any(row['tracks'].get('en')==current['tracks'].get('en')
+                and row['tracks'].get(language) and not self.ai_track(row,language)
+                for row in [current,*(self.candidates or [])])
         def cancelled():
             return (getattr(self,'stop_event',threading.Event()).is_set() or
                     self.discovery_generation!=generation or self.programme['key']!=key[0] or
-                    not any(s.get('language')==language and s.get('programmeKey')==key[0]
-                            and s.get('lastAccess',0)>time.time()-120 for s in self.sessions.copy().values()))
+                    not any(needs_translation(s) for s in self.sessions.copy().values()))
         last_priority=[session.get('rate',1)*(session.get('lastWindow') or {}).get('end',0)+(session.get('intercept') or 0)]
         def priority():
             latest=next((viewer for viewer in self.sessions.copy().values()
                          if viewer.get('language')==language and not viewer.get('ad')
-                         and (viewer.get('reference') or {}).get('page')==reference['page']
+                         and translation_fingerprint((viewer.get('reference') or {}).get('tracks',{}).get('en',[]))==fingerprint
                          and viewer.get('intercept') is not None),None)
             if latest is not None:
-                last_priority[0]=latest.get('rate',1)*(latest.get('lastWindow') or {}).get('end',0)+latest['intercept']
+                at=latest.get('rate',1)*(latest.get('lastWindow') or {}).get('end',0)+latest['intercept']
+                current=latest['reference']['tracks']['en']
+                index=next((i for i in range(len(current)-1,-1,-1) if current[i]['start']<=at),0)
+                last_priority[0]=at if current==english else english[index]['start']
             return last_priority[0]
         def publish(result):
             generated=next((c for c in result if c['page']==reference['page']
@@ -176,11 +188,15 @@ class TextHub:
                 if cancelled() or not generated:return
                 merged=[]
                 for candidate in self.candidates or []:
-                    if (candidate['page']==reference['page']
-                            and candidate['tracks'].get('en')==reference['tracks']['en']
+                    if (translation_fingerprint(candidate['tracks'].get('en',[]))==fingerprint
                             and (not candidate['tracks'].get(language) or self.ai_track(candidate,language))):
-                        candidate={**candidate,'tracks':{**candidate['tracks'],language:generated['tracks'][language]},
-                            'provenance':{**candidate.get('provenance',{}),language:generated['provenance'][language]}}
+                        if len(candidate['tracks'].get(language,[]))>len(generated['tracks'][language]):
+                            merged.append(candidate);continue
+                        facts={**generated['provenance'][language],
+                            'referenceFingerprint':track_fingerprint(candidate['tracks']['en'])}
+                        candidate={**candidate,'tracks':{**candidate['tracks'],language:rebase_translation(
+                            generated['tracks']['en'],generated['tracks'][language],candidate['tracks']['en'])},
+                            'provenance':{**candidate.get('provenance',{}),language:facts}}
                     merged.append(candidate)
                 if not any(c['page']==reference['page'] and c['tracks'].get('en')==reference['tracks']['en'] for c in merged):
                     merged.append(generated)

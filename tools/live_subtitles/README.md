@@ -244,6 +244,16 @@ Cache keys include the language, original cue grid and pipeline version. Backgro
 completion does not change the selected language, pinned variant, player or clock.
 A programme change cancels further work for the old film, retaining reusable batches.
 
+Equivalent English cue sequences share one translation job and reuse the most
+complete existing cache, even across providers and different timings. Equality
+retains cue boundaries and wording; whitespace and `&`/`and` spelling are
+normalized. Real dialogue changes stay separate. Reviewed batches in legacy
+edition caches are merged under the canonical cache lock; completed work is
+never sent to AI again. Text is projected onto each verified edition’s own cue
+times. Switching to a different English sequence or a usable native target
+cancels unnecessary jobs. Each language exposes at most one AI menu choice,
+while existing edition IDs remain valid for current pins.
+
 The built-in source scope is the three configured providers: Subtitle Cat, SubDL,
 and OpenSubtitles via Stremio. `BOBTV_SUBTITLE_AI_TRANSLATION_ALLOWED_PROVIDERS`,
 when explicitly set, restricts that scope; an explicit empty value disables it.

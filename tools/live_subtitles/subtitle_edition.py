@@ -23,6 +23,21 @@ def transcript_fingerprint(cues):
     return hashlib.sha256(transcript.encode()).hexdigest()
 
 
+def translation_fingerprint(cues):
+    """Share text work across cue-identical editions, preserving cue boundaries."""
+    texts=[' '.join(re.sub(r'\s*&\s*', ' and ', _caption_text(c['text'])).split())
+           for c in cues]
+    return hashlib.sha256(json.dumps(texts,ensure_ascii=False).encode()).hexdigest()
+
+
+def rebase_translation(source, translated, target):
+    if translation_fingerprint(source)!=translation_fingerprint(target):
+        raise ValueError('different_translation_source')
+    positions={cue['index']:i for i,cue in enumerate(source)}
+    texts={positions[cue['index']]:cue['text'] for cue in translated}
+    return [{**cue,'text':texts[i]} for i,cue in enumerate(target) if i in texts]
+
+
 def _edition_rows(metadata, english, alternatives):
     """Keep one canonical row and one sparse sibling for each distinct alternative."""
     primary = {language: next(iter(versions.values())) for language, versions in alternatives.items()}

@@ -13,7 +13,7 @@ from urllib.parse import urlsplit
 from urllib.error import HTTPError
 from urllib.request import HTTPRedirectHandler, HTTPSHandler, ProxyHandler, Request, build_opener
 
-from subtitle_edition import chinese_script, track_fingerprint
+from subtitle_edition import chinese_script, track_fingerprint, translation_fingerprint
 
 PROVIDER = 'AI-generated / AI 翻译'
 CHINESE = ('zh-CN', 'zh-TW')
@@ -154,7 +154,67 @@ class SubtitleAI:
         except (OSError,ValueError):
             return {}
 
-    def translate(self, title, english, language='zh-CN', *, cancelled=lambda:False, priority_time=None, on_progress=None):
+    def cached_data(self, english, language):
+        try:data=json.loads((self.root/(self.translation_key(english,language)+'.json')).read_text())
+        except (OSError,ValueError):return {}
+        return data if isinstance(data,dict) and data.get('pipeline')==PIPELINE and data.get('language')==language else {}
+
+    def reviewed_rows(self, english, data):
+        if data.get('phase')=='ready' and self.valid_rows(data.get('rows'),len(english)):
+            return {row['id']:row for row in data['rows']}
+        rows={}
+        for start,batch in self.batches(english):
+            part=data.get('batches',{}).get(str(start),{})
+            if self.valid_rows(part.get('reviewed'),len(batch),start):
+                rows.update((row['id'],row) for row in part['reviewed'])
+        return rows
+
+    def cache_score(self, english, language):
+        key=self.translation_key(english,language)
+        try:
+            stat=(self.root/(key+'.json')).stat()
+            marker=(stat.st_mtime_ns,stat.st_size,stat.st_ino)
+        except OSError:return (False,0,False)
+        scores=getattr(self,'_cache_scores',None)
+        if scores is None:self._cache_scores=scores={}
+        if key in scores and scores[key][0]==marker:return scores[key][1]
+        data=self.cached_data(english,language)
+        count=len(self.reviewed_rows(english,data))
+        score=(data.get('phase')=='ready' and count==len(english),count,bool(data))
+        if len(scores)>=256:scores.pop(next(iter(scores)))
+        scores[key]=(marker,score)
+        return score
+
+    def cached_translation(self, english, language):
+        rows=self.reviewed_rows(english,self.cached_data(english,language))
+        return [{**english[i],'text':rows[i]['text'].strip()} for i in sorted(rows)] or None
+
+    def merge_equivalent_cache(self, english, language, aliases, path):
+        """Reuse old reviewed work under the canonical edition's existing lock."""
+        data=self.cached_data(english,language)
+        if data.get('phase')=='ready' and self.valid_rows(data.get('rows'),len(english)):return
+        rows=self.reviewed_rows(english,data);before=len(rows)
+        fingerprint=translation_fingerprint(english)
+        for other in aliases:
+            if translation_fingerprint(other)!=fingerprint:continue
+            for i,row in self.reviewed_rows(other,self.cached_data(other,language)).items():
+                rows.setdefault(i,row)
+        if len(rows)==before:return
+        data.update(pipeline=PIPELINE,language=language,totalCues=len(english),retryAfter=0)
+        chunks=data.setdefault('batches',{})
+        for start,batch in self.batches(english):
+            ids=range(start,start+len(batch))
+            if all(i in rows for i in ids):
+                chunks.setdefault(str(start),{})['reviewed']=[rows[i] for i in ids]
+        data['completedCues']=len(self.reviewed_rows(english,data))
+        data['phase']='waiting'
+        if len(rows)==len(english):
+            ordered=[rows[i] for i in range(len(english))]
+            self.validate_language(language,self.cues(english,ordered),english)
+            data.update(phase='ready',rows=ordered,completedCues=len(english))
+        self.save(path,data)
+
+    def translate(self, title, english, language='zh-CN', *, cancelled=lambda:False, priority_time=None, on_progress=None, equivalent_english=()):
         """Draft, review and atomically publish a complete language-specific cue grid."""
         if not self.enabled or language not in TARGETS or not 1 <= len(english) <= 6000:
             return None
@@ -166,8 +226,13 @@ class SubtitleAI:
         self.root.mkdir(parents=True,exist_ok=True)
         with (self.root/(key+'.lock')).open('a') as lock:
             try:fcntl.flock(lock,fcntl.LOCK_EX|fcntl.LOCK_NB)
-            except BlockingIOError:return None
-            return self.translate_locked(title,english,self.root/(key+'.json'),language,cancelled,priority_time,on_progress)
+            except BlockingIOError:
+                result=self.cached_translation(english,language)
+                if result and on_progress:on_progress(result)
+                return result
+            path=self.root/(key+'.json')
+            self.merge_equivalent_cache(english,language,equivalent_english,path)
+            return self.translate_locked(title,english,path,language,cancelled,priority_time,on_progress)
 
     @staticmethod
     def batches(english):
@@ -217,6 +282,7 @@ class SubtitleAI:
             part=chunks.get(str(start),{})
             if self.valid_rows(part.get('reviewed'),len(batch),start):
                 completed.update((row['id'],row) for row in part['reviewed'])
+        data['completedCues']=len(completed)
         def progress():
             if on_progress and completed and len(completed)<len(english):
                 on_progress([{**english[i],'text':completed[i]['text'].strip()} for i in sorted(completed)])

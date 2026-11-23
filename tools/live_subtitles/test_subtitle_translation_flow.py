@@ -109,3 +109,36 @@ class TranslationFlowTests(unittest.TestCase):
             session.update(ad=True,reference=None,intercept=None);release.set()
             self.wait(lambda: all(not job['running'] for job in hub.translation_jobs.values()))
             self.assertEqual(values,[100,100])
+
+    def test_equivalent_english_switch_keeps_one_job_and_projects_each_clock(self):
+        entered=threading.Event();release=threading.Event();calls=[]
+        def transport(_instruction,data):
+            calls.append(data);entered.set();release.wait(3)
+            return {'rows':[dict(id=c['id'],text='私たちは牧場に向かいます。') for c in data['cues']]}
+        with tempfile.TemporaryDirectory() as root:
+            hub,token=self.hub(root,transport);first=hub.candidates[0]
+            alternate=[{**c,'start':c['start']+20,'end':c['end']+20} for c in first['tracks']['en']]
+            second={**first,'page':'other-provider','tracks':{'en':alternate}}
+            hub.candidates.append(second);hub.response(token);self.assertTrue(entered.wait(1))
+            session=hub.sessions[token];session.update(reference=second,intercept=120)
+            hub.response(token)
+            self.assertEqual(len(hub.translation_jobs),1)
+            release.set();self.wait(lambda: all(not job['running'] for job in hub.translation_jobs.values()))
+            response=hub.response(token)
+            self.assertEqual(len(calls),2)
+            self.assertEqual(session['reference']['tracks']['ja'][0]['start'],alternate[0]['start'])
+            choices=[v for v in response['subtitleStatus']['variantCandidates'] if v['language']=='ja']
+            self.assertEqual(len(choices),1)
+
+    def test_switch_to_different_english_reference_stops_old_job(self):
+        entered=threading.Event();release=threading.Event();calls=[]
+        def transport(_instruction,data):
+            calls.append(data);entered.set();release.wait(3)
+            return {'rows':[dict(id=c['id'],text='私たちは牧場に向かいます。') for c in data['cues']]}
+        with tempfile.TemporaryDirectory() as root:
+            hub,token=self.hub(root,transport);hub.response(token);self.assertTrue(entered.wait(1))
+            old=hub.sessions[token]['reference']
+            hub.sessions[token]['reference']={**old,'tracks':{'en':[{**c,'text':'Different dialogue'} for c in old['tracks']['en']]}}
+            release.set();self.wait(lambda: all(not job['running'] for job in hub.translation_jobs.values()))
+            self.assertEqual(len(calls),1)
+            self.assertNotIn('ja',hub.candidates[0]['tracks'])

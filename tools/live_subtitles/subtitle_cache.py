@@ -12,7 +12,8 @@ import time
 import unicodedata
 from urllib.parse import urlsplit
 
-from subtitle_edition import chinese_script, merge_editions, timing_evidence, track_fingerprint
+from subtitle_edition import (chinese_script, merge_editions, timing_evidence, track_fingerprint,
+                              translation_fingerprint, rebase_translation)
 from subtitle_identity import resolve as resolve_identity, release_year
 from subtitle_ai import SubtitleAI, TARGETS, PIPELINE, PROVIDER as AI_PROVIDER
 from subtitle_catalog import (LANGUAGES, PROVIDER_AUDIT, matches_movie_title, parse_srt,
@@ -90,6 +91,17 @@ class SubtitleCache:
     def resolve_programme(self, programme):
         return resolve_identity(programme,self.root)
 
+    def translation_source(self, reference, candidates, language):
+        fingerprint=translation_fingerprint(reference['tracks']['en'])
+        unique={track_fingerprint(row['tracks']['en']):row for row in [reference,*(candidates or [])]
+            if row['tracks'].get('en') and not row.get('provenance',{}).get('en',{}).get('generated')
+            and self.ai.permits_translation(row.get('provenance',{}).get('en',{}))
+            and translation_fingerprint(row['tracks']['en'])==fingerprint}
+        # A started or complete cache wins over an untouched provider alias.
+        source=max(unique.values(),key=lambda row:(self.ai.cache_score(row['tracks']['en'],language),
+                   track_fingerprint(row['tracks']['en']))) if unique else reference
+        return source,[row['tracks']['en'] for row in unique.values()]
+
     def with_ai_translation(self, programme, candidates, language, *, reference_page=None,
                             cancelled=lambda:False, priority_time=None, on_progress=None):
         if (language not in TARGETS or not candidates or not self.ai.enabled or
@@ -106,18 +118,21 @@ class SubtitleCache:
         if (reference is None or reference['tracks'].get(language) and not reference.get('provenance',{}).get(language,{}).get('partial') or
                 not self.ai.permits_translation(reference.get('provenance',{}).get('en',{}))):
             return candidates
-        english=reference['tracks']['en']
+        source,aliases=self.translation_source(reference,candidates,language)
+        english=source['tracks']['en']
         def candidate(cues):
-            translated={**reference,'tracks':{**reference['tracks'],language:cues},
+            translated={**reference,'tracks':{**reference['tracks'],language:
+                rebase_translation(english,cues,reference['tracks']['en'])},
                 'provenance':{**reference.get('provenance',{}),language:{
                     'provider':AI_PROVIDER,'release':f'AI {language} · proofread','generated':True,
-                    'referenceFingerprint':track_fingerprint(english),'pipeline':PIPELINE,
+                    'referenceFingerprint':track_fingerprint(reference['tracks']['en']),
+                    'translationFingerprint':translation_fingerprint(english),'pipeline':PIPELINE,
                     'partial':len(cues)!=len(english)}}}
             return [translated if item is reference else item for item in candidates]
         def progress(cues):
             if on_progress:on_progress(candidate(cues))
         cues=self.ai.translate(programme['title'],english,language,cancelled=cancelled,
-                              priority_time=priority_time,on_progress=progress)
+                              priority_time=priority_time,on_progress=progress,equivalent_english=aliases)
         return candidate(cues) if cues else candidates
 
     # Compatibility for external diagnostic callers; new production scheduling

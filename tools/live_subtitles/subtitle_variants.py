@@ -80,22 +80,25 @@ class SubtitleVariants:
             options = self._choices[language]
             unique = {}
             active = self.track(reference, language)
-            if active:
-                unique[active['id']] = active
-            if pinned:
-                choice = next((option for option in options if option['id'] == pinned), None)
-                if choice:
-                    unique[choice['id']] = choice
+            choice = next((option for option in options if option['id'] == pinned), None) if pinned else None
+            def add(option):
+                if option is None:return
+                if option['generated'] and any(row['generated'] for row in unique.values()):return
+                unique.setdefault(option['id'],option)
+            # A pinned AI edition remains addressable during clock acquisition.
+            if choice and choice['generated']:add(choice)
+            add(active)
+            add(choice)
             used_providers = {choice['provider'] for choice in unique.values()}
             for option in options:
                 if len(unique) >= 3:
                     break
                 if option['provider'] not in used_providers and option['id'] not in unique:
-                    unique[option['id']] = option
+                    add(option)
                     used_providers.add(option['provider'])
             for option in options:
                 if len(unique) >= 3:
                     break
-                unique.setdefault(option['id'], option)
+                add(option)
             result.extend(unique.values())
         return result

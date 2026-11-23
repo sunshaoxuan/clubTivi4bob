@@ -99,3 +99,16 @@ class SubtitleVariantsTest(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+    def test_only_one_ai_choice_per_language_preserves_active_and_pinned_ids(self):
+        a=self.translation('AI first');b=self.translation('AI second',page='b',offset=20)
+        human=self.translation('native',page='human',provider='native')
+        for row in [a,b]:
+            row['provenance']['zh-CN'].update(generated=True,referenceFingerprint=row['page'],pipeline=3)
+        catalog=SubtitleVariants([a,b,human]);first=catalog.track(a,'zh-CN')['id'];second=catalog.track(b,'zh-CN')['id']
+        choices=[c for c in catalog.choices(a) if c['language']=='zh-CN']
+        self.assertEqual([c['id'] for c in choices if c['generated']],[first])
+        choices=[c for c in catalog.choices(a,second) if c['language']=='zh-CN']
+        self.assertEqual([c['id'] for c in choices if c['generated']],[second])
+        self.assertTrue(any(not c['generated'] for c in choices))
+        self.assertTrue(catalog.supports(a,first));self.assertTrue(catalog.supports(b,second))

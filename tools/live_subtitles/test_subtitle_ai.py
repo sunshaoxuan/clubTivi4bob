@@ -187,3 +187,73 @@ class SubtitleAITest(unittest.TestCase):
         hub=TextHub.__new__(TextHub);hub.candidates=[partial]
         self.assertEqual({t['language'] for t in hub.caption_tracks(partial,975,1001,1,0)},{'en'})
         self.assertEqual({t['language'] for t in hub.caption_tracks(partial,1000,1001,1,0)},{'en','ja'})
+
+    def test_equivalent_english_alias_reuses_ready_cache_and_its_own_times(self):
+        from subtitle_edition import translation_fingerprint
+        calls=[]
+        def transport(_instruction,data):
+            calls.append(data)
+            return {'rows':[dict(id=c['id'],text='私たちは牧場に向かっています。') for c in data['cues']]}
+        english=[{**c,'text':f'We work at M & H ranch. Line {i}.'} for i,c in enumerate(self.english()[:45])]
+        alternate=[{**c,'text':c['text'].replace(' & ',' and '),'start':c['start']+20,'end':c['end']+20} for c in english]
+        self.assertEqual(translation_fingerprint(english),translation_fingerprint(alternate))
+        movie=dict(title='Film',year=2018,searchable=True,imdbId='tt8820590',identityEvidence='official_movie_record')
+        first=dict(page='a',tracks={'en':english},provenance={'en':dict(imdbId=movie['imdbId'],provider='SubDL')})
+        second=dict(page='b',tracks={'en':alternate},provenance=first['provenance'])
+        with tempfile.TemporaryDirectory() as root:
+            cache=SubtitleCache(root);cache.ai=SubtitleAI(cache.root/'.ai',transport)
+            result=cache.with_ai_translation(movie,[first,second],'ja',reference_page='a')
+            self.assertEqual(len(calls),4)
+            # Restart the cache object and choose the other provider/clock.
+            cache=SubtitleCache(root);cache.ai=SubtitleAI(cache.root/'.ai',transport)
+            result=cache.with_ai_translation(movie,[first,second],'ja',reference_page='b')
+            self.assertEqual(len(calls),4)
+            self.assertEqual([(c['start'],c['end']) for c in result[1]['tracks']['ja']],
+                             [(c['start'],c['end']) for c in alternate])
+            changed=[{**c,'text':c['text'].replace('work','do not work')} for c in alternate]
+            self.assertNotEqual(translation_fingerprint(english),translation_fingerprint(changed))
+
+    def test_old_partial_caches_merge_without_retranslating_reviewed_batches(self):
+        from subtitle_ai import PIPELINE
+        calls=[]
+        def transport(_instruction,data):
+            calls.append(data['cues'][0]['id'])
+            return {'rows':[dict(id=c['id'],text='新しく翻訳しました。') for c in data['cues']]}
+        english=[{**c,'text':'We work at M & H ranch.'} for c in self.english()]
+        other=[{**c,'text':'We work at M and H ranch.','start':c['start']+20,'end':c['end']+20} for c in english]
+        with tempfile.TemporaryDirectory() as root:
+            ai=SubtitleAI(root,transport)
+            for cues,start in [(english,0),(other,40)]:
+                rows=[dict(id=i,text='以前に校正しました。') for i in range(start,start+40)]
+                ai.save(ai.root/(ai.translation_key(cues,'ja')+'.json'),dict(pipeline=PIPELINE,
+                    language='ja',phase='waiting',totalCues=105,completedCues=40,
+                    batches={str(start):dict(reviewed=rows)}))
+            result=ai.translate('Film',english,'ja',equivalent_english=[english,other])
+            self.assertEqual(len(result),105)
+            self.assertEqual(calls,[80,80])
+            self.assertEqual([c['text'] for c in result[:80]],['以前に校正しました。']*80)
+            self.assertEqual(ai.translate('Film',english,'ja'),result)
+            self.assertEqual(calls,[80,80])
+
+    def test_inflight_cache_exposes_only_reviewed_progress_without_another_call(self):
+        import fcntl
+        from subtitle_ai import PIPELINE
+        english=self.english()[:45]
+        with tempfile.TemporaryDirectory() as root:
+            ai=SubtitleAI(root,lambda *_:self.fail('duplicate AI request'))
+            key=ai.translation_key(english,'ja')
+            ai.save(ai.root/(key+'.json'),dict(pipeline=PIPELINE,language='ja',phase='proofreading',
+                batches={'0':dict(reviewed=[dict(id=i,text='校正済みです。') for i in range(40)]),
+                         '40':dict(draft=[dict(id=i,text='draft') for i in range(40,45)])}))
+            with (ai.root/(key+'.lock')).open('a') as lock:
+                fcntl.flock(lock,fcntl.LOCK_EX|fcntl.LOCK_NB)
+                result=ai.translate('Film',english,'ja')
+            self.assertEqual(len(result),40)
+            self.assertTrue(all(c['text']=='校正済みです。' for c in result))
+
+    def test_cue_boundaries_and_real_word_changes_keep_separate_translation_sources(self):
+        from subtitle_edition import translation_fingerprint
+        a=[dict(index=1,start=0,end=2,text='Do not go.'),dict(index=2,start=2,end=4,text='Wait here.')]
+        b=[dict(index=1,start=0,end=4,text='Do not go. Wait here.')]
+        self.assertNotEqual(translation_fingerprint(a),translation_fingerprint(b))
+        self.assertNotEqual(translation_fingerprint(a),translation_fingerprint([{**a[0],'text':'Do go.'},a[1]]))

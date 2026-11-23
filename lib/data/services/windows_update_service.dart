@@ -2,7 +2,6 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
-import 'dart:ui' show PlatformDispatcher;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
@@ -55,6 +54,7 @@ class WindowsUpdateService {
   int? _workerPid;
   DateTime? _workerStartedAt;
   bool _readingStatus = false;
+  bool _preparingToolchain = false;
   bool _managed = false;
   bool _installRequested = false;
   String? _installRequestId;
@@ -237,6 +237,57 @@ class WindowsUpdateService {
     return candidate;
   }
 
+  Future<Directory> _prepareToolchain(UpdateManifest manifest) async {
+    final directory = _updateDirectory!;
+    final updater = manifest.updater;
+    if (updater == null) return directory;
+    state.value = WindowsUpdateState(
+      WindowsUpdatePhase.verifying,
+      version: manifest.version,
+    );
+    final target = Directory(
+      p.join(
+        directory.path,
+        'Toolchains',
+        'toolchain-${updater.sha256}-${DateTime.now().microsecondsSinceEpoch}',
+      ),
+    );
+    _preparingToolchain = true;
+    try {
+      final result = await Process.run('powershell.exe', [
+        '-NoProfile',
+        '-NonInteractive',
+        '-WindowStyle',
+        'Hidden',
+        '-ExecutionPolicy',
+        'Bypass',
+        '-File',
+        p.join(directory.path, 'prepare_toolchain.ps1'),
+        '-ArchiveUrl',
+        (await ServerEgress.nodes.resolve(updater.archive)).toString(),
+        '-Sha256',
+        updater.sha256,
+        '-Bytes',
+        '${updater.bytes}',
+        '-Signature',
+        updater.signature,
+        '-Version',
+        manifest.version,
+        '-Destination',
+        target.path,
+      ], runInShell: false);
+      if (result.exitCode != 0 || !await target.exists()) {
+        throw StateError('升级工具校验失败，当前版本可继续使用');
+      }
+      AppDiagnostics.instance.log('updater_toolchain_prepared', {
+        'version': manifest.version,
+      });
+      return target;
+    } finally {
+      _preparingToolchain = false;
+    }
+  }
+
   Future<void> _launchWorker(
     UpdateManifest manifest, {
     WindowsInstallerPackage? previousInstaller,
@@ -252,28 +303,31 @@ class WindowsUpdateService {
       0xbf,
       ...utf8.encode(source),
     ], flush: true);
-    if (_managed) {
-      for (final name in [
-        'installer_worker.ps1',
-        'publisher_signature.ps1',
-        'update-signing-public.pem',
-      ]) {
-        await File(p.join(directory.path, name)).writeAsBytes([
-          if (name.endsWith('.ps1')) ...[0xef, 0xbb, 0xbf],
-          ...utf8.encode(await rootBundle.loadString('assets/updater/$name')),
-        ], flush: true);
-      }
+    for (final name in [
+      'installer_worker.ps1',
+      'prepare_toolchain.ps1',
+      'publisher_signature.ps1',
+      'update-signing-public.pem',
+    ]) {
+      await File(p.join(directory.path, name)).writeAsBytes([
+        if (name.endsWith('.ps1')) ...[0xef, 0xbb, 0xbf],
+        ...utf8.encode(await rootBundle.loadString('assets/updater/$name')),
+      ], flush: true);
     }
     final preferences = await SharedPreferences.getInstance();
     final selectedLanguage = AppLanguage.fromTag(
       preferences.getString(AppLanguage.preferenceKey),
     );
-    final language = selectedLanguage ?? AppLanguage.resolve(
-      PlatformDispatcher.instance.locales,
-      await AppLanguage.readTimeZone(),
-    );
+    final language =
+        selectedLanguage ??
+        AppLanguage.resolve(
+          PlatformDispatcher.instance.locales,
+          await AppLanguage.readTimeZone(),
+        );
     final copy = await rootBundle.loadString(language.bundlePath);
-    await File(p.join(directory.path, 'update-copy.json')).writeAsString(copy, flush: true);
+    await File(
+      p.join(directory.path, 'update-copy.json'),
+    ).writeAsString(copy, flush: true);
     final progressScript = File(p.join(directory.path, 'progress_ui.ps1'));
     await progressScript.writeAsBytes([
       0xef,
@@ -283,6 +337,7 @@ class WindowsUpdateService {
         await rootBundle.loadString('assets/updater/progress_ui.ps1'),
       ),
     ], flush: true);
+    final toolchain = await _prepareToolchain(manifest);
     final appDirectory = p.dirname(Platform.resolvedExecutable);
     _runId = '${DateTime.now().microsecondsSinceEpoch}-$pid';
     _workerStartedAt = DateTime.now();
@@ -293,7 +348,10 @@ class WindowsUpdateService {
       'logPath': p.join(directory.path, 'launcher.log'),
       'arguments': [
         '-File',
-        _managed ? p.join(directory.path, 'installer_worker.ps1') : script.path,
+        p.join(
+          toolchain.path,
+          _managed ? 'installer_worker.ps1' : 'worker.ps1',
+        ),
         '-Mode',
         'Update',
         '-AppDir',
@@ -345,7 +403,9 @@ class WindowsUpdateService {
         'logPath': p.join(directory.path, 'progress-ui-launcher.log'),
         'arguments': [
           '-File',
-          progressScript.path,
+          p.join(toolchain.path, 'progress_ui.ps1'),
+          '-StateRoot',
+          directory.path,
           '-CurrentPid',
           '$pid',
           '-Version',
@@ -495,7 +555,12 @@ class WindowsUpdateService {
 
   Future<void> _readWorkerStatus() async {
     final directory = _updateDirectory;
-    if (directory == null || _workerPid == null || _readingStatus) return;
+    if (directory == null ||
+        _workerPid == null ||
+        _readingStatus ||
+        _preparingToolchain) {
+      return;
+    }
     _readingStatus = true;
     final file = File(p.join(directory.path, 'status-$_runId.json'));
     try {
@@ -514,6 +579,7 @@ class WindowsUpdateService {
           );
         }
       }
+      if (_preparingToolchain) return;
       final terminal =
           reported?.phase == WindowsUpdatePhase.failed ||
           reported?.phase == WindowsUpdatePhase.installed;

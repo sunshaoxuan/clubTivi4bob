@@ -8,6 +8,7 @@ class UpdateManifest {
     required this.bytes,
     this.signature,
     this.installer,
+    this.updater,
   });
 
   final String version;
@@ -16,6 +17,7 @@ class UpdateManifest {
   final int bytes;
   final String? signature;
   final WindowsInstallerPackage? installer;
+  final UpdaterPackage? updater;
 
   static final _versionPattern = RegExp(r'^\d+\.\d+\.\d+\+\d+$');
   static final _hashPattern = RegExp(r'^[a-fA-F0-9]{64}$');
@@ -70,6 +72,9 @@ class UpdateManifest {
       sha256: hash.toLowerCase(),
       bytes: bytes,
       signature: signature as String?,
+      updater: decoded['updater'] == null
+          ? null
+          : UpdaterPackage.parse(decoded['updater'], manifestUri, version),
       installer: decoded['installer'] == null
           ? null
           : WindowsInstallerPackage.parse(
@@ -161,6 +166,60 @@ class WindowsInstallerPackage {
       archive: uri,
       sha256: hash.toLowerCase(),
       bytes: bytes,
+      signature: signature,
+    );
+  }
+}
+
+/// Small publisher-signed component used by both Windows distribution formats.
+class UpdaterPackage {
+  const UpdaterPackage({
+    required this.archive,
+    required this.sha256,
+    required this.bytes,
+    required this.signature,
+  });
+  final Uri archive;
+  final String sha256;
+  final int bytes;
+  final String signature;
+
+  static UpdaterPackage parse(dynamic data, Uri manifestUri, String version) {
+    if (data is! Map<String, dynamic>) {
+      throw const FormatException('Invalid updater package');
+    }
+    final uri = data['archive'] is String
+        ? Uri.tryParse(data['archive'] as String)
+        : null;
+    final hash = data['sha256'];
+    final size = data['bytes'];
+    final signature = data['signature'];
+    final platform = RegExp(
+      r'/updates/(windows-(?:x64|arm64))/',
+    ).firstMatch(manifestUri.path)?.group(1);
+    if (platform == null ||
+        uri == null ||
+        uri.scheme != 'https' ||
+        uri.host != manifestUri.host ||
+        uri.userInfo.isNotEmpty ||
+        uri.hasPort ||
+        uri.hasQuery ||
+        uri.hasFragment ||
+        uri.path !=
+            '/updates/files/BobTV-${version.split('+').first}-$platform-Updater.zip' ||
+        hash is! String ||
+        !RegExp(r'^[a-f0-9]{64}$').hasMatch(hash) ||
+        size is! int ||
+        size < 1024 ||
+        size > 2097152 ||
+        signature is! String ||
+        !RegExp(r'^[A-Za-z0-9+/]{80,120}={0,2}$').hasMatch(signature)) {
+      throw const FormatException('Invalid updater package fields');
+    }
+    return UpdaterPackage(
+      archive: uri,
+      sha256: hash,
+      bytes: size,
       signature: signature,
     );
   }

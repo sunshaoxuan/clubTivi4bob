@@ -52,6 +52,11 @@ def test_finalization_signs_setup_and_verifies_pinned_key(tmp_path, monkeypatch)
                                     '--signing-key', str(private)])
     module.main()
     metadata = json.loads((tmp_path / 'BobTV-update-metadata.json').read_text())
+    updater = metadata['packages'][0]['updater']
+    component = tmp_path/updater['filename']
+    assert updater['filename'] == 'BobTV-1.1.2-windows-x64-Updater.zip'
+    module._verify_mac_signature(component, updater['signature'])
+    assert component.name in (tmp_path/'SHA256SUMS.txt').read_text()
     setup = metadata['packages'][0]['installer']
     assert setup['filename'] == installer.name
     assert setup['sha256'] == hashlib.sha256(installer.read_bytes()).hexdigest()

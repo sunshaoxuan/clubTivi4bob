@@ -10,6 +10,7 @@ import tempfile
 import os
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "website"))
+from updater_bundle import build as build_updater_bundle
 from mirror_releases import _inspect_update_archive, _verify_mac_signature, version_parts, UPDATE_PLATFORMS
 
 PLATFORMS = ('windows-x64', 'windows-arm64', 'macos-x64', 'macos-arm64',
@@ -103,6 +104,20 @@ def main():
                 _verify_mac_signature(installer,signature)
                 entries[platform]['installer']={'filename':installer.name,'sha256':digest(installer),
                                                'bytes':installer.stat().st_size,'signature':signature}
+        if platform.startswith('windows-'):
+            if not args.signing_key:
+                raise ValueError('Windows updater components require the publisher signing key')
+            component = root / f'BobTV-{args.version.split("+")[0]}-{platform}-Updater.zip'
+            build_updater_bundle(Path(__file__).resolve().parents[1]/'assets/updater', component, args.version)
+            with tempfile.TemporaryDirectory() as folder:
+                signature_path = Path(folder)/'updater.der'
+                subprocess.run(['openssl','dgst','-sha256','-sign',str(args.signing_key),
+                    '-out',str(signature_path),str(component)],check=True,capture_output=True)
+                signature = base64.b64encode(signature_path.read_bytes()).decode('ascii')
+            _verify_mac_signature(component, signature)
+            entries[platform]['updater'] = {'filename':component.name, 'sha256':digest(component),
+                'bytes':component.stat().st_size, 'signature':signature}
+            assets.append(component)
         assets.append(archive)
     payload["packages"] = [entries[name] for name in PLATFORMS if name in selected]
     metadata.write_text(json.dumps(payload, separators=(",", ":")), encoding="utf-8")

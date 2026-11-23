@@ -56,9 +56,9 @@ def version_parts(version):
     return tuple(map(int, re.split(r"[.+]", version)))
 
 
-def _download_verified(asset, target, expected_hash=None):
+def _download_verified(asset, target, expected_hash=None, *, minimum_bytes=1_000_000):
     size = asset["size"]
-    if not isinstance(size, int) or not 1_000_000 <= size <= MAX_UPDATE_BYTES:
+    if not isinstance(size, int) or not minimum_bytes <= size <= MAX_UPDATE_BYTES:
         raise ValueError("Invalid update asset size")
     github_hash = asset.get("digest")
     if github_hash and not re.fullmatch(r"sha256:[a-f0-9]{64}", github_hash):
@@ -188,7 +188,7 @@ def _mirror_updates(release, selected):
         raise ValueError("Update metadata has no packages")
     seen = set()
     for package in packages:
-        if not isinstance(package, dict) or not {"platform", "filename", "sha256", "bytes"} <= set(package) or set(package) - {"platform", "filename", "sha256", "bytes", "signature", "installer"}:
+        if not isinstance(package, dict) or not {"platform", "filename", "sha256", "bytes"} <= set(package) or set(package) - {"platform", "filename", "sha256", "bytes", "signature", "installer", "updater"}:
             raise ValueError("Invalid update package entry")
         platform = package["platform"]
         filename = package["filename"]
@@ -233,12 +233,31 @@ def _mirror_updates(release, selected):
             _compatibility_alias(installer_path, installer_path.with_name(legacy_installer))
             installer_entry = {'archive':f'https://bobtv.briconbric.com/updates/files/{legacy_installer}',
                                'sha256':item['sha256'],'bytes':item['bytes'],'signature':item['signature']}
+        updater_entry = None
+        if 'updater' in package:
+            from updater_bundle import inspect as inspect_updater
+            item = package['updater']
+            name = f'BobTV-{version.split("+")[0]}-{platform}-Updater.zip'
+            asset = assets.get(name)
+            if (not platform.startswith('windows-') or not isinstance(item, dict)
+                    or set(item) != {'filename','sha256','bytes','signature'}
+                    or item['filename'] != name or asset is None or type(item['bytes']) is not int
+                    or not 1024 <= item['bytes'] <= 2097152 or item['bytes'] != asset['size']
+                    or not isinstance(item['sha256'], str) or not re.fullmatch('[a-f0-9]{64}', item['sha256'])):
+                raise ValueError('Invalid updater component metadata')
+            component = DATA/'updates/files'/name
+            _download_verified(asset, component, item['sha256'], minimum_bytes=1024)
+            _verify_publisher_signature(component, item['signature'])
+            inspect_updater(component, version)
+            updater_entry = {'archive':f'https://bobtv.briconbric.com/updates/files/{name}',
+                'sha256':item['sha256'],'bytes':item['bytes'],'signature':item['signature']}
         historical = {'schema':1,'version':version,
             'archive':f'https://bobtv.briconbric.com/updates/files/{legacy_filename}',
             'sha256':checksum,'bytes':package['bytes'],'publishedAt':release['published_at']}
         if 'displayVersion' in payload: historical['displayVersion'] = display_version
         if platform.startswith('macos-'): historical['signature'] = package['signature']
         if installer_entry: historical['installer'] = installer_entry
+        if updater_entry: historical['updater'] = updater_entry
         history_path = DATA / 'updates' / platform / 'versions' / f'{version}.json'
         history_path.parent.mkdir(parents=True,exist_ok=True)
         history_tmp = history_path.with_name(f'.{version}.{os.getpid()}.tmp')
@@ -256,6 +275,7 @@ def _mirror_updates(release, selected):
             if platform.startswith("macos-"):
                 selected[platform]["signature"] = package["signature"]
             if installer_entry: selected[platform]['installer'] = installer_entry
+            if updater_entry: selected[platform]['updater'] = updater_entry
 
 
 def request(url):
@@ -379,6 +399,8 @@ def mirror(release_tag=None, all_releases=False):
             approved[filename] = entry["sha256"]
             if entry.get('displayVersion'):
                 approved[filename.replace(entry['version'], entry['displayVersion'], 1)] = entry['sha256']
+            if entry.get('updater'):
+                approved[entry['updater']['archive'].rsplit('/',1)[-1]] = entry['updater']['sha256']
             if entry.get('installer'):
                 installer_filename = entry['installer']['archive'].rsplit('/',1)[-1]
                 approved[installer_filename] = entry['installer']['sha256']

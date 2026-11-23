@@ -8,6 +8,53 @@ import 'package:flutter_test/flutter_test.dart';
 void main() {
   final mirror = Uri.parse('https://bobtv.briconbric.com/updates/latest.json');
 
+  test(
+    'Windows updater component is bounded and matches the target platform',
+    () {
+      final uri = Uri.parse(
+        'https://bobtv.briconbric.com/updates/windows-arm64/latest.json',
+      );
+      final entry = {
+        'archive':
+            'https://bobtv.briconbric.com/updates/files/BobTV-1.4.5-windows-arm64-Updater.zip',
+        'sha256': 'a' * 64,
+        'bytes': 20000,
+        'signature': 'A' * 96,
+      };
+      expect(UpdaterPackage.parse(entry, uri, '1.4.5+7').bytes, 20000);
+      for (final changed in [
+        {...entry, 'bytes': 2097153},
+        {...entry, 'signature': 'bad'},
+        {
+          ...entry,
+          'archive': (entry['archive'] as String).replaceFirst('arm64', 'x64'),
+        },
+        {
+          ...entry,
+          'archive': (entry['archive'] as String).replaceFirst(
+            'bobtv.briconbric.com',
+            'untrusted.example',
+          ),
+        },
+      ]) {
+        expect(
+          () => UpdaterPackage.parse(changed, uri, '1.4.5+7'),
+          throwsFormatException,
+        );
+      }
+      expect(
+        () => UpdaterPackage.parse(
+          entry,
+          Uri.parse(
+            'https://bobtv.briconbric.com/updates/android-arm64/latest.json',
+          ),
+          '1.4.5+7',
+        ),
+        throwsFormatException,
+      );
+    },
+  );
+
   test('application version matches the release source', () {
     final pubspec = File('pubspec.yaml').readAsStringSync();
     expect(pubspec, contains('version: $bobTvVersion'));
@@ -25,7 +72,10 @@ void main() {
   });
 
   test('newer build is newer even within the same release', () {
-    expect(UpdateManifest.compareVersions('1.3.0+0', '1.1.25+120'), greaterThan(0));
+    expect(
+      UpdateManifest.compareVersions('1.3.0+0', '1.1.25+120'),
+      greaterThan(0),
+    );
     expect(
       UpdateManifest.compareVersions('0.9.1+54', '0.9.1+53'),
       greaterThan(0),

@@ -1,6 +1,12 @@
-param([int]$CurrentPid, [int]$WorkerPid, [string]$Version, [string]$RunId, [string]$AppDir)
+param([int]$CurrentPid, [int]$WorkerPid, [string]$Version, [string]$RunId, [string]$AppDir, [string]$StateRoot)
 $ErrorActionPreference='Stop'
 $root=$PSScriptRoot
+if($StateRoot){
+  $expected=[IO.Path]::GetFullPath((Join-Path $env:LOCALAPPDATA 'HotelTV\Update')).TrimEnd('\')
+  $provided=[IO.Path]::GetFullPath($StateRoot).TrimEnd('\')
+  if(!$provided.Equals($expected,[StringComparison]::OrdinalIgnoreCase)){throw 'Invalid progress state directory'}
+  $root=$provided
+}
 $copy=$null
 try {
   $copy=Get-Content -LiteralPath (Join-Path $root 'update-copy.json') -Raw -Encoding UTF8 | ConvertFrom-Json

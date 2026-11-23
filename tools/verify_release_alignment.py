@@ -11,6 +11,7 @@ import zipfile
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'website'))
+from updater_bundle import inspect as inspect_updater
 from mirror_releases import _inspect_update_archive, _verify_publisher_signature, version_parts
 from android.verify_apk import verify as verify_apk
 from android.version_code import split_install_code
@@ -71,6 +72,12 @@ def verify(directory, version, build_tools, desktop_only=False):
                 raise ValueError('Embedded Mac version/build differs')
             assets.add(path.name.removesuffix('.zip')+'.dmg')
         else:
+            updater=package['updater'];component=directory/updater['filename']
+            if updater['filename'] != f'BobTV-{base}-{package["platform"]}-Updater.zip' or component.stat().st_size != updater['bytes'] or digest(component) != updater['sha256']:
+                raise ValueError('Windows updater component mismatch')
+            _verify_publisher_signature(component, updater['signature'])
+            inspect_updater(component, version)
+            assets.add(component.name)
             installer=package['installer'];target=directory/installer['filename']
             if target.stat().st_size != installer['bytes'] or digest(target) != installer['sha256']:
                 raise ValueError('Windows Setup hash mismatch')
@@ -81,7 +88,7 @@ def verify(directory, version, build_tools, desktop_only=False):
         sha,name=line.split('  ',1)
         if name in checksums:raise ValueError('Duplicate checksum entry')
         checksums[name]=sha
-    expected_assets = 9 if desktop_only else 12
+    expected_assets = 11 if desktop_only else 14
     if set(checksums) != assets or len(assets) != expected_assets:
         raise ValueError('Unexpected release checksum matrix')
     for name,sha in checksums.items():

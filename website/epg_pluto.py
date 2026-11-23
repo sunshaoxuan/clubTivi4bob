@@ -35,6 +35,16 @@ ALL_CHANNELS = {identity:(country,slug) for country,_,channels in SCOPES.values(
 
 def scope(source):
     from epg_ingest import EpgError
+    if source.get('id', '').startswith('pluto-auto-'):
+        identity = source.get('serviceId')
+        country = source.get('countryCode')
+        if (not isinstance(identity, str) or not re.fullmatch(r'[a-f0-9]{24}', identity)
+                or not isinstance(country, str) or not re.fullmatch(r'[A-Z]{2}', country)
+                or source['id'] != 'pluto-auto-'+country.lower()+'-'+identity
+                or source.get('countryBasis') != 'catalogue_presentation'
+                or source.get('calendarTimezone') != 'UTC'):
+            raise EpgError('invalid_pluto_automatic_scope')
+        return country, 'UTC', {identity: None}
     value=SCOPES.get(source.get('id','pluto-de-official-v1'))
     if value is None:raise EpgError('unreviewed_pluto_source_scope')
     return value
@@ -90,7 +100,8 @@ def fetch_schedule(source, now, fetcher=None):
         raw=fetcher(url)
         try:
             data=json.loads(raw)
-            if data['_id']!=identity or data['slug']!=slug:raise EpgError('pluto_feed_identity_mismatch')
+            if (data['_id']!=identity or slug is not None and data['slug']!=slug
+                    or not isinstance(data.get('slug'),str) or not re.fullmatch(r'[a-z0-9-]{1,200}',data['slug'])):raise EpgError('pluto_feed_identity_mismatch')
             timelines=data['timelines']
             if not isinstance(timelines,list) or len(timelines)>500:raise EpgError('pluto_timeline_limit')
             projected={k:data[k] for k in ['_id','slug','name','number']}
@@ -119,11 +130,15 @@ def parse_schedule(payload,source,now):
         return int(dt.timestamp())
     for row in value['data']:
         identity=row['_id'];original='pluto:'+country.lower()+':'+identity
-        if row.get('slug')!=selected[identity] or not isinstance(row.get('name'),str) or not 0<len(row['name'])<=512:
+        if (selected[identity] is not None and row.get('slug')!=selected[identity]
+                or not isinstance(row.get('slug'),str) or not re.fullmatch(r'[a-z0-9-]{1,200}',row['slug'])
+                or not isinstance(row.get('name'),str) or not 0<len(row['name'])<=512):
             raise EpgError('pluto_feed_identity_mismatch')
         channels[original]=[row['name']]
         contexts[original]={'provider':'pluto-tv','providerChannelId':identity,'channelSlug':row['slug'],
             'countryCode':country,'regionCode':None,'sourceTimestampEncoding':'iso8601_explicit_offset'}
+        if source.get('id', '').startswith('pluto-auto-'):
+            contexts[original].update(automaticRouteIdentity=True, countryBasis='catalogue_presentation')
         unique={};conflicts=set()
         for e in row['timelines']:
             try:
@@ -163,7 +178,11 @@ def verify_current_catalogue_route(channel_id,context,evidence):
         if key not in _CACHE:
             _,rows=load_catalog(DATA);_CACHE.clear();_CACHE[key]={c['id']:c for c in rows}
         channel=_CACHE[key][channel_id];identity=context['providerChannelId']
-        expected_country,expected_slug=ALL_CHANNELS[identity]
+        if context.get('automaticRouteIdentity') is True:
+            if evidence.get('automaticAdmission') != 'publisher_provider_id_v1':raise ValueError()
+            expected_country,expected_slug=context['countryCode'],context['channelSlug']
+        else:
+            expected_country,expected_slug=ALL_CHANNELS[identity]
         if (channel['countryCode']!=expected_country or context['countryCode']!=expected_country or context['channelSlug']!=expected_slug
                 or evidence.get('providerChannelId')!=identity or not channel['routes']
                 or any(route_id(r['url'])!=identity for r in channel['routes'])):raise ValueError()

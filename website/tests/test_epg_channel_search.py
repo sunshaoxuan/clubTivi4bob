@@ -61,7 +61,7 @@ def test_request_preserves_model_has_explicit_tool_bounds_and_no_private_context
     assert FACTS['evidenceUrls'][0] not in json.dumps(body)
 
 
-@pytest.mark.parametrize('mutation', [lambda f:f.pop('operator'),lambda f:f.update(language=''),
+@pytest.mark.parametrize('mutation', [lambda f:f.pop('operator'),lambda f:f.update(fullName=''),
     lambda f:f.update(evidenceUrls=['https://127.0.0.1/private']),lambda f:f.update(categoryPath=[])])
 def test_no_incomplete_identity_or_private_evidence(mutation):
     facts = copy.deepcopy(FACTS);mutation(facts)

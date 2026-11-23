@@ -203,15 +203,15 @@ def plan(channel, category_path, identity_facts, attempts, phase_index=0, review
             suffix = ('официальный сайт радио вещатель частота',
                       'официальное радио язык вещания регион версия потока')[attempts % 2]
         elif any('\u3400' <= c <= '\u9fff' for c in full):
-            suffix = ('官方 频道介绍 直播 频率 所属机构', '官方 频道简介 语言 地区版本')[attempts % 2]
+            suffix = ('官方 频道介绍 发布者 所属平台', '官方 频道简介 具体频道 地区版本')[attempts % 2]
         else:
-            suffix = ('official station profile broadcaster frequency',
-                      'official channel broadcast language regional delayed feed')[attempts % 2]
+            suffix = ('official channel publisher service profile',
+                      'official broadcaster specific channel edition')[attempts % 2]
     if stage == 'identity' and review_hint:
         if review_hint.get('directoryCountryConflict'):
-            suffix = '精确目录线路 身份 国别冲突 operator country exact stream identity conflict'
+            suffix = '官方发布者 国家 具体频道版本 publisher country service edition'
         elif review_hint.get('missingRoute'):
-            suffix = '官方直播 原始线路 播放器 exact live stream station profile'
+            suffix = '官方频道 发布者 具体版本 official publisher channel edition'
         elif review_hint.get('unresolvedFields'):
             terms = {'fullName': '完整台名 official full name', 'operator': '所属机构 operator',
                      'countryCode': '国家 country', 'channelNumber': '频道编号 频率 channel number frequency',
@@ -235,7 +235,7 @@ def plan(channel, category_path, identity_facts, attempts, phase_index=0, review
             'structured_api': 'Find public structured programme schedule APIs for this exact reviewed channel. ',
             'official_schedule': 'Find the broadcaster official dated programme schedule for this exact reviewed channel. ',
             'verifiable_arrangements': 'Find verifiable dated HTML, JSON or iCalendar broadcast arrangements for this exact reviewed channel. ',
-        }[stage] + 'Prioritize actual schedule data and its data-use licence, not identity-only station profiles. ')
+        }[stage] + 'Prioritize dated factual programme titles/times and the exact publisher service edition. ')
     instruction = (
         'Perform exactly ONE web search with exactly the user query, only about its single selected channel. '
         + discovery_goal +
@@ -245,15 +245,18 @@ def plan(channel, category_path, identity_facts, attempts, phase_index=0, review
         'Do not open pages or download audio/video, authenticate, pay, replay signatures or bypass access controls. '
         'No invented identity, programme dates, timezone or permission. '
         'Source-code licences do not grant programme-data rights. ')
-    instruction += ('Identity is UNCONFIRMED. Only research operator, complete name, number, language, exact regional/delay feed. '
+    instruction += ('Identity is UNCONFIRMED. Research publisher, complete service name, country and specific regional/delay edition. '
+                    'Channel number and language are supplementary metadata. Playback delivery URLs and playback permissions are irrelevant. '
                     'Do not research EPG, schedules, programmes or programme data rights.' if stage == 'identity' else
                     'Identity was explicitly reviewed for this exact feed. Research only the requested source format, '
                     'retaining full station number, region and delay. A search hit is not a verified schedule or licence.')
     if stage == 'identity':
         instruction += (' Return a JSON object with keys supported (boolean), reason (string), fields (object). '
             'fields has fullName, operator, countryCode, channelNumber, language, feedVariant. '
-            'Each field is an object with value, url and a verbatim quote. Use empty strings for unknown fields '
-            'and supported=false when any field is missing. Quotes are checked against separately fetched pages. '
+            'Each field is an object with value, url and a verbatim quote. Channel number and language are optional; '
+            'use empty value/url/quote when unpublished. Full name, publisher, country and exact service edition '
+            'are required. An unnumbered feed can use its published service name/ID as feedVariant. '
+            'Playback URLs are not required on publisher pages. Quotes are checked against fetched pages. '
             'Do not infer language, number, no-delay edition or country from names or hostnames. '
             'This proposal cannot approve identity or programme data.')
     else:
@@ -292,7 +295,7 @@ def candidate_allowed(url, domains, stage, *, request=None):
             keys = {'date','day','from','to','start','end','starts_at','ends_at',
                 'start_time','end_time','startTime','endTime','startDate','endDate',
                 'start_date','end_date','epg_starts_at','epg_ends_at','channel',
-                'channel_id','channelId','channelid','channelname','service',
+                'channel_id','channelId','channelid','channelname','service','id','cid',
                 'service_id','serviceId','market','market_code','country','locale',
                 'language','lang','timezone','tz','page','per_page','limit','offset',
                 'classification_id','device_identifier','type','format','days','duration'}
@@ -328,6 +331,10 @@ def candidate_allowed(url, domains, stage, *, request=None):
                 r'/(?:live|radio|station|stations|channel|channels|frequency|frequencies|about|aboutus|about-us|profile|introduce|introduction|tv|pc-portal|feeds)(?:[/_\-.]|$)', path))
             if stage != 'identity':
                 technical |= bool(re.search(r'(?:epg|schedule|calendar|programme|program|\.xml|\.gz|\.ics|\.csv|\.json)', location))
+            if stage == 'identity' and isinstance(request, dict):
+                # Search leads may use opaque publisher CMS paths. This only
+                # permits a bounded public-page read, never identity approval.
+                technical |= url in request.get('publisherIdentityLeadUrls', [])
             if not technical and not (stage == 'identity' and reviewed_identity_page(url, request)):
                 return False
         return True
@@ -423,6 +430,12 @@ def decode(response, request, now):
     candidates, excluded = {}, []
     for source in sources:
         url = source.get('url') if isinstance(source, dict) else None
+        if request['stage'] == 'identity' and isinstance(url, str):
+            try:
+                if candidate_has_target_context(source, request):
+                    request.setdefault('publisherIdentityLeadUrls', []).append(url)
+            except (ValueError, TypeError, KeyError):
+                pass
         if not candidate_allowed(url, request['domains'], request['stage'], request=request):
             excluded.append({'urlSha256': hashlib.sha256(str(url).encode()).hexdigest(),
                              'reason': 'unreviewed_domain_path_access_or_format'})
@@ -449,6 +462,18 @@ def decode(response, request, now):
                     continue
                 if isinstance(value, dict) and set(value) == {'supported', 'reason', 'fields'}:
                     proposal = value
+    # Some compatible search gateways omit action.sources while returning
+    # quoted publisher URLs in the structured answer. Treat those as leads
+    # and fetch their actual pages before accepting a single identity field.
+    if not candidates and isinstance(proposal, dict) and isinstance(proposal.get('fields'), dict):
+        for field in list(proposal['fields'].values())[:6]:
+            url = field.get('url') if isinstance(field, dict) else None
+            if not isinstance(url, str):
+                continue
+            request.setdefault('publisherIdentityLeadUrls', []).append(url)
+            if candidate_allowed(url, request['domains'], request['stage'], request=request):
+                candidates[url] = {'url': url, 'checkedAtUtc': now,
+                                   'state': 'unverified_publisher_proposal_lead'}
     return {'requestedQueries': [request['query']], 'actualQueries': queries, 'toolCalls': 1,
             'identityReviewProposal': proposal,
             'candidateReferencePolicy': 'selected_target_context_v1',
@@ -536,6 +561,9 @@ def check_candidate(url, request, *, opener=None, clock=time.monotonic):
             # Only exact catalogue route strings are retained as hashes. Scripts
             # are never executed or used as identity instructions/field evidence.
             decoded = html.unescape(raw.decode('utf-8', errors='replace')).replace('\\/', '/')
+            programme_links = sorted({hashlib.sha256(value.encode()).hexdigest() for value in
+                re.findall(r'https?://[^\s\x00-\x20<>"\'\\]+', decoded)[:2000]
+                if candidate_allowed(value, [], 'structured_api') and re.search(r'epg|schedule|\.xml|\.json|\.gz', value, re.I)})[:20]
             references = sorted({hashlib.sha256(value.encode()).hexdigest() for value in
                 re.findall(r'https?://[^\s\x00-\x20<>"\'\\]+', decoded)[:2000]})
             linked = sorted({hashlib.sha256(route.encode()).hexdigest() for route in request.get('catalogRoutes', [])
@@ -543,6 +571,7 @@ def check_candidate(url, request, *, opener=None, clock=time.monotonic):
             return {'url': url, **inspect_text(text, request, source_url=url),
                     'httpStatus': 200, 'bodyBytes': len(raw), 'bodySha256': hashlib.sha256(raw).hexdigest(),
                     'visibleText': text, 'linkedRouteSha256': linked, 'bodyReferenceSha256': references,
+                    'programmeReferenceSha256': programme_links,
                     'reason': 'Partial technical text only. Exact feed, language and edition are not automatically approved.'}
     except urllib.error.HTTPError as exc:
         return {'url': url, 'result': 'access_requires_review', 'httpStatus': exc.code,

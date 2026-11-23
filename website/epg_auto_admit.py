@@ -121,8 +121,9 @@ def due_source(conn, now):
     row = conn.execute('''SELECT h.configuration FROM source_health h
       JOIN epg_mapping_approvals a ON a.source_id=h.id AND a.revoked=0
       JOIN epg_data_grants g ON g.source_id=h.id AND g.revoked=0
-      WHERE h.id LIKE 'channel-xmltv-%' AND h.next_retry<=?
+      WHERE (h.id LIKE 'channel-xmltv-%' OR h.id LIKE 'channel-json-%' OR h.id LIKE 'pluto-auto-%') AND h.next_retry<=?
       AND h.state NOT IN ('manual_review','superseded')
-      AND json_extract(a.evidence,'$.automaticAdmission')=?
-      ORDER BY h.next_retry,h.id LIMIT 1''', (now, POLICY)).fetchone()
+      AND json_extract(a.evidence,'$.automaticAdmission') IN (?,?,?)
+      ORDER BY h.next_retry,h.id LIMIT 1''',
+      (now, POLICY, 'publisher_xmltv_facts_v2', 'publisher_provider_id_v1')).fetchone()
     return [json.loads(row[0])] if row else []

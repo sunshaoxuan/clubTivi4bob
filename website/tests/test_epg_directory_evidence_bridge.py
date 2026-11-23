@@ -112,34 +112,33 @@ def test_named_directory_metadata_can_supply_search_words_but_not_facts(conn):
     assert review.search_hint(conn,row,NOW+21601)['directoryMetadataNames']==[]
 
 
-def test_country_conflict_blocks_existing_ready_packet_and_decode_even_with_all_web_quotes(conn):
+def test_checked_publisher_country_can_resolve_untrusted_directory_conflict(conn):
     seed_web(conn)
     row=conn.execute('SELECT * FROM epg_channel_research_jobs').fetchone()
     with conn:queue._audit(conn,row,NOW,'exact_route_directory_observation',observation(country='RU'))
     value=review.attach_one_directory_observation(conn,NOW,set())
-    assert not value['reviewReady'] and review.pending(conn,NOW) is None
+    assert value['reviewReady'] and review.pending(conn,NOW) is not None
     _,evidence=stored(conn)
-    with pytest.raises(EpgError,match='directory_country_conflict'):
-        review.decode_review(result(),evidence,NOW)
-    # An unresolved identity conflict cannot become approval merely because
-    # the directory cache ages out while the checked web page remains fresh.
-    with pytest.raises(EpgError,match='directory_country_conflict'):
-        review.decode_review(result(),evidence,NOW+21601)
-    assert review.search_hint(conn,row,NOW+21601)['directoryCountryConflict']
+    facts,reason=review.decode_review(result(),evidence,NOW)
+    assert facts['countryCode']=='CN' and reason is None
+    assert evidence['directoryConflictResolvedByPublisher']
+    assert not evidence['unresolvedDirectoryCountryConflict']
+    # Reviewing a packet alone does not create identity or mapping approvals.
+    assert conn.execute('SELECT identity_evidence FROM epg_channel_research_jobs').fetchone()[0] is None
     hint=review.search_hint(conn,row,NOW)
     assert hint['directoryCountryConflict'] and not hint['directoryMetadataNames']
-    assert 'country exact stream identity conflict' in search.plan(channel(),PATH,None,0,review_hint=hint)['query']
+    assert 'publisher country service edition' in search.plan(channel(),PATH,None,0,review_hint=hint)['query']
 
 
-def test_later_web_search_preserves_directory_context_and_keeps_raw_route_gate(conn):
+def test_later_publisher_review_keeps_directory_context_without_delivery_url_gate(conn):
     before=seed(conn);review.attach_one_directory_observation(conn,NOW,set())
     claim=review.claim_review(conn,before,NOW+1,set())
     check=checked();check['linkedRouteSha256']=[]
-    assert review.stage_identity(conn,claim,search.plan(channel(),PATH,None,0),{'technicalChecks':[check]},NOW+1) is False
+    assert review.stage_identity(conn,claim,search.plan(channel(),PATH,None,0),{'technicalChecks':[check]},NOW+1) is True
     _,evidence=stored(conn)
     assert evidence['routeDirectoryObservations'][0]['records'] and not evidence['pages'][0]['linkedRouteSha256']
-    with pytest.raises(EpgError,match='exact_route_required'):
-        review.decode_review(result(),evidence,NOW+1)
+    facts,reason=review.decode_review(result(),evidence,NOW+1)
+    assert facts and reason is None
 
 
 def test_no_web_result_does_not_erase_directory_observation(conn):

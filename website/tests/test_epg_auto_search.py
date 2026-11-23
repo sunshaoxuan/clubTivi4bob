@@ -165,6 +165,20 @@ def test_route_focus_rotates_without_changing_identity_scope():
     assert a['stage'] == b['stage'] == 'identity'
 
 
+def test_quoted_publisher_urls_survive_gateway_missing_source_array():
+    request = s.plan(channel(), PATH, None, 0)
+    payload = response(request['body'], [])
+    proposal = {'supported': False, 'reason': 'unverified lead', 'fields': {
+        'operator': {'value': 'Fixture publisher', 'url': 'https://fixture.example.org/cms/123.html',
+                     'quote': 'Fixture publisher'}}}
+    payload['output'].append({'type': 'message', 'content': [
+        {'type': 'output_text', 'text': json.dumps(proposal)}]})
+    evidence = s.decode(payload, request, NOW)
+    assert evidence['candidates'][0]['url'] == 'https://fixture.example.org/cms/123.html'
+    assert evidence['candidates'][0]['state'] == 'unverified_publisher_proposal_lead'
+    assert not evidence['identityApproved'] and not evidence['newMappings']
+
+
 def test_region_blocks_prioritize_japan_taiwan_hong_kong_then_world(conn):
     catalog = [{**channel(identity='fixture-' + country), 'countryCode': country}
                for country in ('JP', 'TW', 'HK', 'DE')]
@@ -311,7 +325,7 @@ def test_reviewed_programme_search_goal_matches_phase_without_identity_profile_i
     instructions = request['body']['instructions']
     assert goal in instructions
     assert 'official technical profile or station directory' not in instructions
-    assert 'actual schedule data and its data-use licence' in instructions
+    assert 'dated factual programme titles/times' in instructions
     assert 'Source-code licences do not grant programme-data rights' in instructions
     assert len(request['body']['tools']) == 1
 

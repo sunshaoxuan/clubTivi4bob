@@ -77,8 +77,8 @@ def test_search_then_persisted_review_then_source_search_without_redoing_identit
     assert second['identitiesConfirmedThisRun'] == 1 and second['identityAutomaticallyApproved']
     assert second['processedChannels'][0]['stage'] == 'identity_review'
     assert len(calls) == 2 and 'tools' not in calls[-1]
-    assert rows(conn)['fixture-2']['next_retry'] == floor and rows(conn)['fixture-2']['attempts'] == attempts
-    third = run(conn, [channel()], max_channels=1, transport=transport, clock=lambda: floor)
+    assert rows(conn)['fixture-2']['next_retry'] == NOW + 1 and rows(conn)['fixture-2']['attempts'] == attempts
+    third = run(conn, [channel()], max_channels=1, transport=transport, clock=lambda: NOW + 2)
     assert third['processedChannels'][0]['stage'] == 'xmltv'
     assert third['sourceValidationHandoffs'] == 1
     assert conn.execute('SELECT count(*) FROM epg_research_source_candidates').fetchone()[0] == 1
@@ -89,7 +89,6 @@ def test_search_then_persisted_review_then_source_search_without_redoing_identit
     (lambda r,p: r['fields']['operator'].update(quote='invented operator'), 'quote_not_in_checked_page'),
     (lambda r,p: r['fields']['feedVariant'].update(value='Fixture Plus One'), 'value_not_in_quote'),
     (lambda r,p: r['fields']['countryCode'].update(value='HK'), 'catalog_country_conflict'),
-    (lambda r,p: p['pages'][0].update(linkedRouteSha256=[]), 'exact_route_required'),
     (lambda r,p: p['pages'][0].update(checkedAtUtc=NOW - 86401), 'quote_not_in_checked_page'),
     (lambda r,p: r['fields']['language'].update(url='https://unread.example.org/profile'), 'quote_not_in_checked_page')])
 def test_review_rejects_unsupported_claims(mutate, code):
@@ -104,15 +103,27 @@ def test_a_search_answer_or_second_tool_is_not_a_checked_page_review():
     with pytest.raises(EpgError): review.decode_review({'status': 'completed', 'output': []}, packet(), NOW)
 
 
-def test_missing_route_is_actionable_and_does_not_waste_another_ai_request(conn):
+def test_publisher_pages_can_be_reviewed_without_delivery_url(conn):
     check = checked(); check['linkedRouteSha256'] = []
     seed(conn, check)
     task = conn.execute('SELECT * FROM epg_research_evidence_reviews').fetchone()
-    assert task['state'] == 'needs_route_evidence' and review.pending(conn, NOW + 1) is None
+    assert task['state'] == 'pending' and review.pending(conn, NOW + 1) is not None
     row = conn.execute('SELECT * FROM epg_channel_research_jobs').fetchone()
     request = search.plan(channel(), PATH, None, 1, review_hint=review.search_hint(conn, row))
-    assert 'exact live stream' in request['query']
+    assert 'exact live stream' not in request['query']
     assert rows(conn)['fixture-2']['identity_evidence'] is None
+
+
+def test_review_needs_publisher_and_edition_but_number_and_language_are_optional():
+    response = result()
+    value = json.loads(response['output'][0]['content'][0]['text'])
+    for key in ('channelNumber', 'language'):
+        value['fields'][key] = {'value': '', 'url': '', 'quote': ''}
+    response['output'][0]['content'][0]['text'] = json.dumps(value)
+    evidence = packet(); evidence['pages'][0]['linkedRouteSha256'] = []
+    facts, reason = review.decode_review(response, evidence, NOW)
+    assert reason is None and facts['channelNumber'] == facts['language'] == ''
+    assert facts['operator']
 
 
 def pre_review_cache(c, *, route=True, target=None):
@@ -153,13 +164,13 @@ def test_cached_identity_recovery_preview_is_read_only(conn):
     assert outcome['recoveredChannels'] == 0 and list(conn.iterdump()) == before
 
 
-def test_pre_review_cache_without_route_retains_missing_route_gate(conn):
+def test_pre_review_publisher_cache_needs_no_delivery_url(conn):
     pre_review_cache(conn, route=False)
     outcome = review.recover_one_cached_identity(conn, NOW + 1, set())
-    assert outcome['recoveredChannels'] == 1 and not outcome['reviewReady']
-    assert review.pending(conn, NOW + 2) is None
+    assert outcome['recoveredChannels'] == 1 and outcome['reviewReady']
+    assert review.pending(conn, NOW + 2) is not None
     row = conn.execute('SELECT * FROM epg_channel_research_jobs').fetchone()
-    assert review.search_hint(conn, row)['missingRoute']
+    assert not review.search_hint(conn, row)['missingRoute']
     assert row['identity_evidence'] is None
     assert not conn.execute('SELECT * FROM epg_mapping_approvals').fetchall()
 
@@ -261,9 +272,9 @@ def test_old_evidence_never_crosses_identity_or_original_fetch_freshness(conn, m
     claim = queue.claim_one(conn, later)
     request = search.plan(channel(), PATH, None, 2)
     new = {**checked(), 'url': URL + '/new', 'checkedAtUtc': later, 'linkedRouteSha256': []}
-    assert review.stage_identity(conn, claim, request, {'technicalChecks': [new]}, later) is False
+    assert review.stage_identity(conn, claim, request, {'technicalChecks': [new]}, later) is True
     task = conn.execute('SELECT * FROM epg_research_evidence_reviews').fetchone()
-    assert task['state'] == 'needs_route_evidence'
+    assert task['state'] == 'pending'
     assert [p['url'] for p in json.loads(task['packet'])['pages']] == [new['url']]
 
 
@@ -285,9 +296,9 @@ def test_current_same_url_invalidates_old_body_without_identity_promotion(conn, 
     audit = conn.execute("SELECT evidence FROM epg_channel_research_audit WHERE event='identity_evidence_invalidated'").fetchone()
     assert json.loads(audit[0])['priorPacket']['pages'][0]['url'] == URL
     other = {**checked(), 'url': URL + '/new', 'checkedAtUtc': later, 'linkedRouteSha256': []}
-    assert review.stage_identity(conn, claim, request, {'technicalChecks': [other]}, later) is False
+    assert review.stage_identity(conn, claim, request, {'technicalChecks': [other]}, later) is True
     task = conn.execute('SELECT * FROM epg_research_evidence_reviews').fetchone()
-    assert task['state'] == 'needs_route_evidence'
+    assert task['state'] == 'pending'
     assert [p['url'] for p in json.loads(task['packet'])['pages']] == [other['url']]
 
 
@@ -410,8 +421,9 @@ def test_handoff_is_really_consumed_by_validator_and_shared_without_a_grant(tmp_
         calls.append(source['url']); return fixture_xml(NOW), {'sourceUrl': source['url']}
     result = review.validate_one_source(c, tmp_path, NOW + 61, fetcher=fetch)
     assert result['sourceValidatorRequests'] == 1 and result['quality']['currentAndFutureChannels'] == 1
-    assert result['state'] == 'programme_data_permission_required' and result['exactFullNameSourceCandidates']
-    assert review.validate_one_source(c, tmp_path, NOW + 121, fetcher=lambda *_: pytest.fail('Premature refetch'))['state'] == 'no_due_channel_source'
+    assert result['state'] == 'publisher_channel_match_required' and result['exactFullNameSourceCandidates']
+    cached = review.validate_one_source(c, tmp_path, NOW + 121, fetcher=lambda *_: pytest.fail('Premature refetch'))
+    assert cached['state'] == 'publisher_channel_match_required' and cached['sourceValidatorRequests'] == 0
     assert len(calls) == 1
     assert c.execute('SELECT count(*) FROM source_identities').fetchone()[0] == 1
     for table in ('epg_programmes', 'epg_data_grants', 'epg_mapping_approvals', 'epg_source_payloads'):
@@ -486,7 +498,7 @@ def test_complete_search_proposal_is_checked_and_promoted_without_second_model_r
     outcome = run(conn, [channel()], max_channels=1, transport=transport, checker=lambda *_: checked())
     assert len(calls) == outcome['aiRequestsAttempted'] == outcome['identitiesConfirmedThisRun'] == 1
     assert outcome['processedChannels'][0]['identityReviewed']
-    assert rows(conn)['fixture-2']['next_retry'] == NOW + 3600
+    assert rows(conn)['fixture-2']['next_retry'] == NOW
     assert review.pending(conn, NOW + 1) is None
     assert json.loads(rows(conn)['fixture-2']['identity_evidence'])['fullName'] == 'Fixture 2'
 

@@ -1,0 +1,12 @@
+[Unit]
+Description=Discover missing BobTV guides by publisher service ID
+
+[Timer]
+OnActiveSec=20s
+OnUnitInactiveSec=60s
+AccuracySec=5s
+RandomizedDelaySec=5s
+Persistent=true
+
+[Install]
+WantedBy=timers.target

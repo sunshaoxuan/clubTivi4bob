@@ -3,6 +3,7 @@ import io
 import json
 from pathlib import Path
 import socket
+import sqlite3
 import sys
 
 import pytest
@@ -14,6 +15,21 @@ NOW = epg.timestamp('20261016080000 +0800')
 SOURCE = {'id': 'test', 'url': 'https://epg.example.org/guide.xml',
           'redirectUrls': [], 'refreshSeconds': 21600,
           'publicationAllowed': False, 'dataLicense': {'status': 'unverified'}}
+
+
+def test_wal_allows_worker_commit_while_api_reads_snapshot(tmp_path):
+    writer = epg.database(tmp_path)
+    reader = sqlite3.connect('file:'+str(tmp_path/'epg.sqlite3')+'?mode=ro', uri=True, timeout=.01)
+    try:
+        reader.execute('BEGIN')
+        assert reader.execute('SELECT count(*) FROM probe_audit').fetchone()[0] == 0
+        writer.execute("INSERT INTO probe_audit(source_id,checked_at,state) VALUES('fixture',1,'fixture')")
+        writer.commit()
+        assert reader.execute('SELECT count(*) FROM probe_audit').fetchone()[0] == 0
+        reader.commit()
+        assert reader.execute('SELECT count(*) FROM probe_audit').fetchone()[0] == 1
+    finally:
+        reader.close(); writer.close()
 
 
 def xml(programmes=None, channels='<channel id="one"><display-name>One</display-name></channel>'):

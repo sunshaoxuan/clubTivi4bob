@@ -39,7 +39,7 @@ def prepare_search_request(facts, model, allowed_domains):
     required = {'fullName', 'operator', 'countryCode', 'channelNumber', 'language',
                 'feedVariant', 'categoryPath', 'evidenceUrls'}
     if (not isinstance(facts, dict) or set(facts) != required
-            or any(not isinstance(facts[k], str) or not 1 <= len(facts[k]) <= 256
+            or any(not isinstance(facts[k], str) or not (0 if k in {'channelNumber','language'} else 1) <= len(facts[k]) <= 256
                    for k in required - {'categoryPath', 'evidenceUrls'})
             or not isinstance(facts['categoryPath'], list) or not 1 <= len(facts['categoryPath']) <= 8
             or any(not isinstance(v, str) or not 1 <= len(v) <= 100 for v in facts['categoryPath'])

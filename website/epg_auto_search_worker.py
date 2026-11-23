@@ -354,8 +354,18 @@ def finish(conn, claim, request, evidence, now, *, error=None, retry_at=None, ma
             raise EpgError('auto_search_protected_mapping')
         newly_reviewed = bool(row['identity_evidence']) and not claim['identity_evidence']
         advanced = bool(evidence and evidence.get('sourceValidationHandoffs')) or newly_reviewed
-        delay = 900 if advanced and not error else min(7 * 86400, 21600 * 2 ** min(max(0, row['attempts'] - 1), 5))
-        retry = max(row['next_retry'], retry_at or now + delay)
+        if request['stage'] == 'identity':
+            delay = min(7 * 86400, 21600 * 2 ** min(max(0, row['attempts'] - 1), 5))
+        else:
+            cycle = phase(conn, row) // len(search.PHASES)
+            delay = 900 if cycle == 0 else min(7 * 86400, 21600 * 2 ** min(cycle-1, 5))
+        if advanced and not error:
+            delay = 0
+        # The one-hour in-flight reservation is not a source retry. Release it
+        # after successful work; retain external retry dates and newer deferrals.
+        retry = max(now, retry_at if retry_at is not None else now + delay)
+        if row['next_retry'] > claim['next_retry']:
+            retry = max(retry, row['next_retry'])
         state = row['state'] if row['identity_evidence'] else 'pending_identity'
         if row['identity_evidence'] and state not in queue.RECORDED_SEARCH_OUTCOMES:
             state = 'waiting_validation'
@@ -431,6 +441,7 @@ def run(conn, manifest, channels, paths, settings_factory, shared_database, *, m
         'pendingStates': {r[0]: r[1] for r in conn.execute(
             'SELECT state,count(*) FROM epg_channel_research_jobs WHERE active=1 GROUP BY state')},
         'policy': 'all_public_catalog_channels; country_rotation; alternate_new_and_due; no_daily_request_cap'}
+    result['publisherIdentityRecovery'] = review.recover_publisher_packets(conn, now, protected)
     result['cachedIdentityEvidenceRecovery'] = review.recover_one_cached_identity(conn, now, protected)
     result['identityEvidencePacketsStaged'] += result['cachedIdentityEvidenceRecovery']['recoveredChannels']
     # Public source checks need no AI request and must not stop just because

@@ -103,8 +103,11 @@ def registry(path=REGISTRY):
         if 'minimumRetrySeconds' in source and (type(source['minimumRetrySeconds']) is not int
                 or not 900 <= source['minimumRetrySeconds'] <= min(86400, source['refreshSeconds'])):
             raise EpgError('invalid_minimum_retry_interval')
-        if source.get('format', 'xmltv') not in ('xmltv', 'tvmaze-json', 'cctv-json', 'taipei-monthly-csv', 'rakuten-json', 'pluto-json', 'astro-json'):
+        if source.get('format', 'xmltv') not in ('xmltv', 'tvmaze-json', 'cctv-json', 'taipei-monthly-csv', 'rakuten-json', 'pluto-json', 'astro-json', 'publisher-json'):
             raise EpgError('unsupported_source_format')
+        if source.get('format') == 'publisher-json':
+            from epg_publisher_json import validate_source
+            validate_source(source)
         if source.get('format') == 'astro-json':
             from epg_astro import validate_source
             validate_source(source)
@@ -177,6 +180,9 @@ def fetch_source(source, now):
 
 
 def parse_source(source, payload, now):
+    if source.get('format') == 'publisher-json':
+        from epg_publisher_json import parse_schedule
+        return parse_schedule(payload, source, now)
     if source.get('format') == 'astro-json':
         from epg_astro import parse_schedule
         return parse_schedule(payload, source, now)
@@ -226,7 +232,12 @@ def fetch(source, opener=None, clock=time.monotonic):
     for _ in range(4):
         if not reviewed_redirect(source, url):
             raise EpgError('unreviewed_redirect')
-        validate_public_url(url)
+        if source.get('format') == 'publisher-json':
+            from epg_publisher_json import validate_source
+            validate_source(source)
+            validate_public_url(urlsplit(url)._replace(query='').geturl())
+        else:
+            validate_public_url(url)
         try:
             response = opener.open(urllib.request.Request(url, headers={
                 'User-Agent': 'BobTV-EPG-Validator/1.0', 'Accept-Encoding': 'identity',
@@ -450,7 +461,9 @@ def parse_xmltv(payload, now=None, *, include_route_proof=False, channel_ids=Non
 def database(directory):
     directory = Path(directory)
     directory.mkdir(parents=True, exist_ok=True, mode=0o700)
-    conn = sqlite3.connect(directory / 'epg.sqlite3', timeout=5)
+    conn = sqlite3.connect(directory / 'epg.sqlite3', timeout=15)
+    conn.execute('PRAGMA journal_mode=WAL')
+    conn.execute('PRAGMA busy_timeout=15000')
     conn.row_factory = sqlite3.Row
     conn.executescript('''
       CREATE TABLE IF NOT EXISTS source_health (
@@ -504,7 +517,7 @@ def seed_cached_identities(directory, sources, cache_directory, now=None):
     seeded = []
     try:
         for source in sources:
-            if source.get('format') in ('tvmaze-json', 'cctv-json', 'taipei-monthly-csv', 'rakuten-json', 'pluto-json', 'astro-json'):
+            if source.get('format') in ('tvmaze-json', 'cctv-json', 'taipei-monthly-csv', 'rakuten-json', 'pluto-json', 'astro-json', 'publisher-json'):
                 continue  # Legacy egress cache contains XMLTV, never JSON schedules.
             if conn.execute('SELECT 1 FROM source_identities WHERE source_id=? LIMIT 1', (source['id'],)).fetchone():
                 continue
@@ -650,6 +663,9 @@ def probe_batch(directory, sources, now=None, fetcher=None, batch_size=1, admiss
             if not error and source.get('format') == 'astro-json':
                 from epg_astro import success_refresh_delay
                 delay = success_refresh_delay(parsed, now, delay)
+            if not error and source.get('format') == 'publisher-json':
+                from epg_publisher_json import success_refresh_delay
+                delay = success_refresh_delay(parsed, now, delay)
             with conn:
                 if not error:
                     save_identities(conn, source['id'], parsed, digest, now, now, 'server_fetch')
@@ -668,9 +684,14 @@ def probe_batch(directory, sources, now=None, fetcher=None, batch_size=1, admiss
                 # Unapproved sources remain metadata-only diagnostics.
                 from epg_store import cache_validated_payload
                 try:
-                    if admission_target and source['id'].startswith('channel-xmltv-'):
+                    if admission_target and source['id'].startswith(('channel-xmltv-', 'channel-json-')):
                         from epg_auto_admit import admit
-                        automatic_admissions += int(admit(conn, admission_target, source, metadata, parsed, now))
+                        accepted = (admit(conn, admission_target, source, metadata, parsed, now)
+                                    if source.get('format', 'xmltv') == 'xmltv' else False)
+                        if not accepted:
+                            from epg_publisher_admit import admit as publisher_admit
+                            accepted = publisher_admit(conn, admission_target, source, metadata, parsed, now)
+                        automatic_admissions += int(accepted)
                     if source.get('format') == 'taipei-monthly-csv':
                         from epg_taipei import refresh_existing_credit
                         refresh_existing_credit(conn, quality['resourceTitle'])

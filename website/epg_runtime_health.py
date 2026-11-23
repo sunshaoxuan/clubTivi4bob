@@ -21,7 +21,7 @@ from process_channel_inventory import _HTTPHandler, _HTTPSHandler
 from internal_epg_auth import ReadAuthHandler
 
 WORKERS = {'validator': 600, 'discovery': 600, 'schedules': 600,
-           'publisher': 600, 'source-discovery': 1200}
+           'publisher': 600, 'source-discovery': 1200, 'provider-discovery': 600}
 PROPERTIES = ('Id', 'ActiveState', 'UnitFileState', 'Result', 'ExecMainStatus',
               'ExecMainStartTimestampMonotonic', 'ExecMainExitTimestampMonotonic')
 

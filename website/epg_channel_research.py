@@ -188,11 +188,11 @@ def record_identity_observation(conn, channel_id, identity_hash, sources, findin
     return row['next_retry']
 
 
-def confirm_identity(conn, claim, facts, now, *, explicitly_reviewed=False):
+def confirm_identity(conn, claim, facts, now, *, explicitly_reviewed=False, advance_phase=False):
     row = _current(conn,claim,now)
     required = {'fullName','operator','countryCode','channelNumber','language','feedVariant','categoryPath','evidenceUrls'}
     if (explicitly_reviewed is not True or not isinstance(facts,dict) or set(facts)!=required
-            or any(not isinstance(facts[k],str) or not 1<=len(facts[k])<=256
+            or any(not isinstance(facts[k],str) or not (0 if k in {'channelNumber','language'} else 1)<=len(facts[k])<=256
                    for k in ('fullName','operator','countryCode','channelNumber','language','feedVariant'))
             or not isinstance(facts['evidenceUrls'],list) or not 1<=len(facts['evidenceUrls'])<=8):
         raise EpgError('research_identity_evidence_required')
@@ -202,8 +202,12 @@ def confirm_identity(conn, claim, facts, now, *, explicitly_reviewed=False):
     for url in facts['evidenceUrls']:
         validate_public_url(url)
     with conn:
-        changed = conn.execute("UPDATE epg_channel_research_jobs SET identity_evidence=?,state='search_pending',updated_at=? WHERE channel_id=? AND identity_hash=? AND lease_token=? AND lease_until>?",
-                     (encoded(facts),now,row['channel_id'],claim['identity_hash'],claim['lease_token'],now)).rowcount
+        # Successful identity review starts a different phase. Old identity
+        # search backoff must not postpone the first programme-source search.
+        # Source-specific access and rate-limit floors remain in source_health.
+        changed = conn.execute("UPDATE epg_channel_research_jobs SET identity_evidence=?,state='search_pending',next_retry=?,updated_at=? WHERE channel_id=? AND identity_hash=? AND lease_token=? AND lease_until>?",
+                     (encoded(facts),now if advance_phase else row['next_retry'],now,
+                      row['channel_id'],claim['identity_hash'],claim['lease_token'],now)).rowcount
         if changed != 1:
             raise EpgError('stale_research_claim')
         _audit(conn,row,now,'identity_reviewed_for_research',facts)

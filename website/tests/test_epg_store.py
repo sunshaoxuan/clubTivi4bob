@@ -728,3 +728,24 @@ def test_standalone_api_is_readonly_and_returns_no_published_data(tmp_path, monk
     assert client.get('/api/v1/epg/manifest').json() == {'schemaVersion': 1, 'version': None, 'channelCount': 0}
     assert client.post('/api/v1/epg/manifest', json={'version': 'fixture'}).status_code == 405
     assert client.get('/docs').status_code == 404 and not missing.exists()
+
+
+@pytest.mark.parametrize('journal', ['DELETE', 'WAL'])
+def test_search_checkpoint_writes_do_not_cancel_programme_publication(conn, tmp_path, monkeypatch, journal):
+    grant(conn); ingest(conn)
+    conn.execute('PRAGMA journal_mode='+journal)
+    external = sqlite3.connect(conn.execute('PRAGMA database_list').fetchone()[2], timeout=0)
+    real_deadline = store._coverage_deadline
+    def progress_only(payload, now):
+        with external:
+            external.execute("INSERT OR REPLACE INTO epg_checkpoints VALUES('search', '{}')")
+            external.execute('UPDATE discovery_jobs SET next_retry=next_retry+1')
+        return real_deadline(payload, now)
+    monkeypatch.setattr(store, '_coverage_deadline', progress_only)
+    try:
+        result = store.publish(conn, tmp_path/'public', now=NOW,
+            node_fetcher=public_fetch(tmp_path/'public', []))
+        assert result['changed'] and result['channelCount'] == 1
+        assert store.active_manifest(conn)['version'] == result['version']
+    finally:
+        external.close()

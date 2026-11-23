@@ -82,6 +82,31 @@ def migrate(conn):
       CREATE TABLE IF NOT EXISTS epg_publication_state (
         id INTEGER PRIMARY KEY CHECK(id=1), audit_id INTEGER NOT NULL);
     ''')
+    _migrate_publication_revision(conn)
+
+
+def _migrate_publication_revision(conn):
+    # Queue leases, search receipts and runtime checkpoints change continuously.
+    # Only inputs to publication invalidate its optimistic preflight.
+    conn.executescript("CREATE TABLE IF NOT EXISTS epg_content_revision(id INTEGER PRIMARY KEY CHECK(id=1),revision INTEGER NOT NULL);"
+                       "INSERT OR IGNORE INTO epg_content_revision VALUES(1,0);")
+    inputs = {'epg_programmes': None, 'epg_data_grants': None,
+        'epg_mapping_approvals': None, 'epg_data_attributions': None,
+        'source_identities': None, 'source_identity_context': None,
+        'probe_audit': None, 'source_health': ['id', 'url', 'configuration'],
+        'discovery_jobs': ['channel_id', 'identity_hash', 'payload', 'active']}
+    for table, columns in inputs.items():
+        schema = conn.execute('PRAGMA table_info('+table+')').fetchall()
+        if not schema:
+            continue
+        columns = columns or [r[1] for r in schema]
+        changed = ' OR '.join('old."'+c+'" IS NOT new."'+c+'"' for c in columns)
+        for event in ('INSERT', 'UPDATE', 'DELETE'):
+            condition = ' WHEN '+changed if event == 'UPDATE' else ''
+            conn.execute('CREATE TRIGGER IF NOT EXISTS content_revision_'+table+'_'+event.lower()+
+                ' AFTER '+event+' ON '+table+condition+
+                ' BEGIN UPDATE epg_content_revision SET revision=revision+1 WHERE id=1; END')
+    conn.commit()
 
 
 def _validate_data_attribution(configuration, data_license, attribution):
@@ -476,9 +501,7 @@ def active_manifest(conn):
 
 
 def _publication_revision(conn):
-    # data_version observes commits from other connections; total_changes
-    # covers writes through this connection. Compare on this connection only.
-    return conn.execute('PRAGMA main.data_version').fetchone()[0], conn.total_changes
+    return conn.execute('SELECT revision FROM epg_content_revision WHERE id=1').fetchone()[0]
 
 
 def _coverage_deadline(payload, now):

@@ -407,7 +407,7 @@
   },
   "downloads": {
     "signing_notice": "L'application gratuite SignPath Foundation n'a pas été approuvée. Aucun certificat Windows de confiance n'a été émis et la signature de production SignPath.io n'est pas utilisée. Edge peut toujours exiger une confirmation de sécurité lors du premier téléchargement du navigateur.",
-    "intro": "Windows et macOS : 1.4.4. Android conserve la version publique existante 1.3.1. Changez de langue en haut de l’application. Votre choix est mémorisé. En mode automatique, l’application utilise la langue du système, le fuseau horaire, puis l’anglais. Chaque programme d’installation contient les ressources linguistiques. L’accès au mode avancé a été fermé. La synchronisation des diagnostics est désactivée par défaut. Avec votre accord, elle transmet jusqu’à 30 jours de données expurgées. Vous pouvez la désactiver à tout moment. L’application macOS utilise une signature ad-hoc.",
+    "intro": "Changez de langue en haut de l’application. Votre choix est mémorisé. En mode automatique, l’application utilise la langue du système, le fuseau horaire, puis l’anglais. Chaque programme d’installation contient les ressources linguistiques. L’accès au mode avancé a été fermé. La synchronisation des diagnostics est désactivée par défaut. Avec votre accord, elle transmet jusqu’à 30 jours de données expurgées. Vous pouvez la désactiver à tout moment. L’application macOS utilise une signature ad-hoc.",
     "latest": "Derniers installateurs",
     "local": "Téléchargements hébergés sur ce site",
     "sections": [
@@ -743,7 +743,7 @@
   "showcase": {
     "title": "BobTV | Télévision en direct, radio et guide TV",
     "meta": "BobTV identifie le programme en cours grâce au guide TV et recherche automatiquement des sous-titres dans plusieurs sources prises en charge. Les sous-titres se mettent à jour quand vous changez de chaîne ou de programme.",
-    "eyebrow": "1.3.0 · Guide TV et sous-titres",
+    "eyebrow": "Guide TV et sous-titres",
     "countries": "pays et territoires",
     "languages": "langues sur ce site",
     "support": "Assistance et politiques",
@@ -810,7 +810,7 @@
       [
         [
           "Sept langues d’interface",
-          "Le site est disponible en sept langues. À partir de la version 1.1.20, l’application propose le français, l’anglais, le chinois simplifié et traditionnel, le japonais, le coréen et l’espagnol."
+          "Le site est disponible en sept langues. L’application propose le français, l’anglais, le chinois simplifié et traditionnel, le japonais, le coréen et l’espagnol."
         ],
         [
           "Disponible dès maintenant",
@@ -849,7 +849,7 @@
   },
   "subtitles": {
     "nav": "Sous-titres auto",
-    "badge": "1.3.0 · Guide TV et sous-titres",
+    "badge": "Guide TV et sous-titres",
     "title": "Suivez le programme, et ses dialogues.",
     "intro": "BobTV identifie le programme en cours grâce au guide TV et recherche automatiquement des sous-titres dans plusieurs sources prises en charge. Les sous-titres se mettent à jour quand vous changez de chaîne ou de programme.",
     "steps": [
@@ -890,7 +890,7 @@
       "Les sous-titres du film restent suspendus pendant la publicité.",
       "Confirmer la nouvelle position avant de reprendre les sous-titres."
     ],
-    "cta": "Essayez les sous-titres avec la version 1.3.1",
+    "cta": "Essayez les sous-titres avec BobTV",
     "historyTitle": "Le guide TV et les sous-titres automatiques réunis",
     "historyText": "BobTV recherche automatiquement des sous-titres dans plusieurs sources lorsque le guide TV confirme le programme en cours. Changez de langue pendant la lecture parmi sept langues proposées et choisissez jusqu’à trois versions distinctes par langue. La sélection automatique essaie d’abord votre langue, puis l’anglais. Les sous-titres se mettent en pause pendant la publicité et se recalent au retour du programme."
   },

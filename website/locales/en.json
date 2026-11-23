@@ -407,7 +407,7 @@
   },
   "downloads": {
     "signing_notice": "The free SignPath Foundation application was not approved. No trusted Windows certificate was issued and SignPath.io production signing is not in use. Edge may still require a security confirmation on the first browser download.",
-    "intro": "Windows and macOS: 1.4.4. Android remains at the existing public version 1.3.1. Switch languages at the top of the app. Manual choices persist. Automatic mode uses the system language, then the time zone, then English. The language resources are included with each installer. The advanced mode entry has been closed. Diagnostic sync is off by default. Explicit consent enables up to 30 days of redacted records and can be withdrawn at any time.",
+    "intro": "Switch languages at the top of the app. Manual choices persist. Automatic mode uses the system language, then the time zone, then English. The language resources are included with each installer. The advanced mode entry has been closed. Diagnostic sync is off by default. Explicit consent enables up to 30 days of redacted records and can be withdrawn at any time.",
     "latest": "Latest installers",
     "local": "Downloads hosted on this site",
     "sections": [
@@ -743,7 +743,7 @@
   "showcase": {
     "title": "BobTV | Live TV, radio and program guides",
     "meta": "BobTV uses the programme guide to confirm what is playing, then automatically searches several supported subtitle sources. Subtitles update when the channel or programme changes.",
-    "eyebrow": "1.3.0 · Programme guides & subtitles",
+    "eyebrow": "Programme guides & subtitles",
     "countries": "countries & regions",
     "languages": "website languages",
     "support": "Support and policies",
@@ -810,7 +810,7 @@
       [
         [
           "Seven interface languages",
-          "Browse this site in seven languages. Starting with 1.1.20, the app interface is available in English, Simplified Chinese, Traditional Chinese, Japanese, Korean, French and Spanish."
+          "Browse this site in seven languages. The app interface is available in English, Simplified Chinese, Traditional Chinese, Japanese, Korean, French and Spanish."
         ],
         [
           "Available now",
@@ -849,7 +849,7 @@
   },
   "subtitles": {
     "nav": "Auto subtitles",
-    "badge": "1.3.0 · Programme guides & subtitles",
+    "badge": "Programme guides & subtitles",
     "title": "Follow the programme. Follow the words.",
     "intro": "BobTV uses the programme guide to confirm what is playing, then automatically searches several supported subtitle sources. Subtitles update when the channel or programme changes.",
     "steps": [
@@ -890,7 +890,7 @@
       "Film subtitles stay paused while the advert plays.",
       "Confirm the new playback position before subtitles resume."
     ],
-    "cta": "Get 1.3.1 and try auto subtitles",
+    "cta": "Get BobTV and try auto subtitles",
     "historyTitle": "Programme guides and automatic subtitles, together",
     "historyText": "BobTV automatically searches multiple subtitle sources when the guide confirms the current programme. Switch between seven language preferences and choose from up to three distinct subtitle versions per language during playback. Automatic selection tries your preferred language, then English. Subtitles pause for adverts and realign when the programme returns."
   },

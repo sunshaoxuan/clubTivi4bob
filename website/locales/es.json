@@ -407,7 +407,7 @@
   },
   "downloads": {
     "signing_notice": "La solicitud gratuita de SignPath Foundation no fue aprobada. No se emitió ningún certificado de Windows confiable y la firma de producción de SignPath.io no está en uso. Es posible que Edge aún requiera una confirmación de seguridad en la primera descarga del navegador.",
-    "intro": "Windows y macOS: 1.4.4. Android mantiene la versión pública existente 1.3.1. Cambia de idioma en la parte superior de la aplicación. La selección manual se guarda. El modo automático usa el idioma del sistema, la zona horaria y, como último recurso, el inglés. Todos los instaladores incluyen los recursos de idioma. Se ha cerrado el acceso al modo avanzado. La sincronización de diagnósticos está desactivada de forma predeterminada. Con tu consentimiento, puede enviar hasta 30 días de registros depurados y puedes desactivarla en cualquier momento. La aplicación de macOS utiliza una firma ad-hoc.",
+    "intro": "Cambia de idioma en la parte superior de la aplicación. La selección manual se guarda. El modo automático usa el idioma del sistema, la zona horaria y, como último recurso, el inglés. Todos los instaladores incluyen los recursos de idioma. Se ha cerrado el acceso al modo avanzado. La sincronización de diagnósticos está desactivada de forma predeterminada. Con tu consentimiento, puede enviar hasta 30 días de registros depurados y puedes desactivarla en cualquier momento. La aplicación de macOS utiliza una firma ad-hoc.",
     "latest": "Últimos instaladores",
     "local": "Descargas alojadas en este sitio",
     "sections": [
@@ -743,7 +743,7 @@
   "showcase": {
     "title": "BobTV | Televisión en directo, radio y guía de programación",
     "meta": "BobTV confirma el programa actual con la guía y busca automáticamente en varias fuentes de subtítulos compatibles. Los subtítulos se actualizan al cambiar de canal o de programa.",
-    "eyebrow": "1.3.0 · Guía y subtítulos",
+    "eyebrow": "Guía y subtítulos",
     "countries": "países y territorios",
     "languages": "idiomas en la web",
     "support": "Asistencia y políticas",
@@ -810,7 +810,7 @@
       [
         [
           "Siete idiomas de interfaz",
-          "Este sitio está disponible en siete idiomas. A partir de la versión 1.1.20, la aplicación ofrece español, inglés, chino simplificado, chino tradicional, japonés, coreano y francés."
+          "Este sitio está disponible en siete idiomas. La aplicación ofrece español, inglés, chino simplificado, chino tradicional, japonés, coreano y francés."
         ],
         [
           "Disponible ahora",
@@ -849,7 +849,7 @@
   },
   "subtitles": {
     "nav": "Subtítulos auto",
-    "badge": "1.3.0 · Guía y subtítulos",
+    "badge": "Guía y subtítulos",
     "title": "Sigue el programa y sus diálogos.",
     "intro": "BobTV confirma el programa actual con la guía y busca automáticamente en varias fuentes de subtítulos compatibles. Los subtítulos se actualizan al cambiar de canal o de programa.",
     "steps": [
@@ -890,7 +890,7 @@
       "Los subtítulos de la película se pausan durante los anuncios.",
       "Confirma la nueva posición antes de reanudar los subtítulos."
     ],
-    "cta": "Prueba los subtítulos automáticos de 1.3.1",
+    "cta": "Prueba los subtítulos automáticos con BobTV",
     "historyTitle": "La guía y los subtítulos automáticos, juntos",
     "historyText": "BobTV busca automáticamente en varias fuentes de subtítulos cuando la guía confirma el programa actual. Durante la reproducción puedes cambiar entre siete idiomas de preferencia y elegir hasta tres versiones distintas por idioma. La selección automática prueba tu idioma primero y luego el inglés. Los subtítulos se pausan durante los anuncios y se vuelven a sincronizar al regresar el programa."
   },

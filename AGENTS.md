@@ -15,3 +15,5 @@
 - Before finalizing a new desktop release, run `tools/canonicalize_desktop_release.py PACKAGES NATIVE_VERSION`. Public filenames and `displayVersion` use the semantic version only. Native update identities and compatibility aliases retain the internal build counter so installed clients can update.
 
 - Playback tests must mute only through BobTV’s own volume controls. Never change system or Windows application mixer volume, and never add a test-only forced-mute switch to shipped code.
+
+- At every release, audit all seven website locales and static fallback pages for stale feature-version badges. Omit version numbers from general feature copy. Required current-release labels must come from release metadata and match the published package; preserve accurate historical versions in dated release notes.

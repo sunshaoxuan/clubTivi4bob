@@ -61,7 +61,7 @@ function Label([string]$text,[int]$y,[int]$height) {
   $form.Controls.Add($label)
   return $label
 }
-$title=Label ('BobTV '+$Version) 20 36
+$title=Label ('BobTV '+($Version -replace '\+\d+$','')) 20 36
 $title.Font=New-Object Drawing.Font('Segoe UI',19,[Drawing.FontStyle]::Bold)
 $phase=Label (Get-UpdateText '正在读取更新进度') 70 30
 $detail=Label (Get-UpdateText '请稍候，更新会在此窗口显示进度。') 152 65

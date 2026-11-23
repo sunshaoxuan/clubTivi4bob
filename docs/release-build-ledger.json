@@ -51,6 +51,20 @@
     {
       "version": "1.4.4+5",
       "displayVersion": "1.4.4",
+      "status": "abandoned",
+      "date": "2026-11-23",
+      "platforms": [
+        "windows-x64",
+        "windows-arm64",
+        "macos-x64",
+        "macos-arm64"
+      ],
+      "scope": "Explicit desktop-only release; native build identity is internal",
+      "reason": "Prepublication source freeze audit found an unstaged update-window display input"
+    },
+    {
+      "version": "1.4.4+6",
+      "displayVersion": "1.4.4",
       "status": "allocated",
       "date": "2026-11-23",
       "platforms": [

@@ -295,6 +295,31 @@
         "documentationSha256": "26b7a4b6a4f924a52bedeff56612cdfb886267095b35cf64b69123ad60543736",
         "restriction": "First-party documentation explicitly addresses EPG aggregators and schedule redistribution, with XMLTV as the same schedule. No named open-data licence, installed data grant, exact catalogue mapping or current/future programme coverage is established. No raw programme cache or publication without independent existing approvals."
       }
+    },
+    {
+      "id": "samsung-us-reviewed-facts-v1",
+      "url": "https://i.mjh.nz/SamsungTVPlus/us.xml.gz",
+      "format": "xmltv",
+      "xmltvChannelIds": [
+        "USBD700011RE",
+        "USBD700015LK"
+      ],
+      "countryCode": "US",
+      "calendarTimezone": "America/New_York",
+      "redirectUrls": [
+        "https://raw.githubusercontent.com/matthuisman/i.mjh.nz/master/SamsungTVPlus/us.xml.gz"
+      ],
+      "refreshSeconds": 900,
+      "minimumRetrySeconds": 900,
+      "publicationAllowed": false,
+      "scope": "Only Gravitas Movies and Midnight Pulp US title and explicit UTC start/stop facts from the Samsung TV Plus schedule relay. Playback routes require separate exact-scope review.",
+      "dataLicense": {
+        "status": "operator_authorized_factual_schedule_scope",
+        "name": "Samsung TV Plus factual schedule metadata via i.mjh.nz relay",
+        "reviewedAt": "2026-11-23",
+        "evidenceUrl": "https://www.samsungtvplus.com/assets/STVP_Channel-List.pdf",
+        "restriction": "Operator explicitly requested EPG integration for Gravitas Movies and Midnight Pulp. Only factual title/start/stop values for the two scoped service IDs are used. No descriptions, plots, artwork or video are published by this adapter; no third-party blanket licence is asserted."
+      }
     }
   ]
 }

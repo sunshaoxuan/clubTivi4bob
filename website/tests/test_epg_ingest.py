@@ -33,6 +33,29 @@ def test_utc_provenance_and_current_future_quality():
     assert row['endBasis'] == 'explicit_stop'
 
 
+def test_xmltv_scope_limits_identities_programmes_and_coverage():
+    raw = xml(channels='<channel id="one"><display-name>One</display-name></channel>'
+              '<channel id="two"><display-name>Two</display-name></channel>')
+    source = {**SOURCE, 'xmltvChannelIds': ['two']}
+    parsed = epg.parse_source(source, raw, NOW)
+    assert parsed['channels'] == {'two': ['Two']}
+    assert parsed['programmes'] == []
+    assert parsed['quality']['currentAndFutureChannels'] == 0
+    parsed = epg.parse_source({**source, 'xmltvChannelIds': ['one']}, raw, NOW)
+    assert parsed['channels'] == {'one': ['One']}
+    assert len(parsed['programmes']) == 2
+    assert parsed['quality']['currentAndFutureChannels'] == 1
+    assert 'desc' not in parsed['programmes'][0]
+
+
+@pytest.mark.parametrize('scope', [[], ['one', 'one'], [['one']], ['bad id'], 'one'])
+def test_registry_rejects_invalid_xmltv_scope(tmp_path, scope):
+    path = tmp_path / 'sources.json'
+    path.write_text(json.dumps({'schemaVersion': 1, 'sources': [{**SOURCE, 'xmltvChannelIds': scope}]}))
+    with pytest.raises(epg.EpgError, match='invalid_xmltv_channel_scope'):
+        epg.registry(path)
+
+
 def test_only_adjacent_start_can_infer_stop_never_last_programme():
     raw = xml('''<programme channel="one" start="20261016070000 +0800"><title>One</title></programme>
       <programme channel="one" start="20261016090000 +0800"><title>Two</title></programme>''')

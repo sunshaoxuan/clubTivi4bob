@@ -78,6 +78,13 @@ def registry(path=REGISTRY):
             raise EpgError('invalid_source_id')
         seen.add(source['id'])
         validate_public_url(source['url'])
+        if 'xmltvChannelIds' in source:
+            scope = source['xmltvChannelIds']
+            if (source.get('format', 'xmltv') != 'xmltv' or not isinstance(scope, list)
+                    or not 1 <= len(scope) <= 10
+                    or any(not isinstance(item, str) or not re.fullmatch(r'[A-Za-z0-9_.:@-]{1,128}', item) for item in scope)
+                    or len(set(scope)) != len(scope)):
+                raise EpgError('invalid_xmltv_channel_scope')
         for url in source.get('redirectUrls', []):
             validate_public_url(url)
         if 'redirectPolicy' in source:
@@ -186,7 +193,7 @@ def parse_source(source, payload, now):
                 'coverageStartUtc': min((p['startUtc'] for p in value['programmes']), default=None),
                 'coverageEndUtc': max((p['endUtc'] for p in value['programmes']), default=None)}}
     if source.get('format') != 'tvmaze-json':
-        return parse_xmltv(payload, now)
+        return parse_xmltv(payload, now, channel_ids=source.get('xmltvChannelIds'))
     from epg_tvmaze import parse_schedule
     value = parse_schedule(payload, source['countryCode'], source_day(source, now), now)
     q = value['quality']
@@ -317,7 +324,7 @@ def timestamp(value):
         raise EpgError('invalid_timestamp') from None
 
 
-def parse_xmltv(payload, now=None, *, include_route_proof=False):
+def parse_xmltv(payload, now=None, *, include_route_proof=False, channel_ids=None):
     now = int(time.time() if now is None else now)
     raw, doctype_removed = _strip_standard_xmltv_doctype(_decode_payload(payload))
     channels, ambiguous, candidates = {}, set(), defaultdict(list)
@@ -333,6 +340,9 @@ def parse_xmltv(payload, now=None, *, include_route_proof=False):
                 continue
             if item.tag == 'channel':
                 identity = item.get('id', '').strip()
+                if channel_ids is not None and identity not in channel_ids:
+                    item.clear()
+                    continue
                 names = sorted({(n.text or '').strip() for n in item.findall('display-name')} - {''})
                 if not identity or len(identity) > 256 or not names or len(names) > 16 or any(len(n) > 256 for n in names):
                     rejected['invalid_channel'] += 1
@@ -357,6 +367,9 @@ def parse_xmltv(payload, now=None, *, include_route_proof=False):
                 count += 1
                 if count > MAX_PROGRAMMES:
                     raise EpgError('programme_limit')
+                if channel_ids is not None and item.get('channel', '') not in channel_ids:
+                    item.clear()
+                    continue
                 identity, title = item.get('channel', ''), (item.findtext('title') or '').strip()
                 try:
                     start = timestamp(item.get('start', ''))
@@ -488,7 +501,7 @@ def seed_cached_identities(directory, sources, cache_directory, now=None):
                 continue
             payload = path.read_bytes()
             try:
-                parsed = parse_xmltv(payload, now)
+                parsed = parse_source(source, payload, now)
                 if not parsed['quality']['currentAndFutureChannels']:
                     continue
             except EpgError:

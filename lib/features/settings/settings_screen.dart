@@ -379,7 +379,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 ListTile(
                   leading: const Icon(Icons.info_outline_rounded),
                   title: const Text('BobTV'),
-                  subtitle: const Text('v$bobTvVersion • 开源软件 • Apache 2.0'),
+                  subtitle: const Text('v$bobTvDisplayVersion • 开源软件 • Apache 2.0'),
                 ),
                 if (Platform.isWindows || Platform.isMacOS || Platform.isAndroid)
                   DesktopUpdateCheckTile(

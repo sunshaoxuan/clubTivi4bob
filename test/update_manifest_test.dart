@@ -17,8 +17,10 @@ void main() {
     final channels = File(
       'lib/features/channels/channels_screen.dart',
     ).readAsStringSync();
-    expect(channels, contains('"BobTV v{0}", [bobTvVersion]'));
-    expect(channels, contains(r"'v$bobTvVersion'"));
+    expect(channels, contains('bobTvDisplayVersion'));
+    expect(bobTvDisplayVersion, bobTvVersion.split('+').first);
+    expect(displayBobTvVersion('BobTV 1.4.4+5'), 'BobTV 1.4.4');
+    expect(channels, contains(r"'v$bobTvDisplayVersion'"));
     expect(RegExp(r'v\d+\.\d+\.\d+\+\d+').hasMatch(channels), isFalse);
   });
 

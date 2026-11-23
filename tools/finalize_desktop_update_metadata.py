@@ -50,6 +50,9 @@ def main():
                else {"schema": 1, "version": args.version, "packages": []})
     if payload.get("schema") != 1 or payload.get("version") != args.version:
         raise ValueError("Metadata version mismatch")
+    display_version = payload.get('displayVersion', args.version)
+    if 'displayVersion' in payload and display_version != args.version.split('+')[0]:
+        raise ValueError('Public version must match native semantic version')
     entries = {item["platform"]: item for item in payload["packages"]}
     if set(entries) - UPDATE_PLATFORMS:
         raise ValueError("Unexpected platform")
@@ -59,7 +62,7 @@ def main():
         raise ValueError("Metadata contains a platform excluded from this publication")
     for platform in (name for name in PLATFORMS if name in selected):
         extension = 'apk' if platform.startswith('android-') else 'zip'
-        filename = f"BobTV-{args.version}-{platform}.{extension}"
+        filename = f"BobTV-{display_version}-{platform}.{extension}"
         archive = root / filename
         _inspect_update_archive(archive, platform)
         checksum = digest(archive)
@@ -71,7 +74,7 @@ def main():
             if (entry["filename"], entry["sha256"], entry["bytes"]) != (filename, checksum, size):
                 raise ValueError("Signed Mac package metadata mismatch")
             _verify_mac_signature(archive, entry["signature"])
-            image = root / f"BobTV-{args.version}-{platform}.dmg"
+            image = root / f"BobTV-{display_version}-{platform}.dmg"
             with image.open("rb") as source:
                 source.seek(-512, 2)
                 if source.read(4) != b"koly":
@@ -80,7 +83,7 @@ def main():
         else:
             entries[platform] = {"platform": platform, "filename": filename,
                                  "sha256": checksum, "bytes": size}
-            installer = root / f'BobTV-{args.version}-{platform}-Setup.exe'
+            installer = root / f'BobTV-{display_version}-{platform}-Setup.exe'
             if platform.startswith('windows-') and installer.exists():
                 if not args.signing_key:
                     raise ValueError('Windows automatic Setup updates require the BobTV publisher signing key')
@@ -105,7 +108,7 @@ def main():
     metadata.write_text(json.dumps(payload, separators=(",", ":")), encoding="utf-8")
     assets.append(metadata)
     for platform in ('windows-x64', 'windows-arm64'):
-        installer = root / f"BobTV-{args.version}-{platform}-Setup.exe"
+        installer = root / f"BobTV-{display_version}-{platform}-Setup.exe"
         if platform in selected and installer.exists():
             with installer.open("rb") as source:
                 if source.read(2) != b"MZ":

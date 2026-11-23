@@ -2,6 +2,8 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import '../../data/services/desktop_update_state.dart';
 import '../../core/i18n/app_language.dart';
+import '../../core/app_version.dart';
+import '../../data/services/update_manifest.dart';
 
 class DesktopUpdateBadge extends StatelessWidget {
   const DesktopUpdateBadge({
@@ -17,81 +19,99 @@ class DesktopUpdateBadge extends StatelessWidget {
   final VoidCallback? onInstall;
 
   @override
-  Widget build(BuildContext context) =>
-      ValueListenableBuilder<WindowsUpdateState>(
-        valueListenable: state,
-        builder: (context, update, _) {
-          if (!update.visible) return const SizedBox.shrink();
-          return Padding(
-            padding: const EdgeInsets.only(right: 12),
-            child: Tooltip(
-              message: AppMessages.text(
-                context,
-                update.descriptionKey,
-                update.messageArgs,
-              ),
-              child: InkWell(
-                borderRadius: BorderRadius.circular(20),
-                onTap: () => showDialog<void>(
-                  context: context,
-                  builder: (_) => _UpdateDetails(
-                    state: state,
-                    onRetry: onRetry,
-                    showPostExitProgress: showPostExitProgress,
-                    onInstall: onInstall,
-                  ),
-                ),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 7,
-                  ),
-                  decoration: BoxDecoration(
-                    color:
-                        (update.phase == WindowsUpdatePhase.failed
-                                ? const Color(0xFFA34944)
-                                : const Color(0xFF7D88DC))
-                            .withValues(alpha: .22),
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: const Color(0xFF9DA8FF)),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      if (update.busy)
-                        const SizedBox(
-                          width: 15,
-                          height: 15,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: Color(0xFFCED5FF),
-                          ),
-                        )
-                      else
-                        Icon(
-                          update.phase == WindowsUpdatePhase.failed
-                              ? Icons.error_outline_rounded
-                              : Icons.check_circle_outline_rounded,
-                          color: const Color(0xFFCED5FF),
-                          size: 17,
-                        ),
-                      const SizedBox(width: 8),
-                      Text(
-                        AppMessages.text(context, update.labelKey, [update.percent]),
-                        style: const TextStyle(
-                          color: Color(0xFFE2E6FF),
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
+  Widget build(
+    BuildContext context,
+  ) => ValueListenableBuilder<WindowsUpdateState>(
+    valueListenable: state,
+    builder: (context, update, _) {
+      var newer = false;
+      try {
+        newer =
+            update.version != null &&
+            UpdateManifest.compareVersions(update.version!, bobTvVersion) > 0;
+      } on FormatException {
+        // An unknown target cannot announce an available update.
+      }
+      if (!update.visible ||
+          !newer ||
+          update.phase == WindowsUpdatePhase.checking ||
+          update.phase == WindowsUpdatePhase.upToDate) {
+        return const SizedBox.shrink();
+      }
+      return Padding(
+        padding: const EdgeInsets.only(right: 12),
+        child: Tooltip(
+          message: AppMessages.text(
+            context,
+            update.descriptionKey,
+            update.messageArgs
+                .map(
+                  (value) =>
+                      value is String ? displayBobTvVersion(value) : value,
+                )
+                .toList(),
+          ),
+          child: InkWell(
+            borderRadius: BorderRadius.circular(20),
+            onTap: () => showDialog<void>(
+              context: context,
+              builder: (_) => _UpdateDetails(
+                state: state,
+                onRetry: onRetry,
+                showPostExitProgress: showPostExitProgress,
+                onInstall: onInstall,
               ),
             ),
-          );
-        },
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+              decoration: BoxDecoration(
+                color:
+                    (update.phase == WindowsUpdatePhase.failed
+                            ? const Color(0xFFA34944)
+                            : const Color(0xFF7D88DC))
+                        .withValues(alpha: .22),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: const Color(0xFF9DA8FF)),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (update.busy)
+                    const SizedBox(
+                      width: 15,
+                      height: 15,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Color(0xFFCED5FF),
+                      ),
+                    )
+                  else
+                    Icon(
+                      update.phase == WindowsUpdatePhase.failed
+                          ? Icons.error_outline_rounded
+                          : Icons.check_circle_outline_rounded,
+                      color: const Color(0xFFCED5FF),
+                      size: 17,
+                    ),
+                  const SizedBox(width: 8),
+                  Text(
+                    AppMessages.text(context, update.labelKey, [
+                      update.percent,
+                    ]),
+                    style: const TextStyle(
+                      color: Color(0xFFE2E6FF),
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
       );
+    },
+  );
 }
 
 class _UpdateDetails extends StatelessWidget {
@@ -114,7 +134,9 @@ class _UpdateDetails extends StatelessWidget {
       backgroundColor: const Color(0xFF172136),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
       title: Text(
-        AppMessages.text(context, "BobTV {0}", [update.version ?? '']),
+        AppMessages.text(context, "BobTV {0}", [
+          displayBobTvVersion(update.version ?? ''),
+        ]),
         style: const TextStyle(color: Colors.white),
       ),
       content: SizedBox(
@@ -144,7 +166,10 @@ class _UpdateDetails extends StatelessWidget {
             ],
             if (update.totalBytes != null && update.receivedBytes != null)
               Text(
-                AppMessages.text(context, "{0} / {1} MB", [(update.receivedBytes! / 1048576).toStringAsFixed(1), (update.totalBytes! / 1048576).toStringAsFixed(1)]),
+                AppMessages.text(context, "{0} / {1} MB", [
+                  (update.receivedBytes! / 1048576).toStringAsFixed(1),
+                  (update.totalBytes! / 1048576).toStringAsFixed(1),
+                ]),
                 style: const TextStyle(color: Colors.white70),
               ),
             const SizedBox(height: 12),
@@ -152,7 +177,12 @@ class _UpdateDetails extends StatelessWidget {
               AppMessages.text(
                 context,
                 update.descriptionKey,
-                update.messageArgs,
+                update.messageArgs
+                    .map(
+                      (value) =>
+                          value is String ? displayBobTvVersion(value) : value,
+                    )
+                    .toList(),
               ),
               style: const TextStyle(color: Colors.white70, height: 1.6),
             ),
@@ -182,9 +212,15 @@ class _UpdateDetails extends StatelessWidget {
             ),
           ),
         if (update.phase == WindowsUpdatePhase.manualRequired)
-          FilledButton(onPressed: onRetry, child: Text(AppMessages.text(context, "重试更新"))),
+          FilledButton(
+            onPressed: onRetry,
+            child: Text(AppMessages.text(context, "重试更新")),
+          ),
         if (update.phase == WindowsUpdatePhase.failed)
-          FilledButton(onPressed: onRetry, child: Text(AppMessages.text(context, "重试更新"))),
+          FilledButton(
+            onPressed: onRetry,
+            child: Text(AppMessages.text(context, "重试更新")),
+          ),
         TextButton(
           onPressed: () => Navigator.of(context).pop(),
           child: Text(AppMessages.text(context, "关闭")),

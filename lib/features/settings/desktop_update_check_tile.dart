@@ -32,7 +32,7 @@ class DesktopUpdateCheckTile extends StatelessWidget {
           : const Icon(Icons.system_update_rounded),
       title: Text(update.visible ? AppMessages.text(context, update.labelKey, [update.percent]) : AppMessages.text(context, "检查更新")),
       subtitle: Text(
-        AppMessages.text(context, "当前版本 v{0} · {1}", [bobTvVersion, AppMessages.text(context, update.visible ? update.description : '连接 BobTV 更新服务，检查适用于当前平台的版本')]),
+        AppMessages.text(context, "当前版本 v{0} · {1}", [bobTvDisplayVersion, AppMessages.text(context, update.visible ? displayBobTvVersion(update.description) : '连接 BobTV 更新服务，检查适用于当前平台的版本')]),
       ),
       trailing:
           (update.phase == WindowsUpdatePhase.ready ||

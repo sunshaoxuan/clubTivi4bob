@@ -25,13 +25,16 @@ def validate_matrix(metadata, version, desktop_only=False):
     version_parts(version)
     if metadata.get('schema') != 1 or metadata.get('version') != version:
         raise ValueError('Release metadata version mismatch')
+    display_version = metadata.get('displayVersion', version)
+    if 'displayVersion' in metadata and display_version != version.split('+')[0]:
+        raise ValueError('Public version mismatch')
     packages = metadata.get('packages', [])
     platforms = DESKTOP_PLATFORMS if desktop_only else PLATFORMS
     if len(packages) != len(platforms) or {p.get('platform') for p in packages} != set(platforms):
         raise ValueError('Release must contain exactly the selected platform matrix')
     for package in packages:
         ext = 'apk' if package['platform'].startswith('android-') else 'zip'
-        if package.get('filename') != f"BobTV-{version}-{package['platform']}.{ext}":
+        if package.get('filename') != f"BobTV-{display_version}-{package['platform']}.{ext}":
             raise ValueError('Platform version/build mismatch: ' + package['platform'])
     return packages
 

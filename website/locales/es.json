@@ -407,7 +407,7 @@
   },
   "downloads": {
     "signing_notice": "La solicitud gratuita de SignPath Foundation no fue aprobada. No se emitió ningún certificado de Windows confiable y la firma de producción de SignPath.io no está en uso. Es posible que Edge aún requiera una confirmación de seguridad en la primera descarga del navegador.",
-    "intro": "Windows y macOS: 1.4.4+4. Android mantiene la versión pública existente 1.3.1+1. Cambia de idioma en la parte superior de la aplicación. La selección manual se guarda. El modo automático usa el idioma del sistema, la zona horaria y, como último recurso, el inglés. Todos los instaladores incluyen los recursos de idioma. Se ha cerrado el acceso al modo avanzado. La sincronización de diagnósticos está desactivada de forma predeterminada. Con tu consentimiento, puede enviar hasta 30 días de registros depurados y puedes desactivarla en cualquier momento. La aplicación de macOS utiliza una firma ad-hoc.",
+    "intro": "Windows y macOS: 1.4.4. Android mantiene la versión pública existente 1.3.1+1. Cambia de idioma en la parte superior de la aplicación. La selección manual se guarda. El modo automático usa el idioma del sistema, la zona horaria y, como último recurso, el inglés. Todos los instaladores incluyen los recursos de idioma. Se ha cerrado el acceso al modo avanzado. La sincronización de diagnósticos está desactivada de forma predeterminada. Con tu consentimiento, puede enviar hasta 30 días de registros depurados y puedes desactivarla en cualquier momento. La aplicación de macOS utiliza una firma ad-hoc.",
     "latest": "Últimos instaladores",
     "local": "Descargas alojadas en este sitio",
     "sections": [

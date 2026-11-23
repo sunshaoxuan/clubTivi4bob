@@ -30,7 +30,7 @@
 [Setup]
 AppId={{#InstallerAppId}
 AppName=BobTV
-AppVersion={#AppVersion}
+AppVersion={#Copy(AppVersion, 1, Pos("+", AppVersion) - 1)}
 VersionInfoVersion={#StringChange(AppVersion, "+", ".")}
 VersionInfoTextVersion={#StringChange(AppVersion, "+", ".")}
 VersionInfoProductVersion={#StringChange(AppVersion, "+", ".")}

@@ -225,15 +225,6 @@ class ManagedPlayer extends Player {
   }) async {
     _clearFallback();
     final generation = ++_openGeneration;
-    // Explicit native acceptance runs must never emit audio, including warm
-    // and preview decoders. This diagnostic flag does not change preferences.
-    if (Platform.environment['BOBTV_TEST_MUTE'] == '1') {
-      await super.setVolume(0);
-      final native = platform;
-      if (native is native_player.NativePlayer) {
-        await native.setProperty('mute', 'yes');
-      }
-    }
     if (preparedSubtitleMedia == null) liveSubtitles.clear();
     if (playable is Media) {
       _requestedMedia = playable;

@@ -2144,6 +2144,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
         'elapsedMs': preparationClock.elapsedMilliseconds,
       });
     }
+
     await WidgetsBinding.instance.endOfFrame;
     if (!mounted || selectionGeneration != _channelSelectionGeneration) return;
 
@@ -4439,14 +4440,28 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                             ),
                           ),
                           const SizedBox(width: 11),
-                          Text(
-                            'BobTV',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 19,
-                              fontWeight: FontWeight.w700,
-                              letterSpacing: -0.7,
-                            ),
+                          const Column(
+                            mainAxisSize: MainAxisSize.min,
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'BobTV',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 19,
+                                  fontWeight: FontWeight.w700,
+                                  letterSpacing: -0.7,
+                                ),
+                              ),
+                              Text(
+                                bobTvDisplayVersion,
+                                key: ValueKey('home-version'),
+                                style: TextStyle(
+                                  color: Colors.white60,
+                                  fontSize: 10,
+                                ),
+                              ),
+                            ],
                           ),
                           const SizedBox(width: 16),
                           Container(
@@ -6602,8 +6617,10 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
               padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 8),
               child: Text(
                 _sidebarExpanded
-                    ? AppMessages.text(context, "BobTV v{0}", [bobTvVersion])
-                    : 'v$bobTvVersion',
+                    ? AppMessages.text(context, "BobTV v{0}", [
+                        bobTvDisplayVersion,
+                      ])
+                    : 'v$bobTvDisplayVersion',
                 style: const TextStyle(
                   fontSize: 10,
                   color: Colors.white24,

@@ -67,10 +67,8 @@ class AlternativePreviewState {
 
 /// Manages video playback with stream failover support.
 class PlayerService {
-  // Explicit local QA only. Runtime opt-in also covers release-mode profiling.
-  static final _qaSilent =
-      (kDebugMode && const bool.fromEnvironment('BOBTV_QA_SILENT')) ||
-      (!kIsWeb && Platform.environment['BOBTV_TEST_MUTE'] == '1');
+  // Debug-only instrumentation is excluded from release builds.
+  static const _qaSilent = kDebugMode && bool.fromEnvironment('BOBTV_QA_SILENT');
   PlayerService({RetiredRouteGuard? retirementGuard})
       : _retirementGuard = retirementGuard {
     _retirementSubscription = retirementGuard?.changes.listen((_) {

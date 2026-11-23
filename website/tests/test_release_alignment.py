@@ -61,3 +61,14 @@ def test_explicit_desktop_release_rejects_incomplete_matrix():
     value['packages']=[p for p in value['packages'] if p['platform'] in module.DESKTOP_PLATFORMS][:-1]
     with pytest.raises(ValueError,match='platform matrix'):
         module.validate_matrix(value,'1.1.11+106',desktop_only=True)
+
+
+def test_public_semantic_names_preserve_native_build_identity():
+    value=metadata()
+    value['displayVersion']='1.1.11'
+    for item in value['packages']:
+        item['filename']=item['filename'].replace('1.1.11+106','1.1.11')
+    assert len(module.validate_matrix(value,'1.1.11+106')) == 7
+    value['displayVersion']='1.1.12'
+    with pytest.raises(ValueError, match='Public version mismatch'):
+        module.validate_matrix(value,'1.1.11+106')

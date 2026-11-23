@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:shimmer/shimmer.dart';
 import '../../core/i18n/app_language.dart';
+import '../../core/app_version.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -237,6 +238,15 @@ class _SplashScreenState extends State<SplashScreen>
                                     ),
                                   ),
                                 ),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      Opacity(
+                        opacity: _titleOpacity.value,
+                        child: const Text(
+                          bobTvDisplayVersion,
+                          key: ValueKey('splash-version'),
+                          style: TextStyle(fontSize: 13, color: Colors.white60),
                         ),
                       ),
                       const SizedBox(height: 12),

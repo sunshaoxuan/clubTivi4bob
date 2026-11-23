@@ -153,6 +153,15 @@ def _inspect_update_archive(path, platform):
         raise ValueError("Invalid update ZIP") from exc
 
 
+def _compatibility_alias(source, target):
+    if source == target:
+        return
+    temporary = target.with_name(f'.{target.name}.{os.getpid()}.tmp')
+    temporary.unlink(missing_ok=True)
+    os.link(source, temporary)
+    os.replace(temporary, target)
+
+
 def _mirror_updates(release, selected):
     assets = {asset["name"]: asset for asset in release.get("assets", [])}
     metadata_asset = assets.get(UPDATE_METADATA)
@@ -167,10 +176,13 @@ def _mirror_updates(release, selected):
     if metadata_asset.get("digest") and metadata_asset["digest"] != f"sha256:{hashlib.sha256(raw).hexdigest()}":
         raise ValueError("Update metadata checksum mismatch")
     payload = json.loads(raw)
-    if not isinstance(payload, dict) or set(payload) != {"schema", "version", "packages"} or payload["schema"] != 1:
+    if not isinstance(payload, dict) or not {"schema", "version", "packages"} <= set(payload) or set(payload) - {"schema", "version", "packages", "displayVersion"} or payload["schema"] != 1:
         raise ValueError("Invalid update metadata")
     version = payload["version"]
     version_parts(version)
+    display_version = payload.get('displayVersion', version)
+    if 'displayVersion' in payload and display_version != version.split('+')[0]:
+        raise ValueError('Public version mismatch')
     packages = payload["packages"]
     if not isinstance(packages, list) or not packages:
         raise ValueError("Update metadata has no packages")
@@ -186,7 +198,7 @@ def _mirror_updates(release, selected):
         if filename.endswith('.apk') != platform.startswith('android-'):
             raise ValueError('Update package type does not match platform')
         extension = 'apk' if platform.startswith('android-') else 'zip'
-        if filename != f'BobTV-{version}-{platform}.{extension}':
+        if filename != f'BobTV-{display_version}-{platform}.{extension}':
             raise ValueError('Update filename must match exact version and platform')
         seen.add(platform)
         if not isinstance(checksum, str) or not re.fullmatch(r"[a-f0-9]{64}", checksum):
@@ -201,23 +213,30 @@ def _mirror_updates(release, selected):
             _verify_mac_signature(target, package.get("signature"))
         elif "signature" in package:
             raise ValueError("Unexpected non-Mac update signature")
+        # Installed clients validate native build suffixes in update URLs.
+        # Public download names carry only the semantic version.
+        legacy_filename = f'BobTV-{version}-{platform}.{extension}'
+        _compatibility_alias(target, target.with_name(legacy_filename))
         installer_entry = None
         if 'installer' in package:
             item = package['installer']
             if not platform.startswith('windows-') or not isinstance(item,dict) or set(item) != {'filename','sha256','bytes','signature'}:
                 raise ValueError('Invalid installer metadata')
-            installer_name = f'BobTV-{version}-{platform}-Setup.exe'
+            installer_name = f'BobTV-{display_version}-{platform}-Setup.exe'
             installer_asset = assets.get(installer_name)
             if item['filename'] != installer_name or installer_asset is None or type(item['bytes']) is not int or item['bytes'] != installer_asset['size'] or not isinstance(item['sha256'],str) or not re.fullmatch('[a-f0-9]{64}', item['sha256']):
                 raise ValueError('Installer missing or changed')
             installer_path = DATA / 'updates/files' / installer_name
             _download_verified(installer_asset, installer_path, item['sha256'])
             _verify_publisher_signature(installer_path, item['signature'])
-            installer_entry = {'archive':f'https://bobtv.briconbric.com/updates/files/{installer_name}',
+            legacy_installer = f'BobTV-{version}-{platform}-Setup.exe'
+            _compatibility_alias(installer_path, installer_path.with_name(legacy_installer))
+            installer_entry = {'archive':f'https://bobtv.briconbric.com/updates/files/{legacy_installer}',
                                'sha256':item['sha256'],'bytes':item['bytes'],'signature':item['signature']}
         historical = {'schema':1,'version':version,
-            'archive':f'https://bobtv.briconbric.com/updates/files/{filename}',
+            'archive':f'https://bobtv.briconbric.com/updates/files/{legacy_filename}',
             'sha256':checksum,'bytes':package['bytes'],'publishedAt':release['published_at']}
+        if 'displayVersion' in payload: historical['displayVersion'] = display_version
         if platform.startswith('macos-'): historical['signature'] = package['signature']
         if installer_entry: historical['installer'] = installer_entry
         history_path = DATA / 'updates' / platform / 'versions' / f'{version}.json'
@@ -229,10 +248,11 @@ def _mirror_updates(release, selected):
         if current is None or version_parts(version) > version_parts(current["version"]):
             selected[platform] = {
                 "schema": 1, "version": version,
-                "archive": f"https://bobtv.briconbric.com/updates/files/{filename}",
+                "archive": f"https://bobtv.briconbric.com/updates/files/{legacy_filename}",
                 "sha256": checksum, "bytes": package["bytes"],
                 "publishedAt": release["published_at"],
             }
+            if 'displayVersion' in payload: selected[platform]['displayVersion'] = display_version
             if platform.startswith("macos-"):
                 selected[platform]["signature"] = package["signature"]
             if installer_entry: selected[platform]['installer'] = installer_entry
@@ -357,8 +377,13 @@ def mirror(release_tag=None, all_releases=False):
         for entry in historical_entries:
             filename = entry["archive"].rsplit("/", 1)[-1]
             approved[filename] = entry["sha256"]
+            if entry.get('displayVersion'):
+                approved[filename.replace(entry['version'], entry['displayVersion'], 1)] = entry['sha256']
             if entry.get('installer'):
-                approved[entry['installer']['archive'].rsplit('/',1)[-1]] = entry['installer']['sha256']
+                installer_filename = entry['installer']['archive'].rsplit('/',1)[-1]
+                approved[installer_filename] = entry['installer']['sha256']
+                if entry.get('displayVersion'):
+                    approved[installer_filename.replace(entry['version'], entry['displayVersion'], 1)] = entry['installer']['sha256']
         temporary = approved_path.with_name(f".approved.{os.getpid()}.tmp")
         temporary.write_text(json.dumps(approved, separators=(",", ":")), encoding="utf-8")
         os.replace(temporary, approved_path)

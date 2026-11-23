@@ -69,7 +69,8 @@ final class UpdateProgress: NSObject, NSApplicationDelegate, NSWindowDelegate {
         let panel = UpdatePanel()
         panel.appearance = NSAppearance(named: .darkAqua)
         window.contentView = panel
-        let title = NSTextField(labelWithString: "BobTV \(version)")
+        let publicVersion = version.components(separatedBy: "+")[0]
+        let title = NSTextField(labelWithString: "BobTV \(publicVersion)")
         title.font = .systemFont(ofSize: 25, weight: .bold)
         title.textColor = .white
         phase.font = .systemFont(ofSize: 17, weight: .semibold)

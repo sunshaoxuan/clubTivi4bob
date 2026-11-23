@@ -36,7 +36,7 @@
     },
     {
       "version": "1.4.4+4",
-      "status": "allocated",
+      "status": "abandoned",
       "date": "2026-11-23",
       "platforms": [
         "windows-x64",
@@ -45,7 +45,21 @@
         "macos-arm64"
       ],
       "scope": "Desktop-only release explicitly requested by user",
-      "fixesCommit": "8d2c8d2543d3c7fe113187bdb2e72ebb85f1e949"
+      "fixesCommit": "8d2c8d2543d3c7fe113187bdb2e72ebb85f1e949",
+      "reason": "Unpublished draft superseded by public-version UI and audio-test isolation requirements"
+    },
+    {
+      "version": "1.4.4+5",
+      "displayVersion": "1.4.4",
+      "status": "allocated",
+      "date": "2026-11-23",
+      "platforms": [
+        "windows-x64",
+        "windows-arm64",
+        "macos-x64",
+        "macos-arm64"
+      ],
+      "scope": "Explicit desktop-only release; native build identity is internal"
     }
   ]
 }

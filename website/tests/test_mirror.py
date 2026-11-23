@@ -189,15 +189,17 @@ def test_mirror_publishes_setup_and_rejects_invalid_executable(tmp_path, monkeyp
         module.mirror()
 
 
-def test_mirror_publishes_platform_update_only_after_checksum_verification(tmp_path, monkeypatch):
+@pytest.mark.parametrize('public_names', [False, True])
+def test_mirror_publishes_platform_update_only_after_checksum_verification(tmp_path, monkeypatch, public_names):
     monkeypatch.setattr(module, "DATA", tmp_path)
     legacy = b"PK\x03\x04release"
     update = update_zip("windows-x64")
-    update_name = "BobTV-0.9.1+61-windows-x64.zip"
+    update_name = "BobTV-0.9.1-windows-x64.zip" if public_names else "BobTV-0.9.1+61-windows-x64.zip"
     package = {"platform": "windows-x64", "filename": update_name,
                "sha256": hashlib.sha256(update).hexdigest(), "bytes": len(update)}
-    metadata = json.dumps({"schema": 1, "version": "0.9.1+61",
-                           "packages": [package]}).encode()
+    payload = {"schema": 1, "version": "0.9.1+61", "packages": [package]}
+    if public_names: payload["displayVersion"] = "0.9.1"
+    metadata = json.dumps(payload).encode()
     assets = [
         {"name": "BobTV-v1-windows-x64.zip", "size": len(legacy),
          "browser_download_url": "legacy"},
@@ -221,6 +223,10 @@ def test_mirror_publishes_platform_update_only_after_checksum_verification(tmp_p
     assert (tmp_path / "updates/files" / update_name).read_bytes() == update
     assert json.loads((tmp_path / "updates/approved.json").read_text())[update_name] == package["sha256"]
 
+    if public_names:
+        assert manifest['displayVersion'] == '0.9.1'
+        assert manifest['archive'].endswith('BobTV-0.9.1+61-windows-x64.zip')
+        assert (tmp_path / 'updates/files/BobTV-0.9.1+61-windows-x64.zip').read_bytes() == update
     assets[-1]["digest"] = "sha256:" + "0" * 64
     with pytest.raises(ValueError, match="checksum mismatch"):
         module.mirror()

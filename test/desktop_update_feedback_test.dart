@@ -5,10 +5,37 @@ import 'package:clubtivi/data/services/desktop_update_state.dart';
 import 'package:clubtivi/features/channels/desktop_update_badge.dart';
 
 void main() {
-  testWidgets('Update failures translate before inserting the error', (tester) async {
+  testWidgets('Badge hides latest checks and shows newer downloads and readiness', (tester) async {
+    final state = ValueNotifier(const WindowsUpdateState(WindowsUpdatePhase.upToDate));
+    await tester.pumpWidget(MaterialApp(home: Scaffold(body:
+      DesktopUpdateBadge(state: state, onRetry: () {}))));
+    for (final phase in [WindowsUpdatePhase.idle, WindowsUpdatePhase.checking,
+        WindowsUpdatePhase.upToDate, WindowsUpdatePhase.failed]) {
+      state.value = WindowsUpdateState(phase);
+      await tester.pump();
+      expect(find.byType(InkWell), findsNothing);
+    }
+    for (final phase in [WindowsUpdatePhase.available, WindowsUpdatePhase.downloading,
+        WindowsUpdatePhase.verifying, WindowsUpdatePhase.ready]) {
+      state.value = WindowsUpdateState(phase, version: '9.0.0+1');
+      await tester.pump();
+      expect(find.byType(InkWell), findsOneWidget);
+    }
+    await tester.tap(find.byType(InkWell));
+    await tester.pump(const Duration(milliseconds: 350));
+    expect(find.text('BobTV 9.0.0'), findsOneWidget);
+    expect(find.textContaining('+1'), findsNothing);
+    await tester.pumpWidget(const SizedBox());
+    state.dispose();
+  });
+
+  testWidgets('Update failures translate before inserting the error', (
+    tester,
+  ) async {
     final state = ValueNotifier(
       const WindowsUpdateState(
         WindowsUpdatePhase.failed,
+        version: '9.0.1+73',
         message: '更新未完成：{0}。现有版本可继续播放，点击重试会续传已保存的下载。',
         messageArgs: ['offline'],
       ),
@@ -63,7 +90,7 @@ void main() {
     'Worker states reject stale versions, old runs, other PIDs and unknown phases',
     () {
       final payload = <String, dynamic>{
-        'version': '0.9.1+73',
+        'version': '9.0.1+73',
         'runId': 'new-run',
         'workerPid': 42,
         'phase': 'downloading',
@@ -74,14 +101,14 @@ void main() {
       WindowsUpdateState? parse(Map<String, dynamic> data) =>
           WindowsUpdateState.fromWorkerStatus(
             data,
-            version: '0.9.1+73',
+            version: '9.0.1+73',
             runId: 'new-run',
             workerPid: 42,
           );
       expect(parse(payload)?.percent, 26);
       expect(parse(payload)?.receivedBytes, 1000);
       for (final edit in [
-        {'version': '0.9.1+72'},
+        {'version': '9.0.1+72'},
         {'runId': 'old-run'},
         {'workerPid': 43},
         {'phase': 'made-up'},
@@ -148,7 +175,7 @@ void main() {
       final state = ValueNotifier(
         const WindowsUpdateState(
           WindowsUpdatePhase.starting,
-          version: '0.9.1+73',
+          version: '9.0.1+73',
         ),
       );
       var retries = 0;
@@ -170,7 +197,7 @@ void main() {
       expect(find.byType(LinearProgressIndicator), findsOneWidget);
       state.value = const WindowsUpdateState(
         WindowsUpdatePhase.downloading,
-        version: '0.9.1+73',
+        version: '9.0.1+73',
         percent: 37,
         receivedBytes: 1048576,
         totalBytes: 2097152,
@@ -180,7 +207,7 @@ void main() {
       expect(find.text('1.0 / 2.0 MB'), findsOneWidget);
       state.value = const WindowsUpdateState(
         WindowsUpdatePhase.failed,
-        version: '0.9.1+73',
+        version: '9.0.1+73',
         message: '助手意外退出',
       );
       await tester.pump();
@@ -190,7 +217,7 @@ void main() {
       expect(retries, 1);
       state.value = const WindowsUpdateState(
         WindowsUpdatePhase.ready,
-        version: '0.9.1+73',
+        version: '9.0.1+73',
       );
       await tester.pump();
       expect(find.textContaining('已下载并校验通过'), findsOneWidget);

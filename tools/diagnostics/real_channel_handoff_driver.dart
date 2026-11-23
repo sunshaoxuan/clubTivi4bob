@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 // ignore_for_file: implementation_imports, depend_on_referenced_packages, invalid_use_of_visible_for_testing_member
 // Development-only driver for the normal application. Uses a private copy of
 // the Windows profile and real card gestures, streams, renderer and audio.
@@ -120,8 +121,8 @@ class _HandoffBinding extends WidgetsFlutterBinding {
 }
 
 void main() {
-  if (Platform.environment['BOBTV_TEST_MUTE'] != '1') {
-    throw StateError('This diagnostic requires BOBTV_TEST_MUTE=1');
+  if (!kDebugMode || !const bool.fromEnvironment('BOBTV_QA_SILENT')) {
+    throw StateError('Use a debug build with --dart-define=BOBTV_QA_SILENT=true');
   }
   application.main(
     onBindingReady: () {

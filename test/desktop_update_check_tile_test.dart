@@ -44,7 +44,7 @@ void main() {
         ),
       ),
     );
-    expect(find.textContaining('当前版本 v$bobTvVersion'), findsOneWidget);
+    expect(find.textContaining('当前版本 v$bobTvDisplayVersion'), findsOneWidget);
     await tester.tap(find.text('检查更新'));
     await tester.pump();
     expect(find.text('正在检查更新'), findsOneWidget);
@@ -54,7 +54,7 @@ void main() {
     state.value = const WindowsUpdateState(WindowsUpdatePhase.upToDate);
     await tester.pump();
     expect(find.text('已是最新版本'), findsOneWidget);
-    expect(find.textContaining('当前版本 v$bobTvVersion'), findsOneWidget);
+    expect(find.textContaining('当前版本 v$bobTvDisplayVersion'), findsOneWidget);
     expect(find.byType(CircularProgressIndicator), findsNothing);
     state.value = const WindowsUpdateState(
       WindowsUpdatePhase.failed,

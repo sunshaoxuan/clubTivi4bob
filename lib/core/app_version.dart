@@ -1,2 +1,8 @@
-/// Must match pubspec.yaml. The release validation test guards this value.
-const bobTvVersion = '1.4.4+4';
+/// Native build identity retained for compatibility with installed updaters.
+const bobTvVersion = '1.4.4+5';
+
+/// Public version shown throughout BobTV.
+const bobTvDisplayVersion = '1.4.4';
+
+String displayBobTvVersion(String value) =>
+    value.replaceAll(RegExp(r'(?<=\d)\+\d+'), '');

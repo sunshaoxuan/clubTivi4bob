@@ -80,6 +80,21 @@
     {
       "version": "1.4.5+7",
       "displayVersion": "1.4.5",
+      "status": "abandoned",
+      "date": "2026-11-25",
+      "platforms": [
+        "windows-x64",
+        "windows-arm64",
+        "macos-x64",
+        "macos-arm64"
+      ],
+      "scope": "Desktop-only release explicitly requested by user; mobile packages and feeds preserved",
+      "fixesCommit": "c27e89a8ff63739396eccda122fde475498efde2",
+      "reason": "Superseded before compilation after finding a stale website test requiring versions in generic feature copy"
+    },
+    {
+      "version": "1.4.5+8",
+      "displayVersion": "1.4.5",
       "status": "allocated",
       "date": "2026-11-25",
       "platforms": [

@@ -45,7 +45,7 @@ def test_release_templates_preserve_languages_and_settings(locale):
             assert 'id="release-list"' in rendered
             assert copy['showcase']['download'][0] in rendered
             assert '1.1.10+103' not in copy['downloads']['intro']
-            assert VERSION.split('+')[0] in copy['downloads']['intro']
+            assert not re.search(r'\b\d+\.\d+\.\d+(?:\+\d+)?\b', copy['downloads']['intro'])
             assert '1.1.10+103' not in copy['downloads']['intro']
             assert '30' in copy['downloads']['intro']
             assert 'ad-hoc' in rendered

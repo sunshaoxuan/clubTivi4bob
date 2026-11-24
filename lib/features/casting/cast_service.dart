@@ -8,7 +8,7 @@ import 'package:logger/logger.dart';
 
 import 'lg_webos_client.dart';
 import 'lan_cast_relay.dart';
-import 'dlna_media_request.dart';
+import 'dlna_transport.dart';
 import 'dlna_discovery.dart';
 import 'airplay_bridge.dart';
 import '../../core/server_egress.dart';
@@ -255,8 +255,12 @@ class CastService {
       final transportUrl = ServerEgress.mediaUrl(url);
       if (device.unavailableReason != null)
         throw StateError(device.unavailableReason!);
-      if (_activeDevice != null && _activeDevice!.id != device.id)
+      if (_activeDevice != null && _activeDevice!.id != device.id) {
         await _stopActive();
+      } else if (_activeDevice?.dlnaDevice case final previous?) {
+        await DlnaTransport(previous).stop();
+        _clearActive();
+      }
       if (device.type == 'airplay') {
         await _airplay.request('play', {
           'device': device.id.substring(8),
@@ -266,7 +270,7 @@ class CastService {
         _activeDevice = device;
         _activeUrl = url;
         _isCasting = true;
-        _status.add(null);
+        if (!_disposed) _status.add(null);
         return true;
       } else if (device.type == 'webos' && device.webosClient != null) {
         final target = await _targetForRenderer(
@@ -292,11 +296,7 @@ class CastService {
           renderer.host,
           renderer.port,
         );
-        await device.dlnaDevice!.request(
-          'SetAVTransportURI',
-          dlnaSetMediaRequest(target, title: title),
-        );
-        await device.dlnaDevice!.play();
+        await DlnaTransport(device.dlnaDevice!).play(target, title: title);
         _activeDevice = device;
         _activeUrl = url;
         _isCasting = true;
@@ -314,7 +314,7 @@ class CastService {
           : device.type == 'airplay'
           ? e.toString()
           : '投屏失敗，請確認電視與網路連接。';
-      _status.add(lastError);
+      if (!_disposed) _status.add(lastError);
       return false;
     }
   }
@@ -356,16 +356,20 @@ class CastService {
       } else if (_activeDevice?.type == 'webos') {
         await _activeDevice?.webosClient?.stop();
       } else if (_activeDevice?.dlnaDevice != null) {
-        await _activeDevice!.dlnaDevice!.stop();
+        await DlnaTransport(_activeDevice!.dlnaDevice!).stop();
       }
     } catch (e) {
       _log.e('Stop cast error: $e');
     }
     await _lanRelay.close();
+    _clearActive();
+    if (!_disposed) _status.add(null);
+  }
+
+  void _clearActive() {
     _activeDevice = null;
     _activeUrl = null;
     _isCasting = false;
-    if (!_disposed) _status.add(null);
   }
 
   /// Pause playback on the active device.
@@ -465,7 +469,8 @@ class CastService {
     _disposed = true;
     ++_castGeneration;
     _airplay.dispose();
-    unawaited(_lanRelay.close());
+    // An in-flight cast may still be opening its relay.
+    _queue = _queue.whenComplete(_lanRelay.close);
     for (final device in _devices.values) {
       if (device.webosClient != null)
         unawaited(device.webosClient!.disconnect());

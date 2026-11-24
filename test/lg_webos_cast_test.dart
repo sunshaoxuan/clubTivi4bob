@@ -342,6 +342,206 @@ void main() {
     },
   );
 
+  test(
+    'DLNA stops and settles before replacing media, then recovers',
+    () async {
+      final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+      final actions = <String>[];
+      var state = 'NO_MEDIA_PRESENT';
+      var nextPlayFault = false;
+      var nextMediaFault = false;
+      var settling = false;
+      server.listen((req) async {
+        final action = req.headers
+            .value('soapaction')!
+            .split('#')
+            .last
+            .replaceAll('"', '');
+        actions.add(action);
+        await req.drain<void>();
+        var fault = 0;
+        var body = '<ok/>';
+        switch (action) {
+          case 'SetAVTransportURI':
+            if (state == 'PLAYING' || state == 'TRANSITIONING') {
+              fault = 705;
+            } else if (nextMediaFault) {
+              nextMediaFault = false;
+              fault = 714;
+            } else {
+              state = 'STOPPED';
+            }
+          case 'Play':
+            if (nextPlayFault) {
+              nextPlayFault = false;
+              state =
+                  'PLAYING'; // The TV started loading before reporting failure.
+              fault = 701;
+            } else {
+              state = 'PLAYING';
+            }
+          case 'Stop':
+            if (state == 'NO_MEDIA_PRESENT' || state == 'TRANSITIONING') {
+              fault = 701;
+            } else {
+              state = 'TRANSITIONING';
+              settling = true;
+            }
+          case 'GetTransportInfo':
+            body =
+                '<GetTransportInfoResponse><CurrentTransportState>'
+                '$state</CurrentTransportState></GetTransportInfoResponse>';
+            if (settling) {
+              settling = false;
+              state = 'STOPPED';
+            }
+        }
+        if (fault != 0) {
+          req.response.statusCode = 500;
+          body =
+              '<Fault><detail><UPnPError><errorCode>$fault</errorCode>'
+              '</UPnPError></detail></Fault>';
+        }
+        req.response.write(body);
+        await req.response.close();
+      });
+      final device = CastDevice(
+        id: 'dlna',
+        name: 'TV',
+        type: 'dlna',
+        dlnaDevice: DLNADevice(
+          DeviceInfo(
+            'http://127.0.0.1:${server.port}',
+            'urn:schemas-upnp-org:device:MediaRenderer:1',
+            'TV',
+            [
+              {
+                'serviceId': 'urn:upnp-org:serviceId:AVTransport',
+                'controlURL': '/control',
+              },
+            ],
+          ),
+        ),
+      );
+      final service = CastService();
+      addTearDown(() async {
+        service.dispose();
+        await server.close(force: true);
+      });
+      const first = 'https://example.test/one.m3u8';
+      const second = 'https://example.test/two.m3u8';
+      expect(await service.castTo(device, first), isTrue);
+      expect(actions, ['SetAVTransportURI', 'Play']);
+      actions.clear();
+      expect(await service.castTo(device, first), isTrue);
+      expect(actions, [
+        'Stop',
+        'GetTransportInfo',
+        'GetTransportInfo',
+        'SetAVTransportURI',
+        'Play',
+      ]);
+      expect(await service.switchChannel(second), isTrue);
+      await service.stopCasting();
+      expect(state, 'STOPPED');
+      expect(await service.castTo(device, first), isTrue);
+      nextPlayFault = true;
+      expect(await service.switchChannel(second), isFalse);
+      expect(service.isCasting, isFalse);
+      expect(state, 'STOPPED');
+      expect(await service.castTo(device, second), isTrue);
+      await service.stopCasting();
+
+      state = 'PLAYING'; // Playback owned by a previous sender.
+      actions.clear();
+      expect(await service.castTo(device, first), isTrue);
+      expect(actions, [
+        'SetAVTransportURI',
+        'Stop',
+        'GetTransportInfo',
+        'GetTransportInfo',
+        'SetAVTransportURI',
+        'Play',
+      ]);
+      await service.stopCasting();
+      nextMediaFault = true;
+      actions.clear();
+      expect(await service.castTo(device, first), isFalse);
+      expect(actions, ['SetAVTransportURI']);
+      expect(await service.castTo(device, first), isTrue);
+      state = 'NO_MEDIA_PRESENT';
+      await service.stopCasting();
+      expect(await service.castTo(device, first), isTrue);
+    },
+  );
+
+  test(
+    'relay preserves partial and full bytes across probes and reconnects',
+    () async {
+      final media = List<int>.generate(512, (index) => index % 256);
+      final upstream = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+      final methods = <String>[];
+      upstream.listen((request) async {
+        methods.add(request.method);
+        final response = request.response;
+        final partial = request.headers.value('range') == 'bytes=4-10';
+        expect(request.uri.query, 'fixture=1');
+        if (partial) expect(request.headers.value('if-range'), '"fixture"');
+        response.headers.set('accept-ranges', 'bytes');
+        response.headers.set('etag', '"fixture"');
+        response.headers.contentType = ContentType('video', 'mp4');
+        final bytes = partial ? media.sublist(4, 11) : media;
+        if (partial) {
+          response.statusCode = 206;
+          response.headers.set('content-range', 'bytes 4-10/512');
+        }
+        response.contentLength = bytes.length;
+        if (request.method == 'GET') response.add(bytes);
+        await response.close();
+      });
+      final relay = LanCastRelay();
+      final target = Uri.parse(
+        await relay.start(
+          Uri.parse('http://127.0.0.1:${upstream.port}/original.mp4?fixture=1'),
+          '127.0.0.1',
+          3000,
+          localAddress: InternetAddress.loopbackIPv4,
+        ),
+      );
+      final client = HttpClient();
+      addTearDown(() async {
+        client.close(force: true);
+        await relay.close();
+        await upstream.close(force: true);
+      });
+      expect(target.path, endsWith('.mp4'));
+      final head = await (await client.headUrl(target)).close();
+      expect(head.statusCode, 200);
+      expect(head.contentLength, 512);
+      expect(head.headers.value('accept-ranges'), 'bytes');
+      expect(await head.expand((bytes) => bytes).toList(), isEmpty);
+      final range = await client.getUrl(target);
+      range.headers.set('range', 'bytes=4-10');
+      range.headers.set('if-range', '"fixture"');
+      final partial = await range.close();
+      expect(partial.statusCode, 206);
+      expect(partial.contentLength, 7);
+      expect(partial.headers.value('content-range'), 'bytes 4-10/512');
+      expect(
+        await partial.expand((bytes) => bytes).toList(),
+        media.sublist(4, 11),
+      );
+      final full = await (await client.getUrl(target)).close();
+      expect(await full.expand((bytes) => bytes).toList(), media);
+      expect(methods, ['HEAD', 'GET', 'GET']);
+      await relay.close();
+      await expectLater(
+        Socket.connect(target.host, target.port),
+        throwsA(isA<SocketException>()),
+      );
+    },
+  );
+
   test('media viewer receives target and HLS type', () async {
     final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
     Map<String, dynamic>? media;

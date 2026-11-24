@@ -2,10 +2,12 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:logger/logger.dart';
 import 'package:path/path.dart' as p;
 
 /// AirPlay runs outside the UI process. Communication uses private stdio pipes.
 class AirPlayBridge {
+  final _log = Logger(printer: SimplePrinter());
   Process? _process;
   Future<void>? _starting;
   int _nextId = 0;
@@ -67,7 +69,14 @@ class AirPlayBridge {
         // Ignore non-protocol output; never log pairing material or stream URLs.
       }
     }, onError: (_) => _failed(process));
-    process.stderr.drain<void>();
+    final stage = RegExp(r'^BobTV AirPlay stage: ([a-z-]+)$');
+    process.stderr
+        .transform(const Utf8Decoder(allowMalformed: true))
+        .transform(const LineSplitter())
+        .listen((line) {
+          final match = stage.firstMatch(line);
+          if (match != null) _log.d(line);
+        });
     unawaited(process.exitCode.then((_) => _failed(process)));
   }
 

@@ -44,6 +44,7 @@ helper="$root/build/airplay-macos-dist/bobtv-airplay"
 cp "$root/tools/airplay/fpsap_auth.go" "$helper/"
 cp "$root/tools/macos/build.sh" "$helper/build-macos.sh"
 cp "$root/tools/airplay/AIRSPAN-LICENSE.txt" "$helper/"
+cp "$root/tools/airplay/PYATV-LICENSE.txt" "$helper/"
 for name in LICENSE COPYING.GPL-3.0 LICENSE.BlueOak-1.0.0 NOTICE.md; do
   cp "$source_dir/$name" "$helper/FPSAP-$name"
 done

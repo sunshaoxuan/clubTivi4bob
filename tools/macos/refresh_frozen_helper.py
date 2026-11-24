@@ -26,7 +26,7 @@ def refresh(binary, sources):
         raise ValueError('Frozen runtime Python bytecode version differs')
     embedded = archive.open_embedded_archive('PYZ.pyz')
     modules = {name: embedded.extract(name) for name in embedded.toc}
-    replacements = ('mac_source', 'video_relay', 'egress_policy')
+    replacements = ('mac_source', 'video_relay', 'egress_policy', 'airplay_video_v2')
     for name in replacements:
         path = sources / (name + '.py')
         modules[name] = compile(path.read_bytes(), path.name, 'exec')

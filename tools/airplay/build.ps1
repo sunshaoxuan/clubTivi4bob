@@ -11,6 +11,7 @@ if ($LASTEXITCODE) { throw 'AirPlay dependency installation failed' }
 & $python -m PyInstaller --noconfirm --clean --onedir --console --name bobtv-airplay --collect-all pyatv --recursive-copy-metadata pyatv --distpath "$root\build\airplay-dist" --workpath "$root\build\airplay-work" --specpath "$root\build" "$PSScriptRoot\bobtv_airplay.py"
 if ($LASTEXITCODE) { throw 'AirPlay helper build failed' }
 Copy-Item -LiteralPath "$PSScriptRoot\AIRSPAN-LICENSE.txt" -Destination "$root\build\airplay-dist\bobtv-airplay"
+Copy-Item -LiteralPath "$PSScriptRoot\PYATV-LICENSE.txt" -Destination "$root\build\airplay-dist\bobtv-airplay"
 # The independently built FPSAP adapter is packaged only when its complete
 # corresponding-source/license bundle is available. No binary-only fallback.
 $native = Join-Path $root 'build\fpsap-dist'

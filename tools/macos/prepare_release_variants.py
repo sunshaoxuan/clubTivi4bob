@@ -60,7 +60,10 @@ def prepare(universal, previous, output):
                 thin.replace(file)
                 file.chmod(0o755)
             binaries.append(file)
-        refresh(resources / 'AirPlay/bobtv-airplay/bobtv-airplay', ROOT / 'tools/airplay')
+        helper = resources / 'AirPlay/bobtv-airplay'
+        sources = ROOT / 'tools/airplay'
+        refresh(helper / 'bobtv-airplay', sources)
+        shutil.copy2(sources / 'PYATV-LICENSE.txt', helper)
         for binary in binaries:
             run('codesign', '--force', *signing, binary)
         run('codesign', '--force', '--deep', *signing, progress)

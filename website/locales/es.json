@@ -202,6 +202,11 @@
     "history_title": "Cambios recientes",
     "history": [
       [
+        "2026-11-25",
+        "v1.4.5 · Correcciones de transmisión y compatibilidad WebOS",
+        "Corrige la reconexión DLNA y el cambio de canal, añade consultas multimedia y solicitudes de rango, y compatibilidad con vídeo v2 de AirPlay en LG WebOS. Solo escritorio; falta la verificación en un televisor físico."
+      ],
+      [
         "2026-11-23",
         "v1.4.4 · Cambio de canal más fluido",
         "Corrige las imágenes congeladas al cambiar de canal durante el guardado de ajustes. Las vistas previas listas pasan rápidamente al reproductor principal y mejora la respuesta durante la sincronización del catálogo en Windows."

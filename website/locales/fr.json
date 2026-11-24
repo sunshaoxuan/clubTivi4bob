@@ -202,6 +202,11 @@
     "history_title": "Modifications récentes",
     "history": [
       [
+        "2026-11-25",
+        "v1.4.5 · Corrections de diffusion et de compatibilité WebOS",
+        "Corrige les diffusions DLNA répétées et les changements de chaîne, ajoute les requêtes de détection et de plage, ainsi que la compatibilité vidéo v2 AirPlay de LG WebOS. Mise à jour de bureau uniquement ; validation sur téléviseur encore nécessaire."
+      ],
+      [
         "2026-11-23",
         "v1.4.4 · Changement de chaîne plus fluide",
         "Corrige les images figées pendant le changement de chaîne lors de la sauvegarde des réglages. Les aperçus prêts passent rapidement au lecteur principal et la sélection reste réactive pendant la synchronisation du catalogue Windows."

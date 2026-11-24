@@ -202,6 +202,11 @@
     "history_title": "Recent changes",
     "history": [
       [
+        "2026-11-25",
+        "v1.4.5 · Casting and WebOS compatibility fixes",
+        "Fixes repeated DLNA casting and channel changes, adds media probing and range request support, and adds LG WebOS AirPlay video v2 compatibility. Desktop update only; physical TV playback still needs verification."
+      ],
+      [
         "2026-11-23",
         "v1.4.4 · Smoother channel switching",
         "Fixes frozen pictures during channel switching caused by settings writes. Ready previews move promptly to the main player, and Windows playback reads remain responsive during catalog synchronization."

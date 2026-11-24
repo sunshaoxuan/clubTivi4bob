@@ -1,7 +1,7 @@
 # BobTV release requirements
 
 - Public releases use `1.4.m`, with no plus sign or build suffix in screens, release notes, website or download filenames. Increment `m` for each release. Keep a cumulative internal native build counter for compatibility with existing update clients, including repeated official build attempts. A larger minor or major version is reserved for a substantial feature release.
-- The user explicitly authorized 1.4.4 for the four currently public desktop variants only. Preserve all Android packages and feeds for this release.
+- The user explicitly authorized 1.4.5 for the four currently public desktop variants only. Preserve all Android and iOS packages and feeds for this release.
 - The imported build-counter baseline is `1.4.1+1`. Allocate each new build above every counter already recorded, and record every consumed build number in `docs/release-build-ledger.json` before starting an official build. Routine updates continue forward in the 1.4 series.
 - Commit and push every application source change to the remote main branch before building any official release. Verify that the exact frozen release commit is already present on remote main; a local-only commit or an uncommitted working tree cannot be released.
 - Local development builds and isolated tests may precede the push, but they are not official release artifacts. After integration changes, rebuild and retest the exact committed source before publication.

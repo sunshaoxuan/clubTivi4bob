@@ -1,3 +1,5 @@
+
+
 <!doctype html>
 <html lang="zh-CN">
 <head>
@@ -40,7 +42,15 @@
     </div>
     <div class="history-list">
       
-      <div><time datetime="2026-11-22">2026-11-22</time><strong>v1.4.0 · 地区订阅与移动端频道抽屉</strong><p>新增账号地区订阅和开放直播范例，支持导入与更新 .bobtv 资源包。手机竖屏从下方打开频道抽屉，横屏从右侧打开。设备端字幕模型更新为多语言版本，并改进节目识别、字幕状态和断流恢复。</p></div>
+      <div><time datetime="2026-11-25">2026-11-25</time><strong>v1.4.5 · 投屏连接与 WebOS 兼容修复</strong><p>修复 DLNA 重复投放与换台连接，补充媒体探测和分段请求支持，增加 LG WebOS AirPlay 视频 v2 兼容。仅更新桌面版；电视实机效果仍需复测。</p></div>
+      
+      <div><time datetime="2026-11-23">2026-11-23</time><strong>v1.4.4 · 修复换台画面卡顿</strong><p>修复设置保存阻塞界面造成的换台画面停滞，已就绪的预览快速转入大播放画面。优化 Windows 目录同步期间的换台响应。</p></div>
+      
+      <div><time datetime="2026-11-22">2026-11-22</time><strong>v1.4.3 · 预览快速切入大屏</strong><p>频道卡片已有播放预览时，再次点击直接复用现有播放器切换到大画面。切换减少等待其他播放器清理，连续点击已准备或正在播放的频道时保持播放，减少重复加载。</p></div>
+      
+      <div><time datetime="2026-11-22">2026-11-22</time><strong>v1.4.2 · 播放台名与节目单角标</strong><p>大播放画面左上角显示当前台名，独立播放窗口和全屏播放同步显示。频道卡片的小节目单图标移至左上角。继续提供 EPG 实时进度和节目自动前移补齐，常规更新沿用 1.4 系列。</p></div>
+      
+      <div><time datetime="2026-11-22">2026-11-22</time><strong>v1.4.1 · EPG 实时进度与节目单标识</strong><p>当前节目显示实时绿色进度与轻微闪光的播放位置，后续节目自动前移并补齐。节目单图标标识有 EPG 的频道。桌面升级只保留上一版备份。</p></div>
       
       <div><time datetime="2026-11-19">2026-11-19</time><strong>v1.3.1 · 字幕菜单显示已找到的所有版本</strong><p>播放中打开标有“字幕”的按钮，按语种查看已有版本。任选一版，或切回自动；手选仅影响当前节目。小窗口的字幕按钮在收藏左侧。可从菜单重新查找指定语种。</p></div>
       
@@ -57,6 +67,8 @@
       <div><time datetime="2026-11-12">2026-11-12</time><strong>v1.1.21 · 投屏体验优化</strong><p>优化局域网设备发现、投屏地址转发和媒体信息传递，改善连接失败提示与搜索资源释放。</p></div>
       
       <div><time datetime="2026-11-11">2026-11-11</time><strong>v1.1.20 · 官网同款深色界面，七种语言</strong><p>频道页和播放器换上深色紫粉配色。设置入口已收起，从应用顶部仍可切换七种界面语言。</p></div>
+      
+      <div><time datetime="2026-11-11">2026-11-11</time><strong>v1.1.19 · 客户端与网站支持七种语言</strong><p>Windows、macOS 与 Android 统一版本 1.1.19+114。从应用顶部切换语言。手动选择会保留，跟随系统时按系统语言、时区、英文的顺序选择。语言资源随安装包提供。进阶模式入口已关闭。</p></div>
       
       <div><time datetime="2026-11-01">2026-11-01</time><strong>v1.1.18 · 找台更快，收藏更顺手</strong><p>按国家或分类浏览频道时，列表打开得更快。点击已点亮的星标即可取消收藏，收藏夹里的勾选也能正常保存。节目表会在后台继续更新，需要刷新时只在相关频道和设置中提示。</p></div>
       
@@ -134,7 +146,7 @@
     </div>
   </footer>
   
-  <script id="site-messages" type="application/json">{"android_note": "Android 7+\uff1b\u66f4\u65b0\u5b89\u88c5\u9700\u7cfb\u7edf\u786e\u8ba4\u3002\u5b9e\u673a\u4e0e\u5927\u9646\u7f51\u7edc\u5f85\u9a8c\u8bc1\u3002", "checking": "\u6b63\u5728\u68c0\u67e5\u65e5\u5fd7\u2026", "checksum": "SHA-256 \u6821\u9a8c\u503c", "cpu_note": "\u6bcf\u4e2a\u7cfb\u7edf\u4e00\u680f\uff0c\u6309 CPU \u9009\u62e9\u3002", "current": "\u6700\u65b0\u53d1\u5e03", "dmg": "DMG \u5b89\u88c5\u6620\u50cf", "download": "\u4e0b\u8f7d", "download_label": "\u4e0b\u8f7d {platform} {version}\uff0c{size}", "download_package": "\u4e0b\u8f7d\u5b89\u88c5\u5305", "empty": "\u6682\u65f6\u6ca1\u6709\u5b89\u88c5\u5305\uff0c\u8bf7\u7a0d\u540e\u67e5\u770b\u3002", "entries": "\u65e5\u5fd7\u6761\u76ee\u8fc7\u591a", "exe": "EXE \u5b89\u88c5\u7a0b\u5e8f", "failure": "\u4e0a\u4f20\u5931\u8d25\uff08{error}\uff09\u3002\u8bf7\u68c0\u67e5\u6587\u4ef6\u540e\u91cd\u8bd5\u3002", "file_limit": "\u8bf7\u9009\u62e9\u4e0d\u8d85\u8fc7 1 MiB \u7684\u65e5\u5fd7\u3002", "intel": "Intel Mac \u7248", "invalid": "JSONL \u65e5\u5fd7\u683c\u5f0f\u4e0d\u6b63\u786e", "loading": "\u6b63\u5728\u8bfb\u53d6\u7248\u672c\u4fe1\u606f\u2026", "macos_note": "\u5f53\u524d\u4f9d\u8d56\u8981\u6c42 macOS 13 \u6216\u66f4\u65b0\u7248\u672c\uff0c\u65e7\u7cfb\u7edf\u517c\u5bb9\u4ecd\u5f85\u5f00\u53d1\u3002\u9009\u5bf9\u82af\u7247\uff0c\u6253\u5f00 DMG \u540e\u62d6\u5230 Applications\u3002", "no_file": "\u672a\u9009\u62e9\u6587\u4ef6", "pending": "\u51c6\u5907\u4e2d", "platform_pending": "\u8be5\u5e73\u53f0\u5f53\u524d\u63d0\u4f9b {version}\uff0c\u73b0\u6709\u4e0b\u8f7d\u4e0e\u66f4\u65b0\u901a\u9053\u7ee7\u7eed\u53ef\u7528\u3002", "portable_download": "\u4e0b\u8f7d ZIP \u4fbf\u643a\u5305", "processed_limit": "\u8fc7\u6ee4\u540e\u65e5\u5fd7\u8d85\u8fc7 1 MiB", "published": "\u53d1\u5e03\u4e8e {date}", "release_error": "\u7248\u672c\u4fe1\u606f\u6682\u65f6\u4e0d\u53ef\u7528\uff0c\u8bf7\u7a0d\u540e\u91cd\u8bd5\u3002", "silicon": "Apple Silicon Mac \u7248", "success": "\u4e0a\u4f20\u5b8c\u6210\u3002\u8bca\u65ad\u7f16\u53f7\uff1a{id}", "surface_pending": "Surface ARM \u539f\u751f\u7248\u5f85\u7f16\u8bd1\u9a8c\u8bc1", "uploading": "\u6b63\u5728\u4e0a\u4f20\u2026", "version_note": "\u4e0b\u8f7d\u6309\u94ae\u6807\u660e\u5404\u5e73\u53f0\u7248\u672c\u3002", "windows": "Windows \u7248", "windows_arm64_note": "ARM64 \u539f\u751f\u5305\u5df2\u901a\u8fc7\u6784\u5efa\u4e0e\u67b6\u6784\u6821\u9a8c\uff1bSurface \u5b9e\u673a\u64ad\u653e\u3001AirPlay \u548c\u66f4\u65b0\u4ecd\u5f85\u9a8c\u8bc1\u3002", "windows_note": "Setup \u9700\u8981\u7ba1\u7406\u5458\u6388\u6743\uff0cZIP \u53ef\u5b8c\u6574\u89e3\u538b\u4f7f\u7528\u3002", "zip": "ZIP \u4fbf\u643a\u5305"}</script>
+  <script id="site-messages" type="application/json">{"android_note": "Android 7+\uff1b\u66f4\u65b0\u5b89\u88c5\u9700\u7cfb\u7edf\u786e\u8ba4\u3002\u5b9e\u673a\u4e0e\u5927\u9646\u7f51\u7edc\u5f85\u9a8c\u8bc1\u3002", "checking": "\u6b63\u5728\u68c0\u67e5\u65e5\u5fd7\u2026", "checksum": "SHA-256 \u6821\u9a8c\u503c", "cpu_note": "\u6bcf\u4e2a\u7cfb\u7edf\u4e00\u680f\uff0c\u6309 CPU \u9009\u62e9\u3002", "current": "\u6700\u65b0\u53d1\u5e03", "dmg": "DMG \u5b89\u88c5\u6620\u50cf", "download": "\u4e0b\u8f7d", "download_label": "\u4e0b\u8f7d {platform} {version}\uff0c{size}", "download_package": "\u4e0b\u8f7d\u5b89\u88c5\u5305", "empty": "\u6682\u65f6\u6ca1\u6709\u5b89\u88c5\u5305\uff0c\u8bf7\u7a0d\u540e\u67e5\u770b\u3002", "entries": "\u65e5\u5fd7\u6761\u76ee\u8fc7\u591a", "exe": "EXE \u5b89\u88c5\u7a0b\u5e8f", "failure": "\u4e0a\u4f20\u5931\u8d25\uff08{error}\uff09\u3002\u8bf7\u68c0\u67e5\u6587\u4ef6\u540e\u91cd\u8bd5\u3002", "file_limit": "\u8bf7\u9009\u62e9\u4e0d\u8d85\u8fc7 1 MiB \u7684\u65e5\u5fd7\u3002", "intel": "Intel Mac \u7248", "invalid": "JSONL \u65e5\u5fd7\u683c\u5f0f\u4e0d\u6b63\u786e", "loading": "\u6b63\u5728\u8bfb\u53d6\u7248\u672c\u4fe1\u606f\u2026", "macos_note": "\u5f53\u524d\u4f9d\u8d56\u8981\u6c42 macOS 13 \u6216\u66f4\u65b0\u7248\u672c\uff0c\u65e7\u7cfb\u7edf\u517c\u5bb9\u4ecd\u5f85\u5f00\u53d1\u3002\u9009\u5bf9\u82af\u7247\uff0c\u6253\u5f00 DMG \u540e\u62d6\u5230 Applications\u3002", "no_file": "\u672a\u9009\u62e9\u6587\u4ef6", "pending": "\u51c6\u5907\u4e2d", "platform_pending": "\u6b64\u5e73\u53f0\u7ee7\u7eed\u63d0\u4f9b\u73b0\u6709\u516c\u5f00\u7248\u672c {version}\u3002", "portable_download": "\u4e0b\u8f7d ZIP \u4fbf\u643a\u5305", "processed_limit": "\u8fc7\u6ee4\u540e\u65e5\u5fd7\u8d85\u8fc7 1 MiB", "published": "\u53d1\u5e03\u4e8e {date}", "release_error": "\u7248\u672c\u4fe1\u606f\u6682\u65f6\u4e0d\u53ef\u7528\uff0c\u8bf7\u7a0d\u540e\u91cd\u8bd5\u3002", "silicon": "Apple Silicon Mac \u7248", "success": "\u4e0a\u4f20\u5b8c\u6210\u3002\u8bca\u65ad\u7f16\u53f7\uff1a{id}", "surface_pending": "Surface ARM \u539f\u751f\u7248\u5f85\u7f16\u8bd1\u9a8c\u8bc1", "uploading": "\u6b63\u5728\u4e0a\u4f20\u2026", "version_note": "\u4e0b\u8f7d\u6309\u94ae\u6807\u660e\u5404\u5e73\u53f0\u7248\u672c\u3002", "windows": "Windows \u7248", "windows_arm64_note": "ARM64 \u539f\u751f\u5305\u5df2\u901a\u8fc7\u6784\u5efa\u4e0e\u67b6\u6784\u6821\u9a8c\uff1bSurface \u5b9e\u673a\u64ad\u653e\u3001AirPlay \u548c\u66f4\u65b0\u4ecd\u5f85\u9a8c\u8bc1\u3002", "windows_note": "Setup \u9700\u8981\u7ba1\u7406\u5458\u6388\u6743\uff0cZIP \u53ef\u5b8c\u6574\u89e3\u538b\u4f7f\u7528\u3002", "zip": "ZIP \u4fbf\u643a\u5305"}</script>
   <script src="/assets/language.js?v=1" defer></script>
   <script src="/assets/device-count.js?v=2" defer></script>
   

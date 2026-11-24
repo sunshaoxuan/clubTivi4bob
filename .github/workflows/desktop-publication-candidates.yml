@@ -1,0 +1,80 @@
+name: Desktop publication candidates
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: desktop-publication-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  windows:
+    runs-on: windows-2022
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        architecture: [x64, arm64]
+    steps:
+      - run: git config --global core.autocrlf false
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.44.6'
+          channel: stable
+          cache: true
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.23'
+      - name: Build pinned AirPlay helper
+        shell: pwsh
+        run: |
+          $source=Join-Path $env:RUNNER_TEMP 'fpsap-source'
+          git clone https://github.com/objevovat/fairplay-sap-core-airplay2-sender-authentication-handshake.git $source
+          if($LASTEXITCODE){throw 'FPSAP clone failed'}
+          git -C $source checkout --detach 370f9db2e26b21b4a710bdba5d51012c1239e736
+          if($LASTEXITCODE){throw 'FPSAP revision failed'}
+          Push-Location $source
+          try {go mod download;if($LASTEXITCODE){throw 'Go download failed'}} finally {Pop-Location}
+          & tools/airplay/build-fpsap.ps1 -SourceDirectory $source -OutputDirectory build/fpsap-dist
+          & tools/airplay/build.ps1
+          if($LASTEXITCODE){throw 'AirPlay helper build failed'}
+      - name: Verify casting and updater regressions
+        shell: pwsh
+        run: |
+          flutter pub get
+          if($LASTEXITCODE){throw 'Dependency resolution failed'}
+          flutter test --no-pub test/lg_webos_cast_test.dart test/airplay_cast_test.dart test/local_cast_mute_test.dart test/update_manifest_test.dart test/desktop_update_feedback_test.dart
+          if($LASTEXITCODE){throw 'Flutter regression failed'}
+          & build/airplay-venv/Scripts/python.exe -m unittest discover -s tools/airplay -p 'test_*.py'
+          if($LASTEXITCODE){throw 'AirPlay regression failed'}
+      - name: Compile architecture-verified application
+        shell: pwsh
+        run: |
+          & tools/windows/prepare_signpath_bundle.ps1 -Architecture '${{ matrix.architecture }}' -FlutterDirectory $env:FLUTTER_ROOT -OutputDirectory (Join-Path $env:RUNNER_TEMP 'BobTVBuild')
+      - name: Verify frozen helper and package desktop installers
+        shell: pwsh
+        run: |
+          $helper=Join-Path $env:BOBTV_BUNDLE 'AirPlay/bobtv-airplay.exe'
+          $reply='{ "id": 1, "action": "stop" }' | & $helper
+          if($LASTEXITCODE -or (($reply | ConvertFrom-Json).id -ne 1)){throw 'Frozen helper startup failed'}
+          $out=Join-Path $env:GITHUB_WORKSPACE 'desktop-candidates'
+          New-Item -ItemType Directory -Path $out -Force|Out-Null
+          $compiler=Join-Path ${env:ProgramFiles(x86)} 'Inno Setup 6/ISCC.exe'
+          & tools/windows/build_installer.ps1 -BundleDirectory $env:BOBTV_BUNDLE -OutputDirectory $out -CompilerPath $compiler -Architecture '${{ matrix.architecture }}'
+          if('${{ matrix.architecture }}' -eq 'x64'){
+            & tools/windows/test_installer.ps1 -BundleDirectory $env:BOBTV_BUNDLE -CompilerPath $compiler
+          }
+          $zip=Join-Path $out "BobTV-$env:BOBTV_VERSION-windows-${{ matrix.architecture }}.zip"
+          Compress-Archive -LiteralPath $env:BOBTV_BUNDLE -DestinationPath $zip -CompressionLevel Optimal
+          Copy-Item $env:BOBTV_PROVENANCE (Join-Path $out 'build-provenance.json')
+      - uses: actions/upload-artifact@v4
+        with:
+          name: BobTV-desktop-windows-${{ matrix.architecture }}
+          path: desktop-candidates/*
+          if-no-files-found: error
+          retention-days: 7

@@ -1,5 +1,6 @@
 import binascii
 import hashlib
+import hmac
 from types import SimpleNamespace
 import unittest
 from unittest.mock import AsyncMock
@@ -18,7 +19,7 @@ class TransientReceiver:
                              generator=constants.PRIME_3072_GEN,
                              hash_func=hashlib.sha512, bits_salt=128)
         _, verifier, self.salt = context.get_user_data_triplet()
-        self.server = SRPServerSession(context, verifier)
+        self.server = SRPServerSession(context, password_verifier=verifier)
         self.bad_proof = bad_proof
         self.paths = []
         self.send_processor = None
@@ -34,7 +35,7 @@ class TransientReceiver:
                         TlvValue.PublicKey: binascii.unhexlify(self.server.public)}
         else:
             self.server.process(fields[TlvValue.PublicKey].hex(), self.salt)
-            assert self.server.verify_proof(fields[TlvValue.Proof].hex().encode())
+            assert hmac.compare_digest(binascii.unhexlify(self.server.key_proof), fields[TlvValue.Proof])
             proof = binascii.unhexlify(self.server.key_proof_hash)
             response = {TlvValue.SeqNo: b'\x04',
                         TlvValue.Proof: b'bad' if self.bad_proof else proof}

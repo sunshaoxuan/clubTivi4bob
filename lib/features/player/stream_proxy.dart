@@ -98,6 +98,10 @@ class StreamProxy {
         request.response.headers.contentType = ContentType('video', 'mp2t');
         request.response.headers.set('Connection', 'close');
         request.response.bufferOutput = false;
+        if (request.method == 'HEAD') {
+          unawaited(request.response.close());
+          return;
+        }
         _clients.add(request.response);
 
         // Send buffered data first so client gets stream headers

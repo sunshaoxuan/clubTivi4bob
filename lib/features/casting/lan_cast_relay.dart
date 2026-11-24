@@ -46,9 +46,13 @@ class LanCastRelay {
       24,
       (_) => random.nextInt(256).toRadixString(16).padLeft(2, '0'),
     ).join();
-    final path = '/$token.ts';
+    final extension = RegExp(
+      r'\.[a-zA-Z0-9]{1,8}$',
+    ).firstMatch(upstream.path)?.group(0);
+    // The player's extensionless codec bridge serves MPEG-TS.
+    final path = '/$token${extension ?? '.ts'}';
     server.listen((request) async {
-      if (request.method != 'GET' ||
+      if (!{'GET', 'HEAD'}.contains(request.method) ||
           request.uri.path != path ||
           request.connectionInfo?.remoteAddress.address != tvAddress.address) {
         request.response.statusCode = HttpStatus.forbidden;
@@ -57,21 +61,47 @@ class LanCastRelay {
       }
       try {
         final proxyRequest = await client
-            .getUrl(upstream)
+            .openUrl(request.method, upstream)
             .timeout(const Duration(seconds: 5));
         proxyRequest.followRedirects = false;
+        proxyRequest.headers.set('accept-encoding', 'identity');
+        for (final name in ['range', 'if-range', 'accept-encoding']) {
+          final values = request.headers[name];
+          if (values != null) proxyRequest.headers.set(name, values);
+        }
         final response = await proxyRequest.close().timeout(
           const Duration(seconds: 10),
         );
+        if (response.statusCode >= 300 && response.statusCode < 400) {
+          await response.listen(null).cancel();
+          request.response.statusCode = HttpStatus.badGateway;
+          return;
+        }
         request.response.statusCode = response.statusCode;
-        final contentType = response.headers.contentType;
-        if (contentType != null) {
-          request.response.headers.contentType = contentType;
+        for (final name in [
+          'content-type',
+          'content-encoding',
+          'content-range',
+          'accept-ranges',
+          'etag',
+          'last-modified',
+          'cache-control',
+        ]) {
+          final values = response.headers[name];
+          if (values != null) request.response.headers.set(name, values);
+        }
+        if (response.contentLength >= 0) {
+          request.response.contentLength = response.contentLength;
         }
         request.response.bufferOutput = false;
-        await request.response.addStream(response);
+        if (request.method == 'HEAD') {
+          await response.drain<void>();
+        } else {
+          await request.response.addStream(response);
+        }
       } catch (_) {
         try {
+          request.response.headers.clear();
           request.response.statusCode = HttpStatus.badGateway;
         } catch (_) {}
       } finally {

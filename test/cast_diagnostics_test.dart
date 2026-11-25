@@ -108,6 +108,7 @@ void main() {
       final sync = DiagnosticSyncService(
         observeLifecycle: false,
         apiFactory: RecordingApi.new,
+        fingerprintResolver: () async => 'ab' * 32,
         countryResolver: (_) async => 'CN',
         castUploadDelay: const Duration(milliseconds: 30),
       );
@@ -116,6 +117,7 @@ void main() {
       expect(RecordingApi.uploads, isEmpty);
       await sync.setEnabled(true);
       await waitFor(() => sync.status.value.contains('已同步'));
+      expect(RecordingApi.uploads.last['terminalFingerprint'], 'ab' * 32);
       final before = RecordingApi.uploads.length;
       cast.record('upload_trigger');
       await diagnostics.flush();

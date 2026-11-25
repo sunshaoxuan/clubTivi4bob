@@ -41,6 +41,19 @@ thirty-day retention and capacity limits apply. This is additional structured
 metadata within diagnostics schema version 2; both node validators must be
 updated before distributing a client with the additional fields.
 
+Uploads and relay forwarding use gzip (`Content-Encoding: gzip`); the receipt
+digest always identifies the original JSON bytes, so retries and receipts stay
+stable across compression. Each batch is limited to 256 KiB both on the wire
+and after expansion. Invalid, truncated and concatenated gzip streams are rejected.
+Old clients can still send uncompressed JSON. The bounded server store currently
+keeps validated JSON, while transfers and operator downloads are compressed.
+
+Each new batch includes `terminalFingerprint`, reusing the app-scoped anonymous
+client fingerprint. If platform identity initialization is unavailable, a stable
+hash of the diagnostic installation ID is used. Raw machine identifiers are not
+uploaded. Older pending batches retain their exact bytes and use installation ID
+for attribution until new batches carry the fingerprint.
+
 The application needs a new build before these client changes take effect.
 Changing only the server cannot add logs to already installed clients.
 
@@ -50,19 +63,23 @@ Run from the repository, with the existing operator SSH key:
 
 ```sh
 python3 tools/diagnostics/cast_logs.py --after 0 --limit 30
-python3 tools/diagnostics/cast_logs.py --download BATCH_DIGEST --output /private/tmp/cast-batch.json
+python3 tools/diagnostics/cast_logs.py --download BATCH_DIGEST --output /private/tmp/cast-batch.json.gz
 ```
 
-Listings include digest, server receive timestamp, session IDs, event counts,
+Listings include digest, stable anonymous terminal fingerprint, installation ID,
+server receive timestamp, session IDs, event counts,
 last event and failure count. `--after` is an inclusive Unix timestamp; retain
 seen digests when scanning incrementally. Listings inspect at most 2000 recent
 unexpired batches. A session may span batches. Download all matching batches
 and order their events by timestamp. Downloads require authenticated SSH and
-create a new file with mode 0600. No public payload-download endpoint is added.
+create a new `.json.gz` archive with mode 0600. Compression happens on the node
+before transfer; the download tool verifies the original SHA-256 after expansion.
+Use `--terminal FINGERPRINT` to select one terminal. No public payload-download
+endpoint is added.
 
 Deployment uses `tools/deploy_cast_diagnostics.py`, which checks the live schema
 against the checkout's HEAD baseline, backs up the file, replaces only the
-validator and rolls it back if import or service checks fail. Its baseline
+diagnostic modules and rolls them back if import or service checks fail. Its baseline
 check intentionally refuses unrelated changes on either node.
 
 ## Validation for this change
@@ -79,3 +96,18 @@ check intentionally refuses unrelated changes on either node.
   Private SSH download was verified with file mode 0600.
 * Actual LG/AirPlay receiver failure reproduction and new client packaging
   remain separate acceptance work. No new application release was published.
+
+
+## Compression and terminal attribution validation
+
+The focused Flutter upload/sync suite passed 11 tests, and the server suite
+passed 11 tests, including malformed archives, expansion limits and terminal
+fingerprint validation. Static analysis of both modified client services passed.
+
+Live synthetic probes with two distinct terminal fingerprints confirmed origin
+and relay gzip ingestion, relay forwarding to origin, fingerprint-based listing,
+and private gzip download with original-content digest verification. The
+100-event synthetic batch measured 28,477 bytes before compression and 1,067
+bytes after compression at the origin. This sample does not predict the
+compression ratio of all user logs. Both nodes were deployed with backups;
+client packaging and publication remain outstanding.

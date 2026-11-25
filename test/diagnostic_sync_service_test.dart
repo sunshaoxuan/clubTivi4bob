@@ -61,6 +61,7 @@ void main() {
   DiagnosticSyncService service() {
     final result = DiagnosticSyncService(
       logStore: store,
+      fingerprintResolver: () async => 'ab' * 32,
       now: () => now,
       apiFactory: () => DiagnosticApi(fixture),
       observeLifecycle: false,
@@ -135,6 +136,7 @@ void main() {
       }
       final envelope = jsonDecode(text) as Map;
       expect(envelope['consentVersion'], 2);
+      expect(envelope['terminalFingerprint'], 'ab' * 32);
       expect((envelope['installationId'] as String).length, 32);
       expect(
         (await SharedPreferences.getInstance()).getString(

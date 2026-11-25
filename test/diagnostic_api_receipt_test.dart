@@ -11,6 +11,7 @@ void main() {
   var wrongId = false;
   var state = 'origin_accepted';
   var writes = 0;
+  var wireBytes = 0;
   setUp(() async {
     cache = 'private, no-store';
     wrongId = false;
@@ -18,10 +19,13 @@ void main() {
     writes = 0;
     server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
     server.listen((request) async {
-      final body = await request.fold<List<int>>(
+      final compressed = await request.fold<List<int>>(
         [],
         (value, part) => value..addAll(part),
       );
+      expect(request.headers.value('content-encoding'), 'gzip');
+      wireBytes = compressed.length;
+      final body = gzip.decode(compressed);
       writes++;
       request.response.statusCode = 201;
       request.response.headers.set('Cache-Control', cache);
@@ -58,6 +62,27 @@ void main() {
       state = 'invented_success';
       await expectLater(api.uploadDiagnosticBatch(body), throwsFormatException);
       expect(writes, 4);
+    },
+  );
+  test(
+    'repetitive diagnostics are compressed and keep original content receipt',
+    () async {
+      final body = utf8.encode(
+        jsonEncode({
+          'entries': List.generate(
+            100,
+            (i) => {
+              'event': 'cast_relay_progress',
+              'elapsedMs': i * 100,
+              'requestId': 'a' * 32,
+              'bytes': i * 1024,
+            },
+          ),
+        }),
+      );
+      final receipt = await api.uploadDiagnosticBatch(body);
+      expect(receipt['id'], sha256.convert(body).toString());
+      expect(wireBytes, lessThan(body.length ~/ 3));
     },
   );
   test('shared cached acknowledgments never commit upload success', () async {

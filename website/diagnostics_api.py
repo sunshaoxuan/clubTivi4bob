@@ -5,6 +5,7 @@ import os
 from pathlib import Path
 import sqlite3
 import time
+import zlib
 
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import JSONResponse
@@ -23,15 +24,25 @@ def store():
 async def read_batch(request):
     if request.headers.get('content-type', '').split(';')[0] != 'application/json':
         raise HTTPException(415, 'Expected diagnostic JSON')
-    # Compressed bodies are deliberately unsupported: the byte ceiling cannot
-    # be evaded with a decompression bomb.
-    if request.headers.get('content-encoding', 'identity') != 'identity':
-        raise HTTPException(415, 'Compressed diagnostics are unsupported')
+    encoding = request.headers.get('content-encoding', 'identity').strip().lower()
+    if encoding not in {'identity', 'gzip'}:
+        raise HTTPException(415, 'Unsupported diagnostic encoding')
     body = bytearray()
     async for part in request.stream():
         body.extend(part)
         if len(body) > MAX_BODY:
             raise HTTPException(413, 'Diagnostic batch exceeds byte limit')
+    if encoding == 'gzip':
+        try:
+            decoder = zlib.decompressobj(16 + zlib.MAX_WBITS)
+            decoded = decoder.decompress(bytes(body), MAX_BODY + 1)
+            if len(decoded) > MAX_BODY or decoder.unconsumed_tail:
+                raise HTTPException(413, 'Expanded diagnostic batch exceeds byte limit')
+            if not decoder.eof or decoder.unused_data:
+                raise HTTPException(400, 'Invalid diagnostic gzip archive')
+            return decoded
+        except zlib.error:
+            raise HTTPException(400, 'Invalid diagnostic gzip archive') from None
     return bytes(body)
 
 

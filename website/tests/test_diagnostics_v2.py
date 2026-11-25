@@ -1,4 +1,5 @@
 import asyncio
+import gzip
 import hashlib
 import json
 import os
@@ -72,7 +73,7 @@ def test_origin_api_has_no_payload_read_and_no_shared_cache(tmp_path, monkeypatc
     assert set(client.get('/api/v1/diagnostics/batches/' + receipt['id']).json()) == {'id', 'state'}
     assert client.get('/api/v1/diagnostics/batches/' + receipt['id'] + '/body').status_code == 404
     assert client.post('/api/v1/diagnostics/batches', content=b'x' * (storage.MAX_BODY + 1), headers={'Content-Type': 'application/json'}).status_code == 413
-    assert client.post('/api/v1/diagnostics/batches', content=body, headers={'Content-Type': 'application/json', 'Content-Encoding': 'gzip'}).status_code == 415
+    assert client.post('/api/v1/diagnostics/batches', content=body, headers={'Content-Type': 'application/json', 'Content-Encoding': 'gzip'}).status_code == 400
 
 
 def test_relay_storage_fault_is_retryable_and_not_shared_cached(monkeypatch):
@@ -116,7 +117,8 @@ def test_relay_accepts_when_origin_offline_then_worker_recovers_after_restart(tm
         assert queue.receipt(digest, now)['state'] == 'relay_stored'
         assert queue.due(now=now) == []
         def success(request):
-            receipt = origin.put(request.content, now=now + 61)
+            assert request.headers['content-encoding'] == 'gzip'
+            receipt = origin.put(gzip.decompress(request.content), now=now + 61)
             return httpx.Response(201, json=receipt, headers={'Cache-Control': 'private, no-store'})
         async with httpx.AsyncClient(transport=httpx.MockTransport(success)) as upstream:
             assert (await forward(upstream, queue, 'b' * 64, '121.43.197.117', 'https://origin.test', now=now + 61))['forwarded'] == 1
@@ -163,3 +165,48 @@ def test_cast_metadata_survives_private_store_and_rejects_secrets(tmp_path):
                          ('videoCodec', 'https://private/token'), ('accepted', 'yes')]:
         with pytest.raises(ValueError):
             storage.validate_batch(batch(**{field: value}), now)
+
+
+def test_gzip_ingestion_fingerprint_and_expansion_limits(tmp_path, monkeypatch):
+    import time
+    monkeypatch.setenv('BOBTV_DATA_DIR', str(tmp_path))
+    monkeypatch.delenv('BOBTV_DIAGNOSTICS_DIR', raising=False)
+    value = json.loads(batch(int(time.time())))
+    value['terminalFingerprint'] = 'e' * 64
+    body = json.dumps(value).encode()
+    archive = gzip.compress(body, mtime=0)
+    app = FastAPI()
+    app.include_router(diagnostics_api.router)
+    client = TestClient(app)
+    headers = {'Content-Type': 'application/json', 'Content-Encoding': 'gzip'}
+    response = client.post('/api/v1/diagnostics/batches', content=archive, headers=headers)
+    assert response.status_code == 201
+    assert response.json()['id'] == hashlib.sha256(body).hexdigest()
+    assert client.post('/api/v1/diagnostics/batches', content=body,
+                       headers={'Content-Type': 'application/json'}).json()['duplicate'] is True
+    for invalid in [archive[:-5], archive + archive, b'not gzip']:
+        assert client.post('/api/v1/diagnostics/batches', content=invalid, headers=headers).status_code == 400
+    oversized = gzip.compress(b'x' * (storage.MAX_BODY + 1), mtime=0)
+    assert client.post('/api/v1/diagnostics/batches', content=oversized, headers=headers).status_code == 413
+    assert client.post('/api/v1/diagnostics/batches', content=b'x' * (storage.MAX_BODY + 1), headers=headers).status_code == 413
+    value['terminalFingerprint'] = 'machine name or raw hardware ID'
+    assert client.post('/api/v1/diagnostics/batches', content=gzip.compress(json.dumps(value).encode()), headers=headers).status_code == 422
+
+
+def test_compressed_relay_preserves_terminal_identity(tmp_path, monkeypatch):
+    import time
+    now = int(time.time())
+    queue = storage.DiagnosticStore(tmp_path, state='relay_stored')
+    monkeypatch.setattr(relay, 'diagnostic_store', lambda: queue)
+    monkeypatch.setenv('BOBTV_RELAY_SECRET', 'b' * 64)
+    value = json.loads(batch(now, event='cast_compressed_fixture'))
+    value['terminalFingerprint'] = 'f' * 64
+    body = json.dumps(value).encode()
+    with TestClient(relay.app) as client:
+        response = client.post('/bobtv/api/v1/diagnostics/batches', content=gzip.compress(body),
+                               headers={'Content-Type': 'application/json', 'Content-Encoding': 'gzip'})
+        assert response.status_code == 202
+    due = queue.due(now=now)
+    assert len(due) == 1
+    assert json.loads(due[0]['body'])['terminalFingerprint'] == 'f' * 64
+    assert due[0]['id'] == hashlib.sha256(body).hexdigest()

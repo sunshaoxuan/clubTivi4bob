@@ -15,6 +15,7 @@ import '../../core/diagnostic_log_store.dart';
 import '../../core/resource_node_router.dart';
 import '../../core/server_egress.dart';
 import 'bobtv_api_client.dart';
+import 'client_fingerprint_service.dart';
 
 /// The same consent, bounded outbox and acknowledgments on all platforms.
 class DiagnosticSyncService with WidgetsBindingObserver {
@@ -24,6 +25,7 @@ class DiagnosticSyncService with WidgetsBindingObserver {
     DateTime Function()? now,
     this.observeLifecycle = true,
     this.countryResolver,
+    this.fingerprintResolver,
     this.castUploadDelay = const Duration(seconds: 10),
   }) : apiFactory =
            apiFactory ?? (() => BobTvApiClient(recordDiagnostics: false)),
@@ -39,6 +41,7 @@ class DiagnosticSyncService with WidgetsBindingObserver {
   final DateTime Function() now;
   final bool observeLifecycle;
   final Duration castUploadDelay;
+  final Future<String?> Function()? fingerprintResolver;
   final Future<String?> Function(BobTvApiClient)? countryResolver;
   final status = ValueNotifier<String>('诊断同步默认关闭');
   bool enabled = false;
@@ -195,6 +198,22 @@ class DiagnosticSyncService with WidgetsBindingObserver {
         ).join();
         await prefs.setString(identityKey, installation);
       }
+      String? fingerprint;
+      try {
+        if (fingerprintResolver != null) {
+          fingerprint = await fingerprintResolver!();
+        } else {
+          await ClientFingerprintService.instance.initialize();
+          fingerprint = ClientFingerprintService.instance.apiFingerprint;
+        }
+      } catch (_) {}
+      if (fingerprint == null ||
+          !RegExp(r'^[a-f0-9]{64}$').hasMatch(fingerprint)) {
+        fingerprint = sha256
+            .convert(utf8.encode('BobTV-diagnostics-terminal-v1|$installation'))
+            .toString();
+      }
+      if (!_allowed(generation)) return;
       var node = ResourceNodeRouter.primary;
       var domesticSafe = true;
       try {
@@ -243,6 +262,7 @@ class DiagnosticSyncService with WidgetsBindingObserver {
             'schemaVersion': 2,
             'consentVersion': 2,
             'installationId': installation,
+            'terminalFingerprint': fingerprint,
             'entries': chunk.entries,
           });
           pending = {
@@ -260,10 +280,16 @@ class DiagnosticSyncService with WidgetsBindingObserver {
               'schemaVersion',
               'consentVersion',
               'installationId',
+              'terminalFingerprint',
               'entries',
             }).isNotEmpty ||
             parsed['schemaVersion'] != 2 ||
             parsed['consentVersion'] != 2 ||
+            (parsed.containsKey('terminalFingerprint') &&
+                (parsed['terminalFingerprint'] is! String ||
+                    !RegExp(
+                      r'^[a-f0-9]{64}$',
+                    ).hasMatch(parsed['terminalFingerprint'] as String))) ||
             entries.any(
               (entry) =>
                   entry is! Map ||

@@ -2,6 +2,7 @@
 import asyncio
 import ipaddress
 import json
+import gzip
 import os
 import time
 from email.utils import parsedate_to_datetime
@@ -25,13 +26,13 @@ async def forward(client, queue, secret, address, target, extensions=None, now=N
     done = failed = 0
     for row in await asyncio.to_thread(queue.due, 5, now):
         stamp = str(int(time.time()))
-        headers = {'Host': 'bobtv.briconbric.com', 'Content-Type': 'application/json',
+        headers = {'Host': 'bobtv.briconbric.com', 'Content-Type': 'application/json', 'Content-Encoding': 'gzip',
                    'Idempotency-Key': row['id'], 'User-Agent': 'BobTV-diagnostic-relay/2',
                    'X-BobTV-Relay-Node': 'cndrp', 'X-BobTV-Relay-Client': address,
                    'X-BobTV-Relay-Time': stamp,
                    'X-BobTV-Relay-Auth': signature(secret, 'POST', PATH, address, stamp)}
         try:
-            response = await client.post(target + PATH, content=row['body'],
+            response = await client.post(target + PATH, content=gzip.compress(row['body'], mtime=0),
                                          headers=headers, extensions=extensions or {})
             if response.status_code in (200, 201):
                 receipt = response.json()

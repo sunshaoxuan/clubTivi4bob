@@ -841,7 +841,8 @@ class BobTvApiClient {
     final result = await _request(
       'POST',
       '/api/v1/diagnostics/batches',
-      body: body,
+      body: gzip.encode(body),
+      headers: const {'Content-Encoding': 'gzip'},
       contentType: 'application/json',
       maxBytes: 4096,
       nodeOverride: node,

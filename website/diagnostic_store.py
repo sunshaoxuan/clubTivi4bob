@@ -56,11 +56,15 @@ def validate_batch(body, now=None):
     if not 1 <= len(body) <= MAX_BODY:
         raise ValueError('Diagnostic batch exceeds byte limit')
     value = json.loads(body)
-    if (not isinstance(value, dict) or set(value) != {'schemaVersion', 'consentVersion', 'installationId', 'entries'}
+    if (not isinstance(value, dict) or not {'schemaVersion', 'consentVersion', 'installationId', 'entries'} <= set(value)
+            or not set(value) <= {'schemaVersion', 'consentVersion', 'installationId', 'terminalFingerprint', 'entries'}
             or value['schemaVersion'] != 2 or value['consentVersion'] != 2
             or not isinstance(value['installationId'], str)
             or not re.fullmatch(r'[a-f0-9]{32}', value['installationId'])):
         raise ValueError('Invalid diagnostic envelope')
+    fingerprint = value.get('terminalFingerprint')
+    if 'terminalFingerprint' in value and (not isinstance(fingerprint, str) or not ID.fullmatch(fingerprint)):
+        raise ValueError('Invalid terminal fingerprint')
     entries = value['entries']
     if not isinstance(entries, list) or not 1 <= len(entries) <= MAX_ENTRIES:
         raise ValueError('Invalid diagnostic entry count')

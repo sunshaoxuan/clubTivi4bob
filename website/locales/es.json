@@ -203,6 +203,11 @@
     "history": [
       [
         "2026-11-26",
+        "v1.4.7 · Corrección de actualización de Mac",
+        "Alinea la versión del asistente de actualización con la aplicación para permitir la instalación desde clientes Mac anteriores. Conserva las mejoras de inicio y el diagnóstico de transmisión."
+      ],
+      [
+        "2026-11-26",
         "v1.4.6 · Respuesta al iniciar y diagnóstico de transmisión",
         "Muestra los canales cuando sus datos están listos y reduce el procesamiento repetido. Añade registros de transmisión, transferencias gzip y una huella anónima del terminal. Los envíos automáticos dependen del ajuste de sincronización de diagnósticos."
       ],

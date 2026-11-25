@@ -72,3 +72,25 @@ def test_public_semantic_names_preserve_native_build_identity():
     value['displayVersion']='1.1.12'
     with pytest.raises(ValueError, match='Public version mismatch'):
         module.validate_matrix(value,'1.1.11+106')
+
+
+@pytest.mark.parametrize('observer_version', ['1.0+1', '1.4.7+9', '1.4.7+10'])
+def test_mac_observer_must_match_native_application_version(tmp_path, observer_version):
+    import plistlib
+    import zipfile
+    archive_path = tmp_path / 'mac.zip'
+    with zipfile.ZipFile(archive_path, 'w') as archive:
+        for path, identifier, version in [
+            ('BobTV.app/Contents/Info.plist', 'com.briconbric.bobtv', '1.4.7+10'),
+            ('BobTV.app/Contents/Resources/Updater/BobTVUpdateProgress.app/Contents/Info.plist',
+             'com.briconbric.bobtv.updater', observer_version),
+        ]:
+            base, build = version.split('+')
+            archive.writestr(path, plistlib.dumps({'CFBundleIdentifier': identifier,
+                'CFBundleShortVersionString': base, 'CFBundleVersion': build}))
+    with zipfile.ZipFile(archive_path) as archive:
+        if observer_version == '1.4.7+10':
+            module.validate_mac_bundle_versions(archive, '1.4.7+10')
+        else:
+            with pytest.raises(ValueError, match='identity/version differs'):
+                module.validate_mac_bundle_versions(archive, '1.4.7+10')

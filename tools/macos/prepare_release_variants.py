@@ -2,6 +2,7 @@
 import argparse
 import json
 import os
+import plistlib
 from pathlib import Path
 import shutil
 import subprocess
@@ -40,7 +41,11 @@ def prepare(universal, previous, output):
                 run('ditto', baseline / component, resources / component)
         progress = resources / 'Updater/BobTVUpdateProgress.app'
         (progress / 'Contents/MacOS').mkdir(parents=True)
-        shutil.copy2(ROOT / 'tools/macos/update_progress_info.plist', progress / 'Contents/Info.plist')
+        progress_info = plistlib.loads((ROOT / 'tools/macos/update_progress_info.plist').read_bytes())
+        app_info = plistlib.loads((app / 'Contents/Info.plist').read_bytes())
+        for key in ['CFBundleShortVersionString', 'CFBundleVersion']:
+            progress_info[key] = app_info[key]
+        (progress / 'Contents/Info.plist').write_bytes(plistlib.dumps(progress_info))
         run('xcrun', 'swiftc', '-target', f'{cpu}-apple-macos{deployment}', '-O',
             ROOT / 'tools/macos/update_progress.swift', '-o', progress / 'Contents/MacOS/BobTVUpdateProgress')
         binaries = []

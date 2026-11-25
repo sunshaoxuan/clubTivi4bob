@@ -24,6 +24,13 @@ build="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' \
 [[ "$version+$build" =~ ^[0-9]+\.[0-9]+\.[0-9]+\+[0-9]+$ ]] || exit 3
 [[ "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' \
   "$app/Contents/Info.plist")" == 'com.briconbric.bobtv' ]] || exit 3
+progress_info="$app/Contents/Resources/Updater/BobTVUpdateProgress.app/Contents/Info.plist"
+[[ -f "$progress_info" &&
+   "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$progress_info")" == 'com.briconbric.bobtv.updater' &&
+   "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$progress_info")+$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$progress_info")" == "$version+$build" ]] || {
+  echo 'Embedded update observer identity/version differs from the application.' >&2
+  exit 3
+}
 machine_arch='x86_64'
 if [[ "$arch" == 'arm64' ]]; then machine_arch='arm64'; fi
 for binary in \

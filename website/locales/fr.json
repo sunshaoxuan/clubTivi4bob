@@ -203,6 +203,11 @@
     "history": [
       [
         "2026-11-26",
+        "v1.4.7 · Correction de la mise à jour Mac",
+        "Aligne la version du programme de suivi sur celle de l’application pour permettre l’installation depuis les anciens clients Mac. Conserve les corrections de démarrage et les diagnostics de diffusion."
+      ],
+      [
+        "2026-11-26",
         "v1.4.6 · Réactivité au démarrage et diagnostic de diffusion",
         "Affiche les chaînes dès que leurs données sont prêtes et réduit les traitements répétés. Ajoute les journaux de diffusion, les transferts gzip et une empreinte anonyme du terminal. Les envois automatiques suivent le réglage de synchronisation des diagnostics."
       ],

@@ -203,6 +203,11 @@
     "history": [
       [
         "2026-11-26",
+        "v1.4.7 · Mac automatic update fix",
+        "Aligns the bundled update observer version with the application so older Mac clients can install the update after downloading. Retains startup fixes and casting diagnostics."
+      ],
+      [
+        "2026-11-26",
         "v1.4.6 · Startup responsiveness and casting diagnostics",
         "Shows channels as soon as their data is ready and reduces repeated processing. Adds casting diagnostics, gzip uploads and anonymous terminal fingerprints to distinguish devices and investigate connection failures. Automatic uploads follow the diagnostics sync setting."
       ],

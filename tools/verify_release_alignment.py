@@ -40,6 +40,19 @@ def validate_matrix(metadata, version, desktop_only=False):
     return packages
 
 
+def validate_mac_bundle_versions(archive, version):
+    paths = [
+        ('BobTV.app/Contents/Info.plist', 'com.briconbric.bobtv'),
+        ('BobTV.app/Contents/Resources/Updater/BobTVUpdateProgress.app/Contents/Info.plist',
+         'com.briconbric.bobtv.updater'),
+    ]
+    for path, identifier in paths:
+        info = plistlib.loads(archive.read(path))
+        actual = str(info.get('CFBundleShortVersionString')) + '+' + str(info.get('CFBundleVersion'))
+        if actual != version or info.get('CFBundleIdentifier') != identifier:
+            raise ValueError('Embedded Mac bundle identity/version differs: ' + path)
+
+
 def verify(directory, version, build_tools, desktop_only=False):
     directory = Path(directory)
     metadata = json.loads((directory / 'BobTV-update-metadata.json').read_text())
@@ -67,9 +80,7 @@ def verify(directory, version, build_tools, desktop_only=False):
         elif package['platform'].startswith('macos-'):
             _verify_publisher_signature(path, package['signature'])
             with zipfile.ZipFile(path) as archive:
-                info=plistlib.loads(archive.read('BobTV.app/Contents/Info.plist'))
-            if info['CFBundleShortVersionString']+'+'+str(info['CFBundleVersion']) != version:
-                raise ValueError('Embedded Mac version/build differs')
+                validate_mac_bundle_versions(archive, version)
             assets.add(path.name.removesuffix('.zip')+'.dmg')
         else:
             updater=package['updater'];component=directory/updater['filename']

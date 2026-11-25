@@ -48,7 +48,53 @@ class ChannelNameNormalizer {
     '九': '9',
   };
 
+  // Reused across cards, favorite reconciliation and alternative indexes.
+  // Results are pure; a bounded cache avoids repeated regex allocation.
+  static final _normalizedNames = <String, String>{};
+  static const _maxCachedNames = 4096;
+  static final _chineseDigitPatterns = {
+    for (final entry in _chineseDigits.entries)
+      RegExp('cctv\\s*${entry.key}(?=\\s|[频套台]|\$)'): entry.value,
+  };
+  static final _qualityPattern = RegExp(
+    r'(?<![a-z0-9])(hd|fhd|shd|sd|uhd|4k|8k|hevc|h\.?26[45]|av1|50fps|60fps)(?![a-z0-9])',
+    caseSensitive: false,
+  );
+  static final _qualityNames = RegExp(r'(超高清|全高清|高清|标清|蓝光|流畅|原画|高码率|低码率)');
+  static final _protocolPattern = RegExp(
+    r'(?<![a-z0-9])(ipv4|ipv6|udp|http|https|hls|p2p|backup|bak)(?![a-z0-9])',
+    caseSensitive: false,
+  );
+  static final _providerPattern = RegExp(
+    r'(备用|备份|镜像|测试|组播|单播|内网|酒店|电信|联通|移动|广电)',
+  );
+  static final _routePattern = RegExp(
+    r'(线路|线|源|节点|通道)\s*[a-z0-9一-十]*',
+    caseSensitive: false,
+  );
+  static final _punctuationPattern = RegExp(
+    r'[^\p{L}\p{M}\p{N}]+',
+    unicode: true,
+  );
+  static final _whitespacePattern = RegExp(r'\s+');
+  static final _cctvDescriptionPattern = RegExp(
+    r'^cctv(\d{1,2})(plus)?(综合|财经|综艺|体育|体育赛事|电影|国防军事|电视剧|纪录|科教|戏曲|社会与法|新闻|少儿|音乐|奥林匹克|农业农村|频道|台|套)?$',
+  );
+
   static String normalize(String name) {
+    final cached = _normalizedNames[name];
+    if (cached != null) return cached;
+    final result = _normalize(name);
+    if (name.length <= 256) {
+      if (_normalizedNames.length >= _maxCachedNames) {
+        _normalizedNames.remove(_normalizedNames.keys.first);
+      }
+      _normalizedNames[name] = result;
+    }
+    return result;
+  }
+
+  static String _normalize(String name) {
     var value = _toHalfWidth(name).toLowerCase();
 
     value = value
@@ -57,46 +103,25 @@ class ChannelNameNormalizer {
         .replaceAll('央视', 'cctv')
         .replaceAll('+', ' plus ');
 
-    for (final entry in _chineseDigits.entries) {
-      value = value.replaceAllMapped(
-        RegExp('cctv\\s*${entry.key}(?=\\s|[频套台]|\$)'),
-        (_) => 'cctv${entry.value}',
-      );
+    for (final entry in _chineseDigitPatterns.entries) {
+      value = value.replaceAllMapped(entry.key, (_) => 'cctv${entry.value}');
     }
 
     // Quality, codec and resolution labels do not identify the programme.
-    value = value.replaceAll(
-      RegExp(
-        r'(?<![a-z0-9])(hd|fhd|shd|sd|uhd|4k|8k|hevc|h\.?26[45]|av1|50fps|60fps)(?![a-z0-9])',
-        caseSensitive: false,
-      ),
-      ' ',
-    );
-    value = value.replaceAll(RegExp(r'(超高清|全高清|高清|标清|蓝光|流畅|原画|高码率|低码率)'), ' ');
+    value = value.replaceAll(_qualityPattern, ' ');
+    value = value.replaceAll(_qualityNames, ' ');
 
     // Provider and route labels are frequently appended to otherwise equal
     // channel names in public and private M3U playlists.
-    value = value.replaceAll(
-      RegExp(
-        r'(?<![a-z0-9])(ipv4|ipv6|udp|http|https|hls|p2p|backup|bak)(?![a-z0-9])',
-        caseSensitive: false,
-      ),
-      ' ',
-    );
-    value = value.replaceAll(
-      RegExp(r'(备用|备份|镜像|测试|组播|单播|内网|酒店|电信|联通|移动|广电)'),
-      ' ',
-    );
-    value = value.replaceAll(
-      RegExp(r'(线路|线|源|节点|通道)\s*[a-z0-9一-十]*', caseSensitive: false),
-      ' ',
-    );
+    value = value.replaceAll(_protocolPattern, ' ');
+    value = value.replaceAll(_providerPattern, ' ');
+    value = value.replaceAll(_routePattern, ' ');
 
     // Keep Unicode letters, combining marks and digits. Convert punctuation so
     // English word matching remains useful.
     value = value
-        .replaceAll(RegExp(r'[^\p{L}\p{M}\p{N}]+', unicode: true), ' ')
-        .replaceAll(RegExp(r'\s+'), ' ')
+        .replaceAll(_punctuationPattern, ' ')
+        .replaceAll(_whitespacePattern, ' ')
         .trim();
 
     var compact = value.replaceAll(' ', '');
@@ -104,9 +129,7 @@ class ChannelNameNormalizer {
 
     // CCTV descriptions are stable aliases for numbered services. CCTV-4
     // regional variants are retained because their schedules can differ.
-    final cctv = RegExp(
-      r'^cctv(\d{1,2})(plus)?(综合|财经|综艺|体育|体育赛事|电影|国防军事|电视剧|纪录|科教|戏曲|社会与法|新闻|少儿|音乐|奥林匹克|农业农村|频道|台|套)?$',
-    ).firstMatch(compact);
+    final cctv = _cctvDescriptionPattern.firstMatch(compact);
     if (cctv != null && cctv.group(1) != '4') {
       return 'cctv${cctv.group(1)}${cctv.group(2) ?? ''}';
     }

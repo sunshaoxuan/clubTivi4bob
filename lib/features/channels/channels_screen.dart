@@ -110,6 +110,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
   Map<String, String> _presentationKeys = {};
   Map<String, List<String>> _catalogCategoryGroups = {};
   bool _initialLoadDone = false;
+  bool _initialCategoryReady = false;
   bool _playerRouteOpen = false;
   late final ChannelProgrammePreview _inlineProgrammePreview;
   final _inlineProgrammeStripKey = GlobalKey();
@@ -990,6 +991,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
       if (!mounted || generation != _categoryLoadGeneration) return;
       final loaded = snapshot.channels;
       final unchanged = _sameChannelSnapshot(_allChannels, loaded);
+      final firstCategory = !_initialCategoryReady;
       setState(() {
         _presentationKeys = snapshot.metadata.presentationKeys;
         _catalogCategoryGroups = snapshot.groups;
@@ -1002,7 +1004,16 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
         _loadStatus = '{0}：载入 {1} 条线路，合并为 {2} 个频道';
         _loadStatusArgs = [group, loaded.length, _filteredChannels.length];
         _categoryLoading = false;
+        _initialCategoryReady = true;
       });
+      if (firstCategory) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!mounted) return;
+          AppDiagnostics.instance.log('channel_browser_first_frame', {
+            'elapsedMs': clock.elapsedMilliseconds,
+          });
+        });
+      }
       AppDiagnostics.instance.log('channel_category_loaded', {
         'elapsedMs': clock.elapsedMilliseconds,
         'rows': loaded.length,
@@ -1013,9 +1024,20 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
         _restoreScrollAnchor(scrollAnchor);
       }
       unawaited(_refreshRouteAvailability(loaded, generation));
+      // Let the ready category paint before preparing the playback index.
+      await WidgetsBinding.instance.endOfFrame;
+      if (!mounted || generation != _categoryLoadGeneration) return;
+      final indexClock = Stopwatch()..start();
+      AppDiagnostics.instance.log('channel_alternatives_build_started', {
+        'rows': loaded.length,
+      });
       await ref
           .read(streamAlternativesProvider)
           .rebuildForChannels(loaded, metadata: snapshot.metadata);
+      AppDiagnostics.instance.log('channel_alternatives_build_completed', {
+        'rows': loaded.length,
+        'elapsedMs': indexClock.elapsedMilliseconds,
+      });
       if (!mounted || generation != _categoryLoadGeneration) return;
       _playFirstFilteredChannelForGroup(group);
     } catch (error, stack) {
@@ -3823,7 +3845,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    if (!_initialLoadDone) {
+    if (!_initialCategoryReady) {
       return ChannelStartupProgress(status: _localizedLoadStatus(context));
     }
     if (_allChannels.isEmpty &&

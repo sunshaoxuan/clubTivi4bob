@@ -49,7 +49,7 @@ class ChannelPresentationIdentity {
 
   // Service name, domestic scope, media/quality and compatible guide metadata
   // identify a presentation group. Persistent server and EPG IDs stay intact.
-  static String _publicKey(ChannelPresentationRoute route) {
+  static String _publicKey(ChannelPresentationRoute route, String legacyKey) {
     var path = (route.group ?? '').split(' / ');
     // Older snapshots stored domestic category leaves without the country root.
     if (path.length == 1 && {'央视', '数字', '卫视', '广播'}.contains(path.first)) {
@@ -87,7 +87,7 @@ class ChannelPresentationIdentity {
               ChannelNameNormalizer.normalize(guide) == name
           ? null
           : guide;
-      final service = route.legacyKey.split('|').skip(1).join('|');
+      final service = legacyKey.split('|').skip(1).join('|');
       final explicitCountry = route.countryCode?.toLowerCase();
       final country = domestic
           ? explicitCountry ?? 'cn'
@@ -106,10 +106,15 @@ class ChannelPresentationIdentity {
   /// manual merges take precedence, and no source rows are removed.
   static Map<String, String> keys(Iterable<ChannelPresentationRoute> input) {
     final routes = input.toList();
+    final legacyKeys = <ChannelPresentationRoute, String>{};
+    String legacyKey(ChannelPresentationRoute route) =>
+        legacyKeys.putIfAbsent(route, () => route.legacyKey);
     final publicCandidates = <String, Set<String>>{};
     for (final route in routes) {
       if (route.catalogId != null && route.mergeId == null) {
-        (publicCandidates[route.catalogId!] ??= {}).add(_publicKey(route));
+        (publicCandidates[route.catalogId!] ??= {}).add(
+          _publicKey(route, legacyKey(route)),
+        );
       }
     }
     final publicKeys = {
@@ -140,7 +145,8 @@ class ChannelPresentationIdentity {
       final scope =
           (jsonDecode(key.substring('service:'.length)) as List).first;
       if (scope == '中国 / 全国电视') {
-        (nationalByService[route.legacyKey.split('|').skip(1).join('|')] ??= {})
+        (nationalByService[legacyKey(route).split('|').skip(1).join('|')] ??=
+                {})
             .add(key);
       }
     }
@@ -152,7 +158,7 @@ class ChannelPresentationIdentity {
       if (ChannelNameNormalizer.normalize(route.name).isEmpty) {
         continue;
       }
-      final legacyParts = route.legacyKey.split('|');
+      final legacyParts = legacyKey(route).split('|');
       final group = route.group ?? '';
       final country = legacyParts.first;
       final localPath = group.split(' / ');
@@ -166,7 +172,7 @@ class ChannelPresentationIdentity {
                   ChannelNameNormalizer.normalize(route.name))) {
         final candidates = nationalByService[legacyParts.skip(1).join('|')];
         if (candidates != null && candidates.length == 1) {
-          (bridges[route.legacyKey] ??= {}).add(candidates.single);
+          (bridges[legacyKey(route)] ??= {}).add(candidates.single);
         }
       }
       for (final public
@@ -178,8 +184,8 @@ class ChannelPresentationIdentity {
             ChannelNameNormalizer.normalize(public.name)) {
           continue;
         }
-        final legacy = route.legacyKey.split('|');
-        final managed = public.legacyKey.split('|');
+        final legacy = legacyKey(route).split('|');
+        final managed = legacyKey(public).split('|');
         if (legacy.skip(2).join('|') != managed.skip(2).join('|')) {
           continue;
         }
@@ -188,7 +194,7 @@ class ChannelPresentationIdentity {
             legacy.first != managed.first) {
           continue;
         }
-        (bridges[route.legacyKey] ??= {}).add(publicKeys[public.catalogId]!);
+        (bridges[legacyKey(route)] ??= {}).add(publicKeys[public.catalogId]!);
       }
     }
     return {
@@ -199,9 +205,9 @@ class ChannelPresentationIdentity {
             ? route.id.split(':').take(2).join(':')
             : route.catalogId != null
             ? publicKeys[route.catalogId]!
-            : bridges[route.legacyKey]?.length == 1
-            ? bridges[route.legacyKey]!.single
-            : 'legacy:${route.legacyKey}',
+            : bridges[legacyKey(route)]?.length == 1
+            ? bridges[legacyKey(route)]!.single
+            : 'legacy:${legacyKey(route)}',
     };
   }
 

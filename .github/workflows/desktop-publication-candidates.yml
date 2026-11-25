@@ -48,7 +48,7 @@ jobs:
         run: |
           flutter pub get
           if($LASTEXITCODE){throw 'Dependency resolution failed'}
-          flutter test --no-pub test/lg_webos_cast_test.dart test/airplay_cast_test.dart test/local_cast_mute_test.dart test/update_manifest_test.dart test/desktop_update_feedback_test.dart
+          flutter test --no-pub test/lg_webos_cast_test.dart test/airplay_cast_test.dart test/local_cast_mute_test.dart test/cast_diagnostics_test.dart test/diagnostic_api_receipt_test.dart test/diagnostic_sync_service_test.dart test/channel_name_normalizer_test.dart test/channel_presentation_identity_test.dart test/category_loading_database_test.dart test/update_manifest_test.dart test/desktop_update_feedback_test.dart
           if($LASTEXITCODE){throw 'Flutter regression failed'}
           & build/airplay-venv/Scripts/python.exe -m unittest discover -s tools/airplay -p 'test_*.py'
           if($LASTEXITCODE){throw 'AirPlay regression failed'}

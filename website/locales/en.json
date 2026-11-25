@@ -202,6 +202,11 @@
     "history_title": "Recent changes",
     "history": [
       [
+        "2026-11-26",
+        "v1.4.6 · Startup responsiveness and casting diagnostics",
+        "Shows channels as soon as their data is ready and reduces repeated processing. Adds casting diagnostics, gzip uploads and anonymous terminal fingerprints to distinguish devices and investigate connection failures. Automatic uploads follow the diagnostics sync setting."
+      ],
+      [
         "2026-11-25",
         "v1.4.5 · Casting and WebOS compatibility fixes",
         "Fixes repeated DLNA casting and channel changes, adds media probing and range request support, and adds LG WebOS AirPlay video v2 compatibility. Desktop update only; physical TV playback still needs verification."

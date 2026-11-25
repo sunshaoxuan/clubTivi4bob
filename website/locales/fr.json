@@ -202,6 +202,11 @@
     "history_title": "Modifications récentes",
     "history": [
       [
+        "2026-11-26",
+        "v1.4.6 · Réactivité au démarrage et diagnostic de diffusion",
+        "Affiche les chaînes dès que leurs données sont prêtes et réduit les traitements répétés. Ajoute les journaux de diffusion, les transferts gzip et une empreinte anonyme du terminal. Les envois automatiques suivent le réglage de synchronisation des diagnostics."
+      ],
+      [
         "2026-11-25",
         "v1.4.5 · Corrections de diffusion et de compatibilité WebOS",
         "Corrige les diffusions DLNA répétées et les changements de chaîne, ajoute les requêtes de détection et de plage, ainsi que la compatibilité vidéo v2 AirPlay de LG WebOS. Mise à jour de bureau uniquement ; validation sur téléviseur encore nécessaire."

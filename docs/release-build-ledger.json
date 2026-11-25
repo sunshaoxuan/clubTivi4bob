@@ -107,6 +107,23 @@
       "fixesCommit": "c27e89a8ff63739396eccda122fde475498efde2",
       "sourceCommit": "a8bceefc8726f62e43cb15c3e9a1ec99df10a835",
       "releaseUrl": "https://github.com/sunshaoxuan/clubTivi4bob/releases/tag/v1.4.5"
+    },
+    {
+      "version": "1.4.6+9",
+      "displayVersion": "1.4.6",
+      "status": "allocated",
+      "date": "2026-11-26",
+      "platforms": [
+        "windows-x64",
+        "windows-arm64",
+        "macos-x64",
+        "macos-arm64",
+        "android-arm",
+        "android-arm64",
+        "android-x64"
+      ],
+      "scope": "Standard seven-platform release requested by user; iOS distribution unchanged",
+      "fixesCommit": "b90adfa"
     }
   ]
 }

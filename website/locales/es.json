@@ -202,6 +202,11 @@
     "history_title": "Cambios recientes",
     "history": [
       [
+        "2026-11-26",
+        "v1.4.6 · Respuesta al iniciar y diagnóstico de transmisión",
+        "Muestra los canales cuando sus datos están listos y reduce el procesamiento repetido. Añade registros de transmisión, transferencias gzip y una huella anónima del terminal. Los envíos automáticos dependen del ajuste de sincronización de diagnósticos."
+      ],
+      [
         "2026-11-25",
         "v1.4.5 · Correcciones de transmisión y compatibilidad WebOS",
         "Corrige la reconexión DLNA y el cambio de canal, añade consultas multimedia y solicitudes de rango, y compatibilidad con vídeo v2 de AirPlay en LG WebOS. Solo escritorio; falta la verificación en un televisor físico."

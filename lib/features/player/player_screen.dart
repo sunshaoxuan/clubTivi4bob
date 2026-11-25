@@ -31,6 +31,7 @@ import '../../data/services/stream_alternatives_service.dart';
 import '../../features/providers/provider_manager.dart' show databaseProvider;
 import '../casting/cast_service.dart';
 import '../casting/cast_dialog.dart';
+import '../casting/cast_diagnostics.dart';
 import '../channels/channel_debug_dialog.dart';
 import '../channels/channel_route_transfer_dialog.dart';
 import '../channels/channel_favorites.dart';
@@ -476,6 +477,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
 
   Future<void> _showCastPicker() async {
     if (Platform.isIOS) {
+      CastDiagnostics.instance.begin();
+      CastDiagnostics.instance.record('ios_system_player_requested');
       await _openIosSystemPlayer();
       return;
     }
@@ -495,6 +498,17 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
           duration: Duration(seconds: 30),
         ),
       );
+      final media = playerService.player.state;
+      CastDiagnostics.instance.record('source_media', {
+        if (playerService.currentUrl != null)
+          'castStreamId': CastDiagnostics.identity(playerService.currentUrl!),
+        'videoCodec': CastDiagnostics.codec(media.track.video.codec ?? media.tracks.video.where((track) => track.codec != null).firstOrNull?.codec),
+        'audioCodec': CastDiagnostics.codec(media.track.audio.codec ?? media.tracks.audio.where((track) => track.codec != null).firstOrNull?.codec),
+        'videoWidth': media.videoParams.w,
+        'videoHeight': media.videoParams.h,
+        'sampleRate': media.audioParams.sampleRate,
+        'channelCount': media.audioParams.channelCount,
+      });
       final success = await castService.castTo(
         device,
         url,

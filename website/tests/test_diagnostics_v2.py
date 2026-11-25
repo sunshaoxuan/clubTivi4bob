@@ -143,3 +143,23 @@ def test_bad_or_lost_ack_never_discards_relay_payload(tmp_path, response):
     assert queue.receipt(digest, now)['state'] == 'relay_stored'
     with queue.database() as conn:
         assert conn.execute('SELECT length(body) FROM batches').fetchone()[0] > 0
+
+
+def test_cast_metadata_survives_private_store_and_rejects_secrets(tmp_path):
+    now = 1792764000
+    body = batch(event='cast_dlna_play_response', requestId='b' * 32,
+                 castProtocol='dlna', castDeviceId='c' * 32, castStreamId='d' * 32,
+                 castFormat='m3u8', castRoute='remote', faultCode=714,
+                 accepted=False, hasHeaders=False, durationMs=37,
+                 videoCodec='h264', audioCodec='aac', videoWidth=1920)
+    value, _ = storage.validate_batch(body, now)
+    assert value['entries'][0]['faultCode'] == 714
+    store = storage.DiagnosticStore(tmp_path)
+    receipt = store.put(body, now=now)
+    assert receipt['state'] == 'origin_accepted'
+    with store.database() as conn:
+        assert conn.execute('SELECT body FROM batches WHERE id=?', (receipt['id'],)).fetchone()['body'] == body
+    for field, value in [('castDeviceId', '192.168.1.2'), ('castProtocol', 'secret'),
+                         ('videoCodec', 'https://private/token'), ('accepted', 'yes')]:
+        with pytest.raises(ValueError):
+            storage.validate_batch(batch(**{field: value}), now)

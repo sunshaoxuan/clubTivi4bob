@@ -24,6 +24,7 @@ class DiagnosticSyncService with WidgetsBindingObserver {
     DateTime Function()? now,
     this.observeLifecycle = true,
     this.countryResolver,
+    this.castUploadDelay = const Duration(seconds: 10),
   }) : apiFactory =
            apiFactory ?? (() => BobTvApiClient(recordDiagnostics: false)),
        now = now ?? DateTime.now;
@@ -32,19 +33,24 @@ class DiagnosticSyncService with WidgetsBindingObserver {
   static const checkpointKey = 'bobtv_diagnostics_checkpoint_v2';
   static const identityKey = 'bobtv_diagnostics_installation_v2';
   static const retryKey = 'bobtv_diagnostics_next_retry_v2';
+  static const idleKey = 'bobtv_diagnostics_idle_v2';
   final DiagnosticLogStore? logStore;
   final BobTvApiClient Function() apiFactory;
   final DateTime Function() now;
   final bool observeLifecycle;
+  final Duration castUploadDelay;
   final Future<String?> Function(BobTvApiClient)? countryResolver;
   final status = ValueNotifier<String>('诊断同步默认关闭');
   bool enabled = false;
   bool _disposed = false;
   int _generation = 0;
   int _failures = 0;
+  bool _idleDeferred = false;
   DateTime? _nextRetry;
   DateTime? _lastRun;
   Timer? _timer;
+  Timer? _castTimer;
+  StreamSubscription<String>? _castEvents;
   StreamSubscription<List<ConnectivityResult>>? _network;
   BobTvApiClient? _api;
   Future<void>? _running;
@@ -60,6 +66,7 @@ class DiagnosticSyncService with WidgetsBindingObserver {
     enabled =
         prefs.getInt(consentKey) == 2 && prefs.getBool(enabledKey) == true;
     _nextRetry = DateTime.tryParse(prefs.getString(retryKey) ?? '');
+    _idleDeferred = prefs.getBool(idleKey) ?? false;
     status.value = enabled ? '等待同步最近 30 天的脱敏诊断' : '诊断同步默认关闭，需首次同意';
     _timer = Timer.periodic(
       const Duration(minutes: 1),
@@ -78,6 +85,18 @@ class DiagnosticSyncService with WidgetsBindingObserver {
         },
       );
     }
+    _castEvents = AppDiagnostics.instance.recordedEvents.listen((event) {
+      if (!enabled || !event.startsWith('cast_') || _castTimer != null) return;
+      _castTimer = Timer(castUploadDelay, () {
+        _castTimer = null;
+        // Bypass only idle polling delay; preserve server and network backoff.
+        if (_idleDeferred) {
+          _nextRetry = null;
+          _idleDeferred = false;
+        }
+        unawaited(sync());
+      });
+    });
     if (enabled) unawaited(sync());
   }
 
@@ -217,7 +236,7 @@ class DiagnosticSyncService with WidgetsBindingObserver {
                 ? '已同步可用诊断；本机容量保护曾清理旧文件'
                 : '最近 30 天可用脱敏诊断已同步';
             _failures = 0;
-            await _defer(prefs, const Duration(minutes: 15));
+            await _defer(prefs, const Duration(minutes: 15), idle: true);
             return;
           }
           final body = jsonEncode({
@@ -308,7 +327,13 @@ class DiagnosticSyncService with WidgetsBindingObserver {
     }
   }
 
-  Future<void> _defer(SharedPreferences prefs, Duration delay) async {
+  Future<void> _defer(
+    SharedPreferences prefs,
+    Duration delay, {
+    bool idle = false,
+  }) async {
+    _idleDeferred = idle;
+    await prefs.setBool(idleKey, idle);
     _nextRetry = now().add(delay);
     await prefs.setString(retryKey, _nextRetry!.toUtc().toIso8601String());
   }
@@ -329,6 +354,8 @@ class DiagnosticSyncService with WidgetsBindingObserver {
     _generation++;
     _api?.close();
     _timer?.cancel();
+    _castTimer?.cancel();
+    unawaited(_castEvents?.cancel() ?? Future.value());
     unawaited(_network?.cancel() ?? Future.value());
     if (observeLifecycle) WidgetsBinding.instance.removeObserver(this);
     status.dispose();

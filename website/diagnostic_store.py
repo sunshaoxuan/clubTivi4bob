@@ -24,8 +24,17 @@ VERSION = re.compile(r'^\d{1,4}\.\d{1,4}\.\d{1,4}\+\d{1,8}$')
 ID = re.compile(r'^[a-f0-9]{64}$')
 FIELDS = {'time', 'event', 'source', 'fatal', 'uptimeSeconds', 'rssBytes',
           'maxRssBytes', 'platform', 'appVersion', 'phase', 'node', 'endpoint',
-          'errorCode', 'httpStatus', 'elapsedMs', 'bytes', 'attempt', 'requestId'}
+          'errorCode', 'httpStatus', 'elapsedMs', 'bytes', 'attempt', 'requestId',
+          'castProtocol', 'castFormat', 'castRoute', 'castDeviceId', 'castStreamId',
+          'hasHeaders', 'accepted', 'paired', 'deviceCount', 'faultCode',
+          'durationMs', 'firstByteMs', 'videoCodec', 'audioCodec',
+          'videoWidth', 'videoHeight', 'frameRate', 'sampleRate', 'channelCount'}
 ENUMS = {
+    'videoCodec': {'h264', 'hevc', 'av1', 'vp8', 'vp9', 'mpeg2video', 'mpeg4', 'aac', 'ac3', 'eac3', 'mp3', 'opus', 'vorbis', 'flac', 'unknown'},
+    'audioCodec': {'h264', 'hevc', 'av1', 'vp8', 'vp9', 'mpeg2video', 'mpeg4', 'aac', 'ac3', 'eac3', 'mp3', 'opus', 'vorbis', 'flac', 'unknown'},
+    'castProtocol': {'airplay', 'dlna', 'webos'},
+    'castFormat': {'m3u8', 'mpd', 'mp4', 'ts', 'unknown'},
+    'castRoute': {'local_relay', 'remote'},
     'platform': {'android', 'windows', 'macos', 'linux', 'ios'},
     'phase': {'open', 'headers', 'body', 'complete', 'retry'},
     'node': {'origin', 'cndrp', 'local'},
@@ -76,10 +85,10 @@ def validate_batch(body, now=None):
             elif key in {'event', 'source'}:
                 if not isinstance(item, str) or not TAG.fullmatch(item):
                     raise ValueError('Invalid diagnostic tag')
-            elif key == 'requestId':
+            elif key in {'requestId', 'castDeviceId', 'castStreamId'}:
                 if not isinstance(item, str) or not re.fullmatch(r'[a-f0-9]{32}', item):
                     raise ValueError('Invalid request ID')
-            elif key == 'fatal':
+            elif key in {'fatal', 'hasHeaders', 'accepted', 'paired'}:
                 if type(item) is not bool:
                     raise ValueError('Invalid diagnostic flag')
             elif type(item) not in (int, float) or not math.isfinite(item) or not 0 <= item <= 10**15:

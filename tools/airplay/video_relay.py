@@ -11,6 +11,7 @@ import tempfile
 
 from aiohttp import web
 from egress_policy import server_or_local_url
+from cast_diagnostics import record
 
 
 class VideoRelay:
@@ -37,6 +38,7 @@ class VideoRelay:
         return shutil.which('ffmpeg')
 
     async def start(self, url, receiver):
+        record({'stage': 'remux-start'})
         server_or_local_url(url)
         executable = self.ffmpeg_path()
         if not executable:
@@ -48,7 +50,13 @@ class VideoRelay:
         folder = Path(self.directory.name)
         token = secrets.token_urlsafe(24)
 
+        requests = 0
         async def serve(request):
+            nonlocal requests
+            requests += 1
+            trace = requests <= 20
+            if trace:
+                record({'stage': 'remux-http-request', 'requests': requests})
             if request.remote != str(receiver) or request.match_info['token'] != token:
                 raise web.HTTPForbidden()
             name = request.match_info['name']
@@ -59,6 +67,8 @@ class VideoRelay:
             if not path.is_file():
                 raise web.HTTPNotFound()
             content_type = 'application/vnd.apple.mpegurl' if name.endswith('.m3u8') else 'video/mp2t'
+            if trace:
+                record({'stage': 'remux-http-ready', 'bytes': path.stat().st_size})
             return web.FileResponse(path, headers={'Content-Type': content_type, 'Cache-Control': 'no-store'})
 
         app = web.Application()
@@ -83,8 +93,23 @@ class VideoRelay:
         process = self.process
         async def drain():
             # Drain continuously without retaining URLs in memory or logs.
-            while await process.stderr.read(4096):
-                pass
+            reported = set()
+            while True:
+                chunk = await process.stderr.read(4096)
+                if not chunk:
+                    break
+                text = chunk.lower()
+                for marker, stage in [(b'401 unauthorized', 'remux-auth-401'),
+                                      (b'403 forbidden', 'remux-auth-403'),
+                                      (b'404 not found', 'remux-http-404'),
+                                      (b'timed out', 'remux-timeout'),
+                                      (b'invalid data', 'remux-invalid-data'),
+                                      (b'not supported', 'remux-unsupported')]:
+                    if marker in text and stage not in reported:
+                        reported.add(stage)
+                        record({'stage': stage})
+            code = await process.wait()
+            record({'stage': 'remux-process-exit', 'decoderExit': code})
         self.stderr_task = asyncio.create_task(drain())
         async def limit_disk():
             while process.returncode is None:

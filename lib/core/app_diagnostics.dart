@@ -34,6 +34,10 @@ class AppDiagnostics with WidgetsBindingObserver {
   bool _initialized = false;
   bool _shuttingDown = false;
 
+  final _events = StreamController<String>.broadcast();
+  Stream<String> get recordedEvents => _events.stream;
+  Future<void> flush() => _writeQueue;
+
   String? get logDirectoryPath => _logDirectory?.path;
 
   Future<void> initialize({Directory? directoryOverride}) async {
@@ -199,6 +203,7 @@ class AppDiagnostics with WidgetsBindingObserver {
         mode: FileMode.append,
         flush: true,
       );
+      _events.add(event);
     } catch (_) {}
   }
 

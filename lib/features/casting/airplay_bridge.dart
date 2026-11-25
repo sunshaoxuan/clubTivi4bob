@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:logger/logger.dart';
+import 'cast_diagnostics.dart';
 import 'package:path/path.dart' as p;
 
 /// AirPlay runs outside the UI process. Communication uses private stdio pipes.
@@ -31,14 +32,25 @@ class AirPlayBridge {
 
   Future<void> _launch() async {
     final executable = Platform.isWindows
-        ? p.join(p.dirname(Platform.resolvedExecutable), 'AirPlay',
-            'bobtv-airplay.exe')
+        ? p.join(
+            p.dirname(Platform.resolvedExecutable),
+            'AirPlay',
+            'bobtv-airplay.exe',
+          )
         : Platform.isMacOS
-            ? p.normalize(p.join(p.dirname(Platform.resolvedExecutable),
-                '..', 'Resources', 'AirPlay', 'bobtv-airplay',
-                'bobtv-airplay'))
-            : null;
+        ? p.normalize(
+            p.join(
+              p.dirname(Platform.resolvedExecutable),
+              '..',
+              'Resources',
+              'AirPlay',
+              'bobtv-airplay',
+              'bobtv-airplay',
+            ),
+          )
+        : null;
     if (executable == null || !await File(executable).exists()) {
+      CastDiagnostics.instance.record('airplay_helper_missing');
       throw StateError('此安裝缺少 AirPlay 組件。');
     }
     final process = await Process.start(executable, [], runInShell: false);
@@ -52,6 +64,20 @@ class AirPlayBridge {
     ) {
       try {
         final message = jsonDecode(line) as Map<String, dynamic>;
+        if (message['event'] == 'diagnostic') {
+          final stage = message['stage'];
+          if (stage is String) {
+            CastDiagnostics.instance.record(
+              'native_${stage.replaceAll('-', '_')}',
+              {
+                for (final key in ['bytes', 'elapsedMs'])
+                  if (message[key] is num && (message[key] as num) >= 0)
+                    (key == 'elapsedMs' ? 'durationMs' : key): message[key],
+              },
+            );
+          }
+          return;
+        }
         if (message.containsKey('event')) {
           if (!_events.isClosed) _events.add(message);
           return;
@@ -75,9 +101,21 @@ class AirPlayBridge {
         .transform(const LineSplitter())
         .listen((line) {
           final match = stage.firstMatch(line);
-          if (match != null) _log.d(line);
+          if (match != null) {
+            _log.d(line);
+            CastDiagnostics.instance.record(
+              'airplay_${match.group(1)!.replaceAll('-', '_')}',
+            );
+          }
         });
-    unawaited(process.exitCode.then((_) => _failed(process)));
+    unawaited(
+      process.exitCode.then((code) {
+        CastDiagnostics.instance.record('airplay_process_exit', {
+          'accepted': code == 0,
+        });
+        _failed(process);
+      }),
+    );
   }
 
   void _failed(Process process) {
@@ -98,6 +136,8 @@ class AirPlayBridge {
     String action, [
     Map<String, dynamic> arguments = const {},
   ]) async {
+    final clock = Stopwatch()..start();
+    CastDiagnostics.instance.record('airplay_${action}_request');
     await _start();
     final id = ++_nextId;
     final completer = Completer<Map<String, dynamic>>();
@@ -106,11 +146,31 @@ class AirPlayBridge {
       _process!.stdin.writeln(
         jsonEncode({'id': id, 'action': action, ...arguments}),
       );
-      return await completer.future.timeout(const Duration(seconds: 30));
+      final result = await completer.future.timeout(
+        const Duration(seconds: 30),
+      );
+      CastDiagnostics.instance.record('airplay_${action}_response', {
+        'accepted': true,
+        'durationMs': clock.elapsedMilliseconds,
+      });
+      if (action == 'play' && result['status'] == 'playing') {
+        CastDiagnostics.instance.record('airplay_playing');
+      }
+      return result;
     } on TimeoutException {
+      CastDiagnostics.instance.record('airplay_${action}_timeout', {
+        'errorCode': 'timeout',
+        'durationMs': clock.elapsedMilliseconds,
+      });
       final process = _process;
       if (process != null) unawaited(_terminate(process));
       throw StateError('AirPlay 操作逾時，請重新搜尋設備。');
+    } catch (error) {
+      CastDiagnostics.instance.record('airplay_${action}_failed', {
+        'errorCode': CastDiagnostics.errorCode(error),
+        'durationMs': clock.elapsedMilliseconds,
+      });
+      rethrow;
     } finally {
       _pending.remove(id);
     }
@@ -134,7 +194,9 @@ class AirPlayBridge {
       // The helper may still own an FFmpeg decoder when it is unresponsive.
       try {
         await Process.run('/usr/bin/pkill', [
-          '-TERM', '-P', '${process.pid}',
+          '-TERM',
+          '-P',
+          '${process.pid}',
         ]).timeout(const Duration(seconds: 2));
       } catch (_) {}
       process.kill(ProcessSignal.sigterm);

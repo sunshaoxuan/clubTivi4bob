@@ -10,6 +10,43 @@ class DiagnosticProjection {
   static final _tag = RegExp(r'^[A-Za-z][A-Za-z0-9_]{0,79}$');
   static final _version = RegExp(r'^\d{1,4}\.\d{1,4}\.\d{1,4}\+\d{1,8}$');
   static const enums = <String, Set<String>>{
+    'videoCodec': {
+      'h264',
+      'hevc',
+      'av1',
+      'vp8',
+      'vp9',
+      'mpeg2video',
+      'mpeg4',
+      'aac',
+      'ac3',
+      'eac3',
+      'mp3',
+      'opus',
+      'vorbis',
+      'flac',
+      'unknown',
+    },
+    'audioCodec': {
+      'h264',
+      'hevc',
+      'av1',
+      'vp8',
+      'vp9',
+      'mpeg2video',
+      'mpeg4',
+      'aac',
+      'ac3',
+      'eac3',
+      'mp3',
+      'opus',
+      'vorbis',
+      'flac',
+      'unknown',
+    },
+    'castProtocol': {'airplay', 'dlna', 'webos'},
+    'castFormat': {'m3u8', 'mpd', 'mp4', 'ts', 'unknown'},
+    'castRoute': {'local_relay', 'remote'},
     'platform': {'android', 'windows', 'macos', 'linux', 'ios'},
     'phase': {'open', 'headers', 'body', 'complete', 'retry'},
     'node': {'origin', 'cndrp', 'local'},
@@ -47,6 +84,15 @@ class DiagnosticProjection {
     'elapsedMs',
     'bytes',
     'attempt',
+    'deviceCount',
+    'faultCode',
+    'durationMs',
+    'firstByteMs',
+    'videoWidth',
+    'videoHeight',
+    'frameRate',
+    'sampleRate',
+    'channelCount',
   };
 
   static Map<String, Object>? project(Map input, DateTime now) {
@@ -72,6 +118,14 @@ class DiagnosticProjection {
       }
       if (key == 'appVersion' && value is String && _version.hasMatch(value)) {
         result['appVersion'] = value;
+      }
+      if ({'castDeviceId', 'castStreamId'}.contains(key) &&
+          value is String &&
+          RegExp(r'^[a-f0-9]{32}$').hasMatch(value)) {
+        result[key as String] = value;
+      }
+      if ({'hasHeaders', 'accepted', 'paired'}.contains(key) && value is bool) {
+        result[key as String] = value;
       }
       if (key == 'requestId' &&
           value is String &&

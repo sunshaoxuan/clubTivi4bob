@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 import 'dart:math';
+import 'cast_diagnostics.dart';
 
 /// Exposes one local playback proxy to one paired television for this session.
 class LanCastRelay {
@@ -51,10 +52,21 @@ class LanCastRelay {
     ).firstMatch(upstream.path)?.group(0);
     // The player's extensionless codec bridge serves MPEG-TS.
     final path = '/$token${extension ?? '.ts'}';
+    CastDiagnostics.instance.record('relay_listening');
+    var requests = 0;
     server.listen((request) async {
+      final trace = requests++ < 20;
+      final clock = Stopwatch()..start();
+      var bytes = 0;
+      var lastProgressMs = 0;
+      if (trace) CastDiagnostics.instance.record('relay_request');
       if (!{'GET', 'HEAD'}.contains(request.method) ||
           request.uri.path != path ||
           request.connectionInfo?.remoteAddress.address != tvAddress.address) {
+        if (trace)
+          CastDiagnostics.instance.record('relay_forbidden', {
+            'httpStatus': 403,
+          });
         request.response.statusCode = HttpStatus.forbidden;
         await request.response.close();
         return;
@@ -72,6 +84,11 @@ class LanCastRelay {
         final response = await proxyRequest.close().timeout(
           const Duration(seconds: 10),
         );
+        if (trace)
+          CastDiagnostics.instance.record('relay_upstream_headers', {
+            'httpStatus': response.statusCode,
+            'durationMs': clock.elapsedMilliseconds,
+          });
         if (response.statusCode >= 300 && response.statusCode < 400) {
           await response.listen(null).cancel();
           request.response.statusCode = HttpStatus.badGateway;
@@ -97,17 +114,53 @@ class LanCastRelay {
         if (request.method == 'HEAD') {
           await response.drain<void>();
         } else {
-          await request.response.addStream(response);
+          await request.response.addStream(
+            response.map((chunk) {
+              if (bytes == 0 && trace)
+                CastDiagnostics.instance.record('relay_first_byte', {
+                  'firstByteMs': clock.elapsedMilliseconds,
+                });
+              bytes += chunk.length;
+              if (trace &&
+                  clock.elapsedMilliseconds - lastProgressMs >= 10000) {
+                lastProgressMs = clock.elapsedMilliseconds;
+                CastDiagnostics.instance.record('relay_progress', {
+                  'bytes': bytes,
+                  'durationMs': lastProgressMs,
+                });
+              }
+              return chunk;
+            }),
+          );
         }
-      } catch (_) {
+      } catch (error) {
+        if (trace)
+          CastDiagnostics.instance.record('relay_failed', {
+            'errorCode': CastDiagnostics.errorCode(error),
+          });
         try {
           request.response.headers.clear();
           request.response.statusCode = HttpStatus.badGateway;
-        } catch (_) {}
+        } catch (error) {
+          if (trace)
+            CastDiagnostics.instance.record('relay_failed', {
+              'errorCode': CastDiagnostics.errorCode(error),
+            });
+        }
       } finally {
+        if (trace)
+          CastDiagnostics.instance.record('relay_complete', {
+            'bytes': bytes,
+            'durationMs': clock.elapsedMilliseconds,
+          });
         try {
           await request.response.close();
-        } catch (_) {}
+        } catch (error) {
+          if (trace)
+            CastDiagnostics.instance.record('relay_failed', {
+              'errorCode': CastDiagnostics.errorCode(error),
+            });
+        }
       }
     });
     return Uri(

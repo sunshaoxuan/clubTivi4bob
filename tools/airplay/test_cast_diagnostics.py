@@ -1,3 +1,5 @@
+import contextlib
+import io
 import json
 import os
 from pathlib import Path
@@ -9,11 +11,14 @@ from cast_diagnostics import record
 
 class DiagnosticTests(unittest.TestCase):
     def test_source_urls_and_arbitrary_error_text_are_never_persisted(self):
-        with tempfile.TemporaryDirectory() as folder, patch.dict(os.environ, {'LOCALAPPDATA': folder}):
+        output = io.StringIO()
+        with tempfile.TemporaryDirectory() as folder, patch.dict(os.environ, {'LOCALAPPDATA': folder}), contextlib.redirect_stdout(output):
             record({'stage': 'sender-failed', 'url': 'https://secret/token',
                     'reason': 'https://secret/token', 'errorType': 'TimeoutError', 'count': 50})
             raw = (Path(folder) / 'BobTV/AirPlay/native-cast.log').read_text()
             self.assertNotIn('secret', raw)
+            self.assertNotIn('secret', output.getvalue())
+            self.assertEqual(json.loads(output.getvalue())['event'], 'diagnostic')
             self.assertEqual(json.loads(raw)['errorType'], 'TimeoutError')
 
     def test_log_rotates_at_bounded_size(self):

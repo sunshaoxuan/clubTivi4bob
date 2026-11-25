@@ -24,6 +24,7 @@ def record(item):
         clean = {k: v for k, v in item.items() if k in FIELDS
                  and isinstance(v, (str, int, float, bool))
                  and (not isinstance(v, str) or re.fullmatch(r'[A-Za-z0-9_-]{1,80}', v))}
+        print(json.dumps({'event': 'diagnostic', **clean}), flush=True)
         # Values originate only from fixed stage/reason enums and numeric metrics.
         clean['time'] = time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime())
         with path.open('a', encoding='utf-8') as stream:

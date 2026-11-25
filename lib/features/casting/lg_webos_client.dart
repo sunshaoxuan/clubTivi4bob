@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:logger/logger.dart';
+import 'cast_diagnostics.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 final _log = Logger(printer: SimplePrinter());
@@ -30,6 +31,8 @@ class LgWebOsClient {
   /// Returns true if successfully paired.
   /// The TV will show a pairing prompt on first connection.
   Future<bool> connect({Duration timeout = const Duration(seconds: 15)}) async {
+    final clock = Stopwatch()..start();
+    CastDiagnostics.instance.record('webos_connect_start');
     try {
       await disconnect();
       // Load saved client key for this TV
@@ -52,9 +55,17 @@ class LgWebOsClient {
       // Send registration/pairing request
       final paired = await _register().timeout(timeout);
       _paired = paired;
+      CastDiagnostics.instance.record('webos_pairing_result', {
+        'paired': paired,
+        'durationMs': clock.elapsedMilliseconds,
+      });
       if (!paired) await disconnect();
       return paired;
     } catch (e) {
+      CastDiagnostics.instance.record('webos_connect_failed', {
+        'errorCode': CastDiagnostics.errorCode(e),
+        'durationMs': clock.elapsedMilliseconds,
+      });
       _log.e('WebOS connect failed: $e');
       await disconnect();
       return false;
@@ -128,6 +139,13 @@ class LgWebOsClient {
           }
         }
       } else if (type == 'error') {
+        final match = RegExp(
+          r'^(\d{3,5})(?:\s|$)',
+        ).firstMatch(msg['error'] is String ? msg['error'] as String : '');
+        CastDiagnostics.instance.record('webos_receiver_error', {
+          if (match != null) 'faultCode': int.parse(match.group(1)!),
+          'accepted': false,
+        });
         if (id != null && _responses.containsKey(id)) {
           _responses[id]!.completeError(
             Exception(msg['error'] ?? 'Unknown WebOS error'),
@@ -171,13 +189,33 @@ class LgWebOsClient {
     _responses[id] = completer;
     _ws!.add(jsonEncode(msg));
 
-    return completer.future.timeout(
-      const Duration(seconds: 10),
-      onTimeout: () {
-        _responses.remove(id);
-        throw TimeoutException('WebOS request timed out: $uri');
-      },
-    );
+    final clock = Stopwatch()..start();
+    final action = uri
+        .split('/')
+        .last
+        .replaceAll(RegExp('[^a-zA-Z0-9_]'), '_')
+        .toLowerCase();
+    CastDiagnostics.instance.record('webos_${action}_request');
+    try {
+      final result = await completer.future.timeout(
+        const Duration(seconds: 10),
+        onTimeout: () {
+          _responses.remove(id);
+          throw TimeoutException('WebOS request timed out: $uri');
+        },
+      );
+      CastDiagnostics.instance.record('webos_${action}_response', {
+        'accepted': true,
+        'durationMs': clock.elapsedMilliseconds,
+      });
+      return result;
+    } catch (error) {
+      CastDiagnostics.instance.record('webos_${action}_failed', {
+        'errorCode': CastDiagnostics.errorCode(error),
+        'durationMs': clock.elapsedMilliseconds,
+      });
+      rethrow;
+    }
   }
 
   /// Open a video URL in the TV's browser (most reliable method).
@@ -203,6 +241,9 @@ class LgWebOsClient {
             : path.endsWith('.mp4')
             ? 'video/mp4'
             : null);
+    CastDiagnostics.instance.record('webos_media_open', {
+      'castFormat': CastDiagnostics.format(url),
+    });
     await _request('ssap://media.viewer/open', {
       'target': url,
       'title': title,

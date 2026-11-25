@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'cast_service.dart';
+import 'cast_diagnostics.dart';
 import 'airplay_pair_dialog.dart';
 import '../../core/i18n/app_language.dart';
 
@@ -35,6 +36,7 @@ class _CastDialogState extends State<_CastDialog> {
   @override
   void initState() {
     super.initState();
+    CastDiagnostics.instance.begin();
     _castService = widget.ref.read(castServiceProvider);
     _statusSub = _castService.statusStream.listen((message) {
       if (mounted) setState(() => _error = message);
@@ -61,6 +63,7 @@ class _CastDialogState extends State<_CastDialog> {
 
   @override
   void dispose() {
+    CastDiagnostics.instance.record('dialog_close');
     _sub?.cancel();
     _statusSub?.cancel();
     _scanTimer?.cancel();

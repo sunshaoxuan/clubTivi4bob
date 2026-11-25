@@ -7,6 +7,7 @@ import 'package:xml/xml.dart';
 
 import '../../core/server_egress.dart';
 import 'dlna_media_request.dart';
+import 'cast_diagnostics.dart';
 
 const _avTransport = 'urn:schemas-upnp-org:service:AVTransport:1';
 
@@ -40,6 +41,10 @@ class DlnaTransport {
       } catch (_) {}
       rethrow;
     }
+  }
+
+  Future<void> sampleState() async {
+    await _request('GetTransportInfo');
   }
 
   Future<void> stop() async {
@@ -87,6 +92,8 @@ class DlnaTransport {
         uri.scheme != renderer.scheme) {
       throw StateError('無法確認投屏設備的局域網地址。');
     }
+    final clock = Stopwatch()..start();
+    CastDiagnostics.instance.record('dlna_${action.toLowerCase()}_request');
     final client = HttpClient()..connectionTimeout = const Duration(seconds: 3);
     try {
       return await (() async {
@@ -116,6 +123,23 @@ class DlnaTransport {
         } on XmlException {
           if (response.statusCode == HttpStatus.ok) rethrow;
         }
+        if (action == 'GetTransportInfo') {
+          for (final node
+              in xml?.descendants.whereType<XmlElement>() ?? <XmlElement>[]) {
+            if (node.name.local == 'CurrentTransportState') {
+              final state = node.innerText.trim().toLowerCase();
+              if (const {
+                'playing',
+                'stopped',
+                'paused_playback',
+                'transitioning',
+                'no_media_present',
+              }.contains(state)) {
+                CastDiagnostics.instance.record('dlna_state_$state');
+              }
+            }
+          }
+        }
         int? errorCode;
         var fault = false;
         for (final node
@@ -125,6 +149,14 @@ class DlnaTransport {
             errorCode = int.tryParse(node.innerText.trim());
           }
         }
+        CastDiagnostics.instance
+            .record('dlna_${action.toLowerCase()}_response', {
+              'httpStatus': response.statusCode,
+              'durationMs': clock.elapsedMilliseconds,
+              if (errorCode != null) 'faultCode': errorCode,
+              'accepted':
+                  response.statusCode == 200 && !fault && errorCode == null,
+            });
         if (response.statusCode != HttpStatus.ok ||
             fault ||
             errorCode != null) {
@@ -132,6 +164,12 @@ class DlnaTransport {
         }
         return xml!;
       })().timeout(const Duration(seconds: 3));
+    } catch (error) {
+      CastDiagnostics.instance.record('dlna_${action.toLowerCase()}_failed', {
+        'errorCode': CastDiagnostics.errorCode(error),
+        'durationMs': clock.elapsedMilliseconds,
+      });
+      rethrow;
     } finally {
       client.close(force: true);
     }

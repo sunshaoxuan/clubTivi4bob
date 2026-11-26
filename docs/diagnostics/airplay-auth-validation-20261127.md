@@ -41,7 +41,7 @@ The origin and cndrp validation modules were deployed with backups on
 
 - Flutter casting, authentication UI, diagnostics, updater and catalog regressions:
   78 passed on Mac.
-- Native Python suite: 63 passed after installing the complete QA FFmpeg in the
+- Native Python suite: 65 passed after installing the complete QA FFmpeg in the
   isolated Python environment. Successful and rejected real SRP exchanges are simulated
   cryptographically; these are not physical receiver tests.
 - Diagnostic server validation and relay tests: 12 passed.
@@ -51,6 +51,12 @@ FFmpeg stderr is classified into fixed diagnostic events for missing encoders,
 decoders, filters or protocols, HTTP rejection, route and connection errors,
 resource exhaustion, unsupported options and invalid media. Classification spans
 read boundaries and deduplicates repeated causes; no raw stderr enters upload.
+
+The first Windows CI regression run exposed an unpinned SRP dependency:
+Python 3.12 selected srptools 2.0, whose constructor API differs from the API
+used by pyatv 0.18.0. requirements.txt now pins the locally tested 1.0.1 version.
+Windows drive-qualified recording paths are also explicitly recognized before
+URL parsing. Both changes await the subsequent Windows CI result.
 
 ## Remaining acceptance
 

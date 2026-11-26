@@ -1,4 +1,6 @@
 pyatv==0.18.0
+# pyatv 0.18.0's SRP adapter uses the 1.x constructor API.
+srptools==1.0.1
 aiohttp==3.13.5
 pyinstaller==6.16.0
 cryptography==46.0.7

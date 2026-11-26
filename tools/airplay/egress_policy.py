@@ -1,9 +1,13 @@
 """Media-only sender boundary. Never send video via the resource relay."""
 import ipaddress
+import sys
+from pathlib import PureWindowsPath
 from urllib.parse import urlsplit
 
 
 def server_or_local_url(url):
+    if sys.platform == 'win32' and PureWindowsPath(url).is_absolute():
+        return url  # A drive-qualified local recording is not a URL scheme.
     parsed = urlsplit(url)
     if not parsed.scheme: return url  # Local recordings, never a network URL.
     if parsed.scheme not in ('http', 'https') or not parsed.hostname or parsed.username or parsed.password:

@@ -237,17 +237,28 @@ def test_quoted_publisher_urls_survive_gateway_missing_source_array():
     assert not evidence['identityApproved'] and not evidence['newMappings']
 
 
-def test_region_blocks_prioritize_japan_taiwan_hong_kong_then_world(conn):
+def test_region_blocks_prioritize_mainland_tv_and_keep_other_markets(conn):
     catalog = [{**channel(identity='fixture-' + country), 'countryCode': country}
-               for country in ('JP', 'TW', 'HK', 'DE')]
-    paths = {c['id']: PATH for c in catalog}
-    for claims, country in ((0, 'JP'), (3, 'TW'), (6, 'HK'), (9, 'DE')):
+               for country in ('CN', 'JP', 'TW', 'HK', 'DE')]
+    for identity in ('mainland-radio', 'mainland-provincial-tv'):
+        catalog.append(channel(identity=identity))
+    paths = {**{c['id']: PATH for c in catalog}, 'fixture-CN': ['中国', '央视'],
+             'mainland-radio': ['中国', '广播'], 'mainland-provincial-tv': ['中国', '浙江']}
+    q.enqueue(conn, catalog[-1], 'fixture-v1', paths['mainland-provincial-tv'], NOW)
+    q.enqueue(conn, catalog[-2], 'fixture-v1', paths['mainland-radio'], NOW)
+    for claims, country in ((0, 'CN'), (3, 'CN'), (6, 'JP'), (9, 'TW'), (12, 'HK'), (15, 'DE')):
         with conn:
             conn.execute('INSERT OR REPLACE INTO epg_checkpoints VALUES(?,?)',
                 ('channel_search_fairness', json.dumps({'claims': claims})))
         chosen = w.choose(conn, {'version': 'fixture-v1'}, catalog, paths,
             set(), NOW, set(), regional_rotation=True)
         assert chosen['channel_id'] == 'fixture-' + country
+    with conn:
+        conn.execute('INSERT OR REPLACE INTO epg_checkpoints VALUES(?,?)',
+            ('channel_search_fairness', json.dumps({'claims': 0})))
+    chosen = w.choose(conn, {'version': 'fixture-v1'}, catalog, paths,
+        set(), NOW, {'fixture-CN'}, regional_rotation=True)
+    assert chosen['channel_id'] == 'mainland-provincial-tv'
 
 
 def test_actual_queue_rotates_two_unknown_channels_and_persists_backoff(conn):

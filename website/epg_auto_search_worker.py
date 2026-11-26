@@ -178,6 +178,8 @@ def research_priority(channel, path=None):
 
 
 FOLLOWUP = 'channel_search_followup_v1'
+REGIONAL_BLOCKS = ('CN', 'CN', 'JP', 'TW', 'HK', None)
+ROTATION_REGIONS = frozenset(REGIONAL_BLOCKS) - {None}
 
 
 def due_followup(conn, protected, now, handled):
@@ -216,29 +218,48 @@ def choose(conn, manifest, channels, paths, protected, now, handled, *, regional
              for r in eligible}
     fairness = read_checkpoint(conn, 'channel_search_fairness')
     country_turns = fairness.get('countryLastClaim', {})
-    # Persisted claim count rotates three-country blocks, with an equally
-    # sized world block so the rest of the catalogue cannot starve.
-    region = ('JP', 'TW', 'HK', None)[(fairness.get('claims', 0) // 3) % 4]
+    # Blocks of three claims give mainland television dedicated capacity
+    # alongside existing regional and general catalogue passes.
+    region = REGIONAL_BLOCKS[(fairness.get('claims', 0) // 3) % len(REGIONAL_BLOCKS)]
     def region_rank(channel):
         country = channel.get('countryCode')
         return int(regional_rotation and (
-            country != region if region else country in {'JP', 'TW', 'HK'}))
+            country != region if region else country in ROTATION_REGIONS))
+
+    def media_rank(channel):
+        if not regional_rotation or region != 'CN' or channel.get('countryCode') != 'CN':
+            return 0
+        path = paths[channel['id']]
+        if any(part in {'广播', '電臺', '电台', '廣播'} for part in path):
+            return 2
+        return 0 if any(part in {'央视', '央視'} for part in path) else 1
+
+    def rotation_rank(channel):
+        return region_rank(channel), media_rank(channel)
+
     eligible.sort(key=lambda r: (r['channel_id'] not in recovering,
-        region_rank(by_id[r['channel_id']]),
+        rotation_rank(by_id[r['channel_id']]),
         country_turns.get(by_id[r['channel_id']].get('countryCode') or '__unknown__', -1), ranks[r['channel_id']] // 10,
         0 if r['identity_evidence'] is not None else 1, ranks[r['channel_id']],
         broadcast_rank(by_id[r['channel_id']], paths[r['channel_id']]),
         r['next_retry'], r['channel_id']))
     row = next(iter(eligible), None)
-    fair = read_checkpoint(conn, 'channel_search_fairness').get('claims', 0)
-    if row and (row['channel_id'] in recovering or
-                (fair % 2 == 0 and not region_rank(by_id[row['channel_id']]))):
+    if row and row['channel_id'] in recovering:
         return row
     known = {r[0] for r in conn.execute('SELECT channel_id FROM epg_channel_research_jobs')}
-    channel = next((c for c in sorted(channels, key=lambda c: (region_rank(c), country_turns.get(c.get('countryCode') or '__unknown__', -1), research_priority(c, paths[c['id']]), broadcast_rank(c, paths[c['id']]), c['id']))
-                    if c['id'] not in known and c['id'] not in protected and c['id'] not in handled), None)
-    if channel is None or (row and region_rank(by_id[row['channel_id']]) < region_rank(channel)):
+    excluded = known | protected | handled
+    channel = min((c for c in channels if c['id'] not in excluded),
+        key=lambda c: (rotation_rank(c), country_turns.get(c.get('countryCode') or '__unknown__', -1),
+                       research_priority(c, paths[c['id']]), broadcast_rank(c, paths[c['id']]), c['id']),
+        default=None)
+    if channel is None:
         return row
+    if row:
+        due_rank = rotation_rank(by_id[row['channel_id']])
+        new_rank = rotation_rank(channel)
+        if due_rank < new_rank or (due_rank == new_rank and not due_rank[0]
+                                  and fairness.get('claims', 0) % 2 == 0):
+            return row
     # Admit a single real public target, never a bulk provider/source scan.
     queue.enqueue(conn, channel, manifest['version'], paths[channel['id']], now)
     return conn.execute('SELECT * FROM epg_channel_research_jobs WHERE channel_id=?', (channel['id'],)).fetchone()

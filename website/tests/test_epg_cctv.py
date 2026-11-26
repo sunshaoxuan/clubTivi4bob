@@ -1,3 +1,4 @@
+from datetime import datetime
 import gzip
 import io
 import json
@@ -56,6 +57,21 @@ def test_explicit_epoch_bounds_and_source_provenance_no_mapping_or_permission():
 def test_fixed_pilot_scope_cannot_expand_url_or_other_channel(channel):
     with pytest.raises(EpgError, match='unreviewed_cctv_channel'):
         cctv.schedule_url(channel, DAY)
+
+
+def test_research_keeps_cctv4_editions_distinct_and_checks_local_time():
+    channel = 'cctveurope'
+    display_time = datetime.fromtimestamp(NOW - 60, cctv.ZONE).strftime('%H:%M')
+    source = {'channelName': 'CCTV-4 (欧洲)', 'lvUrl': 'https://tv.cctv.com/live/cctveurope',
+        'list': [dict(row(), showTime=display_time), dict(row(NOW + 60, NOW + 120), showTime='')]}
+    body = json.dumps({'data': {channel: source}}).encode()
+    result = cctv.parse_schedule(body, channel, DAY, NOW, research=True)
+    assert result['programmes'][0]['originalChannelId'] == channel
+    assert result['quality']['rejected'] == {'source_display_time_mismatch': 1}
+    assert not result['quality']['publicationAllowed']
+    source['channelName'] = 'CCTV-4 (美洲)'
+    with pytest.raises(EpgError, match='cctv_channel_identity_mismatch'):
+        cctv.parse_schedule(json.dumps({'data': {channel: source}}).encode(), channel, DAY, NOW, research=True)
 
 
 @pytest.mark.parametrize('day', ['20260230', '2026-10-16', '20261016&x=1', '２０２６１０１６'])

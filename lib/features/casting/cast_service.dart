@@ -13,6 +13,8 @@ import 'dlna_transport.dart';
 import 'dlna_discovery.dart';
 import 'airplay_bridge.dart';
 import '../../core/server_egress.dart';
+import '../../core/diagnostic_context.dart';
+import '../../core/diagnostic_log_store.dart';
 
 final _log = Logger(printer: SimplePrinter());
 
@@ -25,6 +27,10 @@ class CastDevice {
   final LgWebOsClient? webosClient;
   final bool requiresPairing;
   final String? unavailableReason;
+  final String? receiverAddress;
+  final bool passwordRequired;
+  final bool nativeMac;
+  String? authenticationMode;
   bool paired;
 
   CastDevice({
@@ -35,6 +41,9 @@ class CastDevice {
     this.webosClient,
     this.requiresPairing = false,
     this.unavailableReason,
+    this.receiverAddress,
+    this.passwordRequired = false,
+    this.nativeMac = false,
     this.paired = false,
   });
 
@@ -51,6 +60,7 @@ class CastService {
   Stream<String?> get statusStream => _status.stream;
   String? lastError;
   bool relayAirPlay = true;
+  int _pairingGeneration = 0;
   int _discoveryGeneration = 0;
   Future<void> _queue = Future.value();
   int _castGeneration = 0;
@@ -61,7 +71,14 @@ class CastService {
     _airplay.events.listen((event) {
       if (_disposed) return;
       if (event['event'] == 'error') {
-        CastDiagnostics.instance.record('airplay_async_error');
+        final fields = DiagnosticProjection.project({
+          ...event,
+          'time': DateTime.now().toUtc().toIso8601String(),
+          'event': 'native_error',
+        }, DateTime.now())!;
+        fields.remove('time');
+        fields.remove('event');
+        CastDiagnostics.instance.record('airplay_async_error', fields);
         lastError = event['message'] as String?;
         if (_activeDevice?.type == 'airplay') _isCasting = false;
         _status.add(lastError);
@@ -88,6 +105,9 @@ class CastService {
           paired: item['paired'] == true,
           requiresPairing: item['requiresPairing'] == true,
           unavailableReason: item['unavailableReason'] as String?,
+          receiverAddress: item['address'] as String?,
+          passwordRequired: item['passwordRequired'] == true,
+          nativeMac: item['nativeMac'] == true,
         );
         _devices[device.id] = device;
       }
@@ -106,24 +126,35 @@ class CastService {
     }
   }
 
-  Future<void> beginPairing(CastDevice device) async {
+  Future<void> beginPairing(CastDevice device, {String? mode}) async {
+    final generation = ++_pairingGeneration;
     if (device.unavailableReason != null)
       throw StateError(device.unavailableReason!);
     final result = await _airplay.request('pair_start', {
       'device': device.id.substring(8),
+      if (mode != null) 'mode': mode,
     });
-    if (result['deviceProvidesPin'] != true) {
+    if (generation != _pairingGeneration) throw StateError('配对已取消');
+    if (result['deviceProvidesPin'] != true &&
+        result['authenticationMode'] != 'password') {
       await cancelPairing();
       throw StateError('此設備需要在接收端輸入驗證碼，目前請使用電視顯示驗證碼的配對模式。');
     }
+    device.authenticationMode =
+        result['authenticationMode'] as String? ?? 'pin';
   }
 
   Future<void> finishPairing(CastDevice device, String pin) async {
-    await _airplay.request('pair_finish', {'pin': pin});
+    final generation = _pairingGeneration;
+    await _airplay.request('pair_finish', {
+      device.authenticationMode == 'password' ? 'password' : 'pin': pin,
+    });
+    if (generation != _pairingGeneration) throw StateError('配对已取消');
     device.paired = true;
   }
 
   Future<void> cancelPairing() async {
+    _pairingGeneration++;
     try {
       await _airplay.request('pair_cancel');
     } catch (_) {}
@@ -272,6 +303,15 @@ class CastService {
   }) async {
     lastError = null;
     CastDiagnostics.instance.target(device.type, device.id, url);
+    final receiver =
+        device.receiverAddress ??
+        device.webosClient?.host ??
+        (device.dlnaDevice == null
+            ? null
+            : Uri.tryParse(device.dlnaDevice!.info.URLBase)?.host);
+    if (receiver != null) {
+      unawaited(CastDiagnostics.instance.captureNetwork(receiver));
+    }
     final clock = Stopwatch()..start();
     try {
       final transportUrl = ServerEgress.mediaUrl(url);
@@ -342,9 +382,9 @@ class CastService {
         return true;
       }
       return false;
-    } catch (e) {
+    } catch (e, stack) {
       CastDiagnostics.instance.record('play_failed', {
-        'errorCode': CastDiagnostics.errorCode(e),
+        ...DiagnosticFailure.describe(e, stack),
         'durationMs': clock.elapsedMilliseconds,
       });
       _isCasting = false;

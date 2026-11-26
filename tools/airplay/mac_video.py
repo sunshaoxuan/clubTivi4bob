@@ -72,7 +72,9 @@ class MacVideoProtocol(AirPlayV2):
                         diagnostic({'stage': 'fcup-response', 'errorType': type(item.exception()).__name__})
                 task.add_done_callback(finished)
         self.reverse_connection = await open_reverse(
-            self.rtsp.connection.remote_ip, self.control_port, self.uuid, reverse_event)
+            self.rtsp.connection.remote_ip, self.control_port, self.uuid, reverse_event,
+            credentials=getattr(self, 'auth_credentials', None),
+            password=getattr(self, 'auth_password', None))
         response = await self.rtsp.connection.post('/play', headers=self.headers,
             body=plistlib.dumps({'Content-Location': MASTER_URL,
                                 'Start-Position-Seconds': position,
@@ -87,7 +89,9 @@ class MacVideoProtocol(AirPlayV2):
         return response
 
     async def _setup_base(self, timing_server_port):
-        self._verifier = await authenticate(self.rtsp.connection)
+        self._verifier = await authenticate(self.rtsp.connection,
+            credentials=getattr(self, 'auth_credentials', None),
+            password=getattr(self, 'auth_password', None))
         if getattr(self, 'media_auth_helper', None):
             await authenticate_media(self.rtsp, self.media_auth_helper, getattr(self, 'diagnostic', None))
         if getattr(self, 'url_only', False):

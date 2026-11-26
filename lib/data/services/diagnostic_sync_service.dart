@@ -92,15 +92,25 @@ class DiagnosticSyncService with WidgetsBindingObserver {
       if (!enabled || !event.startsWith('cast_') || _castTimer != null) return;
       _castTimer = Timer(castUploadDelay, () {
         _castTimer = null;
-        // Bypass only idle polling delay; preserve server and network backoff.
-        if (_idleDeferred) {
-          _nextRetry = null;
-          _idleDeferred = false;
-        }
-        unawaited(sync());
+        unawaited(_syncCastEvents());
       });
     });
     if (enabled) unawaited(sync());
+  }
+
+  Future<void> _syncCastEvents() async {
+    // A cast event can arrive while the previous run is committing its idle
+    // cursor/backoff. Wait for that commit, then read again rather than joining
+    // a run which has already finished reading the outbox.
+    final running = _running;
+    if (running != null) await running;
+    if (_disposed || !enabled) return;
+    // Only idle polling may be bypassed. Server/network Retry-After survives.
+    if (_idleDeferred) {
+      _nextRetry = null;
+      _idleDeferred = false;
+    }
+    await sync();
   }
 
   /// Caller must display and obtain the v2 first-use consent before enabling.
@@ -334,7 +344,9 @@ class DiagnosticSyncService with WidgetsBindingObserver {
       }
       if (_allowed(generation)) {
         status.value = '本批诊断已同步，剩余部分稍后继续';
-        await _defer(prefs, const Duration(minutes: 1));
+        // This is a local fairness pause, so a newly completed cast incident
+        // may wake the outbox. Keep remote/network retry delays protected.
+        await _defer(prefs, const Duration(minutes: 1), idle: true);
       }
     } catch (error) {
       if (!_allowed(generation)) return;

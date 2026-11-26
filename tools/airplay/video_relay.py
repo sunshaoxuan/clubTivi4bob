@@ -11,7 +11,7 @@ import tempfile
 
 from aiohttp import web
 from egress_policy import server_or_local_url
-from cast_diagnostics import record
+from cast_diagnostics import record, failure_details
 
 
 class VideoRelay:
@@ -41,8 +41,20 @@ class VideoRelay:
         record({'stage': 'remux-start'})
         server_or_local_url(url)
         executable = self.ffmpeg_path()
+        record({'stage': 'relay-dependency-check', 'ffmpegAvailable': bool(executable)})
         if not executable:
+            record({'stage': 'remux-component-missing'})
             raise FileNotFoundError('FFmpeg is required for relaying')
+        try:
+            import re
+            output = await asyncio.to_thread(subprocess.check_output,
+                [executable, '-version'], stderr=subprocess.DEVNULL,
+                timeout=2, text=True)
+            match = re.search(r'^ffmpeg version (\d+(?:\.\d+){1,3})', output)
+            if match:
+                record({'stage': 'relay-component-version', 'ffmpegVersion': match[1]})
+        except (OSError, subprocess.SubprocessError) as error:
+            record({'stage': 'relay-component-probe-failed', **failure_details(error)})
         with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as route:
             route.connect((str(receiver), 7000))
             local_address = route.getsockname()[0]

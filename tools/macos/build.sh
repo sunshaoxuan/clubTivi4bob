@@ -85,6 +85,8 @@ if [[ -n "${BOBTV_FFMPEG_BIN:-}" ]]; then
   cp "$BOBTV_FFMPEG_BIN" "$app/Contents/Resources/Tools/ffmpeg"
   cp "$BOBTV_FFMPEG_LICENSE" "$app/Contents/Resources/Tools/FFMPEG-LICENSE.txt"
   cp "$BOBTV_FFMPEG_SOURCE" "$app/Contents/Resources/Tools/FFMPEG-SOURCE.zip"
+else
+  python3 "$root/tools/macos/prepare_cast_ffmpeg.py" "$app"
 fi
 if [[ -n "${BOBTV_CODESIGN_IDENTITY:-}" ]]; then
   codesign --force --options runtime --sign "$BOBTV_CODESIGN_IDENTITY" \
@@ -115,4 +117,4 @@ else
 fi
 codesign --verify --deep --strict "$app"
 echo "Built $app"
-echo 'FFmpeg must be available at a supported system path for AirPlay transcoding.'
+echo 'AirPlay relay FFmpeg is included in the application bundle.'

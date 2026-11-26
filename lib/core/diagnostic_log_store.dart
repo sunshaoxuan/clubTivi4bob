@@ -10,6 +10,16 @@ class DiagnosticProjection {
   static final _tag = RegExp(r'^[A-Za-z][A-Za-z0-9_]{0,79}$');
   static final _version = RegExp(r'^\d{1,4}\.\d{1,4}\.\d{1,4}\+\d{1,8}$');
   static const enums = <String, Set<String>>{
+    'authMode': {'transient', 'pin', 'password', 'credentials'},
+    'authEndpoint': {'pair_setup', 'pair_pin_start', 'pair_verify'},
+    'authResult': {
+      'success',
+      'rejected',
+      'backoff',
+      'protocol_error',
+      'transport_error',
+      'cancelled',
+    },
     'videoCodec': {
       'h264',
       'hevc',
@@ -74,7 +84,18 @@ class DiagnosticProjection {
       'cancelled',
       'server_busy',
       'other',
+      'no_route',
+      'connection_refused',
+      'permission_denied',
+      'missing_dependency',
+      'out_of_memory',
+      'authentication',
+      'not_supported',
     },
+    'environmentProbe': {'complete', 'partial', 'unsupported'},
+    'networkProbe': {'complete', 'partial', 'unsupported', 'no_route'},
+    'localAddressSource': {'socket_route', 'interface_candidate'},
+    'cpuMeasurement': {'ps_lifetime_average'},
   };
   static const _metrics = {
     'uptimeSeconds',
@@ -93,6 +114,69 @@ class DiagnosticProjection {
     'frameRate',
     'sampleRate',
     'channelCount',
+    'totalMemoryBytes',
+    'availableMemoryBytes',
+    'freeMemoryBytes',
+    'reclaimableMemoryBytes',
+    'compressedMemoryBytes',
+    'swapUsedBytes',
+    'cpuLogicalCores',
+    'cpuLoad1m',
+    'processCpuPercent',
+    'systemCpuPercent',
+    'environmentAgeMs',
+    'prefixLength',
+    'receiverPort',
+    'networkProbeDurationMs',
+    'environmentProbeDurationMs',
+    'windowBeforeMs',
+    'windowAfterMs',
+    'helperMaxRssBytes',
+    'helperCpuUserMs',
+    'helperCpuSystemMs',
+    'freeDiskBytes',
+    'breadcrumbCount',
+    'authTlvError',
+    'retryAfterSeconds',
+    'interfaceIndex',
+    'writeDelayMs',
+    'count',
+    'audioPackets',
+    'lagMs',
+    'processTreeRssSumBytes',
+    'processTreeCpuPercent',
+    'helperProcessCount',
+    'asrCpuPercent',
+    'asrRssBytes',
+    'ffmpegCpuPercent',
+    'ffmpegRssBytes',
+    'airplayCpuPercent',
+    'airplayRssBytes',
+  };
+
+  static final textPatterns = <String, RegExp>{
+    'authPhase': RegExp(r'^(?:M[1-6]|PV[1-4]|pin_start|encryption)$'),
+    'authReason': RegExp(r'^[A-Za-z0-9_-]{1,80}$'),
+    'causeType': RegExp(r'^[A-Za-z_][A-Za-z0-9_]{0,79}$'),
+    'cpuModel': RegExp(r'^[A-Za-z0-9 ()@.+,_-]{1,160}$'),
+    'osVersion': RegExp(r'^[A-Za-z0-9][A-Za-z0-9._+\-]{0,79}$'),
+    'kernelVersion': RegExp(r'^[A-Za-z0-9][A-Za-z0-9._+\-]{0,79}$'),
+    'osBuild': RegExp(r'^[A-Za-z0-9._-]{1,80}$'),
+    'architecture': RegExp(r'^[A-Za-z0-9_]{1,40}$'),
+    'errorType': RegExp(r'^[A-Za-z_][A-Za-z0-9_]{0,79}$'),
+    'interfaceName': RegExp(r'^[A-Za-z0-9_.-]{1,40}$'),
+    'stackFrames': RegExp(
+      r'^(?:(?:package:[A-Za-z0-9_]+/[A-Za-z0-9_./-]+\.dart|dart:[A-Za-z0-9_./-]+):\d+(?::\d+)?)(?:\n(?:package:[A-Za-z0-9_]+/[A-Za-z0-9_./-]+\.dart|dart:[A-Za-z0-9_./-]+):\d+(?::\d+)?){0,11}$',
+    ),
+    'nativeStackFrames': RegExp(
+      r'^[A-Za-z_][A-Za-z0-9_.]*:[A-Za-z_][A-Za-z0-9_]*:\d+(?:\n[A-Za-z_][A-Za-z0-9_.]*:[A-Za-z_][A-Za-z0-9_]*:\d+){0,11}$',
+    ),
+    'pythonVersion': RegExp(r'^\d+\.\d+\.\d+$'),
+    'pyatvVersion': RegExp(r'^\d+\.\d+\.\d+$'),
+    'ffmpegVersion': RegExp(r'^\d+(?:\.\d+){1,3}$'),
+    'dartVersion': RegExp(r'^\d+\.\d+\.\d+$'),
+    'receiverModel': RegExp(r'^[A-Za-z0-9 ()@.+,_-]{1,160}$'),
+    'receiverFeatures': RegExp(r'^[A-Fa-f0-9x,]{1,80}$'),
   };
 
   static Map<String, Object>? project(Map input, DateTime now) {
@@ -113,6 +197,26 @@ class DiagnosticProjection {
     for (final entry in input.entries) {
       final key = entry.key;
       final value = entry.value;
+      if (textPatterns[key]?.hasMatch(value is String ? value : '') == true &&
+          value is String &&
+          value.length <= 2000) {
+        result[key as String] = value;
+      }
+      if ({
+            'localAddress',
+            'receiverAddress',
+            'gatewayAddress',
+            'bindAddress',
+          }.contains(key) &&
+          value is String &&
+          InternetAddress.tryParse(value) != null) {
+        result[key as String] = value;
+      }
+      if ({'osErrorCode', 'processExitCode'}.contains(key) &&
+          value is int &&
+          value >= -2147483648 &&
+          value <= 2147483647)
+        result[key as String] = value;
       if (key == 'source' && value is String && _tag.hasMatch(value)) {
         result['source'] = value;
       }
@@ -124,13 +228,28 @@ class DiagnosticProjection {
           RegExp(r'^[a-f0-9]{32}$').hasMatch(value)) {
         result[key as String] = value;
       }
-      if ({'hasHeaders', 'accepted', 'paired'}.contains(key) && value is bool) {
+      if ({
+            'hasHeaders',
+            'accepted',
+            'paired',
+            'ffmpegBundled',
+            'airplayHelperAvailable',
+            'sameSubnet',
+            'routeAvailable',
+            'vpnInterface',
+            'breadcrumb',
+            'ffmpegAvailable',
+            'passwordRequired',
+            'savedCredentialsAvailable',
+            'breadcrumbTruncated',
+          }.contains(key) &&
+          value is bool) {
         result[key as String] = value;
       }
-      if (key == 'requestId' &&
+      if ({'requestId', 'sessionId', 'incidentId'}.contains(key) &&
           value is String &&
           RegExp(r'^[a-f0-9]{32}$').hasMatch(value)) {
-        result['requestId'] = value;
+        result[key as String] = value;
       }
       if (key == 'fatal' && value is bool) result['fatal'] = value;
       if (enums.containsKey(key) &&
@@ -275,17 +394,19 @@ class DiagnosticLogStore {
     await _prune();
     final next = Map<String, int>.from(checkpoint);
     final sources = <(String, File, bool)>[
+      // Send recent captured diagnostics before the initial historical backfill.
+      // Each file retains its own acknowledged offset, so history is preserved.
+      for (final file in (await _files(
+        directory,
+        r'^diagnostics-\d{8}-\d{2}\.jsonl$',
+      )).reversed)
+        ('safe:${p.basename(file.path)}', file, false),
       if (legacyDirectory != null)
         for (final file in await _files(
           legacyDirectory!,
           r'^clubtivi-\d{8}(?:-\d+)?\.log$',
         ))
           ('legacy:${p.basename(file.path)}', file, true),
-      for (final file in await _files(
-        directory,
-        r'^diagnostics-\d{8}-\d{2}\.jsonl$',
-      ))
-        ('safe:${p.basename(file.path)}', file, false),
     ];
     final entries = <Map<String, Object>>[];
     var bytes = 0;

@@ -4,10 +4,31 @@ import 'dart:io';
 
 import 'package:logger/logger.dart';
 import 'cast_diagnostics.dart';
+import '../../core/diagnostic_context.dart';
+import '../../core/diagnostic_log_store.dart';
 import 'package:path/path.dart' as p;
 
 /// AirPlay runs outside the UI process. Communication uses private stdio pipes.
 class AirPlayBridge {
+  static Map<String, Object> _nativeFields(Map<String, dynamic> message) {
+    final result =
+        DiagnosticProjection.project({
+          ...message,
+          'time': DateTime.now().toUtc().toIso8601String(),
+          'event': 'native_diagnostic',
+          if (message['decoderExit'] is int)
+            'processExitCode': message['decoderExit'],
+          if (message['status'] is int &&
+              message['status'] >= 100 &&
+              message['status'] <= 599)
+            'httpStatus': message['status'],
+        }, DateTime.now()) ??
+        {};
+    result.remove('time');
+    result.remove('event');
+    return result;
+  }
+
   final _log = Logger(printer: SimplePrinter());
   Process? _process;
   Future<void>? _starting;
@@ -70,6 +91,7 @@ class AirPlayBridge {
             CastDiagnostics.instance.record(
               'native_${stage.replaceAll('-', '_')}',
               {
+                ..._nativeFields(message),
                 for (final key in ['bytes', 'elapsedMs'])
                   if (message[key] is num && (message[key] as num) >= 0)
                     (key == 'elapsedMs' ? 'durationMs' : key): message[key],
@@ -85,7 +107,19 @@ class AirPlayBridge {
         final completer = _pending.remove(message['id']);
         if (completer == null || completer.isCompleted) return;
         if (message['error'] != null) {
-          completer.completeError(StateError(message['error'] as String));
+          final safe = DiagnosticProjection.project({
+            ...message,
+            'time': DateTime.now().toUtc().toIso8601String(),
+            'event': 'native_error',
+          }, DateTime.now())!;
+          completer.completeError(
+            DiagnosticRemoteException(
+              message['error'] as String,
+              code: safe['errorCode'] as String? ?? 'other',
+              errorType: safe['errorType'] as String? ?? 'NativeError',
+              osErrorCode: safe['osErrorCode'] as int?,
+            ),
+          );
         } else {
           completer.complete(
             Map<String, dynamic>.from(message['result'] as Map),
@@ -137,37 +171,55 @@ class AirPlayBridge {
     Map<String, dynamic> arguments = const {},
   ]) async {
     final clock = Stopwatch()..start();
-    CastDiagnostics.instance.record('airplay_${action}_request');
+    final requestTrace = CastDiagnostics.instance.sessionId;
+    CastDiagnostics.instance.record('airplay_${action}_request', {
+      'requestId': requestTrace,
+    });
     await _start();
     final id = ++_nextId;
     final completer = Completer<Map<String, dynamic>>();
     _pending[id] = completer;
     try {
       _process!.stdin.writeln(
-        jsonEncode({'id': id, 'action': action, ...arguments}),
+        jsonEncode({
+          'id': id,
+          'action': action,
+          'requestId': requestTrace,
+          ...arguments,
+        }),
       );
       final result = await completer.future.timeout(
-        const Duration(seconds: 30),
+        Duration(seconds: action == 'play' ? 65 : 30),
       );
       CastDiagnostics.instance.record('airplay_${action}_response', {
+        'requestId': requestTrace,
         'accepted': true,
         'durationMs': clock.elapsedMilliseconds,
       });
       if (action == 'play' && result['status'] == 'playing') {
-        CastDiagnostics.instance.record('airplay_playing');
+        CastDiagnostics.instance.record('airplay_playing', {
+          'requestId': requestTrace,
+        });
+      }
+      if (action == 'play' && result['status'] == 'streaming') {
+        CastDiagnostics.instance.record('airplay_frames_sent', {
+          'requestId': requestTrace,
+        });
       }
       return result;
     } on TimeoutException {
       CastDiagnostics.instance.record('airplay_${action}_timeout', {
+        'requestId': requestTrace,
         'errorCode': 'timeout',
         'durationMs': clock.elapsedMilliseconds,
       });
       final process = _process;
       if (process != null) unawaited(_terminate(process));
       throw StateError('AirPlay 操作逾時，請重新搜尋設備。');
-    } catch (error) {
+    } catch (error, stack) {
       CastDiagnostics.instance.record('airplay_${action}_failed', {
-        'errorCode': CastDiagnostics.errorCode(error),
+        'requestId': requestTrace,
+        ...DiagnosticFailure.describe(error, stack),
         'durationMs': clock.elapsedMilliseconds,
       });
       rethrow;

@@ -5,6 +5,7 @@ download exists. A content digest is an opaque receipt, never an authorization
 to fetch the payload. Both the origin and relay expire data by event age.
 """
 import hashlib
+import ipaddress
 import json
 import math
 import os
@@ -44,6 +45,60 @@ ENUMS = {
                  'diagnostics', 'favorites', 'other_api'},
     'errorCode': {'timeout', 'socket', 'tls', 'http', 'format', 'cancelled',
                   'server_busy', 'other'},
+}
+
+ENUMS['errorCode'] |= {'no_route', 'connection_refused', 'permission_denied',
+    'missing_dependency', 'out_of_memory', 'authentication', 'not_supported'}
+ENUMS.update({
+    'authMode': {'transient', 'pin', 'password', 'credentials'},
+    'authEndpoint': {'pair_setup', 'pair_pin_start', 'pair_verify'},
+    'authResult': {'success', 'rejected', 'backoff', 'protocol_error', 'transport_error', 'cancelled'},
+    'environmentProbe': {'complete', 'partial', 'unsupported'},
+    'networkProbe': {'complete', 'partial', 'unsupported', 'no_route'},
+    'localAddressSource': {'socket_route', 'interface_candidate'},
+    'cpuMeasurement': {'ps_lifetime_average'},
+})
+TEXT_PATTERNS = {
+    'authPhase': re.compile(r'(?:M[1-6]|PV[1-4]|pin_start|encryption)'),
+    'authReason': re.compile(r'[A-Za-z0-9_-]{1,80}'),
+    'causeType': re.compile(r'[A-Za-z_][A-Za-z0-9_]{0,79}'),
+    'cpuModel': re.compile(r'^[A-Za-z0-9 ()@.+,_-]{1,160}$'),
+    'osVersion': re.compile(r'^[A-Za-z0-9][A-Za-z0-9._+\-]{0,79}$'),
+    'kernelVersion': re.compile(r'^[A-Za-z0-9][A-Za-z0-9._+\-]{0,79}$'),
+    'osBuild': re.compile(r'^[A-Za-z0-9._-]{1,80}$'),
+    'architecture': re.compile(r'^[A-Za-z0-9_]{1,40}$'),
+    'errorType': re.compile(r'^[A-Za-z_][A-Za-z0-9_]{0,79}$'),
+    'interfaceName': re.compile(r'^[A-Za-z0-9_.-]{1,40}$'),
+    'stackFrames': re.compile(r'(?:(?:package:[A-Za-z0-9_]+/[A-Za-z0-9_./-]+\.dart|dart:[A-Za-z0-9_./-]+):\d+(?::\d+)?)(?:\n(?:package:[A-Za-z0-9_]+/[A-Za-z0-9_./-]+\.dart|dart:[A-Za-z0-9_./-]+):\d+(?::\d+)?){0,11}'),
+    'nativeStackFrames': re.compile(r'[A-Za-z_][A-Za-z0-9_.]*:[A-Za-z_][A-Za-z0-9_]*:\d+(?:\n[A-Za-z_][A-Za-z0-9_.]*:[A-Za-z_][A-Za-z0-9_]*:\d+){0,11}'),
+    'pythonVersion': re.compile(r'\d+\.\d+\.\d+'),
+    'pyatvVersion': re.compile(r'\d+\.\d+\.\d+'),
+    'ffmpegVersion': re.compile(r'\d+(?:\.\d+){1,3}'),
+    'dartVersion': re.compile(r'\d+\.\d+\.\d+'),
+    'receiverModel': re.compile(r'[A-Za-z0-9 ()@.+,_-]{1,160}'),
+    'receiverFeatures': re.compile(r'[A-Fa-f0-9x,]{1,80}'),
+}
+ADDRESS_FIELDS = {'localAddress', 'receiverAddress', 'gatewayAddress', 'bindAddress'}
+SIGNED_FIELDS = {'osErrorCode', 'processExitCode'}
+FLAGS = {'fatal', 'hasHeaders', 'accepted', 'paired', 'ffmpegBundled',
+         'airplayHelperAvailable', 'sameSubnet', 'routeAvailable', 'vpnInterface', 'breadcrumb', 'ffmpegAvailable', 'passwordRequired', 'savedCredentialsAvailable', 'breadcrumbTruncated'}
+FIELDS |= set(ENUMS) | set(TEXT_PATTERNS) | ADDRESS_FIELDS | SIGNED_FIELDS | FLAGS | {
+    'sessionId', 'totalMemoryBytes', 'availableMemoryBytes', 'freeMemoryBytes',
+    'reclaimableMemoryBytes', 'compressedMemoryBytes', 'swapUsedBytes',
+    'cpuLogicalCores', 'cpuLoad1m', 'processCpuPercent', 'systemCpuPercent',
+    'environmentAgeMs', 'prefixLength', 'receiverPort', 'networkProbeDurationMs',
+    'environmentProbeDurationMs',
+    'incidentId', 'windowBeforeMs', 'windowAfterMs', 'helperMaxRssBytes',
+    'helperCpuUserMs', 'helperCpuSystemMs',
+    'freeDiskBytes',
+    'breadcrumbCount',
+    'authTlvError', 'retryAfterSeconds',
+    'interfaceIndex',
+    'writeDelayMs',
+    'count', 'audioPackets', 'lagMs',
+    'processTreeRssSumBytes', 'processTreeCpuPercent', 'helperProcessCount',
+    'asrCpuPercent', 'asrRssBytes', 'ffmpegCpuPercent', 'ffmpegRssBytes',
+    'airplayCpuPercent', 'airplayRssBytes',
 }
 
 
@@ -86,13 +141,23 @@ def validate_batch(body, now=None):
             elif key == 'appVersion':
                 if not isinstance(item, str) or not VERSION.fullmatch(item):
                     raise ValueError('Invalid application version')
+            elif key in TEXT_PATTERNS:
+                if not isinstance(item, str) or len(item) > 2000 or not TEXT_PATTERNS[key].fullmatch(item):
+                    raise ValueError('Invalid diagnostic text')
+            elif key in ADDRESS_FIELDS:
+                if not isinstance(item, str) or len(item) > 64:
+                    raise ValueError('Invalid network address')
+                ipaddress.ip_address(item)
+            elif key in SIGNED_FIELDS:
+                if type(item) is not int or not -(2**31) <= item < 2**31:
+                    raise ValueError('Invalid diagnostic error number')
             elif key in {'event', 'source'}:
                 if not isinstance(item, str) or not TAG.fullmatch(item):
                     raise ValueError('Invalid diagnostic tag')
-            elif key in {'requestId', 'castDeviceId', 'castStreamId'}:
+            elif key in {'requestId', 'sessionId', 'incidentId', 'castDeviceId', 'castStreamId'}:
                 if not isinstance(item, str) or not re.fullmatch(r'[a-f0-9]{32}', item):
                     raise ValueError('Invalid request ID')
-            elif key in {'fatal', 'hasHeaders', 'accepted', 'paired'}:
+            elif key in FLAGS:
                 if type(item) is not bool:
                     raise ValueError('Invalid diagnostic flag')
             elif type(item) not in (int, float) or not math.isfinite(item) or not 0 <= item <= 10**15:

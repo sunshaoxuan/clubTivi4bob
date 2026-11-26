@@ -3,6 +3,8 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:dlna_dart/dlna.dart';
+import '../../core/diagnostic_context.dart';
+import 'cast_diagnostics.dart';
 
 /// SSDP search on an ephemeral socket, reading every unicast response.
 class DlnaDiscovery {
@@ -67,7 +69,17 @@ class DlnaDiscovery {
           'MAN: "ssdp:discover"\r\n'
           'MX: 2\r\n'
           'ST: urn:schemas-upnp-org:device:MediaRenderer:1\r\n\r\n';
-      socket.send(ascii.encode(request), destination, searchPort);
+      try {
+        socket.send(ascii.encode(request), destination, searchPort);
+      } catch (error, stack) {
+        CastDiagnostics.instance.record('dlna_search_send_failed', {
+          ...DiagnosticFailure.describe(error, stack),
+          'castProtocol': 'dlna',
+          'receiverAddress': destination.address,
+          'receiverPort': searchPort,
+          'bindAddress': socket.address.address,
+        });
+      }
     }
 
     search();

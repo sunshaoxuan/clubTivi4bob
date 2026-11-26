@@ -4549,6 +4549,10 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                               color: Colors.white70,
                             ),
                             onSelected: (action) {
+                              if (action == 'settings') {
+                                unawaited(context.push('/settings'));
+                                return;
+                              }
                               if (action == 'refresh' &&
                                   !_routeAvailabilityLoading) {
                                 setState(
@@ -4563,6 +4567,10 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                               }
                             },
                             itemBuilder: (_) => [
+                              PopupMenuItem(
+                                value: 'settings',
+                                child: Text(AppMessages.text(context, '设置')),
+                              ),
                               PopupMenuItem(
                                 value: 'refresh',
                                 enabled: !_routeAvailabilityLoading,

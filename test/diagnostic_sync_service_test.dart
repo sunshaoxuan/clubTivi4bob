@@ -248,6 +248,44 @@ void main() {
   );
 
   test(
+    'recent cast failure precedes old backfill without losing older events',
+    () async {
+      final old = now.subtract(const Duration(days: 10));
+      await File(
+        '${store.directory.path}/diagnostics-20261013-00.jsonl',
+      ).writeAsString(
+        List.generate(
+              600,
+              (_) => jsonEncode({
+                'time': old.toIso8601String(),
+                'event': 'heartbeat',
+              }),
+            ).join('\n') +
+            '\n',
+      );
+      await store.record({
+        'time': now.toIso8601String(),
+        'event': 'cast_play_failed',
+        'errorCode': 'other',
+      });
+      final first = await store.readChunk({});
+      expect(first.entries.any((e) => e['event'] == 'cast_play_failed'), true);
+      final second = await store.readChunk(first.checkpoints);
+      expect(
+        [
+          ...first.entries,
+          ...second.entries,
+        ].where((e) => e['event'] == 'heartbeat'),
+        hasLength(600),
+      );
+      expect(
+        second.entries.any((e) => e['event'] == 'cast_play_failed'),
+        false,
+      );
+    },
+  );
+
+  test(
     'projection preserves supported platform tags with no free-form text',
     () {
       for (final platform in ['android', 'windows', 'macos']) {

@@ -40,6 +40,24 @@ def test_strict_projection_timestamp_schema_and_sensitive_fields():
         storage.validate_batch(batch().replace(b'"consentVersion": 2', b'"consentVersion": 1'), now)
 
 
+def test_authentication_failure_retains_protocol_phase_and_context_without_secrets():
+    now = 1792764000
+    fields = dict(event='cast_auth_failed', platform='windows',
+        requestId='ab' * 16, incidentId='cd' * 16, sessionId='ef' * 16,
+        authMode='password', authEndpoint='pair_setup', authPhase='M4',
+        authResult='rejected', authReason='receiver-error-2', authTlvError=2,
+        httpStatus=200, errorCode='authentication',
+        receiverAddress='192.168.11.8', localAddress='192.168.11.10',
+        prefixLength=24, sameSubnet=True, interfaceIndex=8, writeDelayMs=75,
+        nativeStackFrames='mac_auth:_exchange:120')
+    envelope, _ = storage.validate_batch(batch(now, **fields), now)
+    for key, value in fields.items():
+        assert envelope['entries'][0][key] == value
+    for key in ('password', 'pin', 'credentials', 'sharedKey', 'responseBody'):
+        with pytest.raises(ValueError):
+            storage.validate_batch(batch(now, **fields, **{key: 'private'}), now)
+
+
 def test_private_durable_idempotent_store_limits_and_event_age_expiry(tmp_path):
     now = 1792764000
     body = batch(now - 29 * 86400)

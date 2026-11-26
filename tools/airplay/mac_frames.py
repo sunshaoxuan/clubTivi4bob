@@ -65,7 +65,8 @@ def frame_packet(nals, timestamp, key, counter):
     return bytes(header) + ChaCha20Poly1305(key).encrypt(nonce, payload, bytes(header))
 
 
-async def play_test_frames(address, port, data, helper, diagnostic, pcm=None, source=None, timing_ready=None):
+async def play_test_frames(address, port, data, helper, diagnostic, pcm=None, source=None, timing_ready=None,
+                           credentials=None, password=None):
     video_iterator = audio_iterator = None
     width, height = 640, 360
     if source:
@@ -78,6 +79,8 @@ async def play_test_frames(address, port, data, helper, diagnostic, pcm=None, so
     protocol.frame_stream = True
     protocol.media_auth_helper = helper
     protocol.diagnostic = diagnostic
+    protocol.auth_credentials = credentials
+    protocol.auth_password = password
     transport = writer = audio = audio_task = heartbeat_task = None
     class ReceiverTiming(TimingServer):
         requests = 0

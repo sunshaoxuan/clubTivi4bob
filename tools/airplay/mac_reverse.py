@@ -47,11 +47,11 @@ class ReverseConnection(HttpConnection):
             self.close()
 
 
-async def open_reverse(address, port, session_id, on_event):
+async def open_reverse(address, port, session_id, on_event, credentials=None, password=None):
     _, connection = await asyncio.wait_for(asyncio.get_running_loop().create_connection(
         lambda: ReverseConnection(on_event), address, port), 8)
     try:
-        await authenticate(connection)
+        await authenticate(connection, credentials=credentials, password=password)
         response = await connection.post('/reverse', headers={
             'User-Agent': 'AirPlay/550.10', 'Connection': 'Upgrade',
             'Upgrade': 'PTTH/1.0', 'X-Apple-Purpose': 'event',

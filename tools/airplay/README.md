@@ -9,11 +9,25 @@ and backoff responses are terminal; it never guesses PINs or retries an access
 denial. `test_mac_auth.py` exercises both sides of a real SRP exchange, rejects
 invalid proofs and verifies that denied requests cannot enable encryption.
 
-On the receiving Mac, enable AirPlay Receiver, allow Everyone and disable
-Require Password. BobTV then uses transient authentication, with no four-digit
-PIN dialog. Account-only and password-protected receivers are rejected clearly.
+On the receiving Mac, enable AirPlay Receiver and allow the sending device.
+The Mac authentication dialog explicitly selects an on-screen PIN or the
+receiver's configured password. Broadcast password flags are treated as hints:
+macOS can advertise a mandatory pairing policy without setting the password bit.
+PIN pairing uses HAP M1-M6, checks the server SRP proof and Ed25519 identity,
+and stores verified credentials for subsequent Pair-Verify connections.
+Receiver passwords use transient SRP with the supplied password and remain in
+helper process memory only. They are never written to FileStorage or diagnostics.
+Receivers permitting unauthenticated transient access retain the existing path.
+Apple-account-only access remains unsupported.
 The native path becomes available when the packaged `fpsap-auth.exe` and FFmpeg
 are present. Other AirPlay video receivers retain the existing URL/HLS path.
+
+Diagnostics record mode, endpoint, HAP message phase, HTTP/TLV failure code,
+receiver backoff, code location, network route and process resources under the
+same request/incident identifiers. PINs, passwords, proofs, keys and encrypted
+authentication bodies never enter the log. Incident exports include a separate
+`authentication.json`. Native `streaming` acknowledges transmitted frames;
+physical receiver rendering must be verified separately.
 
 The selected HTTP(S) video is decoded by one FFmpeg process and transmitted as
 encrypted H.264 video and stereo ALAC audio. Only video content is sent; the

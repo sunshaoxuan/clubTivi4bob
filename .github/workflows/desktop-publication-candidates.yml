@@ -1,6 +1,11 @@
 name: Desktop publication candidates
 on:
   workflow_dispatch:
+    inputs:
+      qa_only:
+        description: 'Build an isolated x64 AirPlay authentication test archive without publication'
+        type: boolean
+        default: false
 permissions:
   contents: read
 concurrency:
@@ -13,7 +18,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        architecture: [x64, arm64]
+        architecture: ${{ fromJson(inputs.qa_only && '["x64"]' || '["x64","arm64"]') }}
     steps:
       - run: git config --global core.autocrlf false
       - uses: actions/checkout@v4
@@ -43,12 +48,20 @@ jobs:
           & tools/airplay/build-fpsap.ps1 -SourceDirectory $source -OutputDirectory build/fpsap-dist
           & tools/airplay/build.ps1
           if($LASTEXITCODE){throw 'AirPlay helper build failed'}
+      - name: Install QA-only media fixture dependency
+        if: inputs.qa_only
+        shell: pwsh
+        run: |
+          & build/airplay-venv/Scripts/python.exe -m pip install imageio-ffmpeg==0.6.0
+          if($LASTEXITCODE){throw 'QA FFmpeg dependency failed'}
+          $exe=(& build/airplay-venv/Scripts/python.exe -c 'import imageio_ffmpeg; print(imageio_ffmpeg.get_ffmpeg_exe())').Trim()
+          Copy-Item -LiteralPath $exe -Destination build/airplay-venv/Scripts/ffmpeg.exe
       - name: Verify casting and updater regressions
         shell: pwsh
         run: |
           flutter pub get
           if($LASTEXITCODE){throw 'Dependency resolution failed'}
-          flutter test --no-pub test/lg_webos_cast_test.dart test/airplay_cast_test.dart test/local_cast_mute_test.dart test/cast_diagnostics_test.dart test/diagnostic_api_receipt_test.dart test/diagnostic_sync_service_test.dart test/channel_name_normalizer_test.dart test/channel_presentation_identity_test.dart test/category_loading_database_test.dart test/update_manifest_test.dart test/desktop_update_feedback_test.dart
+          flutter test --no-pub test/lg_webos_cast_test.dart test/airplay_cast_test.dart test/airplay_auth_dialog_test.dart test/local_cast_mute_test.dart test/diagnostic_context_test.dart test/cast_diagnostics_test.dart test/diagnostic_api_receipt_test.dart test/diagnostic_sync_service_test.dart test/channel_name_normalizer_test.dart test/channel_presentation_identity_test.dart test/category_loading_database_test.dart test/update_manifest_test.dart test/desktop_update_feedback_test.dart
           if($LASTEXITCODE){throw 'Flutter regression failed'}
           & build/airplay-venv/Scripts/python.exe -m unittest discover -s tools/airplay -p 'test_*.py'
           if($LASTEXITCODE){throw 'AirPlay regression failed'}
@@ -61,9 +74,24 @@ jobs:
         run: |
           $helper=Join-Path $env:BOBTV_BUNDLE 'AirPlay/bobtv-airplay.exe'
           $reply='{ "id": 1, "action": "stop" }' | & $helper
-          if($LASTEXITCODE -or (($reply | ConvertFrom-Json).id -ne 1)){throw 'Frozen helper startup failed'}
+          if($LASTEXITCODE){throw 'Frozen helper startup failed'}
+          $ack=@($reply | ForEach-Object {$_ | ConvertFrom-Json} | Where-Object {$_.id -eq 1})
+          if($ack.Count -ne 1 -or !$ack[0].result){
+            if($ack.Count -ne 1 -or $null -ne $ack[0].error){throw 'Frozen helper acknowledgment failed'}
+          }
           $out=Join-Path $env:GITHUB_WORKSPACE 'desktop-candidates'
           New-Item -ItemType Directory -Path $out -Force|Out-Null
+          if('${{ inputs.qa_only }}' -eq 'true'){
+            New-Item -ItemType Directory -Path (Join-Path $env:BOBTV_BUNDLE 'Tools') -Force|Out-Null
+            Copy-Item build/airplay-venv/Scripts/ffmpeg.exe (Join-Path $env:BOBTV_BUNDLE 'Tools/ffmpeg.exe')
+            & (Join-Path $env:BOBTV_BUNDLE 'Tools/ffmpeg.exe') -L 2>&1 | Out-File (Join-Path $env:BOBTV_BUNDLE 'Tools/FFMPEG-LICENSE.txt') -Encoding utf8
+            [IO.File]::WriteAllText((Join-Path $env:BOBTV_BUNDLE 'QA-NOTICE.txt'),
+              "Local validation build. Not an official release. Source: $env:GITHUB_SHA`nQA FFmpeg: imageio-ffmpeg 0.6.0, https://github.com/imageio/imageio-ffmpeg`n",[Text.UTF8Encoding]::new($false))
+            $zip=Join-Path $out 'BobTV-Windows-Mac-AirPlay-TEST-x64.zip'
+            Compress-Archive -LiteralPath $env:BOBTV_BUNDLE -DestinationPath $zip -CompressionLevel Optimal
+            Copy-Item $env:BOBTV_PROVENANCE (Join-Path $out 'build-provenance.json')
+            exit 0
+          }
           $compiler=Join-Path ${env:ProgramFiles(x86)} 'Inno Setup 6/ISCC.exe'
           & tools/windows/build_installer.ps1 -BundleDirectory $env:BOBTV_BUNDLE -OutputDirectory $out -CompilerPath $compiler -Architecture '${{ matrix.architecture }}'
           if('${{ matrix.architecture }}' -eq 'x64'){

@@ -9,14 +9,69 @@ from pyatv.conf import AppleTV, ManualService
 from pyatv.const import Protocol, PairingRequirement
 from pyatv.storage.memory_storage import MemoryStorage
 
-from bobtv_airplay import Bridge, error_message, validate_url, video_capable, receiver_limitation, ReceiverUnsupportedError
+from bobtv_airplay import Bridge, error_message, validate_url, video_capable, receiver_limitation, ReceiverUnsupportedError, serve_command
+from test_mac_auth import PinReceiver, TransientReceiver
+from mac_auth import MacAuthenticationError
 
 
 class BridgeTests(unittest.IsolatedAsyncioTestCase):
+    async def test_cancelling_pending_authentication_replies_without_success(self):
+        entered = asyncio.Event()
+        async def pending(_):
+            entered.set()
+            await asyncio.Future()
+        self.bridge.command = AsyncMock(side_effect=pending)
+        with patch('bobtv_airplay.emit') as emit, patch('bobtv_airplay.record') as record:
+            task = asyncio.create_task(serve_command(self.bridge, {
+                'id': 19, 'action': 'pair_start', 'requestId': 'ab' * 16,
+            }))
+            await entered.wait()
+            task.cancel()
+            await task
+        response = emit.call_args.args[0]
+        self.assertEqual(response['id'], 19)
+        self.assertEqual(response['errorCode'], 'cancelled')
+        self.assertNotIn('result', response)
+        self.assertEqual(record.call_args.args[0]['authResult'], 'cancelled')
+
+    async def test_native_pin_credentials_are_persisted_after_full_identity_verification(self):
+        config = self.bridge.configs['test-tv']
+        config.get_service(Protocol.AirPlay).properties['model'] = 'MacBookPro16,2'
+        with patch('bobtv_airplay.mac_sender.available', return_value=True), \
+             patch('bobtv_airplay.http_connect', AsyncMock(return_value=PinReceiver())):
+            await self.bridge.command({'action':'pair_start','device':'test-tv','mode':'pin'})
+            await self.bridge.command({'action':'pair_finish','pin':'0123'})
+        settings = await self.bridge.storage.get_settings(config)
+        self.assertTrue(settings.protocols.airplay.credentials)
+        self.assertEqual(config.get_service(Protocol.AirPlay).credentials,
+                         settings.protocols.airplay.credentials)
+
+    async def test_native_password_works_without_advertised_password_flag_and_is_not_stored(self):
+        config = self.bridge.configs['test-tv']
+        config.get_service(Protocol.AirPlay).properties['model'] = 'MacBookPro16,2'
+        with patch('bobtv_airplay.mac_sender.available', return_value=True), \
+             patch('bobtv_airplay.http_connect', AsyncMock(return_value=TransientReceiver(secret='Test password 9!'))):
+            result = await self.bridge.command({'action':'pair_start','device':'test-tv','mode':'password'})
+            self.assertEqual(result['authenticationMode'], 'password')
+            await self.bridge.command({'action':'pair_finish','password':'Test password 9!'})
+        settings = await self.bridge.storage.get_settings(config)
+        self.assertIsNone(settings.protocols.airplay.credentials)
+        self.assertIsNone(settings.protocols.airplay.password)
+        self.assertEqual(self.bridge.mac_passwords['test-tv'], 'Test password 9!')
+
+    async def test_receiver_backoff_prevents_another_network_attempt(self):
+        self.bridge.remember_backoff('test-tv', MacAuthenticationError('M2',
+            'receiver-error-3', tlv_error=3, retry_after=120, mode='pin'))
+        with patch('bobtv_airplay.http_connect', AsyncMock()) as connect:
+            with self.assertRaisesRegex(MacAuthenticationError, 'backoff-active'):
+                await self.bridge.command({'action':'pair_start','device':'test-tv','mode':'pin'})
+            connect.assert_not_awaited()
+
     async def test_native_mac_uses_frame_sender_without_pin_or_url_relay(self):
         service = self.bridge.configs['test-tv'].get_service(Protocol.AirPlay)
         service.properties['model'] = 'MacBookPro16,2'
-        async def active(*args):
+        async def active(*args, **kwargs):
+            kwargs['on_progress']({'stage': 'frame-progress', 'count': 25})
             await asyncio.Future()
         with patch('bobtv_airplay.mac_sender.available', return_value=True), \
              patch('bobtv_airplay.mac_sender.play', AsyncMock(side_effect=active)) as sender, \
@@ -24,7 +79,7 @@ class BridgeTests(unittest.IsolatedAsyncioTestCase):
             self.bridge.relay.start = AsyncMock()
             result = await self.bridge.command({'action': 'play', 'device': 'test-tv',
                                                'url': 'http://127.0.0.1/live', 'relay': True})
-            self.assertEqual(result['status'], 'sent')
+            self.assertEqual(result['status'], 'streaming')
             sender.assert_awaited_once()
             connect.assert_not_awaited()
             self.bridge.relay.start.assert_not_awaited()
@@ -38,15 +93,21 @@ class BridgeTests(unittest.IsolatedAsyncioTestCase):
                                 {'model': 'MacBookPro16,2', 'act': '2'})
         self.assertIn('Apple 帳號', receiver_limitation(service))
 
-    async def test_mac_receiver_never_starts_pin_exchange(self):
+    async def test_mac_receiver_starts_native_pin_setup_instead_of_television_pairing(self):
         service = self.bridge.configs['test-tv'].get_service(Protocol.AirPlay)
         service.properties['model'] = 'MacBookPro16,2'
-        with patch('bobtv_airplay.pyatv.pair', new_callable=AsyncMock) as pair:
-            with self.assertRaises(ReceiverUnsupportedError):
-                await self.bridge.command({'action': 'pair_start', 'device': 'test-tv'})
+        native = AsyncMock()
+        native.device_provides_pin = True
+        native.has_paired = True
+        native.credentials = 'verified-native-credentials'
+        with patch('bobtv_airplay.mac_sender.available', return_value=True), \
+             patch('bobtv_airplay.http_connect', AsyncMock()), \
+             patch('bobtv_airplay.MacPinPairing', return_value=native), \
+             patch('bobtv_airplay.pyatv.pair', new_callable=AsyncMock) as pair:
+            result = await self.bridge.command({'action': 'pair_start', 'device': 'test-tv', 'mode': 'pin'})
+            self.assertTrue(result['deviceProvidesPin'])
+            native.begin.assert_awaited_once()
             pair.assert_not_awaited()
-        with self.assertRaises(ReceiverUnsupportedError):
-            await self.bridge.command({'action': 'play', 'device': 'test-tv', 'url': 'https://bobtv.briconbric.com/api/v1/egress/resource?kind=media&url=live'})
 
     def test_mac_model_families_and_apple_tv(self):
         for model in ('MacBookPro16,2', 'Mac14,2', 'Macmini9,1', 'iMac20,1', 'MacBookAir10,1'):

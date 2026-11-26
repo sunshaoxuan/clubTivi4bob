@@ -18,7 +18,7 @@ def available():
     return authentication_helper().is_file() and bool(VideoRelay.ffmpeg_path())
 
 
-async def play(address, port, url, on_progress=None):
+async def play(address, port, url, on_progress=None, credentials=None, password=None):
     helper = authentication_helper()
     executable = VideoRelay.ffmpeg_path()
     if not helper.is_file() or not executable:
@@ -29,7 +29,8 @@ async def play(address, port, url, on_progress=None):
             record(item)
             if on_progress and item.get('stage') == 'frame-progress':
                 on_progress(item)
-        await play_test_frames(address, port, None, str(helper), diagnostic, source=source)
+        await play_test_frames(address, port, None, str(helper), diagnostic, source=source,
+            credentials=credentials, password=password)
         record({'stage': 'sender-ended'})
     except asyncio.CancelledError:
         record({'stage': 'sender-cancelled'})

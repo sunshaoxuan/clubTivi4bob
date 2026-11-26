@@ -8,6 +8,7 @@ import shutil
 import subprocess
 
 from refresh_frozen_helper import refresh
+from prepare_cast_ffmpeg import prepare as prepare_cast_ffmpeg
 
 ROOT = Path(__file__).resolve().parents[2]
 MACHO = {b'\xcf\xfa\xed\xfe', b'\xfe\xed\xfa\xcf', b'\xca\xfe\xba\xbe', b'\xbe\xba\xfe\xca'}
@@ -39,6 +40,7 @@ def prepare(universal, previous, output):
         for component in ['AirPlay', 'Tools']:
             if (baseline / component).is_dir():
                 run('ditto', baseline / component, resources / component)
+        prepare_cast_ffmpeg(app)
         progress = resources / 'Updater/BobTVUpdateProgress.app'
         (progress / 'Contents/MacOS').mkdir(parents=True)
         progress_info = plistlib.loads((ROOT / 'tools/macos/update_progress_info.plist').read_bytes())

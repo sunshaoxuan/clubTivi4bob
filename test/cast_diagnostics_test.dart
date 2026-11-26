@@ -5,6 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:clubtivi/data/services/bobtv_api_client.dart';
 import 'package:clubtivi/data/services/diagnostic_sync_service.dart';
 import 'package:clubtivi/core/app_diagnostics.dart';
+import 'package:clubtivi/core/diagnostic_context.dart';
 import 'package:clubtivi/features/casting/cast_diagnostics.dart';
 import 'package:clubtivi/features/casting/lan_cast_relay.dart';
 
@@ -28,12 +29,22 @@ class RecordingApi extends BobTvApiClient {
   }
 }
 
-Future<void> waitFor(bool Function() condition) async {
-  for (var i = 0; i < 200; i++) {
+Future<void> waitFor(bool Function() condition, {String label = ''}) async {
+  for (var i = 0; i < 500; i++) {
     if (condition()) return;
     await Future<void>.delayed(const Duration(milliseconds: 10));
   }
-  fail('Timed out waiting for diagnostic upload');
+  final debug = await AppDiagnostics.instance.safeStore?.readChunk({});
+  await File(
+    '${Directory.systemTemp.path}/bobtv-test-sync-debug.json',
+  ).writeAsString(
+    jsonEncode({
+      'label': label,
+      'entries': debug?.entries,
+      'uploads': RecordingApi.uploads,
+    }),
+  );
+  fail('Timed out waiting for diagnostic upload $label');
 }
 
 void main() {
@@ -45,7 +56,11 @@ void main() {
       SharedPreferences.setMockInitialValues({});
       final folder = await Directory.systemTemp.createTemp('cast-log-test-');
       final diagnostics = AppDiagnostics.instance;
-      await diagnostics.initialize(directoryOverride: folder);
+      await diagnostics.initialize(
+        directoryOverride: folder,
+        collectEnvironment: false,
+        incidentAfterWindow: const Duration(milliseconds: 250),
+      );
       final cast = CastDiagnostics.instance;
       cast.begin();
       cast.target(
@@ -105,6 +120,16 @@ void main() {
       final last = next.entries.last;
       expect(last['requestId'], isNot(events.first['requestId']));
       expect(last.containsKey('castStreamId'), isFalse);
+      cast.record('native_late_response', {
+        'requestId': events.first['requestId'],
+      });
+      await diagnostics.flush();
+      final late = (await diagnostics.safeStore!.readChunk({})).entries.last;
+      expect(late['requestId'], events.first['requestId']);
+      expect(
+        late['castDeviceId'],
+        events.firstWhere((e) => e.containsKey('castDeviceId'))['castDeviceId'],
+      );
       final sync = DiagnosticSyncService(
         observeLifecycle: false,
         apiFactory: RecordingApi.new,
@@ -116,12 +141,18 @@ void main() {
       expect(sync.enabled, isFalse);
       expect(RecordingApi.uploads, isEmpty);
       await sync.setEnabled(true);
-      await waitFor(() => sync.status.value.contains('已同步'));
+      await waitFor(
+        () => sync.status.value.contains('已同步'),
+        label: 'initial sync',
+      );
       expect(RecordingApi.uploads.last['terminalFingerprint'], 'ab' * 32);
       final before = RecordingApi.uploads.length;
       cast.record('upload_trigger');
       await diagnostics.flush();
-      await waitFor(() => RecordingApi.uploads.length > before);
+      await waitFor(
+        () => RecordingApi.uploads.length > before,
+        label: 'cast trigger',
+      );
       expect(
         RecordingApi.uploads.last['entries'],
         contains(predicate((dynamic e) => e['event'] == 'cast_upload_trigger')),
@@ -134,12 +165,91 @@ void main() {
       expect(RecordingApi.uploads.length, disabledCount);
       RecordingApi.failUpload = true;
       await sync.setEnabled(true);
-      await waitFor(() => sync.status.value.contains('待重试'));
+      await waitFor(
+        () => sync.status.value.contains('待重试'),
+        label: 'network backoff',
+      );
       final failedCount = RecordingApi.uploads.length;
       cast.record('backoff_preserved');
       await diagnostics.flush();
       await Future<void>.delayed(const Duration(milliseconds: 100));
       expect(RecordingApi.uploads.length, failedCount);
+      RecordingApi.failUpload = false;
+      await sync.setEnabled(true);
+      await waitFor(
+        () => sync.status.value.contains('已同步'),
+        label: 'reenabled sync',
+      );
+      diagnostics.log(
+        'diagnostic_environment',
+        await DiagnosticEnvironment.instance.sample(),
+      );
+      cast.record(
+        'network_environment',
+        await DiagnosticNetwork.inspect('127.0.0.1', port: 7000),
+      );
+      cast.record('relay_dependency_check', {'ffmpegAvailable': false});
+      cast.record('play_failed', {
+        'errorCode': 'missing_dependency',
+        'errorType': 'FileNotFoundError',
+      });
+      cast.record('retry_requested');
+      await diagnostics.flush();
+      final incidentEvents = (await diagnostics.safeStore!.readChunk(
+        {},
+      )).entries;
+      final failure = incidentEvents.lastWhere(
+        (e) => e['event'] == 'cast_play_failed',
+      );
+      final incident = failure['incidentId'];
+      expect(incident, isNotNull);
+      expect(
+        incidentEvents.any(
+          (e) =>
+              e['incidentId'] == incident &&
+              e['event'] == 'cast_relay_dependency_check' &&
+              e['breadcrumb'] == true &&
+              e['ffmpegAvailable'] == false,
+        ),
+        true,
+      );
+      expect(
+        incidentEvents.any(
+          (e) =>
+              e['incidentId'] == incident &&
+              e['event'] == 'cast_retry_requested',
+        ),
+        true,
+      );
+      await waitFor(
+        () => RecordingApi.uploads.any(
+          (batch) => (batch['entries'] as List).any(
+            (dynamic e) =>
+                e['incidentId'] == incident && e['event'] == 'cast_play_failed',
+          ),
+        ),
+        label: 'incident failure',
+      );
+      final output = Platform.environment['BOBTV_INCIDENT_TEST_OUTPUT'];
+      await waitFor(
+        () => RecordingApi.uploads.any(
+          (batch) => (batch['entries'] as List).any(
+            (dynamic e) =>
+                e['incidentId'] == incident &&
+                e['event'] == 'diagnostic_incident_completed',
+          ),
+        ),
+        label: 'incident completion',
+      );
+      if (output != null)
+        await File(output).writeAsString(
+          jsonEncode({
+            'scenario': 'synthetic_missing_ffmpeg',
+            'transport': 'test_recording_api',
+            'incidentId': incident,
+            'uploads': RecordingApi.uploads,
+          }),
+        );
       sync.dispose();
       await diagnostics.shutdown();
       await folder.delete(recursive: true);

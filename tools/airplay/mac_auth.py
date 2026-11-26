@@ -98,14 +98,14 @@ class MacTransientVerifier(PairVerifyProcedure):
             raise MacAuthenticationError(f'M{state}', 'access-denied', mode=self.mode) from None
         except (asyncio.TimeoutError, TimeoutError):
             raise MacAuthenticationError(f'M{state}', 'timeout', mode=self.mode) from None
+        record({'stage': 'auth-response', 'authMode': self.mode,
+                'authPhase': f'M{state}', 'httpStatus': response.code})
         if response.code in (401, 403):
             raise MacAuthenticationError(f'M{state}', 'access-denied',
                 http_status=response.code, mode=self.mode)
         if response.code != 200:
             raise MacAuthenticationError(f'M{state}', f'http-{response.code}',
                 http_status=response.code, mode=self.mode)
-        record({'stage': 'auth-response', 'authMode': self.mode,
-                'authPhase': f'M{state}', 'httpStatus': response.code})
         try:
             return decode_pairing_response(response.body, state)
         except MacAuthenticationError as error:
@@ -169,6 +169,7 @@ class MacTransientVerifier(PairVerifyProcedure):
 class MacPinPairing:
     """Full HAP M1-M6 with checked server proofs and long-term identity."""
     device_provides_pin = True
+    mode = 'pin'
 
     def __init__(self, connection):
         self.connection = connection
@@ -180,45 +181,51 @@ class MacPinPairing:
 
     async def _post(self, path, body=b'', state=None):
         phase = f'M{state}' if state else 'pin_start'
-        record({'stage': 'auth-request', 'authMode': 'pin',
+        record({'stage': 'auth-request', 'authMode': self.mode,
                 'authPhase': f'M{state-1}' if state else phase, 'authEndpoint':
                     'pair_pin_start' if path == '/pair-pin-start' else 'pair_setup'})
         try:
             response = await asyncio.wait_for(self.connection.post(path,
                 headers={'User-Agent': 'AirPlay/550.10', 'X-Apple-HKP': '3',
+                         'X-Apple-Client-Name': 'BobTV',
                          'Connection': 'keep-alive',
                          **({'Content-Type': 'application/octet-stream'} if body
                             else {'Content-Length': '0'})},
                 body=body, allow_error=True), 8)
         except (asyncio.TimeoutError, TimeoutError):
-            raise MacAuthenticationError(phase, 'timeout', mode='pin') from None
-        record({'stage': 'auth-response', 'authMode': 'pin',
+            raise MacAuthenticationError(phase, 'timeout', mode=self.mode) from None
+        record({'stage': 'auth-response', 'authMode': self.mode,
                 'authPhase': phase, 'httpStatus': response.code})
         if response.code not in (200, 204):
             raise MacAuthenticationError(phase, f'http-{response.code}',
-                http_status=response.code, mode='pin')
+                http_status=response.code, mode=self.mode)
         if state is not None:
             try:
                 return decode_pairing_response(response.body, state)
             except MacAuthenticationError as error:
-                error.auth_mode = 'pin'
+                error.auth_mode = self.mode
                 raise
 
     async def begin(self):
         # Explicitly delimit the empty POST; pyatv otherwise omits its length.
         await self._post('/pair-pin-start')
+        await self._begin_setup()
+
+    async def _begin_setup(self):
         fields = await self._post('/pair-setup', write_tlv({
             TlvValue.Method: b'\x00', TlvValue.SeqNo: b'\x01'}), 2)
         salt, public = fields.get(TlvValue.Salt, b''), fields.get(TlvValue.PublicKey, b'')
         if not 16 <= len(salt) <= 64 or not 1 <= len(public) <= 384:
-            raise MacAuthenticationError('M2', 'invalid-srp-parameters', mode='pin')
+            raise MacAuthenticationError('M2', 'invalid-srp-parameters', mode=self.mode)
         self._challenge = (salt, public)
 
     async def finish(self, pin):
         if self._challenge is None:
-            raise MacAuthenticationError('M3', 'pairing-not-started', mode='pin')
-        if not isinstance(pin, str) or not pin.isascii() or not pin.isdigit() or len(pin) != 4:
-            raise MacAuthenticationError('M3', 'invalid-pin', mode='pin')
+            raise MacAuthenticationError('M3', 'pairing-not-started', mode=self.mode)
+        if not isinstance(pin, str) or not 1 <= len(pin.encode('utf-8')) <= 256:
+            raise MacAuthenticationError('M3', 'invalid-secret', mode=self.mode)
+        if self.mode == 'pin' and (not pin.isascii() or not pin.isdigit() or len(pin) != 4):
+            raise MacAuthenticationError('M3', 'invalid-pin', mode=self.mode)
         salt, public = self._challenge
         self._challenge = None
         self.srp.step1(pin)
@@ -227,7 +234,7 @@ class MacPinPairing:
             TlvValue.SeqNo: b'\x03', TlvValue.PublicKey: key, TlvValue.Proof: proof}), 4)
         expected = binascii.unhexlify(self.srp._session.key_proof_hash)
         if not hmac.compare_digest(fields.get(TlvValue.Proof, b''), expected):
-            raise MacAuthenticationError('M4', 'server-proof-mismatch', mode='pin')
+            raise MacAuthenticationError('M4', 'server-proof-mismatch', mode=self.mode)
         fields = await self._post('/pair-setup', write_tlv({
             TlvValue.SeqNo: b'\x05',
             TlvValue.EncryptedData: self.srp.step3(name='BobTV')}), 6)
@@ -246,38 +253,30 @@ class MacPinPairing:
             Ed25519PublicKey.from_public_bytes(public_key).verify(
                 signature, accessory + identifier + public_key)
         except (KeyError, ValueError, InvalidTag, InvalidSignature):
-            raise MacAuthenticationError('M6', 'server-identity-invalid', mode='pin') from None
+            raise MacAuthenticationError('M6', 'server-identity-invalid', mode=self.mode) from None
         self.credentials = HapCredentials(public_key, self.srp._auth_private,
             identifier, self.srp.pairing_id)
         self.has_paired = True
-        record({'stage': 'auth-complete', 'authMode': 'pin',
+        record({'stage': 'auth-complete', 'authMode': self.mode,
                 'authPhase': 'M6', 'authResult': 'success'})
 
     async def close(self):
         self._challenge = None
+        self.srp = None
         self.connection.close()
 
 
-class MacPasswordPairing:
-    device_provides_pin = False
+class MacPasswordPairing(MacPinPairing):
+    """Full HAP using the configured receiver password, without a PIN prompt.
 
-    def __init__(self, connection):
-        self.connection = connection
-        self.verifier = MacTransientVerifier(connection, mode='password')
-        self.has_paired = False
-        self.secret = None
+    Native Mac password policy refuses transient HKP 4 before secret validation.
+    Use HKP 3 M1-M6 and verify the resulting identity on fresh connections.
+    """
+    device_provides_pin = False
+    mode = 'password'
 
     async def begin(self):
-        await self.verifier.begin()
-
-    async def finish(self, password):
-        await self.verifier.finish(password)
-        self.secret = password
-        self.has_paired = True
-
-    async def close(self):
-        self.secret = None
-        self.connection.close()
+        await self._begin_setup()
 
 
 class MacCredentialVerifier(AirPlayHapPairVerifyProcedure):
@@ -316,8 +315,12 @@ class MacCredentialVerifier(AirPlayHapPairVerifyProcedure):
 async def authenticate(connection, credentials=None, password=None):
     """Enable control encryption only after both SRP proofs have been checked."""
     if password is not None:
-        verifier = MacTransientVerifier(connection, secret=password, mode='password')
-    elif credentials:
+        pairing = MacPasswordPairing(connection)
+        await pairing.begin()
+        await pairing.finish(password)
+        credentials = pairing.credentials
+        pairing.srp = None
+    if credentials:
         parsed = parse_credentials(credentials) if isinstance(credentials, str) else credentials
         verifier = MacCredentialVerifier(connection, SRPAuthHandler(), parsed)
     else:

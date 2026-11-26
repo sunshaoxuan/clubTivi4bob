@@ -2,6 +2,7 @@ import contextlib
 import io
 import json
 import os
+import subprocess
 from pathlib import Path
 import tempfile
 import unittest
@@ -10,6 +11,21 @@ from cast_diagnostics import record, failure_details, request_id, record_network
 
 
 class DiagnosticTests(unittest.TestCase):
+    def test_windows_probe_timeout_retains_duration_and_cause(self):
+        output = io.StringIO()
+        with tempfile.TemporaryDirectory() as folder, \
+             patch.dict(os.environ, {'LOCALAPPDATA': folder}), \
+             patch('cast_diagnostics.sys.platform', 'win32'), \
+             patch('cast_diagnostics.subprocess.check_output', side_effect=subprocess.TimeoutExpired('powershell.exe', 15)), \
+             contextlib.redirect_stdout(output):
+            record_network('127.0.0.1', 7000)
+        event = json.loads(output.getvalue())
+        self.assertEqual(event['networkProbe'], 'partial')
+        self.assertEqual(event['errorCode'], 'timeout')
+        self.assertEqual(event['errorType'], 'TimeoutExpired')
+        self.assertGreaterEqual(event['networkProbeDurationMs'], 0)
+        self.assertEqual(event['localAddress'], '127.0.0.1')
+
     def test_encoder_dependency_and_split_stderr_errors_are_classified_without_secrets(self):
         output = io.StringIO()
         with tempfile.TemporaryDirectory() as folder, \

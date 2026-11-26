@@ -109,7 +109,9 @@ class Bridge:
         self.configs = {}
         self.pairing = None
         self.pairing_device = None
-        self.mac_passwords = {}  # Process memory only; never written to FileStorage.
+        # Password-derived verified identities live only in process memory.
+        # Receiver passwords themselves are discarded after the HAP exchange.
+        self.mac_password_credentials = {}
         self.auth_block_until = {}
         self.atv = None
         self.video_session = None
@@ -135,10 +137,8 @@ class Bridge:
             paired = bool(settings.protocols.airplay.credentials)
             native = is_native_mac(service)
             mode = 'password' if service.requires_password else 'pin'
-            if native and service.requires_password:
-                paired = key in self.mac_passwords
-            elif native:
-                paired = paired or key in self.mac_passwords
+            if native:
+                paired = paired or key in self.mac_password_credentials
             devices.append({'id': key, 'name': config.name,
                             'address': str(config.address), 'paired': paired,
                             'unavailableReason': receiver_limitation(service),
@@ -269,9 +269,12 @@ class Bridge:
                 stage('secret-verification')
                 if isinstance(self.pairing, (MacPinPairing, MacPasswordPairing)):
                     await self.pairing.finish(secret)
+                    if not self.pairing.has_paired:
+                        raise pyatv.exceptions.PairingError('Pairing incomplete')
                     if isinstance(self.pairing, MacPasswordPairing):
-                        self.mac_passwords[self.pairing_device] = secret
+                        self.mac_password_credentials[self.pairing_device] = str(self.pairing.credentials)
                     else:
+                        self.mac_password_credentials.pop(self.pairing_device, None)
                         config = self.configs[self.pairing_device]
                         settings = await self.storage.get_settings(config)
                         settings.protocols.airplay.credentials = str(self.pairing.credentials)
@@ -305,13 +308,12 @@ class Bridge:
             if native_mac:
                 settings = await self.storage.get_settings(config)
                 config.apply(settings)
-                mac_credentials = service.credentials
-                mac_password = self.mac_passwords.get(command['device'])
-                if service.requires_password and mac_password is None:
+                mac_credentials = self.mac_password_credentials.get(command['device']) or service.credentials
+                if service.requires_password and not mac_credentials:
                     raise ReceiverUnsupportedError('請先輸入此 Mac 的 AirPlay 接收密碼。')
                 if (not service.requires_password and
-                    service.pairing != PairingRequirement.NotNeeded and not mac_credentials and mac_password is None):
-                    raise ReceiverUnsupportedError('請先輸入 Mac 畫面顯示的驗證碼完成配對。')
+                    service.pairing != PairingRequirement.NotNeeded and not mac_credentials):
+                    raise ReceiverUnsupportedError('請先選擇 Mac 的驗證碼或接收密碼，完成認證。')
             url = validate_url(command['url'], allow_loopback=use_relay or native_mac)
             reason = receiver_limitation(service)
             if reason:

@@ -27,7 +27,8 @@ class TransientReceiver:
         context = SRPContext('Pair-Setup', secret, prime=constants.PRIME_3072,
                              generator=constants.PRIME_3072_GEN,
                              hash_func=hashlib.sha512, bits_salt=128)
-        _, verifier, self.salt = context.get_user_data_triplet()
+        with patch.object(SRPContext, 'generate_salt', return_value=int.from_bytes(b'\x81' * 16, 'big')):
+            _, verifier, self.salt = context.get_user_data_triplet()
         self.server = SRPServerSession(context, password_verifier=verifier)
         self.bad_proof = bad_proof
         self.paths = []
@@ -57,17 +58,29 @@ class TransientReceiver:
 
 
 class PinServer(BaseAirPlayServerAuth):
+    def _m1_setup(self, pairing_data, transient):
+        # Keep the fixture's wire salt exactly 16 bytes. Integer encoding in
+        # srptools can otherwise omit a randomly generated leading zero byte.
+        with patch.object(SRPContext, 'generate_salt', return_value=int.from_bytes(b'\x82' * 16, 'big')):
+            return super()._m1_setup(pairing_data, transient)
+
     def enable_encryption(self, output_key, input_key):
         pass
 
 
 class PinReceiver:
-    def __init__(self):
-        self.server = PinServer('Test Mac', pin='0123')
+    def __init__(self, secret='0123'):
+        self.server = PinServer('Test Mac', pin=secret)
         self.send_processor = self.receive_processor = None
         self.reject_verify = False
+        self.paths = []
 
     async def post(self, path, headers, body=b'', allow_error=True):
+        self.paths.append(path)
+        if path in ('/pair-setup', '/pair-pin-start'):
+            assert headers['X-Apple-Client-Name'] == 'BobTV'
+        if path == '/pair-setup' and headers.get('X-Apple-HKP') != '3':
+            return SimpleNamespace(code=470, body=b'')
         if path == '/pair-pin-start':
             assert headers['Content-Length'] == '0'
         if self.reject_verify and path == '/pair-verify' and read_tlv(body)[TlvValue.SeqNo] == b'\x03':
@@ -83,7 +96,7 @@ class PinReceiver:
 
 class MacAuthTests(unittest.IsolatedAsyncioTestCase):
     async def test_password_is_used_for_real_srp_and_is_not_in_diagnostics(self):
-        receiver = TransientReceiver(secret='Test password 9!')
+        receiver = PinReceiver(secret='Test password 9!')
         session = MacPasswordPairing(receiver)
         output = io.StringIO()
         with tempfile.TemporaryDirectory() as folder, \
@@ -93,14 +106,18 @@ class MacAuthTests(unittest.IsolatedAsyncioTestCase):
             persisted = (Path(folder) / 'BobTV/AirPlay/native-cast.log').read_text()
         for text in (persisted, output.getvalue()):
             self.assertNotIn('Test password 9!', text)
-            self.assertNotIn(receiver.server.key.decode('ascii'), text)
+            key = receiver.server.session.key
+            self.assertNotIn(key.decode('ascii') if isinstance(key, bytes) else key, text)
         events = [json.loads(line) for line in output.getvalue().splitlines()]
         self.assertTrue(any(e.get('authResult') == 'success' for e in events))
         self.assertTrue(session.has_paired)
-        self.assertEqual(session.verifier._shared, binascii.unhexlify(receiver.server.key))
+        self.assertEqual(binascii.unhexlify(session.srp.shared_key),
+                         binascii.unhexlify(receiver.server.session.key))
+        self.assertEqual(receiver.paths, ['/pair-setup'] * 3)
+        self.assertIsNotNone(session.credentials)
 
     async def test_wrong_password_never_enables_encryption(self):
-        receiver = TransientReceiver(secret='actual password')
+        receiver = PinReceiver(secret='actual password')
         # The receiver rejects the mismatching SRP proof.
         session = MacPasswordPairing(receiver)
         await session.begin()
@@ -108,6 +125,13 @@ class MacAuthTests(unittest.IsolatedAsyncioTestCase):
             await session.finish('incorrect password')
         self.assertFalse(session.has_paired)
         self.assertIsNone(receiver.send_processor)
+        self.assertIsNone(session.credentials)
+
+    async def test_password_authentication_verifies_identity_and_fresh_connection_before_encryption(self):
+        receiver = PinReceiver(secret='Receiver password 9!')
+        await authenticate(receiver, password='Receiver password 9!')
+        self.assertEqual(receiver.paths, ['/pair-setup'] * 3 + ['/pair-verify'] * 2)
+        self.assertTrue(callable(receiver.send_processor))
 
     async def test_pin_setup_identity_and_saved_credential_verification(self):
         receiver = PinReceiver()

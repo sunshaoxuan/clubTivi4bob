@@ -23,7 +23,7 @@ FIELDS = {'stage', 'count', 'audioPackets', 'status', 'errorType', 'reason',
           'gatewayAddress', 'vpnInterface', 'receiverPort', 'ffmpegAvailable',
           'pythonVersion', 'pyatvVersion', 'ffmpegVersion',
           'receiverModel', 'receiverFeatures', 'passwordRequired', 'savedCredentialsAvailable'}
-FIELDS |= {'interfaceIndex', 'airplayHelperAvailable'}
+FIELDS |= {'interfaceIndex', 'airplayHelperAvailable', 'networkProbeDurationMs'}
 FIELDS |= {'authMode', 'authPhase', 'authEndpoint', 'authResult', 'authReason',
            'authTlvError', 'retryAfterSeconds', 'httpStatus', 'causeType'}
 
@@ -111,6 +111,7 @@ def failure_details(error):
 
 
 def record_network(receiver, port):
+    started = time.monotonic()
     result = {'stage': 'network-environment', 'receiverAddress': str(receiver),
               'receiverPort': port, 'networkProbe': 'partial'}
     try:
@@ -137,12 +138,12 @@ def record_network(receiver, port):
             # Both interpolated values have already been parsed as IP addresses.
             command = (f"$a=Get-NetIPAddress -IPAddress '{local}' -ErrorAction Stop | Select-Object -First 1; "
                        f"$r=Find-NetRoute -RemoteIPAddress '{address}' -ErrorAction Stop | Where-Object {{$_.CimClass.CimClassName -eq 'MSFT_NetRoute'}} | Select-Object -First 1; "
-                       "$n=Get-NetAdapter -InterfaceIndex $a.InterfaceIndex -ErrorAction SilentlyContinue; "
+                       "$n=Get-NetAdapter -ErrorAction SilentlyContinue | Where-Object {$_.InterfaceIndex -eq $a.InterfaceIndex} | Select-Object -First 1; "
                        "@{prefixLength=[int]$a.PrefixLength;interfaceIndex=[int]$a.InterfaceIndex;"
                        "interfaceName=($a.InterfaceAlias -replace '[^A-Za-z0-9_.-]','_');"
                        "gatewayAddress=$r.NextHop;vpnInterface=[bool]($n.InterfaceDescription -match 'Tailscale|WireGuard|VPN|TAP|TUN')} | ConvertTo-Json -Compress")
             info = json.loads(subprocess.check_output(['powershell.exe', '-NoProfile', '-NonInteractive',
-                '-Command', command], stderr=subprocess.DEVNULL, timeout=5, text=True))
+                '-Command', command], stderr=subprocess.DEVNULL, timeout=15, text=True))
             network = ipaddress.ip_network(f"{local}/{info['prefixLength']}", strict=False)
             result.update({k: v for k, v in info.items() if v is not None})
             result.update(sameSubnet=address in network, networkProbe='complete')
@@ -150,7 +151,11 @@ def record_network(receiver, port):
         result.update(failure_details(error))
         if result['errorCode'] == 'no_route':
             result.update(networkProbe='no_route', routeAvailable=False)
-    except (ValueError, AttributeError, subprocess.SubprocessError): pass
+    except subprocess.TimeoutExpired as error:
+        result.update(failure_details(error), errorCode='timeout')
+    except (ValueError, AttributeError, subprocess.SubprocessError) as error:
+        result.update(failure_details(error))
+    result['networkProbeDurationMs'] = round((time.monotonic() - started) * 1000)
     record(result)
 
 

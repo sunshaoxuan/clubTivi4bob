@@ -10,11 +10,11 @@ pending. No official desktop release has been built or published from this work.
 - PIN uses HAP M1 through M6, verifies the SRP server proof and signed receiver
   identity, and saves credentials only after all checks pass. Saved credentials
   use checked pair verification through PV4 on subsequent control connections.
-- Password uses a transient SRP exchange with the supplied secret and checked
-  server proof. The password remains in the helper process memory and is passed
-  to new control and reverse connections. It is never persisted in pairings or
-  diagnostics. Compatibility with the physical Mac's password policy remains
-  to be verified.
+- Password uses full HKP 3 / HAP M1-M6 with the configured secret, checked server
+  proof and receiver identity. Its derived credential stays only in helper
+  memory for Pair-Verify on fresh connections. The password is discarded after
+  setup; neither it nor its temporary identity is written to pairings or logs.
+  Complete physical acceptance remains pending.
 - Authentication cancellation, explicit receiver errors and retry backoff are
   recorded. Rejected secrets do not fall back to the protocol's transient value.
 - Native frame transmission reports `streaming`. A frame counter alone does not
@@ -41,7 +41,7 @@ The origin and cndrp validation modules were deployed with backups on
 
 - Flutter casting, authentication UI, diagnostics, updater and catalog regressions:
   78 passed on Mac.
-- Native Python suite: 65 passed after installing the complete QA FFmpeg in the
+- Native Python suite: 67 passed after installing the complete QA FFmpeg in the
   isolated Python environment. Successful and rejected real SRP exchanges are simulated
   cryptographically; these are not physical receiver tests.
 - Diagnostic server validation and relay tests: 12 passed.
@@ -56,13 +56,27 @@ The first Windows CI regression run exposed an unpinned SRP dependency:
 Python 3.12 selected srptools 2.0, whose constructor API differs from the API
 used by pyatv 0.18.0. requirements.txt now pins the locally tested 1.0.1 version.
 Windows drive-qualified recording paths are also explicitly recognized before
-URL parsing. Both changes await the subsequent Windows CI result.
+URL parsing. Windows CI run 45872465371 passed all regression, compilation and
+frozen-helper checks at source 2472c37812edf7d5d5a97fbeece66308fabefb88.
+
+## Physical authentication finding
+
+At 08:02 JST, the isolated Windows helper reached the physical Mac and received
+HTTP 470 at M2 for the original transient password implementation. No password
+proof or media transmission had occurred. The same Windows host then probed
+M1 with a client name: HKP 4 again returned 470; HKP 3 returned HTTP 200 with a
+409-byte TLV M2 challenge (state 2, salt and public key). This establishes the
+need to complete full HAP for this password policy. It does not establish that
+the subsequent password proof or video playback succeeds.
+
+Network diagnostic collection now records its duration and probe failures,
+including PowerShell timeouts, instead of silently dropping the probe cause.
 
 ## Remaining acceptance
 
-- Obtain an authenticated SUNSX-PC session. WinRM currently responds with HTTP
-  401 to an unauthenticated request; an open port does not establish login.
-- Run the Windows QA helper and application with the full QA FFmpeg dependency.
+- Rebuild the Windows QA helper for full password HAP and rerun physical checks.
+- Verify the application UI using the same helper. Current physical collection
+  uses an isolated native helper and is explicitly marked as manual QA capture.
 - Verify screen PIN, wrong PIN, receiver password, wrong password, cancellation,
   backoff and saved PIN credential reconnection against the physical Mac.
 - Confirm decoded video at the receiver and collect automatically uploaded

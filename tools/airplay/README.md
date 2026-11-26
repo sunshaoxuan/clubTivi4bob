@@ -15,8 +15,12 @@ receiver's configured password. Broadcast password flags are treated as hints:
 macOS can advertise a mandatory pairing policy without setting the password bit.
 PIN pairing uses HAP M1-M6, checks the server SRP proof and Ed25519 identity,
 and stores verified credentials for subsequent Pair-Verify connections.
-Receiver passwords use transient SRP with the supplied password and remain in
-helper process memory only. They are never written to FileStorage or diagnostics.
+Receiver passwords use full HKP 3 / HAP M1-M6 without requesting an on-screen
+PIN. The derived, verified identity stays in helper process memory for fresh
+Pair-Verify connections. Neither the password nor this temporary identity is
+written to FileStorage or diagnostics. Native macOS with a required password
+was observed rejecting transient HKP 4 at M2 with HTTP 470 before any password
+proof, while HKP 3 returned the normal M2 challenge.
 Receivers permitting unauthenticated transient access retain the existing path.
 Apple-account-only access remains unsupported.
 The native path becomes available when the packaged `fpsap-auth.exe` and FFmpeg

@@ -50,14 +50,16 @@ class BridgeTests(unittest.IsolatedAsyncioTestCase):
         config = self.bridge.configs['test-tv']
         config.get_service(Protocol.AirPlay).properties['model'] = 'MacBookPro16,2'
         with patch('bobtv_airplay.mac_sender.available', return_value=True), \
-             patch('bobtv_airplay.http_connect', AsyncMock(return_value=TransientReceiver(secret='Test password 9!'))):
+             patch('bobtv_airplay.http_connect', AsyncMock(return_value=PinReceiver(secret='Test password 9!'))):
             result = await self.bridge.command({'action':'pair_start','device':'test-tv','mode':'password'})
             self.assertEqual(result['authenticationMode'], 'password')
             await self.bridge.command({'action':'pair_finish','password':'Test password 9!'})
         settings = await self.bridge.storage.get_settings(config)
         self.assertIsNone(settings.protocols.airplay.credentials)
         self.assertIsNone(settings.protocols.airplay.password)
-        self.assertEqual(self.bridge.mac_passwords['test-tv'], 'Test password 9!')
+        cached = self.bridge.mac_password_credentials['test-tv']
+        self.assertTrue(cached)
+        self.assertNotIn('Test password 9!', cached)
 
     async def test_receiver_backoff_prevents_another_network_attempt(self):
         self.bridge.remember_backoff('test-tv', MacAuthenticationError('M2',

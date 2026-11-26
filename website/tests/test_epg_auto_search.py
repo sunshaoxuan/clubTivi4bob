@@ -72,7 +72,7 @@ def test_server_followup_obeys_retry_and_preserves_normal_rotation(conn):
     assert w.due_followup(conn, {cid}, NOW + 60, set()) is None
     assert w.due_followup(conn, set(), NOW + 60, {cid}) is None
     result = run(conn, channels, clock=lambda: NOW + 60,
-                 cross_index=lambda _: ('checked', []))
+                 domestic_index=lambda _: ('checked', []))
     assert [x['channelId'] for x in result['processedChannels']][:2] == [cid, channels[0]['id']]
     assert w.read_checkpoint(conn, w.FOLLOWUP)['completedAtUtc'] == NOW + 60
     assert w.due_followup(conn, set(), NOW + 61, set()) is None
@@ -129,11 +129,47 @@ def test_independent_lead_after_empty_ai_and_index_backoff_moves_to_next(conn):
     def index(query):
         calls.append(query)
         return 'rate_limited', []
-    result = run(conn, transport=lambda settings, body: response(body, []), cross_index=index)
+    catalog = [{**target, 'countryCode': 'JP'} for target in targets()]
+    result = run(conn, catalog, transport=lambda settings, body: response(body, []), cross_index=index)
     assert len(calls) == 1
     assert [v['crossSearch']['state'] for v in result['processedChannels']] == ['rate_limited', 'backoff']
     assert len({v['channelId'] for v in result['processedChannels']}) == 2
     assert not result['programmeResponsesRead']
+
+
+def test_mainland_deepseek_failure_never_falls_back_to_brave(conn):
+    calls = []
+    def index(engine, state):
+        def call(query):
+            calls.append(engine)
+            return state, []
+        return call
+
+    catalog = [channel(identity='fixture-' + code, country=code or None) for code in ('CN', '', 'HK')]
+    catalog.append(channel(identity='fixture-mainland-backoff'))
+    result = run(conn, catalog[:3], max_channels=3, cross_index=index('brave', 'checked'),
+                 domestic_index=index('deepseek', 'rate_limited'))
+    by_id = {v['channelId']: v['crossSearch'] for v in result['processedChannels']}
+    assert [(by_id['fixture-' + code]['searchEngine'], by_id['fixture-' + code]['state'])
+            for code in ('CN', '', 'HK')] == [
+                ('deepseek_web', 'rate_limited'), ('brave_web', 'checked'), ('brave_web', 'checked')]
+    result = run(conn, [catalog[-1]], cross_index=index('brave', 'checked'),
+                 domestic_index=index('deepseek', 'checked'))
+    assert result['processedChannels'][0]['crossSearch']['state'] == 'backoff'
+    assert calls.count('deepseek') == 1 and calls.count('brave') == 2
+    assert not w.read_checkpoint(conn, 'brave_index_backoff')
+
+
+def test_deepseek_requires_completed_search_before_using_transient_hints():
+    from epg_cross_search import decode_deepseek
+    hit = {'url': 'https://fixture.example.org/live', 'title': 'Fixture News'}
+    payload = {'status': 'completed', 'usage': {'server_tool_use': {'tool_search': 1}},
+               'output': [{'type': 'web_search_call', 'status': 'completed', 'action': {'type': 'search'}},
+                          {'type': 'message', 'content': [{'type': 'output_text', 'annotations': [],
+                           'text': json.dumps({'results': [hit, hit]})}]}]}
+    assert decode_deepseek(payload) == ('checked', [hit])
+    payload['usage']['server_tool_use']['tool_search'] = 0
+    assert decode_deepseek(payload) == ('invalid_response', [])
 
 
 def test_index_rechecks_phase_and_target_and_deduplicates():

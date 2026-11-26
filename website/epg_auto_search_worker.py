@@ -412,7 +412,8 @@ def finish(conn, claim, request, evidence, now, *, error=None, retry_at=None, ma
 def run(conn, manifest, channels, paths, settings_factory, shared_database, *, max_channels=3,
         max_seconds=150, clock=time.time, monotonic=time.monotonic, transport=search.transport,
         reserve=search.reserve_shared_budget, checker=search.check_candidate, reload_targets=None, source_directory=None,
-        route_directory_checker=None, route_directory_due=None, cross_index=None, regional_rotation=False):
+        route_directory_checker=None, route_directory_due=None, cross_index=None, domestic_index=None,
+        regional_rotation=False):
     if type(max_channels) is not int or not 1 <= max_channels <= 5 or not 60 <= max_seconds <= 180:
         raise EpgError('auto_search_invalid_batch_limit')
     if (not isinstance(channels, list) or len(channels) > 10000
@@ -594,18 +595,28 @@ def run(conn, manifest, channels, paths, settings_factory, shared_database, *, m
         global_wait = False
         try:
             evidence = search.decode(transport(settings, request['body']), request, int(clock()))
-            if cross_index is not None:
-                from epg_cross_search import augment
+            if cross_index is not None or domestic_index is not None:
+                from epg_cross_search import DEEPSEEK_TIMEOUT_SECONDS, augment
+                mainland = request['catalogueContext']['countryCode'] == 'CN'
+                engine = 'deepseek_web' if mainland else 'brave_web'
+                checkpoint = 'deepseek_index_backoff' if mainland else 'brave_index_backoff'
+                index = domestic_index if mainland else cross_index
                 index_now = int(clock())
-                floor = read_checkpoint(conn, 'brave_index_backoff').get('retryAtUtc', 0)
+                floor = read_checkpoint(conn, checkpoint).get('retryAtUtc', 0)
+                deferred = None
+                if index is None:
+                    deferred = 'not_configured'
+                elif floor > index_now:
+                    deferred = 'backoff'
+                elif mainland and monotonic() - started > max_seconds - DEEPSEEK_TIMEOUT_SECONDS - 15:
+                    deferred = 'time_budget_deferred'
                 state = augment(request, evidence, index_now,
-                    index=(lambda _: ('backoff', [])) if floor > index_now else cross_index)
+                    index=(lambda _: (deferred, [])) if deferred else index, search_engine=engine)
                 if state in {'rate_limited', 'unavailable', 'invalid_response', 'authorization_required'}:
                     delay = 86400 if state == 'authorization_required' else 3600
                     with conn:
                         conn.execute('INSERT OR REPLACE INTO epg_checkpoints VALUES(?,?)',
-                            ('brave_index_backoff', queue.encoded({'retryAtUtc': index_now + delay,
-                                                                  'state': state})))
+                            (checkpoint, queue.encoded({'retryAtUtc': index_now + delay, 'state': state})))
             evidence['technicalChecks'] = checked_candidates(conn, evidence, request, int(clock()), checker)
             result['sourceCheckAttempts'] += sum(not check.get('cacheReused', False) for check in evidence['technicalChecks'])
             bodies = sum(check.get('bodyBytes',0)>0 and not check.get('cacheReused',False)
@@ -711,11 +722,12 @@ def main():
                         return target_hash(current, current_paths[current['id']]) if current else None
                     return epg_route_directory.check_selected(conn, row, channel, path, now,
                         reload_selected=current_identity)
-            from epg_cross_search import metered_index
+            from epg_cross_search import metered_deepseek_index, metered_index
             result = run(conn, manifest, channels, paths, config, shared_database,
                 max_channels=args.max_channels, reload_targets=lambda: load_targets(args.data_dir), source_directory=directory,
                 route_directory_checker=directory_checker, route_directory_due=directory_due,
-                cross_index=metered_index(conn, time.time), regional_rotation=True)
+                cross_index=metered_index(conn, time.time),
+                domestic_index=metered_deepseek_index(config, shared_database, time.time), regional_rotation=True)
             result['executionHealth'] = execution_receipt(conn, int(time.time()), result=result)
             print(json.dumps(result, ensure_ascii=False))
         except (OSError, ValueError, KeyError, TypeError, sqlite3.Error) as exc:

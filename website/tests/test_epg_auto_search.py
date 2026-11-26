@@ -72,7 +72,7 @@ def test_server_followup_obeys_retry_and_preserves_normal_rotation(conn):
     assert w.due_followup(conn, {cid}, NOW + 60, set()) is None
     assert w.due_followup(conn, set(), NOW + 60, {cid}) is None
     result = run(conn, channels, clock=lambda: NOW + 60,
-                 domestic_index=lambda _: ('checked', []))
+                 cross_index=lambda _: ('checked', []))
     assert [x['channelId'] for x in result['processedChannels']][:2] == [cid, channels[0]['id']]
     assert w.read_checkpoint(conn, w.FOLLOWUP)['completedAtUtc'] == NOW + 60
     assert w.due_followup(conn, set(), NOW + 61, set()) is None
@@ -101,7 +101,7 @@ def test_brave_budget_is_durable_and_reserves_failed_calls(conn, monkeypatch, tm
     now[0] += 1200
     assert index('fixture')[0] == 'unavailable'
     now[0] += 1200
-    assert index('fixture')[0] == 'budget_deferred'
+    assert index('fixture')[0] == 'free_budget_exhausted'
     now[0] += 30 * 86400
     assert index('fixture')[0] == 'unavailable'
 
@@ -137,7 +137,8 @@ def test_independent_lead_after_empty_ai_and_index_backoff_moves_to_next(conn):
     assert not result['programmeResponsesRead']
 
 
-def test_mainland_deepseek_failure_never_falls_back_to_brave(conn):
+@pytest.mark.parametrize('brave_state', ['free_budget_exhausted', 'provider_quota_exhausted'])
+def test_only_mainland_uses_deepseek_after_brave_quota_is_exhausted(conn, brave_state):
     calls = []
     def index(engine, state):
         def call(query):
@@ -147,17 +148,38 @@ def test_mainland_deepseek_failure_never_falls_back_to_brave(conn):
 
     catalog = [channel(identity='fixture-' + code, country=code or None) for code in ('CN', '', 'HK')]
     catalog.append(channel(identity='fixture-mainland-backoff'))
-    result = run(conn, catalog[:3], max_channels=3, cross_index=index('brave', 'checked'),
+    result = run(conn, catalog[:3], max_channels=3, cross_index=index('brave', brave_state),
                  domestic_index=index('deepseek', 'rate_limited'))
     by_id = {v['channelId']: v['crossSearch'] for v in result['processedChannels']}
     assert [(by_id['fixture-' + code]['searchEngine'], by_id['fixture-' + code]['state'])
             for code in ('CN', '', 'HK')] == [
-                ('deepseek_web', 'rate_limited'), ('brave_web', 'checked'), ('brave_web', 'checked')]
-    result = run(conn, [catalog[-1]], cross_index=index('brave', 'checked'),
+                ('deepseek_web', 'rate_limited'), ('brave_web', brave_state), ('brave_web', brave_state)]
+    assert by_id['fixture-CN']['fallbackReason'] == brave_state
+    result = run(conn, [catalog[-1]], cross_index=index('brave', brave_state),
                  domestic_index=index('deepseek', 'checked'))
     assert result['processedChannels'][0]['crossSearch']['state'] == 'backoff'
-    assert calls.count('deepseek') == 1 and calls.count('brave') == 2
-    assert not w.read_checkpoint(conn, 'brave_index_backoff')
+    assert calls.count('deepseek') == 1
+    assert calls.count('brave') == (4 if brave_state == 'free_budget_exhausted' else 1)
+
+
+@pytest.mark.parametrize('brave_state', ['checked', 'budget_deferred', 'rate_limited', 'authorization_required'])
+def test_mainland_prefers_brave_and_does_not_fallback_after_other_failures(conn, brave_state):
+    def unexpected(_):
+        pytest.fail('DeepSeek is reserved for quota exhaustion')
+    result = run(conn, [channel()], cross_index=lambda _: (brave_state, []), domestic_index=unexpected)
+    assert result['processedChannels'][0]['crossSearch']['searchEngine'] == 'brave_web'
+    assert result['processedChannels'][0]['crossSearch']['state'] == brave_state
+
+
+@pytest.mark.parametrize(('code', 'expected'), [('QUOTA_LIMITED', 'provider_quota_exhausted'),
+                                                ('RATE_LIMITED', 'rate_limited')])
+def test_brave_only_treats_explicit_quota_429_as_exhaustion(monkeypatch, code, expected):
+    import epg_cross_search as x
+    monkeypatch.setattr(x, 'credential', lambda: 'fixture-key')
+    def rejected(req, **_):
+        body = io.BytesIO(json.dumps({'error': {'code': code}}).encode())
+        raise urllib.error.HTTPError(req.full_url, 429, 'fixture', {}, body)
+    assert x.brave('fixture', opener=types.SimpleNamespace(open=rejected)) == (expected, [])
 
 
 def test_deepseek_requires_completed_search_before_using_transient_hints():

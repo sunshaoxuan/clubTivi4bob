@@ -43,6 +43,23 @@ def read_checkpoint(conn, name):
     return json.loads(row[0]) if row else {}
 
 
+def check_cross_index(conn, checkpoint, index, query, now):
+    if index is None:
+        return 'not_configured', []
+    backoff = read_checkpoint(conn, checkpoint)
+    if backoff.get('retryAtUtc', 0) > now:
+        state = backoff.get('state')
+        return ('provider_quota_exhausted' if state == 'provider_quota_exhausted' else 'backoff'), []
+    state, hits = index(query)
+    if state in {'rate_limited', 'unavailable', 'invalid_response', 'authorization_required',
+                 'provider_quota_exhausted'}:
+        delay = 86400 if state == 'authorization_required' else 3600
+        with conn:
+            conn.execute('INSERT OR REPLACE INTO epg_checkpoints VALUES(?,?)',
+                (checkpoint, queue.encoded({'retryAtUtc': now + delay, 'state': state})))
+    return state, hits
+
+
 def execution_receipt(conn, now, result=None, error=None):
     """Publish execution health separately from the last completed search batch.
 
@@ -596,27 +613,23 @@ def run(conn, manifest, channels, paths, settings_factory, shared_database, *, m
         try:
             evidence = search.decode(transport(settings, request['body']), request, int(clock()))
             if cross_index is not None or domestic_index is not None:
-                from epg_cross_search import DEEPSEEK_TIMEOUT_SECONDS, augment
-                mainland = request['catalogueContext']['countryCode'] == 'CN'
-                engine = 'deepseek_web' if mainland else 'brave_web'
-                checkpoint = 'deepseek_index_backoff' if mainland else 'brave_index_backoff'
-                index = domestic_index if mainland else cross_index
+                from epg_cross_search import BRAVE_QUOTA_STATES, DEEPSEEK_TIMEOUT_SECONDS, augment
+                query = request['independentQuery']
                 index_now = int(clock())
-                floor = read_checkpoint(conn, checkpoint).get('retryAtUtc', 0)
-                deferred = None
-                if index is None:
-                    deferred = 'not_configured'
-                elif floor > index_now:
-                    deferred = 'backoff'
-                elif mainland and monotonic() - started > max_seconds - DEEPSEEK_TIMEOUT_SECONDS - 15:
-                    deferred = 'time_budget_deferred'
-                state = augment(request, evidence, index_now,
-                    index=(lambda _: (deferred, [])) if deferred else index, search_engine=engine)
-                if state in {'rate_limited', 'unavailable', 'invalid_response', 'authorization_required'}:
-                    delay = 86400 if state == 'authorization_required' else 3600
-                    with conn:
-                        conn.execute('INSERT OR REPLACE INTO epg_checkpoints VALUES(?,?)',
-                            (checkpoint, queue.encoded({'retryAtUtc': index_now + delay, 'state': state})))
+                state, hits = check_cross_index(conn, 'brave_index_backoff', cross_index, query, index_now)
+                brave_state, engine = state, 'brave_web'
+                if (domestic_index is not None and brave_state in BRAVE_QUOTA_STATES
+                        and request['catalogueContext']['countryCode'] == 'CN'):
+                    engine = 'deepseek_web'
+                    index_now = int(clock())
+                    if monotonic() - started > max_seconds - DEEPSEEK_TIMEOUT_SECONDS - 15:
+                        state, hits = 'time_budget_deferred', []
+                    else:
+                        state, hits = check_cross_index(
+                            conn, 'deepseek_index_backoff', domestic_index, query, index_now)
+                augment(request, evidence, index_now, index=lambda _: (state, hits), search_engine=engine)
+                if engine == 'deepseek_web':
+                    evidence['crossSearch']['fallbackReason'] = brave_state
             evidence['technicalChecks'] = checked_candidates(conn, evidence, request, int(clock()), checker)
             result['sourceCheckAttempts'] += sum(not check.get('cacheReused', False) for check in evidence['technicalChecks'])
             bodies = sum(check.get('bodyBytes',0)>0 and not check.get('cacheReused',False)

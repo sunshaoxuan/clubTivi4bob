@@ -19,6 +19,7 @@ BRAVE_MIN_INTERVAL_SECONDS = 20 * 60
 BRAVE_ROLLING_DAY_LIMIT = 30
 # A 31-day window permits at most 900 + 30 requests, leaving credit headroom.
 BRAVE_ROLLING_MONTH_LIMIT = 900
+BRAVE_QUOTA_STATES = frozenset({'free_budget_exhausted', 'provider_quota_exhausted'})
 DEEPSEEK_TIMEOUT_SECONDS = 20
 
 
@@ -45,11 +46,12 @@ def reserve_request(conn, now):
         newest, daily, monthly = conn.execute('''
             SELECT max(attempted),count(CASE WHEN attempted>? THEN 1 END),count(*)
             FROM epg_brave_usage''', (now - 86400,)).fetchone()
-        if ((newest is not None and newest > now - BRAVE_MIN_INTERVAL_SECONDS)
-                or daily >= BRAVE_ROLLING_DAY_LIMIT or monthly >= BRAVE_ROLLING_MONTH_LIMIT):
-            return False
+        if monthly >= BRAVE_ROLLING_MONTH_LIMIT:
+            return 'free_budget_exhausted'
+        if (newest is not None and newest > now - BRAVE_MIN_INTERVAL_SECONDS) or daily >= BRAVE_ROLLING_DAY_LIMIT:
+            return 'budget_deferred'
         conn.execute('INSERT INTO epg_brave_usage(attempted) VALUES(?)', (now,))
-        return True
+        return 'reserved'
 
 
 def metered_index(conn, clock):
@@ -57,8 +59,9 @@ def metered_index(conn, clock):
         if not credential():
             return 'not_configured', []
         try:
-            if not reserve_request(conn, int(clock())):
-                return 'budget_deferred', []
+            state = reserve_request(conn, int(clock()))
+            if state != 'reserved':
+                return state, []
         except sqlite3.Error:
             return 'budget_unavailable', []
         return brave(query)
@@ -88,8 +91,17 @@ def brave(query, *, opener=None):
             return 'invalid_response', []
         return 'checked', [r for r in web[:5] if isinstance(r, dict)]
     except urllib.error.HTTPError as exc:
-        code = exc.code
-        exc.close()
+        try:
+            code = exc.code
+            if code == 429:
+                try:
+                    error = json.loads(exc.read(4096)).get('error', {})
+                    if error.get('code') == 'QUOTA_LIMITED':
+                        return 'provider_quota_exhausted', []
+                except (OSError, ValueError, TypeError, AttributeError):
+                    pass
+        finally:
+            exc.close()
         return ('rate_limited' if code == 429 else
                 'authorization_required' if code in (401, 403) else 'unavailable'), []
     except (OSError, ValueError, KeyError, TypeError):

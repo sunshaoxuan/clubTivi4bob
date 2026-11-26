@@ -6,7 +6,7 @@ import sys
 from mac_frames import play_test_frames
 from mac_source import FFmpegFrames
 from video_relay import VideoRelay
-from cast_diagnostics import record
+from cast_diagnostics import record, failure_details
 
 
 def authentication_helper():
@@ -21,7 +21,11 @@ def available():
 async def play(address, port, url, on_progress=None, credentials=None, password=None):
     helper = authentication_helper()
     executable = VideoRelay.ffmpeg_path()
+    record({'stage': 'sender-dependency-check', 'ffmpegAvailable': bool(executable),
+            'airplayHelperAvailable': helper.is_file()})
     if not helper.is_file() or not executable:
+        record({'stage': 'sender-fpsap-missing' if not helper.is_file() else 'sender-ffmpeg-missing', 'errorCode': 'missing_dependency',
+                'reason': 'fpsap_missing' if not helper.is_file() else 'ffmpeg_missing'})
         raise FileNotFoundError('Native Mac sender components are missing')
     source = FFmpegFrames(executable, url)
     try:
@@ -36,7 +40,7 @@ async def play(address, port, url, on_progress=None, credentials=None, password=
         record({'stage': 'sender-cancelled'})
         raise
     except Exception as error:
-        record({'stage': 'sender-failed', 'errorType': type(error).__name__})
+        record({'stage': 'sender-failed', **failure_details(error)})
         raise
     finally:
         # Finish bounded cleanup even if the caller cancels during shutdown.

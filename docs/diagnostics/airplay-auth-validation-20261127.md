@@ -41,11 +41,16 @@ The origin and cndrp validation modules were deployed with backups on
 
 - Flutter casting, authentication UI, diagnostics, updater and catalog regressions:
   78 passed on Mac.
-- Native Python suite: 62 run, one FFmpeg-dependent test skipped on the local
-  Python environment. Successful and rejected real SRP exchanges are simulated
+- Native Python suite: 63 passed after installing the complete QA FFmpeg in the
+  isolated Python environment. Successful and rejected real SRP exchanges are simulated
   cryptographically; these are not physical receiver tests.
 - Diagnostic server validation and relay tests: 12 passed.
 - Targeted Flutter analysis: no errors or warnings; informational style lints.
+
+FFmpeg stderr is classified into fixed diagnostic events for missing encoders,
+decoders, filters or protocols, HTTP rejection, route and connection errors,
+resource exhaustion, unsupported options and invalid media. Classification spans
+read boundaries and deduplicates repeated causes; no raw stderr enters upload.
 
 ## Remaining acceptance
 

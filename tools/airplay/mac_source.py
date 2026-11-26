@@ -10,7 +10,7 @@ import subprocess
 import sys
 
 from mac_audio import PCM_BYTES
-from cast_diagnostics import record
+from cast_diagnostics import record, FFmpegErrorReporter
 from egress_policy import server_or_local_url
 
 
@@ -135,10 +135,12 @@ class FFmpegFrames:
 
         async def drain_errors():
             # Source URLs and token-bearing FFmpeg errors never enter logs.
+            reporter = FFmpegErrorReporter('decoder-error')
             while True:
                 chunk = await self.process.stderr.read(4096)
                 if not chunk:
                     break
+                reporter.feed(chunk)
                 if self.test:
                     self.test_error_tail = (self.test_error_tail + chunk)[-4096:]
         self.stderr_task = asyncio.create_task(drain_errors())
@@ -191,6 +193,8 @@ class FFmpegFrames:
         if self.process:
             with contextlib.suppress(Exception):
                 await asyncio.wait_for(self.process.wait(), 3)
+            if self.process.returncode is not None:
+                record({'stage': 'decoder-process-exit', 'decoderExit': self.process.returncode})
         if self.stderr_task:
             self.stderr_task.cancel()
             await asyncio.gather(self.stderr_task, return_exceptions=True)

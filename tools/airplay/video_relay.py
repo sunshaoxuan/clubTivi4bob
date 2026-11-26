@@ -11,7 +11,7 @@ import tempfile
 
 from aiohttp import web
 from egress_policy import server_or_local_url
-from cast_diagnostics import record, failure_details
+from cast_diagnostics import record, failure_details, FFmpegErrorReporter
 
 
 class VideoRelay:
@@ -105,21 +105,12 @@ class VideoRelay:
         process = self.process
         async def drain():
             # Drain continuously without retaining URLs in memory or logs.
-            reported = set()
+            reporter = FFmpegErrorReporter('remux-error')
             while True:
                 chunk = await process.stderr.read(4096)
                 if not chunk:
                     break
-                text = chunk.lower()
-                for marker, stage in [(b'401 unauthorized', 'remux-auth-401'),
-                                      (b'403 forbidden', 'remux-auth-403'),
-                                      (b'404 not found', 'remux-http-404'),
-                                      (b'timed out', 'remux-timeout'),
-                                      (b'invalid data', 'remux-invalid-data'),
-                                      (b'not supported', 'remux-unsupported')]:
-                    if marker in text and stage not in reported:
-                        reported.add(stage)
-                        record({'stage': stage})
+                reporter.feed(chunk)
             code = await process.wait()
             record({'stage': 'remux-process-exit', 'decoderExit': code})
         self.stderr_task = asyncio.create_task(drain())

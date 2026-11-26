@@ -23,9 +23,46 @@ FIELDS = {'stage', 'count', 'audioPackets', 'status', 'errorType', 'reason',
           'gatewayAddress', 'vpnInterface', 'receiverPort', 'ffmpegAvailable',
           'pythonVersion', 'pyatvVersion', 'ffmpegVersion',
           'receiverModel', 'receiverFeatures', 'passwordRequired', 'savedCredentialsAvailable'}
-FIELDS.add('interfaceIndex')
+FIELDS |= {'interfaceIndex', 'airplayHelperAvailable'}
 FIELDS |= {'authMode', 'authPhase', 'authEndpoint', 'authResult', 'authReason',
            'authTlvError', 'retryAfterSeconds', 'httpStatus', 'causeType'}
+
+
+class FFmpegErrorReporter:
+    """Classify bounded stderr chunks without persisting raw URLs or tokens."""
+    def __init__(self, stage):
+        self.stage = stage
+        self.tail = b''
+        self.reported = set()
+
+    def feed(self, chunk):
+        text = (self.tail + chunk).lower()
+        self.tail = text[-256:]
+        patterns = [
+            ((b'unknown encoder', b'encoder not found'), 'encoder_unavailable', 'missing_dependency'),
+            ((b'unknown decoder', b'decoder not found'), 'decoder_unavailable', 'missing_dependency'),
+            ((b'no such filter',), 'filter_unavailable', 'missing_dependency'),
+            ((b'protocol not found',), 'protocol_unavailable', 'missing_dependency'),
+            ((b'unrecognized option', b'option not found'), 'option_unsupported', 'not_supported'),
+            ((b'error while opening encoder',), 'encoder_open_failed', 'other'),
+            ((b'cannot allocate memory', b'out of memory'), 'memory_allocation_failed', 'out_of_memory'),
+            ((b'no space left on device',), 'disk_full', 'other'),
+            ((b'resource temporarily unavailable',), 'resource_unavailable', 'server_busy'),
+            ((b'permission denied',), 'permission_denied', 'permission_denied'),
+            ((b'no route to host', b'network is unreachable'), 'no_route', 'no_route'),
+            ((b'connection refused',), 'connection_refused', 'connection_refused'),
+            ((b'401 unauthorized',), 'http_401', 'http'),
+            ((b'403 forbidden',), 'http_403', 'http'),
+            ((b'404 not found',), 'http_404', 'http'),
+            ((b'timed out',), 'timeout', 'timeout'),
+            ((b'invalid data',), 'invalid_media', 'format'),
+            ((b'not supported',), 'unsupported_media', 'not_supported'),
+        ]
+        for markers, reason, code in patterns:
+            if reason not in self.reported and any(marker in text for marker in markers):
+                self.reported.add(reason)
+                record({'stage': f'{self.stage}-{reason}', 'reason': reason, 'errorCode': code,
+                        **({'httpStatus': int(reason[-3:])} if reason.startswith('http_') else {})})
 
 
 def failure_details(error):

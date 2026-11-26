@@ -6,10 +6,28 @@ from pathlib import Path
 import tempfile
 import unittest
 from unittest.mock import patch
-from cast_diagnostics import record, failure_details, request_id, record_network
+from cast_diagnostics import record, failure_details, request_id, record_network, FFmpegErrorReporter
 
 
 class DiagnosticTests(unittest.TestCase):
+    def test_encoder_dependency_and_split_stderr_errors_are_classified_without_secrets(self):
+        output = io.StringIO()
+        with tempfile.TemporaryDirectory() as folder, \
+             patch.dict(os.environ, {'LOCALAPPDATA': folder}), contextlib.redirect_stdout(output):
+            reporter = FFmpegErrorReporter('decoder-error')
+            reporter.feed(b"https://user:private-token@example.test/live Unknown enc")
+            reporter.feed(b"oder 'libx264'\n")
+            reporter.feed(b"Unknown encoder 'libx264'\nCannot allocate memory\n")
+            raw = (Path(folder) / 'BobTV/AirPlay/native-cast.log').read_text()
+        events = [json.loads(line) for line in output.getvalue().splitlines()]
+        self.assertEqual(len(events), 2)
+        self.assertEqual(events[0]['reason'], 'encoder_unavailable')
+        self.assertEqual(events[0]['errorCode'], 'missing_dependency')
+        self.assertEqual(events[1]['errorCode'], 'out_of_memory')
+        for text in (raw, output.getvalue()):
+            self.assertNotIn('private-token', text)
+            self.assertNotIn('example.test', text)
+
     def test_native_error_keeps_cause_location_and_correlation_without_raw_message(self):
         output = io.StringIO()
         with tempfile.TemporaryDirectory() as folder, \

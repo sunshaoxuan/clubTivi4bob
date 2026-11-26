@@ -41,8 +41,9 @@ The origin and cndrp validation modules were deployed with backups on
 
 - Flutter casting, authentication UI, diagnostics, updater and catalog regressions:
   78 passed on Mac.
-- Native Python suite: 67 passed after installing the complete QA FFmpeg in the
-  isolated Python environment. Successful and rejected real SRP exchanges are simulated
+- Native Python suite: 67 passed on both Mac and SUNSX-PC with complete QA
+  FFmpeg. Source 8b989dfdb0d7e1aee0026c4d89f90a7bc709c59c was frozen on Windows
+  and passed packaged startup checks. Successful and rejected SRP exchanges are simulated
   cryptographically; these are not physical receiver tests.
 - Diagnostic server validation and relay tests: 12 passed.
 - Targeted Flutter analysis: no errors or warnings; informational style lints.
@@ -69,12 +70,28 @@ M1 with a client name: HKP 4 again returned 470; HKP 3 returned HTTP 200 with a
 need to complete full HAP for this password policy. It does not establish that
 the subsequent password proof or video playback succeeds.
 
+The rebuilt Windows helper returned the successful password-mode M2 from the
+physical receiver, and that preflight was explicitly cancelled without sending
+a secret. Its network probe completed with source 192.168.11.5, target
+192.168.11.8, prefix 24, interface index 12 and `sameSubnet: true`.
+
+An independent Flutter QA harness then imported the actual failed attempt and
+its timestamped Windows system sample into the production DiagnosticLogStore
+and DiagnosticSyncService. The normal uploader sent four safe records through
+cndrp, retained its pending outbox until `origin_accepted`, and committed the
+cursor. Auth mode, M2, HTTP 470, code locations and CPU/RAM fields survived a
+private origin download with a verified content hash. This tests the production
+upload module; it is explicitly not labeled as installed-application automatic
+collection. The batch digest is
+`d4176c18bf8e6176d234da05dc3de2f35e5708148fa1277e554169b206053fd5`.
+
 Network diagnostic collection now records its duration and probe failures,
 including PowerShell timeouts, instead of silently dropping the probe cause.
 
 ## Remaining acceptance
 
-- Rebuild the Windows QA helper for full password HAP and rerun physical checks.
+- Complete password proof, identity verification and physical media playback
+  using the rebuilt Windows helper. M2 success alone is insufficient.
 - Verify the application UI using the same helper. Current physical collection
   uses an isolated native helper and is explicitly marked as manual QA capture.
 - Verify screen PIN, wrong PIN, receiver password, wrong password, cancellation,

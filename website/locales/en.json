@@ -460,8 +460,8 @@
         "text": "BobTV syncs channels and complete category hierarchies from BobTV and compares the primary site with cndrp for resource delivery. Discovery and AI run on the server; video connects directly to its source. Clients check the selected channel on demand.",
         "items": [
           [
-            "Initial catalog",
-            "BobTV shows local or bundled channels first, then fetches the categorized and verified public catalog. Channel counts change as sources are maintained."
+            "Getting started",
+            "New installations start with an empty player. Add your own TV sources to start watching."
           ],
           [
             "Sync status",
@@ -773,7 +773,7 @@
     "hero": [
       "Live TV.",
       "With words to follow.",
-      "Channels, programme guides and subtitles, together for the live TV you want to watch."
+      "Add your own TV sources and see what’s on now and next."
     ],
     "discover": [
       "Discover",
@@ -807,12 +807,12 @@
       "Find a channel. See what’s next.",
       [
         [
-          "Channel details fill in automatically",
-          "The public directory keeps adding channel names, logos and categories as information becomes available."
+          "Add your own TV sources",
+          "Import an M3U playlist, an Xtream account, a resource pack or a single stream URL."
         ],
         [
           "Automatic program guides",
-          "See what’s on now and next on select channels with a supported guide source."
+          "See what’s on now and next when your source provides a compatible programme guide."
         ],
         [
           "Keep your favorites close",

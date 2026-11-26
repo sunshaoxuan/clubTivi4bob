@@ -460,8 +460,8 @@
         "text": "BobTV synchronise les chaînes et les hiérarchies complètes de catégories de BobTV et compare le site principal avec cndrp pour la livraison des ressources. La découverte et l'IA s'exécutent sur le serveur ; la vidéo se connecte directement à sa source. Les clients vérifient le canal sélectionné à la demande.",
         "items": [
           [
-            "Catalogue initial",
-            "BobTV affiche d'abord les chaînes locales ou groupées, puis récupère le catalogue public catégorisé et vérifié. Le nombre de chaînes change à mesure que les sources sont conservées."
+            "Première utilisation",
+            "Le lecteur est vide après une première installation. Ajoutez vos propres sources TV pour commencer à les regarder."
           ],
           [
             "Statut de synchronisation",
@@ -773,7 +773,7 @@
     "hero": [
       "La TV en direct.",
       "Avec ses dialogues.",
-      "Chaînes, guide des programmes et sous-titres réunis pour regarder le direct."
+      "Ajoutez vos propres sources TV et consultez les programmes en cours et à venir."
     ],
     "discover": [
       "Découvrir",
@@ -807,12 +807,12 @@
       "Trouvez une chaîne et voyez la suite.",
       [
         [
-          "Fiches de chaînes enrichies automatiquement",
-          "Le catalogue public se complète au fil du temps avec des noms, des logos et des catégories."
+          "Ajoutez vos propres sources TV",
+          "Importez une liste M3U, un compte Xtream, un pack de ressources ou une URL de diffusion."
         ],
         [
           "Guide TV automatique",
-          "Consultez les programmes en cours et à venir sur certaines chaînes disposant d’une source compatible."
+          "Consultez les programmes en cours et à venir si votre source fournit un guide compatible."
         ],
         [
           "Vos chaînes en favoris",

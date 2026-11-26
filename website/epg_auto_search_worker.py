@@ -8,6 +8,7 @@ import fcntl
 import hashlib
 import json
 from pathlib import Path
+import re
 import sqlite3
 import time
 import uuid
@@ -231,8 +232,10 @@ def choose(conn, manifest, channels, paths, protected, now, handled, *, regional
             return 0
         path = paths[channel['id']]
         if any(part in {'广播', '電臺', '电台', '廣播'} for part in path):
-            return 2
-        return 0 if any(part in {'央视', '央視'} for part in path) else 1
+            return 3
+        if any(part in {'央视', '央視'} for part in path):
+            return 0 if re.fullmatch(r'CCTV\s*-?\s*(?:5\+|[1-9]|1[0-7])', channel['name'], re.I) else 1
+        return 2
 
     def rotation_rank(channel):
         return region_rank(channel), media_rank(channel)
@@ -267,7 +270,6 @@ def choose(conn, manifest, channels, paths, protected, now, handled, *, regional
 
 def broadcast_rank(channel, path=None):
     """A scheduling hint only. Never evidence of identity or programme content."""
-    import re
     name = channel['name']
     if any(re.fullmatch(r'(?:广播|廣播|電臺|电台|央視|央视)', part) for part in (path or [])):
         return 0

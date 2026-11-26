@@ -240,12 +240,16 @@ def test_quoted_publisher_urls_survive_gateway_missing_source_array():
 def test_region_blocks_prioritize_mainland_tv_and_keep_other_markets(conn):
     catalog = [{**channel(identity='fixture-' + country), 'countryCode': country}
                for country in ('CN', 'JP', 'TW', 'HK', 'DE')]
+    catalog[0]['name'] = 'CCTV-5+'
     for identity in ('mainland-radio', 'mainland-provincial-tv'):
         catalog.append(channel(identity=identity))
     paths = {**{c['id']: PATH for c in catalog}, 'fixture-CN': ['中国', '央视'],
              'mainland-radio': ['中国', '广播'], 'mainland-provincial-tv': ['中国', '浙江']}
     q.enqueue(conn, catalog[-1], 'fixture-v1', paths['mainland-provincial-tv'], NOW)
     q.enqueue(conn, catalog[-2], 'fixture-v1', paths['mainland-radio'], NOW)
+    cgtn = channel(identity='fixture-cgtn', name='CGTN Arabic')
+    catalog.append(cgtn)
+    paths[cgtn['id']] = ['中国', '央视']
     for claims, country in ((0, 'CN'), (3, 'CN'), (6, 'JP'), (9, 'TW'), (12, 'HK'), (15, 'DE')):
         with conn:
             conn.execute('INSERT OR REPLACE INTO epg_checkpoints VALUES(?,?)',
@@ -257,7 +261,7 @@ def test_region_blocks_prioritize_mainland_tv_and_keep_other_markets(conn):
         conn.execute('INSERT OR REPLACE INTO epg_checkpoints VALUES(?,?)',
             ('channel_search_fairness', json.dumps({'claims': 0})))
     chosen = w.choose(conn, {'version': 'fixture-v1'}, catalog, paths,
-        set(), NOW, {'fixture-CN'}, regional_rotation=True)
+        set(), NOW, {'fixture-CN', 'fixture-cgtn'}, regional_rotation=True)
     assert chosen['channel_id'] == 'mainland-provincial-tv'
 
 

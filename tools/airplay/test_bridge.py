@@ -9,7 +9,7 @@ from pyatv.conf import AppleTV, ManualService
 from pyatv.const import Protocol, PairingRequirement
 from pyatv.storage.memory_storage import MemoryStorage
 
-from bobtv_airplay import Bridge, error_message, validate_url, video_capable, receiver_limitation, ReceiverUnsupportedError, serve_command
+from bobtv_airplay import Bridge, error_message, validate_url, video_capable, receiver_limitation, ReceiverUnsupportedError, serve_command, is_native_mac
 from test_mac_auth import PinReceiver, TransientReceiver
 from mac_auth import MacAuthenticationError
 
@@ -114,8 +114,14 @@ class BridgeTests(unittest.IsolatedAsyncioTestCase):
     def test_mac_model_families_and_apple_tv(self):
         for model in ('MacBookPro16,2', 'Mac14,2', 'Macmini9,1', 'iMac20,1', 'MacBookAir10,1'):
             service = ManualService('x', Protocol.AirPlay, 7000, {'model': model})
-            self.assertIn('Mac', receiver_limitation(service))
-        self.assertIsNone(receiver_limitation(ManualService('x', Protocol.AirPlay, 7000, {'model': 'AppleTV6,2'}, pairing_requirement=PairingRequirement.NotNeeded)))
+            self.assertTrue(is_native_mac(service))
+            with patch('bobtv_airplay.mac_sender.available', return_value=False):
+                self.assertIn('Mac', receiver_limitation(service))
+            with patch('bobtv_airplay.mac_sender.available', return_value=True):
+                self.assertIsNone(receiver_limitation(service))
+        television = ManualService('x', Protocol.AirPlay, 7000, {'model': 'AppleTV6,2'}, pairing_requirement=PairingRequirement.NotNeeded)
+        self.assertFalse(is_native_mac(television))
+        self.assertIsNone(receiver_limitation(television))
     async def asyncSetUp(self):
         self.urls = []
         app = web.Application()

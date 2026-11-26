@@ -4,9 +4,6 @@ import 'dart:convert';
 import 'package:crypto/crypto.dart';
 import 'package:drift/drift.dart';
 import 'package:flutter/widgets.dart';
-import 'package:flutter/services.dart';
-import '../../data/resource_package/resource_package.dart';
-import '../../data/resource_package/resource_package_store.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../data/datasources/local/database.dart' as db;
@@ -21,12 +18,10 @@ class RegionalCatalogService extends ChangeNotifier
     this.database, {
     AccountService? account,
     RegionalCatalogClient? catalogClient,
-    this.installDemo = true,
     this.allowLegacyCatalog = false,
   }) : account = account ?? AccountService.instance,
        _clientOverride = catalogClient;
 
-  final bool installDemo;
   final bool allowLegacyCatalog;
   bool get canUseCatalog => allowLegacyCatalog || hasAccess;
   final db.AppDatabase database;
@@ -60,19 +55,6 @@ class RegionalCatalogService extends ChangeNotifier
     if (_closed) return;
     _owner = prefs.getString('bobtv.regional.owner');
     await _switchAccount();
-    if (installDemo) {
-      const demoId = 'bobtv-demo';
-      final providers = await database.getAllProviders();
-      final demo = ResourcePackage.parse(
-        await rootBundle.loadString('assets/data/demo.bobtv'),
-      );
-      await ResourcePackageStore(database).apply(
-        providerId: demoId,
-        package: demo,
-        address: demo.updateUrl.toString(),
-        create: !providers.any((p) => p.id == demoId),
-      );
-    }
     if (_closed) return;
     account.addListener(_accountChanged);
     WidgetsBinding.instance.addObserver(this);

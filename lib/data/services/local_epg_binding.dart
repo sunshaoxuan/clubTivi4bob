@@ -2,6 +2,7 @@ import 'package:drift/drift.dart';
 
 import '../datasources/local/database.dart' as db;
 import '../models/server_epg_snapshot.dart';
+import 'playlist_epg_sources.dart';
 
 /// All local providers and enabled XMLTV sources share one resolution policy.
 class LocalEpgBinding {
@@ -43,8 +44,16 @@ class LocalEpgBinding {
     final byExactId = <String, List<QueryRow>>{};
     final byId = <String, List<QueryRow>>{};
     final byName = <String, List<QueryRow>>{};
+    final playlistByProvider = <String, Map<String, List<QueryRow>>>{};
     for (final row in guide) {
       final raw = row.read<String>('channel_id');
+      final provider = PlaylistEpgSources.providerOf(
+        row.read<String>('source_id'),
+      );
+      if (provider != null) {
+        ((playlistByProvider[provider] ??= {})[raw.trim()] ??= []).add(row);
+        continue;
+      }
       (byExactId[raw.trim()] ??= []).add(row);
       (byId[idKey(raw)] ??= []).add(row);
       final key = nameKey(row.read<String>('display_name'));
@@ -136,9 +145,7 @@ class LocalEpgBinding {
       final provider = row.read<String>('provider_id');
       final key = owner(provider, channel);
       final previous = old[key];
-      if (previous != null && (previous.locked || previous.source != kind)) {
-        continue;
-      }
+      if (previous?.locked == true) continue;
       final names = {
         nameKey(row.read<String>('name')),
         if (row.readNullable<String>('tvg_name') != null)
@@ -147,6 +154,17 @@ class LocalEpgBinding {
       QueryRow? selected;
       final tvgId = row.readNullable<String>('tvg_id');
       if (tvgId != null && tvgId.trim().isNotEmpty) {
+        final declared = playlistByProvider[provider]?[tvgId.trim()] ?? [];
+        selected = choose(declared);
+        if (declared.isNotEmpty && selected == null) continue;
+      }
+      if (previous != null &&
+          previous.source != kind &&
+          (selected == null ||
+              !{'auto', 'suggested'}.contains(previous.source))) {
+        continue;
+      }
+      if (selected == null && tvgId != null && tvgId.trim().isNotEmpty) {
         final exact = byExactId[tvgId.trim()] ?? [];
         final candidates = exact.isNotEmpty ? exact : byId[idKey(tvgId)] ?? [];
         selected = choose(candidates, exactId: true, names: names);

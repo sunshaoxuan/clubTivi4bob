@@ -51,6 +51,7 @@ import '../../data/services/bobtv_community_service.dart';
 import '../../data/services/epg_refresh_service.dart';
 import '../../data/services/epg_ui_refresh.dart';
 import '../../data/models/server_epg_snapshot.dart';
+import '../../data/services/playlist_epg_sources.dart';
 import '../../data/services/stream_alternatives_service.dart';
 import '../../data/services/category_load_cache.dart';
 import '../../app/server_epg_runtime_host.dart';
@@ -1082,10 +1083,12 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
     if (channel.providerId == WebsiteChannelCatalogService.providerId) {
       return WebsiteChannelCatalogService.categoryForGroup(channel.groupTitle);
     }
-    if ((channel.id.startsWith('user:') ||
+    if (((UserSourcePolicy.enabled && _userSourceIds.contains(channel.providerId)) ||
+            channel.id.startsWith('user:') ||
             channel.providerId == 'user-manual-routes') &&
-        (channel.groupTitle?.isNotEmpty ?? false))
+        (channel.groupTitle?.isNotEmpty ?? false)) {
       return channel.groupTitle!;
+    }
     return ChannelCategoryClassifier.classify(
       name: channel.name,
       groupTitle: channel.groupTitle,
@@ -1164,6 +1167,13 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
         if (src.id == serverEpgSourceId) {
           continue;
         }
+        if (PlaylistEpgSources.contains(src.id)) {
+          final sportsService =
+              ChannelNameNormalizer.cctvSportsServiceKey(ch.displayName) ??
+              ChannelNameNormalizer.cctvSportsServiceKey(ch.channelId);
+          if (sportsService != null) epgSportsServiceById[ch.id] = sportsService;
+          continue;
+        }
         if (!needsPrivateMatching) continue;
         rawToPrefixed.putIfAbsent(ch.channelId.toLowerCase(), () => ch.id);
         final normName = _normalizeForEpgMatch(ch.displayName);
@@ -1202,7 +1212,8 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
       final directKey = (m.epgChannelId.startsWith('${m.epgSourceId}_')
           ? m.epgChannelId
           : '${m.epgSourceId}_${m.epgChannelId}');
-      if (m.locked || m.source == 'manual' || m.source == 'server') {
+      if (m.locked || m.source == 'manual' || m.source == 'server' ||
+          PlaylistEpgSources.contains(m.epgSourceId)) {
         epgMap[m.channelId] =
             currentSourceIds.contains(m.epgSourceId) &&
                 validIds.contains(directKey)
@@ -1214,6 +1225,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
         epgMap[m.channelId] = directKey;
       } else {
         for (final srcId in currentSourceIds) {
+          if (PlaylistEpgSources.contains(srcId)) continue;
           final candidate = '${srcId}_${m.epgChannelId}';
           if (validIds.contains(candidate)) {
             epgMap[m.channelId] = candidate;

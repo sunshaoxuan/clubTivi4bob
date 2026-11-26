@@ -84,11 +84,11 @@ class SourceMaintenanceCoordinator {
       (_) => unawaited(manager.refreshResourcePackagesDue()),
     );
     unawaited(manager.refreshResourcePackagesDue());
+    if (UserSourcePolicy.enabled) return;
     if (useRegionalCatalog) {
       unawaited(manager.regionalCatalog.initialize());
       return;
     }
-    if (UserSourcePolicy.enabled) return;
     unawaited(
       _initialization = regionalRoutes?.initialize() ?? Future<void>.value(),
     );

@@ -311,7 +311,7 @@ void main() {
       expect(await database.getAllChannels(), isEmpty);
       final manifest = await AssetManifest.loadFromAssetBundle(rootBundle);
       final assets = manifest.listAssets();
-      expect(assets, contains('assets/data/demo.bobtv'));
+      expect(assets, isNot(contains('assets/data/demo.bobtv')));
       expect(assets, isNot(contains('assets/data/channel_catalog_starter.json.gz')));
       expect(assets, isNot(contains('assets/data/github_ai_snapshot.json.gz')));
     },

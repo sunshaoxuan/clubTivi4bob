@@ -6,6 +6,7 @@ import '../../data/datasources/local/database.dart' as db;
 import '../../data/services/epg_refresh_service.dart';
 import '../providers/provider_manager.dart';
 import '../../core/i18n/app_language.dart';
+import '../../core/user_source_policy.dart';
 
 /// Dialog for adding a new EPG source.
 class AddEpgSourceDialog extends ConsumerStatefulWidget {
@@ -35,7 +36,7 @@ class _AddEpgSourceDialogState extends ConsumerState<AddEpgSourceDialog> {
     try {
       final database = ref.read(databaseProvider);
       final service = ref.read(epgRefreshServiceProvider);
-      final id = const Uuid().v4();
+      final id = 'user:manual:${const Uuid().v4()}';
 
       await database.upsertEpgSource(
         db.EpgSourcesCompanion.insert(
@@ -110,12 +111,14 @@ class _AddEpgSourceDialogState extends ConsumerState<AddEpgSourceDialog> {
                   return null;
                 },
               ),
-              const SizedBox(height: 16),
-              OutlinedButton.icon(
-                onPressed: _loading ? null : _addDefaults,
-                icon: const Icon(Icons.auto_fix_high),
-                label: Text(AppMessages.text(context, "添加默认来源")),
-              ),
+              if (!UserSourcePolicy.enabled) ...[
+                const SizedBox(height: 16),
+                OutlinedButton.icon(
+                  onPressed: _loading ? null : _addDefaults,
+                  icon: const Icon(Icons.auto_fix_high),
+                  label: Text(AppMessages.text(context, "添加默认来源")),
+                ),
+              ],
             ],
           ),
         ),

@@ -310,16 +310,14 @@ class _AddProviderPageState extends ConsumerState<_AddProviderPage> {
                       value: _ProviderType.single,
                       child: Text(AppMessages.text(context, '单条播放线路')),
                     ),
-                    if (!UserSourcePolicy.enabled)
-                      DropdownMenuItem(
-                        value: _ProviderType.m3u,
-                        child: Text(AppMessages.text(context, "M3U 播放列表")),
-                      ),
-                    if (!UserSourcePolicy.enabled)
-                      DropdownMenuItem(
-                        value: _ProviderType.xtream,
-                        child: Text(AppMessages.text(context, "Xtream Codes")),
-                      ),
+                    DropdownMenuItem(
+                      value: _ProviderType.m3u,
+                      child: Text(AppMessages.text(context, "M3U 播放列表"), key: const ValueKey('source-type-m3u')),
+                    ),
+                    DropdownMenuItem(
+                      value: _ProviderType.xtream,
+                      child: Text(AppMessages.text(context, "Xtream Codes"), key: const ValueKey('source-type-xtream')),
+                    ),
                   ],
                   onChanged: (v) {
                     if (v != null) setState(() => _type = v);
@@ -387,6 +385,7 @@ class _AddProviderPageState extends ConsumerState<_AddProviderPage> {
   List<Widget> _buildM3uFields() {
     return [
       TextFormField(
+        key: const ValueKey('m3u-source-name'),
         controller: _m3uName,
         decoration: InputDecoration(
           labelText: AppMessages.text(context, "电视源名称"),
@@ -397,6 +396,7 @@ class _AddProviderPageState extends ConsumerState<_AddProviderPage> {
       ),
       const SizedBox(height: 16),
       TextFormField(
+        key: const ValueKey('m3u-source-url'),
         controller: _m3uUrl,
         decoration: InputDecoration(
           labelText: AppMessages.text(context, "M3U URL"),
@@ -422,6 +422,7 @@ class _AddProviderPageState extends ConsumerState<_AddProviderPage> {
   List<Widget> _buildXtreamFields() {
     return [
       TextFormField(
+        key: const ValueKey('xtream-source-name'),
         controller: _xtreamName,
         decoration: InputDecoration(
           labelText: AppMessages.text(context, "电视源名称"),
@@ -432,6 +433,7 @@ class _AddProviderPageState extends ConsumerState<_AddProviderPage> {
       ),
       const SizedBox(height: 16),
       TextFormField(
+        key: const ValueKey('xtream-source-url'),
         controller: _xtreamUrl,
         decoration: InputDecoration(
           labelText: AppMessages.text(context, "服务器网址"),
@@ -443,6 +445,7 @@ class _AddProviderPageState extends ConsumerState<_AddProviderPage> {
       ),
       const SizedBox(height: 16),
       TextFormField(
+        key: const ValueKey('xtream-source-username'),
         controller: _xtreamUser,
         decoration: InputDecoration(
           labelText: AppMessages.text(context, "用户名"),
@@ -452,6 +455,7 @@ class _AddProviderPageState extends ConsumerState<_AddProviderPage> {
       ),
       const SizedBox(height: 16),
       TextFormField(
+        key: const ValueKey('xtream-source-password'),
         controller: _xtreamPass,
         decoration: InputDecoration(labelText: AppMessages.text(context, "密码")),
         obscureText: true,

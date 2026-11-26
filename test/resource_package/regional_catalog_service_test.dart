@@ -128,7 +128,6 @@ void main() {
       database,
       account: account,
       catalogClient: client,
-      installDemo: false,
     );
     await service.initialize();
     await service.refresh();

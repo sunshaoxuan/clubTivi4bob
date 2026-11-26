@@ -24,19 +24,24 @@ class XtreamClient {
       ..receiveTimeout = const Duration(seconds: 30);
   }
 
-  String get _apiBase => '$baseUrl/player_api.php';
+  String get _apiBase => _endpoint('player_api.php');
+
+  String _endpoint(String path) =>
+      endpoint(Uri.parse(baseUrl), path).toString();
+
+  static Uri endpoint(Uri base, String name) {
+    final directory = base.path.endsWith('/') ? base.path : '${base.path}/';
+    return base.resolve('$directory$name');
+  }
 
   Map<String, String> get _authParams => {
-        'username': username,
-        'password': password,
-      };
+    'username': username,
+    'password': password,
+  };
 
   /// Authenticate and get server info + account status.
   Future<XtreamServerInfo> authenticate() async {
-    final response = await _dio.get(
-      _apiBase,
-      queryParameters: _authParams,
-    );
+    final response = await _dio.get(_apiBase, queryParameters: _authParams);
     return XtreamServerInfo.fromJson(response.data as Map<String, dynamic>);
   }
 
@@ -137,23 +142,30 @@ class XtreamClient {
 
   /// Build a live stream URL.
   String buildLiveUrl(int streamId, {String extension = 'ts'}) {
-    return '$baseUrl/live/$username/$password/$streamId.$extension';
+    return _endpoint(
+      'live/${Uri.encodeComponent(username)}/${Uri.encodeComponent(password)}/$streamId.$extension',
+    );
   }
 
   /// Build a VOD stream URL.
   String buildVodUrl(int streamId, {String extension = 'mp4'}) {
-    return '$baseUrl/movie/$username/$password/$streamId.$extension';
+    return _endpoint(
+      'movie/${Uri.encodeComponent(username)}/${Uri.encodeComponent(password)}/$streamId.$extension',
+    );
   }
 
   Channel _channelFromXtream(Map<String, dynamic> json, String providerId) {
     final streamId = json['stream_id'];
-    final num = json['num'] is int ? json['num'] as int : int.tryParse('${json['num']}');
+    final epgId = json['epg_channel_id'];
+    final num = json['num'] is int
+        ? json['num'] as int
+        : int.tryParse('${json['num']}');
 
     return Channel(
       id: '${providerId}_$streamId',
       providerId: providerId,
       name: json['name'] as String? ?? 'Unknown',
-      tvgId: json['epg_channel_id'] as String?,
+      tvgId: epgId is String || epgId is int ? epgId.toString() : null,
       tvgName: json['name'] as String?,
       tvgLogo: json['stream_icon'] as String?,
       groupTitle: json['category_name'] as String?,
@@ -255,11 +267,7 @@ class XtreamCategory {
   final String name;
   final int? parentId;
 
-  const XtreamCategory({
-    required this.id,
-    required this.name,
-    this.parentId,
-  });
+  const XtreamCategory({required this.id, required this.name, this.parentId});
 
   factory XtreamCategory.fromJson(Map<String, dynamic> json) {
     return XtreamCategory(

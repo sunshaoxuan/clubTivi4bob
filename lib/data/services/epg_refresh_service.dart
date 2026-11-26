@@ -4,6 +4,7 @@ import 'package:dio/io.dart';
 import 'dart:io';
 import 'dart:async';
 import 'dart:convert';
+import 'dart:typed_data' show BytesBuilder;
 
 import 'package:drift/drift.dart';
 import 'package:dio/dio.dart';
@@ -12,14 +13,17 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../datasources/local/database.dart' as db;
 import '../datasources/parsers/xmltv_parser.dart';
+import '../datasources/remote/xtream_client.dart';
 import '../models/server_epg_snapshot.dart';
 import '../../features/providers/provider_manager.dart';
 import 'local_epg_binding.dart';
+import 'playlist_epg_sources.dart';
 
 class EpgRefreshService {
   final db.AppDatabase _db;
   final _work = <Future<void>>{};
   final _downloads = <Dio>{};
+  final _sourceRefreshes = <String, Future<void>>{};
   bool _stopping = false;
   Timer? _refreshTimer;
   Future<void>? _refreshing;
@@ -73,14 +77,38 @@ class EpgRefreshService {
   EpgRefreshService(this._db);
 
   /// Refresh a single EPG source by ID.
-  Future<void> refreshSource(String sourceId) =>
-      _track(() => _refreshSource(sourceId));
+  Future<void> refreshSource(String sourceId) => _sourceRefreshes.putIfAbsent(
+    sourceId,
+    () => _track(() => _refreshSource(sourceId)).whenComplete(() {
+      _sourceRefreshes.remove(sourceId);
+    }),
+  );
 
   Future<void> _refreshSource(String sourceId) async {
     final sources = await _db.getAllEpgSources();
     if (_stopping) return;
     final source = sources.firstWhere((s) => s.id == sourceId);
-    debugPrint('[EPG] Refreshing source: ${source.name} (${source.url})');
+    final xtream = PlaylistEpgSources.isXtream(sourceId);
+    Map<String, String>? credentials;
+    if (xtream) {
+      final owner = PlaylistEpgSources.providerOf(sourceId);
+      final provider = (await _db.getAllProviders())
+          .where((entry) => entry.id == owner && entry.type == 'xtream')
+          .firstOrNull;
+      final base = Uri.tryParse(provider?.url ?? '');
+      if (base == null ||
+          provider?.username == null ||
+          provider?.password == null ||
+          XtreamClient.endpoint(base, 'xmltv.php').toString() != source.url) {
+        throw StateError('Xtream guide owner changed');
+      }
+      credentials = {
+        'username': provider!.username!,
+        'password': provider.password!,
+      };
+      if (_stopping) return;
+    }
+    debugPrint('[EPG] Refreshing guide');
 
     // Download XMLTV data
     final dio = ServerEgress.dio(
@@ -90,16 +118,36 @@ class EpgRefreshService {
       ),
     );
     if (sourceId.startsWith('user:')) {
-      dio.httpClientAdapter = IOHttpClientAdapter(createHttpClient: ServerEgress.createUserSourceClient);
+      dio.httpClientAdapter = IOHttpClientAdapter(
+        createHttpClient: ServerEgress.createUserSourceClient,
+      );
     }
     _downloads.add(dio);
     try {
-      final response = await dio.get<List<int>>(
-        source.url,
-        options: Options(responseType: ResponseType.bytes),
-      );
-
-      final bytes = response.data!;
+      final List<int> bytes;
+      if (PlaylistEpgSources.contains(sourceId)) {
+        final response = await dio
+            .get<ResponseBody>(
+              source.url,
+              queryParameters: credentials,
+              options: Options(
+                responseType: ResponseType.stream,
+                receiveTimeout: const Duration(seconds: 15),
+                followRedirects: !xtream,
+                maxRedirects: 3,
+              ),
+            )
+            .timeout(const Duration(seconds: 25));
+        bytes = await _collectGuideBytes(
+          response.data!.stream,
+        ).timeout(const Duration(seconds: 25));
+      } else {
+        final response = await dio.get<List<int>>(
+          source.url,
+          options: Options(responseType: ResponseType.bytes),
+        );
+        bytes = response.data!;
+      }
       debugPrint('[EPG] Downloaded ${bytes.length} bytes');
 
       // Decompress + parse in background isolate to avoid ANR
@@ -111,6 +159,9 @@ class EpgRefreshService {
         '[EPG] Parsed ${result.channels.length} channels, ${result.programmes.length} programmes, skipped ${result.rejectedProgrammes} invalid records',
       );
       if (!_stopping) await importParsed(sourceId, result);
+    } on DioException {
+      if (xtream) throw StateError('Xtream guide unavailable');
+      rethrow;
     } finally {
       _downloads.remove(dio);
       dio.close();
@@ -163,7 +214,9 @@ class EpgRefreshService {
           sourceId: sourceId,
           channelId: c.id,
           displayName: c.primaryName,
-          iconUrl: Value(c.iconUrl),
+          iconUrl: Value(
+            PlaylistEpgSources.contains(sourceId) ? null : c.iconUrl,
+          ),
         );
       }).toList();
       await _db.upsertEpgChannels(channelCompanions);
@@ -211,6 +264,10 @@ class EpgRefreshService {
     for (final source in sources.where((s) => s.enabled)) {
       // This source is version-driven; it must never enter the XMLTV/4h path.
       if (source.id == serverEpgSourceId) continue;
+      if (UserSourcePolicy.enabled &&
+          (source.id == chinaSourceId || source.id == extendedChinaSourceId)) {
+        continue;
+      }
       if (!force &&
           source.lastRefresh != null &&
           now.difference(source.lastRefresh!) <
@@ -223,7 +280,7 @@ class EpgRefreshService {
       try {
         await refreshSource(source.id);
       } catch (e) {
-        debugPrint('[EPG] Error refreshing ${source.name}: $e');
+        debugPrint('[EPG] Guide refresh failed: ${e.runtimeType}');
       }
     }
     if (!_stopping) await LocalEpgBinding(_db).reconcile();
@@ -233,7 +290,7 @@ class EpgRefreshService {
   Future<void> addDefaultSources() => _track(_addDefaultSources);
 
   Future<void> _addDefaultSources() async {
-    if (UserSourcePolicy.enabled && !await _db.hasPlayableChannels()) return;
+    if (UserSourcePolicy.enabled) return;
     final existing = await _db.getAllEpgSources();
     // Seed only an unconfigured installation. Existing global, custom and
     // disabled sources belong to the user and must remain unchanged.
@@ -258,9 +315,10 @@ class EpgRefreshService {
 
   /// Delete all existing sources and re-add defaults.
   Future<void> resetToDefaultSources() async {
+    if (UserSourcePolicy.enabled) return;
     final existing = await _db.getAllEpgSources();
     for (final s in existing) {
-      await _db.deleteEpgSource(s.id);
+      if (!PlaylistEpgSources.contains(s.id)) await _db.deleteEpgSource(s.id);
     }
     await _insertDefaults();
   }
@@ -310,13 +368,42 @@ class _DecompressParseArgs {
 }
 
 /// Top-level function for compute() — runs decompression + XML parsing off the main thread.
-XmltvResult _decompressAndParse(_DecompressParseArgs args) {
+Future<List<int>> _collectGuideBytes(Stream<List<int>> stream) async {
+  const limit = 32 * 1024 * 1024;
+  final bytes = BytesBuilder(copy: false);
+  await for (final chunk in stream) {
+    if (bytes.length + chunk.length > limit) {
+      throw const FormatException('EPG response exceeds the size limit');
+    }
+    bytes.add(chunk is Uint8List ? chunk : Uint8List.fromList(chunk));
+  }
+  return bytes.takeBytes();
+}
+
+Future<XmltvResult> _decompressAndParse(_DecompressParseArgs args) async {
   List<int> decompressed;
-  try {
-    decompressed = gzip.decode(args.bytes);
-  } catch (_) {
-    decompressed = args.bytes;
+  if (PlaylistEpgSources.contains(args.sourceId)) {
+    final bytes = args.bytes;
+    final gzipped = bytes.length > 2 && bytes[0] == 0x1f && bytes[1] == 0x8b;
+    decompressed = gzipped
+        ? await _collectGuideBytes(
+            gzip.decoder.bind(Stream.fromIterable(_compressedChunks(bytes))),
+          )
+        : bytes;
+  } else {
+    try {
+      decompressed = gzip.decode(args.bytes);
+    } catch (_) {
+      decompressed = args.bytes;
+    }
   }
   final xmlContent = utf8.decode(decompressed, allowMalformed: true);
   return XmltvParser().parse(xmlContent, sourceId: args.sourceId);
+}
+
+Iterable<List<int>> _compressedChunks(List<int> bytes) sync* {
+  const chunkSize = 16 * 1024;
+  for (var offset = 0; offset < bytes.length; offset += chunkSize) {
+    yield bytes.sublist(offset, (offset + chunkSize).clamp(0, bytes.length));
+  }
 }

@@ -144,6 +144,22 @@
       "scope": "Seven-platform corrective release for embedded Mac update observer version; iOS unchanged",
       "sourceCommit": "ee49de491b3c0718ace13a670ddcf71a62a50df9",
       "releaseUrl": "https://github.com/sunshaoxuan/clubTivi4bob/releases/tag/v1.4.7"
+    },
+    {
+      "version": "1.4.8+11",
+      "displayVersion": "1.4.8",
+      "status": "allocated",
+      "date": "2026-11-26",
+      "platforms": [
+        "windows-x64",
+        "windows-arm64",
+        "macos-x64",
+        "macos-arm64",
+        "android-arm",
+        "android-arm64",
+        "android-x64"
+      ],
+      "scope": "Seven-platform release with user-owned sources by default and automatic source EPG"
     }
   ]
 }

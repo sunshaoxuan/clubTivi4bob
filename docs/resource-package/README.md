@@ -4,7 +4,7 @@
 
 ## 使用方式
 
-资源包采用 BobTV 自定义数据结构。服务器保存频道名称、分类、线路、台标和 XMLTV 节目表。用户通过资源包 URL 或文件导入，BobTV 校验后显示摘要，用户确认后应用完整快照。iOS 首次安装为空，无默认频道库或推荐来源；其他现有平台继续使用原分发模式，可用 `BOBTV_USER_SOURCES_ONLY=true` 开启空播放器模式。
+资源包采用 BobTV 自定义数据结构。用户通过资源包 URL 或文件导入，BobTV 校验后显示摘要，用户确认后应用完整快照。各平台初次安装时均为空，用户可自行添加资源包、M3U、Xtream 或单条线路。M3U 和 Xtream 来源的节目单由客户端直接读取，并按同一来源声明的频道 ID 匹配。
 
 `.bobtv` 文件内容为 UTF-8 JSON，HTTP 可返回 `Content-Type: application/json`，可使用 `Content-Encoding: gzip`。文件导入目前只接受未压缩 JSON。协议标识和版本决定解析方式，改扩展名无效。该结构供 BobTV 实现解析，格式本身不提供加密或发布者身份认证。
 

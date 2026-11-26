@@ -50,6 +50,7 @@ class ProvidersScreen extends ConsumerWidget {
             title: Text(AppMessages.text(context, "电视源管理")),
             actions: [
               IconButton(
+                key: const ValueKey('providers-add-source'),
                 icon: const Icon(Icons.add, size: 28),
                 tooltip: AppMessages.text(context, "添加电视源"),
                 onPressed: () => showAddProviderDialog(context),

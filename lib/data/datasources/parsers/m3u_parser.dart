@@ -13,8 +13,10 @@ class M3uParser {
     final lines = content.split(RegExp(r'\r?\n'));
     final channels = <Channel>[];
     final errors = <String>[];
+    final epgUrls = <String>{};
 
-    if (lines.isEmpty || !lines.first.trim().startsWith('#EXTM3U')) {
+    final headerIndex = lines.indexWhere((line) => line.trim().isNotEmpty);
+    if (headerIndex == -1 || !lines[headerIndex].trim().startsWith('#EXTM3U')) {
       errors.add('Missing #EXTM3U header');
     }
 
@@ -25,8 +27,20 @@ class M3uParser {
 
       if (line.isEmpty || line == '#EXTM3U') continue;
 
-      // Skip global EXTM3U attributes line
-      if (line.startsWith('#EXTM3U ')) continue;
+      if (line.startsWith('#EXTM3U ') || line.startsWith('#EXTM3U\t')) {
+        if (i == headerIndex) {
+          final attrs = _parseAttributes(line);
+          for (final key in ['x-tvg-url', 'url-tvg', 'tvg-url']) {
+            epgUrls.addAll(
+              (attrs[key] ?? '')
+                  .split(',')
+                  .map((url) => url.trim())
+                  .where((url) => url.isNotEmpty),
+            );
+          }
+        }
+        continue;
+      }
 
       if (line.startsWith('#EXTINF:')) {
         currentExtInf = line;
@@ -48,7 +62,11 @@ class M3uParser {
       }
     }
 
-    return M3uResult(channels: channels, errors: errors);
+    return M3uResult(
+      channels: channels,
+      errors: errors,
+      epgUrls: epgUrls.toList(),
+    );
   }
 
   Channel? _parseEntry(String extInf, String url, String providerId) {
@@ -134,8 +152,13 @@ class M3uParser {
 class M3uResult {
   final List<Channel> channels;
   final List<String> errors;
+  final List<String> epgUrls;
 
-  const M3uResult({required this.channels, this.errors = const []});
+  const M3uResult({
+    required this.channels,
+    this.errors = const [],
+    this.epgUrls = const [],
+  });
 
   bool get hasErrors => errors.isNotEmpty;
   int get channelCount => channels.length;

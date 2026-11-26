@@ -1,3 +1,6 @@
+import 'dart:convert';
+import 'dart:typed_data' show BytesBuilder;
+
 import '../account/regional_catalog_service.dart';
 import '../../data/services/installation_registration_policy.dart';
 import '../../core/server_egress.dart';
@@ -15,15 +18,21 @@ import '../../data/datasources/remote/xtream_client.dart';
 import '../../data/models/channel.dart' hide Provider;
 import '../../data/services/logo_resolver_service.dart';
 import '../../data/services/channel_category_classifier.dart';
+import '../../data/services/epg_refresh_service.dart';
+import '../../data/services/playlist_epg_sources.dart';
 import '../../core/feature_gate.dart';
+import '../../core/user_source_policy.dart';
 import 'package:dio/dio.dart';
+import 'package:dio/io.dart';
 
 /// Manages IPTV providers: adding, refreshing, channel loading.
 class ProviderManager {
   final db.AppDatabase _db;
+  final Future<void> Function(String)? _refreshEpgSource;
   final M3uParser _m3uParser = M3uParser();
 
-  ProviderManager(this._db);
+  ProviderManager(this._db, {Future<void> Function(String)? refreshEpgSource})
+    : _refreshEpgSource = refreshEpgSource;
 
   db.AppDatabase get database => _db;
   late final regionalCatalog = RegionalCatalogService(
@@ -213,7 +222,17 @@ class ProviderManager {
   }
 
   /// Refresh a provider's channels from its source.
-  Future<int> refreshProvider(String providerId) async {
+  Future<int> refreshProvider(String providerId) =>
+      _providerRefreshes.putIfAbsent(
+        providerId,
+        () => _refreshProvider(providerId).whenComplete(() {
+          _providerRefreshes.remove(providerId);
+        }),
+      );
+
+  final _providerRefreshes = <String, Future<int>>{};
+
+  Future<int> _refreshProvider(String providerId) async {
     final providers = await _db.getAllProviders();
     final provider = providers.firstWhere((p) => p.id == providerId);
 
@@ -222,8 +241,10 @@ class ProviderManager {
     }
 
     List<Channel> channels;
+    (M3uResult, Uri)? playlist;
     if (provider.type == 'm3u') {
-      channels = await _refreshM3u(provider);
+      playlist = await _refreshM3u(provider);
+      channels = playlist.$1.channels;
     } else if (provider.type == 'xtream') {
       channels = await _refreshXtream(provider);
     } else {
@@ -248,37 +269,75 @@ class ProviderManager {
         )
         .toList();
 
-    final existing = await _db.getChannelsForProvider(providerId);
-    final existingById = {for (final channel in existing) channel.id: channel};
+    final pendingGuides = await _db.transaction(() async {
+      final current = (await _db.getAllProviders())
+          .where((p) => p.id == providerId)
+          .firstOrNull;
+      if (current?.type != provider.type ||
+          current?.url != provider.url ||
+          current?.username != provider.username ||
+          current?.password != provider.password) {
+        throw StateError('Source changed during download');
+      }
+      final existing = await _db.getChannelsForProvider(providerId);
+      final existingById = {
+        for (final channel in existing) channel.id: channel,
+      };
 
-    // Save channels while retaining local favorite and visibility choices.
-    await _db.upsertChannels(
-      channels.map((c) {
-        final saved = existingById[c.id];
-        return db.ChannelsCompanion.insert(
-          id: c.id,
-          providerId: c.providerId,
-          name: c.name,
-          tvgId: Value(c.tvgId),
-          tvgName: Value(c.tvgName),
-          tvgLogo: Value(c.tvgLogo),
-          groupTitle: Value(c.groupTitle),
-          channelNumber: Value(c.channelNumber),
-          streamUrl: c.streamUrl,
-          streamType: Value(c.streamType.name),
-          favorite: Value(saved?.favorite ?? false),
-          hidden: Value(saved?.hidden ?? false),
-          sortOrder: Value(saved?.sortOrder ?? 0),
+      // Save channels while retaining local favorite and visibility choices.
+      await _db.upsertChannels(
+        channels.map((c) {
+          final saved = existingById[c.id];
+          final group = c.groupTitle?.trim();
+          return db.ChannelsCompanion.insert(
+            id: c.id,
+            providerId: c.providerId,
+            name: c.name,
+            tvgId: Value(c.tvgId),
+            tvgName: Value(c.tvgName),
+            tvgLogo: Value(c.tvgLogo),
+            groupTitle: Value(
+              UserSourcePolicy.enabled && (group == null || group.isEmpty)
+                  ? current!.name
+                  : c.groupTitle,
+            ),
+            channelNumber: Value(c.channelNumber),
+            streamUrl: c.streamUrl,
+            streamType: Value(c.streamType.name),
+            favorite: Value(saved?.favorite ?? false),
+            hidden: Value(saved?.hidden ?? false),
+            sortOrder: Value(saved?.sortOrder ?? 0),
+          );
+        }).toList(),
+      );
+
+      await _db.deleteChannelsMissingFromProvider(
+        providerId,
+        channels.map((channel) => channel.id).toSet(),
+      );
+
+      await _db.markProviderRefreshed(providerId, DateTime.now());
+      if (playlist == null) {
+        final base = ResourcePackage.url(current!.url, 'Xtream URL');
+        final guide = XtreamClient.endpoint(base, 'xmltv.php');
+        return PlaylistEpgSources(_db).reconcile(
+          current,
+          base,
+          channels.any((channel) => channel.tvgId?.trim().isNotEmpty == true)
+              ? [guide.toString()]
+              : const [],
         );
-      }).toList(),
-    );
-
-    await _db.deleteChannelsMissingFromProvider(
-      providerId,
-      channels.map((channel) => channel.id).toSet(),
-    );
-
-    await _db.markProviderRefreshed(providerId, DateTime.now());
+      }
+      return PlaylistEpgSources(
+        _db,
+      ).reconcile(current!, playlist.$2, playlist.$1.epgUrls);
+    });
+    final refreshGuide = _refreshEpgSource;
+    if (refreshGuide != null) {
+      for (final guide in pendingGuides) {
+        refreshGuide(guide).catchError((Object _) {});
+      }
+    }
 
     // Resolve missing logos in background
     _resolveChannelLogos(channels).catchError((_) {});
@@ -286,31 +345,63 @@ class ProviderManager {
     return channels.length;
   }
 
-  Future<List<Channel>> _refreshM3u(db.Provider provider) async {
-    final host = Uri.tryParse(provider.url ?? '')?.host.toLowerCase() ?? '';
-    if (host == 'github.com' ||
-        host == 'raw.githubusercontent.com' ||
-        host == 'api.github.com' ||
-        host.endsWith('.github.io')) {
-      throw StateError('GitHub 公共线路由服务器统一刷新，请使用公共频道库；已有频道会保留');
-    }
-    final dio = ServerEgress.dio(
-      BaseOptions(extra: {'egressKind': 'playlist'}),
-    );
+  Future<(M3uResult, Uri)> _refreshM3u(db.Provider provider) async {
+    final uri = ResourcePackage.url(provider.url, 'playlist URL');
+    final dio =
+        Dio(
+            BaseOptions(
+              connectTimeout: const Duration(seconds: 10),
+              receiveTimeout: const Duration(seconds: 20),
+              maxRedirects: 3,
+            ),
+          )
+          ..httpClientAdapter = IOHttpClientAdapter(
+            createHttpClient: ServerEgress.createUserSourceClient,
+          );
     try {
-      final response = await dio.get<String>(provider.url!);
-      final result = _m3uParser.parse(response.data!, providerId: provider.id);
-      return result.channels;
+      final response = await dio
+          .getUri<ResponseBody>(
+            uri,
+            options: Options(responseType: ResponseType.stream),
+          )
+          .timeout(const Duration(seconds: 25));
+      final finalUri = ResourcePackage.url(
+        response.realUri.toString(),
+        'playlist redirect',
+      );
+      if (uri.scheme == 'https' && finalUri.scheme != 'https') {
+        throw const FormatException('Playlist redirect requires HTTPS');
+      }
+      final bytes = BytesBuilder(copy: false);
+      await response.data!.stream
+          .forEach((chunk) {
+            if (bytes.length + chunk.length > 32 * 1024 * 1024) {
+              throw const FormatException('Playlist exceeds the size limit');
+            }
+            bytes.add(chunk);
+          })
+          .timeout(const Duration(seconds: 25));
+      final result = _m3uParser.parse(
+        utf8.decode(bytes.takeBytes(), allowMalformed: true),
+        providerId: provider.id,
+      );
+      return (result, finalUri);
     } finally {
       dio.close();
     }
   }
 
   Future<List<Channel>> _refreshXtream(db.Provider provider) async {
+    final base = ResourcePackage.url(provider.url, 'Xtream URL');
+    final dio = Dio(BaseOptions(followRedirects: false))
+      ..httpClientAdapter = IOHttpClientAdapter(
+        createHttpClient: ServerEgress.createUserSourceClient,
+      );
     final client = XtreamClient(
-      baseUrl: provider.url!,
+      baseUrl: base.toString(),
       username: provider.username!,
       password: provider.password!,
+      dio: dio,
     );
     try {
       return await client.getLiveStreams(providerId: provider.id);
@@ -331,6 +422,18 @@ class ProviderManager {
       await _db.transaction(() async {
         await _db.deleteChannelsByIds(
           (await _db.getChannelsForProvider(id)).map((c) => c.id),
+        );
+        await _db.deleteProvider(id);
+      });
+      return;
+    }
+    if (provider?.type == 'm3u' || provider?.type == 'xtream') {
+      await _db.transaction(() async {
+        await PlaylistEpgSources(
+          _db,
+        ).removeProvider(id, xtream: provider!.type == 'xtream');
+        await _db.deleteChannelsByIds(
+          (await _db.getChannelsForProvider(id)).map((channel) => channel.id),
         );
         await _db.deleteProvider(id);
       });
@@ -539,7 +642,10 @@ final databaseProvider = Provider<db.AppDatabase>((ref) {
 
 /// Riverpod provider for the provider manager.
 final providerManagerProvider = Provider<ProviderManager>((ref) {
-  final manager = ProviderManager(ref.watch(databaseProvider));
+  final manager = ProviderManager(
+    ref.watch(databaseProvider),
+    refreshEpgSource: ref.watch(epgRefreshServiceProvider).refreshSource,
+  );
   ref.onDispose(() => manager.regionalCatalog.dispose());
   return manager;
 });

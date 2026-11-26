@@ -216,7 +216,7 @@ void main() {
     },
   );
   test(
-    'source-only iOS does not seed channels or EPG before a route exists',
+    'source-only iOS keeps the public catalogue and default EPG disabled',
     () async {
       debugDefaultTargetPlatformOverride = TargetPlatform.iOS;
       addTearDown(() => debugDefaultTargetPlatformOverride = null);
@@ -238,6 +238,20 @@ void main() {
       await epg.refreshAllSources();
       expect(await database.getAllProviders(), isEmpty);
       expect(await database.getAllChannels(), isEmpty);
+      expect(await database.getAllEpgSources(), isEmpty);
+      await database.upsertProvider(
+        db.ProvidersCompanion.insert(id: 'personal', name: 'Personal', type: 'manual'),
+      );
+      await database.upsertChannels([
+        db.ChannelsCompanion.insert(
+          id: 'personal-channel',
+          providerId: 'personal',
+          name: 'Personal Channel',
+          streamUrl: 'https://example.org/live.m3u8',
+        ),
+      ]);
+      await epg.addDefaultSources();
+      expect(await serverEpg.check(), false);
       expect(await database.getAllEpgSources(), isEmpty);
     },
   );

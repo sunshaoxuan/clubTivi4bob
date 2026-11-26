@@ -203,6 +203,11 @@
     "history": [
       [
         "2026-11-26",
+        "v1.4.8 · Fuentes propias y guía automática",
+        "Las instalaciones nuevas empiezan con un reproductor vacío. Añade una fuente M3U o Xtream para ver el programa actual y el siguiente según el identificador del canal."
+      ],
+      [
+        "2026-11-26",
         "v1.4.7 · Corrección de actualización de Mac",
         "Alinea la versión del asistente de actualización con la aplicación para permitir la instalación desde clientes Mac anteriores. Conserva las mejoras de inicio y el diagnóstico de transmisión."
       ],

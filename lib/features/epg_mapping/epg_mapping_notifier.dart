@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../data/datasources/local/database.dart' as db;
 import '../../data/models/epg.dart';
 import '../../data/models/server_epg_snapshot.dart';
+import '../../data/services/playlist_epg_sources.dart';
 import '../../data/models/channel.dart' hide Provider;
 import '../../data/services/epg_auto_mapper.dart';
 import '../providers/provider_manager.dart';
@@ -233,7 +234,8 @@ class EpgMappingNotifier extends StateNotifier<EpgMappingState> {
 
     // Collect EPG channels from ALL enabled sources
     final epgChannels = <EpgChannel>[];
-    for (final src in epgSources.where((s) => s.enabled && s.id != serverEpgSourceId)) {
+    for (final src in epgSources.where((s) =>
+        s.enabled && s.id != serverEpgSourceId && !PlaylistEpgSources.contains(s.id))) {
       final epgDbChannels = await _db.getEpgChannelsForSource(src.id);
       epgChannels.addAll(epgDbChannels.map((c) => EpgChannel(
         id: c.channelId,
@@ -253,7 +255,9 @@ class EpgMappingNotifier extends StateNotifier<EpgMappingState> {
 
     // Get all provider channels
     final channels = state.entries
-        .where((e) => !e.isLocked)
+        .where((e) =>
+            !e.isLocked &&
+            !PlaylistEpgSources.contains(e.mapping?.epgSourceId ?? ''))
         .map((e) => e.channel)
         .toList();
 

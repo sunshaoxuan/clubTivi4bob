@@ -203,6 +203,11 @@
     "history": [
       [
         "2026-11-26",
+        "v1.4.8 · Sources personnelles et guide automatique",
+        "Une nouvelle installation démarre avec un lecteur vide. Ajoutez une source M3U ou Xtream pour afficher le programme en cours et le suivant selon l’identifiant de la chaîne."
+      ],
+      [
+        "2026-11-26",
         "v1.4.7 · Correction de la mise à jour Mac",
         "Aligne la version du programme de suivi sur celle de l’application pour permettre l’installation depuis les anciens clients Mac. Conserve les corrections de démarrage et les diagnostics de diffusion."
       ],

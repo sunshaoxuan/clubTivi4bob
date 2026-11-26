@@ -2,6 +2,7 @@ import '../../core/server_image.dart';
 import '../../data/services/epg_ui_refresh.dart';
 import '../../app/server_epg_runtime_host.dart';
 import '../../data/models/server_epg_snapshot.dart';
+import '../../data/services/playlist_epg_sources.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -84,7 +85,8 @@ class _GuideScreenState extends ConsumerState<GuideScreen> {
     for (final m in mappings) {
       final direct = (m.epgChannelId.startsWith('${m.epgSourceId}_')
           ? m.epgChannelId : '${m.epgSourceId}_${m.epgChannelId}');
-      if (m.locked || m.source == 'manual' || m.source == 'server') {
+      if (m.locked || m.source == 'manual' || m.source == 'server' ||
+          PlaylistEpgSources.contains(m.epgSourceId)) {
         epgMap[m.channelId] = currentSourceIds.contains(m.epgSourceId) && validIds.contains(direct)
           ? direct : '';
         continue;
@@ -94,6 +96,7 @@ class _GuideScreenState extends ConsumerState<GuideScreen> {
           ? m.epgChannelId : '${m.epgSourceId}_${m.epgChannelId}');
       } else {
         for (final srcId in currentSourceIds) {
+          if (PlaylistEpgSources.contains(srcId)) continue;
           final candidate = '${srcId}_${m.epgChannelId}';
           if (validIds.contains(candidate)) {
             epgMap[m.channelId] = candidate;

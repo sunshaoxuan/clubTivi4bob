@@ -1172,7 +1172,8 @@ class AppDatabase extends _$AppDatabase {
   Future<List<String>> getUserSourceCategoryGroups() async {
     final rows = await customSelect(
       "SELECT DISTINCT c.group_title FROM channels c JOIN providers p ON p.id=c.provider_id "
-      "WHERE p.type IN ('resource','manual') AND c.stream_url<>'' AND c.group_title IS NOT NULL ORDER BY c.group_title",
+      "WHERE p.type IN ('resource','manual','m3u','xtream') AND p.enabled=1 "
+      "AND c.stream_url<>'' AND c.group_title IS NOT NULL ORDER BY c.group_title",
       readsFrom: {channels, providers},
     ).get();
     return rows.map((r) => r.read<String>('group_title')).toList();

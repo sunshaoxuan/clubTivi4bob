@@ -18,6 +18,8 @@ import '../../core/app_version.dart';
 import '../../data/datasources/local/database.dart' as db;
 import '../../data/services/backup_service.dart';
 import '../../data/services/epg_refresh_service.dart';
+import '../../data/services/playlist_epg_sources.dart';
+import '../../core/user_source_policy.dart';
 import '../../data/services/desktop_update_service.dart';
 import '../providers/provider_manager.dart';
 import '../providers/source_maintenance_coordinator.dart';
@@ -620,7 +622,7 @@ class _EpgSourcesScreenState extends ConsumerState<_EpgSourcesScreen> {
         child: SettingsDetailPage(
           title: AppMessages.text(context, "节目单来源"),
           actions: [
-            TextButton.icon(
+            if (!UserSourcePolicy.enabled) TextButton.icon(
               onPressed: _resetToDefaults,
               icon: const Icon(Icons.restart_alt, size: 18),
               label: Text(AppMessages.text(context, "恢复默认")),
@@ -703,7 +705,7 @@ class _EpgSourcesScreenState extends ConsumerState<_EpgSourcesScreen> {
                       trailing: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          IconButton(
+                          if (!PlaylistEpgSources.contains(source.id)) IconButton(
                             icon: const Icon(Icons.edit_outlined),
                             tooltip: AppMessages.text(context, "编辑来源"),
                             onPressed: () => _editSource(source),
@@ -719,7 +721,7 @@ class _EpgSourcesScreenState extends ConsumerState<_EpgSourcesScreen> {
                               icon: const Icon(Icons.refresh),
                               onPressed: () => _refreshSource(source.id),
                             ),
-                          IconButton(
+                          if (!PlaylistEpgSources.contains(source.id)) IconButton(
                             icon: const Icon(Icons.delete_outline),
                             onPressed: () => _deleteSource(source.id),
                           ),

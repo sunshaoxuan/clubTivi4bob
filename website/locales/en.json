@@ -203,6 +203,11 @@
     "history": [
       [
         "2026-11-26",
+        "v1.4.8 · Bring your own sources and programme guide",
+        "New installations start with an empty player. Add an M3U or Xtream source and BobTV reads its guide and matches channel IDs to show what is on now and next."
+      ],
+      [
+        "2026-11-26",
         "v1.4.7 · Mac automatic update fix",
         "Aligns the bundled update observer version with the application so older Mac clients can install the update after downloading. Retains startup fixes and casting diagnostics."
       ],

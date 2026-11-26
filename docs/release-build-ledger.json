@@ -130,7 +130,7 @@
     {
       "version": "1.4.7+10",
       "displayVersion": "1.4.7",
-      "status": "allocated",
+      "status": "published",
       "date": "2026-11-26",
       "platforms": [
         "windows-x64",
@@ -141,7 +141,9 @@
         "android-arm64",
         "android-x64"
       ],
-      "scope": "Seven-platform corrective release for embedded Mac update observer version; iOS unchanged"
+      "scope": "Seven-platform corrective release for embedded Mac update observer version; iOS unchanged",
+      "sourceCommit": "ee49de491b3c0718ace13a670ddcf71a62a50df9",
+      "releaseUrl": "https://github.com/sunshaoxuan/clubTivi4bob/releases/tag/v1.4.7"
     }
   ]
 }

@@ -1,7 +1,7 @@
 """Bounded channel-specific discovery. Search leads never approve identity or rights."""
 import hashlib
 import html
-from html.parser import HTMLParser
+from scrapling.parser import Selector
 import json
 import re
 import time
@@ -299,6 +299,8 @@ def candidate_allowed(url, domains, stage, *, request=None):
                 'service_id','serviceId','market','market_code','country','locale',
                 'language','lang','timezone','tz','page','per_page','limit','offset',
                 'classification_id','device_identifier','type','format','days','duration'}
+            if p.hostname == 'api.cntv.cn' and p.path == '/epg/getEpgInfoByChannelNew':
+                keys.update(('c', 'd'))
             pairs = parse_qsl(p.query,keep_blank_values=True,strict_parsing=True,max_num_fields=16)
             if (len(url)>4096 or not pairs or len({k for k,v in pairs})!=len(pairs)
                     or any(k not in keys or not v or len(v)>256
@@ -483,25 +485,6 @@ def decode(response, request, now):
             'newProgrammeRows': 0, 'published': False}
 
 
-class VisibleText(HTMLParser):
-    def __init__(self):
-        super().__init__()
-        self.skip = 0
-        self.parts = []
-
-    def handle_starttag(self, tag, attrs):
-        if tag in {'script', 'style', 'noscript'}:
-            self.skip += 1
-
-    def handle_endtag(self, tag):
-        if tag in {'script', 'style', 'noscript'}:
-            self.skip = max(0, self.skip - 1)
-
-    def handle_data(self, text):
-        if not self.skip:
-            self.parts.append(text.strip())
-
-
 def check_candidate(url, request, *, opener=None, clock=time.monotonic):
     """Pinned public DNS, no redirects, cookies, tokens, compression or media.
 
@@ -551,13 +534,18 @@ def check_candidate(url, request, *, opener=None, clock=time.monotonic):
             raw = b''.join(chunks)
             if not identity:
                 from epg_programme_probe import inspect_programme_content
+                from epg_official_directory import inspect_schedule
+                now = int(time.time())
+                inspection = inspect_schedule(url, raw, now)
+                if inspection is None:
+                    inspection = inspect_programme_content(raw, content_type, now)
                 return {'url': url, 'httpStatus': 200, 'contentType': content_type,
                     'bodyBytes': len(raw), 'bodySha256': hashlib.sha256(raw).hexdigest(),
-                    **inspect_programme_content(raw, content_type, int(time.time())),
+                    **inspection,
                     'reason': 'Actual public response read. Exact identity and publication remain separate reviews.'}
-            parser = VisibleText()
-            parser.feed(raw.decode('utf-8', errors='replace'))
-            text = re.sub(r'\s+', ' ', ' '.join(parser.parts))[:65536]
+            page = Selector(raw)
+            parts = page.xpath('//text()[not(ancestor::script or ancestor::style or ancestor::noscript)]').getall()
+            text = re.sub(r'\s+', ' ', ' '.join(parts)).strip()[:65536]
             # Only exact catalogue route strings are retained as hashes. Scripts
             # are never executed or used as identity instructions/field evidence.
             decoded = html.unescape(raw.decode('utf-8', errors='replace')).replace('\\/', '/')
@@ -570,7 +558,7 @@ def check_candidate(url, request, *, opener=None, clock=time.monotonic):
                              if hashlib.sha256(route.encode()).hexdigest() in references})
             return {'url': url, **inspect_text(text, request, source_url=url),
                     'httpStatus': 200, 'bodyBytes': len(raw), 'bodySha256': hashlib.sha256(raw).hexdigest(),
-                    'visibleText': text, 'linkedRouteSha256': linked, 'bodyReferenceSha256': references,
+                    'visibleText': text, 'htmlParser': 'scrapling', 'linkedRouteSha256': linked, 'bodyReferenceSha256': references,
                     'programmeReferenceSha256': programme_links,
                     'reason': 'Partial technical text only. Exact feed, language and edition are not automatically approved.'}
     except urllib.error.HTTPError as exc:

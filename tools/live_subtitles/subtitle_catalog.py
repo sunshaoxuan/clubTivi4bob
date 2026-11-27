@@ -3,12 +3,12 @@ import hashlib
 from subtitle_io import pool as download_pool
 from subtitle_edition import chinese_script, pair_reference, transcript_fingerprint
 import html
-from html.parser import HTMLParser
+from scrapling.parser import Selector
 import json
 from pathlib import Path
 import re
 from urllib.parse import urlencode, urljoin, urlsplit, quote
-from urllib.request import Request, urlopen
+from urllib.request import HTTPRedirectHandler, Request, build_opener
 
 LANGUAGES = ('en', 'zh-CN', 'zh-TW', 'ja', 'fr', 'es', 'ko')
 ORIGIN = 'https://www.subtitlecat.com'
@@ -16,13 +16,26 @@ SUBTITLECAT = 'Subtitle Cat'
 PROVIDER_AUDIT = 'provider-search-audit.json'
 
 
-def read(url):
+class SubtitleRedirect(HTTPRedirectHandler):
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        if not provider_url(newurl):
+            raise ValueError('unreviewed_subtitle_redirect')
+        return super().redirect_request(req, fp, code, msg, headers, newurl)
+
+
+def provider_url(url):
     parts = urlsplit(url)
-    if parts.scheme != 'https' or parts.hostname != 'www.subtitlecat.com' or parts.username:
+    return (parts.scheme == 'https' and parts.hostname == 'www.subtitlecat.com'
+            and parts.username is None and parts.port in (None, 443))
+
+
+def read(url):
+    if not provider_url(url):
         raise ValueError('unreviewed_subtitle_host')
     url = quote(url, safe=':/?&=%[]')
-    with urlopen(Request(url, headers={'User-Agent': 'Mozilla/5.0 BobTV-Subtitle/1.0'}), timeout=15) as response:
-        if urlsplit(response.geturl()).hostname != 'www.subtitlecat.com':
+    with build_opener(SubtitleRedirect()).open(
+            Request(url, headers={'User-Agent': 'BobTV-Subtitle/1.0'}), timeout=15) as response:
+        if not provider_url(response.geturl()):
             raise ValueError('unreviewed_subtitle_redirect')
         raw = response.read(2 * 1024 * 1024 + 1)
     if len(raw) > 2 * 1024 * 1024:
@@ -30,22 +43,9 @@ def read(url):
     return raw
 
 
-class Links(HTMLParser):
-    def __init__(self):
-        super().__init__(); self.links = []; self.active = None
-
-    def handle_starttag(self, tag, attrs):
-        if tag == 'a':
-            attributes = dict(attrs)
-            self.active = dict(url=attributes.get('href', ''), id=attributes.get('id', ''), text='')
-
-    def handle_data(self, data):
-        if self.active is not None:
-            self.active['text'] += data
-
-    def handle_endtag(self, tag):
-        if tag == 'a' and self.active is not None:
-            self.links.append(self.active); self.active = None
+def page_links(node):
+    return [dict(url=link.attrib.get('href', ''), id=link.attrib.get('id', ''),
+                 text=link.get_all_text()) for link in node.css('a')]
 
 
 def norm(text):
@@ -117,19 +117,17 @@ def _discover_subtitlecat(title, year, root, *, max_candidates=3, requested_lang
     """Title/year selects candidates only. An acoustic lock is mandatory later."""
     root = Path(root); root.mkdir(parents=True, exist_ok=True)
     search = ORIGIN + '/index.php?' + urlencode({'search': f'{title} {year}'})
-    search_html = read(search).decode()
-    parser = Links(); parser.feed(search_html)
+    search_page = Selector(read(search))
     english_originals = set()
     failures = []
-    for row in re.findall(r'<tr[^>]*>(.*?)</tr>', search_html, re.S):
-        row_parser = Links(); row_parser.feed(row)
-        if '(translated from English)' in html.unescape(re.sub(r'<[^>]*>', '', row)):
-            english_originals.update(link['url'] for link in row_parser.links)
+    for row in search_page.css('tr'):
+        if '(translated from English)' in row.get_all_text():
+            english_originals.update(link['url'] for link in page_links(row))
     matched_pages = {}
     offered_pages = set()
-    for link in parser.links:
+    for link in page_links(search_page):
         page = urljoin(ORIGIN, link['url'])
-        if not (urlsplit(page).path.startswith('/subs/') and link['url'].endswith('.html')):
+        if not (provider_url(page) and urlsplit(page).path.startswith('/subs/') and link['url'].endswith('.html')):
             continue
         offered_pages.add(page)
         if matches_movie_title(link['text'], title, year):
@@ -139,15 +137,14 @@ def _discover_subtitlecat(title, year, root, *, max_candidates=3, requested_lang
         futures = [(page, candidate, pool.submit(read, page)) for page, candidate in matched_pages.items()]
         for page, candidate, future in futures:
             try:
-                detail = future.result().decode()
-                links = Links()
-                links.feed(detail)
+                detail = Selector(future.result())
             except (OSError, ValueError, UnicodeError) as error:
                 failures.append(_failure(error, url=page))
                 continue
             links = dict.fromkeys(
                 (link['id'].removeprefix('download_'), urljoin(ORIGIN, link['url']))
-                for link in links.links if link['id'].startswith('download_')
+                for link in page_links(detail) if link['id'].startswith('download_')
+                and provider_url(urljoin(ORIGIN, link['url']))
                 and link['text'].strip() == 'Download' and link['url'].endswith('.srt')
                 and link['id'].removeprefix('download_') in LANGUAGES)
             offered = {language for language, _ in links}
@@ -188,10 +185,8 @@ def _discover_subtitlecat(title, year, root, *, max_candidates=3, requested_lang
         if not english and translations and candidate['url'] in english_originals:
             # The existing English text is tied to this page. Rebuild its times
             # only when the translation files with the same cue count agree on the grid.
-            marker = '<h3>Original subtitles</h3>'
-            section = detail.split(marker, 1)[1].split('</div>', 1)[0] if marker in detail else ''
-            original = [html.unescape(re.sub(r'<[^>]+>', '', line)).strip()
-                        for line in re.findall(r'<p dir="auto">(.*?)</p>', section, re.S)]
+            original = [item.get_all_text().strip() for item in detail.xpath(
+                '//h3[normalize-space(.)="Original subtitles"]/following-sibling::p[@dir="auto"]')]
             grids = {tuple((cue['start'], cue['end']) for cue in cues): (lang, cues, facts)
                      for lang, cues, facts in translations if len(cues) == len(original)}
             if len(grids) == 1 and all(0 < len(text) <= 8192 for text in original):
@@ -209,7 +204,7 @@ def _discover_subtitlecat(title, year, root, *, max_candidates=3, requested_lang
 
     parsed = [value for value in resources.values() if value is not None]
     (root/'subtitlecat-search-audit.json').write_text(json.dumps(dict(
-        offeredRows=len(offered_pages), matchedEditions=len(matched_pages), detailsRead=len(pages),
+        htmlParser='scrapling', offeredRows=len(offered_pages), matchedEditions=len(matched_pages), detailsRead=len(pages),
         selectedRows=len(resources), parsedRows=len(parsed),
         downloadedRows=sum(not result[3] for result in parsed),
         cacheHits=sum(result[3] for result in parsed), unidentifiedLanguageRows=unidentified_language_rows,
@@ -277,7 +272,7 @@ def discover(title, year, root, *, max_candidates=3, requested_language='en', im
             counters = {key: audit[key] for key in (
                 'offeredRows', 'selectedRows', 'parsedRows', 'downloadedRows', 'cacheHits',
                 'matchedEditions', 'detailsRead', 'identityRows', 'unidentifiedLanguageRows',
-                'downloadedLanguages', 'allMatchingRowsAttempted', 'reason') if key in audit}
+                'downloadedLanguages', 'allMatchingRowsAttempted', 'htmlParser', 'reason') if key in audit}
             failures = audit.get('failures', [])
             reports.append(dict(report, **counters, acceptedEditions=len(rows),
                 acceptedVariantCounts=variant_counts(rows), outcome=_provider_outcome(rows, audit, failures),
@@ -301,6 +296,9 @@ def discover(title, year, root, *, max_candidates=3, requested_language='en', im
             errors.append(dict(provider=STREMIO, **_failure(error)))
     (root/PROVIDER_AUDIT).write_text(json.dumps(dict(requestedLanguage=requested_language,
         providerOutcomes=reports, acceptedVariantCounts=variant_counts(results)), ensure_ascii=False))
+    print(json.dumps(dict(event='subtitle_search', language=requested_language,
+        providers={item['provider']: item['outcome'] for item in reports},
+        variants=variant_counts(results))), flush=True)
     (root/'provider-errors.json').write_text(json.dumps(errors))
     (root/'discovery.json').write_text(json.dumps(results, ensure_ascii=False))
     if not results and errors:

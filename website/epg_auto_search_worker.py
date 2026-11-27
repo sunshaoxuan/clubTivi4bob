@@ -453,7 +453,7 @@ def run(conn, manifest, channels, paths, settings_factory, shared_database, *, m
         max_seconds=150, clock=time.time, monotonic=time.monotonic, transport=search.transport,
         reserve=search.reserve_shared_budget, checker=search.check_candidate, reload_targets=None, source_directory=None,
         route_directory_checker=None, route_directory_due=None, cross_index=None, domestic_index=None,
-        regional_rotation=False):
+        regional_rotation=False, official_directory=False):
     if type(max_channels) is not int or not 1 <= max_channels <= 5 or not 60 <= max_seconds <= 180:
         raise EpgError('auto_search_invalid_batch_limit')
     if (not isinstance(channels, list) or len(channels) > 10000
@@ -614,11 +614,19 @@ def run(conn, manifest, channels, paths, settings_factory, shared_database, *, m
             continue
         result.update(selectedChannelId=cid, selectedChannelName=channel['name'],
                       selectedCategoryPath=paths[cid], identityReviewed=bool(facts))
+        urls = []
+        if official_directory:
+            from epg_official_directory import schedule_urls
+            urls = [url for url in schedule_urls(request, now) if search.candidate_allowed(
+                url, request['domains'], request['stage'], request=request)]
         try:
-            settings = settings_factory()
-            search.validate_settings(settings)
-            request['body']['model'] = settings['model']
-            claim = claim_target(conn, row, now, admit=lambda: reserve(shared_database, now))
+            if urls:
+                claim = claim_target(conn, row, now)
+            else:
+                settings = settings_factory()
+                search.validate_settings(settings)
+                request['body']['model'] = settings['model']
+                claim = claim_target(conn, row, now, admit=lambda: reserve(shared_database, now))
         except search.SearchDeferred as exc:
             control(conn, now, exc.code, exc.retry_at, exc.requires_manual_action)
             result.update(state='waiting_shared_admission', safeError=exc.code, nextRetryAtUtc=exc.retry_at)
@@ -630,11 +638,16 @@ def run(conn, manifest, channels, paths, settings_factory, shared_database, *, m
         if claim is None:
             continue
         result['claimedChannels'] += 1
-        result['aiRequestsAttempted'] += 1
         evidence, error, retry, manual = None, None, None, False
         global_wait = False
         try:
-            evidence = search.decode(transport(settings, request['body']), request, int(clock()))
+            if urls:
+                from epg_official_directory import add_candidates
+                evidence = {'candidates': [], 'published': False}
+                add_candidates(request, evidence, urls, int(clock()))
+            else:
+                result['aiRequestsAttempted'] += 1
+                evidence = search.decode(transport(settings, request['body']), request, int(clock()))
             if cross_index is not None or domestic_index is not None:
                 from epg_cross_search import BRAVE_QUOTA_STATES, DEEPSEEK_TIMEOUT_SECONDS, augment
                 query = request['independentQuery']
@@ -705,6 +718,7 @@ def run(conn, manifest, channels, paths, settings_factory, shared_database, *, m
                     'nextRetryAtUtc': next_retry, 'auditRecorded': True,
                     'searchEvidenceAccepted': evidence is not None,
                     'crossSearch': evidence.get('crossSearch') if evidence else None,
+                    'officialScheduleDirectoryLeads': evidence.get('officialScheduleDirectoryLeads', 0) if evidence else 0,
                     'candidateCount': len(evidence['candidates']) if evidence else 0,
                     'technicalCheckCount': len(evidence.get('technicalChecks', [])) if evidence else 0}
         except EpgError:
@@ -758,12 +772,10 @@ def main():
                         return target_hash(current, current_paths[current['id']]) if current else None
                     return epg_route_directory.check_selected(conn, row, channel, path, now,
                         reload_selected=current_identity)
-            from epg_cross_search import metered_deepseek_index, metered_index
             result = run(conn, manifest, channels, paths, config, shared_database,
                 max_channels=args.max_channels, reload_targets=lambda: load_targets(args.data_dir), source_directory=directory,
                 route_directory_checker=directory_checker, route_directory_due=directory_due,
-                cross_index=metered_index(conn, time.time),
-                domestic_index=metered_deepseek_index(config, shared_database, time.time), regional_rotation=True)
+                official_directory=True, regional_rotation=True)
             result['executionHealth'] = execution_receipt(conn, int(time.time()), result=result)
             print(json.dumps(result, ensure_ascii=False))
         except (OSError, ValueError, KeyError, TypeError, sqlite3.Error) as exc:
